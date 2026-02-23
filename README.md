@@ -2,35 +2,13 @@
 
 A material optimization and inventory management system for USI Manufacturing, designed to track rubber roll inventory and optimize material cuts to minimize waste.
 
-## 🚀 Overview
+## Overview
 
 RubberFit Pro is a desktop application built with Electron and React that helps USI Manufacturing:
 - Track rubber roll inventory with real-time updates
 - Optimize material cuts using intelligent algorithms to minimize waste
 - Monitor waste trends and inventory metrics
 - Generate reports and export data
-
-**Annual Savings Potential:** $138,000 - $315,000
-
-## 📊 Key Features
-
-### Phase 1 - Complete ✅
-
-#### Must-Have Features
-- **Inventory Management**: Full CRUD operations for rubber rolls with search and filtering
-- **Cut Optimization**: Algorithm recommends top 3 rolls with lowest waste
-- **Visual Cut Diagrams**: SVG representations showing where cuts will be made
-- **Automatic Updates**: Inventory updates immediately when cuts are confirmed
-- **Dashboard Metrics**: Real-time inventory value, waste trends, and low stock alerts
-- **Cut History**: Complete audit trail with timestamps and user tracking
-
-#### Should-Have Features
-- **CSV Import/Export**: Bulk inventory management
-- **Batch Cuts**: Process multiple cut requests simultaneously
-- **Manual Roll Selection**: Override optimization recommendations
-- **Configurable Thresholds**: Set custom low stock alerts per material type
-- **Waste Comparison**: Period-over-period waste analysis
-- **Reports**: Generate PDF/CSV reports for operations and finance
 
 ## 🛠 Tech Stack
 
@@ -259,33 +237,9 @@ npm run test:e2e
 
 For detailed API documentation, see [docs/API.md](docs/API.md)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 🐛 Known Issues
-
-- See [GitHub Issues](https://github.com/your-org/rubberfit-pro/issues) for current bugs and feature requests
-
 ## 📄 License
 
 This project is proprietary software for USI Manufacturing.
-
-## 👥 Team
-
-- **Client**: USI Manufacturing
-- **Development**: Arc & Anchor LLC
-- **Contact**: Daniel Martinez Julio
-
-## 🙏 Acknowledgments
-
-- Built with Claude AI assistance
-- Design system based on shadcn/ui
-- Icons from Lucide React
 
 ---
 
