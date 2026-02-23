@@ -309,7 +309,3 @@ npm run type-check         # Run TypeScript checks
 npx supabase db push       # Apply migrations
 npx supabase db seed       # Seed test data
 ```
-
-## Support
-
-For issues or questions, please contact the development team or create an issue in the GitHub repository.
