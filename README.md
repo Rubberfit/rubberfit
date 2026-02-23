@@ -233,10 +233,6 @@ npm run test:integration
 npm run test:e2e
 ```
 
-## 📝 API Documentation
-
-For detailed API documentation, see [docs/API.md](docs/API.md)
-
 ## 📄 License
 
 This project is proprietary software for USI Manufacturing.
