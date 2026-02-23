@@ -1,0 +1,51 @@
+language: en-US
+reviews:
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  tools:
+    biome:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "app/src/services/**"
+      instructions: |
+        Service files are the only Supabase interface. Components must never call Supabase directly.
+        Check that all inserts include user_id for RLS compliance.
+        Flag any raw SQL or unparameterized queries as a security issue.
+    - path: "app/src/contexts/**"
+      instructions: |
+        Auth logic lives here. signInWithGoogle handles both web redirect and Electron popup flows.
+        Verify no auth logic leaks into components.
+        Flag any hardcoded tokens, secrets, or credentials.
+    - path: "app/electron/**"
+      instructions: |
+        Electron main process code. Check for:
+        - Context isolation must be enabled
+        - No nodeIntegration in renderers
+        - Proper IPC channel validation via ALLOWED_CHANNELS
+        - No shell.openExternal with unvalidated URLs
+        - No global variable usage for sensitive state (tokens, verifiers)
+    - path: "app/src/stores/**"
+      instructions: "Zustand stores. They call services, never Supabase directly. Check that duplicate type definitions are imported from services, not redefined."
+    - path: "app/src/components/**"
+      instructions: "React components should never import supabase directly. All data access goes through stores or contexts."
+    - path: "supabase/migrations/**"
+      instructions: |
+        Database migrations. Verify:
+        - RLS policies use auth.uid() = user_id
+        - No USING (true) policies allowed
+        - All new tables have RLS enabled
+        - All new data tables include user_id column
+    - path: "**/.env*"
+      instructions: "Environment files should never be committed. Flag this immediately."
+chat:
+  auto_reply: true

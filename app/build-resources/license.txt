@@ -1,0 +1,29 @@
+RubberFit Pro License Agreement
+
+Copyright (c) 2024 USI Manufacturing
+
+This software is proprietary to USI Manufacturing and is provided under license.
+
+END USER LICENSE AGREEMENT
+
+IMPORTANT: READ THIS LICENSE CAREFULLY BEFORE USING THIS SOFTWARE.
+
+1. LICENSE GRANT
+USI Manufacturing grants you a non-exclusive, non-transferable license to use RubberFit Pro software.
+
+2. RESTRICTIONS
+You may not:
+- Distribute, sublicense, or transfer the software
+- Reverse engineer, decompile, or disassemble the software
+- Remove any proprietary notices or labels
+
+3. DISCLAIMER OF WARRANTY
+THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+
+4. LIMITATION OF LIABILITY
+IN NO EVENT SHALL USI MANUFACTURING BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES.
+
+5. TERMINATION
+This license is effective until terminated. It will terminate immediately without notice if you fail to comply with any provision of this license.
+
+By installing or using this software, you agree to be bound by the terms of this license agreement.

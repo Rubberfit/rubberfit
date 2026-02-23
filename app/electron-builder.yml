@@ -1,0 +1,118 @@
+appId: com.usimanufacturing.rubberfitpro
+productName: RubberFit Pro
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: dist
+  buildResources: build-resources
+
+files:
+  - electron-dist/**/*
+  - .next/**/*
+  - public/**/*
+  - package.json
+  - node_modules/**/*
+  - "!**/*.map"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/*.d.ts"
+  - "!**/node_modules/.bin"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!.editorconfig"
+  - "!**/._*"
+  - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+  - "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}"
+  - "!**/{appveyor.yml,.travis.yml,circle.yml}"
+  - "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/sharp/**/*"
+  - "**/node_modules/@img/**/*"
+
+compression: maximum
+
+mac:
+  category: public.app-category.productivity
+  icon: build-resources/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.plist
+  notarize:
+    teamId: ${APPLE_TEAM_ID}
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+
+dmg:
+  iconSize: 100
+  contents:
+    - x: 380
+      y: 280
+      type: link
+      path: /Applications
+    - x: 110
+      y: 280
+      type: file
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build-resources/icon.ico
+  legalTrademarks: Copyright © 2024 USI Manufacturing
+  publisherName: USI Manufacturing
+  certificateFile: ${WIN_CERT_FILE}
+  certificatePassword: ${WIN_CERT_PASSWORD}
+  requestedExecutionLevel: asInvoker
+  signDlls: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: true
+  installerIcon: build-resources/icon.ico
+  uninstallerIcon: build-resources/icon.ico
+  installerHeaderIcon: build-resources/icon.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: RubberFit Pro
+  license: build-resources/license.txt
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+    - target: rpm
+      arch: [x64]
+    - target: snap
+      arch: [x64]
+  maintainer: USI Manufacturing
+  vendor: USI Manufacturing
+  synopsis: Material optimization and inventory management system
+  description: RubberFit Pro is a material optimization and inventory management system for USI Manufacturing
+  category: Office
+  icon: build-resources/icons
+  desktop:
+    Name: RubberFit Pro
+    Comment: Material optimization and inventory management
+    Categories: Office;Utility;
+
+appImage:
+  systemIntegration: doNotAsk
+  license: build-resources/license.txt
+
+publish:
+  - provider: github
+    owner: usimanufacturing
+    repo: rubberfitpro
+    releaseType: draft
+    token: ${GH_TOKEN}

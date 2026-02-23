@@ -1,0 +1,22 @@
+# Default owner for everything
+* @damartinezjulio
+
+# Core architecture — requires lead review
+app/src/contexts/          @damartinezjulio
+app/src/services/          @damartinezjulio
+app/src/lib/supabase.ts    @damartinezjulio
+app/src/lib/getCurrentUserId.ts @damartinezjulio
+
+# Electron main process — security sensitive
+app/electron/              @damartinezjulio
+
+# Database migrations — must be reviewed by lead
+supabase/migrations/       @damartinezjulio
+
+# CI/CD and config
+.github/                   @damartinezjulio
+.coderabbit.yaml           @damartinezjulio
+
+# Auth — security sensitive
+app/src/app/(main)/auth/   @damartinezjulio
+app/src/types/electron.d.ts @damartinezjulio

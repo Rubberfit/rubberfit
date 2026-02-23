@@ -1,0 +1,85 @@
+# Supabase Configuration for RubberFit Pro
+# This file contains the local development configuration for Supabase
+# No secrets or production URLs are included
+
+# Project identifier for local development
+project_id = "rubberfit-pro"
+
+[api]
+enabled = true
+# Port to use for the local API server
+port = 54321
+# Database schemas to expose via the API
+schemas = ["public", "graphql_public"]
+# Additional schemas for search path
+extra_search_path = ["public", "extensions"]
+# Maximum rows returned from API calls (security measure)
+max_rows = 1000
+
+[db]
+# Local database configuration
+port = 54322
+# Shadow database port for migrations
+shadow_port = 54320
+# PostgreSQL major version (match your production environment)
+major_version = 15
+
+[db.pooler]
+enabled = false
+port = 54329
+# Connection pooling mode: transaction or session
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+# HTTP request header size limit
+max_header_length = 4096
+
+[storage]
+enabled = true
+# File upload size limit
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+# Base URL for your application (development)
+site_url = "http://localhost:3000"
+# Additional allowed redirect URLs
+additional_redirect_urls = ["https://localhost:3000"]
+# JWT expiry time in seconds (1 hour)
+jwt_expiry = 3600
+# Enable refresh token rotation for security
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+[auth.email]
+# Allow new user signups
+enable_signup = true
+# Require email confirmation for changes
+double_confirm_changes = true
+# Require email confirmation before signin
+enable_confirmations = false
+
+[auth.sms]
+# SMS authentication settings (disabled for this app)
+enable_signup = false
+enable_confirmations = false
+
+[studio]
+enabled = true
+# Local API server URL for Supabase Studio
+api_url = "http://localhost"
+
+[inbucket]
+# Email testing server for local development
+enabled = true
+port = 54326
+# Uncomment these for additional email testing ports
+# smtp_port = 54327
+# pop3_port = 54328
+
+# Edge Functions configuration
+[functions]
+# No edge functions configured for this project yet

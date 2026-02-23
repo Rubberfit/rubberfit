@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Testing
+coverage/
+
+# Production builds
+build/
+dist/
+electron-dist/
+out/
+.next/
+
+# Environment files - CRITICAL TO EXCLUDE
+.env
+.env.local
+.env.production
+.env.development
+.env*.local
+*.env
+
+# Supabase local development
+supabase/.temp/
+supabase/.branches/
+supabase/.env
+supabase/.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Security files
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Shell scripts that might contain secrets
+*.sh
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Electron
+electron-dist/
+dist-electron/
+release/
+
+# Backup files
+*.backup
+*.bak
