@@ -76,6 +76,22 @@ export const csvService = {
   // Upload rolls to Supabase
   async uploadRolls(rolls: Partial<Roll>[]): Promise<{ success: boolean; error?: string; count?: number }> {
     try {
+      // Auto-create material_types for any new materials in the CSV
+      const uniqueMaterials = [...new Set(rolls.map(r => r.material_type).filter(Boolean))];
+      if (uniqueMaterials.length > 0) {
+        const { data: existing } = await supabase
+          .from('material_types')
+          .select('name');
+        const existingNames = new Set(existing?.map(m => m.name) || []);
+        const newMaterials = uniqueMaterials.filter(name => !existingNames.has(name!));
+
+        if (newMaterials.length > 0) {
+          await supabase
+            .from('material_types')
+            .insert(newMaterials.map(name => ({ name })));
+        }
+      }
+
       const { data, error } = await supabase
         .from('rolls')
         .insert(rolls)
