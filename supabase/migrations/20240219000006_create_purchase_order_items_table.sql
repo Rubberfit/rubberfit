@@ -1,4 +1,4 @@
-CREATE purchase_order_items table for PO line items
+-- CREATE purchase_order_items table for PO line items
 CREATE TABLE IF NOT EXISTS purchase_order_items (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
   CONSTRAINT consistent_line_total CHECK (ABS(line_total - (quantity_sqft * unit_cost)) < 0.01)
 );
 
-CREATE indexes for performance
+-- CREATE indexes for performance
 CREATE INDEX IF NOT EXISTS idx_po_items_purchase_order ON purchase_order_items(purchase_order_id);
 CREATE INDEX IF NOT EXISTS idx_po_items_material_type ON purchase_order_items(material_type_id);
 CREATE INDEX IF NOT EXISTS idx_po_items_line_number ON purchase_order_items(purchase_order_id, line_number);
@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_po_items_receiving
   ON purchase_order_items(purchase_order_id, quantity_received, quantity_sqft)
   WHERE quantity_received < quantity_sqft;
 
-ADD table and column comments
+-- ADD table and column comments
 COMMENT ON TABLE purchase_order_items IS 'Line items for purchase orders with material specifications';
 COMMENT ON COLUMN purchase_order_items.id IS 'Unique identifier for the PO line item';
 COMMENT ON COLUMN purchase_order_items.purchase_order_id IS 'Foreign key to purchase_orders table';
@@ -54,7 +54,7 @@ COMMENT ON COLUMN purchase_order_items.received_date IS 'Date when this line ite
 COMMENT ON COLUMN purchase_order_items.created_at IS 'Timestamp when record was created';
 COMMENT ON COLUMN purchase_order_items.updated_at IS 'Timestamp when record was last updated';
 
-CREATE function to calculate line total automatically
+-- CREATE function to calculate line total automatically
 CREATE OR REPLACE FUNCTION calculate_po_item_line_total()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -65,13 +65,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE trigger to automatically calculate line total
+-- CREATE trigger to automatically calculate line total
 CREATE TRIGGER trigger_calculate_po_item_line_total
   BEFORE INSERT OR UPDATE OF quantity_sqft, unit_cost ON purchase_order_items
   FOR EACH ROW
   EXECUTE FUNCTION calculate_po_item_line_total();
 
-CREATE function to update PO totals when line items change
+-- CREATE function to update PO totals when line items change
 CREATE OR REPLACE FUNCTION update_purchase_order_totals()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -106,7 +106,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE trigger to automatically update PO totals
+-- CREATE trigger to automatically update PO totals
 CREATE TRIGGER trigger_update_purchase_order_totals
   AFTER INSERT OR UPDATE OR DELETE ON purchase_order_items
   FOR EACH ROW

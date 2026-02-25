@@ -1,4 +1,4 @@
-CREATE reorder_rules table for automated reorder point management
+-- CREATE reorder_rules table for automated reorder point management
 CREATE TABLE IF NOT EXISTS reorder_rules (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   material_type_id UUID NOT NULL REFERENCES material_types(id) ON DELETE CASCADE,
@@ -20,14 +20,14 @@ CREATE TABLE IF NOT EXISTS reorder_rules (
   CONSTRAINT valid_stock_levels CHECK (max_stock_level IS NULL OR max_stock_level > reorder_point)
 );
 
-CREATE indexes for performance
+-- CREATE indexes for performance
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_material_type ON reorder_rules(material_type_id);
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_supplier ON reorder_rules(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_active ON reorder_rules(active);
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_auto_reorder ON reorder_rules(auto_reorder);
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_last_triggered ON reorder_rules(last_triggered_at);
 
-ADD table and column comments
+-- ADD table and column comments
 COMMENT ON TABLE reorder_rules IS 'Automated reorder point rules for inventory management';
 COMMENT ON COLUMN reorder_rules.id IS 'Unique identifier for the reorder rule';
 COMMENT ON COLUMN reorder_rules.material_type_id IS 'Foreign key to material_types table (one rule per material)';
