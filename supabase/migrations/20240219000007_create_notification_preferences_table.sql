@@ -1,4 +1,4 @@
-CREATE notification_preferences table for user notification settings
+-- CREATE notification_preferences table for user notification settings
 CREATE TABLE IF NOT EXISTS notification_preferences (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_identifier VARCHAR(255) NOT NULL, -- Could be email, user ID, or username
@@ -47,13 +47,13 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
   CONSTRAINT email_requires_address CHECK (NOT email_enabled OR email IS NOT NULL)
 );
 
-CREATE indexes for performance
+-- CREATE indexes for performance
 CREATE INDEX IF NOT EXISTS idx_notification_prefs_user ON notification_preferences(user_identifier);
 CREATE INDEX IF NOT EXISTS idx_notification_prefs_active ON notification_preferences(active);
 CREATE INDEX IF NOT EXISTS idx_notification_prefs_email ON notification_preferences(email) WHERE email_enabled = true;
 CREATE INDEX IF NOT EXISTS idx_notification_prefs_sms ON notification_preferences(phone) WHERE sms_enabled = true;
 
-ADD table and column comments
+-- ADD table and column comments
 COMMENT ON TABLE notification_preferences IS 'User notification preferences for various alert types';
 COMMENT ON COLUMN notification_preferences.id IS 'Unique identifier for the preference record';
 COMMENT ON COLUMN notification_preferences.user_identifier IS 'Unique user identifier (email, username, or user ID)';

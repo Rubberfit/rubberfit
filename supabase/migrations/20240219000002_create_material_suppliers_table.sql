@@ -1,4 +1,4 @@
-CREATE material_suppliers junction table for material-supplier pricing relationships
+-- CREATE material_suppliers junction table for material-supplier pricing relationships
 CREATE TABLE IF NOT EXISTS material_suppliers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   material_type_id UUID NOT NULL REFERENCES material_types(id) ON DELETE CASCADE,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS material_suppliers (
   CONSTRAINT valid_date_range CHECK (expiration_date IS NULL OR expiration_date > effective_date)
 );
 
-CREATE indexes for performance
+-- CREATE indexes for performance
 CREATE INDEX IF NOT EXISTS idx_material_suppliers_material_type ON material_suppliers(material_type_id);
 CREATE INDEX IF NOT EXISTS idx_material_suppliers_supplier ON material_suppliers(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_material_suppliers_active ON material_suppliers(active);
@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_material_suppliers_pricing
   ON material_suppliers(material_type_id, active, cost_per_sqft)
   WHERE active = true;
 
-ADD table and column comments
+-- ADD table and column comments
 COMMENT ON TABLE material_suppliers IS 'Junction table linking materials to suppliers with pricing and terms';
 COMMENT ON COLUMN material_suppliers.id IS 'Unique identifier for the material-supplier relationship';
 COMMENT ON COLUMN material_suppliers.material_type_id IS 'Foreign key to material_types table';

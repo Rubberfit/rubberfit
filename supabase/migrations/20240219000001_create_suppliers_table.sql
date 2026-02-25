@@ -1,4 +1,4 @@
-CREATE suppliers table for vendor management
+-- CREATE suppliers table for vendor management
 CREATE TABLE IF NOT EXISTS suppliers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name VARCHAR(200) NOT NULL,
@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
   CONSTRAINT valid_website CHECK (website IS NULL OR website ~* '^https?://')
 );
 
-CREATE indexes for performance
+-- CREATE indexes for performance
 CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
 CREATE INDEX IF NOT EXISTS idx_suppliers_active ON suppliers(active);
 CREATE INDEX IF NOT EXISTS idx_suppliers_preferred ON suppliers(preferred);
 CREATE INDEX IF NOT EXISTS idx_suppliers_rating ON suppliers(rating DESC);
 
-ADD table and column comments
+-- ADD table and column comments
 COMMENT ON TABLE suppliers IS 'Vendor/supplier master data with contact info and performance metrics';
 COMMENT ON COLUMN suppliers.id IS 'Unique identifier for the supplier';
 COMMENT ON COLUMN suppliers.name IS 'Supplier company name (unique)';
