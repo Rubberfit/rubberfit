@@ -26,12 +26,12 @@ Closes #(issue number)
 
 
 ## Checklist
-- [ ] My code follows the project's coding standards
-- [ ] I have reviewed my own code
-- [ ] I have added/updated tests
-- [ ] All existing tests pass
-- [ ] I have updated the documentation
-- [ ] No new warnings or errors introduced
+- [ ] `npm run check` passes (lint + format)
+- [ ] `npx tsc --noEmit` passes (type check)
+- [ ] No new `any` types introduced
+- [ ] Tested manually in browser
+- [ ] Tested in Electron (if applicable)
+- [ ] Screenshots attached (if UI change)
 
 ## Additional Notes
 Any extra context, concerns, or things reviewers should know.
