@@ -64,12 +64,18 @@ function CutDiagram({
     <div className="w-full max-w-md">
       <svg width="100%" height="200" viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="border rounded">
         <rect x={rollX} y={rollY} width={rollWidth} height={rollHeight}
-              fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" rx="4" />
-        <rect x={rollX} y={rollY} width={cutWidthPx} height={cutLengthPx}
-              fill="#22c55e" fillOpacity="0.7" stroke="#16a34a" strokeWidth="1" />
+          fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" rx="4" />
+        <rect x={rollX}
+          y={rollY}
+          width={cutWidthPx}
+          height={cutLengthPx}
+          fill="#22c55e"
+          fillOpacity="0.7"
+          stroke="#16a34a"
+          strokeWidth="1" />
         {wasteWidthPx > 0 && (
           <rect x={rollX + cutWidthPx} y={rollY} width={wasteWidthPx} height={cutLengthPx}
-                fill="#ef4444" fillOpacity="0.5" stroke="#dc2626" strokeWidth="1" strokeDasharray="5,5" />
+            fill="#ef4444" fillOpacity="0.5" stroke="#dc2626" strokeWidth="1" strokeDasharray="5,5" />
         )}
         <text x={svgWidth / 2} y={rollY - 10} textAnchor="middle" className="text-xs font-medium fill-current">
           Roll: {roll.width}" × {roll.remaining_length}" ({roll.location})
