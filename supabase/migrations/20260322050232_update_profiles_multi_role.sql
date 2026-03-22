@@ -3,8 +3,7 @@
 -- Converts single role column to roles TEXT[] array
 -- ─────────────────────────────────────────────────────────────────────────────
 
-
---  1. Drop old RLS policies first (they reference the role column) ───────────
+--  1. Drop old RLS policies first (they reference the role column) 
 DROP POLICY IF EXISTS profiles_select_own       ON profiles;
 DROP POLICY IF EXISTS profiles_update_own       ON profiles;
 DROP POLICY IF EXISTS profiles_admin_select_all ON profiles;
@@ -21,17 +20,17 @@ DROP POLICY IF EXISTS "profiles: admins read all"             ON profiles;
 DROP POLICY IF EXISTS "profiles: admins update all"           ON profiles;
 
 
--- 2. Now safe to drop the old single-role constraint and column ─────────────
+-- 2. Now safe to drop the old single-role constraint and column 
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS valid_role;
 ALTER TABLE profiles DROP COLUMN IF EXISTS role;
 
 
--- 3. Add new roles array column ────────────────────────────────────────────
+-- 3. Add new roles array column 
 ALTER TABLE profiles
   ADD COLUMN roles TEXT[] NOT NULL DEFAULT ARRAY['member']::TEXT[];
 
 
--- 4. Constraint — every value must be a valid role ─────────────────────────
+-- 4. Constraint — every value must be a valid role 
 ALTER TABLE profiles
   ADD CONSTRAINT valid_roles CHECK (
     roles <@ ARRAY['admin','cutter','manager','member','supervisor','viewer']::TEXT[]
@@ -39,11 +38,11 @@ ALTER TABLE profiles
   );
 
 
--- 5. GIN index for fast array lookups ──────────────────────────────────────
+-- 5. GIN index for fast array lookups 
 CREATE INDEX IF NOT EXISTS idx_profiles_roles ON profiles USING GIN (roles);
 
 
--- 6. Helper function — ANY role match ──────────────────────────────────────
+-- 6. Helper function — ANY role match 
 CREATE OR REPLACE FUNCTION has_any_role(
   p_user_id UUID,
   p_roles    TEXT[]
@@ -58,7 +57,7 @@ RETURNS BOOLEAN AS $$
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 
--- 7. Recreate RLS policies using the new roles array column ─────────────────
+-- 7. Recreate RLS policies using the new roles array column 
 CREATE POLICY profiles_select_own
   ON profiles FOR SELECT
   USING (auth.uid() = id);
@@ -80,7 +79,7 @@ CREATE POLICY profiles_admin_update_all
   USING (has_any_role(auth.uid(), ARRAY['admin']));
 
 
--- 8. Update handle_new_user — new signups start as ['member'] ──────────────
+-- 8. Update handle_new_user — new signups start as ['member'] 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -96,13 +95,13 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
--- 9. Backfill existing rows ─────────────────────────────────────────────────
+-- 9. Backfill existing rows 
 UPDATE profiles
 SET roles = ARRAY['member']::TEXT[]
 WHERE roles IS NULL OR array_length(roles, 1) IS NULL;
 
 
--- 10. Column comments ───────────────────────────────────────────────────────
+-- 10. Column comments 
 COMMENT ON COLUMN profiles.roles IS
   'Array of roles: admin, cutter, manager, member, supervisor, viewer. Users can hold multiple roles simultaneously.';
 

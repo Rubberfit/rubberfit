@@ -51,6 +51,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items";
+import { useRole } from "@/services/useRole";
 
 interface NavMainProps {
   readonly items: readonly NavGroup[];

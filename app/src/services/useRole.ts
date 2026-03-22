@@ -13,22 +13,34 @@ export type AppRole =
 // Permission → roles that can perform it 
 // ANY match: user needs at least one of the listed roles.
 export const PERMISSIONS = {
-  // Cut Planner page access
-  accessCutPlanner:   ["admin", "cutter", "manager", "supervisor"] as AppRole[],
-  // Create a cut / confirm cut dialog
-  createCut:          ["admin", "cutter"]                          as AppRole[],
-  // Access batch cut mode
-  accessBatchCut:     ["admin", "cutter"]                          as AppRole[],
-  // Approve a cut before execution
-  approveCut:         ["admin", "supervisor"]                      as AppRole[],
-  // View inventory page
-  viewInventory:      ["admin", "cutter", "manager", "supervisor", "member", "viewer"] as AppRole[],
-  // Add, edit, delete rolls
-  manageRolls:        ["admin", "manager"]                         as AppRole[],
-  // Manage users and their roles
-  manageUsers:        ["admin"]                                    as AppRole[],
-  // View reports & analytics
-  viewReports:        ["admin", "manager", "supervisor"]           as AppRole[],
+
+  // Inventory 
+  viewInventory:          ["admin", "manager", "supervisor", "cutter", "member", "viewer"] as AppRole[],
+  manageRolls:            ["admin", "manager"]                                             as AppRole[],
+
+  // Cut Planner 
+  accessCutPlanner:       ["admin", "manager", "supervisor", "cutter"]                    as AppRole[],
+  createCut:              ["admin", "cutter"]                                              as AppRole[],
+  accessBatchCut:         ["admin", "cutter"]                                              as AppRole[],
+  approveCut:             ["admin", "supervisor"]                                          as AppRole[],
+  viewCutHistory:         ["admin", "manager", "supervisor", "cutter"]                    as AppRole[],
+
+  // Management 
+  accessManagement:       ["admin", "manager"]                                             as AppRole[],
+  manageMaterialTypes:    ["admin", "manager"]                                             as AppRole[],
+  manageSuppliers:        ["admin", "manager"]                                             as AppRole[],
+  managePricing:          ["admin"]                                                        as AppRole[],
+  manageUsers:            ["admin"]                                                        as AppRole[],
+
+  // Analytics 
+  accessAnalytics:        ["admin", "manager", "supervisor"]                               as AppRole[],
+  viewCurrentAnalysis:    ["admin", "manager", "supervisor"]                               as AppRole[],
+  viewPeriodConsumption:  ["admin", "manager"]                                             as AppRole[],
+  viewMaterialUsage:      ["admin", "manager", "supervisor"]                               as AppRole[],
+  viewCostReports:        ["admin", "manager"]                                             as AppRole[],
+  viewTrends:             ["admin", "manager"]                                             as AppRole[],
+  viewReports:            ["admin", "manager", "supervisor"]                               as AppRole[],
+
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
