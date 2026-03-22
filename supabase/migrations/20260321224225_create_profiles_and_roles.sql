@@ -3,12 +3,12 @@ CREATE TABLE IF NOT EXISTS profiles (
   id          UUID PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   full_name   VARCHAR(200),
   email       VARCHAR(255),
-  role        VARCHAR(20) NOT NULL DEFAULT 'viewer',
+  role        VARCHAR(20) NOT NULL DEFAULT 'member',
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
 
   -- Constraints
-  CONSTRAINT valid_role  CHECK (role IN ('admin', 'cutter', 'viewer')),
+  CONSTRAINT valid_role  CHECK (role IN ('admin', 'member', 'cutter', 'viewer')),
   CONSTRAINT valid_email CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
 );
 
@@ -59,7 +59,7 @@ BEGIN
     NEW.id,
     NEW.raw_user_meta_data ->> 'full_name',
     NEW.email,
-    'viewer'
+    'member'
   );
   RETURN NEW;
 END;
@@ -81,7 +81,7 @@ SELECT
   u.id,
   u.raw_user_meta_data ->> 'full_name',
   u.email,
-  'viewer'
+  'member'
 FROM auth.users u
 WHERE NOT EXISTS (
   SELECT 1 FROM profiles p WHERE p.id = u.id
@@ -92,7 +92,7 @@ COMMENT ON TABLE profiles IS 'User profile and role data linked to auth.users';
 COMMENT ON COLUMN profiles.id IS 'References auth.users(id) — one profile per user';
 COMMENT ON COLUMN profiles.full_name IS 'Display name of the user';
 COMMENT ON COLUMN profiles.email IS 'User email address';
-COMMENT ON COLUMN profiles.role IS 'Access role: admin, cutter, or viewer';
+COMMENT ON COLUMN profiles.role IS 'Access role: admin, cutter, viewer, or member';
 COMMENT ON COLUMN profiles.created_at IS 'Timestamp when record was created';
 COMMENT ON COLUMN profiles.updated_at IS 'Timestamp when record was last updated';
 
