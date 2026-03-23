@@ -30,9 +30,14 @@ import type { Roll } from "@/lib/supabase";
 interface InventoryTableProps {
   onRefresh?: number;
   searchQuery?: string;
+  canManageRolls?: boolean; // ← add this
 }
 
-export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTableProps) {
+export function InventoryTable({
+  onRefresh,
+  searchQuery = "",
+  canManageRolls = false, // ← default to false (deny by default)
+}: InventoryTableProps) {
   const [rolls, setRolls] = useState<Roll[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRoll, setEditingRoll] = useState<Roll | null>(null);
@@ -43,18 +48,14 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
   const fetchRolls = async (query: string = "") => {
     try {
       setLoading(true);
-
       const data = query
         ? await rollService.searchRolls(query)
         : await rollService.getAllRolls();
-
       setRolls(data || []);
     } catch (error: unknown) {
       console.error('Error fetching rolls:', error);
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to load inventory", {
-        description: message
-      });
+      toast.error("Failed to load inventory", { description: message });
     } finally {
       setLoading(false);
     }
@@ -65,19 +66,14 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
   }, [onRefresh, searchQuery]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this roll?")) {
-      return;
-    }
-
+    if (!confirm("Are you sure you want to delete this roll?")) return;
     try {
       await rollService.deleteRoll(id);
       toast.success("Roll deleted successfully");
       fetchRolls(searchQuery);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to delete roll", {
-        description: message
-      });
+      toast.error("Failed to delete roll", { description: message });
     }
   };
 
@@ -88,9 +84,7 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
       fetchRolls(searchQuery);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to update roll", {
-        description: message
-      });
+      toast.error("Failed to update roll", { description: message });
     }
   };
 
@@ -145,7 +139,10 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
               <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date Received</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {/* Only show Actions column header if user can manage */}
+              {canManageRolls && (
+                <TableHead className="text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -169,66 +166,76 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {roll.date_received ? new Date(roll.date_received).toLocaleDateString() : '-'}
+                  {roll.date_received
+                    ? new Date(roll.date_received).toLocaleDateString()
+                    : '-'}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    {roll.status === 'active' && (
+
+                {/* Actions cell — only renders for admin and manager */}
+                {canManageRolls && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {roll.status === 'active' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDepleteDialog(roll.id)}
+                        >
+                          Mark Depleted
+                        </Button>
+                      )}
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDepleteDialog(roll.id)}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(roll)}
                       >
-                        Mark Depleted
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(roll)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(roll.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(roll.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      {/* Edit Dialog */}
-      <RollFormDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        roll={editingRoll}
-        onSuccess={handleEditSuccess}
-      />
+      {/* Edit Dialog — only mounts if user can manage */}
+      {canManageRolls && (
+        <RollFormDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          roll={editingRoll}
+          onSuccess={handleEditSuccess}
+        />
+      )}
 
-      {/* Deplete Confirmation Dialog */}
-      <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Roll as Depleted</AlertDialogTitle>
-            <AlertDialogDescription>
-              Mark this roll as depleted? This indicates the roll is fully used.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeplete}>
-              Mark as Depleted
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Deplete Confirmation Dialog — only mounts if user can manage */}
+      {canManageRolls && (
+        <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mark Roll as Depleted</AlertDialogTitle>
+              <AlertDialogDescription>
+                Mark this roll as depleted? This indicates the roll is fully used.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeplete}>
+                Mark as Depleted
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }
