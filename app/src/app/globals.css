@@ -179,9 +179,11 @@ These serve as the fallback; there is no separate default.css file. */
   --color-border-success: #22c55e;
   --color-border-danger: #ef4444;
 
-  --color-text-primary: #e5e7eb;
-  --color-text-secondary: #9ca3af;
-  --color-text-tertiary: #6b7280;
+  --color-text-primary: #ececf0cc;
+  --color-text-secondary: #fafafa;
+  --color-text-tertiary: #fafafa;
+  --color-background: #3b3b3b;
+  --color-background-secondary: #222225;
 }
 
 @layer base {
