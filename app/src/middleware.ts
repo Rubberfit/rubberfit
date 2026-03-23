@@ -39,7 +39,6 @@ export async function middleware(request: NextRequest) {
  
   const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
-    console.log("TEST");
   // Exit immediately for auth routes — prevents infinite redirect loop
   if (
     pathname.startsWith("/login") ||
@@ -96,7 +95,7 @@ export async function middleware(request: NextRequest) {
 
     if (!hasAccess) {
       // Redirect to unauthorized page
-      return NextResponse.redirect(new URL("/dashboard/unauthorized", request.url));
+      return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
   }
 
