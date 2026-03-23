@@ -17,22 +17,22 @@ export interface PresetDimension {
 }
 
 export const PRESET_DIMENSIONS: PresetDimension[] = [
-  { id: "p1",  label: "18 × 14",   width: 18,   length: 14,   quantity: 2, category: "standard" },
-  { id: "p2",  label: "24 × 50",   width: 24,   length: 50,   quantity: 2, category: "large"    },
-  { id: "p3",  label: "24 × 14",   width: 24,   length: 14,   quantity: 2, category: "standard" },
-  { id: "p4",  label: "24 × 40",   width: 24,   length: 40,   quantity: 2, category: "large"    },
-  { id: "p5",  label: "12 × 24",   width: 12,   length: 24,   quantity: 2, category: "standard" },
-  { id: "p6",  label: "11½ × 40",  width: 11.5, length: 40,   quantity: 2, category: "narrow"   },
-  { id: "p7",  label: "11½ × 12",  width: 11.5, length: 12,   quantity: 2, category: "narrow"   },
-  { id: "p8",  label: "56 × 12",   width: 56,   length: 12,   quantity: 2, category: "large"    },
-  { id: "p9",  label: "12 × 11½",  width: 12,   length: 11.5, quantity: 2, category: "narrow"   },
-  { id: "p10", label: "72 × 12",   width: 72,   length: 12,   quantity: 2, category: "large"    },
-  { id: "p11", label: "38 × 24",   width: 38,   length: 24,   quantity: 2, category: "large"    },
-  { id: "p12", label: "11½ × 38",  width: 11.5, length: 38,   quantity: 2, category: "narrow"   },
-  { id: "p13", label: "48 × 24",   width: 48,   length: 24,   quantity: 2, category: "large"    },
-  { id: "p14", label: "40 × 12",   width: 40,   length: 12,   quantity: 2, category: "large"    },
-  { id: "p15", label: "48 × 11½",  width: 48,   length: 11.5, quantity: 2, category: "narrow"   },
-  { id: "p16", label: "38 × 12",   width: 38,   length: 12,   quantity: 2, category: "large"    },
+  { id: "p1",  label: "18 × 14",   width: 18,   length: 14,   quantity: 1, category: "standard" },
+  { id: "p2",  label: "24 × 50",   width: 24,   length: 50,   quantity: 1, category: "large"    },
+  { id: "p3",  label: "24 × 14",   width: 24,   length: 14,   quantity: 1, category: "standard" },
+  { id: "p4",  label: "24 × 40",   width: 24,   length: 40,   quantity: 1, category: "large"    },
+  { id: "p5",  label: "12 × 24",   width: 12,   length: 24,   quantity: 1, category: "standard" },
+  { id: "p6",  label: "11½ × 40",  width: 11.5, length: 40,   quantity: 1, category: "narrow"   },
+  { id: "p7",  label: "11½ × 12",  width: 11.5, length: 12,   quantity: 1, category: "narrow"   },
+  { id: "p8",  label: "56 × 12",   width: 56,   length: 12,   quantity: 1, category: "large"    },
+  { id: "p9",  label: "12 × 11½",  width: 12,   length: 11.5, quantity: 1, category: "narrow"   },
+  { id: "p10", label: "72 × 12",   width: 72,   length: 12,   quantity: 1, category: "large"    },
+  { id: "p11", label: "38 × 24",   width: 38,   length: 24,   quantity: 1, category: "large"    },
+  { id: "p12", label: "11½ × 38",  width: 11.5, length: 38,   quantity: 1, category: "narrow"   },
+  { id: "p13", label: "48 × 24",   width: 48,   length: 24,   quantity: 1, category: "large"    },
+  { id: "p14", label: "40 × 12",   width: 40,   length: 12,   quantity: 1, category: "large"    },
+  { id: "p15", label: "48 × 11½",  width: 48,   length: 11.5, quantity: 1, category: "narrow"   },
+  { id: "p16", label: "38 × 12",   width: 38,   length: 12,   quantity: 1, category: "large"    },
 ];
 
 // ─── Category styling ─────────────────────────────────────────────────────────
