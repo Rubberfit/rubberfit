@@ -75,13 +75,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
   // Filter nav items based on the current user's role
   const visibleItems = sidebarItems
-    .map(group => ({
-      ...group,
-      items: group.items.filter(item =>
-        !item.requiredPermission || can(item.requiredPermission)
-      ),
-    }))
-    .filter(group => group.items.length > 0);
+  .map(group => ({
+    ...group,
+    items: group.items
+      .filter(item => !item.requiredPermission || can(item.requiredPermission))
+      .map(item => ({
+        ...item,
+        // Filter sub-items the same way
+        subItems: item.subItems?.filter(sub =>
+          !sub.requiredPermission || can(sub.requiredPermission)
+        ),
+      })),
+  }))
+  .filter(group => group.items.length > 0);
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>
       <SidebarHeader>
