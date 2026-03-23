@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Scissors } from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types 
 type ShapeType   = "rect" | "circle" | "cone";
 type GrainDir    = "none" | "width" | "length";
 type DiagDir     = "ltr" | "rtl";
@@ -43,7 +43,7 @@ interface NestingVisualizerProps {
   defaultCutHeight?:  number;
 }
 
-// ─── SVG helpers ──────────────────────────────────────────────────────────────
+// SVG helpers 
 const NS = "http://www.w3.org/2000/svg";
 
 function se(tag: string, attrs: Record<string, string | number> = {}, parent?: Element) {
@@ -60,7 +60,7 @@ function st(txt: string, attrs: Record<string, string | number> = {}, parent?: E
   return e;
 }
 
-// ─── Layout / scoring helpers ─────────────────────────────────────────────────
+// Layout / scoring helpers 
 function calcLayout(rollW: number, rollL: number, cw: number, ch: number) {
   const cols  = Math.floor(rollW / cw);
   const rows  = Math.floor(rollL / ch);
@@ -125,7 +125,7 @@ function getStrategies(cw: number, ch: number, ang: number, ddir: DiagDir): Stra
   ];
 }
 
-// ─── Mini roll preview renderer ───────────────────────────────────────────────
+// Mini roll preview renderer 
 function drawMiniRoll(
   svg: SVGSVGElement, s: ScoredStrategy,
   rollW: number, rollL: number, grain: GrainDir
@@ -391,7 +391,7 @@ function drawDetailStep(
   st(`${rollL}"`,      { x: W - 4, y: P + RH / 2, "text-anchor": "middle", transform: `rotate(-90,${W - 4},${P + RH / 2})` }, svg);
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// Main Component 
 export default function NestingVisualizer({
   defaultRollWidth  = 48,
   defaultRollLength = 96,
@@ -426,7 +426,7 @@ export default function NestingVisualizer({
   const detailRef  = useRef<SVGSVGElement>(null);
   const miniRefs   = useRef<Record<string, SVGSVGElement>>({});
 
-  // ── Rect strategy scoring ──────────────────────────────────────────────────
+  // Rect strategy scoring 
   useEffect(() => {
     if (shape !== "rect") return;
     const strats  = getStrategies(cutW, cutH, diagAng, ddir);
@@ -439,7 +439,7 @@ export default function NestingVisualizer({
     }
   }, [shape, rollW, rollL, cutW, cutH, qty, diagAng, ddir, grain]);
 
-  // ── Draw mini roll previews (rect) ─────────────────────────────────────────
+  // Draw mini roll previews (rect) 
   useEffect(() => {
     if (shape !== "rect") return;
     scored.forEach(s => {
@@ -448,7 +448,7 @@ export default function NestingVisualizer({
     });
   }, [scored, shape, grain, rollW, rollL]);
 
-  // ── Draw detail step ───────────────────────────────────────────────────────
+  // Draw detail step 
   useEffect(() => {
     if (shape !== "rect") return;
     const active = scored.find(s => s.id === activeId);
@@ -456,7 +456,7 @@ export default function NestingVisualizer({
     drawDetailStep(detailRef.current, active, rollW, rollL, activeStep);
   }, [scored, activeId, activeStep, shape, rollW, rollL]);
 
-  // ── Non-rect render ────────────────────────────────────────────────────────
+  // ── Non-rect render 
   const renderBg = useCallback(() => {
     const svg = bgSvgRef.current;
     if (!svg || shape === "rect") return;
@@ -548,7 +548,7 @@ export default function NestingVisualizer({
 
   useEffect(() => { renderBg(); }, [renderBg]);
 
-  // ── Step notes ─────────────────────────────────────────────────────────────
+  // Step notes 
   const activeStrat = scored.find(s => s.id === activeId);
   const stepNote = (() => {
     if (!activeStrat) return "";
@@ -568,7 +568,7 @@ export default function NestingVisualizer({
     return map[cur] ?? "";
   })();
 
-  // ── Styling helpers — uses CSS variables to match the page theme ──────────
+  // Styling helpers — uses CSS variables to match the page theme 
   const inp = "w-full bg-[var(--color-background-secondary)] border border-[var(--color-border-secondary)] text-[var(--color-text-primary)] rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-border-primary)] transition-colors";
   const lbl = "block text-[9px] font-semibold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-1";
   const maxScore = Math.max(...scored.map(s => s.score), 1);
@@ -697,6 +697,7 @@ export default function NestingVisualizer({
                     <div className="text-[8px] text-muted-foreground uppercase tracking-wide">{stat.l}</div>
                     <div
                       className="text-[11px] font-semibold"
+
                       style={{
                         color: stat.good
                           ? "var(--color-text-success)"
@@ -784,7 +785,7 @@ export default function NestingVisualizer({
         )}
       </>}
 
-      {/* ── CIRCLE / CONE MODE ── */}
+      {/* CIRCLE / CONE MODE */}
       {shape !== "rect" && (
         <>
           <div className="px-3 pt-2 pb-1">

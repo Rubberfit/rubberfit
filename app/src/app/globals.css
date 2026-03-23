@@ -88,6 +88,26 @@ These serve as the fallback; there is no separate default.css file. */
   /* fonts */
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
+
+  --color-text-success: #22c55e;
+  --color-text-danger: #ef4444;
+  --color-text-warning: #f59e0b;
+
+  --color-background-success: rgba(34, 197, 94, 0.1);
+  --color-background-danger: rgba(239, 68, 68, 0.1);
+
+  --color-border-success: #22c55e;
+  --color-border-danger: #ef4444;
+
+  --color-text-primary: rgb(104, 104, 105);
+  --color-text-secondary: #0e0e11;
+  --color-text-tertiary: #6b7280;
+
+  --color-background: #ffffff;
+  --color-background-secondary: #ffffff;
+
+  --color-border: #334155;
+  --color-border-tertiary: #4e484833;
 }
 
 /* Ensure toast text is visible - force black/white text */
@@ -153,6 +173,15 @@ These serve as the fallback; there is no separate default.css file. */
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.439 0 0);
+  --color-background-success: rgba(34, 197, 94, 0.1);
+  --color-background-danger: rgba(239, 68, 68, 0.1);
+
+  --color-border-success: #22c55e;
+  --color-border-danger: #ef4444;
+
+  --color-text-primary: #e5e7eb;
+  --color-text-secondary: #9ca3af;
+  --color-text-tertiary: #6b7280;
 }
 
 @layer base {
