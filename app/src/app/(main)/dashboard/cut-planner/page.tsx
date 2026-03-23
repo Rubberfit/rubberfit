@@ -10,11 +10,12 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Scissors, Calculator, CheckCircle, AlertCircle, XCircle, Package } from "lucide-react";
+import { Scissors, Calculator, CheckCircle, AlertCircle, XCircle, Package, ShieldX } from "lucide-react";
 import { toast } from "sonner";
 import { rollService } from "@/services/rollService";
 import { cutService } from "@/services/cutService";
 import type { MaterialType, Roll } from "@/lib/supabase";
+import { useRole } from "@/services/useRole";
 
 // Types for cut optimization
 interface CutRequest {
@@ -55,7 +56,6 @@ function CutDiagram({
   const rollX = (svgWidth - rollWidth) / 2;
   const rollY = (svgHeight - rollHeight) / 2;
 
-  // Calculate proportional cut dimensions
   const cutWidthPx = (cutWidth / roll.width) * rollWidth;
   const cutLengthPx = (cutLength * quantity / roll.remaining_length) * rollHeight;
   const wasteWidthPx = rollWidth - cutWidthPx;
@@ -63,54 +63,26 @@ function CutDiagram({
   return (
     <div className="w-full max-w-md">
       <svg width="100%" height="200" viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="border rounded">
-        {/* Roll background */}
-        <rect
-          x={rollX}
-          y={rollY}
-          width={rollWidth}
-          height={rollHeight}
-          fill="#f3f4f6"
-          stroke="#d1d5db"
-          strokeWidth="2"
-          rx="4"
-        />
-
-        {/* Material used area */}
-        <rect
-          x={rollX}
+        <rect x={rollX} y={rollY} width={rollWidth} height={rollHeight}
+          fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" rx="4" />
+        <rect x={rollX}
           y={rollY}
           width={cutWidthPx}
           height={cutLengthPx}
           fill="#22c55e"
           fillOpacity="0.7"
           stroke="#16a34a"
-          strokeWidth="1"
-        />
-
-        {/* Waste area (width) */}
+          strokeWidth="1" />
         {wasteWidthPx > 0 && (
-          <rect
-            x={rollX + cutWidthPx}
-            y={rollY}
-            width={wasteWidthPx}
-            height={cutLengthPx}
-            fill="#ef4444"
-            fillOpacity="0.5"
-            stroke="#dc2626"
-            strokeWidth="1"
-            strokeDasharray="5,5"
-          />
+          <rect x={rollX + cutWidthPx} y={rollY} width={wasteWidthPx} height={cutLengthPx}
+            fill="#ef4444" fillOpacity="0.5" stroke="#dc2626" strokeWidth="1" strokeDasharray="5,5" />
         )}
-
-        {/* Labels */}
         <text x={svgWidth / 2} y={rollY - 10} textAnchor="middle" className="text-xs font-medium fill-current">
           Roll: {roll.width}" × {roll.remaining_length}" ({roll.location})
         </text>
-
         <text x={rollX + cutWidthPx / 2} y={rollY + cutLengthPx / 2} textAnchor="middle" className="text-xs font-medium fill-white">
           Cut: {cutWidth}" × {cutLength}" × {quantity}
         </text>
-
         {wasteWidthPx > 5 && (
           <text x={rollX + cutWidthPx + wasteWidthPx / 2} y={rollY + cutLengthPx / 2} textAnchor="middle" className="text-xs font-medium fill-white">
             Waste
@@ -122,6 +94,10 @@ function CutDiagram({
 }
 
 export default function CutPlannerPage() {
+
+  // ── useRole — must be called before any other hooks ──────────────────────
+  const { can, roles, fullName } = useRole();
+
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
   const [rollRanges, setRollRanges] = useState<{ minWidth: number; maxWidth: number; minLength: number; maxLength: number; minThickness: number; maxThickness: number } | null>(null);
   const [recommendations, setRecommendations] = useState<CutRecommendation[]>([]);
@@ -164,7 +140,6 @@ export default function CutPlannerPage() {
         toast.error("Failed to load material types");
       }
     };
-
     load();
   }, []);
 
@@ -201,14 +176,29 @@ export default function CutPlannerPage() {
     }
   };
 
-  // Handle recommendation selection
+  // Handle recommendation selection — blocked for non-cutters
   const handleSelectRecommendation = (recommendation: CutRecommendation) => {
+    if (!can("createCut")) {
+      toast.error("Permission denied — Cutter role required", {
+        description: `Your current roles: ${roles.length > 0 ? roles.join(", ") : "none"}. Ask your administrator to assign you the Cutter role.`,
+        duration: 6000,
+        icon: <ShieldX className="h-4 w-4" />,
+      });
+      return;
+    }
     setSelectedRecommendation(recommendation);
     setShowConfirmDialog(true);
   };
 
-  // Confirm cut execution
+  // Confirm cut execution — second permission check at execution time
   const handleConfirmCut = async () => {
+    // Safety check — prevents execution even if dialog was opened another way
+    if (!can("createCut")) {
+      toast.error("Permission denied — Cutter role required to confirm cuts.");
+      setShowConfirmDialog(false);
+      return;
+    }
+
     if (!selectedRecommendation) return;
 
     const formData = form.getValues();
@@ -223,14 +213,13 @@ export default function CutPlannerPage() {
         waste_sqft: selectedRecommendation.waste_sqft,
         waste_percentage: selectedRecommendation.waste_percentage,
         total_sqft_used: selectedRecommendation.material_used_sqft + selectedRecommendation.waste_sqft,
-        job_reference: "", // Could add this to form later
-        cut_by: "Current User", // Will be replaced with actual user later
+        job_reference: "",
+        cut_by: fullName ?? "Unknown",
         notes: "",
       });
 
       toast.success("Cut recorded successfully! Inventory has been updated.");
 
-      // Reset form and recommendations
       form.reset();
       setRecommendations([]);
       setShowConfirmDialog(false);
@@ -292,10 +281,7 @@ export default function CutPlannerPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Material Type *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select material" />
@@ -416,8 +402,16 @@ export default function CutPlannerPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recommended Cutting Options</CardTitle>
-            <CardDescription>
+            <CardDescription className="flex items-center gap-2 flex-wrap">
               Choose the best option based on waste percentage and remaining value
+              {/* Subtle warning for users who can view but not cut */}
+              {!can("createCut") && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                                 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                  <ShieldX className="h-3 w-3" />
+                  View only — Cutter role required to confirm
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -525,6 +519,18 @@ export default function CutPlannerPage() {
               <div><strong>Cut:</strong> {form.getValues().width}" × {form.getValues().length}" × {form.getValues().quantity} pieces</div>
               <div><strong>Waste:</strong> {selectedRecommendation.waste_percentage.toFixed(1)}%</div>
               <div><strong>Remaining After:</strong> {selectedRecommendation.remaining_length_after.toFixed(1)}"</div>
+              <div><strong>Cut by:</strong> {fullName ?? "Unknown"}</div>
+            </div>
+          )}
+
+          {/* Permission warning inside dialog — shown if role check fails */}
+          {!can("createCut") && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg
+                            bg-red-50 border border-red-200 text-red-700 text-sm">
+              <ShieldX className="h-4 w-4 flex-shrink-0" />
+              <span>
+                You don't have the <strong>Cutter</strong> role required to confirm this cut.
+              </span>
             </div>
           )}
 
@@ -532,7 +538,11 @@ export default function CutPlannerPage() {
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleConfirmCut} disabled={isConfirming}>
+            <Button
+              onClick={handleConfirmCut}
+              disabled={isConfirming || !can("createCut")}
+              title={!can("createCut") ? "Cutter role required" : undefined}
+            >
               {isConfirming ? "Recording..." : "Confirm Cut"}
             </Button>
           </DialogFooter>

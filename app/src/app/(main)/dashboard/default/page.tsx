@@ -12,6 +12,7 @@ import { cutService } from "@/services/cutService";
 import { materialTypeService } from "@/services/materialTypeService";
 import { MaterialSummaryChart } from "../_components/material-summary-chart";
 import { WasteTrendChart } from "../_components/waste-trend-chart";
+import { useRole } from "@/services/useRole";
 
 interface DashboardData {
   totalActiveRolls: number;
@@ -182,7 +183,7 @@ export default function DashboardPage() {
       minute: '2-digit'
     });
   };
-
+  const { can } = useRole();
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       <div>
@@ -274,33 +275,47 @@ export default function DashboardPage() {
           )}
 
           {/* Quick Action Buttons */}
+          {/* Quick Action Buttons */}
           <div className="space-y-2">
             <h3 className="text-md font-medium">Quick Actions</h3>
             <div className="flex flex-col gap-2">
-              <Button
-                className="justify-start"
-                variant="outline"
-                onClick={() => router.push('/dashboard/cut-planner')}
-              >
-                <Scissors className="h-4 w-4" />
-                New Cut
-              </Button>
-              <Button
-                className="justify-start"
-                variant="outline"
-                onClick={() => router.push('/dashboard/inventory')}
-              >
-                <Plus className="h-4 w-4" />
-                Add Roll
-              </Button>
-              <Button
-                className="justify-start"
-                variant="outline"
-                onClick={() => router.push('/dashboard/inventory')}
-              >
-                <Eye className="h-4 w-4" />
-                View Inventory
-              </Button>
+
+              {/* New Cut — cutters, admins, managers, supervisors */}
+              {can("accessCutPlanner") && (
+                <Button
+                  className="justify-start"
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/cut-planner')}
+                >
+                  <Scissors className="h-4 w-4" />
+                  New Cut
+                </Button>
+              )}
+
+              {/* Add Roll — admin and manager only */}
+              {can("manageRolls") && (
+                <Button
+                  className="justify-start"
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/inventory')}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Roll
+                </Button>
+              )}
+
+              {/* View Inventory — everyone */}
+              {can("viewInventory") && (
+                <Button
+                  className="justify-start"
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/inventory')}
+                >
+                  <Eye className="h-4 w-4" />
+                  View Inventory
+                </Button>
+              )}
+
             </div>
           </div>
         </div>
