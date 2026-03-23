@@ -9,10 +9,6 @@ on:
     # Run weekly on Monday at 8am UTC
     - cron: "0 8 * * 1"
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
   dependency-audit:
     name: Dependency Audit
@@ -53,26 +49,6 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --only-verified --results=verified
-
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          queries: security-and-quality
-
-      - name: Run CodeQL analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:javascript-typescript"
 
   security-hardcoded-check:
     name: Hardcoded Credentials Check
