@@ -19,11 +19,12 @@ export const PERMISSIONS = {
   manageRolls:            ["admin", "manager"]                                             as AppRole[],
 
   // Cut Planner 
-  accessCutPlanner:       ["admin", "manager", "supervisor", "cutter"]                    as AppRole[],
+  cutAccess:              ["admin", "cutter"]                                   as AppRole[],
+  accessCutPlanner:       ["admin", "manager", "supervisor", "cutter"]                     as AppRole[],
   createCut:              ["admin", "cutter"]                                              as AppRole[],
   accessBatchCut:         ["admin", "cutter"]                                              as AppRole[],
   approveCut:             ["admin", "supervisor"]                                          as AppRole[],
-  viewCutHistory:         ["admin", "manager", "supervisor", "cutter"]                    as AppRole[],
+  viewCutHistory:         ["admin", "manager", "supervisor", "cutter"]                     as AppRole[],
 
   // Management 
   accessManagement:       ["admin", "manager"]                                             as AppRole[],

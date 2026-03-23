@@ -86,7 +86,7 @@ export const sidebarItems: NavGroup[] = [
         title: "Cut Planner",
         url: "/dashboard/cut-planner",
         icon: Scissors,
-        requiredPermission: "accessCutPlanner",
+        requiredPermission: "cutAccess",
         subItems: [
           {
             title: "Single Cut",
@@ -102,7 +102,7 @@ export const sidebarItems: NavGroup[] = [
           {
             title: "Manual Selection",
             url: "/dashboard/cut-planner/manual",
-            requiredPermission: "accessCutPlanner",
+            requiredPermission: "approveCut",
             isNew: true,
           },
         ],
