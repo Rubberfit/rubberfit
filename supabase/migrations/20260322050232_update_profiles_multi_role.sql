@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Migration: 20240225000001_update_profiles_multi_role.sql
+-- Migration: 20260322050232_update_profiles_multi_role.sql
 -- Converts single role column to roles TEXT[] array
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ RETURNS BOOLEAN AS $$
     WHERE id = p_user_id
       AND roles && p_roles
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_catalog;
 
 
 -- 7. Recreate RLS policies using the new roles array column 
@@ -114,7 +114,7 @@ COMMENT ON FUNCTION has_any_role(UUID, TEXT[]) IS
 --
 -- Action                 | admin | manager | supervisor | cutter | member | viewer
 -- -----------------------|-------|---------|------------|--------|--------|-------
--- Access cut planner     |   ✓   |    ✓    |     ✓      |   ✓    |        |
+-- Access cut planner     |   ✓   |         |            |   ✓    |        |
 -- Create / confirm cuts  |   ✓   |         |            |   ✓    |        |
 -- Manage rolls           |   ✓   |    ✓    |            |        |        |
 -- Manage users & roles   |   ✓   |         |            |        |        |

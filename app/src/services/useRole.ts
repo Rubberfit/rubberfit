@@ -1,78 +1,40 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  DEFAULT_ROLES,
+  hasAnyRole as hasAnyRoleForRoles,
+  hasPermission,
+  type AppRole,
+  type Permission,
+} from "@/lib/permissions";
 
-// Types 
-export type AppRole =
-  | "admin"
-  | "cutter"
-  | "manager"
-  | "member"
-  | "supervisor"
-  | "viewer";
-
-// Permission → roles that can perform it 
-// ANY match: user needs at least one of the listed roles.
-export const PERMISSIONS = {
-
-  // Inventory 
-  viewInventory:          ["admin", "manager", "supervisor", "cutter", "member", "viewer"] as AppRole[],
-  manageRolls:            ["admin", "manager"]                                             as AppRole[],
-
-  // Cut Planner 
-  cutAccess:              ["admin", "cutter"]                                   as AppRole[],
-  accessCutPlanner:       ["admin", "manager", "supervisor", "cutter"]                     as AppRole[],
-  createCut:              ["admin", "cutter"]                                              as AppRole[],
-  accessBatchCut:         ["admin", "cutter"]                                              as AppRole[],
-  approveCut:             ["admin", "supervisor"]                                          as AppRole[],
-  viewCutHistory:         ["admin", "manager", "supervisor", "cutter"]                     as AppRole[],
-
-  // Management 
-  accessManagement:       ["admin", "manager"]                                             as AppRole[],
-  manageMaterialTypes:    ["admin", "manager"]                                             as AppRole[],
-  manageSuppliers:        ["admin", "manager"]                                             as AppRole[],
-  managePricing:          ["admin"]                                                        as AppRole[],
-  manageUsers:            ["admin"]                                                        as AppRole[],
-
-  // Analytics 
-  accessAnalytics:        ["admin", "manager", "supervisor"]                               as AppRole[],
-  viewCurrentAnalysis:    ["admin", "manager", "supervisor"]                               as AppRole[],
-  viewPeriodConsumption:  ["admin", "manager"]                                             as AppRole[],
-  viewMaterialUsage:      ["admin", "manager", "supervisor"]                               as AppRole[],
-  viewCostReports:        ["admin", "manager"]                                             as AppRole[],
-  viewTrends:             ["admin", "manager"]                                             as AppRole[],
-  viewReports:            ["admin", "manager", "supervisor"]                               as AppRole[],
-
-} as const;
-
-export type Permission = keyof typeof PERMISSIONS;
-
-// Hook return type 
+// Hook return type
 export interface UseRoleReturn {
-  roles:     AppRole[];           // all roles the user holds
+  roles: AppRole[]; // all roles the user holds
   isLoading: boolean;
-  userId:    string | null;
-  email:     string | null;
-  fullName:  string | null;
+  userId: string | null;
+  email: string | null;
+  fullName: string | null;
   // Convenience role checks
-  isAdmin:      boolean;
-  isCutter:     boolean;
-  isManager:    boolean;
+  isAdmin: boolean;
+  isCutter: boolean;
+  isManager: boolean;
   isSupervisor: boolean;
-  isMember:     boolean;
-  isViewer:     boolean;
+  isMember: boolean;
+  isViewer: boolean;
   // Permission checker — returns true if user has ANY role for that action
   can: (permission: Permission) => boolean;
   // Check a custom list of roles on the fly
   hasAnyRole: (required: AppRole[]) => boolean;
 }
 
-// Hook 
+// Hook
 export function useRole(): UseRoleReturn {
-  const [roles,    setRoles]    = useState<AppRole[]>([]);
-  const [userId,   setUserId]   = useState<string | null>(null);
-  const [email,    setEmail]    = useState<string | null>(null);
+  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
-  const [isLoading,setIsLoading]= useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -80,7 +42,9 @@ export function useRole(): UseRoleReturn {
     const fetchRoles = async () => {
       setIsLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
         if (!session?.user) {
           if (mounted) {
@@ -102,9 +66,9 @@ export function useRole(): UseRoleReturn {
         if (mounted) {
           if (error || !profile) {
             // Profile missing — treat as member until synced
-            setRoles(["member"]);
+            setRoles([...DEFAULT_ROLES]);
           } else {
-            setRoles((profile.roles ?? ["member"]) as AppRole[]);
+            setRoles((profile.roles ?? [...DEFAULT_ROLES]) as AppRole[]);
             setFullName(profile.full_name ?? null);
             setEmail(profile.email ?? session.user.email ?? null);
           }
@@ -114,7 +78,7 @@ export function useRole(): UseRoleReturn {
       } catch (err) {
         console.error("[useRole] Failed to fetch roles:", err);
         if (mounted) {
-          setRoles(["member"]);
+          setRoles([...DEFAULT_ROLES]);
           setIsLoading(false);
         }
       }
@@ -122,7 +86,9 @@ export function useRole(): UseRoleReturn {
 
     fetchRoles();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
       fetchRoles();
     });
 
@@ -133,12 +99,10 @@ export function useRole(): UseRoleReturn {
   }, []);
 
   // ANY match helper
-  const hasAnyRole = (required: AppRole[]) =>
-    required.some(r => roles.includes(r));
+  const hasAnyRole = (required: AppRole[]) => hasAnyRoleForRoles(roles, required);
 
   // Permission checker
-  const can = (permission: Permission): boolean =>
-    hasAnyRole(PERMISSIONS[permission]);
+  const can = (permission: Permission): boolean => hasPermission(roles, permission);
 
   return {
     roles,
@@ -146,12 +110,12 @@ export function useRole(): UseRoleReturn {
     userId,
     email,
     fullName,
-    isAdmin:      roles.includes("admin"),
-    isCutter:     hasAnyRole(["cutter", "admin"]),
-    isManager:    hasAnyRole(["manager", "admin"]),
+    isAdmin: roles.includes("admin"),
+    isCutter: hasAnyRole(["cutter", "admin"]),
+    isManager: hasAnyRole(["manager", "admin"]),
     isSupervisor: hasAnyRole(["supervisor", "admin"]),
-    isMember:     roles.includes("member"),
-    isViewer:     roles.includes("viewer"),
+    isMember: roles.includes("member"),
+    isViewer: roles.includes("viewer"),
     can,
     hasAnyRole,
   };
