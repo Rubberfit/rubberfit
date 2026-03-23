@@ -18,7 +18,7 @@ import type { MaterialType, Roll } from "@/lib/supabase";
 import PresetDimensionSelector from "./_components/PresetDimensionSelector";
 import NestingVisualizer from "./_components/NestingVisualizer";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types 
 interface CutRequest {
   materialType: string;
   width:        number;
@@ -38,7 +38,7 @@ interface CutRecommendation {
   score:                  number;
 }
 
-// ─── Simple overview diagram (kept for the "Best Option" summary box) ─────────
+// Simple overview diagram (kept for the "Best Option" summary box) 
 function CutDiagram({
   roll, cutWidth, cutLength, quantity,
 }: {
@@ -124,7 +124,7 @@ function CutDiagram({
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// Page 
 export default function CutPlannerPage() {
   const [materialTypes, setMaterialTypes]           = useState<MaterialType[]>([]);
   const [rollRanges,    setRollRanges]               = useState<{
@@ -154,7 +154,7 @@ export default function CutPlannerPage() {
     },
   });
 
-  // ── load material types + active rolls ───────────────────────────────────
+  // load material types + active rolls 
   useEffect(() => {
     const load = async () => {
       try {
@@ -182,7 +182,7 @@ export default function CutPlannerPage() {
     load();
   }, []);
 
-  // ── optimize ─────────────────────────────────────────────────────────────
+  // optimize 
   const onOptimize = async (data: CutRequest) => {
     if (!data.materialType || !data.width || !data.length || !data.quantity) {
       toast.error("Please fill in all required fields with valid values");
@@ -217,14 +217,14 @@ export default function CutPlannerPage() {
     }
   };
 
-  // ── select recommendation → also updates visualizer roll ─────────────────
+  // select recommendation → also updates visualizer roll 
   const handleSelectRecommendation = (rec: CutRecommendation) => {
     setSelectedRecommendation(rec);
     setVizRoll(rec.roll);          // ← keeps NestingVisualizer in sync
     setShowConfirmDialog(true);
   };
 
-  // ── confirm cut ───────────────────────────────────────────────────────────
+  //  confirm cut 
   const handleConfirmCut = async () => {
     if (!selectedRecommendation) return;
     const formData = form.getValues();
@@ -255,8 +255,10 @@ export default function CutPlannerPage() {
       setIsConfirming(false);
     }
   };
+  // snapshot of the form values used to drive the visualizer
+  const fv = form.watch();
 
-  // ── helpers ───────────────────────────────────────────────────────────────
+  // ── helpers 
   const getWasteColor = (_: number, rank: number) => {
     if (rank === 0) return "text-green-600 bg-green-50";
     if (rank === 1) return "text-amber-600 bg-amber-50";
@@ -271,10 +273,9 @@ export default function CutPlannerPage() {
   const bestRollWidth  = activeRolls.length > 0 ? Math.max(...activeRolls.map(r => r.width))            : 72;
   const bestRollLength = activeRolls.length > 0 ? Math.max(...activeRolls.map(r => r.remaining_length)) : 144;
 
-  // snapshot of the form values used to drive the visualizer
-  const fv = form.watch();
+  
 
-  // ─── JSX ──────────────────────────────────────────────────────────────────
+  // JSX 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
 
@@ -539,6 +540,7 @@ export default function CutPlannerPage() {
                     diagram.  Workers can click any strategy card to see its cut order.
                   */}
                   <NestingVisualizer
+                    key={`${vizRoll.id}-${fv.width}-${fv.length}`}
                     defaultRollWidth={vizRoll.width}
                     defaultRollLength={vizRoll.remaining_length}
                     defaultCutWidth={fv.width}

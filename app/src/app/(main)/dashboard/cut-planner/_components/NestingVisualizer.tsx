@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Scissors } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShapeType   = "rect" | "circle" | "cone";
@@ -237,45 +238,87 @@ function drawDetailStep(
   }
 
   // ── cut direction: unique step labels prevent collision between strategies ──
-  // "H-cuts first" / "H-cuts next" → activate horizontal lines (run ←→ across width)
-  // "V-cuts first" / "V-cuts next" → activate vertical lines   (run ↕ down length)
   const isActiveHCut = cur === "H-cuts first" || cur === "H-cuts next";
   const isActiveVCut = cur === "V-cuts first" || cur === "V-cuts next";
   const showAllCuts  = cur === "Done";
 
-  // draw all vertical cut lines (↕ run top-to-bottom, divide roll into columns)
+  // Dynamic sizing — scale stroke and labels to available pixel space per row/col
+  const rowPx  = s.cutH * sy;   // pixel height of one row
+  const colPx  = s.cutW * sx;   // pixel width of one col
+
+  // Stroke width: thinner when rows are tight, never more than 1.5px
+  const hStrokeActive = Math.min(1.5, Math.max(0.5, rowPx * 0.08));
+  const vStrokeActive = Math.min(1.5, Math.max(0.5, colPx * 0.08));
+
+  // Only show labels when there's enough room (min 10px gap between cuts)
+  const showHLabels = rowPx >= 10;
+  const showVLabels = colPx >= 10;
+
+  // Font size scales with available space, capped at 8px
+  const hFontSize = Math.min(8, Math.max(6, rowPx * 0.55)).toFixed(1);
+  const vFontSize = Math.min(8, Math.max(6, colPx * 0.55)).toFixed(1);
+
+  // Dash pattern scales so dashes don't disappear when cuts are dense
+  const hDash = rowPx < 6 ? "none" : rowPx < 12 ? "3 2" : "7 3";
+  const vDash = colPx < 6 ? "none" : colPx < 12 ? "3 2" : "7 3";
+
+  // draw all vertical cut lines
   for (let c = 1; c <= s.vCuts; c++) {
     const x = P + c * s.cutW * sx;
     const active = isActiveVCut;
     const ln = se("line", {
       x1: x, y1: P, x2: x, y2: P + RH,
       stroke: active || showAllCuts ? "#facc15" : "rgba(250,204,21,0.2)",
-      "stroke-width": active ? "2.5" : "1",
-      "stroke-dasharray": "7 3",
+      "stroke-width": active ? vStrokeActive : Math.min(0.5, vStrokeActive * 0.4),
+      "stroke-dasharray": vDash,
     }, svg);
     if (active) {
       ln.setAttribute("style", "stroke-dasharray:900;animation:dashIn .5s ease-out forwards");
-      se("polygon", { points: `${x-4},${P} ${x+4},${P} ${x},${P-6}`, fill: "#facc15" }, svg);
-      const lt = se("text", { x: x + 4, y: P + 11, fill: "#facc15", "font-size": "8", "font-family": "'DM Mono',monospace", "font-weight": "700" }, svg);
-      lt.textContent = `V${c}`;
+      if (showVLabels) {
+        const arrowSize = Math.min(4, colPx * 0.15);
+        se("polygon", { points: `${x-arrowSize},${P} ${x+arrowSize},${P} ${x},${P-arrowSize*1.5}`, fill: "#facc15" }, svg);
+        const lt = se("text", {
+          x: x + arrowSize + 1,
+          y: P + Math.min(11, rowPx * 0.5 + 4),
+          fill: "#facc15",
+          "font-size": vFontSize,
+          "font-family": "'DM Mono',monospace",
+          "font-weight": "700",
+        }, svg);
+        lt.textContent = `V${c}`;
+      }
     }
   }
 
-  // draw all horizontal cut lines (←→ run left-to-right, divide roll into rows)
+  // draw all horizontal cut lines
   for (let r = 1; r <= s.hCuts; r++) {
     const y = P + r * s.cutH * sy;
     const active = isActiveHCut;
     const ln = se("line", {
       x1: P, y1: y, x2: P + RW, y2: y,
       stroke: active || showAllCuts ? "#facc15" : "rgba(250,204,21,0.2)",
-      "stroke-width": active ? "2.5" : "1",
-      "stroke-dasharray": "7 3",
+      "stroke-width": active ? hStrokeActive : Math.min(0.5, hStrokeActive * 0.4),
+      "stroke-dasharray": hDash,
     }, svg);
     if (active) {
       ln.setAttribute("style", "stroke-dasharray:900;animation:dashIn .5s ease-out forwards");
-      se("polygon", { points: `${P-6},${y} ${P},${y-4} ${P},${y+4}`, fill: "#facc15" }, svg);
-      const lt = se("text", { x: P + 5, y: y - 5, fill: "#facc15", "font-size": "8", "font-family": "'DM Mono',monospace", "font-weight": "700" }, svg);
-      lt.textContent = `H${r}`;
+      if (showHLabels) {
+        const arrowSize = Math.min(4, rowPx * 0.15);
+        se("polygon", { points: `${P-arrowSize*1.5},${y} ${P},${y-arrowSize} ${P},${y+arrowSize}`, fill: "#facc15" }, svg);
+        // Place label INSIDE the row below the cut line, offset by a fraction of rowPx
+        // This prevents overlap: label sits in the gap between this line and the next
+        const labelY = y + Math.max(3, Math.min(rowPx * 0.35, 8));
+        const lt = se("text", {
+          x: P + arrowSize + 2,
+          y: labelY,
+          fill: "#facc15",
+          "font-size": hFontSize,
+          "font-family": "'DM Mono',monospace",
+          "font-weight": "700",
+          "dominant-baseline": "hanging",
+        }, svg);
+        lt.textContent = `H${r}`;
+      }
     }
   }
 
@@ -297,10 +340,15 @@ function drawDetailStep(
   }
 
   if (cur === "Straight cuts") {
-    for (let c = 1; c <= s.vCuts; c++) { const x = P + c * s.cutW * sx; se("line", { x1: x, y1: P, x2: x, y2: P + RH, stroke: "#facc15", "stroke-width": "2", "stroke-dasharray": "7 3", style: "stroke-dasharray:900;animation:dashIn .5s ease-out forwards" }, svg); }
-    for (let r = 1; r <= s.hCuts; r++) { const y = P + r * s.cutH * sy; se("line", { x1: P, y1: y, x2: P + RW, y2: y, stroke: "#facc15", "stroke-width": "2", "stroke-dasharray": "7 3", style: "stroke-dasharray:900;animation:dashIn .5s ease-out forwards" }, svg); }
+    for (let c = 1; c <= s.vCuts; c++) { const x = P + c * s.cutW * sx; se("line", { x1: x, y1: P, x2: x, y2: P + RH, stroke: "#facc15", "stroke-width": vStrokeActive, "stroke-dasharray": vDash, style: "stroke-dasharray:900;animation:dashIn .5s ease-out forwards" }, svg); }
+    for (let r = 1; r <= s.hCuts; r++) { const y = P + r * s.cutH * sy; se("line", { x1: P, y1: y, x2: P + RW, y2: y, stroke: "#facc15", "stroke-width": hStrokeActive, "stroke-dasharray": hDash, style: "stroke-dasharray:900;animation:dashIn .5s ease-out forwards" }, svg); }
   }
   if (cur === "Diagonal cuts") {
+    // Diagonal cut length in pixels = hypotenuse of the piece
+    const diagPx = Math.sqrt((s.cutW * sx) ** 2 + (s.cutH * sy) ** 2);
+    // Scale stroke: thin when pieces are small, max 1.5px
+    const diagStroke = Math.min(1.5, Math.max(0.4, diagPx * 0.025));
+    const diagDash   = diagPx < 20 ? "none" : diagPx < 40 ? "3 2" : "6 3";
     for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) {
       const px = P + c * s.cutW * sx, py = P + r * s.cutH * sy;
       const pw = s.cutW * sx, ph = s.cutH * sy;
@@ -308,12 +356,35 @@ function drawDetailStep(
       const x1 = s.ddir === "ltr" ? px : px + pw, y1 = py + ph;
       const x2 = s.ddir === "ltr" ? px + op : px + pw - op, y2 = py;
       const delay = (r * s.cols + c) * 0.05;
-      se("line", { x1, y1, x2, y2, stroke: "#facc15", "stroke-width": "2.5", "stroke-dasharray": "6 3", style: `stroke-dasharray:900;animation:dashIn .5s ${delay}s ease-out forwards` }, svg);
+      se("line", { x1, y1, x2, y2, stroke: "#facc15", "stroke-width": diagStroke, "stroke-dasharray": diagDash, style: `stroke-dasharray:900;animation:dashIn .5s ${delay}s ease-out forwards` }, svg);
     }
   }
   if (cur === "Done") {
-    const done = se("text", { x: W / 2, y: H / 2, fill: "#4ade80", "font-size": "14", "font-family": "'DM Mono',monospace", "text-anchor": "middle", "dominant-baseline": "middle", "font-weight": "700" }, svg);
-    done.textContent = `${s.pieces} pieces ready`;
+    const cx = W / 2, cy = H / 2;
+    const label = `${s.pieces} pieces ready`;
+    // Dark pill background so text is always visible over green fills
+    const pillW = label.length * 8.5 + 28, pillH = 32;
+    se("rect", {
+      x: cx - pillW / 2, y: cy - pillH / 2,
+      width: pillW, height: pillH,
+      fill: "#0f172a", rx: "16",
+      opacity: "0.92",
+    }, svg);
+    se("rect", {
+      x: cx - pillW / 2, y: cy - pillH / 2,
+      width: pillW, height: pillH,
+      fill: "none", stroke: "#4ade80", "stroke-width": "1.5", rx: "16",
+    }, svg);
+    const done = se("text", {
+      x: cx, y: cy,
+      fill: "#4ade80",
+      "font-size": "13",
+      "font-family": "'DM Mono',monospace",
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      "font-weight": "700",
+    }, svg);
+    done.textContent = label;
   }
 
   st(`${rollW}" wide`, { x: P + RW / 2, y: H - 4, "text-anchor": "middle" }, svg);
@@ -497,42 +568,43 @@ export default function NestingVisualizer({
     return map[cur] ?? "";
   })();
 
-  // ── Styling helpers ────────────────────────────────────────────────────────
-  const inp = "w-full bg-[#12141a] border border-[#2e3340] text-[#e2e8f0] rounded-md px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-[#4ade80] transition-colors";
-  const lbl = "block text-[9px] font-bold uppercase tracking-widest text-[#64748b] mb-1";
+  // ── Styling helpers — uses CSS variables to match the page theme ──────────
+  const inp = "w-full bg-[var(--color-background-secondary)] border border-[var(--color-border-secondary)] text-[var(--color-text-primary)] rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-border-primary)] transition-colors";
+  const lbl = "block text-[9px] font-semibold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-1";
   const maxScore = Math.max(...scored.map(s => s.score), 1);
 
   const scoreBarColor = (s: ScoredStrategy) =>
-    s.id === scored[0]?.id ? "#22c55e" : s.score > 55 ? "#3b82f6" : "#64748b";
+    s.id === scored[0]?.id ? "var(--color-border-success)" : s.score > 55 ? "var(--color-border-info)" : "var(--color-border-tertiary)";
 
   const badgeStyle = (s: ScoredStrategy, rank: number): React.CSSProperties => {
-    if (rank === 0) return { background: "rgba(34,197,94,0.15)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" };
-    if (s.score > 75) return { background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.25)" };
-    if (s.score > 45) return { background: "rgba(100,116,139,0.12)", color: "#94a3b8", border: "1px solid #2e3340" };
-    return { background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" };
+    if (rank === 0) return { background: "var(--color-background-success)", color: "var(--color-text-success)", border: "1px solid var(--color-border-success)" };
+    if (s.score > 75) return { background: "var(--color-background-info)", color: "var(--color-text-info)", border: "1px solid var(--color-border-info)" };
+    if (s.score > 45) return { background: "var(--color-background-secondary)", color: "var(--color-text-secondary)", border: "0.5px solid var(--color-border-tertiary)" };
+    return { background: "var(--color-background-danger)", color: "var(--color-text-danger)", border: "1px solid var(--color-border-danger)" };
   };
   const badgeText = (rank: number, score: number) =>
     rank === 0 ? "Best" : score > 75 ? "Good" : score > 45 ? "OK" : "Poor";
 
   return (
-    <div className="rounded-xl border border-[#2e3340] bg-[#1a1d24] overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+
       {/* ── header ── */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#2e3340]">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#4ade80]" style={{ boxShadow: "0 0 6px #4ade80" }} />
-          <span className="text-[11px] font-bold tracking-[.12em] text-[#e2e8f0]" style={{ fontFamily: "'DM Mono',monospace" }}>
-            NESTING LAYOUT &amp; CUT STRATEGY
+          <Scissors className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground tracking-wide">
+            Nesting Layout &amp; Cut Strategy
           </span>
         </div>
-        <div className="flex gap-3 text-[11px]" style={{ fontFamily: "'DM Mono',monospace" }}>
-          <span className="text-[#4ade80]">▊ usable</span>
-          <span style={{ color: "#93c5fd" }}>▊ tri-B</span>
-          <span className="text-[#ef4444]">▨ scrap</span>
+        <div className="flex gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" />usable</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-400/20 border border-blue-400" />tri-B</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/20 border border-dashed border-red-400" />scrap</span>
         </div>
       </div>
 
       {/* ── controls ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 px-4 py-3 border-b border-[#2e3340]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 px-4 py-3 border-b border-border bg-background">
         <div className="col-span-2 sm:col-span-1">
           <label className={lbl}>Shape</label>
           <select value={shape} onChange={e => { setShape(e.target.value as ShapeType); setActiveStep(0); }} className={inp + " cursor-pointer"}>
@@ -576,7 +648,7 @@ export default function NestingVisualizer({
       {/* ── RECT MODE: 6-strategy grid ── */}
       {shape === "rect" && <>
         <div className="px-4 pt-3 pb-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#64748b]" style={{ fontFamily: "'DM Mono',monospace" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             All cut strategies — click to see step-by-step
           </p>
         </div>
@@ -587,23 +659,22 @@ export default function NestingVisualizer({
             <div
               key={s.id}
               onClick={() => { setActiveId(s.id); setActiveStep(0); }}
-              className="rounded-lg overflow-hidden cursor-pointer transition-transform hover:-translate-y-px"
+              className="rounded-lg overflow-hidden cursor-pointer transition-transform hover:-translate-y-px bg-card"
               style={{
                 border: s.id === activeId
-                  ? "2px solid #3b82f6"
+                  ? "2px solid var(--color-border-info)"
                   : rank === 0
-                  ? "2px solid #22c55e"
-                  : "0.5px solid #2e3340",
-                background: "#252830",
+                  ? "2px solid var(--color-border-success)"
+                  : "0.5px solid var(--color-border-tertiary)",
               }}
             >
               {/* card head */}
               <div className="flex items-start justify-between gap-1 px-2.5 pt-2 pb-1">
                 <div>
-                  <div className="text-[11px] font-bold text-[#e2e8f0]" style={{ fontFamily: "'DM Mono',monospace" }}>{s.name}</div>
-                  <div className="text-[9px] text-[#64748b] mt-0.5">{s.sub}</div>
+                  <div className="text-[11px] font-semibold text-foreground">{s.name}</div>
+                  <div className="text-[9px] text-muted-foreground mt-0.5">{s.sub}</div>
                 </div>
-                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5" style={badgeStyle(s, rank)}>
+                <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5" style={badgeStyle(s, rank)}>
                   {badgeText(rank, s.score)}
                 </span>
               </div>
@@ -616,21 +687,32 @@ export default function NestingVisualizer({
               />
 
               {/* stats row */}
-              <div className="grid grid-cols-3 border-t border-[#2e3340]">
+              <div className="grid grid-cols-3 border-t border-border">
                 {[
                   { l: "Pieces", v: String(s.pieces), good: s.pieces >= qty },
                   { l: "Waste",  v: `${s.waste.toFixed(1)}%`, good: s.waste < 15 },
                   { l: "Score",  v: String(Math.round(s.score)), good: rank === 0 },
                 ].map(stat => (
-                  <div key={stat.l} className="text-center py-1.5 border-r border-[#2e3340] last:border-r-0">
-                    <div className="text-[8px] text-[#64748b] uppercase tracking-wide">{stat.l}</div>
-                    <div className="text-[11px] font-bold" style={{ color: stat.good ? "#4ade80" : stat.v.endsWith("%") && parseFloat(stat.v) > 25 ? "#f87171" : "#94a3b8", fontFamily: "'DM Mono',monospace" }}>{stat.v}</div>
+                  <div key={stat.l} className="text-center py-1.5 border-r border-border last:border-r-0">
+                    <div className="text-[8px] text-muted-foreground uppercase tracking-wide">{stat.l}</div>
+                    <div
+                      className="text-[11px] font-semibold"
+                      style={{
+                        color: stat.good
+                          ? "var(--color-text-success)"
+                          : stat.v.endsWith("%") && parseFloat(stat.v) > 25
+                          ? "var(--color-text-danger)"
+                          : "var(--color-text-secondary)",
+                      }}
+                    >
+                      {stat.v}
+                    </div>
                   </div>
                 ))}
               </div>
 
               {/* score bar */}
-              <div className="mx-2 mb-2 mt-1 h-[3px] rounded-full bg-[#1a1d24] overflow-hidden">
+              <div className="mx-2 mb-2 mt-1 h-[3px] rounded-full bg-muted overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(s.score / maxScore * 100).toFixed(0)}%`, background: scoreBarColor(s) }} />
               </div>
             </div>
@@ -639,13 +721,13 @@ export default function NestingVisualizer({
 
         {/* ── detail panel ── */}
         {activeStrat && (
-          <div className="mx-4 mb-4 rounded-lg border border-[#2e3340] overflow-hidden bg-[#252830]">
+          <div className="mx-4 mb-4 rounded-lg border border-border overflow-hidden bg-muted/30">
             {/* detail header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#2e3340]">
-              <span className="text-[11px] font-bold text-[#e2e8f0]" style={{ fontFamily: "'DM Mono',monospace" }}>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-background">
+              <span className="text-[11px] font-semibold text-foreground">
                 {activeStrat.name} — step-by-step
               </span>
-              <div className="flex gap-3 text-[10px] text-[#64748b]" style={{ fontFamily: "'DM Mono',monospace" }}>
+              <div className="flex gap-3 text-[10px] text-muted-foreground">
                 <span>{activeStrat.pieces} pcs</span>
                 <span>{activeStrat.waste.toFixed(1)}% waste</span>
                 <span>score {Math.round(activeStrat.score)}</span>
@@ -658,12 +740,11 @@ export default function NestingVisualizer({
                 <button
                   key={step}
                   onClick={() => setActiveStep(i)}
-                  className="text-[10px] px-2.5 py-1 rounded-full border font-mono transition-all"
+                  className="text-[10px] px-2.5 py-1 rounded-full border transition-all"
                   style={{
-                    fontFamily: "'DM Mono',monospace",
-                    background:  i === activeStep ? "rgba(59,130,246,0.15)" : "transparent",
-                    color:       i === activeStep ? "#60a5fa" : "#64748b",
-                    borderColor: i === activeStep ? "rgba(59,130,246,0.4)" : "#2e3340",
+                    background:  i === activeStep ? "var(--color-background-info)" : "transparent",
+                    color:       i === activeStep ? "var(--color-text-info)" : "var(--color-text-secondary)",
+                    borderColor: i === activeStep ? "var(--color-border-info)" : "var(--color-border-tertiary)",
                   }}
                 >
                   {step}
@@ -671,26 +752,26 @@ export default function NestingVisualizer({
               ))}
             </div>
 
-            {/* detail SVG */}
+            {/* detail SVG — keeps dark background so cut lines are visible */}
             <div className="px-3 pt-2">
               <style>{`@keyframes dashIn{from{stroke-dashoffset:900}to{stroke-dashoffset:0}}`}</style>
-              <svg ref={detailRef} width="100%" style={{ display: "block", borderRadius: "6px", background: "#12141a" }} />
+              <svg ref={detailRef} width="100%" style={{ display: "block", borderRadius: "6px", background: "#0f172a" }} />
             </div>
 
             {/* step note */}
-            <div className="mx-3 my-2 px-3 py-2 rounded-md bg-[#1a1d24] text-[11px] text-[#94a3b8]" style={{ fontFamily: "'DM Mono',monospace", lineHeight: 1.55 }}>
+            <div className="mx-3 my-2 px-3 py-2 rounded-md bg-muted text-[11px] text-muted-foreground" style={{ lineHeight: 1.55 }}>
               {stepNote}
             </div>
 
             {/* reasons */}
-            <div className="flex flex-col gap-1 px-3 pb-3 border-t border-[#2e3340] pt-2">
+            <div className="flex flex-col gap-1 px-3 pb-3 border-t border-border pt-2">
               {activeStrat.reasons.map((r, i) => (
-                <div key={i} className="flex items-start gap-2 text-[10px] text-[#94a3b8]" style={{ lineHeight: 1.45 }}>
+                <div key={i} className="flex items-start gap-2 text-[10px] text-muted-foreground" style={{ lineHeight: 1.45 }}>
                   <div
                     className="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center text-[7px] font-bold mt-px"
                     style={{
-                      background: r.p === "p" ? "rgba(34,197,94,0.15)" : r.p === "w" ? "rgba(251,191,36,0.15)" : "rgba(239,68,68,0.15)",
-                      color:      r.p === "p" ? "#4ade80"              : r.p === "w" ? "#fbbf24"               : "#f87171",
+                      background: r.p === "p" ? "var(--color-background-success)" : r.p === "w" ? "var(--color-background-warning)" : "var(--color-background-danger)",
+                      color:      r.p === "p" ? "var(--color-text-success)"      : r.p === "w" ? "var(--color-text-warning)"       : "var(--color-text-danger)",
                     }}
                   >
                     {r.p === "p" ? "✓" : r.p === "w" ? "!" : "✕"}
@@ -707,17 +788,22 @@ export default function NestingVisualizer({
       {shape !== "rect" && (
         <>
           <div className="px-3 pt-2 pb-1">
-            <svg ref={bgSvgRef} width="100%" viewBox="0 0 680 310" style={{ display: "block", borderRadius: "6px", background: "#12141a" }} />
+            <svg ref={bgSvgRef} width="100%" viewBox="0 0 680 310" style={{ display: "block", borderRadius: "6px", background: "#0f172a" }} />
           </div>
           <div className="grid grid-cols-3 gap-2 px-4 py-3">
             {[
-              { label: "Pieces",        val: String(bgStats.count),                 color: "#4ade80" },
-              { label: "Material Used", val: `${bgStats.used.toFixed(1)}%`,         color: "#4ade80" },
-              { label: "Scrap / Waste", val: `${bgStats.waste.toFixed(1)}%`,        color: "#f87171" },
+              { label: "Pieces",        val: String(bgStats.count),          good: true  },
+              { label: "Material Used", val: `${bgStats.used.toFixed(1)}%`,  good: true  },
+              { label: "Scrap / Waste", val: `${bgStats.waste.toFixed(1)}%`, good: false },
             ].map(s => (
-              <div key={s.label} className="rounded-lg bg-[#252830] border border-[#2e3340] text-center px-3 py-2.5">
-                <div className="text-[9px] uppercase tracking-widest font-bold text-[#64748b] mb-1" style={{ fontFamily: "'DM Mono',monospace" }}>{s.label}</div>
-                <div className="text-xl font-bold" style={{ color: s.color, fontFamily: "'DM Mono',monospace" }}>{s.val}</div>
+              <div key={s.label} className="rounded-lg bg-muted/40 border border-border text-center px-3 py-2.5">
+                <div className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">{s.label}</div>
+                <div
+                  className="text-xl font-bold"
+                  style={{ color: s.good ? "var(--color-text-success)" : "var(--color-text-danger)" }}
+                >
+                  {s.val}
+                </div>
               </div>
             ))}
           </div>
