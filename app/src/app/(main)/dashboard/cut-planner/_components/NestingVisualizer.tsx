@@ -116,7 +116,7 @@ function scoreStrat(
 
 function getStrategies(cw: number, ch: number, ang: number, ddir: DiagDir): Strategy[] {
   return [
-    { id: "rows-first",  name: "Horizontal strips",  sub: "H-cuts first (←→), then V-cuts (↕)",   method: "rect", cutW: cw, cutH: ch, primaryDir: "horizontal", icon: "H",  steps: ["Full roll", "H-cuts first", "V-cuts next",   "Done"] },
+    { id: "rows-first",  name: "Horizontal strips",  sub: "H-cuts first ( ), then V-cuts (↕)",   method: "rect", cutW: cw, cutH: ch, primaryDir: "horizontal", icon: "H",  steps: ["Full roll", "H-cuts first", "V-cuts next",   "Done"] },
     { id: "cols-first",  name: "Vertical strips",    sub: "V-cuts first (↕), then H-cuts (←→)",   method: "rect", cutW: cw, cutH: ch, primaryDir: "vertical",   icon: "V",  steps: ["Full roll", "V-cuts first", "H-cuts next",   "Done"] },
     { id: "landscape",   name: "Rotated 90°",        sub: `Piece turned — ${ch}"×${cw}" on roll`,  method: "rect", cutW: ch, cutH: cw, primaryDir: "horizontal", icon: "R",  steps: ["Full roll", "H-cuts first", "V-cuts next",   "Done"] },
     { id: "diag-corner", name: "Corner diagonal",    sub: `${Math.round(Math.atan2(ch, cw) * 180 / Math.PI)}° corner-to-corner`, method: "diag", cutW: cw, cutH: ch, primaryDir: "horizontal", diagType: "corner", ddir, icon: "╱", steps: ["Full roll", "Straight cuts", "Diagonal cuts", "Done"] },
@@ -185,7 +185,7 @@ function drawMiniRoll(
   st(`${rollW}"`, { x: P + RW / 2, y: H - 2, "text-anchor": "middle", "font-size": "7" }, svg);
 }
 
-// ─── Full detail step renderer ────────────────────────────────────────────────
+// ─── Full detail step renderer 
 function drawDetailStep(
   svg: SVGSVGElement, s: ScoredStrategy,
   rollW: number, rollL: number, stepIdx: number
@@ -672,7 +672,7 @@ export default function NestingVisualizer({
               <div className="flex items-start justify-between gap-1 px-2.5 pt-2 pb-1">
                 <div>
                   <div className="text-[11px] font-semibold text-foreground">{s.name}</div>
-                  <div className="text-[9px] text-muted-foreground mt-0.5">{s.sub}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{s.sub}</div>
                 </div>
                 <span className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 mt-0.5" style={badgeStyle(s, rank)}>
                   {badgeText(rank, s.score)}
@@ -756,7 +756,7 @@ export default function NestingVisualizer({
             {/* detail SVG — keeps dark background so cut lines are visible */}
             <div className="px-3 pt-2">
               <style>{`@keyframes dashIn{from{stroke-dashoffset:900}to{stroke-dashoffset:0}}`}</style>
-              <svg ref={detailRef} width="100%" style={{ display: "block", borderRadius: "6px", background: "#0f172a" }} />
+              <svg ref={detailRef} width="100%" style={{ display: "block", borderRadius: "6px", background: "var(--svg-bg)" }} />
             </div>
 
             {/* step note */}
