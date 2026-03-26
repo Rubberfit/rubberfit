@@ -213,8 +213,8 @@ export default function CutPlannerPage() {
             Cut Planner
           </Badge>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Cut Planner</h1>
-            <p className="text-slate-600">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-300">Cut Planner</h1>
+            <p className="text-slate-600 dark:text-slate-400">
               Select a finished profile, choose the standard size, set the cut count, and preview
               the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts.
             </p>
@@ -240,10 +240,10 @@ export default function CutPlannerPage() {
 
       {selectedTemplates.length > 0 && selectedTemplate ? (
         <>
-          <Card className="border border-slate-200 shadow-sm">
+          <Card className="border border-slate-200 shadow-sm" >
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <Scissors className="h-4 w-4 text-slate-500" />
+              <CardTitle className="flex items-center gap-2 text-base font-semibold" >
+                <Scissors className="h-4 w-4" />
                 3. Amount of Cuts
               </CardTitle>
               <CardDescription>
@@ -255,37 +255,37 @@ export default function CutPlannerPage() {
 
             <CardContent className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card"  >
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400"  >
                     <Shapes className="h-3.5 w-3.5" />
                     Part
                   </div>
-                  <div className="mt-2 text-base font-semibold text-slate-900">
+                  <div className="mt-2 text-base font-semibold">
                     {getPartLabel(selectedTemplate.partType)}
                     {selectedTemplates.length > 1 ? ` · ${selectedTemplates.length} sizes` : ""}
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">{selectedTemplate.summary}</div>
+                  <div className="mt-1 text-xs">{selectedTemplate.summary}</div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4  dark:bg-card"  >
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
                     <Ruler className="h-3.5 w-3.5" />
                     Size Selection
                   </div>
-                  <div className="mt-2 text-base font-semibold text-slate-900">
+                  <div className="mt-2 text-base font-semibold">
                     {selectedTemplates.length === 1
                       ? selectedTemplate.label
                       : `${selectedTemplate.label} + ${selectedTemplates.length - 1} more`}
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">
+                  <div className="mt-1 text-xs">
                     {selectedTemplates.length === 1
                       ? "Standard size from the template list."
                       : "The graph stacks every selected standard size in the preview."}
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="rounded-lg border border-slate-200 bg-white p-4  dark:bg-card "  >
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
                     <Layers3 className="h-3.5 w-3.5" />
                     Amount of Cuts
                   </div>
@@ -300,7 +300,7 @@ export default function CutPlannerPage() {
                       }}
                     />
                   </div>
-                  <div className="mt-2 text-xs text-slate-600">
+                  <div className="mt-2 text-xs dark:bg-card ">
                     {selectedTemplate.partType === "rectangle"
                       ? selectedTemplates.length > 1
                         ? "Repeat count applied to each selected size."
@@ -310,12 +310,12 @@ export default function CutPlannerPage() {
                 </div>
 
                 {selectedTemplate.partType !== "rectangle" && (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-card "  >
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400  ">
                       <Scissors className="h-3.5 w-3.5" />
                       {getCutModeTitle(selectedTemplate.partType)}
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2 ">
                       {getCutDirectionOptions(selectedTemplate.partType).map(({ value, label }) => {
                         const direction = value;
                         const active = cutDirection === direction;
@@ -324,30 +324,30 @@ export default function CutPlannerPage() {
                             key={direction}
                             type="button"
                             onClick={() => setCutDirection(direction)}
-                            className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                              active
-                                ? "border-blue-500 bg-blue-50 text-blue-900"
-                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
+                            className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${active
+                              ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/10 dark:text-blue-300 "
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700/70"
+                              }`}
+
                           >
                             {label}
                           </button>
                         );
                       })}
                     </div>
-                    <div className="mt-2 text-xs text-slate-600">
+                    <div className="mt-2 text-xs ">
                       {getCutModeDescription(selectedTemplate.partType)}
                     </div>
                   </div>
                 )}
 
                 {selectedTemplate.partType !== "rectangle" && safeQuantity > 1 && (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 "  >
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide  " >
                       <Scissors className="h-3.5 w-3.5" />
                       Custom Cut Sizes
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-3" >
                       <Input
                         type="text"
                         value={customCutRatioInput}
@@ -355,9 +355,9 @@ export default function CutPlannerPage() {
                         placeholder={Array.from({ length: safeQuantity }, () => "1").join(", ")}
                       />
                     </div>
-                    <div className="mt-2 text-xs text-slate-600">
+                    <div className="mt-2 text-xs text-slate-600 " >
                       Optional. Enter {safeQuantity} comma-separated weights like{" "}
-                      <span className="font-medium text-slate-900">
+                      <span className="font-medium text-slate-900 "  >
                         {Array.from({ length: safeQuantity }, (_, index) => (index === safeQuantity - 1 ? "2" : "1")).join(", ")}
                       </span>{" "}
                       to make some cut sections larger than others.
@@ -370,15 +370,15 @@ export default function CutPlannerPage() {
                   </div>
                 )}
 
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card ">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400" >
                     <Scissors className="h-3.5 w-3.5" />
                     Requested Material
                   </div>
-                  <div className="mt-2 text-base font-semibold text-slate-900">
+                  <div className="mt-2 text-base font-semibold">
                     {requestedSqFt.toFixed(2)} sq ft
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">
+                  <div className="mt-1 text-xs">
                     {selectedTemplate.partType === "rectangle"
                       ? "Based on the selected part shape and quantity."
                       : "Based on the finished part shape. Non-rectangle cut sections do not multiply the finished area."}
@@ -443,13 +443,13 @@ export default function CutPlannerPage() {
           </Card>
         </>
       ) : (
-        <Card className="border border-dashed border-slate-300 bg-slate-50/60 shadow-sm">
+        <Card className="border border-dashed border-slate-300 bg-slate-50/60 shadow-sm dark:bg-slate-700/50">
           <CardContent className="flex min-h-40 flex-col items-center justify-center gap-2 py-10 text-center">
             <Shapes className="h-6 w-6 text-slate-400" />
-            <div className="text-base font-semibold text-slate-900">
+            <div className="text-base font-semibold text-slate-900 dark:text-slate-300">
               Choose a part type and standard size
             </div>
-            <div className="max-w-xl text-sm text-slate-600">
+            <div className="max-w-xl text-sm text-slate-600 dark:text-slate-400">
               Start with the part selection above. Once a standard size is picked, the amount of
               cuts and graph preview will appear underneath.
             </div>
@@ -477,7 +477,7 @@ function StockPreviewConfigurator({
     <Card className="border border-slate-200 shadow-sm">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
-          <Package className="h-4 w-4 text-slate-500" />
+          <Package className="h-4 w-4 text-slate-500 dark:text-slate-300" />
           Stock Preview
         </CardTitle>
         <CardDescription>
@@ -501,11 +501,11 @@ function StockPreviewConfigurator({
                     length: preset.length,
                   }))
                 }
-                className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
-                  isActive
-                    ? "border-blue-500 bg-blue-50 text-blue-900"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
+                className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${isActive
+                  ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/10 dark:text-blue-300"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700/70"
+                  }`}
+
               >
                 {preset.label}
               </button>

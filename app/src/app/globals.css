@@ -188,6 +188,16 @@ These serve as the fallback; there is no separate default.css file. */
   --color-background-secondary: #222225;
 
   --svg-bg:#18181b;
+
+  --btn-bg: #222225;
+   
+  --btn-text: #ffff;
+  --btn-border: #4b5563;
+  --btn-hover-border: #cbd5f5;
+
+  --btn-active-bg: #eff6ff;
+  --btn-active-border: #3b82f6;
+  --btn-active-text: #1e3a8a;
 }
 
 @layer base {

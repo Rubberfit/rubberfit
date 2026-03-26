@@ -220,7 +220,7 @@ export default function PresetDimensionSelector({
   };
 
   return (
-    <Card className="w-full border border-slate-200 shadow-sm">
+    <Card className="w-full shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -235,7 +235,7 @@ export default function PresetDimensionSelector({
 
       <CardContent className="space-y-5">
         <div className="space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             1. Choose Part Type
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -250,21 +250,21 @@ export default function PresetDimensionSelector({
                   onClick={() => handlePartChange(part.partType)}
                   className={`rounded-lg border p-3 text-left transition-all ${
                     isSelected
-                      ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-200"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-200 dark:bg-white/5 text-slate-100"
+                      : "border-slate-200 bg-white border-slate-300 hover: hover:bg-slate-50 dark:bg-card dark:border-slate-700 dark:hover:bg-slate-700"
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span
                       className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                        isSelected ? "border-blue-200 bg-blue-100" : "border-slate-200 bg-slate-50"
+                        isSelected ? "border-blue-200 bg-blue-200 dark:text-slate-100 dark:bg-card" : "border-slate-100 bg-slate-50 dark:text-slate-100 dark:bg-card"
                       }`}
                     >
                       <Icon className="h-4 w-4" />
                     </span>
-                    <span className="font-semibold">{part.label}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{part.label}</span>
                   </div>
-                  <div className={`mt-2 text-xs ${isSelected ? "text-blue-700" : "text-slate-500"}`}>
+                  <div className={`mt-2 text-xs ${isSelected ? "text-blue-700 dark:text-slate-300" : "text-slate-500 dark:text-slate-400 "}`}>
                     {part.description}
                   </div>
                 </button>
@@ -279,7 +279,7 @@ export default function PresetDimensionSelector({
               2. Choose Standard Size
             </div>
 
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap ">
               {availableCategories.map((category) => (
                 <button
                   key={category}
@@ -287,8 +287,8 @@ export default function PresetDimensionSelector({
                   onClick={() => setFilter(category)}
                   className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors ${
                     filter === category
-                      ? "bg-slate-800 text-white border-slate-800"
-                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                      ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-800 dark:border-slate-100"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 dark:bg-card dark:text-slate-400 dark:border-slate-700 dark:hover:border-slate-500"
                   }`}
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -323,8 +323,8 @@ export default function PresetDimensionSelector({
                   key={template.id}
                   className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all duration-150 select-none ${
                     isChecked
-                      ? "bg-blue-50 border-blue-400 text-blue-900 shadow-sm ring-1 ring-inset ring-blue-200"
-                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                      ? `  border-blue-400 text-blue-900 shadow-sm ring-1 ring-inset ring-blue-200`
+                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-card dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
                   }`}
                 >
                   <input
@@ -336,7 +336,7 @@ export default function PresetDimensionSelector({
 
                   <span
                     className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                      isChecked ? "bg-blue-600 border-blue-600" : "border-slate-300 bg-white"
+                      isChecked ? "bg-blue-600 border-blue-600 " : "border-slate-100 bg-white dark:border-slate- dark:bg-slate-700"
                     }`}
                   >
                     {isChecked && (
@@ -355,7 +355,7 @@ export default function PresetDimensionSelector({
                         {template.category}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">
+                    <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
                       {getTemplateAreaSqFt(template).toFixed(1)} sq ft
                     </div>
                   </div>
@@ -366,18 +366,18 @@ export default function PresetDimensionSelector({
         </div>
 
         {selectedTemplates.length > 0 && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3 dark:bg-card">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <Scissors className="h-4 w-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-700">
+                <Scissors className="h-4 w-4 text-slate-500 dark:text-slate-200"/>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-100">
                   {selectedTemplates.length} preset{selectedTemplates.length > 1 ? "s" : ""} selected
                 </span>
                 <Badge variant="outline" className="text-xs">
                   {totalArea.toFixed(2)} sq ft total
                 </Badge>
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-100">
                 The graph stacks the selected sizes in the preview.
               </div>
             </div>
@@ -399,24 +399,24 @@ export default function PresetDimensionSelector({
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="text-left py-1 pr-3 font-semibold text-slate-600">Dimensions</th>
-                    <th className="text-right py-1 pr-3 font-semibold text-slate-600">Qty</th>
-                    <th className="text-right py-1 font-semibold text-slate-600">Sq ft each</th>
+                    <th className="text-left py-1 pr-3 font-semibold text-slate-600 dark:text-slate-100">Dimensions</th>
+                    <th className="text-right py-1 pr-3 font-semibold text-slate-600 dark:text-slate-100">Qty</th>
+                    <th className="text-right py-1 font-semibold text-slate-600 dark:text-slate-100">Sq ft each</th>
                   </tr>
                 </thead>
                 <tbody>
                   {selectedTemplates.map((template) => (
                     <tr key={template.id} className="border-b border-slate-100 last:border-0">
-                      <td className="py-1 pr-3 font-mono font-semibold text-slate-800">{template.label}</td>
-                      <td className="py-1 pr-3 text-right text-slate-600">{template.quantity}</td>
-                      <td className="py-1 text-right text-slate-600">
+                      <td className="py-1 pr-3 font-mono font-semibold text-slate-800 dark:text-slate-200">{template.label}</td>
+                      <td className="py-1 pr-3 text-right text-slate-600 dark:text-slate-100">{template.quantity}</td>
+                      <td className="py-1 text-right text-slate-600 dark:text-slate-100">
                         {getTemplateAreaSqFt(template).toFixed(2)}
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-slate-100">
-                    <td colSpan={2} className="py-1 pr-3 font-semibold text-slate-700">Total</td>
-                    <td className="py-1 text-right font-semibold text-slate-700">
+                  <tr className="bg-slate-100 dark:bg-card">
+                    <td colSpan={2} className="py-1 pr-3 font-semibold text-slate-700 dark:text-slate-100">Total</td>
+                    <td className="py-1 text-right font-semibold text-slate-700 dark:text-slate-100">
                       {totalArea.toFixed(2)} sq ft
                     </td>
                   </tr>
