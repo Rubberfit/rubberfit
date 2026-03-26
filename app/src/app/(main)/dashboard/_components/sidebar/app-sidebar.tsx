@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 
 import { CircleHelp, ClipboardList, Command, Database, File, Search, Settings } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
+import {
+  filterNavGroupsForRoles,
+  getDefaultAuthorizedPath,
+} from "@/lib/rbac";
 import {
   Sidebar,
   SidebarContent,
@@ -71,6 +76,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const variant = isSynced ? sidebarVariant : props.variant;
   const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
+  const visibleSidebarItems = useMemo(
+    () => filterNavGroupsForRoles(sidebarItems, user?.roles),
+    [user?.roles],
+  );
+  const homeHref = getDefaultAuthorizedPath(user?.roles);
 
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>
@@ -78,7 +88,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link prefetch={false} href="/dashboard/default">
+              <Link prefetch={false} href={homeHref}>
                 <Command />
                 <span className="font-semibold text-base">{APP_CONFIG.name}</span>
               </Link>
@@ -87,7 +97,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={sidebarItems} />
+        <NavMain items={visibleSidebarItems} />
         {/* <NavDocuments items={data.documents} /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>

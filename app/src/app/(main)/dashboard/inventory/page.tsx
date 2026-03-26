@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Plus, Download, FileText } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { isRestrictedCutter } from "@/lib/rbac";
 import { CSVUpload } from "../_components/csv-upload";
 import { InventoryTable } from "../_components/inventory-table";
 import { InventorySearch } from "../_components/inventory-search";
@@ -19,9 +21,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function InventoryPage() {
+  const { user } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const readOnlyInventory = isRestrictedCutter(user?.roles);
 
   const handleUploadComplete = () => {
     // Trigger a refresh of the inventory table
@@ -81,7 +85,7 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-2xl font-bold">Inventory Management</h1>
           <p className="text-muted-foreground">
-            Manage your rubber roll inventory
+            {readOnlyInventory ? "View current rubber roll inventory" : "Manage your rubber roll inventory"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -103,14 +107,16 @@ export default function InventoryPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Roll
-          </Button>
+          {!readOnlyInventory && (
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Roll
+            </Button>
+          )}
         </div>
       </div>
 
-      <CSVUpload onUploadComplete={handleUploadComplete} />
+      {!readOnlyInventory && <CSVUpload onUploadComplete={handleUploadComplete} />}
 
       <Card>
         <CardHeader>
@@ -130,17 +136,20 @@ export default function InventoryPage() {
           <InventoryTable
             onRefresh={refreshKey}
             searchQuery={searchQuery}
+            readOnly={readOnlyInventory}
           />
         </CardContent>
       </Card>
 
       {/* Add Roll Dialog */}
-      <RollFormDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
-        roll={null}
-        onSuccess={handleAddSuccess}
-      />
+      {!readOnlyInventory && (
+        <RollFormDialog
+          open={addDialogOpen}
+          onOpenChange={setAddDialogOpen}
+          roll={null}
+          onSuccess={handleAddSuccess}
+        />
+      )}
     </div>
   );
 }
