@@ -30,9 +30,10 @@ import type { Roll } from "@/lib/supabase";
 interface InventoryTableProps {
   onRefresh?: number;
   searchQuery?: string;
+  readOnly?: boolean;
 }
 
-export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTableProps) {
+export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }: InventoryTableProps) {
   const [rolls, setRolls] = useState<Roll[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRoll, setEditingRoll] = useState<Roll | null>(null);
@@ -128,7 +129,7 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
   if (rolls.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No rolls in inventory. Upload a CSV file to add rolls.
+        {readOnly ? "No rolls in inventory." : "No rolls in inventory. Upload a CSV file to add rolls."}
       </div>
     );
   }
@@ -145,7 +146,7 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
               <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date Received</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {!readOnly && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -171,33 +172,35 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
                 <TableCell>
                   {roll.date_received ? new Date(roll.date_received).toLocaleDateString() : '-'}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    {roll.status === 'active' && (
+                {!readOnly && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {roll.status === 'active' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDepleteDialog(roll.id)}
+                        >
+                          Mark Depleted
+                        </Button>
+                      )}
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDepleteDialog(roll.id)}
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(roll)}
                       >
-                        Mark Depleted
+                        <Edit className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(roll)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(roll.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(roll.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
@@ -205,30 +208,34 @@ export function InventoryTable({ onRefresh, searchQuery = "" }: InventoryTablePr
       </div>
 
       {/* Edit Dialog */}
-      <RollFormDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        roll={editingRoll}
-        onSuccess={handleEditSuccess}
-      />
+      {!readOnly && (
+        <RollFormDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          roll={editingRoll}
+          onSuccess={handleEditSuccess}
+        />
+      )}
 
       {/* Deplete Confirmation Dialog */}
-      <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Roll as Depleted</AlertDialogTitle>
-            <AlertDialogDescription>
-              Mark this roll as depleted? This indicates the roll is fully used.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeplete}>
-              Mark as Depleted
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {!readOnly && (
+        <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Mark Roll as Depleted</AlertDialogTitle>
+              <AlertDialogDescription>
+                Mark this roll as depleted? This indicates the roll is fully used.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeplete}>
+                Mark as Depleted
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService, type AuthUser } from '@/services/authService';
+import { getDefaultAuthorizedPath } from '@/lib/rbac';
 import { supabase } from '@/lib/supabase';
 import { isElectron } from '@/lib/isElectron';
 
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (authUser) {
         setUser(authUser);
-        router.push('/dashboard/default');
+        router.push(getDefaultAuthorizedPath(authUser.roles));
         return { success: true };
       }
 

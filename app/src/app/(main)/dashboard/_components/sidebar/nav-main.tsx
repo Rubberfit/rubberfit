@@ -9,6 +9,8 @@ import { ChevronRight, MailIcon, PlusCircleIcon, X } from "lucide-react";
 import { rollService } from "@/services/rollService";
 import { materialTypeService } from "@/services/materialTypeService";
 import { notificationCrudService } from "@/services/notificationCrudService";
+import { useAuth } from "@/contexts/AuthContext";
+import { isRestrictedCutter } from "@/lib/rbac";
 import { toast } from "sonner";
 import { globalEvents, EVENTS } from "@/lib/events";
 import {
@@ -169,6 +171,7 @@ const NavItemCollapsed = ({
 export function NavMain({ items }: NavMainProps) {
   const path = usePathname();
   const router = useRouter();
+  const { user } = useAuth();
   const { state, isMobile } = useSidebar();
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -184,6 +187,7 @@ export function NavMain({ items }: NavMainProps) {
     cost_per_sqft: '',
     notes: ''
   });
+  const readOnlyInventory = isRestrictedCutter(user?.roles);
 
   // Load material types
   useEffect(() => {
@@ -200,6 +204,10 @@ export function NavMain({ items }: NavMainProps) {
 
     // Listen for Quick Create open events (e.g., from Order Material button)
     const handleOpenQuickCreate = (event: Event) => {
+      if (readOnlyInventory) {
+        return;
+      }
+
       const customEvent = event as CustomEvent;
       setIsQuickCreateOpen(true);
 
@@ -222,7 +230,7 @@ export function NavMain({ items }: NavMainProps) {
     return () => {
       globalEvents.off('OPEN_QUICK_CREATE' as any, handleOpenQuickCreate);
     };
-  }, []);
+  }, [readOnlyInventory]);
 
   // Load unread notifications count
   useEffect(() => {
@@ -270,6 +278,10 @@ export function NavMain({ items }: NavMainProps) {
   }, []);
 
   const handleQuickCreate = () => {
+    if (readOnlyInventory) {
+      return;
+    }
+
     // Open the add roll modal
     setIsQuickCreateOpen(true);
   };
@@ -486,14 +498,16 @@ export function NavMain({ items }: NavMainProps) {
         <SidebarGroupContent className="flex flex-col gap-2">
           <SidebarMenu>
             <SidebarMenuItem className="flex items-center gap-2">
-              <SidebarMenuButton
-                tooltip="Quick Create"
-                className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                onClick={handleQuickCreate}
-              >
-                <PlusCircleIcon />
-                <span>Quick Create</span>
-              </SidebarMenuButton>
+              {!readOnlyInventory && (
+                <SidebarMenuButton
+                  tooltip="Quick Create"
+                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                  onClick={handleQuickCreate}
+                >
+                  <PlusCircleIcon />
+                  <span>Quick Create</span>
+                </SidebarMenuButton>
+              )}
               <Button
                 size="icon"
                 className="h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0 active:bg-primary active:text-primary-foreground relative"
