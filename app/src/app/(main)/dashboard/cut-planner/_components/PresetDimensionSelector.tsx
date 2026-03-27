@@ -414,7 +414,7 @@ export default function PresetDimensionSelector({
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-slate-100 dark:bg-card">
+                  <tr className="bg-slate-100 dark:bg-slate-950">
                     <td colSpan={2} className="py-1 pr-3 font-semibold text-slate-700 dark:text-slate-100">Total</td>
                     <td className="py-1 text-right font-semibold text-slate-700 dark:text-slate-100">
                       {totalArea.toFixed(2)} sq ft

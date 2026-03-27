@@ -342,7 +342,7 @@ export default function CutPlannerPage() {
                 )}
 
                 {selectedTemplate.partType !== "rectangle" && safeQuantity > 1 && (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 "  >
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 dark:bg-card"  >
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide  " >
                       <Scissors className="h-3.5 w-3.5" />
                       Custom Cut Sizes
@@ -355,9 +355,9 @@ export default function CutPlannerPage() {
                         placeholder={Array.from({ length: safeQuantity }, () => "1").join(", ")}
                       />
                     </div>
-                    <div className="mt-2 text-xs text-slate-600 " >
+                    <div className="mt-2 text-xs text-slate-600 dark:text-slate-100" >
                       Optional. Enter {safeQuantity} comma-separated weights like{" "}
-                      <span className="font-medium text-slate-900 "  >
+                      <span className="font-medium text-slate-900 dark:text-slate-100"  >
                         {Array.from({ length: safeQuantity }, (_, index) => (index === safeQuantity - 1 ? "2" : "1")).join(", ")}
                       </span>{" "}
                       to make some cut sections larger than others.
