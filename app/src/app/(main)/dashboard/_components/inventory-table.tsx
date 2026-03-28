@@ -122,7 +122,7 @@ export function InventoryTable({
   if (rolls.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No rolls in inventory. Upload a CSV file to add rolls.
+        {readOnly ? "No rolls in inventory." : "No rolls in inventory. Upload a CSV file to add rolls."}
       </div>
     );
   }
