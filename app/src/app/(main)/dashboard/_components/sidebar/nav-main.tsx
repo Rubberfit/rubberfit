@@ -53,6 +53,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items";
+import { useRole } from "@/services/useRole";
 
 interface NavMainProps {
   readonly items: readonly NavGroup[];
@@ -176,6 +177,8 @@ export function NavMain({ items }: NavMainProps) {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [materialTypes, setMaterialTypes] = useState<string[]>([]);
+  const { can } = useRole();
+  const canManageRolls = can("manageRolls");
   const [formData, setFormData] = useState({
     material_type: '',
     width: '',
@@ -498,7 +501,7 @@ export function NavMain({ items }: NavMainProps) {
         <SidebarGroupContent className="flex flex-col gap-2">
           <SidebarMenu>
             <SidebarMenuItem className="flex items-center gap-2">
-              {!readOnlyInventory && (
+              {canManageRolls && (
                 <SidebarMenuButton
                   tooltip="Quick Create"
                   className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"

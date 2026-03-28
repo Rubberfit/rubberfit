@@ -30,10 +30,14 @@ import type { Roll } from "@/lib/supabase";
 interface InventoryTableProps {
   onRefresh?: number;
   searchQuery?: string;
-  readOnly?: boolean;
+  canManageRolls?: boolean; // ← add this
 }
 
-export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }: InventoryTableProps) {
+export function InventoryTable({
+  onRefresh,
+  searchQuery = "",
+  canManageRolls = false, // ← default to false (deny by default)
+}: InventoryTableProps) {
   const [rolls, setRolls] = useState<Roll[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRoll, setEditingRoll] = useState<Roll | null>(null);
@@ -44,18 +48,14 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
   const fetchRolls = async (query: string = "") => {
     try {
       setLoading(true);
-
       const data = query
         ? await rollService.searchRolls(query)
         : await rollService.getAllRolls();
-
       setRolls(data || []);
     } catch (error: unknown) {
       console.error('Error fetching rolls:', error);
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to load inventory", {
-        description: message
-      });
+      toast.error("Failed to load inventory", { description: message });
     } finally {
       setLoading(false);
     }
@@ -66,19 +66,14 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
   }, [onRefresh, searchQuery]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this roll?")) {
-      return;
-    }
-
+    if (!confirm("Are you sure you want to delete this roll?")) return;
     try {
       await rollService.deleteRoll(id);
       toast.success("Roll deleted successfully");
       fetchRolls(searchQuery);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to delete roll", {
-        description: message
-      });
+      toast.error("Failed to delete roll", { description: message });
     }
   };
 
@@ -89,9 +84,7 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
       fetchRolls(searchQuery);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : undefined;
-      toast.error("Failed to update roll", {
-        description: message
-      });
+      toast.error("Failed to update roll", { description: message });
     }
   };
 
@@ -146,7 +139,10 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
               <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date Received</TableHead>
-              {!readOnly && <TableHead className="text-right">Actions</TableHead>}
+              {/* Only show Actions column header if user can manage */}
+              {canManageRolls && (
+                <TableHead className="text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -170,9 +166,13 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {roll.date_received ? new Date(roll.date_received).toLocaleDateString() : '-'}
+                  {roll.date_received
+                    ? new Date(roll.date_received).toLocaleDateString()
+                    : '-'}
                 </TableCell>
-                {!readOnly && (
+
+                {/* Actions cell — only renders for admin and manager */}
+                {canManageRolls && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {roll.status === 'active' && (
@@ -207,8 +207,8 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
         </Table>
       </div>
 
-      {/* Edit Dialog */}
-      {!readOnly && (
+      {/* Edit Dialog — only mounts if user can manage */}
+      {canManageRolls && (
         <RollFormDialog
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
@@ -217,8 +217,8 @@ export function InventoryTable({ onRefresh, searchQuery = "", readOnly = false }
         />
       )}
 
-      {/* Deplete Confirmation Dialog */}
-      {!readOnly && (
+      {/* Deplete Confirmation Dialog — only mounts if user can manage */}
+      {canManageRolls && (
         <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_CONFIG } from "@/config/app-config";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/services/useRole";
 import { sidebarItems } from "@/navigation/sidebar/sidebar-items";
 import { usePreferencesStore } from "@/stores/preferences/preferences-provider";
 
@@ -66,6 +67,7 @@ const _data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
+  const { can, isLoading } = useRole();
   const { sidebarVariant, sidebarCollapsible, isSynced } = usePreferencesStore(
     useShallow((s) => ({
       sidebarVariant: s.sidebarVariant,
@@ -76,12 +78,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const variant = isSynced ? sidebarVariant : props.variant;
   const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
-  const visibleSidebarItems = useMemo(
-    () => filterNavGroupsForRoles(sidebarItems, user?.roles),
-    [user?.roles],
-  );
-  const homeHref = getDefaultAuthorizedPath(user?.roles);
-
+  // Filter nav items based on the current user's role
+  const visibleItems = sidebarItems
+  .map(group => ({
+    ...group,
+    items: group.items
+      .filter(item => !item.requiredPermission || can(item.requiredPermission))
+      .map(item => ({
+        ...item,
+        // Filter sub-items the same way
+        subItems: item.subItems?.filter(sub =>
+          !sub.requiredPermission || can(sub.requiredPermission)
+        ),
+      })),
+  }))
+  .filter(group => group.items.length > 0);
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>
       <SidebarHeader>
@@ -97,7 +108,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={visibleSidebarItems} />
+        {isLoading ? null : <NavMain items={visibleItems} />}
         {/* <NavDocuments items={data.documents} /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>

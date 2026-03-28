@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRole } from "@/services/useRole";
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -27,8 +28,10 @@ export default function InventoryPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const readOnlyInventory = isRestrictedCutter(user?.roles);
 
+  const { can, isLoading } = useRole();
+  const canManageRolls = can("manageRolls");
+
   const handleUploadComplete = () => {
-    // Trigger a refresh of the inventory table
     setRefreshKey(prev => prev + 1);
   };
 
@@ -43,7 +46,6 @@ export default function InventoryPage() {
   const handleExportCSV = async () => {
     try {
       const rolls = await rollService.getActiveRolls();
-
       if (rolls && rolls.length > 0) {
         exportService.exportInventory(rolls);
       } else {
@@ -58,7 +60,6 @@ export default function InventoryPage() {
   const handleExportPDF = async () => {
     try {
       const rolls = await rollService.getActiveRolls();
-
       const summary = {
         totalRolls: rolls?.length || 0,
         activeRolls: rolls?.filter(r => r.status === 'active').length || 0,
@@ -67,7 +68,6 @@ export default function InventoryPage() {
         totalSqft: rolls?.reduce((sum, roll) =>
           sum + ((roll.remaining_length * roll.width) / 144), 0) || 0,
       };
-
       if (rolls && rolls.length > 0) {
         await exportService.generateInventoryReport(rolls, summary);
       } else {
@@ -79,6 +79,8 @@ export default function InventoryPage() {
     }
   };
 
+  if (isLoading) return null;
+
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -89,6 +91,7 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Export — available to anyone who can view inventory */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -107,7 +110,9 @@ export default function InventoryPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {!readOnlyInventory && (
+
+          {/* Add Roll — admin and manager only */}
+          {canManageRolls && (
             <Button onClick={() => setAddDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Roll
@@ -116,16 +121,17 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {!readOnlyInventory && <CSVUpload onUploadComplete={handleUploadComplete} />}
+      {/* CSV Upload — admin and manager only */}
+      {canManageRolls && (
+        <CSVUpload onUploadComplete={handleUploadComplete} />
+      )}
 
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>Current Inventory</CardTitle>
-              <CardDescription>
-                All rubber rolls in stock
-              </CardDescription>
+              <CardDescription>All rubber rolls in stock</CardDescription>
             </div>
             <div className="w-full md:w-96">
               <InventorySearch onSearch={handleSearch} />
@@ -133,16 +139,17 @@ export default function InventoryPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Pass canManageRolls down so the table can hide edit/delete/deplete actions */}
           <InventoryTable
             onRefresh={refreshKey}
             searchQuery={searchQuery}
-            readOnly={readOnlyInventory}
+            canManageRolls={canManageRolls}
           />
         </CardContent>
       </Card>
 
-      {/* Add Roll Dialog */}
-      {!readOnlyInventory && (
+      {/* Add Roll Dialog — only mounts if user has permission */}
+      {canManageRolls && (
         <RollFormDialog
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
