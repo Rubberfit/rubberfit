@@ -4105,6 +4105,12 @@ export default function NestingVisualizer({
                 : item.renderShape === "trapezoid" && item.label.includes(" × ")
                   ? item.label.split(" × ").map((part, partIndex) => (partIndex === 0 ? part.trim() : `× ${part.trim()}`))
                   : null;
+              const compactRectLabel = !splitLabel && item.label.includes(" × ")
+                ? item.label.split(" × ").map((part, partIndex) => (partIndex === 0 ? part.trim() : `× ${part.trim()}`))
+                : null;
+              const showCompactDims = !showCutLines && !showDims && !!compactRectLabel && width > 42 && height > 28;
+              const compactFontSize = Math.max(8, Math.min(12, Math.min(width / 6, height / 3.4)));
+              const compactLineGap = Math.max(10, compactFontSize + 3);
               const badgeX = x + Math.min(12, Math.max(8, width * 0.08));
               const badgeY = y + Math.min(12, Math.max(8, height * 0.08));
               const badgeCenterX = badgeX + 28;
@@ -4711,7 +4717,7 @@ export default function NestingVisualizer({
                       </text>
                     </>
                   )}
-                  {showDims && !showCutLines && (
+                  {(showDims || showCompactDims) && !showCutLines && (
                     splitLabel ? (
                       <>
                         <text
@@ -4736,6 +4742,29 @@ export default function NestingVisualizer({
                             {splitLabel[1]}
                           </text>
                         )}
+                      </>
+                    ) : showCompactDims && compactRectLabel ? (
+                      <>
+                        <text
+                          x={x + width / 2}
+                          y={y + height / 2 - 2}
+                          textAnchor="middle"
+                          fill="#e7e5e4"
+                          fontSize={compactFontSize}
+                          fontWeight="700"
+                        >
+                          {compactRectLabel[0]}
+                        </text>
+                        <text
+                          x={x + width / 2}
+                          y={y + height / 2 + compactLineGap}
+                          textAnchor="middle"
+                          fill="#cbd5e1"
+                          fontSize={Math.max(7, compactFontSize - 1)}
+                          fontWeight="600"
+                        >
+                          {compactRectLabel[1]}
+                        </text>
                       </>
                     ) : (
                       <text

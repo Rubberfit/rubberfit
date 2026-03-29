@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { CheckSquare, LayoutGrid, Scissors, Shapes, Square, Triangle } from "lucide-react";
+import { CheckSquare, LayoutGrid, Pencil, Scissors, Shapes, Square, Triangle } from "lucide-react";
 import type { SimplePartType } from "./NestingVisualizer";
 
 type TemplateCategory = "standard" | "large" | "narrow" | "custom";
@@ -262,6 +262,34 @@ function buildCustomTemplate(
   }
 }
 
+function templateToDraft(template: PartTemplate): CustomPartDrafts[SupportedPartType] {
+  switch (template.partType) {
+    case "cylinder":
+      return {
+        diameter: template.diameter ? formatInches(template.diameter) : "",
+        height: template.height ? formatInches(template.height) : "",
+      };
+    case "cone":
+      return {
+        innerRadius: template.innerRadius ? formatInches(template.innerRadius) : "",
+        outerRadius: template.outerRadius ? formatInches(template.outerRadius) : "",
+        arcDegrees: template.arcDegrees ? formatInches(template.arcDegrees) : "",
+      };
+    case "trapezoid":
+      return {
+        topWidth: template.topWidth ? formatInches(template.topWidth) : "",
+        bottomWidth: template.bottomWidth ? formatInches(template.bottomWidth) : "",
+        height: template.height ? formatInches(template.height) : "",
+      };
+    case "rectangle":
+    default:
+      return {
+        width: template.width ? formatInches(template.width) : "",
+        length: template.length ? formatInches(template.length) : "",
+      };
+  }
+}
+
 function getPartIcon(partType: SimplePartType) {
   if (partType === "cone" || partType === "trapezoid") return Triangle;
   return Shapes;
@@ -313,6 +341,7 @@ export default function PresetDimensionSelector({
   const [customDrafts, setCustomDrafts] = useState<CustomPartDrafts>(DEFAULT_CUSTOM_DRAFTS);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplateMap>(EMPTY_CUSTOM_TEMPLATES);
   const [nextCustomId, setNextCustomId] = useState(1);
+  const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(CUSTOM_TEMPLATE_STORAGE_KEY);
@@ -390,6 +419,7 @@ export default function PresetDimensionSelector({
     setSelectedPart(partType);
     setChecked(new Set());
     setFilter("all");
+    setEditingCustomId(null);
   };
 
   const handleToggle = (templateId: string) => {
@@ -461,26 +491,51 @@ export default function PresetDimensionSelector({
       return;
     }
 
-    const id = `custom-${selectedPart}-${nextCustomId}`;
-    const customTemplate: PartTemplate = {
-      ...pendingCustomTemplate,
-      id,
-    };
+    if (editingCustomId) {
+      const customTemplate: PartTemplate = {
+        ...pendingCustomTemplate,
+        id: editingCustomId,
+      };
 
-    setCustomTemplates((previous) => ({
-      ...previous,
-      [selectedPart]: [...previous[selectedPart], customTemplate],
-    }));
-    setChecked((previous) => {
-      const next = new Set(previous);
-      next.add(id);
-      return next;
-    });
-    setNextCustomId((previous) => previous + 1);
+      setCustomTemplates((previous) => ({
+        ...previous,
+        [selectedPart]: previous[selectedPart].map((template) =>
+          template.id === editingCustomId ? customTemplate : template
+        ),
+      }));
+      setEditingCustomId(null);
+    } else {
+      const id = `custom-${selectedPart}-${nextCustomId}`;
+      const customTemplate: PartTemplate = {
+        ...pendingCustomTemplate,
+        id,
+      };
+
+      setCustomTemplates((previous) => ({
+        ...previous,
+        [selectedPart]: [...previous[selectedPart], customTemplate],
+      }));
+      setChecked((previous) => {
+        const next = new Set(previous);
+        next.add(id);
+        return next;
+      });
+      setNextCustomId((previous) => previous + 1);
+    }
+
     setFilter("all");
     setCustomDrafts((previous) => ({
       ...previous,
       [selectedPart]: DEFAULT_CUSTOM_DRAFTS[selectedPart],
+    }));
+  };
+
+  const editCustomTemplate = (template: PartTemplate) => {
+    setEditingCustomId(template.id);
+    setFilter("all");
+    setCustomDrafts((previous) => ({
+      ...previous,
+      [selectedPart]: templateToDraft(template),
     }));
   };
 
@@ -494,6 +549,13 @@ export default function PresetDimensionSelector({
       next.delete(templateId);
       return next;
     });
+    if (editingCustomId === templateId) {
+      setEditingCustomId(null);
+      setCustomDrafts((previous) => ({
+        ...previous,
+        [selectedPart]: DEFAULT_CUSTOM_DRAFTS[selectedPart],
+      }));
+    }
   };
 
   return (
@@ -624,29 +686,52 @@ export default function PresetDimensionSelector({
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-sm font-semibold leading-tight">
-                        {template.label}
-                      </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CAT_BADGE[template.category]}`}>
-                        {template.category}
-                      </span>
+                    <div className="flex items-start gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-sm font-semibold leading-tight">
+                            {template.label}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CAT_BADGE[template.category]}`}>
+                            {template.category}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
+                          {getTemplateAreaSqFt(template).toFixed(1)} sq ft
+                        </div>
+                        {editingCustomId === template.id && (
+                          <div className="mt-1 text-[10px] font-medium text-blue-700">
+                            Editing
+                          </div>
+                        )}
+                      </div>
                       {template.isCustom && (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeCustomTemplate(template.id);
-                          }}
-                          className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                        >
-                          remove
-                        </button>
+                        <div className="ml-auto flex flex-col items-end gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${template.label}`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              editCustomTemplate(template);
+                            }}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              removeCustomTemplate(template.id);
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            remove
+                          </button>
+                        </div>
                       )}
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
-                      {getTemplateAreaSqFt(template).toFixed(1)} sq ft
                     </div>
                   </div>
                 </label>
@@ -668,16 +753,38 @@ export default function PresetDimensionSelector({
                     {savedCustomCount} saved custom size{savedCustomCount > 1 ? "s" : ""} for this part type.
                   </div>
                 )}
+                {editingCustomId && (
+                  <div className="mt-1 text-xs text-blue-700">
+                    Editing saved custom size.
+                  </div>
+                )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddCustomSize}
-                disabled={!pendingCustomTemplate}
-                className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
-              >
-                Add Custom Size
-              </button>
+              <div className="flex items-center gap-2">
+                {editingCustomId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCustomId(null);
+                      setCustomDrafts((previous) => ({
+                        ...previous,
+                        [selectedPart]: DEFAULT_CUSTOM_DRAFTS[selectedPart],
+                      }));
+                    }}
+                    className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddCustomSize}
+                  disabled={!pendingCustomTemplate}
+                  className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
+                >
+                  {editingCustomId ? "Save Changes" : "Add Custom Size"}
+                </button>
+              </div>
             </div>
 
             <div className={`grid gap-3 ${customFields.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
@@ -700,7 +807,7 @@ export default function PresetDimensionSelector({
 
             <div className="text-xs text-slate-500 dark:text-slate-300">
               {pendingCustomTemplate
-                ? `Custom size ready to add: ${pendingCustomTemplate.label}`
+                ? `${editingCustomId ? "Ready to save" : "Custom size ready to add"}: ${pendingCustomTemplate.label}`
                 : selectedPart === "cone"
                   ? "Enter inner radius, outer radius, and sweep in degrees. Outer radius must be larger than inner radius."
                   : "Enter the part dimensions to add a custom size to the graph."}
