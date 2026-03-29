@@ -3,10 +3,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { CheckSquare, LayoutGrid, Scissors, Shapes, Square, Triangle } from "lucide-react";
 import type { SimplePartType } from "./NestingVisualizer";
 
-type TemplateCategory = "standard" | "large" | "narrow";
+type TemplateCategory = "standard" | "large" | "narrow" | "custom";
+type SupportedPartType = Exclude<SimplePartType, "circle">;
 
 export interface PartTemplate {
   id: string;
@@ -24,10 +26,23 @@ export interface PartTemplate {
   innerRadius?: number;
   outerRadius?: number;
   arcDegrees?: number;
+  isCustom?: boolean;
 }
 
+type RectangleDraft = { width: string; length: string };
+type CylinderDraft = { diameter: string; height: string };
+type ConeDraft = { innerRadius: string; outerRadius: string; arcDegrees: string };
+type TrapezoidDraft = { topWidth: string; bottomWidth: string; height: string };
+
+type CustomPartDrafts = {
+  rectangle: RectangleDraft;
+  cylinder: CylinderDraft;
+  cone: ConeDraft;
+  trapezoid: TrapezoidDraft;
+};
+
 const PART_OPTIONS: Array<{
-  partType: SimplePartType;
+  partType: SupportedPartType;
   label: string;
   description: string;
 }> = [
@@ -56,6 +71,7 @@ const PART_OPTIONS: Array<{
 export const PART_TEMPLATES: PartTemplate[] = [
   { id: "rect-18x14", partType: "rectangle", label: '18" × 14"', summary: "Standard cut preset", quantity: 1, category: "standard", width: 18, length: 14 },
   { id: "rect-24x50", partType: "rectangle", label: '24" × 50"', summary: "Large cut preset", quantity: 1, category: "large", width: 24, length: 50 },
+  { id: "rect-11-5x50", partType: "rectangle", label: '11½" × 50"', summary: "Narrow cut preset", quantity: 1, category: "narrow", width: 11.5, length: 50 },
   { id: "rect-24x14", partType: "rectangle", label: '24" × 14"', summary: "Standard cut preset", quantity: 1, category: "standard", width: 24, length: 14 },
   { id: "rect-24x40", partType: "rectangle", label: '24" × 40"', summary: "Large cut preset", quantity: 1, category: "large", width: 24, length: 40 },
   { id: "rect-12x24", partType: "rectangle", label: '12" × 24"', summary: "Standard cut preset", quantity: 1, category: "standard", width: 12, length: 24 },
@@ -107,13 +123,133 @@ const CAT_CARD: Record<TemplateCategory, string> = {
   standard: "bg-blue-50 border-blue-200 text-blue-800",
   large: "bg-purple-50 border-purple-200 text-purple-800",
   narrow: "bg-amber-50 border-amber-200 text-amber-800",
+  custom: "bg-emerald-50 border-emerald-200 text-emerald-800",
 };
 
 const CAT_BADGE: Record<TemplateCategory, string> = {
   standard: "bg-blue-100 text-blue-700",
   large: "bg-purple-100 text-purple-700",
   narrow: "bg-amber-100 text-amber-700",
+  custom: "bg-emerald-100 text-emerald-700",
 };
+
+const DEFAULT_CUSTOM_DRAFTS: CustomPartDrafts = {
+  rectangle: { width: "", length: "" },
+  cylinder: { diameter: "", height: "" },
+  cone: { innerRadius: "", outerRadius: "", arcDegrees: "" },
+  trapezoid: { topWidth: "", bottomWidth: "", height: "" },
+};
+
+function formatInches(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+
+  return value
+    .toFixed(2)
+    .replace(/\.00$/, "")
+    .replace(/(\.\d*[1-9])0+$/, "$1");
+}
+
+function parsePositiveMeasurement(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function buildCustomTemplate(
+  partType: SupportedPartType,
+  drafts: CustomPartDrafts,
+): PartTemplate | null {
+  switch (partType) {
+    case "rectangle": {
+      const width = parsePositiveMeasurement(drafts.rectangle.width);
+      const length = parsePositiveMeasurement(drafts.rectangle.length);
+      if (!width || !length) {
+        return null;
+      }
+
+      return {
+        id: `custom-rectangle-${width}-${length}`,
+        partType,
+        label: `${formatInches(width)}" × ${formatInches(length)}"`,
+        summary: "Custom rectangular cut",
+        quantity: 1,
+        category: "custom",
+        width,
+        length,
+        isCustom: true,
+      };
+    }
+    case "cylinder": {
+      const diameter = parsePositiveMeasurement(drafts.cylinder.diameter);
+      const height = parsePositiveMeasurement(drafts.cylinder.height);
+      if (!diameter || !height) {
+        return null;
+      }
+
+      return {
+        id: `custom-cylinder-${diameter}-${height}`,
+        partType,
+        label: `Ø${formatInches(diameter)}" × ${formatInches(height)}"`,
+        summary: "Custom cylinder wrap",
+        quantity: 1,
+        category: "custom",
+        diameter,
+        height,
+        isCustom: true,
+      };
+    }
+    case "cone": {
+      const innerRadius = parsePositiveMeasurement(drafts.cone.innerRadius);
+      const outerRadius = parsePositiveMeasurement(drafts.cone.outerRadius);
+      const arcDegrees = parsePositiveMeasurement(drafts.cone.arcDegrees);
+      if (!innerRadius || !outerRadius || !arcDegrees || outerRadius <= innerRadius) {
+        return null;
+      }
+
+      return {
+        id: `custom-cone-${innerRadius}-${outerRadius}-${arcDegrees}`,
+        partType,
+        label: `${formatInches(arcDegrees)}° • R${formatInches(innerRadius)}" to R${formatInches(outerRadius)}"`,
+        summary: "Custom cone/frustum spread",
+        quantity: 1,
+        category: "custom",
+        innerRadius,
+        outerRadius,
+        arcDegrees,
+        isCustom: true,
+      };
+    }
+    case "trapezoid": {
+      const topWidth = parsePositiveMeasurement(drafts.trapezoid.topWidth);
+      const bottomWidth = parsePositiveMeasurement(drafts.trapezoid.bottomWidth);
+      const height = parsePositiveMeasurement(drafts.trapezoid.height);
+      if (!topWidth || !bottomWidth || !height) {
+        return null;
+      }
+
+      return {
+        id: `custom-trapezoid-${topWidth}-${bottomWidth}-${height}`,
+        partType,
+        label: `${formatInches(topWidth)}" / ${formatInches(bottomWidth)}" × ${formatInches(height)}"`,
+        summary: "Custom hopper / transition panel",
+        quantity: 1,
+        category: "custom",
+        topWidth,
+        bottomWidth,
+        height,
+        isCustom: true,
+      };
+    }
+    default:
+      return null;
+  }
+}
 
 function getPartIcon(partType: SimplePartType) {
   if (partType === "cone" || partType === "trapezoid") return Triangle;
@@ -160,9 +296,11 @@ export default function PresetDimensionSelector({
   rollWidth = 96,
   rollLength = 48,
 }: PresetDimensionSelectorProps) {
-  const [selectedPart, setSelectedPart] = useState<SimplePartType>("rectangle");
+  const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle");
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<"all" | TemplateCategory>("all");
+  const [customDrafts, setCustomDrafts] = useState<CustomPartDrafts>(DEFAULT_CUSTOM_DRAFTS);
+  const [customEnabled, setCustomEnabled] = useState(false);
 
   const sizeOptions = useMemo(
     () => PART_TEMPLATES.filter((template) => template.partType === selectedPart),
@@ -187,16 +325,29 @@ export default function PresetDimensionSelector({
     [checked, sizeOptions]
   );
 
-  const totalArea = selectedTemplates.reduce((acc, template) => acc + getTemplateAreaSqFt(template), 0);
+  const customTemplate = useMemo(
+    () => buildCustomTemplate(selectedPart, customDrafts),
+    [customDrafts, selectedPart]
+  );
+
+  const appliedTemplates = useMemo(() => {
+    if (customEnabled && customTemplate) {
+      return [...selectedTemplates, customTemplate];
+    }
+    return selectedTemplates;
+  }, [customEnabled, customTemplate, selectedTemplates]);
+
+  const totalArea = appliedTemplates.reduce((acc, template) => acc + getTemplateAreaSqFt(template), 0);
 
   useEffect(() => {
-    onApply?.(selectedTemplates);
-  }, [onApply, selectedTemplates]);
+    onApply?.(appliedTemplates);
+  }, [appliedTemplates, onApply]);
 
-  const handlePartChange = (partType: SimplePartType) => {
+  const handlePartChange = (partType: SupportedPartType) => {
     setSelectedPart(partType);
     setChecked(new Set());
     setFilter("all");
+    setCustomEnabled(false);
   };
 
   const handleToggle = (templateId: string) => {
@@ -217,7 +368,51 @@ export default function PresetDimensionSelector({
 
   const handleClearAll = () => {
     setChecked(new Set());
+    setCustomEnabled(false);
   };
+
+  const updateCustomDraft = (
+    key: string,
+    value: string,
+  ) => {
+    setCustomDrafts((previous) => ({
+      ...previous,
+      [selectedPart]: {
+        ...previous[selectedPart],
+        [key]: value,
+      },
+    }));
+  };
+
+  const customDraft = customDrafts[selectedPart];
+  const selectedPartLabel = PART_OPTIONS.find((part) => part.partType === selectedPart)?.label ?? "Part";
+  const customFields = (() => {
+    switch (selectedPart) {
+      case "cylinder":
+        return [
+          { key: "diameter", label: "Diameter", placeholder: '24' },
+          { key: "height", label: "Height", placeholder: '40' },
+        ];
+      case "cone":
+        return [
+          { key: "innerRadius", label: "Inner Radius", placeholder: '10' },
+          { key: "outerRadius", label: "Outer Radius", placeholder: '24' },
+          { key: "arcDegrees", label: "Arc Degrees", placeholder: '100' },
+        ];
+      case "trapezoid":
+        return [
+          { key: "topWidth", label: "Top Width", placeholder: '24' },
+          { key: "bottomWidth", label: "Bottom Width", placeholder: '36' },
+          { key: "height", label: "Height", placeholder: '56' },
+        ];
+      case "rectangle":
+      default:
+        return [
+          { key: "width", label: "Width", placeholder: '24' },
+          { key: "length", label: "Length", placeholder: '50' },
+        ];
+    }
+  })();
 
   return (
     <Card className="w-full shadow-sm">
@@ -363,15 +558,75 @@ export default function PresetDimensionSelector({
               );
             })}
           </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3 dark:bg-card">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Custom Size
+                </div>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                  If the standard list does not match the rubber on hand, enter a custom {selectedPartLabel.toLowerCase()} size.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (customEnabled) {
+                    setCustomEnabled(false);
+                    return;
+                  }
+                  if (customTemplate) {
+                    setCustomEnabled(true);
+                  }
+                }}
+                disabled={!customEnabled && !customTemplate}
+                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  customEnabled
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
+                }`}
+              >
+                {customEnabled ? "Remove Custom Size" : "Use Custom Size"}
+              </button>
+            </div>
+
+            <div className={`grid gap-3 ${customFields.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+              {customFields.map((field) => (
+                <div key={field.key}>
+                  <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                    {field.label}
+                  </div>
+                  <Input
+                    min={0}
+                    step="0.5"
+                    type="number"
+                    value={(customDraft as Record<string, string>)[field.key] ?? ""}
+                    onChange={(event) => updateCustomDraft(field.key, event.target.value)}
+                    placeholder={field.placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="text-xs text-slate-500 dark:text-slate-300">
+              {customTemplate
+                ? `Custom size ready: ${customTemplate.label}`
+                : selectedPart === "cone"
+                  ? "Enter inner radius, outer radius, and sweep in degrees. Outer radius must be larger than inner radius."
+                  : "Enter the part dimensions to add a custom size to the graph."}
+            </div>
+          </div>
         </div>
 
-        {selectedTemplates.length > 0 && (
+        {appliedTemplates.length > 0 && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3 dark:bg-card">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <Scissors className="h-4 w-4 text-slate-500 dark:text-slate-200"/>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-100">
-                  {selectedTemplates.length} preset{selectedTemplates.length > 1 ? "s" : ""} selected
+                  {appliedTemplates.length} size{appliedTemplates.length > 1 ? "s" : ""} selected
                 </span>
                 <Badge variant="outline" className="text-xs">
                   {totalArea.toFixed(2)} sq ft total
@@ -383,10 +638,16 @@ export default function PresetDimensionSelector({
             </div>
 
             <div className="flex gap-1.5 flex-wrap">
-              {selectedTemplates.map((template) => (
+              {appliedTemplates.map((template) => (
                 <span
                   key={template.id}
-                  onClick={() => handleToggle(template.id)}
+                  onClick={() => {
+                    if (template.isCustom) {
+                      setCustomEnabled(false);
+                    } else {
+                      handleToggle(template.id);
+                    }
+                  }}
                   className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium cursor-pointer border transition-colors hover:opacity-75 ${CAT_CARD[template.category]}`}
                 >
                   {template.label}
@@ -405,9 +666,18 @@ export default function PresetDimensionSelector({
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedTemplates.map((template) => (
+                  {appliedTemplates.map((template) => (
                     <tr key={template.id} className="border-b border-slate-100 last:border-0">
-                      <td className="py-1 pr-3 font-mono font-semibold text-slate-800 dark:text-slate-200">{template.label}</td>
+                      <td className="py-1 pr-3 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                        <span className="inline-flex items-center gap-1.5">
+                          {template.label}
+                          {template.isCustom && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CAT_BADGE.custom}`}>
+                              custom
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="py-1 pr-3 text-right text-slate-600 dark:text-slate-100">{template.quantity}</td>
                       <td className="py-1 text-right text-slate-600 dark:text-slate-100">
                         {getTemplateAreaSqFt(template).toFixed(2)}

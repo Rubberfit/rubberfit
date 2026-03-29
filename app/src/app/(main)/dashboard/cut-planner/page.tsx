@@ -29,6 +29,23 @@ const STOCK_PRESETS = [
   { id: "72x120", label: '72" × 120"', width: 72, length: 120 },
   { id: "96x48", label: '96" × 48"', width: 96, length: 48 },
   { id: "96x120", label: '96" × 120"', width: 96, length: 120 },
+  { id: "18x14", label: '18" × 14"', width: 18, length: 14 },
+  { id: "24x50", label: '24" × 50"', width: 24, length: 50 },
+  { id: "11-5x50", label: '11½" × 50"', width: 11.5, length: 50 },
+  { id: "24x14", label: '24" × 14"', width: 24, length: 14 },
+  { id: "24x40", label: '24" × 40"', width: 24, length: 40 },
+  { id: "11-5x40", label: '11½" × 40"', width: 11.5, length: 40 },
+  { id: "12x24", label: '12" × 24"', width: 12, length: 24 },
+  { id: "11-5x12", label: '11½" × 12"', width: 11.5, length: 12 },
+  { id: "56x12", label: '56" × 12"', width: 56, length: 12 },
+  { id: "12x11-5", label: '12" × 11½"', width: 12, length: 11.5 },
+  { id: "72x12", label: '72" × 12"', width: 72, length: 12 },
+  { id: "38x24", label: '38" × 24"', width: 38, length: 24 },
+  { id: "11-5x38", label: '11½" × 38"', width: 11.5, length: 38 },
+  { id: "48x24", label: '48" × 24"', width: 48, length: 24 },
+  { id: "48x11-5", label: '48" × 11½"', width: 48, length: 11.5 },
+  { id: "40x12", label: '40" × 12"', width: 40, length: 12 },
+  { id: "38x12", label: '38" × 12"', width: 38, length: 12 },
 ];
 
 function formatInches(value: number) {
@@ -482,12 +499,13 @@ function StockPreviewConfigurator({
         </CardTitle>
         <CardDescription>
           Pick the stock sheet before choosing cuts so the graph scores yield against the sheet you
-          actually want to demo.
+          actually want to demo. The quick sets include the shop's common rubber sizes, and the
+          manual fields let you override them when a sheet is not listed.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
           {STOCK_PRESETS.map((preset) => {
             const isActive = activeStockPreset === preset.id;
             return (
