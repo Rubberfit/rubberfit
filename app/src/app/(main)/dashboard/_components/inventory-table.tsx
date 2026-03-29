@@ -38,6 +38,7 @@ export function InventoryTable({
   searchQuery = "",
   canManageRolls = false, // ← default to false (deny by default)
 }: InventoryTableProps) {
+  const readOnly = !canManageRolls;
   const [rolls, setRolls] = useState<Roll[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingRoll, setEditingRoll] = useState<Roll | null>(null);

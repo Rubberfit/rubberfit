@@ -4105,6 +4105,13 @@ export default function NestingVisualizer({
                 : item.renderShape === "trapezoid" && item.label.includes(" × ")
                   ? item.label.split(" × ").map((part, partIndex) => (partIndex === 0 ? part.trim() : `× ${part.trim()}`))
                   : null;
+              const compactRectLabel = !splitLabel && item.label.includes(" × ")
+                ? item.label.split(" × ").map((part, partIndex) => (partIndex === 0 ? part.trim() : `× ${part.trim()}`))
+                : null;
+              const showCompactDims = !showCutLines && !showDims && !!compactRectLabel && width > 42 && height > 26;
+              const needsExternalDims = !showCutLines && !showDims && !showCompactDims;
+              const compactFontSize = Math.max(8, Math.min(12, Math.min(width / 5.8, height / 3)));
+              const compactLineGap = Math.max(10, compactFontSize + 2);
               const badgeX = x + Math.min(12, Math.max(8, width * 0.08));
               const badgeY = y + Math.min(12, Math.max(8, height * 0.08));
               const badgeCenterX = badgeX + 28;
@@ -4121,6 +4128,18 @@ export default function NestingVisualizer({
                 : [];
               const heroSectionBounds = [0, ...heroCutBreakpoints, 1];
               const heroSectionLabels = preview.cutLabels ?? [];
+              const fallbackLabelLines = splitLabel
+                ? splitLabel
+                : compactRectLabel
+                  ? compactRectLabel
+                  : [item.label];
+              const fitsRightSide = x + width + 110 < surfaceX + surfacePxW;
+              const calloutAnchor: "start" | "end" = fitsRightSide ? "start" : "end";
+              const calloutX = fitsRightSide ? x + width + 10 : x - 10;
+              const calloutBaseY = Math.max(surfaceY + 18, y + Math.min(height / 2, 18));
+              const calloutLineX2 = fitsRightSide ? calloutX - 6 : calloutX + 6;
+              const calloutStartX = x + width / 2;
+              const calloutStartY = y + Math.min(height / 2, 18);
 
               const renderShape = () => {
                 // NFP-optimized items with non-zero rotation: render pre-computed
@@ -4711,7 +4730,7 @@ export default function NestingVisualizer({
                       </text>
                     </>
                   )}
-                  {showDims && !showCutLines && (
+                  {(showDims || showCompactDims) && !showCutLines && (
                     splitLabel ? (
                       <>
                         <text
@@ -4737,6 +4756,29 @@ export default function NestingVisualizer({
                           </text>
                         )}
                       </>
+                    ) : showCompactDims && compactRectLabel ? (
+                      <>
+                        <text
+                          x={x + width / 2}
+                          y={y + height / 2 - 1}
+                          textAnchor="middle"
+                          fill="#e7e5e4"
+                          fontSize={compactFontSize}
+                          fontWeight="700"
+                        >
+                          {compactRectLabel[0]}
+                        </text>
+                        <text
+                          x={x + width / 2}
+                          y={y + height / 2 + compactLineGap}
+                          textAnchor="middle"
+                          fill="#cbd5e1"
+                          fontSize={Math.max(7, compactFontSize - 1)}
+                          fontWeight="600"
+                        >
+                          {compactRectLabel[1]}
+                        </text>
+                      </>
                     ) : (
                       <text
                         x={x + width / 2}
@@ -4749,6 +4791,33 @@ export default function NestingVisualizer({
                         {item.label}
                       </text>
                     )
+                  )}
+                  {needsExternalDims && fallbackLabelLines.length > 0 && (
+                    <>
+                      <line
+                        x1={calloutStartX}
+                        y1={calloutStartY}
+                        x2={calloutLineX2}
+                        y2={calloutBaseY - 8}
+                        stroke="rgba(255,255,255,0.55)"
+                        strokeWidth="1.2"
+                        strokeDasharray="4 3"
+                      />
+                      <circle cx={calloutStartX} cy={calloutStartY} r="2" fill="#f8fafc" opacity="0.9" />
+                      {fallbackLabelLines.slice(0, 2).map((line, lineIndex) => (
+                        <text
+                          key={`fallback-dim-${index + 1}-${lineIndex + 1}`}
+                          x={calloutX}
+                          y={calloutBaseY + (lineIndex * 12)}
+                          textAnchor={calloutAnchor}
+                          fill={lineIndex === 0 ? "#e7e5e4" : "#cbd5e1"}
+                          fontSize={lineIndex === 0 ? "11" : "10"}
+                          fontWeight={lineIndex === 0 ? "700" : "600"}
+                        >
+                          {line}
+                        </text>
+                      ))}
+                    </>
                   )}
                 </g>
               );
