@@ -41,6 +41,8 @@ type CustomPartDrafts = {
   trapezoid: TrapezoidDraft;
 };
 
+type CustomTemplateMap = Record<SupportedPartType, PartTemplate[]>;
+
 const PART_OPTIONS: Array<{
   partType: SupportedPartType;
   label: string;
@@ -138,6 +140,13 @@ const DEFAULT_CUSTOM_DRAFTS: CustomPartDrafts = {
   cylinder: { diameter: "", height: "" },
   cone: { innerRadius: "", outerRadius: "", arcDegrees: "" },
   trapezoid: { topWidth: "", bottomWidth: "", height: "" },
+};
+
+const EMPTY_CUSTOM_TEMPLATES: CustomTemplateMap = {
+  rectangle: [],
+  cylinder: [],
+  cone: [],
+  trapezoid: [],
 };
 
 function formatInches(value: number) {
@@ -300,11 +309,15 @@ export default function PresetDimensionSelector({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<"all" | TemplateCategory>("all");
   const [customDrafts, setCustomDrafts] = useState<CustomPartDrafts>(DEFAULT_CUSTOM_DRAFTS);
-  const [customEnabled, setCustomEnabled] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<CustomTemplateMap>(EMPTY_CUSTOM_TEMPLATES);
+  const [nextCustomId, setNextCustomId] = useState(1);
 
   const sizeOptions = useMemo(
-    () => PART_TEMPLATES.filter((template) => template.partType === selectedPart),
-    [selectedPart]
+    () => [
+      ...PART_TEMPLATES.filter((template) => template.partType === selectedPart),
+      ...customTemplates[selectedPart],
+    ],
+    [customTemplates, selectedPart]
   );
 
   const availableCategories = useMemo(() => {
@@ -325,29 +338,21 @@ export default function PresetDimensionSelector({
     [checked, sizeOptions]
   );
 
-  const customTemplate = useMemo(
+  const pendingCustomTemplate = useMemo(
     () => buildCustomTemplate(selectedPart, customDrafts),
     [customDrafts, selectedPart]
   );
 
-  const appliedTemplates = useMemo(() => {
-    if (customEnabled && customTemplate) {
-      return [...selectedTemplates, customTemplate];
-    }
-    return selectedTemplates;
-  }, [customEnabled, customTemplate, selectedTemplates]);
-
-  const totalArea = appliedTemplates.reduce((acc, template) => acc + getTemplateAreaSqFt(template), 0);
+  const totalArea = selectedTemplates.reduce((acc, template) => acc + getTemplateAreaSqFt(template), 0);
 
   useEffect(() => {
-    onApply?.(appliedTemplates);
-  }, [appliedTemplates, onApply]);
+    onApply?.(selectedTemplates);
+  }, [onApply, selectedTemplates]);
 
   const handlePartChange = (partType: SupportedPartType) => {
     setSelectedPart(partType);
     setChecked(new Set());
     setFilter("all");
-    setCustomEnabled(false);
   };
 
   const handleToggle = (templateId: string) => {
@@ -368,7 +373,6 @@ export default function PresetDimensionSelector({
 
   const handleClearAll = () => {
     setChecked(new Set());
-    setCustomEnabled(false);
   };
 
   const updateCustomDraft = (
@@ -386,6 +390,7 @@ export default function PresetDimensionSelector({
 
   const customDraft = customDrafts[selectedPart];
   const selectedPartLabel = PART_OPTIONS.find((part) => part.partType === selectedPart)?.label ?? "Part";
+  const savedCustomCount = customTemplates[selectedPart].length;
   const customFields = (() => {
     switch (selectedPart) {
       case "cylinder":
@@ -413,6 +418,46 @@ export default function PresetDimensionSelector({
         ];
     }
   })();
+
+  const handleAddCustomSize = () => {
+    if (!pendingCustomTemplate) {
+      return;
+    }
+
+    const id = `custom-${selectedPart}-${nextCustomId}`;
+    const customTemplate: PartTemplate = {
+      ...pendingCustomTemplate,
+      id,
+    };
+
+    setCustomTemplates((previous) => ({
+      ...previous,
+      [selectedPart]: [...previous[selectedPart], customTemplate],
+    }));
+    setChecked((previous) => {
+      const next = new Set(previous);
+      next.add(id);
+      return next;
+    });
+    setNextCustomId((previous) => previous + 1);
+    setFilter("all");
+    setCustomDrafts((previous) => ({
+      ...previous,
+      [selectedPart]: DEFAULT_CUSTOM_DRAFTS[selectedPart],
+    }));
+  };
+
+  const removeCustomTemplate = (templateId: string) => {
+    setCustomTemplates((previous) => ({
+      ...previous,
+      [selectedPart]: previous[selectedPart].filter((template) => template.id !== templateId),
+    }));
+    setChecked((previous) => {
+      const next = new Set(previous);
+      next.delete(templateId);
+      return next;
+    });
+  };
 
   return (
     <Card className="w-full shadow-sm">
@@ -549,6 +594,19 @@ export default function PresetDimensionSelector({
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${CAT_BADGE[template.category]}`}>
                         {template.category}
                       </span>
+                      {template.isCustom && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeCustomTemplate(template.id);
+                          }}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                        >
+                          remove
+                        </button>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
                       {getTemplateAreaSqFt(template).toFixed(1)} sq ft
@@ -568,27 +626,20 @@ export default function PresetDimensionSelector({
                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
                   If the standard list does not match the rubber on hand, enter a custom {selectedPartLabel.toLowerCase()} size.
                 </div>
+                {savedCustomCount > 0 && (
+                  <div className="mt-1 text-xs text-emerald-700">
+                    {savedCustomCount} saved custom size{savedCustomCount > 1 ? "s" : ""} for this part type.
+                  </div>
+                )}
               </div>
 
               <button
                 type="button"
-                onClick={() => {
-                  if (customEnabled) {
-                    setCustomEnabled(false);
-                    return;
-                  }
-                  if (customTemplate) {
-                    setCustomEnabled(true);
-                  }
-                }}
-                disabled={!customEnabled && !customTemplate}
-                className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  customEnabled
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
-                }`}
+                onClick={handleAddCustomSize}
+                disabled={!pendingCustomTemplate}
+                className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
               >
-                {customEnabled ? "Remove Custom Size" : "Use Custom Size"}
+                Add Custom Size
               </button>
             </div>
 
@@ -611,8 +662,8 @@ export default function PresetDimensionSelector({
             </div>
 
             <div className="text-xs text-slate-500 dark:text-slate-300">
-              {customTemplate
-                ? `Custom size ready: ${customTemplate.label}`
+              {pendingCustomTemplate
+                ? `Custom size ready to add: ${pendingCustomTemplate.label}`
                 : selectedPart === "cone"
                   ? "Enter inner radius, outer radius, and sweep in degrees. Outer radius must be larger than inner radius."
                   : "Enter the part dimensions to add a custom size to the graph."}
@@ -620,13 +671,13 @@ export default function PresetDimensionSelector({
           </div>
         </div>
 
-        {appliedTemplates.length > 0 && (
+        {selectedTemplates.length > 0 && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3 dark:bg-card">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 <Scissors className="h-4 w-4 text-slate-500 dark:text-slate-200"/>
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-100">
-                  {appliedTemplates.length} size{appliedTemplates.length > 1 ? "s" : ""} selected
+                  {selectedTemplates.length} size{selectedTemplates.length > 1 ? "s" : ""} selected
                 </span>
                 <Badge variant="outline" className="text-xs">
                   {totalArea.toFixed(2)} sq ft total
@@ -638,12 +689,12 @@ export default function PresetDimensionSelector({
             </div>
 
             <div className="flex gap-1.5 flex-wrap">
-              {appliedTemplates.map((template) => (
+              {selectedTemplates.map((template) => (
                 <span
                   key={template.id}
                   onClick={() => {
                     if (template.isCustom) {
-                      setCustomEnabled(false);
+                      removeCustomTemplate(template.id);
                     } else {
                       handleToggle(template.id);
                     }
@@ -666,7 +717,7 @@ export default function PresetDimensionSelector({
                   </tr>
                 </thead>
                 <tbody>
-                  {appliedTemplates.map((template) => (
+                  {selectedTemplates.map((template) => (
                     <tr key={template.id} className="border-b border-slate-100 last:border-0">
                       <td className="py-1 pr-3 font-mono font-semibold text-slate-800 dark:text-slate-200">
                         <span className="inline-flex items-center gap-1.5">
