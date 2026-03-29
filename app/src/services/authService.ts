@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { normalizeRoles } from '@/lib/rbac';
 import type { User, AuthError } from '@supabase/supabase-js';
 
 export interface AuthUser {
@@ -6,6 +7,7 @@ export interface AuthUser {
   email: string;
   name?: string;
   avatar?: string;
+  roles: string[];
 }
 
 export interface AuthResponse {
@@ -16,6 +18,26 @@ export interface AuthResponse {
 // Generate a random avatar using DiceBear API
 const generateRandomAvatar = (seed: string): string => {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=2563eb&textColor=ffffff`;
+};
+
+const getProfileRoles = async (userId: string): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('roles')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error loading profile roles:', error);
+      return normalizeRoles();
+    }
+
+    return normalizeRoles(data?.roles);
+  } catch (error) {
+    console.error('Error loading profile roles:', error);
+    return normalizeRoles();
+  }
 };
 
 export const authService = {
@@ -52,6 +74,7 @@ export const authService = {
         email: data.user.email!,
         name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0],
         avatar,
+        roles: await getProfileRoles(data.user.id),
       };
 
       return { user, error: null };
@@ -103,6 +126,7 @@ export const authService = {
         email: data.user.email!,
         name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0],
         avatar: data.user.user_metadata?.avatar_url || avatar,
+        roles: await getProfileRoles(data.user.id),
       };
 
       return { user, error: null };
@@ -172,6 +196,7 @@ export const authService = {
         email: user.email!,
         name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
         avatar,
+        roles: await getProfileRoles(user.id),
       };
     } catch (error) {
       console.error('Error getting current user:', error);
@@ -205,6 +230,7 @@ export const authService = {
           email: session.user.email!,
           name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
           avatar,
+          roles: await getProfileRoles(session.user.id),
         };
         callback(user);
       } else if (event === 'SIGNED_OUT') {

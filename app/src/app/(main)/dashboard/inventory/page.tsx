@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Plus, Download, FileText } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { isRestrictedCutter } from "@/lib/rbac";
 import { CSVUpload } from "../_components/csv-upload";
 import { InventoryTable } from "../_components/inventory-table";
 import { InventorySearch } from "../_components/inventory-search";
@@ -20,9 +22,11 @@ import {
 import { useRole } from "@/services/useRole";
 
 export default function InventoryPage() {
+  const { user } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const readOnlyInventory = isRestrictedCutter(user?.roles);
 
   const { can, isLoading } = useRole();
   const canManageRolls = can("manageRolls");
@@ -83,7 +87,7 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-2xl font-bold">Inventory Management</h1>
           <p className="text-muted-foreground">
-            Manage your rubber roll inventory
+            {readOnlyInventory ? "View current rubber roll inventory" : "Manage your rubber roll inventory"}
           </p>
         </div>
         <div className="flex gap-2">

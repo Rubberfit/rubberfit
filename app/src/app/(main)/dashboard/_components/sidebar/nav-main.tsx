@@ -9,6 +9,8 @@ import { ChevronRight, MailIcon, PlusCircleIcon, X } from "lucide-react";
 import { rollService } from "@/services/rollService";
 import { materialTypeService } from "@/services/materialTypeService";
 import { notificationCrudService } from "@/services/notificationCrudService";
+import { useAuth } from "@/contexts/AuthContext";
+import { isRestrictedCutter } from "@/lib/rbac";
 import { toast } from "sonner";
 import { globalEvents, EVENTS } from "@/lib/events";
 import {
@@ -170,6 +172,7 @@ const NavItemCollapsed = ({
 export function NavMain({ items }: NavMainProps) {
   const path = usePathname();
   const router = useRouter();
+  const { user } = useAuth();
   const { state, isMobile } = useSidebar();
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -187,6 +190,7 @@ export function NavMain({ items }: NavMainProps) {
     cost_per_sqft: '',
     notes: ''
   });
+  const readOnlyInventory = isRestrictedCutter(user?.roles);
 
   // Load material types
   useEffect(() => {
@@ -203,6 +207,10 @@ export function NavMain({ items }: NavMainProps) {
 
     // Listen for Quick Create open events (e.g., from Order Material button)
     const handleOpenQuickCreate = (event: Event) => {
+      if (readOnlyInventory) {
+        return;
+      }
+
       const customEvent = event as CustomEvent;
       setIsQuickCreateOpen(true);
 
@@ -225,7 +233,7 @@ export function NavMain({ items }: NavMainProps) {
     return () => {
       globalEvents.off('OPEN_QUICK_CREATE' as any, handleOpenQuickCreate);
     };
-  }, []);
+  }, [readOnlyInventory]);
 
   // Load unread notifications count
   useEffect(() => {
@@ -273,6 +281,10 @@ export function NavMain({ items }: NavMainProps) {
   }, []);
 
   const handleQuickCreate = () => {
+    if (readOnlyInventory) {
+      return;
+    }
+
     // Open the add roll modal
     setIsQuickCreateOpen(true);
   };
