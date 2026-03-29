@@ -149,6 +149,8 @@ const EMPTY_CUSTOM_TEMPLATES: CustomTemplateMap = {
   trapezoid: [],
 };
 
+const CUSTOM_TEMPLATE_STORAGE_KEY = "rubberfit-pro.cut-planner.custom-templates.v1";
+
 function formatInches(value: number) {
   if (Number.isInteger(value)) {
     return String(value);
@@ -311,6 +313,41 @@ export default function PresetDimensionSelector({
   const [customDrafts, setCustomDrafts] = useState<CustomPartDrafts>(DEFAULT_CUSTOM_DRAFTS);
   const [customTemplates, setCustomTemplates] = useState<CustomTemplateMap>(EMPTY_CUSTOM_TEMPLATES);
   const [nextCustomId, setNextCustomId] = useState(1);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(CUSTOM_TEMPLATE_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<CustomTemplateMap>;
+      const hydrated: CustomTemplateMap = {
+        rectangle: Array.isArray(parsed.rectangle) ? parsed.rectangle : [],
+        cylinder: Array.isArray(parsed.cylinder) ? parsed.cylinder : [],
+        cone: Array.isArray(parsed.cone) ? parsed.cone : [],
+        trapezoid: Array.isArray(parsed.trapezoid) ? parsed.trapezoid : [],
+      };
+
+      setCustomTemplates(hydrated);
+
+      const maxId = Object.values(hydrated)
+        .flat()
+        .reduce((highest, template) => {
+          const match = template.id.match(/custom-[a-z-]+-(\d+)$/);
+          const numericId = match ? Number.parseInt(match[1] ?? "0", 10) : 0;
+          return Number.isFinite(numericId) ? Math.max(highest, numericId) : highest;
+        }, 0);
+
+      setNextCustomId(maxId + 1);
+    } catch {
+      window.localStorage.removeItem(CUSTOM_TEMPLATE_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(CUSTOM_TEMPLATE_STORAGE_KEY, JSON.stringify(customTemplates));
+  }, [customTemplates]);
 
   const sizeOptions = useMemo(
     () => [

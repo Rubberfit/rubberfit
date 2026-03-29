@@ -46,7 +46,24 @@ const STOCK_PRESETS = [
   { id: "48x11-5", label: '48" × 11½"', width: 48, length: 11.5 },
   { id: "40x12", label: '40" × 12"', width: 40, length: 12 },
   { id: "38x12", label: '38" × 12"', width: 38, length: 12 },
-];
+].sort((left, right) => {
+  const leftArea = left.width * left.length;
+  const rightArea = right.width * right.length;
+
+  if (leftArea !== rightArea) {
+    return leftArea - rightArea;
+  }
+
+  const leftLongest = Math.max(left.width, left.length);
+  const rightLongest = Math.max(right.width, right.length);
+  if (leftLongest !== rightLongest) {
+    return leftLongest - rightLongest;
+  }
+
+  const leftShortest = Math.min(left.width, left.length);
+  const rightShortest = Math.min(right.width, right.length);
+  return leftShortest - rightShortest;
+});
 
 function formatInches(value: number) {
   if (Number.isInteger(value)) {
