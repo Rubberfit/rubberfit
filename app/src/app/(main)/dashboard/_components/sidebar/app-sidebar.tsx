@@ -81,7 +81,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     [user?.roles],
   );
   const homeHref = getDefaultAuthorizedPath(user?.roles);
-
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>
       <SidebarHeader>
