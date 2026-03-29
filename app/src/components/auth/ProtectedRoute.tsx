@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { canAccessPath, getDefaultAuthorizedPath } from '@/lib/rbac';
 import { Spinner } from '@/components/ui/spinner';
 
 interface ProtectedRouteProps {
@@ -13,15 +14,21 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/auth/v2/login');
+      return;
     }
-  }, [user, loading, router]);
+
+    if (!loading && user && !canAccessPath(user.roles, pathname)) {
+      router.replace(getDefaultAuthorizedPath(user.roles));
+    }
+  }, [user, loading, pathname, router]);
 
   // Show loading spinner while checking authentication
-  if (loading) {
+  if (loading || (user && !canAccessPath(user.roles, pathname))) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">
