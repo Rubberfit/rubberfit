@@ -37,7 +37,7 @@ export default async function ResetPasswordPage({ searchParams }: ResetPasswordP
       <div className="absolute top-5 flex w-full justify-end px-10">
         <div className="text-muted-foreground text-sm">
           Remember your password?{" "}
-          <Link prefetch={false} className="text-foreground" href="login">
+          <Link prefetch={false} className="text-foreground" href="/auth/v2/login">
             Back to login
           </Link>
         </div>

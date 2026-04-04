@@ -171,11 +171,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { success: false, error: error.message };
       }
 
+      if (!authUser) {
+        return {
+          success: false,
+          error: "Failed to refresh authenticated user after password update",
+        };
+      }
+
       setUser(authUser);
 
       return {
         success: true,
-        redirectTo: resolvePostAuthRedirect(authUser?.roles),
+        redirectTo: resolvePostAuthRedirect(authUser.roles),
       };
     } catch (error) {
       return {

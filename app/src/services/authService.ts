@@ -186,8 +186,21 @@ export const authService = {
         return { user: null, error };
       }
 
+      const user = await authService.getCurrentUser();
+
+      if (!user) {
+        return {
+          user: null,
+          error: {
+            message: 'Password updated, but failed to retrieve the current user',
+            name: 'AuthError',
+            status: 500
+          } as AuthError
+        };
+      }
+
       return {
-        user: await authService.getCurrentUser(),
+        user,
         error: null,
       };
     } catch (error) {
