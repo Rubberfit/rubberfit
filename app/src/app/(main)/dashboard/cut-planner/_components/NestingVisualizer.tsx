@@ -3972,6 +3972,7 @@ export default function NestingVisualizer({
     const multiSheet = computeMultiSheetPreviews(displayPreview, previewRollW, previewRollL, 4, regenerateForQty);
     const isMultiSheet = multiSheet.sheets.length > 1;
     const uniqueLabels = [...new Set(displayItems.map((i) => i.label))];
+    const tagMap = new Map(uniqueLabels.map((label, i) => [label, String.fromCharCode(65 + i)]));
     const previewBounds = getPlacementBounds(displayItems);
     const viewWidth = 980;
     const viewHeight = 560;
@@ -4226,6 +4227,7 @@ export default function NestingVisualizer({
               const height = item.height * scale;
               const showShapeHeroAnnotations = shapeFirstView;
               const showCutLines = shapeFirstView && (displayPreview.sections?.length ?? preview.piecesPerUnit) > 1;
+              const tagLetter = tagMap.get(item.label) ?? "";
               const showLocalBlankGeometry = shapeFirstView && item.renderShape !== "rect" && width > 54 && height > 54;
               const showBadge = !shapeFirstView && !showCutLines && width > 64 && height > 30;
               const showDims = width > 90 && height > 40;
@@ -4561,7 +4563,7 @@ export default function NestingVisualizer({
                                     fontSize="12"
                                     fontWeight="700"
                                   >
-                                    CUT {sectionIndex + 1}
+                                    {tagLetter}
                                   </text>
                                   <text
                                     x={labelX}
@@ -4594,7 +4596,7 @@ export default function NestingVisualizer({
                                     fontSize="12"
                                     fontWeight="700"
                                   >
-                                    CUT {sectionIndex + 1}
+                                    {tagLetter}
                                   </text>
                                   <text
                                     x={x + width / 2}
@@ -4767,7 +4769,7 @@ export default function NestingVisualizer({
                                     fontSize="12"
                                     fontWeight="700"
                                   >
-                                    CUT {segmentIndex + 1}
+                                    {tagLetter}
                                   </text>
                                   <text
                                     x={centerX + Math.cos(midAngle) * labelRadius}
@@ -4799,7 +4801,7 @@ export default function NestingVisualizer({
                                     fontSize="12"
                                     fontWeight="700"
                                   >
-                                    CUT {segmentIndex + 1}
+                                    {tagLetter}
                                   </text>
                                   <text
                                     x={centerX + Math.cos(labelAngle) * bandRadius}
@@ -4855,71 +4857,21 @@ export default function NestingVisualizer({
                         fontSize="11"
                         fontWeight="700"
                       >
-                        CUT {showShapeHeroAnnotations ? 1 : index + 1}
+                        {tagLetter}
                       </text>
                     </>
                   )}
                   {(showDims || showCompactDims) && !showCutLines && (
-                    splitLabel ? (
-                      <>
-                        <text
-                          x={x + width / 2}
-                          y={dimY - 8}
-                          textAnchor="middle"
-                          fill="#e7e5e4"
-                          fontSize="16"
-                          fontWeight="600"
-                        >
-                          {splitLabel[0]}
-                        </text>
-                        {splitLabel[1] && (
-                          <text
-                            x={x + width / 2}
-                            y={dimY + 12}
-                            textAnchor="middle"
-                            fill="#cbd5e1"
-                            fontSize="13"
-                            fontWeight="600"
-                          >
-                            {splitLabel[1]}
-                          </text>
-                        )}
-                      </>
-                    ) : showCompactDims && compactRectLabel ? (
-                      <>
-                        <text
-                          x={x + width / 2}
-                          y={y + height / 2 - 1}
-                          textAnchor="middle"
-                          fill="#e7e5e4"
-                          fontSize={compactFontSize}
-                          fontWeight="700"
-                        >
-                          {compactRectLabel[0]}
-                        </text>
-                        <text
-                          x={x + width / 2}
-                          y={y + height / 2 + compactLineGap}
-                          textAnchor="middle"
-                          fill="#cbd5e1"
-                          fontSize={Math.max(7, compactFontSize - 1)}
-                          fontWeight="600"
-                        >
-                          {compactRectLabel[1]}
-                        </text>
-                      </>
-                    ) : (
-                      <text
-                        x={x + width / 2}
-                        y={dimY}
-                        textAnchor="middle"
-                        fill="#e7e5e4"
-                        fontSize="16"
-                        fontWeight="600"
-                      >
-                        {item.label}
-                      </text>
-                    )
+                    <text
+                      x={x + width / 2}
+                      y={y + height / 2 + (showBadge ? 10 : 4)}
+                      textAnchor="middle"
+                      fill="#e7e5e4"
+                      fontSize={Math.min(28, Math.min(width * 0.4, height * 0.35))}
+                      fontWeight="700"
+                    >
+                      {tagLetter}
+                    </text>
                   )}
                   {needsExternalDims && fallbackLabelLines.length > 0 && (
                     <>
