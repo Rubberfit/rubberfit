@@ -46,8 +46,11 @@ npm install
 A local Supabase instance using Docker is highly recommended for development.
 
 ```bash
-# Go from the app directory to the database directory
-cd ../supabase
+# Go back to project root
+cd ..
+
+# Start local Supabase instance
+cd supabase
 
 # Start local Supabase instance (Docker must be running)
 supabase start
@@ -62,7 +65,7 @@ supabase db reset --with-seed
 ### 3. Configure Environment Variables
 
 ```bash
-cd ../app
+cd app
 cp .env.example .env.local
 ```
 
@@ -70,6 +73,13 @@ Update your `.env.local` to match your local Supabase credentials outputted duri
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-local-anon-key
+```
+### Step 4: Load Sample Data (Optional)
+
+```bash
+# From the supabase directory
+cd ../supabase
+supabase db seed
 ```
 
 ## 🚀 Development Mode
