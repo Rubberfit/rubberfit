@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "lint": "tsc --noEmit --pretty false",
     "start": "next start",
     "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && tsc -p electron/tsconfig.json -w\" \"wait-on electron-dist/main.js && cross-env NODE_ENV=development electron .\"",
