@@ -333,12 +333,14 @@ interface PresetDimensionSelectorProps {
   onApply?: (templates: PartTemplate[]) => void;
   rollWidth?: number;
   rollLength?: number;
+  tagMap?: Map<string, string>;
 }
 
 export default function PresetDimensionSelector({
   onApply,
   rollWidth = 96,
   rollLength = 48,
+  tagMap,
 }: PresetDimensionSelectorProps) {
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle");
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -699,6 +701,11 @@ export default function PresetDimensionSelector({
                     <div className="flex items-start gap-1.5">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {isChecked && tagMap?.has(template.label) && (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+                              {tagMap.get(template.label)}
+                            </span>
+                          )}
                           <span className="font-mono text-sm font-semibold leading-tight">
                             {template.label}
                           </span>

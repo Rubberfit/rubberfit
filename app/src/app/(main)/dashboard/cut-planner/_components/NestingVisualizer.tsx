@@ -1684,17 +1684,17 @@ function computeMultiSheetPreviews(
 
   const stockArea = rollW * rollL;
 
-  // Fast path: everything fits on 1 sheet
+  // Fast path: everything fits on 1 sheet or nothing fits
   if (preview.overflowUnits <= 0 || capacityPerSheet <= 0) {
     const fab = computeFabricationScore(preview, rollW, rollL);
     return {
-      sheets: [{ sheetIndex: 0, preview, isPartial: preview.unitsCompleted < capacityPerSheet }],
+      sheets: [{ sheetIndex: 0, preview, isPartial: false }],
       totalUnitsCompleted: preview.unitsCompleted,
       totalUsedArea: preview.usedArea,
       totalReusableArea: preview.reusableArea,
       totalScrapArea: preview.scrapArea,
       totalStockArea: stockArea,
-      remainingOverflow: 0,
+      remainingOverflow: capacityPerSheet <= 0 ? totalNeeded : 0,
       avgFabScore: fab.score,
     };
   }
@@ -4019,12 +4019,6 @@ export default function NestingVisualizer({
     const localBlankY = surfaceY + (previewBounds.minY - unitOriginY) * scale;
     const localBlankW = previewBounds.occupiedWidth * scale;
     const localBlankH = previewBounds.occupiedHeight * scale;
-    const showOffcutLabel = !shapeFirstView && displayPreview.wasteMode === "bands" && displayPreview.offcutBands.length > 0;
-    const offcutLabelBands = showOffcutLabel
-      ? [...displayPreview.offcutBands]
-        .sort((a, b) => (b.width * b.height) - (a.width * a.height))
-        .filter((band) => band.width * scale > 42 && band.height * scale > 14)
-      : [];
     const showCutPlan = displayPreview.renderShape !== "rect";
 
     return (
@@ -4049,16 +4043,16 @@ export default function NestingVisualizer({
               <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1 font-medium text-green-600">
                 {pieceCountLabel}: {pieceCountValue}
               </span>
-              {reusableOffcutSqFt > 0 && (
+              {(isMultiSheet ? multiSheet.totalReusableArea > 0 : reusableOffcutSqFt > 0) && (
                 <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
                   {reusableMetricLabel}: {isMultiSheet
-                    ? ((multiSheet.totalReusableArea / multiSheet.totalStockArea) * 100).toFixed(1)
+                    ? (multiSheet.totalStockArea > 0 ? ((multiSheet.totalReusableArea / multiSheet.totalStockArea) * 100).toFixed(1) : "0.0")
                     : reusableOffcutPct.toFixed(1)}%
                 </span>
               )}
               <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 font-medium text-red-600">
                 {scrapMetricLabel}: {isMultiSheet
-                  ? ((multiSheet.totalScrapArea / multiSheet.totalStockArea) * 100).toFixed(1)
+                  ? (multiSheet.totalStockArea > 0 ? ((multiSheet.totalScrapArea / multiSheet.totalStockArea) * 100).toFixed(1) : "0.0")
                   : scrapPct.toFixed(1)}%
               </span>
               {multiSheet.remainingOverflow > 0 && (
@@ -4228,7 +4222,6 @@ export default function NestingVisualizer({
               const showCutLines = shapeFirstView && (displayPreview.sections?.length ?? preview.piecesPerUnit) > 1;
               const tagLetter = tagMap.get(item.label) ?? "";
               const showLocalBlankGeometry = shapeFirstView && item.renderShape !== "rect" && width > 54 && height > 54;
-              const showBadge = !shapeFirstView && !showCutLines && width > 64 && height > 30;
               const showDims = width > 90 && height > 40;
               const splitLabel = item.renderShape === "sector" && item.label.includes("•")
                 ? item.label.split("•").map((part) => part.trim())
@@ -4242,10 +4235,6 @@ export default function NestingVisualizer({
               const needsExternalDims = !showCutLines && !showDims && !showCompactDims;
               const compactFontSize = Math.max(8, Math.min(12, Math.min(width / 5.8, height / 3)));
               const compactLineGap = Math.max(10, compactFontSize + 2);
-              const badgeX = x + Math.min(12, Math.max(8, width * 0.08));
-              const badgeY = y + Math.min(12, Math.max(8, height * 0.08));
-              const badgeCenterX = badgeX + 28;
-              const badgeCenterY = badgeY + 14;
               const dimY = item.renderShape === "circle"
                 ? y + height / 2 + 36
                 : item.renderShape === "sector"
@@ -4837,33 +4826,10 @@ export default function NestingVisualizer({
               return (
                 <g key={index + 1}>
                   {renderShape()}
-                  {showBadge && (
-                    <>
-                      <rect
-                        x={badgeX}
-                        y={badgeY}
-                        width="56"
-                        height="28"
-                        rx="14"
-                        fill="#111827"
-                        opacity="0.96"
-                      />
-                      <text
-                        x={badgeCenterX}
-                        y={badgeCenterY + 4}
-                        textAnchor="middle"
-                        fill="#f8fafc"
-                        fontSize="11"
-                        fontWeight="700"
-                      >
-                        {tagLetter}
-                      </text>
-                    </>
-                  )}
                   {(showDims || showCompactDims) && !showCutLines && (
                     <text
                       x={x + width / 2}
-                      y={y + height / 2 + (showBadge ? 10 : 4)}
+                      y={y + height / 2 + 4}
                       textAnchor="middle"
                       fill="#e7e5e4"
                       fontSize={Math.min(28, Math.min(width * 0.4, height * 0.35))}

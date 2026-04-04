@@ -223,6 +223,11 @@ export default function CutPlannerPage() {
     [quantity, selectedTemplates]
   );
 
+  const tagMap = useMemo(() => {
+    const labels = [...new Set(selectedTemplates.map((t) => t.label))];
+    return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]));
+  }, [selectedTemplates]);
+
   const handleTemplateApply = (templates: PartTemplate[]) => {
     setSelectedTemplates(templates);
     setQuantity((previous) => Math.max(1, previous));
@@ -270,6 +275,7 @@ export default function CutPlannerPage() {
         onApply={handleTemplateApply}
         rollWidth={stock.width}
         rollLength={stock.length}
+        tagMap={tagMap}
       />
 
       {selectedTemplates.length > 0 && selectedTemplate ? (
