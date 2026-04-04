@@ -1,0 +1,50 @@
+name: Auto-label issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const text = `${issue.title} ${issue.body || ''}`.toLowerCase();
+            const labels = [];
+
+            const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const matchesKeyword = (sourceText, keyword) => {
+              const escaped = escapeRegExp(keyword.toLowerCase());
+              const pattern = new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`);
+              return pattern.test(sourceText);
+            };
+
+            const rules = [
+              { keywords: ['3d', 'r3f', 'three.js', 'threejs', 'mesh', 'thickness'], label: '3d-viz' },
+              { keywords: ['cut planner', 'nesting', 'nfp', 'layout', 'sheet'], label: 'cut-planner' },
+              { keywords: ['image', 'upload', 'parse', 'ocr', 'scan'], label: 'image-parsing' },
+              { keywords: ['refactor', 'cleanup', 'restructure', 'reorganize'], label: 'refactor' },
+              { keywords: ['validate', 'verification', 'brent', 'real data', 'accuracy'], label: 'validation' },
+              { keywords: ['ui', 'ux', 'design', 'layout', 'theme', 'dark mode', 'light mode'], label: 'ui' },
+            ];
+
+            for (const rule of rules) {
+              if (rule.keywords.some(kw => matchesKeyword(text, kw))) {
+                labels.push(rule.label);
+              }
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels,
+              });
+            }

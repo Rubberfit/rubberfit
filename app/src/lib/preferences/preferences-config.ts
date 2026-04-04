@@ -13,7 +13,7 @@
 
 import type { FontKey } from "@/lib/fonts/registry";
 
-import type { ContentLayout, NavbarStyle, SidebarCollapsible, SidebarVariant } from "./layout";
+import type { ContentLayout, NavbarStyle, SidebarCollapsible, SidebarVariant } from "./layout-config";
 import type { ThemeMode, ThemePreset } from "./theme";
 
 export type PreferencePersistence = "none" | "client-cookie" | "server-cookie" | "localStorage";
