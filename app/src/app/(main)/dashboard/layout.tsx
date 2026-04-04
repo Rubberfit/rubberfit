@@ -6,7 +6,7 @@ import { AppSidebar } from "@/app/(main)/dashboard/_components/sidebar/app-sideb
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/preferences/layout";
+import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/preferences/layout-config";
 import { cn } from "@/lib/utils";
 import { getPreference } from "@/server/server-actions";
 
