@@ -1710,10 +1710,8 @@ function computeMultiSheetPreviews(
     let sheetPreview: SimplePartPreview;
     if (i === 0) {
       sheetPreview = preview;
-    } else if (regenerate) {
-      sheetPreview = regenerate(unitsOnSheet);
     } else {
-      sheetPreview = preview;
+      sheetPreview = regenerate!(unitsOnSheet);
     }
 
     sheets.push({ sheetIndex: i, preview: sheetPreview, isPartial });
@@ -3972,7 +3970,6 @@ export default function NestingVisualizer({
     const multiSheet = computeMultiSheetPreviews(displayPreview, previewRollW, previewRollL, 4, regenerateForQty);
     const isMultiSheet = multiSheet.sheets.length > 1;
     const uniqueLabels = [...new Set(displayItems.map((i) => i.label))];
-    const tagMap = new Map(uniqueLabels.map((label, i) => [label, String.fromCharCode(65 + i)]));
     const previewBounds = getPlacementBounds(displayItems);
     const viewWidth = 980;
     const viewHeight = 560;
