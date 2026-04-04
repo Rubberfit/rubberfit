@@ -1682,39 +1682,39 @@ function computeMultiSheetPreviews(
   const capacityPerSheet = preview.unitsCompleted;
   const totalNeeded = preview.unitsCompleted + preview.overflowUnits;
 
+  const stockArea = rollW * rollL;
+
   // Fast path: everything fits on 1 sheet
   if (preview.overflowUnits <= 0 || capacityPerSheet <= 0) {
-    const stockArea = rollW * rollL;
+    const fab = computeFabricationScore(preview, rollW, rollL);
     return {
-      sheets: [{ sheetIndex: 0, preview, isPartial: totalNeeded < capacityPerSheet }],
+      sheets: [{ sheetIndex: 0, preview, isPartial: preview.unitsCompleted < capacityPerSheet }],
       totalUnitsCompleted: preview.unitsCompleted,
       totalUsedArea: preview.usedArea,
       totalReusableArea: preview.reusableArea,
       totalScrapArea: preview.scrapArea,
       totalStockArea: stockArea,
       remainingOverflow: 0,
-      avgFabScore: 0,
+      avgFabScore: fab.score,
     };
   }
 
-  const sheetsNeeded = Math.min(maxSheets, Math.ceil(totalNeeded / capacityPerSheet));
-  const stockArea = rollW * rollL;
   const sheets: SheetPreview[] = [];
   let placed = 0;
 
-  for (let i = 0; i < sheetsNeeded; i++) {
+  while (placed < totalNeeded && sheets.length < maxSheets) {
     const remaining = totalNeeded - placed;
     const unitsOnSheet = Math.min(capacityPerSheet, remaining);
-    const isPartial = unitsOnSheet < capacityPerSheet;
 
     let sheetPreview: SimplePartPreview;
-    if (i === 0) {
+    if (sheets.length === 0) {
       sheetPreview = preview;
     } else {
       sheetPreview = regenerate!(unitsOnSheet);
     }
 
-    sheets.push({ sheetIndex: i, preview: sheetPreview, isPartial });
+    const isPartial = sheetPreview.unitsCompleted < capacityPerSheet;
+    sheets.push({ sheetIndex: sheets.length, preview: sheetPreview, isPartial });
     placed += sheetPreview.unitsCompleted;
   }
 
@@ -1723,6 +1723,8 @@ function computeMultiSheetPreviews(
   const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0);
   const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0);
   const remainingOverflow = Math.max(0, totalNeeded - totalUnitsCompleted);
+  const fabScores = sheets.map((sh) => computeFabricationScore(sh.preview, rollW, rollL).score);
+  const avgFabScore = Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length);
 
   return {
     sheets,
@@ -1732,7 +1734,7 @@ function computeMultiSheetPreviews(
     totalScrapArea,
     totalStockArea: stockArea * sheets.length,
     remainingOverflow,
-    avgFabScore: 0,
+    avgFabScore,
   };
 }
 
@@ -3950,12 +3952,12 @@ export default function NestingVisualizer({
     }
     const usingOptimizedStockLayout = optimizedStockPreview !== null && displayPreview === optimizedStockPreview;
     const fabScore = computeFabricationScore(displayPreview, previewRollW, previewRollL);
-    const stockSqFt = (previewRollW * previewRollL) / 144;
+    const singleStockSqFt = (previewRollW * previewRollL) / 144;
     const usedSqFt = displayPreview.usedArea / 144;
     const reusableOffcutSqFt = displayPreview.reusableArea / 144;
     const scrapSqFt = displayPreview.scrapArea / 144;
-    const reusableOffcutPct = stockSqFt > 0 ? (reusableOffcutSqFt / stockSqFt) * 100 : 0;
-    const scrapPct = stockSqFt > 0 ? (scrapSqFt / stockSqFt) * 100 : 0;
+    const reusableOffcutPct = singleStockSqFt > 0 ? (reusableOffcutSqFt / singleStockSqFt) * 100 : 0;
+    const scrapPct = singleStockSqFt > 0 ? (scrapSqFt / singleStockSqFt) * 100 : 0;
     const layoutNote = usingOptimizedStockLayout
       ? `${displayPreview.strategyNote} Optimized placements and metrics are shown in stock layout.`
       : displayPreview.strategyNote;
@@ -4048,11 +4050,15 @@ export default function NestingVisualizer({
               </span>
               {reusableOffcutSqFt > 0 && (
                 <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
-                  {reusableMetricLabel}: {reusableOffcutPct.toFixed(1)}%
+                  {reusableMetricLabel}: {isMultiSheet
+                    ? ((multiSheet.totalReusableArea / multiSheet.totalStockArea) * 100).toFixed(1)
+                    : reusableOffcutPct.toFixed(1)}%
                 </span>
               )}
               <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 font-medium text-red-600">
-                {scrapMetricLabel}: {scrapPct.toFixed(1)}%
+                {scrapMetricLabel}: {isMultiSheet
+                  ? ((multiSheet.totalScrapArea / multiSheet.totalStockArea) * 100).toFixed(1)
+                  : scrapPct.toFixed(1)}%
               </span>
               {multiSheet.remainingOverflow > 0 && (
                 <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
@@ -4103,6 +4109,10 @@ export default function NestingVisualizer({
             const sStockPat = `${stockPatternId}${sPat}`;
             const sOffcutPat = `${offcutPatternId}${sPat}`;
             const sWastePat = `${wastePatternId}${sPat}`;
+            const sUsablePat = `${usablePatternId}${sPat}`;
+            const sMarker = `${markerId}${sPat}`;
+            const sheetOffcutBands = sheet.preview.wasteMode === "bands" ? sheet.preview.offcutBands : [];
+            const sheetScrapBands = sheet.preview.scrapBands ?? [];
             return (
           <div key={`sheet-${sheetIdx}`} className="relative">
             {isMultiSheet && (
@@ -4147,7 +4157,7 @@ export default function NestingVisualizer({
                 <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(239,68,68,0.5)" strokeWidth="2" />
               </pattern>
               <pattern
-                id={usablePatternId}
+                id={sUsablePat}
                 width="18"
                 height="18"
                 patternUnits="userSpaceOnUse"
@@ -4157,7 +4167,7 @@ export default function NestingVisualizer({
                 <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(132,204,22,0.45)" strokeWidth="2" />
               </pattern>
               <marker
-                id={markerId}
+                id={sMarker}
                 markerWidth="8"
                 markerHeight="8"
                 refX="4"
@@ -4277,7 +4287,7 @@ export default function NestingVisualizer({
                     <>
                       <polygon
                         points={polyPoints}
-                        fill={`url(#${usablePatternId})`}
+                        fill={`url(#${sUsablePat})`}
                         stroke="#f5f5f4"
                         strokeWidth="2"
                       />
@@ -4336,7 +4346,7 @@ export default function NestingVisualizer({
                         cx={cx}
                         cy={cy}
                         r={Math.max(radiusPx - 2, 0)}
-                        fill={`url(#${usablePatternId})`}
+                        fill={`url(#${sUsablePat})`}
                         stroke="#f5f5f4"
                         strokeWidth="2"
                       />
@@ -4471,7 +4481,7 @@ export default function NestingVisualizer({
                           `${x + width - topInset},${y + 2}`,
                           `${x + topInset},${y + 2}`,
                         ].join(" ")}
-                        fill={`url(#${usablePatternId})`}
+                        fill={`url(#${sUsablePat})`}
                         stroke="#f5f5f4"
                         strokeWidth="2"
                       />
@@ -4658,7 +4668,7 @@ export default function NestingVisualizer({
                       )}
                       <path
                         d={sectorPath}
-                        fill={`url(#${usablePatternId})`}
+                        fill={`url(#${sUsablePat})`}
                         stroke="#f5f5f4"
                         strokeWidth="2"
                       />
@@ -4817,7 +4827,7 @@ export default function NestingVisualizer({
                     width={Math.max(width - 3, 0)}
                     height={Math.max(height - 3, 0)}
                     rx="6"
-                    fill={`url(#${usablePatternId})`}
+                    fill={`url(#${sUsablePat})`}
                     stroke="#84cc16"
                     strokeWidth="2"
                   />
@@ -4943,7 +4953,12 @@ export default function NestingVisualizer({
               );
             })}
 
-            {offcutLabelBands.map((band, index) => {
+            {((!shapeFirstView && sheet.preview.offcutBands.length > 0)
+              ? [...sheet.preview.offcutBands]
+                  .sort((a, b) => (b.width * b.height) - (a.width * a.height))
+                  .filter((band) => band.width * scale > 42 && band.height * scale > 14)
+              : []
+            ).map((band, index) => {
               const centerX = surfaceX + (band.x + band.width / 2) * scale;
               const centerY = surfaceY + (band.y + band.height / 2) * scale;
               const dims = `${formatInches(band.width)}" × ${formatInches(band.height)}"`;
@@ -4982,8 +4997,8 @@ export default function NestingVisualizer({
               y2={rowLabelY}
               stroke="#d6d3d1"
               strokeWidth="1.5"
-              markerStart={`url(#${markerId})`}
-              markerEnd={`url(#${markerId})`}
+              markerStart={`url(#${sMarker})`}
+              markerEnd={`url(#${sMarker})`}
             />
             <text
               x={shapeFirstView ? localBlankX + localBlankW / 2 : surfaceX + surfacePxW / 2}
@@ -5005,8 +5020,8 @@ export default function NestingVisualizer({
               y2={shapeFirstView ? localBlankY + localBlankH : surfaceY + surfacePxH}
               stroke="#d6d3d1"
               strokeWidth="1.5"
-              markerStart={`url(#${markerId})`}
-              markerEnd={`url(#${markerId})`}
+              markerStart={`url(#${sMarker})`}
+              markerEnd={`url(#${sMarker})`}
             />
             <text
               x={colLabelX + 26}
@@ -5063,18 +5078,18 @@ export default function NestingVisualizer({
                 Fab Score
               </div>
               <div className={`mt-1 text-2xl font-semibold ${
-                fabScore.score >= 80 ? "text-green-600" :
-                fabScore.score >= 60 ? "text-amber-600" : "text-red-600"
+                (isMultiSheet ? multiSheet.avgFabScore : fabScore.score) >= 80 ? "text-green-600" :
+                (isMultiSheet ? multiSheet.avgFabScore : fabScore.score) >= 60 ? "text-amber-600" : "text-red-600"
               }`}>
-                {fabScore.score}/100
+                {isMultiSheet ? multiSheet.avgFabScore : fabScore.score}/100
               </div>
             </div>
           </div>
 
           <div className="border-t border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
             {metricsAreEstimatedFromStock
-              ? `Optimized from placed stock area: ${stockSqFt.toFixed(2)} sq ft`
-              : `Preview stock area: ${stockSqFt.toFixed(2)} sq ft`}
+              ? `Optimized from placed stock area: ${isMultiSheet ? (multiSheet.totalStockArea / 144).toFixed(2) : singleStockSqFt.toFixed(2)} sq ft`
+              : `Preview stock area: ${isMultiSheet ? (multiSheet.totalStockArea / 144).toFixed(2) : singleStockSqFt.toFixed(2)} sq ft`}{isMultiSheet ? ` (${multiSheet.sheets.length} sheets)` : ""}
           {multiSheet.remainingOverflow > 0 && (
             <span className="ml-2 font-medium text-amber-600">
               +{multiSheet.remainingOverflow} part{multiSheet.remainingOverflow === 1 ? "" : "s"} exceed the {multiSheet.sheets.length}-sheet limit.
