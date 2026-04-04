@@ -24,14 +24,5 @@ Closes #(issue number)
 
 ## Screenshots (if applicable)
 
-
-## Checklist
-- [ ] `npm run check` passes (lint + format)
-- [ ] `npx tsc --noEmit` passes (type check)
-- [ ] No new `any` types introduced
-- [ ] Tested manually in browser
-- [ ] Tested in Electron (if applicable)
-- [ ] Screenshots attached (if UI change)
-
 ## Additional Notes
 Any extra context, concerns, or things reviewers should know.
