@@ -11,11 +11,9 @@
  * - During local development, run manually after adding any new theme preset:
  *     npm run generate:presets
  * - Ensure that each new CSS preset includes `label:` and `value:` comments.
- * - This generation step is currently automated using a Husky pre-push hook.
- * - You may optionally integrate it directly into a build step if preferred.
+ * - This script writes the generated block directly into theme.ts.
  */
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -108,17 +106,12 @@ const updated = fileContent.replace(
 );
 
 async function main() {
-  const formatted = execFileSync("npx", ["@biomejs/biome", "format", "--stdin-file-path", outputPath], {
-    input: updated,
-    encoding: "utf8",
-  });
-
-  if (formatted === fileContent) {
+  if (updated === fileContent) {
     console.log("ℹ️  No changes in theme.ts");
     return;
   }
 
-  fs.writeFileSync(outputPath, formatted);
+  fs.writeFileSync(outputPath, updated);
   console.log("✅ theme.ts updated with new theme presets");
 }
 
