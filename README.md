@@ -2,207 +2,154 @@
 
 A material optimization and inventory management system for USI Manufacturing, designed to track rubber roll inventory and optimize material cuts to minimize waste.
 
-## Overview
+## ✨ Current Features
 
-RubberFit Pro is a desktop application built with Electron and React that helps USI Manufacturing:
-- Track rubber roll inventory with real-time updates
-- Optimize material cuts using intelligent algorithms to minimize waste
-- Monitor waste trends and inventory metrics
-- Generate reports and export data
+- **Real-Time Inventory Tracking**: Automatic inventory updates as cuts are recorded. Rolls are automatically marked depleted when length hits zero.
+- **Material Cut Optimization**: Uses a **Greedy First-Fit-Decreasing** algorithm to recommend the best cuts with the lowest waste percentage.
+- **Waste Tracking**: Calculates and records waste metrics to analyze optimization performance over time.
+- **Low Stock Alerts**: Automatic system notifications when material stock falls below designated thresholds.
+- **Dashboard Analytics**: Visualize usage trends and current stock across different materials.
+- **Cross-Platform Access**: Usable as both a high-performance Web App and as a packaged desktop Electron App.
 
 ## 🛠 Tech Stack
 
-- **Desktop Framework**: Electron 40.6
-- **Frontend**: React 19 + TypeScript
-- **UI Framework**: Tailwind CSS + shadcn/ui
+- **Framework**: Next.js 16 + React 19 + TypeScript
+- **Desktop Environment**: Electron 40.6
+- **UI & Styling**: Tailwind CSS v4 + shadcn/ui
 - **State Management**: Zustand
-- **Database**: Supabase (PostgreSQL)
+- **Database**: Supabase (PostgreSQL) with Row-Level Security (RLS)
 - **Charts**: Recharts
-- **Build Tools**: Vite
-- **Package Manager**: npm
+- **Build Tools**: Vite / TypeScript Compiler
 
 ## 📋 Prerequisites
 
-- Node.js 18+ (v22.14.0 recommended)
+- Node.js 18+ (v22.14.0+ recommended)
 - npm 9+
-- Supabase account (for database)
-- macOS, Windows, or Linux
+- Docker (Required for running a local Supabase instance)
+- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) installed globally
 
-## 🔧 Installation
+## 🔧 Setup Instructions
 
-### Prerequisites
-- Node.js 18+ and npm 9+
-- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) installed
-- A Supabase account (free tier works)
-
-### Step 1: Clone and Install
+### 1. Clone & Install Dependencies
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/rubberfit-pro.git
+git clone <repository-url>
 cd rubberfit-pro
 
-# Navigate to app directory and install dependencies
+# Navigate to app directory and install all dependencies
 cd app
 npm install
 ```
 
-### Step 2: Database Setup (For Interns)
+### 2. Local Database Setup (Supabase)
 
-#### Option A: Local Supabase (Recommended for Development)
+A local Supabase instance using Docker is highly recommended for development.
+
 ```bash
-# Go back to project root
-cd ..
+# Go from the app directory to the database directory
+cd ../supabase
 
-# Start local Supabase instance
-cd supabase
+# Start local Supabase instance (Docker must be running)
 supabase start
 
-# This will output your local credentials:
-# API URL: http://localhost:54321
-# ANON KEY: [your-local-anon-key]
-# Service Role Key: [your-local-service-key]
-# DB URL: postgresql://postgres:postgres@localhost:54322/postgres
+# Apply all database migrations to setup the schema
+supabase db reset
+
+# (Optional) Seed the database with realistic test materials, rolls, and cuts
+supabase db reset --with-seed
 ```
 
-#### Option B: Cloud Supabase Project
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to Settings > API to find your credentials
-3. Run migrations on your cloud project:
-   ```bash
-   cd supabase
-   supabase link --project-ref your-project-ref
-   supabase db push
-   ```
-
-### Step 3: Configure Environment
+### 3. Configure Environment Variables
 
 ```bash
-cd app
+cd ../app
 cp .env.example .env.local
 ```
 
-Update `.env.local` with your credentials:
+Update your `.env.local` to match your local Supabase credentials outputted during `supabase start`:
 ```env
-# For local Supabase (Option A)
 NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-local-anon-key
-
-# For cloud Supabase (Option B)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### Step 4: Load Sample Data (Optional)
+## 🚀 Development Mode
 
-```bash
-# From the supabase directory
-cd ../supabase
-supabase db seed
-```
+We provide multiple ways to run the application depending on your focus. In your terminal, make sure you are inside the `app/` directory:
 
-## 🚀 Development
-
-### Web Development Mode
+### Web Development
+Starts the Next.js frontend with hot-module reloading.
 ```bash
 npm run dev
+# Opens at http://localhost:3000
 ```
-Opens at http://localhost:3000
 
-### Electron Desktop Mode
+### Electron Desktop Development
+Starts Next.js and the Electron desktop application concurrently.
 ```bash
 npm run electron:dev
-```
-Launches the desktop application with hot reload
-
-### Running Tests
-```bash
-npm test
-```
-
-### Validation
-```bash
-npm run build
 ```
 
 ## 📦 Building for Production
 
-### Build Web Version
+Make sure you are inside the `app/` directory.
+
+### Web Version
 ```bash
 npm run build
+npm start
 ```
 
-### Build Desktop Application
-
-#### Windows
+### Desktop Application
+Built applications will be placed in `app/dist`.
 ```bash
-npm run dist:win
+npm run electron:dist:mac   # macOS (.dmg / .app)
+npm run electron:dist:win   # Windows (.exe)
+npm run electron:dist:linux # Linux (.AppImage / .deb)
+npm run electron:dist:all   # Build for all platforms
 ```
-
-#### macOS
-```bash
-npm run dist:mac
-```
-
-#### Linux
-```bash
-npm run dist:linux
-```
-
-Built applications will be in the `dist` folder.
 
 ## 🗂 Project Structure
 
 ```
 rubberfit-pro/
-├── app/                      # Main application directory
-│   ├── src/
-│   │   ├── app/             # Next.js app router pages
-│   │   │   ├── (auth)/      # Authentication pages
-│   │   │   └── (main)/      # Main dashboard pages
-│   │   ├── components/      # React components
-│   │   ├── services/        # Business logic and API calls
+├── app/
+│   ├── .next/               # Next.js build output
+│   ├── electron/            # Electron main process & IPC handlers
+│   ├── electron-dist/       # Compiled Electron output
+│   ├── public/              # Static web assets
+│   ├── src/                 # Next.js Main Application source
+│   │   ├── app/             # App router pages (dashboard, auth, api)
+│   │   ├── components/      # Reusable React components (UI, common)
+│   │   ├── config/          # Application configuration
+│   │   ├── contexts/        # React contexts
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── lib/             # Third-party library integrations
+│   │   ├── navigation/      # Navigation configurations
+│   │   ├── scripts/         # Builder & utility scripts
+│   │   ├── server/          # Server side logic and API
+│   │   ├── services/        # Business logic fetching and API wrappers
 │   │   ├── stores/          # Zustand state management
-│   │   ├── types/           # TypeScript type definitions
-│   │   └── utils/           # Utility functions
-│   ├── electron/            # Electron main process
-│   │   ├── main.ts          # Main process entry
-│   │   ├── preload.ts       # Preload scripts
-│   │   └── ipc/             # IPC handlers
-│   └── supabase/
-│       └── migrations/      # Database migrations
-├── .claude/                 # Claude AI agent configurations
-│   ├── agents/              # Specialized agent definitions
-│   └── commands/            # Custom slash commands
-└── docs/                    # Additional documentation
-```
-
-## 💡 Core Algorithms
-
-### Cut Optimization Algorithm
-
-The system uses a **Greedy First-Fit-Decreasing** algorithm:
-
-1. **Filter**: Find eligible rolls (matching material type, sufficient dimensions)
-2. **Calculate**: For each roll, compute waste percentage
-3. **Rank**: Sort by lowest waste percentage
-4. **Recommend**: Present top 3 options
-
-**Waste Calculation:**
-```
-Total Consumed = (Roll Width × Length Needed) ÷ 144
-Material Used = (Requested Width × Length Needed) ÷ 144
-Waste = Total Consumed - Material Used
-Waste % = (Waste ÷ Total Consumed) × 100
+│   │   ├── styles/          # Tailwind setup and globals
+│   │   ├── templates/       # Document templates (e.g. PDF generation)
+│   │   └── types/           # TypeScript definitions
+│   ├── .env.local           # Environment variables
+│   └── package.json         # Javascript dependencies and build scripts
+├── supabase/
+│   ├── migrations/          # SQL migrations defining the schema
+│   ├── config.toml          # Supabase Local Server configuration
+│   └── README.md            # Database specific documentation
+├── README.md                # System documentation (This file)
+└── LICENSE                  # Proprietary software license
 ```
 
 ## 📊 Database Schema
 
 ### Core Tables
 
-- **material_types**: Reference table for material properties
-- **rolls**: Inventory tracking with dimensions and costs
-- **cuts**: Historical record of all cuts with waste metrics
+- **material_types**: Master list of rubber material definitions and properties.
+- **rolls**: Physical inventory of rubber rolls with dimensions and costs.
+- **cuts**: Historical records of all cuts made, with waste calculations.
+- **notifications**: System alerts, primarily for low-stock warnings.
 
 ## 🔒 Security
 
@@ -218,42 +165,6 @@ Waste % = (Waste ÷ Total Consumed) × 100
 - Cut optimization: < 100ms for 1000 rolls
 - Dashboard refresh: < 500ms
 
-## 🧪 Testing
-
-The application includes:
-- Unit tests for algorithms
-- Integration tests for services
-- E2E tests for critical workflows
-
-Run specific test suites:
-```bash
-npm run test:unit
-npm run test:integration
-npm run test:e2e
-```
-
 ## 📄 License
 
 This project is proprietary software for USI Manufacturing.
-
----
-
-## Quick Start Commands
-
-```bash
-# Development
-npm run dev                 # Start web dev server
-npm run electron:dev        # Start Electron dev
-
-# Production
-npm run build              # Build web version
-npm run dist               # Build all desktop versions
-
-# Validation
-npm run test               # Run all tests
-npm run build              # Build the web app
-
-# Database
-npx supabase db push       # Apply migrations
-npx supabase db seed       # Seed test data
-```
