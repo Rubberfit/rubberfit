@@ -120,10 +120,9 @@ Launches the desktop application with hot reload
 npm test
 ```
 
-### Linting & Type Checking
+### Validation
 ```bash
-npm run lint
-npm run type-check
+npm run build
 ```
 
 ## 📦 Building for Production
@@ -250,10 +249,9 @@ npm run electron:dev        # Start Electron dev
 npm run build              # Build web version
 npm run dist               # Build all desktop versions
 
-# Testing & Quality
+# Validation
 npm run test               # Run all tests
-npm run lint               # Run ESLint
-npm run type-check         # Run TypeScript checks
+npm run build              # Build the web app
 
 # Database
 npx supabase db push       # Apply migrations
