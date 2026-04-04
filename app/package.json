@@ -6,12 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "lint": "tsc --noEmit --pretty false",
     "start": "next start",
-    "lint": "biome lint",
-    "format": "biome format --write",
-    "check": "biome check",
-    "check:fix": "biome check --write",
-    "prepare": "husky",
     "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && tsc -p electron/tsconfig.json -w\" \"wait-on electron-dist/main.js && cross-env NODE_ENV=development electron .\"",
     "electron:build:typescript": "tsc -p electron/tsconfig.json",
@@ -25,11 +21,6 @@
     "electron:dist:linux": "npm run electron:build && electron-builder --linux",
     "electron:dist:all": "npm run electron:build && electron-builder -mwl",
     "postinstall": "test -n \"$VERCEL\" || electron-builder install-app-deps"
-  },
-  "lint-staged": {
-    "*.{js,ts,jsx,tsx}": [
-      "biome check --write --no-errors-on-unmatched"
-    ]
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -63,7 +54,6 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.8",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^22.19.11",
     "@types/react": "^19.2.14",
@@ -77,8 +67,6 @@
     "electron-builder": "^26.8.1",
     "electron-is-dev": "^3.0.1",
     "globals": "^15.15.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.5.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.5",
     "ts-node": "^10.9.2",

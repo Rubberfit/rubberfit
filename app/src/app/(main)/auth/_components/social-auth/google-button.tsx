@@ -1,15 +1,20 @@
 "use client";
 
-import { siGoogle } from "simple-icons";
 import { useState } from "react";
+
+import { siGoogle } from "simple-icons";
 import { toast } from "sonner";
 
 import { SimpleIcon } from "@/components/simple-icon";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
-export function GoogleButton({ className, ...props }: React.ComponentProps<typeof Button>) {
+interface GoogleButtonProps extends React.ComponentProps<typeof Button> {
+  redirectTo?: string | null;
+}
+
+export function GoogleButton({ className, redirectTo, ...props }: GoogleButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { signInWithGoogle } = useAuth();
 
@@ -17,7 +22,7 @@ export function GoogleButton({ className, ...props }: React.ComponentProps<typeo
     setIsLoading(true);
 
     try {
-      const { success, error } = await signInWithGoogle();
+      const { success, error } = await signInWithGoogle(redirectTo);
 
       if (!success) {
         toast.error("Google sign in failed", {
@@ -34,13 +39,7 @@ export function GoogleButton({ className, ...props }: React.ComponentProps<typeo
   };
 
   return (
-    <Button
-      variant="secondary"
-      className={cn(className)}
-      onClick={handleGoogleSignIn}
-      disabled={isLoading}
-      {...props}
-    >
+    <Button variant="secondary" className={cn(className)} onClick={handleGoogleSignIn} disabled={isLoading} {...props}>
       <SimpleIcon icon={siGoogle} className="size-4" />
       {isLoading ? "Connecting..." : "Continue with Google"}
     </Button>
