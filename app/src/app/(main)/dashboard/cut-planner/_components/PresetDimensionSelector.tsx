@@ -4,6 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  getLocalStorageValue,
+  removeLocalStorageValue,
+  setLocalStorageValue,
+} from "@/lib/local-storage.client";
 import { CheckSquare, LayoutGrid, Pencil, Scissors, Shapes, Square, Triangle } from "lucide-react";
 import type { SimplePartType } from "./NestingVisualizer";
 
@@ -344,7 +349,7 @@ export default function PresetDimensionSelector({
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(CUSTOM_TEMPLATE_STORAGE_KEY);
+    const raw = getLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY);
     if (!raw) {
       return;
     }
@@ -370,12 +375,15 @@ export default function PresetDimensionSelector({
 
       setNextCustomId(maxId + 1);
     } catch {
-      window.localStorage.removeItem(CUSTOM_TEMPLATE_STORAGE_KEY);
+      removeLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(CUSTOM_TEMPLATE_STORAGE_KEY, JSON.stringify(customTemplates));
+    setLocalStorageValue(
+      CUSTOM_TEMPLATE_STORAGE_KEY,
+      JSON.stringify(customTemplates),
+    );
   }, [customTemplates]);
 
   const sizeOptions = useMemo(
@@ -590,7 +598,7 @@ export default function PresetDimensionSelector({
                   className={`rounded-lg border p-3 text-left transition-all ${
                     isSelected
                       ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-200 dark:bg-white/5 text-slate-100"
-                      : "border-slate-200 bg-white border-slate-300 hover: hover:bg-slate-50 dark:bg-card dark:border-slate-700 dark:hover:bg-slate-700"
+                      : "border-slate-300 bg-white hover:bg-slate-50 dark:bg-card dark:border-slate-700 dark:hover:bg-slate-700"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -675,7 +683,9 @@ export default function PresetDimensionSelector({
 
                   <span
                     className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                      isChecked ? "bg-blue-600 border-blue-600 " : "border-slate-100 bg-white dark:border-slate- dark:bg-slate-700"
+                      isChecked
+                        ? "border-blue-600 bg-blue-600"
+                        : "border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-700"
                     }`}
                   >
                     {isChecked && (

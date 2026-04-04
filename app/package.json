@@ -24,7 +24,7 @@
     "electron:dist:win": "npm run electron:build && electron-builder --win",
     "electron:dist:linux": "npm run electron:build && electron-builder --linux",
     "electron:dist:all": "npm run electron:build && electron-builder -mwl",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "test -n \"$VERCEL\" || electron-builder install-app-deps"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [

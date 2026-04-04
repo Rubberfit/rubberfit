@@ -1,13 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-import { createBrowserClient } from '@supabase/ssr';
+import { createBrowserClient } from "@supabase/ssr";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
+  throw new Error("Missing Supabase environment variables");
 }
 
- 
 export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 // Database Types
 export interface MaterialType {
@@ -35,7 +33,7 @@ export interface Roll {
   supplier?: string;
   cost_per_sqft?: number;
   remaining_length: number;
-  status: 'active' | 'depleted' | 'reserved';
+  status: "active" | "depleted" | "reserved";
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -80,7 +78,7 @@ export interface Supplier {
   tax_rate?: number;
   tax_exempt?: boolean;
   default_shipping_cost?: number;
-  shipping_calculation_type?: 'flat' | 'weight' | 'percentage' | 'custom';
+  shipping_calculation_type?: "flat" | "weight" | "percentage" | "custom";
   created_at: string;
   updated_at: string;
 }
@@ -141,7 +139,7 @@ export interface PurchaseOrder {
   user_id: string;
   po_number: string;
   supplier_id: string;
-  status: 'draft' | 'pending' | 'approved' | 'ordered' | 'received' | 'cancelled';
+  status: "draft" | "pending" | "approved" | "ordered" | "received" | "cancelled";
   order_date?: string;
   requested_delivery_date?: string;
   actual_delivery_date?: string;
@@ -216,16 +214,24 @@ export interface NotificationQueue {
   id: string;
   user_id: string;
   user_identifier: string;
-  notification_type: 'low_stock' | 'reorder_triggered' | 'po_created' | 'po_approved' |
-                    'delivery_expected' | 'delivery_overdue' | 'delivery_received' |
-                    'price_change' | 'system_maintenance' | 'critical_alert';
+  notification_type:
+    | "low_stock"
+    | "reorder_triggered"
+    | "po_created"
+    | "po_approved"
+    | "delivery_expected"
+    | "delivery_overdue"
+    | "delivery_received"
+    | "price_change"
+    | "system_maintenance"
+    | "critical_alert";
   title: string;
   message: string;
   send_email: boolean;
   send_sms: boolean;
-  priority: 'low' | 'normal' | 'high' | 'critical';
+  priority: "low" | "normal" | "high" | "critical";
   scheduled_for: string;
-  status: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled';
+  status: "pending" | "processing" | "sent" | "failed" | "cancelled";
   email_sent_at?: string;
   email_delivered_at?: string;
   email_failed_at?: string;
@@ -263,27 +269,39 @@ export interface ReorderRuleWithDetails extends ReorderRule {
   material_type?: MaterialType;
   supplier?: Supplier;
   current_stock?: number;
-  stock_status?: 'ok' | 'low' | 'critical';
+  stock_status?: "ok" | "low" | "critical";
 }
 
 // Utility types for forms and API calls
-export type CreateSupplier = Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type CreateSupplier = Omit<Supplier, "id" | "user_id" | "created_at" | "updated_at">;
 export type UpdateSupplier = Partial<CreateSupplier>;
 
-export type CreateMaterialSupplier = Omit<MaterialSupplier, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type CreateMaterialSupplier = Omit<MaterialSupplier, "id" | "user_id" | "created_at" | "updated_at">;
 export type UpdateMaterialSupplier = Partial<CreateMaterialSupplier>;
 
-export type CreateReorderRule = Omit<ReorderRule, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'last_triggered_at'>;
+export type CreateReorderRule = Omit<ReorderRule, "id" | "user_id" | "created_at" | "updated_at" | "last_triggered_at">;
 export type UpdateReorderRule = Partial<CreateReorderRule & { last_triggered_at?: string }>;
 
-export type CreatePurchaseOrder = Omit<PurchaseOrder, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'po_number' | 'approved_at'>;
+export type CreatePurchaseOrder = Omit<
+  PurchaseOrder,
+  "id" | "user_id" | "created_at" | "updated_at" | "po_number" | "approved_at"
+>;
 export type UpdatePurchaseOrder = Partial<CreatePurchaseOrder>;
 
-export type CreatePurchaseOrderItem = Omit<PurchaseOrderItem, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'line_number' | 'line_total' | 'quantity_received'>;
+export type CreatePurchaseOrderItem = Omit<
+  PurchaseOrderItem,
+  "id" | "user_id" | "created_at" | "updated_at" | "line_number" | "line_total" | "quantity_received"
+>;
 export type UpdatePurchaseOrderItem = Partial<CreatePurchaseOrderItem>;
 
-export type CreateNotificationPreferences = Omit<NotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>;
+export type CreateNotificationPreferences = Omit<
+  NotificationPreferences,
+  "id" | "user_id" | "created_at" | "updated_at"
+>;
 export type UpdateNotificationPreferences = Partial<CreateNotificationPreferences>;
 
-export type CreateNotificationQueue = Omit<NotificationQueue, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'retry_count' | 'next_retry_at'>;
+export type CreateNotificationQueue = Omit<
+  NotificationQueue,
+  "id" | "user_id" | "created_at" | "updated_at" | "retry_count" | "next_retry_at"
+>;
 export type UpdateNotificationQueue = Partial<CreateNotificationQueue>;

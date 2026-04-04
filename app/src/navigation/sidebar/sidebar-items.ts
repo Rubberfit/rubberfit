@@ -18,7 +18,7 @@ import {
   ShoppingCart,
   RefreshCw,
 } from "lucide-react";
-import type { Permission } from "@/services/useRole";
+import type { Permission } from "@/lib/permissions";
 
 export interface NavSubItem {
   title: string;
@@ -65,10 +65,8 @@ export const sidebarItems: NavGroup[] = [
         requiredPermission: "viewInventory",
         subItems: [
           {
-      
             title: "Current Stock",
             url: "/dashboard/inventory",
-            
           },
           {
             title: "Reorder Rules",
@@ -86,7 +84,7 @@ export const sidebarItems: NavGroup[] = [
         title: "Cut Planner",
         url: "/dashboard/cut-planner",
         icon: Scissors,
-        requiredPermission: "cutAccess",
+        requiredPermission: "accessCutPlanner",
         subItems: [
           {
             title: "Single Cut",
@@ -102,7 +100,7 @@ export const sidebarItems: NavGroup[] = [
           {
             title: "Manual Selection",
             url: "/dashboard/cut-planner/manual",
-            requiredPermission: "approveCut",
+            requiredPermission: "createCut",
             isNew: true,
           },
         ],

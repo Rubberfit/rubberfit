@@ -1,8 +1,10 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useState } from "react";
+
+import Link from "next/link";
+
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,7 +21,11 @@ const FormSchema = z.object({
   remember: z.boolean().optional(),
 });
 
-export function LoginForm() {
+interface LoginFormProps {
+  redirectTo?: string | null;
+}
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
 
@@ -36,7 +42,7 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      const { success, error } = await signIn(data.email, data.password);
+      const { success, error } = await signIn(data.email, data.password, redirectTo);
 
       if (success) {
         toast.success("Sign in successful!", {
@@ -47,7 +53,7 @@ export function LoginForm() {
           description: error || "Please check your credentials and try again.",
         });
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Sign in failed", {
         description: "An unexpected error occurred. Please try again.",
       });
@@ -116,7 +122,7 @@ export function LoginForm() {
         <div className="text-center">
           <Link
             href="/auth/v2/forgot-password"
-            className="text-muted-foreground hover:text-primary text-sm underline-offset-4 hover:underline"
+            className="text-muted-foreground text-sm underline-offset-4 hover:text-primary hover:underline"
           >
             Forgot your password?
           </Link>

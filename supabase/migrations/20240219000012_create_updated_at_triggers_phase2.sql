@@ -6,7 +6,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE updated_at triggers for all Phase 2 tables with updated_at columns
+-- CREATE updated_at triggers for all Phase 2 tables with updated_at columns
 
 -- Suppliers table
 CREATE TRIGGER trigger_suppliers_updated_at
@@ -50,7 +50,7 @@ CREATE TRIGGER trigger_notification_queue_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
-ADD trigger comments for documentation
+-- ADD trigger comments for documentation
 COMMENT ON TRIGGER trigger_suppliers_updated_at ON suppliers IS 'Automatically updates updated_at timestamp on row modification';
 COMMENT ON TRIGGER trigger_material_suppliers_updated_at ON material_suppliers IS 'Automatically updates updated_at timestamp on row modification';
 COMMENT ON TRIGGER trigger_reorder_rules_updated_at ON reorder_rules IS 'Automatically updates updated_at timestamp on row modification';
@@ -59,7 +59,7 @@ COMMENT ON TRIGGER trigger_purchase_order_items_updated_at ON purchase_order_ite
 COMMENT ON TRIGGER trigger_notification_preferences_updated_at ON notification_preferences IS 'Automatically updates updated_at timestamp on row modification';
 COMMENT ON TRIGGER trigger_notification_queue_updated_at ON notification_queue IS 'Automatically updates updated_at timestamp on row modification';
 
-CREATE a function to validate trigger installation
+-- CREATE a function to validate trigger installation
 CREATE OR REPLACE FUNCTION validate_phase2_triggers()
 RETURNS TABLE(
   table_name TEXT,
