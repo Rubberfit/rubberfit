@@ -10,7 +10,7 @@ import {
   NAVBAR_STYLE_VALUES,
   SIDEBAR_COLLAPSIBLE_VALUES,
   SIDEBAR_VARIANT_VALUES,
-} from "@/lib/preferences/layout";
+} from "@/lib/preferences/layout-config";
 import { THEME_MODE_VALUES, THEME_PRESET_VALUES } from "@/lib/preferences/theme";
 import { applyThemeMode, subscribeToSystemTheme } from "@/lib/preferences/theme-utils";
 
