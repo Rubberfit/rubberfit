@@ -4111,7 +4111,6 @@ export default function NestingVisualizer({
             const sWastePat = `${wastePatternId}${sPat}`;
             const sUsablePat = `${usablePatternId}${sPat}`;
             const sMarker = `${markerId}${sPat}`;
-            const sheetOffcutBands = sheet.preview.wasteMode === "bands" ? sheet.preview.offcutBands : [];
             const sheetScrapBands = sheet.preview.scrapBands ?? [];
             return (
           <div key={`sheet-${sheetIdx}`} className="relative">
