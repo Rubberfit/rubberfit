@@ -1,21 +1,28 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { authService, type AuthUser } from '@/services/authService';
-import { getDefaultAuthorizedPath } from '@/lib/rbac';
-import { supabase } from '@/lib/supabase';
-import { isElectron } from '@/lib/isElectron';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+
+import { useRouter } from "next/navigation";
+
+import { getBrowserAppUrl } from "@/lib/app-url";
+import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/lib/auth-redirect";
+import { isElectron } from "@/lib/isElectron";
+import { supabase } from "@/lib/supabase";
+import { type AuthUser, authService } from "@/services/authService";
 
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   isElectron: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signIn: (
+    email: string,
+    password: string,
+    redirectTo?: string | null,
+  ) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  signInWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  signInWithGoogle: (redirectTo?: string | null) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
@@ -44,7 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
       } catch (error) {
-        console.error('Error getting initial user:', error);
+        console.error("Error getting initial user:", error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -53,21 +60,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     getInitialUser();
 
-    const subscription = authService.onAuthStateChange((authUser) => {
+    const {
+      data: { subscription },
+    } = authService.onAuthStateChange((authUser) => {
       setUser(authUser);
       setLoading(false);
     });
 
-    return () => {
-      if (subscription && 'unsubscribe' in subscription) {
-        (subscription as any).unsubscribe();
-      } else if (subscription && 'subscription' in subscription) {
-        (subscription as any).subscription?.unsubscribe();
-      }
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const signIn = async (
+    email: string,
+    password: string,
+    redirectTo?: string | null,
+  ): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     try {
       const { user: authUser, error } = await authService.signIn(email, password);
@@ -79,17 +86,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (authUser) {
         setUser(authUser);
-        router.push(getDefaultAuthorizedPath(authUser.roles));
+        router.push(resolvePostAuthRedirect(authUser.roles, redirectTo));
         return { success: true };
       }
 
       setLoading(false);
-      return { success: false, error: 'Authentication failed' };
+      return { success: false, error: "Authentication failed" };
     } catch (error) {
       setLoading(false);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+        error: error instanceof Error ? error.message : "An unexpected error occurred",
       };
     }
   };
@@ -111,12 +118,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setLoading(false);
-      return { success: false, error: 'Registration failed' };
+      return { success: false, error: "Registration failed" };
     } catch (error) {
       setLoading(false);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+        error: error instanceof Error ? error.message : "An unexpected error occurred",
       };
     }
   };
@@ -126,9 +133,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await authService.signOut();
       setUser(null);
-      router.push('/auth/v2/login');
+      router.push("/auth/v2/login");
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
     } finally {
       setLoading(false);
     }
@@ -146,29 +153,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+        error: error instanceof Error ? error.message : "An unexpected error occurred",
       };
     }
   };
 
   /** Google OAuth — dispatches to Electron popup or web redirect flow. */
-  const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+  const signInWithGoogle = async (redirectTo?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
       if (electron) {
-        return await handleElectronOAuth();
+        return await handleElectronOAuth(redirectTo);
       }
-      return await handleWebOAuth();
+      return await handleWebOAuth(redirectTo);
     } catch {
-      return { success: false, error: 'Failed to initiate Google sign in' };
+      return { success: false, error: "Failed to initiate Google sign in" };
     }
   };
 
   /** Web: normal redirect flow. */
-  const handleWebOAuth = async (): Promise<{ success: boolean; error?: string }> => {
+  const handleWebOAuth = async (redirectTo?: string | null): Promise<{ success: boolean; error?: string }> => {
+    const callbackUrl = new URL(getBrowserAppUrl("/auth/v2/callback"));
+    const safeRedirect = sanitizeRedirectPath(redirectTo);
+
+    if (safeRedirect) {
+      callbackUrl.searchParams.set("next", safeRedirect);
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard/default`,
+        redirectTo: callbackUrl.toString(),
         scopes: "openid email profile https://www.googleapis.com/auth/userinfo.profile",
         queryParams: {
           access_type: "offline",
@@ -189,14 +203,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * then open it in an Electron popup. The popup intercepts the final redirect
    * and returns tokens so we can call supabase.auth.setSession().
    */
-  const handleElectronOAuth = async (): Promise<{ success: boolean; error?: string }> => {
-    const redirectTo = `${window.location.origin}/dashboard/default`;
+  const handleElectronOAuth = async (redirectTo?: string | null): Promise<{ success: boolean; error?: string }> => {
+    const finalPath = sanitizeRedirectPath(redirectTo) ?? "/dashboard/default";
+    const oauthRedirectTo = getBrowserAppUrl(finalPath);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         skipBrowserRedirect: true,
-        redirectTo,
+        redirectTo: oauthRedirectTo,
         scopes: "openid email profile https://www.googleapis.com/auth/userinfo.profile",
         queryParams: {
           access_type: "offline",
@@ -210,7 +225,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { success: false, error: error?.message ?? "No OAuth URL returned" };
     }
 
-    const result = await window.electronAPI!.oauth.openUrl(data.url, redirectTo);
+    const electronApi = window.electronAPI;
+
+    if (!electronApi) {
+      return { success: false, error: "Electron OAuth bridge unavailable" };
+    }
+
+    const result = await electronApi.oauth.openUrl(data.url, oauthRedirectTo);
 
     if (!result.success || !result.data) {
       return { success: false, error: result.error ?? "Authentication was cancelled" };
@@ -231,7 +252,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { success: false, error: sessionError.message };
     }
 
-    window.location.href = "/dashboard/default";
+    const authUser = await authService.getCurrentUser();
+    window.location.href = resolvePostAuthRedirect(authUser?.roles, finalPath);
     return { success: true };
   };
 
@@ -246,9 +268,5 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInWithGoogle,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
