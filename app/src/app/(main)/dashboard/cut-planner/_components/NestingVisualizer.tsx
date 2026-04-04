@@ -840,6 +840,23 @@ interface CirclePreview extends SimplePreviewBase {
 
 type SimplePartPreview = RectLikePreview | CirclePreview;
 
+interface SheetPreview {
+  sheetIndex: number;
+  preview: SimplePartPreview;
+  isPartial: boolean;
+}
+
+interface MultiSheetResult {
+  sheets: SheetPreview[];
+  totalUnitsCompleted: number;
+  totalUsedArea: number;
+  totalReusableArea: number;
+  totalScrapArea: number;
+  totalStockArea: number;
+  remainingOverflow: number;
+  avgFabScore: number;
+}
+
 function buildRectangleSteps(layout: SimpleRectLayout) {
   const width = formatInches(layout.pieceW);
   const height = formatInches(layout.pieceH);
@@ -1652,6 +1669,72 @@ function computeFabricationScore(preview: SimplePreviewBase, rollW: number, roll
       seamScore: Math.round(seamScore),
       nestingScore: Math.round(nestingScore),
     },
+  };
+}
+
+function computeMultiSheetPreviews(
+  preview: SimplePartPreview,
+  rollW: number,
+  rollL: number,
+  maxSheets: number = 4,
+  regenerate?: (qty: number) => SimplePartPreview,
+): MultiSheetResult {
+  const capacityPerSheet = preview.unitsCompleted;
+  const totalNeeded = preview.unitsCompleted + preview.overflowUnits;
+
+  // Fast path: everything fits on 1 sheet
+  if (preview.overflowUnits <= 0 || capacityPerSheet <= 0) {
+    const stockArea = rollW * rollL;
+    return {
+      sheets: [{ sheetIndex: 0, preview, isPartial: totalNeeded < capacityPerSheet }],
+      totalUnitsCompleted: preview.unitsCompleted,
+      totalUsedArea: preview.usedArea,
+      totalReusableArea: preview.reusableArea,
+      totalScrapArea: preview.scrapArea,
+      totalStockArea: stockArea,
+      remainingOverflow: 0,
+      avgFabScore: 0,
+    };
+  }
+
+  const sheetsNeeded = Math.min(maxSheets, Math.ceil(totalNeeded / capacityPerSheet));
+  const stockArea = rollW * rollL;
+  const sheets: SheetPreview[] = [];
+  let placed = 0;
+
+  for (let i = 0; i < sheetsNeeded; i++) {
+    const remaining = totalNeeded - placed;
+    const unitsOnSheet = Math.min(capacityPerSheet, remaining);
+    const isPartial = unitsOnSheet < capacityPerSheet;
+
+    let sheetPreview: SimplePartPreview;
+    if (i === 0) {
+      sheetPreview = preview;
+    } else if (regenerate) {
+      sheetPreview = regenerate(unitsOnSheet);
+    } else {
+      sheetPreview = preview;
+    }
+
+    sheets.push({ sheetIndex: i, preview: sheetPreview, isPartial });
+    placed += sheetPreview.unitsCompleted;
+  }
+
+  const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0);
+  const totalUsedArea = sheets.reduce((s, sh) => s + sh.preview.usedArea, 0);
+  const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0);
+  const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0);
+  const remainingOverflow = Math.max(0, totalNeeded - totalUnitsCompleted);
+
+  return {
+    sheets,
+    totalUnitsCompleted,
+    totalUsedArea,
+    totalReusableArea,
+    totalScrapArea,
+    totalStockArea: stockArea * sheets.length,
+    remainingOverflow,
+    avgFabScore: 0,
   };
 }
 
@@ -3880,6 +3963,16 @@ export default function NestingVisualizer({
       : displayPreview.strategyNote;
     const displayItems = displayPreview.items;
     const isOptimizedResult = usingOptimizedStockLayout;
+    const regenerateForQty = (qty: number) => {
+      const partWithQty = { ...activeSimpleParts[0], quantity: qty };
+      return generateSimplePartPreview(
+        previewRollW, previewRollL, partWithQty, defaultCutWidth, defaultCutHeight, qty,
+      );
+    };
+    const multiSheet = computeMultiSheetPreviews(displayPreview, previewRollW, previewRollL, 4, regenerateForQty);
+    const isMultiSheet = multiSheet.sheets.length > 1;
+    const uniqueLabels = [...new Set(displayItems.map((i) => i.label))];
+    const tagMap = new Map(uniqueLabels.map((label, i) => [label, String.fromCharCode(65 + i)]));
     const previewBounds = getPlacementBounds(displayItems);
     const viewWidth = 980;
     const viewHeight = 560;
@@ -3964,11 +4057,14 @@ export default function NestingVisualizer({
               <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 font-medium text-red-600">
                 {scrapMetricLabel}: {scrapPct.toFixed(1)}%
               </span>
-              {displayPreview.overflowUnits > 0 && (
+              {multiSheet.remainingOverflow > 0 && (
                 <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
-                  {isSplitStockPreview
-                    ? `+${missingCutPieceCount} cut piece${missingCutPieceCount === 1 ? "" : "s"} need another sheet`
-                    : `+${displayPreview.overflowUnits} part${displayPreview.overflowUnits === 1 ? "" : "s"} need another sheet`}
+                  +{multiSheet.remainingOverflow} part{multiSheet.remainingOverflow === 1 ? "" : "s"} exceed {multiSheet.sheets.length}-sheet limit
+                </span>
+              )}
+              {isMultiSheet && multiSheet.remainingOverflow === 0 && (
+                <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1 font-medium text-blue-400">
+                  {multiSheet.sheets.length} sheets
                 </span>
               )}
               {isOptimizedResult && (
@@ -3990,14 +4086,41 @@ export default function NestingVisualizer({
           </div>
         </div>
 
-        <div className="overflow-x-auto bg-[#232320] px-2 py-4 sm:px-4">
+        {uniqueLabels.length > 0 && (
+          <div className="flex flex-wrap gap-3 border-b border-border bg-[#1b1b19] px-4 py-2.5 text-xs text-stone-300">
+            {uniqueLabels.map((label, i) => (
+              <span key={label} className="flex items-center gap-1.5">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                <span>{label}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className={`bg-[#232320] px-2 py-4 sm:px-4 ${isMultiSheet ? "grid grid-cols-1 gap-4 md:grid-cols-2" : "overflow-x-auto"}`}>
+          {multiSheet.sheets.map((sheet, sheetIdx) => {
+            const sheetItems = sheet.preview.items;
+            const sPat = sheetIdx > 0 ? `-s${sheetIdx}` : "";
+            const sStockPat = `${stockPatternId}${sPat}`;
+            const sOffcutPat = `${offcutPatternId}${sPat}`;
+            const sWastePat = `${wastePatternId}${sPat}`;
+            return (
+          <div key={`sheet-${sheetIdx}`} className="relative">
+            {isMultiSheet && (
+              <div className="mb-1 text-center text-xs font-medium text-stone-400">
+                Sheet {sheetIdx + 1} of {multiSheet.sheets.length}
+                {sheet.isPartial ? " (partial)" : ""}
+              </div>
+            )}
           <svg
             viewBox={`0 0 ${viewWidth} ${viewHeight}`}
             className="mx-auto block w-full max-w-6xl rounded-xl"
           >
             <defs>
               <pattern
-                id={stockPatternId}
+                id={sStockPat}
                 width="18"
                 height="18"
                 patternUnits="userSpaceOnUse"
@@ -4007,7 +4130,7 @@ export default function NestingVisualizer({
                 <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(120,113,108,0.22)" strokeWidth="1.5" />
               </pattern>
               <pattern
-                id={offcutPatternId}
+                id={sOffcutPat}
                 width="14"
                 height="14"
                 patternUnits="userSpaceOnUse"
@@ -4017,7 +4140,7 @@ export default function NestingVisualizer({
                 <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(245,158,11,0.5)" strokeWidth="2" />
               </pattern>
               <pattern
-                id={wastePatternId}
+                id={sWastePat}
                 width="14"
                 height="14"
                 patternUnits="userSpaceOnUse"
@@ -4061,36 +4184,36 @@ export default function NestingVisualizer({
               width={surfacePxW}
               height={surfacePxH}
               rx="8"
-              fill={`url(#${stockPatternId})`}
+              fill={`url(#${sStockPat})`}
               stroke="#d6d3d1"
               strokeWidth="2"
             />
 
-            {!shapeFirstView && displayPreview.offcutBands.map((band, index) => (
+            {!shapeFirstView && sheet.preview.offcutBands.map((band, index) => (
               <rect
                 key={`band-${index + 1}`}
                 x={surfaceX + band.x * scale}
                 y={surfaceY + band.y * scale}
                 width={band.width * scale}
                 height={band.height * scale}
-                fill={`url(#${offcutPatternId})`}
+                fill={`url(#${sOffcutPat})`}
                 opacity="0.95"
               />
             ))}
 
-            {!shapeFirstView && displayPreview.scrapBands.map((band, index) => (
+            {!shapeFirstView && sheet.preview.scrapBands.map((band, index) => (
               <rect
                 key={`scrap-band-${index + 1}`}
                 x={surfaceX + band.x * scale}
                 y={surfaceY + band.y * scale}
                 width={band.width * scale}
                 height={band.height * scale}
-                fill={`url(#${wastePatternId})`}
+                fill={`url(#${sWastePat})`}
                 opacity="0.95"
               />
             ))}
 
-            {displayItems.map((item, index) => {
+            {sheetItems.map((item, index) => {
               const x = surfaceX + (item.x - unitOriginX) * scale;
               const y = surfaceY + (item.y - unitOriginY) * scale;
               const width = item.width * scale;
@@ -4181,7 +4304,7 @@ export default function NestingVisualizer({
                       {!shapeFirstView && (
                         <path
                           d={`${blankPath} ${circlePath}`}
-                          fill={`url(#${wastePatternId})`}
+                          fill={`url(#${sWastePat})`}
                           fillRule="evenodd"
                           opacity="0.92"
                         />
@@ -4305,7 +4428,7 @@ export default function NestingVisualizer({
                       {!shapeFirstView && (
                         <path
                           d={`${blankPath} ${trapezoidPath}`}
-                          fill={`url(#${wastePatternId})`}
+                          fill={`url(#${sWastePat})`}
                           fillRule="evenodd"
                           opacity="0.92"
                         />
@@ -4517,7 +4640,7 @@ export default function NestingVisualizer({
                       {!shapeFirstView && (
                         <path
                           d={`${blankPath} ${sectorPath}`}
-                          fill={`url(#${wastePatternId})`}
+                          fill={`url(#${sWastePat})`}
                           fillRule="evenodd"
                           opacity="0.92"
                         />
@@ -4902,6 +5025,9 @@ export default function NestingVisualizer({
                 : `${formatInches(previewRollL)}" height`}
             </text>
           </svg>
+          </div>
+            );
+          })}
         </div>
 
         <div className="grid gap-3 border-t border-border bg-background px-4 py-4 md:grid-cols-6">
@@ -4909,25 +5035,25 @@ export default function NestingVisualizer({
             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Parts Completed
             </div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">{displayPreview.unitsCompleted}</div>
+            <div className="mt-1 text-2xl font-semibold text-foreground">{isMultiSheet ? multiSheet.totalUnitsCompleted : displayPreview.unitsCompleted}{isMultiSheet ? <span className="ml-1 text-xs text-muted-foreground">across {multiSheet.sheets.length} sheets</span> : null}</div>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Material Used
             </div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">{usedSqFt.toFixed(2)} sq ft</div>
+            <div className="mt-1 text-2xl font-semibold text-foreground">{isMultiSheet ? (multiSheet.totalUsedArea / 144).toFixed(2) : usedSqFt.toFixed(2)} sq ft</div>
           </div>
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               {reusableMetricLabel}
               </div>
-            <div className="mt-1 text-2xl font-semibold text-amber-600">{reusableOffcutSqFt.toFixed(2)} sq ft</div>
+            <div className="mt-1 text-2xl font-semibold text-amber-600">{isMultiSheet ? (multiSheet.totalReusableArea / 144).toFixed(2) : reusableOffcutSqFt.toFixed(2)} sq ft</div>
           </div>
           <div className="rounded-lg border bg-muted/20 p-3">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Scrap / Waste
             </div>
-            <div className="mt-1 text-2xl font-semibold text-red-600">{scrapSqFt.toFixed(2)} sq ft</div>
+            <div className="mt-1 text-2xl font-semibold text-red-600">{isMultiSheet ? (multiSheet.totalScrapArea / 144).toFixed(2) : scrapSqFt.toFixed(2)} sq ft</div>
             </div>
             <div className="rounded-lg border bg-muted/20 p-3">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -4952,11 +5078,14 @@ export default function NestingVisualizer({
             {metricsAreEstimatedFromStock
               ? `Optimized from placed stock area: ${stockSqFt.toFixed(2)} sq ft`
               : `Preview stock area: ${stockSqFt.toFixed(2)} sq ft`}
-          {displayPreview.overflowUnits > 0 && (
+          {multiSheet.remainingOverflow > 0 && (
             <span className="ml-2 font-medium text-amber-600">
-              {isSplitStockPreview
-                ? `Another sheet is required to place the remaining ${missingCutPieceCount} cut piece${missingCutPieceCount === 1 ? "" : "s"}.`
-                : `Another sheet is required to place the remaining ${displayPreview.overflowUnits} part${displayPreview.overflowUnits === 1 ? "" : "s"}.`}
+              +{multiSheet.remainingOverflow} part{multiSheet.remainingOverflow === 1 ? "" : "s"} exceed the {multiSheet.sheets.length}-sheet limit.
+            </span>
+          )}
+          {isMultiSheet && multiSheet.remainingOverflow === 0 && (
+            <span className="ml-2 font-medium text-blue-400">
+              All parts fit across {multiSheet.sheets.length} sheets.
             </span>
           )}
         </div>
