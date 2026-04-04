@@ -22,6 +22,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (password: string) => Promise<{ success: boolean; error?: string; redirectTo?: string }>;
   signInWithGoogle: (redirectTo?: string | null) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -158,6 +159,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const updatePassword = async (
+    password: string,
+  ): Promise<{ success: boolean; error?: string; redirectTo?: string }> => {
+    setLoading(true);
+
+    try {
+      const { user: authUser, error } = await authService.updatePassword(password);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (!authUser) {
+        return {
+          success: false,
+          error: "Failed to refresh authenticated user after password update",
+        };
+      }
+
+      setUser(authUser);
+
+      return {
+        success: true,
+        redirectTo: resolvePostAuthRedirect(authUser.roles),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "An unexpected error occurred",
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /** Google OAuth — dispatches to Electron popup or web redirect flow. */
   const signInWithGoogle = async (redirectTo?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -265,6 +301,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signUp,
     signOut,
     resetPassword,
+    updatePassword,
     signInWithGoogle,
   };
 
