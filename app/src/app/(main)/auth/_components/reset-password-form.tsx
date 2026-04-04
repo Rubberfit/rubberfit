@@ -54,11 +54,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
 
   useEffect(() => {
     let active = true;
-
-    const looksLikeRecoveryRequest = () => {
-      const currentUrl = new URL(window.location.href);
-      return recoveryMode || currentUrl.searchParams.has("code") || hasRecoveryHash();
-    };
+    const isRecoveryRequest = recoveryMode || hasRecoveryHash();
 
     const markReady = () => {
       if (!active) {
@@ -78,11 +74,17 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
       setErrorMessage(message);
     };
 
-    const hydrateRecoverySession = async () => {
+    const getRecoverySession = async () => {
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession();
+
+      return { session, error };
+    };
+
+    const hydrateRecoverySession = async () => {
+      const { session, error } = await getRecoverySession();
 
       if (!active) {
         return;
@@ -93,7 +95,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         return;
       }
 
-      if (session && looksLikeRecoveryRequest()) {
+      if (session && isRecoveryRequest) {
         markReady();
       }
     };
@@ -105,7 +107,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         return;
       }
 
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && looksLikeRecoveryRequest())) {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isRecoveryRequest)) {
         markReady();
       }
     });
@@ -113,15 +115,18 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
     void hydrateRecoverySession();
 
     const timeoutId = window.setTimeout(async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { session, error } = await getRecoverySession();
 
       if (!active) {
         return;
       }
 
-      if (session && looksLikeRecoveryRequest()) {
+      if (error) {
+        markError(error.message);
+        return;
+      }
+
+      if (session && isRecoveryRequest) {
         markReady();
         return;
       }
