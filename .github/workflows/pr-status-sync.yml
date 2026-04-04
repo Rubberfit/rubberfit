@@ -1,0 +1,80 @@
+name: Sync PR status to project board
+
+on:
+  pull_request:
+    types: [opened, reopened, closed]
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          PROJECT_ID: PVT_kwDOD7DDt84BTq8A
+          STATUS_FIELD_ID: PVTSSF_lADOD7DDt84BTq8AzhA4W4M
+          IN_REVIEW_ID: e7461403
+          DONE_ID: d8af89f6
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = `${pr.title} ${pr.body || ''}`;
+
+            const issueRefs = [...body.matchAll(/(?:closes|fixes|resolves)\s+#(\d+)/gi)];
+            if (issueRefs.length === 0) return;
+
+            const targetStatus = pr.merged
+              ? process.env.DONE_ID
+              : pr.state === 'closed'
+                ? null
+                : process.env.IN_REVIEW_ID;
+
+            if (!targetStatus) return;
+
+            for (const match of issueRefs) {
+              const issueNumber = parseInt(match[1], 10);
+
+              const findItem = await github.graphql(`
+                query($projectId: ID!) {
+                  node(id: $projectId) {
+                    ... on ProjectV2 {
+                      items(first: 50) {
+                        nodes {
+                          id
+                          content {
+                            ... on Issue { number }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              `, { projectId: process.env.PROJECT_ID });
+
+              const item = findItem.node.items.nodes.find(
+                (n) => n.content?.number === issueNumber
+              );
+              if (!item) continue;
+
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }
+              `, {
+                projectId: process.env.PROJECT_ID,
+                itemId: item.id,
+                fieldId: process.env.STATUS_FIELD_ID,
+                optionId: targetStatus,
+              });
+
+              console.log(`Issue #${issueNumber} → ${pr.merged ? 'Done' : 'In Review'}`);
+            }

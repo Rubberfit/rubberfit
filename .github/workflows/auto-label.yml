@@ -32,6 +32,12 @@ jobs:
               { keywords: ['refactor', 'cleanup', 'restructure', 'reorganize'], label: 'refactor' },
               { keywords: ['validate', 'verification', 'brent', 'real data', 'accuracy'], label: 'validation' },
               { keywords: ['ui', 'ux', 'design', 'layout', 'theme', 'dark mode', 'light mode'], label: 'ui' },
+              { keywords: ['readme', 'docs', 'documentation', 'jsdoc', 'guide'], label: 'documentation' },
+              { keywords: ['bug', 'fix', 'broken', 'error', 'crash', 'failing'], label: 'bug' },
+              { keywords: ['test', 'testing', 'coverage', 'spec', 'e2e'], label: 'testing' },
+              { keywords: ['performance', 'optimize', 'speed', 'slow', 'memory'], label: 'performance' },
+              { keywords: ['security', 'auth', 'rls', 'permission', 'vulnerability'], label: 'security' },
+              { keywords: ['ci', 'cd', 'pipeline', 'deploy', 'workflow', 'action'], label: 'ci/cd' },
             ];
 
             for (const rule of rules) {
