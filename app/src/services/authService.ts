@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getBrowserAppUrl } from '@/lib/app-url';
 import { normalizeRoles } from '@/lib/rbac';
 import type { User, AuthError } from '@supabase/supabase-js';
 
@@ -162,11 +163,49 @@ export const authService = {
   async resetPassword(email: string): Promise<{ error: AuthError | null }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/v2/reset-password`,
+        redirectTo: getBrowserAppUrl('/auth/v2/reset-password?mode=recovery'),
       });
       return { error };
     } catch (error) {
       return {
+        error: {
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          name: 'AuthError',
+          status: 500
+        } as AuthError
+      };
+    }
+  },
+
+  // Update password during recovery
+  async updatePassword(password: string): Promise<AuthResponse> {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+
+      if (error) {
+        return { user: null, error };
+      }
+
+      const user = await authService.getCurrentUser();
+
+      if (!user) {
+        return {
+          user: null,
+          error: {
+            message: 'Password updated, but failed to retrieve the current user',
+            name: 'AuthError',
+            status: 500
+          } as AuthError
+        };
+      }
+
+      return {
+        user,
+        error: null,
+      };
+    } catch (error) {
+      return {
+        user: null,
         error: {
           message: error instanceof Error ? error.message : 'An unexpected error occurred',
           name: 'AuthError',
@@ -218,7 +257,7 @@ export const authService = {
   // Listen to auth state changes
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
         // Get avatar - prioritize Google avatar, then use generated avatar
         const avatar = session.user.user_metadata?.avatar_url ||
                       session.user.user_metadata?.picture ||

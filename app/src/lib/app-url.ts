@@ -1,8 +1,14 @@
 export function getBrowserAppUrl(pathname = "/"): string {
+  const browserOrigin =
+    typeof window !== "undefined"
+      && /^https?:\/\//.test(window.location.origin)
+      ? window.location.origin
+      : undefined;
+
   let baseUrl =
+    browserOrigin ??
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.NEXT_PUBLIC_VERCEL_URL ??
-    window.location.origin ??
     "http://localhost:3000";
 
   if (!baseUrl.startsWith("http")) {
