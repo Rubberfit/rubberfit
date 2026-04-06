@@ -36,6 +36,9 @@ updates:
           - "prettier"
           - "typescript"
           - "@types/*"
+        exclude-patterns:
+          - "@types/react"
+          - "@types/react-dom"
         update-types:
           - "minor"
           - "patch"

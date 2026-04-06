@@ -5,8 +5,12 @@ on:
     - cron: "0 9 * * 1" # Every Monday at 9am UTC
   push:
     paths:
+      - "app/package.json"
       - "app/package-lock.json"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   audit:
@@ -27,16 +31,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run npm audit
-        run: npm audit --audit-level=high
-        continue-on-error: true
-
-      - name: Check for critical vulnerabilities
+      - name: Run npm audit and check for critical vulnerabilities
         run: |
-          RESULT=$(npm audit --json 2>/dev/null || true)
+          STDERR_FILE=$(mktemp)
+          trap 'rm -f "$STDERR_FILE"' EXIT
+
+          RESULT=$(npm audit --audit-level=critical --json 2>"$STDERR_FILE" || true)
+
+          if [ -z "$RESULT" ] || ! echo "$RESULT" | jq -e . >/dev/null 2>&1; then
+            echo "::error::npm audit did not return valid JSON output"
+            if [ -s "$STDERR_FILE" ]; then
+              cat "$STDERR_FILE" >&2
+            fi
+            exit 1
+          fi
+
           CRITICAL=$(echo "$RESULT" | jq '.metadata.vulnerabilities.critical // 0')
           HIGH=$(echo "$RESULT" | jq '.metadata.vulnerabilities.high // 0')
-          echo "Critical: $CRITICAL, High: $HIGH"
+          echo "npm audit summary: Critical: $CRITICAL, High: $HIGH"
+
           if [ "$CRITICAL" -gt 0 ]; then
             echo "::error::Found $CRITICAL critical vulnerabilities"
             exit 1
