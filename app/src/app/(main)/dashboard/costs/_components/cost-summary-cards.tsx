@@ -17,6 +17,22 @@ export function CostSummaryCards({
   totalWasteCost,
   wastePercentage,
 }: CostSummaryCardsProps) {
+  const hasWastePercentage = Number.isFinite(wastePercentage)
+  const wasteLabel = !hasWastePercentage
+    ? "Unavailable"
+    : wastePercentage <= 10
+      ? "Excellent"
+      : wastePercentage <= 20
+        ? "Good"
+        : "Needs improvement"
+  const wasteTone = !hasWastePercentage
+    ? "text-muted-foreground"
+    : wastePercentage <= 10
+      ? "text-green-600"
+      : wastePercentage <= 20
+        ? "text-yellow-600"
+        : "text-red-600"
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
@@ -58,16 +74,10 @@ export function CostSummaryCards({
           <Calculator className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{wastePercentage.toFixed(1)}%</div>
-          <p
-            className={`text-xs ${wastePercentage <= 10 ? "text-green-600" : wastePercentage <= 20 ? "text-yellow-600" : "text-red-600"}`}
-          >
-            {wastePercentage <= 10
-              ? "Excellent"
-              : wastePercentage <= 20
-                ? "Good"
-                : "Needs improvement"}
-          </p>
+          <div className="text-2xl font-bold">
+            {hasWastePercentage ? `${wastePercentage.toFixed(1)}%` : "-"}
+          </div>
+          <p className={`text-xs ${wasteTone}`}>{wasteLabel}</p>
         </CardContent>
       </Card>
     </div>

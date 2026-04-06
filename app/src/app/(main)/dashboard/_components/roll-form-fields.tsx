@@ -186,9 +186,7 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
                     supplierService
                       .getSupplierById(value)
                       .then((supplier) => {
-                        if (supplier) {
-                          field.onChange(supplier.name)
-                        }
+                        field.onChange(supplier?.name ?? "")
                       })
                       .catch((error) => {
                         console.error("Error resolving supplier name:", error)

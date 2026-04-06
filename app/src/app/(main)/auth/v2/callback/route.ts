@@ -80,8 +80,9 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
+    console.error("oauth callback error:", error)
     const loginParams = new URLSearchParams()
-    loginParams.set("error", error.message)
+    loginParams.set("error", "authentication failed. please try again.")
 
     if (requestedPath) {
       loginParams.set("redirectTo", requestedPath)

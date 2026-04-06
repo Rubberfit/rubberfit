@@ -40,7 +40,7 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
   }
 
   const handleFile = async (file: File) => {
-    if (!file.name.endsWith(".csv")) {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
       toast.error("Invalid file type", {
         description: "Please select a CSV file",
       })

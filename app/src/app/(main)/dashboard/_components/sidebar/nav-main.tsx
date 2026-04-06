@@ -198,9 +198,7 @@ export function NavMain({ items }: NavMainProps) {
       const customEvent = event as CustomEvent
       setIsQuickCreateOpen(true)
 
-      if (customEvent.detail) {
-        setQuickCreateInitialData(customEvent.detail)
-      }
+      setQuickCreateInitialData(customEvent.detail ?? undefined)
     }
 
     globalEvents.on(EVENTS.OPEN_QUICK_CREATE, handleOpenQuickCreate)

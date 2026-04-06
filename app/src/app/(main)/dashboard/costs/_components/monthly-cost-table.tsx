@@ -51,14 +51,12 @@ export function MonthlyCostTable({ data }: MonthlyCostTableProps) {
                 const avgCostPerCut = month.cuts > 0 ? month.totalCost / month.cuts : 0
 
                 return (
-                  <TableRow key={month.period}>
-                    <TableCell className="font-medium">{month.period}</TableCell>
-                    <TableCell className="font-mono">
-                      ${(month.totalCost - month.wasteCost).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="font-mono">${month.wasteCost.toFixed(2)}</TableCell>
-                    <TableCell className="font-mono font-medium">
-                      ${month.totalCost.toFixed(2)}
+                    <TableRow key={month.period}>
+                      <TableCell className="font-medium">{month.period}</TableCell>
+                      <TableCell className="font-mono">${month.materialCost.toFixed(2)}</TableCell>
+                      <TableCell className="font-mono">${month.wasteCost.toFixed(2)}</TableCell>
+                      <TableCell className="font-mono font-medium">
+                        ${month.totalCost.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">{month.cuts}</TableCell>
                     <TableCell className="font-mono">${avgCostPerCut.toFixed(2)}</TableCell>

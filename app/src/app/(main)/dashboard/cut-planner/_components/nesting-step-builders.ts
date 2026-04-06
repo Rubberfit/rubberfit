@@ -7,13 +7,14 @@ import { formatInches } from "./nesting-layout-utils"
 export function buildRectangleSteps(layout: SimpleRectLayout) {
   const width = formatInches(layout.pieceW)
   const height = formatInches(layout.pieceH)
+  const stripCount = Math.max(layout.cols, 1)
 
   if (layout.orientation === "rotated") {
     return {
       title: "Rectangle cut sequence",
       steps: [
         {
-          title: `Rip ${Math.max(layout.cols, 1)} strip${layout.cols === 1 ? "" : "s"} at ${width}"`,
+          title: `Rip ${stripCount} strip${stripCount === 1 ? "" : "s"} at ${width}"`,
           detail:
             "The part was rotated to fit the sheet more efficiently, so the first cuts follow the rotated width.",
         },
@@ -29,7 +30,7 @@ export function buildRectangleSteps(layout: SimpleRectLayout) {
     title: "Rectangle cut sequence",
     steps: [
       {
-        title: `Rip ${Math.max(layout.cols, 1)} strip${layout.cols === 1 ? "" : "s"} at ${width}"`,
+        title: `Rip ${stripCount} strip${stripCount === 1 ? "" : "s"} at ${width}"`,
         detail: "Straight strip cuts keep the rectangle workflow simple for the cutter.",
       },
       {

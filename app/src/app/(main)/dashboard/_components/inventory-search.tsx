@@ -34,7 +34,6 @@ export function InventorySearch({
   const handleClear = () => {
     setSearchQuery("")
     setDebouncedQuery("")
-    onSearch("")
   }
 
   return (

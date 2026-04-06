@@ -12,7 +12,6 @@ import type {
 import type { NestingResult } from "@/lib/nesting/types"
 import {
   buildOffcutBands,
-  isReusableOffcutBand,
   bandFitsAnyPreviewItem,
   computeIntraBlankWaste,
   getPlacementBounds,
@@ -35,7 +34,7 @@ export function buildOptimizedStockPreview(
     result.occupiedHeight > 0 ? result.occupiedHeight : fallbackBounds.occupiedHeight
   const occupiedArea =
     result.occupiedArea > 0 ? result.occupiedArea : occupiedWidth * occupiedHeight
-  const allBands = buildOffcutBands(fallbackBounds, rollW, rollL, "origin")
+  const allBands = buildOffcutBands(fallbackBounds, rollW, rollL, preview.placementMode)
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
@@ -130,19 +129,15 @@ export function buildCustomPackedPreviewFromPackedResult(
   }
 ): RectLikePreview {
   const bounds = getPlacementBounds(packed.items)
-  const allBands = buildOffcutBands(bounds, rollW, rollL, "origin")
+  const allBands = packed.freeRects ?? buildOffcutBands(bounds, rollW, rollL, "origin")
   const reusableBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
   let bandScrapArea = 0
 
-  const firstItem = packed.items[0]
-  const cpPieceW = firstItem?.width ?? 0
-  const cpPieceH = firstItem?.height ?? 0
-
   allBands.forEach((band) => {
     const area = band.width * band.height
-    if (isReusableOffcutBand(band, cpPieceW, cpPieceH)) {
+    if (bandFitsAnyPreviewItem(band, packed.items)) {
       reusableBands.push(band)
       reusableArea += area
     } else {

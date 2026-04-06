@@ -185,15 +185,7 @@ export function useNestingCompute(rolls: Roll[]) {
 }
 ```
 
-- Never call `setState` directly inside `useEffect`. If an effect needs to trigger a state update, wrap it in `queueMicrotask()`:
-
-```typescript
-useEffect(() => {
-  if (condition) {
-    queueMicrotask(() => setViewMode("stock"))
-  }
-}, [condition])
-```
+- Avoid effect-driven state updates unless the effect is syncing with external state or browser APIs. if you truly need to defer work from an effect, prefer documented patterns like `setTimeout` or `useLayoutEffect` instead of `queueMicrotask()`.
 
 - Every dependency in the deps array must be stable or memoized.
 - Extract complex effect logic into named functions outside the component.

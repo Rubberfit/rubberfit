@@ -33,8 +33,8 @@ export function computeLayout(rollW: number, rollL: number): DetailStepLayout {
     P = 34,
     RW = W - P * 2,
     RH = H - P * 2
-  const sx = RW / rollW,
-    sy = RH / rollL
+  const sx = rollW > 0 ? RW / rollW : 0,
+    sy = rollL > 0 ? RH / rollL : 0
   return { W, H, P, RW, RH, sx, sy }
 }
 

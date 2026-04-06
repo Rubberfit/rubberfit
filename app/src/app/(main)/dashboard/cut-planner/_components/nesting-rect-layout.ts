@@ -101,27 +101,33 @@ export function buildRectLayoutCandidate(
       continue
     }
 
-    if (candidate.scrapArea < bestCandidate.scrapArea - 0.001) {
+    const currentBest = bestCandidate
+
+    if (candidate.scrapArea < currentBest.scrapArea - 0.001) {
       bestCandidate = candidate
       continue
     }
-    if (Math.abs(candidate.scrapArea - bestCandidate.scrapArea) < 0.001) {
-      if (candidate.reusablePieces > bestCandidate.reusablePieces) {
+    if (Math.abs(candidate.scrapArea - currentBest.scrapArea) < 0.001) {
+      if (candidate.reusablePieces > currentBest.reusablePieces) {
         bestCandidate = candidate
         continue
       }
-      if (candidate.reusablePieces === bestCandidate.reusablePieces) {
+      if (candidate.reusablePieces === currentBest.reusablePieces) {
         const bestLargestReusableBand = Math.max(
           0,
           ...buildOriginRectOffcutBands(
             buildRectPlacements(
-              bestCandidate.pieceW,
-              bestCandidate.pieceH,
-              bestCandidate.rowCounts
+              currentBest.pieceW,
+              currentBest.pieceH,
+              currentBest.rowCounts
             ),
             rollW,
             rollL
-          ).map((band) => band.width * band.height)
+          )
+            .filter((band) =>
+              isReusableOffcutBand(band, currentBest.pieceW, currentBest.pieceH)
+            )
+            .map((band) => band.width * band.height)
         )
 
         if (largestReusableBand > bestLargestReusableBand + 0.001) {
@@ -129,11 +135,11 @@ export function buildRectLayoutCandidate(
           continue
         }
         if (Math.abs(largestReusableBand - bestLargestReusableBand) < 0.001) {
-          if (candidate.rows < bestCandidate.rows) {
+          if (candidate.rows < currentBest.rows) {
             bestCandidate = candidate
             continue
           }
-          if (candidate.rows === bestCandidate.rows && candidate.cols > bestCandidate.cols) {
+          if (candidate.rows === currentBest.rows && candidate.cols > currentBest.cols) {
             bestCandidate = candidate
           }
         }

@@ -23,6 +23,7 @@ export function PartTypeSelector({ selectedPart, onPartChange }: PartTypeSelecto
             <button
               key={part.partType}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => onPartChange(part.partType)}
               className={`rounded-lg border p-3 text-left transition-all ${
                 isSelected

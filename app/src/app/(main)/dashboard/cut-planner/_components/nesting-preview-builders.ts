@@ -184,7 +184,11 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
 
 export function chooseBestPreview<T extends SimplePreviewBase & { adjustedWaste: number }>(
   candidates: T[]
-) {
+): T {
+  if (candidates.length === 0) {
+    throw new Error("chooseBestPreview requires at least one candidate")
+  }
+
   return [...candidates].sort((a, b) => {
     if (a.unitsCompleted !== b.unitsCompleted) return b.unitsCompleted - a.unitsCompleted
     if (a.overflowUnits !== b.overflowUnits) return a.overflowUnits - b.overflowUnits

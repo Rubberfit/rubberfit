@@ -56,10 +56,14 @@ export function packPreviewItemsOnShelves(
   sortedItems.forEach((item) => {
     let bestShelfIndex = -1
     let bestShelfWaste = Number.POSITIVE_INFINITY
+    let bestShelfHeight = item.height
 
     for (let index = 0; index < shelves.length; index += 1) {
       const shelf = shelves[index]
+      const nextShelfY = shelves[index + 1]?.y ?? rollL
+      const availableHeight = nextShelfY - shelf.y
       const nextHeight = Math.max(shelf.height, item.height)
+      if (nextHeight > availableHeight + 0.001) continue
       if (shelf.x + item.width > rollW + 0.001) continue
       if (shelf.y + nextHeight > rollL + 0.001) continue
 
@@ -70,6 +74,7 @@ export function packPreviewItemsOnShelves(
       if (shelfWaste < bestShelfWaste) {
         bestShelfWaste = shelfWaste
         bestShelfIndex = index
+        bestShelfHeight = nextHeight
       }
     }
 
@@ -83,6 +88,7 @@ export function packPreviewItemsOnShelves(
 
       shelves.push({ y: nextY, height: item.height, x: 0 })
       bestShelfIndex = shelves.length - 1
+      bestShelfHeight = item.height
     }
 
     const shelf = shelves[bestShelfIndex]
@@ -94,7 +100,7 @@ export function packPreviewItemsOnShelves(
     })
     placedIndex += 1
     shelf.x += item.width
-    shelf.height = Math.max(shelf.height, item.height)
+    shelf.height = bestShelfHeight
     usedArea += item.usedArea
   })
 
@@ -314,6 +320,17 @@ export function calculatePackedShapeLayout(
   const stepY = options?.stepY ?? footprintH
   const rowOffset = options?.rowOffset ?? 0
   const flipPattern = options?.flipPattern ?? "none"
+
+  if (stepX <= 0 || stepY <= 0) {
+    return {
+      positions,
+      capacity: 0,
+      placed: 0,
+      overflow: Math.max(0, qty),
+      occupiedWidth: 0,
+      occupiedHeight: 0,
+    }
+  }
 
   for (let row = 0; ; row += 1) {
     const y = row * stepY

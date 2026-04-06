@@ -27,8 +27,8 @@ export function buildConeSplitSections(
   const ratios = normalizeCutRatios(cutRatios, requestedCutSections)
   const cutBreakpoints = buildCutBreakpoints(ratios)
   const bounds = [0, ...cutBreakpoints, 1]
-  const safeInnerRadius = Math.max(1, innerRadius)
-  const safeOuterRadius = Math.max(safeInnerRadius + 1, outerRadius)
+  const safeInnerRadius = Math.max(0, innerRadius)
+  const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
   const safeArcDegrees = Math.min(320, Math.max(20, arcDegrees))
   const fullHalfArcRad = (safeArcDegrees * Math.PI) / 360
   const profileItem: PreviewItem = {

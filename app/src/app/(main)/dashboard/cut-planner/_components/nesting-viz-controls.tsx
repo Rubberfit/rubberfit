@@ -9,6 +9,23 @@ const inp =
 const lbl =
   "block text-[9px] font-semibold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-1"
 
+function parseInputValue(value: string, minimum: number) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const parsed = Number.parseFloat(trimmed)
+  return Number.isFinite(parsed) && parsed >= minimum ? parsed : null
+}
+
+function applyParsedValue(value: string, minimum: number, setter: (n: number) => void) {
+  const parsed = parseInputValue(value, minimum)
+  if (parsed !== null) {
+    setter(parsed)
+  }
+}
+
 interface ControlsProps {
   shape: ShapeType
   rollW: number
@@ -91,7 +108,7 @@ export default function NestingVizControls({
           type="number"
           min="1"
           value={rollW}
-          onChange={(e) => setRollW(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 1, setRollW)}
           className={inp}
         />
       </div>
@@ -101,7 +118,7 @@ export default function NestingVizControls({
           type="number"
           min="1"
           value={rollL}
-          onChange={(e) => setRollL(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 1, setRollL)}
           className={inp}
         />
       </div>
@@ -130,7 +147,7 @@ export default function NestingVizControls({
             min="1"
             step="0.5"
             value={diam}
-            onChange={(e) => setDiam(+e.target.value)}
+            onChange={(e) => applyParsedValue(e.target.value, 1, setDiam)}
             className={inp}
           />
         </div>
@@ -185,7 +202,7 @@ function RectControls({
           min="0.5"
           step="0.5"
           value={cutW}
-          onChange={(e) => setCutW(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 0.5, setCutW)}
           className={inp}
         />
       </div>
@@ -196,7 +213,7 @@ function RectControls({
           min="0.5"
           step="0.5"
           value={cutH}
-          onChange={(e) => setCutH(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 0.5, setCutH)}
           className={inp}
         />
       </div>
@@ -206,7 +223,7 @@ function RectControls({
           type="number"
           min="1"
           value={qty}
-          onChange={(e) => setQty(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 1, setQty)}
           className={inp}
         />
       </div>
@@ -218,7 +235,7 @@ function RectControls({
           max="80"
           step="1"
           value={diagAng}
-          onChange={(e) => setDiagAng(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 10, setDiagAng)}
           className={inp}
         />
       </div>
@@ -270,10 +287,10 @@ function ConeControls({
         <label className={lbl}>Inner R (in)</label>
         <input
           type="number"
-          min="1"
+          min="0"
           step="0.5"
           value={innerR}
-          onChange={(e) => setInnerR(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 0, setInnerR)}
           className={inp}
         />
       </div>
@@ -284,7 +301,7 @@ function ConeControls({
           min="2"
           step="0.5"
           value={outerR}
-          onChange={(e) => setOuterR(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 2, setOuterR)}
           className={inp}
         />
       </div>
@@ -296,7 +313,7 @@ function ConeControls({
           max="359"
           step="5"
           value={arcDeg}
-          onChange={(e) => setArcDeg(+e.target.value)}
+          onChange={(e) => applyParsedValue(e.target.value, 10, setArcDeg)}
           className={inp}
         />
       </div>

@@ -28,20 +28,22 @@ interface QuickCreateDialogProps {
   }>
 }
 
+const EMPTY_FORM_DATA = {
+  material_type: "",
+  width: "",
+  length: "",
+  thickness: "",
+  color: "",
+  location: "",
+  supplier: "",
+  cost_per_sqft: "",
+  notes: "",
+}
+
 export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCreateDialogProps) {
   const router = useRouter()
   const [materialTypes, setMaterialTypes] = useState<string[]>([])
-  const [formData, setFormData] = useState({
-    material_type: "",
-    width: "",
-    length: "",
-    thickness: "",
-    color: "",
-    location: "",
-    supplier: "",
-    cost_per_sqft: "",
-    notes: "",
-  })
+  const [formData, setFormData] = useState(() => ({ ...EMPTY_FORM_DATA }))
 
   useEffect(() => {
     const loadMaterialTypes = async () => {
@@ -55,42 +57,59 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
     loadMaterialTypes()
   }, [])
 
-  // Apply initial data when it changes
   useEffect(() => {
-    if (initialData) {
-      queueMicrotask(() => {
-        setFormData((prev) => ({
-          ...prev,
-          material_type: initialData.material_type || prev.material_type,
-          width: initialData.width || prev.width,
-          length: initialData.length || prev.length,
-          thickness: initialData.thickness || prev.thickness,
-          notes: initialData.notes || prev.notes,
-        }))
-      })
+    const nextFormData = open
+      ? {
+          ...EMPTY_FORM_DATA,
+          ...initialData,
+        }
+      : { ...EMPTY_FORM_DATA }
+
+    const timeoutId = window.setTimeout(() => {
+      setFormData(nextFormData)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
     }
-  }, [initialData])
+  }, [open, initialData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     try {
-      if (!formData.material_type || !formData.width || !formData.length || !formData.thickness) {
-        toast.error("Please fill in all required fields")
+      const width = Number(formData.width)
+      const length = Number(formData.length)
+      const thickness = Number(formData.thickness)
+      const costPerSqft =
+        formData.cost_per_sqft === "" ? undefined : Number(formData.cost_per_sqft)
+
+      if (
+        !formData.material_type ||
+        !Number.isFinite(width) ||
+        width <= 0 ||
+        !Number.isFinite(length) ||
+        length <= 0 ||
+        !Number.isFinite(thickness) ||
+        thickness <= 0 ||
+        (costPerSqft !== undefined &&
+          (!Number.isFinite(costPerSqft) || costPerSqft < 0))
+      ) {
+        toast.error("Please enter valid values for all required fields")
         return
       }
 
       await rollService.addRoll({
         material_type: formData.material_type,
-        width: parseFloat(formData.width),
-        length: parseFloat(formData.length),
-        thickness: parseFloat(formData.thickness),
+        width,
+        length,
+        thickness,
         color: formData.color || undefined,
         location: formData.location || undefined,
         supplier: formData.supplier || undefined,
-        cost_per_sqft: formData.cost_per_sqft ? parseFloat(formData.cost_per_sqft) : undefined,
+        cost_per_sqft: costPerSqft,
         notes: formData.notes || undefined,
-        remaining_length: parseFloat(formData.length),
+        remaining_length: length,
         status: "active",
         date_received: new Date().toISOString().split("T")[0],
       } as Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">)
@@ -98,17 +117,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
       toast.success("Roll added successfully!")
       onOpenChange(false)
 
-      setFormData({
-        material_type: "",
-        width: "",
-        length: "",
-        thickness: "",
-        color: "",
-        location: "",
-        supplier: "",
-        cost_per_sqft: "",
-        notes: "",
-      })
+      setFormData({ ...EMPTY_FORM_DATA })
 
       router.push("/dashboard/inventory")
     } catch (error) {

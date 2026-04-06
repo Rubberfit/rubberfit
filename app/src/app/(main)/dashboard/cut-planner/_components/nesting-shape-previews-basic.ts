@@ -214,59 +214,6 @@ export function generateCirclePreview(
   const radius = diameter / 2
   const circleArea = Math.PI * radius * radius
   const heroLayout = calculateDirectCircleProfileLayout(diameter, diameter, diameter, 1)
-  const requestedCutSections = Math.max(1, qty)
-
-  if (requestedCutSections > 1) {
-    const sectorCount = Math.min(12, requestedCutSections)
-    const sectorArcDegrees = 360 / sectorCount
-    const sectorChord = Math.max(2, 2 * radius * Math.sin(Math.PI / sectorCount))
-    const sectorHeight = radius
-    const packed = withWaste(
-      buildPackedPreview(
-        calculatePackedShapeLayout(rollW, rollL, sectorChord, sectorHeight, sectorCount, {
-          stepX: Math.max(sectorChord * 0.86, radius * 0.42),
-          stepY: sectorHeight,
-          rowOffset: sectorCount <= 2 ? 0 : sectorChord * 0.38,
-          alternateOffset: sectorCount > 2,
-          flipPattern: "checker",
-        }),
-        {
-          renderShape: "sector",
-          strategyName:
-            sectorCount === 2
-              ? "Two half-circle panels"
-              : sectorCount === 3
-                ? "Three radial sectors"
-                : sectorCount === 4
-                  ? "Four quadrant sectors"
-                  : `${sectorCount} wedge sectors`,
-          strategyNote:
-            sectorCount === 2
-              ? "The circle is split across one centerline so the graph shows the actual two-piece cut."
-              : `The circle is divided into ${sectorCount} equal radial sectors so the graph shows the actual cut geometry inside the finished profile.`,
-          requestedUnits: 1,
-          piecesPerUnit: sectorCount,
-          pieceArea: circleArea / sectorCount,
-          label: `${Math.round(sectorArcDegrees)}\u00B0 sector`,
-          innerRadius: 0,
-          outerRadius: radius,
-          arcDegrees: sectorArcDegrees,
-        }
-      ),
-      rollW,
-      rollL
-    )
-    const cutPlan = buildCircleSteps(diameter, sectorCount)
-
-    return {
-      ...packed,
-      renderShape: "circle",
-      cutPlanTitle: cutPlan.title,
-      cutSteps: cutPlan.steps,
-      layout: heroLayout,
-      diameter,
-    }
-  }
 
   const directCircleCandidates = buildDirectCircleCandidates(rollW, rollL, diameter, qty)
   const panelizedCircleCandidates = buildPanelizedCircleCandidates(

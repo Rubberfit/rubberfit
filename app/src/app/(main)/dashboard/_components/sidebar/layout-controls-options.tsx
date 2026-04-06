@@ -56,9 +56,11 @@ export function LayoutControlsOptions({
   return (
     <div className="space-y-3 **:data-[slot=toggle-group]:w-full **:data-[slot=toggle-group-item]:flex-1 **:data-[slot=toggle-group-item]:text-xs">
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Theme Preset</Label>
+        <Label id="theme-preset-label" className="font-medium text-xs">
+          Theme Preset
+        </Label>
         <Select value={themePreset} onValueChange={onThemePresetChange}>
-          <SelectTrigger size="sm" className="w-full text-xs">
+          <SelectTrigger aria-labelledby="theme-preset-label" size="sm" className="w-full text-xs">
             <SelectValue placeholder="Preset" />
           </SelectTrigger>
           <SelectContent>
@@ -81,9 +83,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Fonts</Label>
+        <Label id="fonts-label" className="font-medium text-xs">
+          Fonts
+        </Label>
         <Select value={font} onValueChange={onFontChange}>
-          <SelectTrigger size="sm" className="w-full text-xs">
+          <SelectTrigger aria-labelledby="fonts-label" size="sm" className="w-full text-xs">
             <SelectValue placeholder="Select font" />
           </SelectTrigger>
           <SelectContent>
@@ -97,8 +101,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Theme Mode</Label>
+        <Label id="theme-mode-label" className="font-medium text-xs">
+          Theme Mode
+        </Label>
         <ToggleGroup
+          aria-labelledby="theme-mode-label"
           size="sm"
           variant="outline"
           type="single"
@@ -118,8 +125,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Page Layout</Label>
+        <Label id="page-layout-label" className="font-medium text-xs">
+          Page Layout
+        </Label>
         <ToggleGroup
+          aria-labelledby="page-layout-label"
           size="sm"
           variant="outline"
           type="single"
@@ -136,8 +146,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Navbar Behavior</Label>
+        <Label id="navbar-behavior-label" className="font-medium text-xs">
+          Navbar Behavior
+        </Label>
         <ToggleGroup
+          aria-labelledby="navbar-behavior-label"
           size="sm"
           variant="outline"
           type="single"
@@ -154,8 +167,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Sidebar Style</Label>
+        <Label id="sidebar-style-label" className="font-medium text-xs">
+          Sidebar Style
+        </Label>
         <ToggleGroup
+          aria-labelledby="sidebar-style-label"
           size="sm"
           variant="outline"
           type="single"
@@ -175,8 +191,11 @@ export function LayoutControlsOptions({
       </div>
 
       <div className="space-y-1">
-        <Label className="font-medium text-xs">Sidebar Collapse Mode</Label>
+        <Label id="sidebar-collapse-label" className="font-medium text-xs">
+          Sidebar Collapse Mode
+        </Label>
         <ToggleGroup
+          aria-labelledby="sidebar-collapse-label"
           size="sm"
           variant="outline"
           type="single"

@@ -62,7 +62,13 @@ export function buildCustomTemplate(
       const innerRadius = parsePositiveMeasurement(drafts.cone.innerRadius)
       const outerRadius = parsePositiveMeasurement(drafts.cone.outerRadius)
       const arcDegrees = parsePositiveMeasurement(drafts.cone.arcDegrees)
-      if (!innerRadius || !outerRadius || !arcDegrees || outerRadius <= innerRadius) {
+      if (
+        !innerRadius ||
+        !outerRadius ||
+        !arcDegrees ||
+        arcDegrees > 320 ||
+        outerRadius <= innerRadius
+      ) {
         return null
       }
 

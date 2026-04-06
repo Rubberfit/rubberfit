@@ -200,6 +200,7 @@ function RectDetailPanel({
         {activeStrat.steps.map((step, i) => (
           <button
             key={step}
+            type="button"
             onClick={() => setActiveStep(i)}
             className="text-[10px] px-2.5 py-1 rounded-full border transition-all"
             style={{

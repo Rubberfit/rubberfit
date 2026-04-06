@@ -318,7 +318,7 @@ export function nestingResultToPreviewItems(
   const partsById = new Map(parts.map((part) => [part.id, part]))
   return result.placements.map((p) => {
     const partIdBase = p.partId.replace(/-\d+$/, "")
-    const np = partsById.get(partIdBase) ?? parts[0]
+    const np = partsById.get(p.partId) ?? partsById.get(partIdBase) ?? parts[0]
     const safeIndex = np?.sourceSpecIndex ?? 0
     const spec = specs[safeIndex] ?? specs[0]
     const rs = np?.renderShape ?? "rect"

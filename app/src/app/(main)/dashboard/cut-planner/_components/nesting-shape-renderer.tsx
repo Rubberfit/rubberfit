@@ -239,16 +239,16 @@ function TrapezoidShape({
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
   const botW = (item.bottomWidth ?? item.width) * scale
-  const insetLeft = (coords.pw - topW) / 2
-  const insetRight = coords.pw - insetLeft
+  const topInsetLeft = (coords.pw - topW) / 2
+  const topInsetRight = coords.pw - topInsetLeft
+  const botInsetLeft = (coords.pw - botW) / 2
+  const botInsetRight = coords.pw - botInsetLeft
 
   const buildTrapPath = () => {
     if (item.flipped) {
-      const fInsetLeft = (coords.pw - botW) / 2
-      const fInsetRight = coords.pw - fInsetLeft
-      return `M${coords.px + fInsetLeft} ${coords.py} L${coords.px + fInsetRight} ${coords.py} L${coords.px + coords.pw} ${coords.py + coords.ph} L${coords.px} ${coords.py + coords.ph} Z`
+      return `M${coords.px + botInsetLeft} ${coords.py} L${coords.px + botInsetRight} ${coords.py} L${coords.px + topInsetRight} ${coords.py + coords.ph} L${coords.px + topInsetLeft} ${coords.py + coords.ph} Z`
     }
-    return `M${coords.px} ${coords.py} L${coords.px + coords.pw} ${coords.py} L${coords.px + insetRight} ${coords.py + coords.ph} L${coords.px + insetLeft} ${coords.py + coords.ph} Z`
+    return `M${coords.px + topInsetLeft} ${coords.py} L${coords.px + topInsetRight} ${coords.py} L${coords.px + botInsetRight} ${coords.py + coords.ph} L${coords.px + botInsetLeft} ${coords.py + coords.ph} Z`
   }
 
   return (

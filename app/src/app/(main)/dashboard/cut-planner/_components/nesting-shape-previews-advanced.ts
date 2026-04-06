@@ -143,8 +143,8 @@ export function generateConePreview(
   cutDirection: SimpleCutDirection = "radial_split",
   cutRatios?: number[]
 ): SimplePartPreview {
-  const safeInnerRadius = Math.max(1, innerRadius)
-  const safeOuterRadius = Math.max(safeInnerRadius + 1, outerRadius)
+  const safeInnerRadius = Math.max(0, innerRadius)
+  const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
   const safeArcDegrees = Math.min(320, Math.max(20, arcDegrees))
   const arcArea = (safeArcDegrees / 360) * Math.PI * (safeOuterRadius ** 2 - safeInnerRadius ** 2)
   const requestedCutSections = Math.max(1, qty)

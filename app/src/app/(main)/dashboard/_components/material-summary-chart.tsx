@@ -47,7 +47,7 @@ export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
             <YAxis />
             <Tooltip
               formatter={(value: number, name: string) => {
-                if (name === "sqft") {
+                if (name === "Square Footage") {
                   return [`${value.toFixed(1)} sqft`, "Square Footage"]
                 }
                 return [value, name]

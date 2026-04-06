@@ -91,7 +91,7 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     optimizedResult,
     optimizedItems,
   } = input
-  const shapeFirstView = false
+  const shapeFirstView = viewMode === "profile"
   const hasOptimizedStockLayout =
     viewMode === "stock" &&
     optimizedResult !== null &&

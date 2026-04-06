@@ -229,12 +229,13 @@ export function SupplierSelect({
     fetchSuppliers()
   }, [])
 
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === value || supplier.name === value)
   const preferredSuppliers = suppliers.filter((s) => s.preferred)
   const regularSuppliers = suppliers.filter((s) => !s.preferred)
 
   return (
     <select
-      value={value || ""}
+      value={selectedSupplier?.id ?? ""}
       onChange={(e) => onValueChange(e.target.value)}
       disabled={disabled || loading}
       required={required}

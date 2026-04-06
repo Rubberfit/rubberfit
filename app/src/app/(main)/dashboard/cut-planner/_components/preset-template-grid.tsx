@@ -98,6 +98,7 @@ export function PresetTemplateGrid({
                     </button>
                     <button
                       type="button"
+                      aria-label={`Remove ${template.label}`}
                       onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
