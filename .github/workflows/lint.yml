@@ -7,8 +7,8 @@ on:
     branches: [dev, main]
 
 jobs:
-  quality:
-    name: Lint, Format & Typecheck
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     defaults:
       run:
