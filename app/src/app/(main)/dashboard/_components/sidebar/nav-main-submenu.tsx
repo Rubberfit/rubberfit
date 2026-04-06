@@ -81,8 +81,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
       const width = Number(formData.width)
       const length = Number(formData.length)
       const thickness = Number(formData.thickness)
-      const costPerSqft =
-        formData.cost_per_sqft === "" ? undefined : Number(formData.cost_per_sqft)
+      const costPerSqft = formData.cost_per_sqft === "" ? undefined : Number(formData.cost_per_sqft)
 
       if (
         !formData.material_type ||
@@ -92,8 +91,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         length <= 0 ||
         !Number.isFinite(thickness) ||
         thickness <= 0 ||
-        (costPerSqft !== undefined &&
-          (!Number.isFinite(costPerSqft) || costPerSqft < 0))
+        (costPerSqft !== undefined && (!Number.isFinite(costPerSqft) || costPerSqft < 0))
       ) {
         toast.error("Please enter valid values for all required fields")
         return

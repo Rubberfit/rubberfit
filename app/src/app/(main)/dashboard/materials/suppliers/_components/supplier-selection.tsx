@@ -229,7 +229,9 @@ export function SupplierSelect({
     fetchSuppliers()
   }, [])
 
-  const selectedSupplier = suppliers.find((supplier) => supplier.id === value || supplier.name === value)
+  const selectedSupplier = suppliers.find(
+    (supplier) => supplier.id === value || supplier.name === value
+  )
   const preferredSuppliers = suppliers.filter((s) => s.preferred)
   const regularSuppliers = suppliers.filter((s) => !s.preferred)
 

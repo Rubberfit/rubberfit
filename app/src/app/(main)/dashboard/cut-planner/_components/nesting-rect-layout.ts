@@ -116,17 +116,11 @@ export function buildRectLayoutCandidate(
         const bestLargestReusableBand = Math.max(
           0,
           ...buildOriginRectOffcutBands(
-            buildRectPlacements(
-              currentBest.pieceW,
-              currentBest.pieceH,
-              currentBest.rowCounts
-            ),
+            buildRectPlacements(currentBest.pieceW, currentBest.pieceH, currentBest.rowCounts),
             rollW,
             rollL
           )
-            .filter((band) =>
-              isReusableOffcutBand(band, currentBest.pieceW, currentBest.pieceH)
-            )
+            .filter((band) => isReusableOffcutBand(band, currentBest.pieceW, currentBest.pieceH))
             .map((band) => band.width * band.height)
         )
 
