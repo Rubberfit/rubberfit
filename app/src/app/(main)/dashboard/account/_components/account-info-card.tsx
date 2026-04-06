@@ -2,18 +2,31 @@
 
 import { Calendar } from "lucide-react"
 
+import type { AuthUser } from "@/services/authService"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 
 interface AccountInfoCardProps {
-  user: { id: string; email: string; created_at?: string; app_metadata?: { provider?: string } }
+  user: Pick<AuthUser, "id" | "authProvider" | "createdAt">
 }
 
 export function AccountInfoCard({ user }: AccountInfoCardProps) {
-  const provider = user.app_metadata?.provider
+  const provider = user.authProvider
   const signInMethod =
-    provider === "google" ? "Google OAuth" : provider === "email" ? "Email & Password" : "Email & Password"
+    provider === "google"
+      ? "Google OAuth"
+      : provider === "email"
+        ? "Email & Password"
+        : provider
+          ? provider
+              .split(/[_-]/)
+              .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+              .join(" ")
+          : "Unavailable"
+  const memberSince = user.createdAt ? new Date(user.createdAt) : null
+  const memberSinceLabel =
+    memberSince && !Number.isNaN(memberSince.getTime()) ? memberSince.toLocaleDateString() : null
 
   return (
     <Card>
@@ -40,10 +53,10 @@ export function AccountInfoCard({ user }: AccountInfoCardProps) {
             <Label className="text-sm font-medium text-muted-foreground">Sign-In Method</Label>
             <p className="text-sm mt-1">{signInMethod}</p>
           </div>
-          {user.created_at && (
+          {memberSinceLabel && (
             <div>
               <Label className="text-sm font-medium text-muted-foreground">Member Since</Label>
-              <p className="text-sm mt-1">{new Date(user.created_at).toLocaleDateString()}</p>
+              <p className="text-sm mt-1">{memberSinceLabel}</p>
             </div>
           )}
         </div>

@@ -169,8 +169,8 @@ export function generateConePreview(
         ? `${requestedCutSections}-panel radial cone spread`
         : `${requestedCutSections}-band concentric cone spread`,
       strategyNote: isConeRadialSplit(cutDirection)
-        ? `The cone spread is split into ${requestedCutSections} radial panel${requestedCutSections === 1 ? "" : "s"} and packed from those actual cut pieces.`
-        : `The cone spread is split into ${requestedCutSections} concentric band${requestedCutSections === 1 ? "" : "s"} and stacked by band size on stock from those actual cut pieces.`,
+        ? `The cone spread is split into ${requestedCutSections} radial panels and packed from those actual cut pieces.`
+        : `The cone spread is split into ${requestedCutSections} concentric bands and stacked by band size on stock from those actual cut pieces.`,
       cutDirection,
       requestedUnits: 1,
       piecesPerUnit: requestedCutSections,
@@ -322,8 +322,8 @@ export function generateTrapezoidPreview(
           ? `${requestedCutSections}-panel tapered split`
           : `${requestedCutSections}-band tapered split`,
         strategyNote: isTrapezoidVerticalSplit(cutDirection)
-          ? `The tapered panel is split into ${requestedCutSections} tapered section${requestedCutSections === 1 ? "" : "s"} and packed from those actual cut pieces.`
-          : `The tapered panel is split into ${requestedCutSections} horizontal band${requestedCutSections === 1 ? "" : "s"} and packed from those actual cut pieces.`,
+          ? `The tapered panel is split into ${requestedCutSections} tapered sections and packed from those actual cut pieces.`
+          : `The tapered panel is split into ${requestedCutSections} horizontal bands and packed from those actual cut pieces.`,
         cutDirection,
         requestedUnits: 1,
         piecesPerUnit: requestedCutSections,

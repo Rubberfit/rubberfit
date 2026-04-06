@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { getBrowserAppUrl } from "@/lib/app-url"
 import { normalizeRoles } from "@/lib/rbac"
-import type { AuthError } from "@supabase/supabase-js"
+import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
 
 export interface AuthUser {
   id: string
@@ -9,6 +9,8 @@ export interface AuthUser {
   name?: string
   avatar?: string
   roles: string[]
+  authProvider?: string
+  createdAt: string
 }
 
 export interface AuthResponse {
@@ -19,6 +21,36 @@ export interface AuthResponse {
 // Generate a random avatar using DiceBear API
 const generateRandomAvatar = (seed: string): string => {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=2563eb&textColor=ffffff`
+}
+
+const getUserAvatar = (user: SupabaseUser): string => {
+  return (
+    user.user_metadata?.avatar_url ||
+    user.user_metadata?.picture ||
+    user.user_metadata?.avatar ||
+    generateRandomAvatar(user.email!)
+  )
+}
+
+const getUserName = (user: SupabaseUser): string | undefined => {
+  return user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0]
+}
+
+const getUserAuthProvider = (user: SupabaseUser): string | undefined => {
+  const provider = user.app_metadata?.provider
+  return typeof provider === "string" ? provider : undefined
+}
+
+const buildAuthUser = async (user: SupabaseUser): Promise<AuthUser> => {
+  return {
+    id: user.id,
+    email: user.email!,
+    name: getUserName(user),
+    avatar: getUserAvatar(user),
+    roles: await getProfileRoles(user.id),
+    authProvider: getUserAuthProvider(user),
+    createdAt: user.created_at,
+  }
 }
 
 const getProfileRoles = async (userId: string): Promise<string[]> => {
@@ -65,24 +97,7 @@ export const authService = {
         }
       }
 
-      // Get avatar - prioritize Google avatar, then use generated avatar
-      const avatar =
-        data.user.user_metadata?.avatar_url ||
-        data.user.user_metadata?.picture ||
-        generateRandomAvatar(data.user.email!)
-
-      const user: AuthUser = {
-        id: data.user.id,
-        email: data.user.email!,
-        name:
-          data.user.user_metadata?.full_name ||
-          data.user.user_metadata?.name ||
-          data.user.email?.split("@")[0],
-        avatar,
-        roles: await getProfileRoles(data.user.id),
-      }
-
-      return { user, error: null }
+      return { user: await buildAuthUser(data.user), error: null }
     } catch (error) {
       return {
         user: null,
@@ -126,15 +141,16 @@ export const authService = {
         }
       }
 
-      const user: AuthUser = {
-        id: data.user.id,
-        email: data.user.email!,
-        name: data.user.user_metadata?.full_name || data.user.email?.split("@")[0],
-        avatar: data.user.user_metadata?.avatar_url || avatar,
-        roles: await getProfileRoles(data.user.id),
+      return {
+        user: await buildAuthUser({
+          ...data.user,
+          user_metadata: {
+            ...data.user.user_metadata,
+            avatar_url: data.user.user_metadata?.avatar_url || avatar,
+          },
+        }),
+        error: null,
       }
-
-      return { user, error: null }
     } catch (error) {
       return {
         user: null,
@@ -230,21 +246,7 @@ export const authService = {
         return null
       }
 
-      // Get avatar - prioritize Google avatar, then use generated avatar
-      const avatar =
-        user.user_metadata?.avatar_url ||
-        user.user_metadata?.picture ||
-        user.user_metadata?.avatar ||
-        generateRandomAvatar(user.email!)
-
-      return {
-        id: user.id,
-        email: user.email!,
-        name:
-          user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0],
-        avatar,
-        roles: await getProfileRoles(user.id),
-      }
+      return buildAuthUser(user)
     } catch (error) {
       console.error("Error getting current user:", error)
       return null
@@ -268,24 +270,7 @@ export const authService = {
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-        // Get avatar - prioritize Google avatar, then use generated avatar
-        const avatar =
-          session.user.user_metadata?.avatar_url ||
-          session.user.user_metadata?.picture ||
-          session.user.user_metadata?.avatar ||
-          generateRandomAvatar(session.user.email!)
-
-        const user: AuthUser = {
-          id: session.user.id,
-          email: session.user.email!,
-          name:
-            session.user.user_metadata?.full_name ||
-            session.user.user_metadata?.name ||
-            session.user.email?.split("@")[0],
-          avatar,
-          roles: await getProfileRoles(session.user.id),
-        }
-        callback(user)
+        callback(await buildAuthUser(session.user))
       } else if (event === "SIGNED_OUT") {
         callback(null)
       }
