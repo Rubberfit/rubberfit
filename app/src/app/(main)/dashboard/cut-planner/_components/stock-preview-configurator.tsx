@@ -58,7 +58,6 @@ export const STOCK_PRESETS = [
 })
 
 import { formatInches } from "./nesting-layout-utils"
-export { formatInches }
 
 interface StockPreviewConfiguratorProps {
   activeStockPreset?: string

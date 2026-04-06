@@ -68,7 +68,7 @@ export function buildCircleSteps(diameter: number, piecesPerUnit: number) {
           "Use the full finished diameter as the master layout for the part before dividing it into cut sections.",
       },
       {
-        title: `Split the profile into ${piecesPerUnit} radial section${piecesPerUnit === 1 ? "" : "s"}`,
+        title: `Split the profile into ${piecesPerUnit} radial sections`,
         detail:
           piecesPerUnit === 2
             ? "A single centerline creates two semicircle panels for a simpler low-waste cut."
