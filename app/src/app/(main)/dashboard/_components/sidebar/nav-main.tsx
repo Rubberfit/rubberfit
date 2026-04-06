@@ -1,45 +1,25 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
-import { ChevronRight, MailIcon, PlusCircleIcon, X } from "lucide-react";
+import { ChevronRight, MailIcon, PlusCircleIcon } from "lucide-react"
 
-import { rollService } from "@/services/rollService";
-import { materialTypeService } from "@/services/materialTypeService";
-import { notificationCrudService } from "@/services/notificationCrudService";
-import { useAuth } from "@/contexts/AuthContext";
-import { isRestrictedCutter } from "@/lib/rbac";
-import { toast } from "sonner";
-import { globalEvents, EVENTS } from "@/lib/events";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { rollService } from "@/services/rollService"
+import { notificationCrudService } from "@/services/notificationCrudService"
+import { useAuth } from "@/contexts/AuthContext"
+import { isRestrictedCutter } from "@/lib/rbac"
+import { globalEvents, EVENTS } from "@/lib/events"
 
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -51,29 +31,35 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   useSidebar,
-} from "@/components/ui/sidebar";
-import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items";
-import { useRole } from "@/services/useRole";
+} from "@/components/ui/sidebar"
+import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items"
+import { useRole } from "@/services/useRole"
+import { QuickCreateDialog } from "./nav-main-submenu"
 
 interface NavMainProps {
-  readonly items: readonly NavGroup[];
+  readonly items: readonly NavGroup[]
 }
 
 const IsComingSoon = () => (
   <span className="ml-auto rounded-md bg-gray-200 px-2 py-1 text-xs dark:text-gray-800">Soon</span>
-);
+)
 
 const NavItemExpanded = ({
   item,
   isActive,
   isSubmenuOpen,
 }: {
-  item: NavMainItem;
-  isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean;
-  isSubmenuOpen: (subItems?: NavMainItem["subItems"]) => boolean;
+  item: NavMainItem
+  isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean
+  isSubmenuOpen: (subItems?: NavMainItem["subItems"]) => boolean
 }) => {
   return (
-    <Collapsible key={item.title} asChild defaultOpen={isSubmenuOpen(item.subItems)} className="group/collapsible">
+    <Collapsible
+      key={item.title}
+      asChild
+      defaultOpen={isSubmenuOpen(item.subItems)}
+      className="group/collapsible"
+    >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           {item.subItems ? (
@@ -107,8 +93,16 @@ const NavItemExpanded = ({
             <SidebarMenuSub>
               {item.subItems.map((subItem) => (
                 <SidebarMenuSubItem key={subItem.title}>
-                  <SidebarMenuSubButton aria-disabled={subItem.comingSoon} isActive={isActive(subItem.url)} asChild>
-                    <Link prefetch={false} href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
+                  <SidebarMenuSubButton
+                    aria-disabled={subItem.comingSoon}
+                    isActive={isActive(subItem.url)}
+                    asChild
+                  >
+                    <Link
+                      prefetch={false}
+                      href={subItem.url}
+                      target={subItem.newTab ? "_blank" : undefined}
+                    >
                       {subItem.icon && <subItem.icon />}
                       <span>{subItem.title}</span>
                       {subItem.comingSoon && <IsComingSoon />}
@@ -121,15 +115,15 @@ const NavItemExpanded = ({
         )}
       </SidebarMenuItem>
     </Collapsible>
-  );
-};
+  )
+}
 
 const NavItemCollapsed = ({
   item,
   isActive,
 }: {
-  item: NavMainItem;
-  isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean;
+  item: NavMainItem
+  isActive: (url: string, subItems?: NavMainItem["subItems"]) => boolean
 }) => {
   return (
     <SidebarMenuItem key={item.title}>
@@ -155,7 +149,11 @@ const NavItemCollapsed = ({
                 aria-disabled={subItem.comingSoon}
                 isActive={isActive(subItem.url)}
               >
-                <Link prefetch={false} href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
+                <Link
+                  prefetch={false}
+                  href={subItem.url}
+                  target={subItem.newTab ? "_blank" : undefined}
+                >
                   {subItem.icon && <subItem.icon className="[&>svg]:text-sidebar-foreground" />}
                   <span>{subItem.title}</span>
                   {subItem.comingSoon && <IsComingSoon />}
@@ -166,337 +164,123 @@ const NavItemCollapsed = ({
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>
-  );
-};
+  )
+}
 
 export function NavMain({ items }: NavMainProps) {
-  const path = usePathname();
-  const router = useRouter();
-  const { user } = useAuth();
-  const { state, isMobile } = useSidebar();
-  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [materialTypes, setMaterialTypes] = useState<string[]>([]);
-  const { can } = useRole();
-  const canManageRolls = can("manageRolls");
-  const [formData, setFormData] = useState({
-    material_type: '',
-    width: '',
-    length: '',
-    thickness: '',
-    color: '',
-    location: '',
-    supplier: '',
-    cost_per_sqft: '',
-    notes: ''
-  });
-  const readOnlyInventory = isRestrictedCutter(user?.roles);
+  const path = usePathname()
+  const router = useRouter()
+  const { user } = useAuth()
+  const { state, isMobile } = useSidebar()
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
+  const [quickCreateInitialData, setQuickCreateInitialData] = useState<
+    | Partial<{
+        material_type: string
+        width: string
+        length: string
+        thickness: string
+        notes: string
+      }>
+    | undefined
+  >(undefined)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const { can } = useRole()
+  const canManageRolls = can("manageRolls")
+  const readOnlyInventory = isRestrictedCutter(user?.roles)
 
-  // Load material types
+  // Listen for Quick Create open events
   useEffect(() => {
-    const loadMaterialTypes = async () => {
-      try {
-        const data = await materialTypeService.getNames();
-        setMaterialTypes(data.map(m => m.name));
-      } catch (error) {
-        console.error('Error loading material types:', error);
-      }
-    };
-
-    loadMaterialTypes();
-
-    // Listen for Quick Create open events (e.g., from Order Material button)
     const handleOpenQuickCreate = (event: Event) => {
       if (readOnlyInventory) {
-        return;
+        return
       }
 
-      const customEvent = event as CustomEvent;
-      setIsQuickCreateOpen(true);
+      const customEvent = event as CustomEvent
+      setIsQuickCreateOpen(true)
 
-      // Pre-fill the form with provided values
       if (customEvent.detail) {
-        const details = customEvent.detail;
-        setFormData(prev => ({
-          ...prev,
-          material_type: details.material_type || prev.material_type,
-          width: details.width || prev.width,
-          length: details.length || prev.length,
-          thickness: details.thickness || prev.thickness,
-          notes: details.notes || prev.notes,
-        }));
+        setQuickCreateInitialData(customEvent.detail)
       }
-    };
+    }
 
-    globalEvents.on('OPEN_QUICK_CREATE' as any, handleOpenQuickCreate);
+    globalEvents.on(EVENTS.OPEN_QUICK_CREATE, handleOpenQuickCreate)
 
     return () => {
-      globalEvents.off('OPEN_QUICK_CREATE' as any, handleOpenQuickCreate);
-    };
-  }, [readOnlyInventory]);
+      globalEvents.off(EVENTS.OPEN_QUICK_CREATE, handleOpenQuickCreate)
+    }
+  }, [readOnlyInventory])
 
   // Load unread notifications count
   useEffect(() => {
     const loadUnreadNotifications = async () => {
       try {
-        const unreadCount = await notificationCrudService.getUnreadCount();
-        console.log(`Found ${unreadCount} unread notifications`);
-        setUnreadNotifications(unreadCount);
-      } catch (error) {
-        // If table doesn't exist, fall back to low stock count
-        console.log('Notifications table error, falling back to low stock count');
+        const unreadCount = await notificationCrudService.getUnreadCount()
+        console.log(`Found ${unreadCount} unread notifications`)
+        setUnreadNotifications(unreadCount)
+      } catch (_error) {
+        console.log("Notifications table error, falling back to low stock count")
         try {
-          const count = await rollService.getLowStockCount();
-          setUnreadNotifications(count);
+          const count = await rollService.getLowStockCount()
+          setUnreadNotifications(count)
         } catch (fallbackError) {
-          console.error('Error loading notifications count:', fallbackError);
-          setUnreadNotifications(0);
+          console.error("Error loading notifications count:", fallbackError)
+          setUnreadNotifications(0)
         }
       }
-    };
+    }
 
-    loadUnreadNotifications();
+    loadUnreadNotifications()
 
-    // Listen for notification updates from other components
     const handleNotificationUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (customEvent.detail && typeof customEvent.detail.unreadCount === 'number') {
-        console.log(`Notification count updated to ${customEvent.detail.unreadCount}`);
-        setUnreadNotifications(customEvent.detail.unreadCount);
+      const customEvent = event as CustomEvent
+      if (customEvent.detail && typeof customEvent.detail.unreadCount === "number") {
+        console.log(`Notification count updated to ${customEvent.detail.unreadCount}`)
+        setUnreadNotifications(customEvent.detail.unreadCount)
       } else {
-        // If no count provided, reload from database
-        loadUnreadNotifications();
+        loadUnreadNotifications()
       }
-    };
+    }
 
-    globalEvents.on(EVENTS.NOTIFICATIONS_UPDATED, handleNotificationUpdate);
+    globalEvents.on(EVENTS.NOTIFICATIONS_UPDATED, handleNotificationUpdate)
 
-    // Refresh every 30 seconds
-    const interval = setInterval(loadUnreadNotifications, 30000);
+    const interval = setInterval(loadUnreadNotifications, 30000)
 
     return () => {
-      clearInterval(interval);
-      globalEvents.off(EVENTS.NOTIFICATIONS_UPDATED, handleNotificationUpdate);
-    };
-  }, []);
+      clearInterval(interval)
+      globalEvents.off(EVENTS.NOTIFICATIONS_UPDATED, handleNotificationUpdate)
+    }
+  }, [])
 
   const handleQuickCreate = () => {
     if (readOnlyInventory) {
-      return;
+      return
     }
-
-    // Open the add roll modal
-    setIsQuickCreateOpen(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      // Validate required fields
-      if (!formData.material_type || !formData.width || !formData.length || !formData.thickness) {
-        toast.error('Please fill in all required fields');
-        return;
-      }
-
-      // Create the roll via service
-      await rollService.addRoll({
-        material_type: formData.material_type,
-        width: parseFloat(formData.width),
-        length: parseFloat(formData.length),
-        thickness: parseFloat(formData.thickness),
-        color: formData.color || undefined,
-        location: formData.location || undefined,
-        supplier: formData.supplier || undefined,
-        cost_per_sqft: formData.cost_per_sqft ? parseFloat(formData.cost_per_sqft) : undefined,
-        notes: formData.notes || undefined,
-        remaining_length: parseFloat(formData.length), // Set remaining_length to initial length
-        status: 'active',
-        date_received: new Date().toISOString().split('T')[0]
-      } as any);
-
-      toast.success('Roll added successfully!');
-      setIsQuickCreateOpen(false);
-
-      // Reset form
-      setFormData({
-        material_type: '',
-        width: '',
-        length: '',
-        thickness: '',
-        color: '',
-        location: '',
-        supplier: '',
-        cost_per_sqft: '',
-        notes: ''
-      });
-
-      // Navigate to inventory to see the new roll
-      router.push('/dashboard/inventory');
-    } catch (error) {
-      console.error('Error adding roll:', error);
-      toast.error('Failed to add roll');
-    }
-  };
+    setQuickCreateInitialData(undefined)
+    setIsQuickCreateOpen(true)
+  }
 
   const handleEmailClick = () => {
-    // Navigate to notifications page
-    router.push('/dashboard/notifications');
-    // Note: Don't clear notification count here since it represents actual unread notifications
-  };
+    router.push("/dashboard/notifications")
+  }
 
   const isItemActive = (url: string, subItems?: NavMainItem["subItems"]) => {
     if (subItems?.length) {
-      return subItems.some((sub) => path.startsWith(sub.url));
+      return subItems.some((sub) => path.startsWith(sub.url))
     }
-    return path === url;
-  };
+    return path === url
+  }
 
   const isSubmenuOpen = (subItems?: NavMainItem["subItems"]) => {
-    return subItems?.some((sub) => path.startsWith(sub.url)) ?? false;
-  };
+    return subItems?.some((sub) => path.startsWith(sub.url)) ?? false
+  }
 
   return (
     <>
-      {/* Add Roll Modal */}
-      <Dialog open={isQuickCreateOpen} onOpenChange={setIsQuickCreateOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Add New Roll</DialogTitle>
-            <DialogDescription>
-              Add a new rubber roll to inventory. Fields marked with * are required.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="material_type">Material Type *</Label>
-                <Select
-                  value={formData.material_type}
-                  onValueChange={(value) => setFormData({ ...formData, material_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select material" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {materialTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g., Rack A, Bin 3"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="width">Width (inches) *</Label>
-                <Input
-                  id="width"
-                  type="number"
-                  step="0.001"
-                  value={formData.width}
-                  onChange={(e) => setFormData({ ...formData, width: e.target.value })}
-                  placeholder="36"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="length">Length (inches) *</Label>
-                <Input
-                  id="length"
-                  type="number"
-                  step="0.001"
-                  value={formData.length}
-                  onChange={(e) => setFormData({ ...formData, length: e.target.value })}
-                  placeholder="240"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="thickness">Thickness (inches) *</Label>
-                <Input
-                  id="thickness"
-                  type="number"
-                  step="0.001"
-                  value={formData.thickness}
-                  onChange={(e) => setFormData({ ...formData, thickness: e.target.value })}
-                  placeholder="0.25"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="color">Color</Label>
-                <Input
-                  id="color"
-                  value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                  placeholder="e.g., Black"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="cost_per_sqft">Cost per Sq Ft ($)</Label>
-                <Input
-                  id="cost_per_sqft"
-                  type="number"
-                  step="0.0001"
-                  value={formData.cost_per_sqft}
-                  onChange={(e) => setFormData({ ...formData, cost_per_sqft: e.target.value })}
-                  placeholder="2.50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="supplier">Supplier</Label>
-              <Input
-                id="supplier"
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                placeholder="e.g., ABC Rubber Co."
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes about this roll"
-                className="h-20"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsQuickCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Add Roll
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <QuickCreateDialog
+        open={isQuickCreateOpen}
+        onOpenChange={setIsQuickCreateOpen}
+        initialData={quickCreateInitialData}
+      />
       <SidebarGroup>
         <SidebarGroupContent className="flex flex-col gap-2">
           <SidebarMenu>
@@ -534,7 +318,6 @@ export function NavMain({ items }: NavMainProps) {
             <SidebarMenu>
               {group.items.map((item) => {
                 if (state === "collapsed" && !isMobile) {
-                  // If no subItems, just render the button as a link
                   if (!item.subItems) {
                     return (
                       <SidebarMenuItem key={item.title}>
@@ -544,26 +327,33 @@ export function NavMain({ items }: NavMainProps) {
                           tooltip={item.title}
                           isActive={isItemActive(item.url)}
                         >
-                          <Link prefetch={false} href={item.url} target={item.newTab ? "_blank" : undefined}>
+                          <Link
+                            prefetch={false}
+                            href={item.url}
+                            target={item.newTab ? "_blank" : undefined}
+                          >
                             {item.icon && <item.icon />}
                             <span>{item.title}</span>
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                    );
+                    )
                   }
-                  // Otherwise, render the dropdown as before
-                  return <NavItemCollapsed key={item.title} item={item} isActive={isItemActive} />;
+                  return <NavItemCollapsed key={item.title} item={item} isActive={isItemActive} />
                 }
-                // Expanded view
                 return (
-                  <NavItemExpanded key={item.title} item={item} isActive={isItemActive} isSubmenuOpen={isSubmenuOpen} />
-                );
+                  <NavItemExpanded
+                    key={item.title}
+                    item={item}
+                    isActive={isItemActive}
+                    isSubmenuOpen={isSubmenuOpen}
+                  />
+                )
               })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       ))}
     </>
-  );
+  )
 }

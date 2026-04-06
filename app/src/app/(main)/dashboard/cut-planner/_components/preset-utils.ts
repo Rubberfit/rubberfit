@@ -1,0 +1,179 @@
+import type { SimplePartType } from "./NestingVisualizer"
+import type { CustomPartDrafts, PartTemplate, SupportedPartType } from "./preset-template-data"
+import { Shapes, Triangle } from "lucide-react"
+
+export function formatInches(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value)
+  }
+
+  return value
+    .toFixed(2)
+    .replace(/\.00$/, "")
+    .replace(/(\.\d*[1-9])0+$/, "$1")
+}
+
+export function parsePositiveMeasurement(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  const parsed = Number.parseFloat(trimmed)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+export function buildCustomTemplate(
+  partType: SupportedPartType,
+  drafts: CustomPartDrafts
+): PartTemplate | null {
+  switch (partType) {
+    case "rectangle": {
+      const width = parsePositiveMeasurement(drafts.rectangle.width)
+      const length = parsePositiveMeasurement(drafts.rectangle.length)
+      if (!width || !length) {
+        return null
+      }
+
+      return {
+        id: `custom-rectangle-${width}-${length}`,
+        partType,
+        label: `${formatInches(width)}" \u00d7 ${formatInches(length)}"`,
+        summary: "Custom rectangular cut",
+        quantity: 1,
+        category: "custom",
+        width,
+        length,
+        isCustom: true,
+      }
+    }
+    case "cylinder": {
+      const diameter = parsePositiveMeasurement(drafts.cylinder.diameter)
+      const height = parsePositiveMeasurement(drafts.cylinder.height)
+      if (!diameter || !height) {
+        return null
+      }
+
+      return {
+        id: `custom-cylinder-${diameter}-${height}`,
+        partType,
+        label: `\u00d8${formatInches(diameter)}" \u00d7 ${formatInches(height)}"`,
+        summary: "Custom cylinder wrap",
+        quantity: 1,
+        category: "custom",
+        diameter,
+        height,
+        isCustom: true,
+      }
+    }
+    case "cone": {
+      const innerRadius = parsePositiveMeasurement(drafts.cone.innerRadius)
+      const outerRadius = parsePositiveMeasurement(drafts.cone.outerRadius)
+      const arcDegrees = parsePositiveMeasurement(drafts.cone.arcDegrees)
+      if (!innerRadius || !outerRadius || !arcDegrees || outerRadius <= innerRadius) {
+        return null
+      }
+
+      return {
+        id: `custom-cone-${innerRadius}-${outerRadius}-${arcDegrees}`,
+        partType,
+        label: `${formatInches(arcDegrees)}\u00b0 \u2022 R${formatInches(innerRadius)}" to R${formatInches(outerRadius)}"`,
+        summary: "Custom cone/frustum spread",
+        quantity: 1,
+        category: "custom",
+        innerRadius,
+        outerRadius,
+        arcDegrees,
+        isCustom: true,
+      }
+    }
+    case "trapezoid": {
+      const topWidth = parsePositiveMeasurement(drafts.trapezoid.topWidth)
+      const bottomWidth = parsePositiveMeasurement(drafts.trapezoid.bottomWidth)
+      const height = parsePositiveMeasurement(drafts.trapezoid.height)
+      if (!topWidth || !bottomWidth || !height) {
+        return null
+      }
+
+      return {
+        id: `custom-trapezoid-${topWidth}-${bottomWidth}-${height}`,
+        partType,
+        label: `${formatInches(topWidth)}" / ${formatInches(bottomWidth)}" \u00d7 ${formatInches(height)}"`,
+        summary: "Custom hopper / transition panel",
+        quantity: 1,
+        category: "custom",
+        topWidth,
+        bottomWidth,
+        height,
+        isCustom: true,
+      }
+    }
+    default:
+      return null
+  }
+}
+
+export function templateToDraft(template: PartTemplate): CustomPartDrafts[SupportedPartType] {
+  switch (template.partType) {
+    case "cylinder":
+      return {
+        diameter: template.diameter ? formatInches(template.diameter) : "",
+        height: template.height ? formatInches(template.height) : "",
+      }
+    case "cone":
+      return {
+        innerRadius: template.innerRadius ? formatInches(template.innerRadius) : "",
+        outerRadius: template.outerRadius ? formatInches(template.outerRadius) : "",
+        arcDegrees: template.arcDegrees ? formatInches(template.arcDegrees) : "",
+      }
+    case "trapezoid":
+      return {
+        topWidth: template.topWidth ? formatInches(template.topWidth) : "",
+        bottomWidth: template.bottomWidth ? formatInches(template.bottomWidth) : "",
+        height: template.height ? formatInches(template.height) : "",
+      }
+    case "rectangle":
+    default:
+      return {
+        width: template.width ? formatInches(template.width) : "",
+        length: template.length ? formatInches(template.length) : "",
+      }
+  }
+}
+
+export function getPartIcon(partType: SimplePartType) {
+  if (partType === "cone" || partType === "trapezoid") return Triangle
+  return Shapes
+}
+
+export function getTemplateAreaSqFt(template: PartTemplate) {
+  switch (template.partType) {
+    case "circle": {
+      const radius = (template.diameter ?? 0) / 2
+      return (Math.PI * radius * radius * template.quantity) / 144
+    }
+    case "cylinder": {
+      const diameter = template.diameter ?? 0
+      const height = template.height ?? 0
+      return (Math.PI * diameter * height * template.quantity) / 144
+    }
+    case "cone": {
+      const innerRadius = template.innerRadius ?? 0
+      const outerRadius = template.outerRadius ?? 0
+      const arcDegrees = template.arcDegrees ?? 0
+      return (
+        ((arcDegrees / 360) * Math.PI * (outerRadius ** 2 - innerRadius ** 2) * template.quantity) /
+        144
+      )
+    }
+    case "trapezoid": {
+      const topWidth = template.topWidth ?? 0
+      const bottomWidth = template.bottomWidth ?? 0
+      const height = template.height ?? 0
+      return (((topWidth + bottomWidth) / 2) * height * template.quantity) / 144
+    }
+    case "rectangle":
+    default:
+      return ((template.width ?? 0) * (template.length ?? 0) * template.quantity) / 144
+  }
+}

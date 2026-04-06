@@ -1,16 +1,25 @@
-"use client";
+"use client"
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface MaterialData {
-  name: string;
-  sqft: number;
-  rolls: number;
+  name: string
+  sqft: number
+  rolls: number
 }
 
 interface MaterialSummaryChartProps {
-  data: MaterialData[];
+  data: MaterialData[]
 }
 
 const COLORS = [
@@ -22,7 +31,7 @@ const COLORS = [
   "#06b6d4",
   "#ec4899",
   "#10b981",
-];
+]
 
 export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
   return (
@@ -34,20 +43,14 @@ export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
         <ResponsiveContainer width="100%" height={350}>
           <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              dataKey="name"
-              angle={-45}
-              textAnchor="end"
-              height={100}
-              interval={0}
-            />
+            <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} interval={0} />
             <YAxis />
             <Tooltip
               formatter={(value: number, name: string) => {
-                if (name === 'sqft') {
-                  return [`${value.toFixed(1)} sqft`, 'Square Footage'];
+                if (name === "sqft") {
+                  return [`${value.toFixed(1)} sqft`, "Square Footage"]
                 }
-                return [value, name];
+                return [value, name]
               }}
             />
             <Bar dataKey="sqft" name="Square Footage">
@@ -72,5 +75,5 @@ export function MaterialSummaryChart({ data }: MaterialSummaryChartProps) {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

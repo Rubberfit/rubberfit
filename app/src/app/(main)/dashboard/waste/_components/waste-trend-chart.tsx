@@ -1,18 +1,18 @@
-"use client";
+"use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface WasteAnalysis {
-  period: string;
-  totalWaste: number;
-  wasteValue: number;
-  averageWaste: number;
-  cuts: number;
+  period: string
+  totalWaste: number
+  wasteValue: number
+  averageWaste: number
+  cuts: number
 }
 
 interface WasteTrendChartProps {
-  data: WasteAnalysis[];
+  data: WasteAnalysis[]
 }
 
 export function WasteTrendChart({ data }: WasteTrendChartProps) {
@@ -29,7 +29,7 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as WasteAnalysis;
+                  const data = payload[0].payload as WasteAnalysis
                   return (
                     <div className="rounded-lg border bg-background p-2 shadow-md">
                       <p className="font-medium">{label}</p>
@@ -52,9 +52,9 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
                         </p>
                       </div>
                     </div>
-                  );
+                  )
                 }
-                return null;
+                return null
               }}
             />
             <Line
@@ -69,5 +69,5 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  );
+  )
 }

@@ -1,96 +1,96 @@
-"use client";
+"use client"
 
-import { useState, useRef } from "react";
-import { Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { toast } from "sonner";
-import { csvService } from "@/services/csvService";
+import { useState, useRef } from "react"
+import { Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { toast } from "sonner"
+import { csvService } from "@/services/csvService"
 
 export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void }) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
     if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
+      setDragActive(true)
     } else if (e.type === "dragleave") {
-      setDragActive(false);
+      setDragActive(false)
     }
-  };
+  }
 
   const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleFile(e.dataTransfer.files[0]);
+      await handleFile(e.dataTransfer.files[0])
     }
-  };
+  }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      await handleFile(e.target.files[0]);
+      await handleFile(e.target.files[0])
     }
-  };
+  }
 
   const handleFile = async (file: File) => {
-    if (!file.name.endsWith('.csv')) {
+    if (!file.name.endsWith(".csv")) {
       toast.error("Invalid file type", {
-        description: "Please select a CSV file"
-      });
-      return;
+        description: "Please select a CSV file",
+      })
+      return
     }
 
-    setIsUploading(true);
+    setIsUploading(true)
     try {
-      const result = await csvService.processCSVFile(file);
+      const result = await csvService.processCSVFile(file)
 
       if (result.success) {
         toast.success("CSV imported successfully", {
-          description: `${result.count} rolls added to inventory`
-        });
+          description: `${result.count} rolls added to inventory`,
+        })
         if (onUploadComplete) {
-          onUploadComplete();
+          onUploadComplete()
         }
       } else {
         toast.error("Import failed", {
-          description: result.error || "Failed to import CSV"
-        });
+          description: result.error || "Failed to import CSV",
+        })
       }
     } catch (error) {
       toast.error("Import failed", {
-        description: error instanceof Error ? error.message : "An error occurred"
-      });
+        description: error instanceof Error ? error.message : "An error occurred",
+      })
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = ""
       }
     }
-  };
+  }
 
   const handleDownloadTemplate = () => {
     try {
-      csvService.downloadTemplate();
+      csvService.downloadTemplate()
       // Small delay before showing toast to ensure download starts
       setTimeout(() => {
         toast.success("Template downloaded", {
-          description: "Check your downloads folder for rubber_rolls_template.csv"
-        });
-      }, 100);
+          description: "Check your downloads folder for rubber_rolls_template.csv",
+        })
+      }, 100)
     } catch (error) {
-      console.error("Download error:", error);
+      console.error("Download error:", error)
       toast.error("Download failed", {
-        description: "Could not download template. Please try again."
-      });
+        description: "Could not download template. Please try again.",
+      })
     }
-  };
+  }
 
   return (
     <Card>
@@ -127,9 +127,7 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
             <p className="text-sm font-medium">
               Drag and drop your CSV file here, or click to browse
             </p>
-            <p className="text-xs text-muted-foreground">
-              Only CSV files are supported
-            </p>
+            <p className="text-xs text-muted-foreground">Only CSV files are supported</p>
           </div>
 
           <Button
@@ -149,11 +147,7 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
         </Alert>
 
         <div className="flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={handleDownloadTemplate}
-            className="gap-2"
-          >
+          <Button variant="outline" onClick={handleDownloadTemplate} className="gap-2">
             <Download className="h-4 w-4" />
             Download Template
           </Button>
@@ -174,5 +168,5 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

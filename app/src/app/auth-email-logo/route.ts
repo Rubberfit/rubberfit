@@ -1,9 +1,9 @@
-import { getRubberFitEmailLogoPng } from "@/lib/auth-email-logo";
+import { getRubberFitEmailLogoPng } from "@/lib/auth-email-logo"
 
-export const runtime = "nodejs";
+export const runtime = "nodejs"
 
 export async function GET() {
-  const body = getRubberFitEmailLogoPng();
+  const body = getRubberFitEmailLogoPng()
 
   return new Response(body, {
     headers: {
@@ -12,5 +12,5 @@ export async function GET() {
       "Content-Type": "image/png",
       "Content-Disposition": 'inline; filename="auth-email-logo.png"',
     },
-  });
+  })
 }

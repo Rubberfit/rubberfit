@@ -1,102 +1,98 @@
-import DNA from "./dna";
-import type XorShift from "../xorshift";
+import DNA from "./dna"
+import type XorShift from "../xorshift"
 
 export interface GAConfig {
-  steps: number;
-  population: number;
-  mutationRate: number;
+  steps: number
+  population: number
+  mutationRate: number
 }
 
 export default class GA {
-  rnd: XorShift;
-  generations: number;
-  population: DNA[];
-  config: GAConfig;
+  rnd: XorShift
+  generations: number
+  population: DNA[]
+  config: GAConfig
 
-  constructor(
-    rnd: XorShift,
-    gene: number,
-    config: Partial<GAConfig> = {},
-  ) {
-    this.rnd = rnd;
-    this.generations = 0;
-    this.population = [];
+  constructor(rnd: XorShift, gene: number, config: Partial<GAConfig> = {}) {
+    this.rnd = rnd
+    this.generations = 0
+    this.population = []
 
     this.config = {
       steps: config.steps ?? 4,
       population: config.population ?? 30,
       mutationRate: config.mutationRate ?? 0.2,
-    };
+    }
 
-    const count = Math.max(3, this.config.population);
+    const count = Math.max(3, this.config.population)
     for (let i = 0; i < count; i++) {
-      this.population.push(this.adam(gene, this.config.steps));
+      this.population.push(this.adam(gene, this.config.steps))
     }
   }
 
   adam(length: number, steps = 4): DNA {
-    const gene: number[] = [];
+    const gene: number[] = []
     for (let i = 0; i < length; i++) {
-      const v = Math.floor(this.rnd.randFloat() * steps) % steps;
-      gene.push(v);
+      const v = Math.floor(this.rnd.randFloat() * steps) % steps
+      gene.push(v)
     }
-    return new DNA(gene);
+    return new DNA(gene)
   }
 
   step(): void {
-    this.generations++;
+    this.generations++
 
-    let pool = this.select();
+    let pool = this.select()
     if (pool.length <= 0) {
-      pool = this.population;
+      pool = this.population
     }
 
     for (let i = 0, n = this.population.length; i < n; i++) {
-      const mi = this.rnd.randInt(0, pool.length);
-      const di = this.rnd.randInt(0, pool.length);
+      const mi = this.rnd.randInt(0, pool.length)
+      const di = this.rnd.randInt(0, pool.length)
 
-      const mom = pool[mi];
-      const dad = pool[di];
-      let child = mom.crossOver(this.rnd, dad);
-      child = child.mutate(this.rnd, this.config.mutationRate, this.config.steps);
+      const mom = pool[mi]
+      const dad = pool[di]
+      let child = mom.crossOver(this.rnd, dad)
+      child = child.mutate(this.rnd, this.config.mutationRate, this.config.steps)
 
-      this.population[i] = child;
+      this.population[i] = child
     }
   }
 
   select(): DNA[] {
-    const pool: DNA[] = [];
-    const range = this.getMinMaxCost();
-    const l = range.max - range.min;
+    const pool: DNA[] = []
+    const range = this.getMinMaxCost()
+    const l = range.max - range.min
     this.population.forEach((dna) => {
-      const cost01 = 1.0 - (dna.cost - range.min) / l;
-      const n = Math.floor(cost01 * 50);
+      const cost01 = 1.0 - (dna.cost - range.min) / l
+      const n = Math.floor(cost01 * 50)
       for (let i = 0; i < n; i++) {
-        pool.push(dna);
+        pool.push(dna)
       }
-    });
-    return pool;
+    })
+    return pool
   }
 
   getDominant(): DNA {
-    let dominant: DNA | null = null;
-    let min = Number.MAX_VALUE;
+    let dominant: DNA | null = null
+    let min = Number.MAX_VALUE
     this.population.forEach((dna) => {
       if (dna.cost < min) {
-        min = dna.cost;
-        dominant = dna;
+        min = dna.cost
+        dominant = dna
       }
-    });
-    return dominant!;
+    })
+    return dominant!
   }
 
   getMinMaxCost(): { min: number; max: number } {
-    let min = Number.MAX_VALUE;
-    let max = -Number.MAX_VALUE;
+    let min = Number.MAX_VALUE
+    let max = -Number.MAX_VALUE
     this.population.forEach((dna) => {
-      max = Math.max(max, dna.cost);
-      min = Math.min(min, dna.cost);
-    });
-    return { min, max };
+      max = Math.max(max, dna.cost)
+      min = Math.min(min, dna.cost)
+    })
+    return { min, max }
   }
 }

@@ -1,44 +1,45 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Database, Package, DollarSign, TrendingUp } from "lucide-react";
-import Link from "next/link";
+import { useEffect, useState } from "react"
+import { Database, Package, DollarSign, TrendingUp } from "lucide-react"
+import Link from "next/link"
 
-import { type MaterialType } from "@/lib/supabase";
-import { materialTypeService } from "@/services/materialTypeService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { type MaterialType } from "@/lib/supabase"
+import { materialTypeService } from "@/services/materialTypeService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 
-import { MaterialTypesOverview } from "./_components/material-types-overview";
-import { SupplierOverview } from "./_components/supplier-overview";
-import { PricingTrends } from "./_components/pricing-trends";
+import { MaterialTypesOverview } from "./_components/material-types-overview"
+import { SupplierOverview } from "./_components/supplier-overview"
+import { PricingTrends } from "./_components/pricing-trends"
 
 export default function MaterialsPage() {
-  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchMaterialTypes = async () => {
-    setLoading(true);
-    try {
-      const data = await materialTypeService.getAll();
-      setMaterialTypes(data);
-    } catch (error) {
-      console.error("Error fetching material types:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
+  const [_loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchMaterialTypes();
-  }, []);
+    const fetchMaterialTypes = async () => {
+      setLoading(true)
+      try {
+        const data = await materialTypeService.getAll()
+        setMaterialTypes(data)
+      } catch (error) {
+        console.error("Error fetching material types:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const totalMaterialTypes = materialTypes.length;
-  const averageCost = materialTypes.length > 0
-    ? materialTypes.reduce((sum, m) => sum + (m.default_cost || 0), 0) / materialTypes.length
-    : 0;
-  const totalAlertThreshold = materialTypes.reduce((sum, m) => sum + (m.min_stock_alert || 0), 0);
+    fetchMaterialTypes()
+  }, [])
+
+  const totalMaterialTypes = materialTypes.length
+  const averageCost =
+    materialTypes.length > 0
+      ? materialTypes.reduce((sum, m) => sum + (m.default_cost || 0), 0) / materialTypes.length
+      : 0
+  const totalAlertThreshold = materialTypes.reduce((sum, m) => sum + (m.min_stock_alert || 0), 0)
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -61,9 +62,7 @@ export default function MaterialsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalMaterialTypes}</div>
-            <p className="text-xs text-muted-foreground">
-              Active material types
-            </p>
+            <p className="text-xs text-muted-foreground">Active material types</p>
           </CardContent>
         </Card>
 
@@ -74,9 +73,7 @@ export default function MaterialsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${averageCost.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              Per square foot
-            </p>
+            <p className="text-xs text-muted-foreground">Per square foot</p>
           </CardContent>
         </Card>
 
@@ -87,9 +84,7 @@ export default function MaterialsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAlertThreshold.toFixed(0)}</div>
-            <p className="text-xs text-muted-foreground">
-              Combined alert levels
-            </p>
+            <p className="text-xs text-muted-foreground">Combined alert levels</p>
           </CardContent>
         </Card>
 
@@ -102,16 +97,14 @@ export default function MaterialsPage() {
             <div className="text-2xl font-bold">
               {materialTypes.length > 0 ? (
                 <>
-                  ${Math.min(...materialTypes.map(m => m.default_cost || 0)).toFixed(2)} -
-                  ${Math.max(...materialTypes.map(m => m.default_cost || 0)).toFixed(2)}
+                  ${Math.min(...materialTypes.map((m) => m.default_cost || 0)).toFixed(2)} - $
+                  {Math.max(...materialTypes.map((m) => m.default_cost || 0)).toFixed(2)}
                 </>
               ) : (
                 "N/A"
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Price variation
-            </p>
+            <p className="text-xs text-muted-foreground">Price variation</p>
           </CardContent>
         </Card>
       </div>
@@ -124,9 +117,7 @@ export default function MaterialsPage() {
               <Database className="h-5 w-5" />
               Material Types
             </CardTitle>
-            <CardDescription>
-              Manage rubber material categories and specifications
-            </CardDescription>
+            <CardDescription>Manage rubber material categories and specifications</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -140,9 +131,7 @@ export default function MaterialsPage() {
               </div>
             </div>
             <Button asChild className="w-full">
-              <Link href="/dashboard/materials/types">
-                Manage Types
-              </Link>
+              <Link href="/dashboard/materials/types">Manage Types</Link>
             </Button>
           </CardContent>
         </Card>
@@ -153,9 +142,7 @@ export default function MaterialsPage() {
               <Package className="h-5 w-5" />
               Suppliers
             </CardTitle>
-            <CardDescription>
-              Manage supplier information and relationships
-            </CardDescription>
+            <CardDescription>Manage supplier information and relationships</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -169,9 +156,7 @@ export default function MaterialsPage() {
               </div>
             </div>
             <Button asChild className="w-full" variant="outline">
-              <Link href="/dashboard/materials/suppliers">
-                Manage Suppliers
-              </Link>
+              <Link href="/dashboard/materials/suppliers">Manage Suppliers</Link>
             </Button>
           </CardContent>
         </Card>
@@ -182,9 +167,7 @@ export default function MaterialsPage() {
               <DollarSign className="h-5 w-5" />
               Pricing
             </CardTitle>
-            <CardDescription>
-              Track pricing changes and cost analysis
-            </CardDescription>
+            <CardDescription>Track pricing changes and cost analysis</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -198,9 +181,7 @@ export default function MaterialsPage() {
               </div>
             </div>
             <Button asChild className="w-full" variant="outline">
-              <Link href="/dashboard/materials/pricing">
-                View Pricing
-              </Link>
+              <Link href="/dashboard/materials/pricing">View Pricing</Link>
             </Button>
           </CardContent>
         </Card>
@@ -218,33 +199,23 @@ export default function MaterialsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Common material management tasks
-          </CardDescription>
+          <CardDescription>Common material management tasks</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link href="/dashboard/materials/types">
-              Add New Material Type
-            </Link>
+            <Link href="/dashboard/materials/types">Add New Material Type</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/materials/suppliers">
-              Register Supplier
-            </Link>
+            <Link href="/dashboard/materials/suppliers">Register Supplier</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/materials/pricing">
-              Update Pricing
-            </Link>
+            <Link href="/dashboard/materials/pricing">Update Pricing</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/crm">
-              View Inventory
-            </Link>
+            <Link href="/dashboard/crm">View Inventory</Link>
           </Button>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

@@ -1,15 +1,23 @@
-"use client";
+"use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface WasteTrendData {
-  period: string;
-  wastePercentage: number;
+  period: string
+  wastePercentage: number
 }
 
 interface WasteTrendChartProps {
-  data: WasteTrendData[];
+  data: WasteTrendData[]
 }
 
 export function WasteTrendChart({ data }: WasteTrendChartProps) {
@@ -24,8 +32,8 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="period" />
             <YAxis
-              label={{ value: 'Waste %', angle: -90, position: 'insideLeft' }}
-              domain={[0, 'dataMax + 5']}
+              label={{ value: "Waste %", angle: -90, position: "insideLeft" }}
+              domain={[0, "dataMax + 5"]}
             />
             <Tooltip
               formatter={(value: number) => `${value.toFixed(1)}%`}
@@ -44,5 +52,5 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  );
+  )
 }

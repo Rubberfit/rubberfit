@@ -1,24 +1,26 @@
-import Link from "next/link";
+import Link from "next/link"
 
-import { Globe } from "lucide-react";
+import { Globe } from "lucide-react"
 
-import { APP_CONFIG } from "@/config/app-config";
+import { APP_CONFIG } from "@/config/app-config"
 
-import { ResetPasswordForm } from "../../_components/reset-password-form";
+import { ResetPasswordForm } from "../../_components/reset-password-form"
 
 interface ResetPasswordPageProps {
   searchParams?:
     | Promise<{
-        mode?: string | string[];
+        mode?: string | string[]
       }>
     | {
-        mode?: string | string[];
-      };
+        mode?: string | string[]
+      }
 }
 
 export default async function ResetPasswordPage({ searchParams }: ResetPasswordPageProps) {
-  const resolvedSearchParams = await Promise.resolve(searchParams);
-  const mode = Array.isArray(resolvedSearchParams?.mode) ? resolvedSearchParams.mode[0] : resolvedSearchParams?.mode;
+  const resolvedSearchParams = await Promise.resolve(searchParams)
+  const mode = Array.isArray(resolvedSearchParams?.mode)
+    ? resolvedSearchParams.mode[0]
+    : resolvedSearchParams?.mode
 
   return (
     <>
@@ -51,5 +53,5 @@ export default async function ResetPasswordPage({ searchParams }: ResetPasswordP
         </div>
       </div>
     </>
-  );
+  )
 }

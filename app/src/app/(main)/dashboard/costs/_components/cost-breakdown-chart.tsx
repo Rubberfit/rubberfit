@@ -1,19 +1,19 @@
-"use client";
+"use client"
 
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface MaterialCost {
-  materialType: string;
-  totalCost: number;
-  wasteCost: number;
-  utilizationCost: number;
-  cuts: number;
-  avgCostPerCut: number;
+  materialType: string
+  totalCost: number
+  wasteCost: number
+  utilizationCost: number
+  cuts: number
+  avgCostPerCut: number
 }
 
 interface CostBreakdownChartProps {
-  data: MaterialCost[];
+  data: MaterialCost[]
 }
 
 export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
@@ -25,18 +25,12 @@ export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data} margin={{ left: 20, right: 20, top: 20, bottom: 40 }}>
-            <XAxis
-              dataKey="materialType"
-              angle={-45}
-              textAnchor="end"
-              height={80}
-              fontSize={12}
-            />
+            <XAxis dataKey="materialType" angle={-45} textAnchor="end" height={80} fontSize={12} />
             <YAxis />
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as MaterialCost;
+                  const data = payload[0].payload as MaterialCost
                   return (
                     <div className="rounded-lg border bg-background p-2 shadow-md">
                       <p className="font-medium">{label}</p>
@@ -59,21 +53,13 @@ export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
                         </p>
                       </div>
                     </div>
-                  );
+                  )
                 }
-                return null;
+                return null
               }}
             />
-            <Bar
-              dataKey="utilizationCost"
-              stackId="cost"
-              fill="#3b82f6"
-            />
-            <Bar
-              dataKey="wasteCost"
-              stackId="cost"
-              fill="#ef4444"
-            />
+            <Bar dataKey="utilizationCost" stackId="cost" fill="#3b82f6" />
+            <Bar dataKey="wasteCost" stackId="cost" fill="#ef4444" />
           </BarChart>
         </ResponsiveContainer>
         <div className="mt-4 flex justify-center gap-6">
@@ -88,5 +74,5 @@ export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

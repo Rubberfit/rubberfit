@@ -1,35 +1,31 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { Check, ChevronsUpDown, Star, Building } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react"
+import { Check, ChevronsUpDown, Star, Building } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-import { type Supplier } from "@/lib/supabase";
-import { supplierService } from "@/services/supplierService";
-import { Button } from "@/components/ui/button";
+import { type Supplier } from "@/lib/supabase"
+import { supplierService } from "@/services/supplierService"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
 
 interface SupplierSelectionProps {
-  value?: string;
-  onValueChange: (value: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-  showRating?: boolean;
-  filterActive?: boolean;
-  filterPreferred?: boolean;
+  value?: string
+  onValueChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  showRating?: boolean
+  filterActive?: boolean
+  filterPreferred?: boolean
 }
 
 export function SupplierSelection({
@@ -42,34 +38,34 @@ export function SupplierSelection({
   filterActive = true,
   filterPreferred = false,
 }: SupplierSelectionProps) {
-  const [open, setOpen] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false)
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, [filterActive, filterPreferred]);
-
-  const fetchSuppliers = async () => {
-    setLoading(true);
+  const fetchSuppliers = useCallback(async () => {
+    setLoading(true)
     try {
       const data = await supplierService.getSuppliers({
         filterActive,
         filterPreferred,
-      });
-      setSuppliers(data);
+      })
+      setSuppliers(data)
     } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      setSuppliers([]);
+      console.error("Error fetching suppliers:", error)
+      setSuppliers([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }, [filterActive, filterPreferred])
 
-  const selectedSupplier = suppliers.find((s) => s.id === value);
+  useEffect(() => {
+    fetchSuppliers()
+  }, [fetchSuppliers])
+
+  const selectedSupplier = suppliers.find((s) => s.id === value)
 
   const renderRatingStars = (rating: number | null | undefined) => {
-    if (!rating || !showRating) return null;
+    if (!rating || !showRating) return null
 
     return (
       <div className="flex gap-0.5 ml-2">
@@ -77,15 +73,13 @@ export function SupplierSelection({
           <Star
             key={star}
             className={`h-3 w-3 ${
-              star <= rating
-                ? "fill-yellow-500 text-yellow-500"
-                : "text-gray-300"
+              star <= rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"
             }`}
           />
         ))}
       </div>
-    );
-  };
+    )
+  }
 
   const renderSupplierLabel = (supplier: Supplier) => {
     return (
@@ -101,12 +95,12 @@ export function SupplierSelection({
         </div>
         {showRating && renderRatingStars(supplier.rating)}
       </div>
-    );
-  };
+    )
+  }
 
   // Group suppliers by preferred status
-  const preferredSuppliers = suppliers.filter((s) => s.preferred);
-  const regularSuppliers = suppliers.filter((s) => !s.preferred);
+  const preferredSuppliers = suppliers.filter((s) => s.preferred)
+  const regularSuppliers = suppliers.filter((s) => !s.preferred)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -144,9 +138,7 @@ export function SupplierSelection({
       <PopoverContent className="w-[400px] p-0">
         <Command>
           <CommandInput placeholder="Search suppliers..." className="h-9" />
-          <CommandEmpty>
-            {loading ? "Loading suppliers..." : "No supplier found."}
-          </CommandEmpty>
+          <CommandEmpty>{loading ? "Loading suppliers..." : "No supplier found."}</CommandEmpty>
           {preferredSuppliers.length > 0 && (
             <CommandGroup heading="Preferred Suppliers">
               {preferredSuppliers.map((supplier) => (
@@ -154,8 +146,8 @@ export function SupplierSelection({
                   key={supplier.id}
                   value={supplier.name}
                   onSelect={() => {
-                    onValueChange(supplier.id);
-                    setOpen(false);
+                    onValueChange(supplier.id)
+                    setOpen(false)
                   }}
                   className="flex items-center"
                 >
@@ -179,8 +171,8 @@ export function SupplierSelection({
                   key={supplier.id}
                   value={supplier.name}
                   onSelect={() => {
-                    onValueChange(supplier.id);
-                    setOpen(false);
+                    onValueChange(supplier.id)
+                    setOpen(false)
                   }}
                   className="flex items-center"
                 >
@@ -198,7 +190,7 @@ export function SupplierSelection({
         </Command>
       </PopoverContent>
     </Popover>
-  );
+  )
 }
 
 // Export a simple dropdown version for forms
@@ -210,35 +202,35 @@ export function SupplierSelect({
   className,
   required = false,
 }: {
-  value?: string;
-  onValueChange: (value: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-  required?: boolean;
+  value?: string
+  onValueChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  required?: boolean
 }) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchSuppliers();
-  }, []);
-
-  const fetchSuppliers = async () => {
-    setLoading(true);
-    try {
-      const data = await supplierService.getActiveSuppliers();
-      setSuppliers(data);
-    } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      setSuppliers([]);
-    } finally {
-      setLoading(false);
+    const fetchSuppliers = async () => {
+      setLoading(true)
+      try {
+        const data = await supplierService.getActiveSuppliers()
+        setSuppliers(data)
+      } catch (error) {
+        console.error("Error fetching suppliers:", error)
+        setSuppliers([])
+      } finally {
+        setLoading(false)
+      }
     }
-  };
 
-  const preferredSuppliers = suppliers.filter((s) => s.preferred);
-  const regularSuppliers = suppliers.filter((s) => !s.preferred);
+    fetchSuppliers()
+  }, [])
+
+  const preferredSuppliers = suppliers.filter((s) => s.preferred)
+  const regularSuppliers = suppliers.filter((s) => !s.preferred)
 
   return (
     <select
@@ -274,5 +266,5 @@ export function SupplierSelect({
         </optgroup>
       )}
     </select>
-  );
+  )
 }

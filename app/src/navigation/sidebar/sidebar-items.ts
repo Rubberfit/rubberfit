@@ -2,49 +2,43 @@ import {
   Package,
   Scissors,
   History,
-  ChartBar,
   AlertTriangle,
-  Forklift,
   FileText,
   Database,
   LayoutDashboard,
-  Calculator,
   type LucideIcon,
   Settings,
   TrendingUp,
   BarChart3,
   DollarSign,
-  Users,
-  ShoppingCart,
-  RefreshCw,
-} from "lucide-react";
-import type { Permission } from "@/lib/permissions";
+} from "lucide-react"
+import type { Permission } from "@/lib/permissions"
 
 export interface NavSubItem {
-  title: string;
-  url: string;
-  icon?: LucideIcon;
-  comingSoon?: boolean;
-  newTab?: boolean;
-  isNew?: boolean;
-  requiredPermission?: Permission;
+  title: string
+  url: string
+  icon?: LucideIcon
+  comingSoon?: boolean
+  newTab?: boolean
+  isNew?: boolean
+  requiredPermission?: Permission
 }
 
 export interface NavMainItem {
-  title: string;
-  url: string;
-  icon?: LucideIcon;
-  subItems?: NavSubItem[];
-  comingSoon?: boolean;
-  newTab?: boolean;
-  requiredPermission?: Permission;
-  isNew?: boolean;
+  title: string
+  url: string
+  icon?: LucideIcon
+  subItems?: NavSubItem[]
+  comingSoon?: boolean
+  newTab?: boolean
+  requiredPermission?: Permission
+  isNew?: boolean
 }
 
 export interface NavGroup {
-  id: number;
-  label?: string;
-  items: NavMainItem[];
+  id: number
+  label?: string
+  items: NavMainItem[]
 }
 
 export const sidebarItems: NavGroup[] = [
@@ -202,4 +196,4 @@ export const sidebarItems: NavGroup[] = [
       },
     ],
   },
-];
+]

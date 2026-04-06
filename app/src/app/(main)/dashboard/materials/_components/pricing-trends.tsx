@@ -1,30 +1,28 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type MaterialType } from "@/lib/supabase";
-import { materialTypeService } from "@/services/materialTypeService";
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { type MaterialType } from "@/lib/supabase"
+import { materialTypeService } from "@/services/materialTypeService"
 
 export function PricingTrends() {
-  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchMaterialTypes = async () => {
-    try {
-      const data = await materialTypeService.getTopByCost(5);
-      setMaterialTypes(data);
-    } catch (error) {
-      console.error("Error fetching material types:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchMaterialTypes();
-  }, []);
+    const fetchMaterialTypes = async () => {
+      try {
+        const data = await materialTypeService.getTopByCost(5)
+        setMaterialTypes(data)
+      } catch (error) {
+        console.error("Error fetching material types:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
+    fetchMaterialTypes()
+  }, [])
 
   return (
     <Card>
@@ -58,8 +56,12 @@ export function PricingTrends() {
                   <span>$1.50 - $3.00</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: `${(materialTypes.filter(m => (m.default_cost || 0) <= 3).length / Math.max(materialTypes.length, 1)) * 100}%` }}></div>
+                  <div
+                    className="bg-blue-600 h-2 rounded-full"
+                    style={{
+                      width: `${(materialTypes.filter((m) => (m.default_cost || 0) <= 3).length / Math.max(materialTypes.length, 1)) * 100}%`,
+                    }}
+                  ></div>
                 </div>
 
                 <div className="flex justify-between text-xs text-muted-foreground mt-3">
@@ -67,8 +69,12 @@ export function PricingTrends() {
                   <span>$3.00 - $6.00</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-green-600 h-2 rounded-full"
-                    style={{ width: `${(materialTypes.filter(m => (m.default_cost || 0) > 3 && (m.default_cost || 0) <= 6).length / Math.max(materialTypes.length, 1)) * 100}%` }}></div>
+                  <div
+                    className="bg-green-600 h-2 rounded-full"
+                    style={{
+                      width: `${(materialTypes.filter((m) => (m.default_cost || 0) > 3 && (m.default_cost || 0) <= 6).length / Math.max(materialTypes.length, 1)) * 100}%`,
+                    }}
+                  ></div>
                 </div>
 
                 <div className="flex justify-between text-xs text-muted-foreground mt-3">
@@ -76,8 +82,12 @@ export function PricingTrends() {
                   <span>$6.00+</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-orange-600 h-2 rounded-full"
-                    style={{ width: `${(materialTypes.filter(m => (m.default_cost || 0) > 6).length / Math.max(materialTypes.length, 1)) * 100}%` }}></div>
+                  <div
+                    className="bg-orange-600 h-2 rounded-full"
+                    style={{
+                      width: `${(materialTypes.filter((m) => (m.default_cost || 0) > 6).length / Math.max(materialTypes.length, 1)) * 100}%`,
+                    }}
+                  ></div>
                 </div>
               </div>
             </div>
@@ -86,11 +96,11 @@ export function PricingTrends() {
 
         <div className="mt-6 pt-4 border-t">
           <p className="text-xs text-muted-foreground">
-            Historical pricing trends will be available once price tracking is implemented.
-            Current prices are based on default cost settings.
+            Historical pricing trends will be available once price tracking is implemented. Current
+            prices are based on default cost settings.
           </p>
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

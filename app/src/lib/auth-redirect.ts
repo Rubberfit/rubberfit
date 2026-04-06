@@ -1,31 +1,34 @@
-import { canAccessPath, getDefaultAuthorizedPath } from "@/lib/rbac";
+import { canAccessPath, getDefaultAuthorizedPath } from "@/lib/rbac"
 
 export function sanitizeRedirectPath(pathname?: string | null): string | null {
   if (!pathname) {
-    return null;
+    return null
   }
 
   if (!pathname.startsWith("/") || pathname.startsWith("//")) {
-    return null;
+    return null
   }
 
   if (pathname.startsWith("/auth")) {
-    return null;
+    return null
   }
 
   if (pathname !== "/dashboard" && !pathname.startsWith("/dashboard/")) {
-    return null;
+    return null
   }
 
-  return pathname;
+  return pathname
 }
 
-export function resolvePostAuthRedirect(roles?: string[] | null, requestedPath?: string | null): string {
-  const safePath = sanitizeRedirectPath(requestedPath);
+export function resolvePostAuthRedirect(
+  roles?: string[] | null,
+  requestedPath?: string | null
+): string {
+  const safePath = sanitizeRedirectPath(requestedPath)
 
   if (safePath && canAccessPath(roles, safePath)) {
-    return safePath;
+    return safePath
   }
 
-  return getDefaultAuthorizedPath(roles);
+  return getDefaultAuthorizedPath(roles)
 }

@@ -1,7 +1,7 @@
-"use client";
+"use client"
 
-import { Building } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Building } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function SupplierOverview() {
   return (
@@ -19,5 +19,5 @@ export function SupplierOverview() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }
