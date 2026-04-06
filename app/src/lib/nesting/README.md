@@ -15,12 +15,15 @@ NFP (No-Fit Polygon) nesting engine for the cut planner. Packs irregularly-shape
 - **types.ts** -- Core type definitions: Point2D, Polygon2D, NestingPart, NestingInput, Placement2D, NestingResult
 
 ```typescript
-export interface Point2D { x: number; y: number }
+export interface Point2D {
+  x: number
+  y: number
+}
 
 export interface Polygon2D {
   id: string
   points: Point2D[]
-  rotationSteps?: number  // 4 = 0/90/180/270
+  rotationSteps?: number // 4 = 0/90/180/270
 }
 
 export interface NestingPart {
@@ -32,29 +35,52 @@ export interface NestingPart {
 }
 
 export interface NestingInput {
-  binWidth: number; binHeight: number
+  binWidth: number
+  binHeight: number
   parts: NestingPart[]
-  spacing: number; rotationSteps: number
-  populationSize?: number; mutationRate?: number; generations?: number; seed?: number
+  spacing: number
+  rotationSteps: number
+  populationSize?: number
+  mutationRate?: number
+  generations?: number
+  seed?: number
 }
 
 export interface Placement2D {
-  partId: string; x: number; y: number; width: number; height: number
-  polygonArea: number; rotation: number; placedPolygon: Point2D[]; flipped: boolean
+  partId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  polygonArea: number
+  rotation: number
+  placedPolygon: Point2D[]
+  flipped: boolean
 }
 
 export interface NestingResult {
-  placements: Placement2D[]; placed: number; overflow: number
-  usedArea: number; occupiedArea: number; stockArea: number; wasteArea: number
-  efficiency: number  // 0-100
+  placements: Placement2D[]
+  placed: number
+  overflow: number
+  usedArea: number
+  occupiedArea: number
+  stockArea: number
+  wasteArea: number
+  efficiency: number // 0-100
   source: "heuristic" | "optimized"
 }
 ```
+
 - **shape-to-polygon.ts** -- Converts geometric shapes (rect, circle, trapezoid, annular sector) to polygon vertex arrays
 
 ```typescript
 export function rectToPolygon(width: number, height: number): Point2D[] {
-  return [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }]
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ]
 }
 
 export function circleToPolygon(diameter: number, segments = 24): Point2D[] {
@@ -65,18 +91,33 @@ export function circleToPolygon(diameter: number, segments = 24): Point2D[] {
   })
 }
 
-export function trapezoidToPolygon(topWidth: number, bottomWidth: number, height: number): Point2D[] {
+export function trapezoidToPolygon(
+  topWidth: number,
+  bottomWidth: number,
+  height: number
+): Point2D[] {
   const maxW = Math.max(topWidth, bottomWidth)
   const topInset = (maxW - topWidth) / 2
   const botInset = (maxW - bottomWidth) / 2
-  return [{ x: topInset, y: 0 }, { x: maxW - topInset, y: 0 }, { x: maxW - botInset, y: height }, { x: botInset, y: height }]
+  return [
+    { x: topInset, y: 0 },
+    { x: maxW - topInset, y: 0 },
+    { x: maxW - botInset, y: height },
+    { x: botInset, y: height },
+  ]
 }
 
-export function sectorToPolygon(innerRadius: number, outerRadius: number, arcDegrees: number, segments = 16): Point2D[] {
+export function sectorToPolygon(
+  innerRadius: number,
+  outerRadius: number,
+  arcDegrees: number,
+  segments = 16
+): Point2D[] {
   // Traces outer arc (forward) then inner arc (reverse) to form annular sector polygon
   // ...
 }
 ```
+
 - **nfp-solver.ts** -- NFPSolver class that runs the Fit packer, converts packing events to NestingResult format
 
 ```typescript

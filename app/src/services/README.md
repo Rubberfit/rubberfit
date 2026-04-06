@@ -31,6 +31,7 @@ async signIn(email: string, password: string): Promise<AuthResponse> {
   }
 }
 ```
+
 - **rollService.ts** -- Roll CRUD, search, inventory value calculations, bulk import, low stock detection
 
 ```typescript
@@ -60,6 +61,7 @@ async getInventoryValue() {
   }, 0)
 }
 ```
+
 - **cutService.ts** -- Cut recording, history retrieval, waste statistics, optimization (best roll selection)
 
 ```typescript
@@ -91,19 +93,35 @@ async recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">) {
   return data as Cut
 }
 ```
+
 - **materialTypeService.ts** -- Material type CRUD and lookup by ID/name/cost
 
 ```typescript
 export const materialTypeService = {
-  async getAll() { /* ... */ },
-  async getByIds(ids: string[]) { /* ... */ },
-  async getNames() { /* returns Pick<MaterialType, "id" | "name">[] */ },
-  async getTopByCost(limit: number) { /* ... */ },
-  async create(material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">) { /* ... */ },
-  async update(id: string, updates: Partial<MaterialType>) { /* ... */ },
-  async delete(id: string) { /* ... */ },
+  async getAll() {
+    /* ... */
+  },
+  async getByIds(ids: string[]) {
+    /* ... */
+  },
+  async getNames() {
+    /* returns Pick<MaterialType, "id" | "name">[] */
+  },
+  async getTopByCost(limit: number) {
+    /* ... */
+  },
+  async create(material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">) {
+    /* ... */
+  },
+  async update(id: string, updates: Partial<MaterialType>) {
+    /* ... */
+  },
+  async delete(id: string) {
+    /* ... */
+  },
 }
 ```
+
 - **supplierService.ts** -- Supplier CRUD, material-supplier linking, preferred supplier management, search
 
 ```typescript
@@ -133,6 +151,7 @@ async setPreferredSupplier(materialTypeId: string, supplierId: string) {
   return data as MaterialSupplierWithDetails
 }
 ```
+
 - **purchaseOrderService.ts** -- PO CRUD, line item management, status transitions (draft -> approved -> received), PO number generation
 
 ```typescript
@@ -159,6 +178,7 @@ isValidStatusTransition(from: PurchaseOrder["status"], to: PurchaseOrder["status
   return validTransitions[from]?.includes(to) || false
 }
 ```
+
 - **purchaseOrderAnalytics.ts** -- PO receiving logic, stats aggregation, supplier purchase history, pending deliveries
 
 ```typescript
@@ -182,6 +202,7 @@ async getPurchaseOrderStats() {
   return stats
 }
 ```
+
 - **reorderService.ts** -- Reorder rule CRUD, reorder point checking, suggestion generation, auto-PO creation
 
 ```typescript
@@ -198,14 +219,25 @@ export interface ReorderSuggestion {
 }
 
 export const reorderService = {
-  async getAllReorderRules() { /* ... */ },
-  async createReorderRule(rule: CreateReorderRule) { /* ... */ },
-  async checkReorderPoints(): Promise<ReorderSuggestion[]> { /* ... */ },
-  async generateReorderSuggestions(includeInactive?: boolean): Promise<ReorderSuggestion[]> { /* ... */ },
-  async createAutomaticPurchaseOrder(suggestion: ReorderSuggestion) { /* ... */ },
+  async getAllReorderRules() {
+    /* ... */
+  },
+  async createReorderRule(rule: CreateReorderRule) {
+    /* ... */
+  },
+  async checkReorderPoints(): Promise<ReorderSuggestion[]> {
+    /* ... */
+  },
+  async generateReorderSuggestions(includeInactive?: boolean): Promise<ReorderSuggestion[]> {
+    /* ... */
+  },
+  async createAutomaticPurchaseOrder(suggestion: ReorderSuggestion) {
+    /* ... */
+  },
   // ...
 }
 ```
+
 - **reorderCalculations.ts** -- EOQ calculation, cost estimation, stock level math, urgency determination
 
 ```typescript
@@ -231,6 +263,7 @@ determineUrgency(currentStock, reorderPoint, _safetyStockDays) {
   return "low"
 }
 ```
+
 - **priceHistoryService.ts** -- Price change tracking, trend analysis, cross-supplier price comparison, best-price lookup
 
 ```typescript
@@ -253,6 +286,7 @@ calculateValueScore(supplier: MaterialSupplierWithDetails): number {
   return priceScore + leadTimeScore + ratingScore + preferredBonus
 }
 ```
+
 - **taxService.ts** -- Tax rate resolution (cache -> API -> DB fallback), tax calculation for POs, supplier exemption checks
 
 ```typescript
@@ -274,6 +308,7 @@ async getTaxRateForLocation(state?, city?, zipCode?): Promise<TaxRateDetails> {
   return dbFallback ?? DEFAULT_TAX
 }
 ```
+
 - **taxApiService.ts** -- External tax rate API client with in-memory cache (lookup by ZIP code)
 
 ```typescript
@@ -281,7 +316,9 @@ export interface TaxApiResult {
   totalRate: number
   rates: TaxRateBreakdown[]
   postalCode: string
-  city?: string; state?: string; county?: string
+  city?: string
+  state?: string
+  county?: string
 }
 
 const memoryCache = new Map<string, { data: TaxApiResult; timestamp: number }>()
@@ -295,9 +332,12 @@ export const taxApiService = {
     const response = await fetch(`/api/tax-rates?postalCode=${zip5}`)
     // ...
   },
-  clearCache() { memoryCache.clear() },
+  clearCache() {
+    memoryCache.clear()
+  },
 }
 ```
+
 - **notificationService.ts** -- Multi-channel notification dispatch (in-app, email), user preference checking, queue processing
 
 ```typescript
@@ -322,45 +362,89 @@ async sendNotification(params: NotificationParams): Promise<void> {
   if (channels.email || channels.sms) await this.queueNotification({ ...params, sendEmail: channels.email })
 }
 ```
+
 - **notificationCrudService.ts** -- Notification record CRUD (create, read, mark read, bulk delete)
 
 ```typescript
 export const notificationCrudService = {
-  async getAll() { /* returns Notification[] ordered by created_at desc */ },
-  async getUnreadCount() { /* returns number */ },
-  async create(notification: Omit<Notification, "id" | "created_at" | "updated_at">) { /* ... */ },
-  async markAsRead(id: string) { return this.update(id, { is_read: true }) },
-  async markAllAsRead() { /* updates all is_read=false to true */ },
-  async deleteByIds(ids: string[]) { /* ... */ },
-  async deleteAll() { /* ... */ },
+  async getAll() {
+    /* returns Notification[] ordered by created_at desc */
+  },
+  async getUnreadCount() {
+    /* returns number */
+  },
+  async create(notification: Omit<Notification, "id" | "created_at" | "updated_at">) {
+    /* ... */
+  },
+  async markAsRead(id: string) {
+    return this.update(id, { is_read: true })
+  },
+  async markAllAsRead() {
+    /* updates all is_read=false to true */
+  },
+  async deleteByIds(ids: string[]) {
+    /* ... */
+  },
+  async deleteAll() {
+    /* ... */
+  },
 }
 ```
+
 - **emailService.ts** -- Email sending via Resend (low stock alerts, PO updates, daily digests, queue processing)
 
 ```typescript
 class EmailService {
-  async sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> { /* ... */ }
-  async sendLowStockAlert(params: { to; materialName; currentStock; reorderPoint }) { /* ... */ }
-  async sendPriceChangeAlert(params: { /* ... */ }) { /* ... */ }
-  async sendPOStatusUpdate(params: { /* ... */ }) { /* ... */ }
-  async sendDailyDigest(params: { /* ... */ }) { /* ... */ }
-  async processEmailQueue(): Promise<void> { /* fetches pending, processes with retry + exponential backoff */ }
+  async sendEmail(
+    options: EmailOptions
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    /* ... */
+  }
+  async sendLowStockAlert(params: { to; materialName; currentStock; reorderPoint }) {
+    /* ... */
+  }
+  async sendPriceChangeAlert(params: { /* ... */ }) {
+    /* ... */
+  }
+  async sendPOStatusUpdate(params: { /* ... */ }) {
+    /* ... */
+  }
+  async sendDailyDigest(params: { /* ... */ }) {
+    /* ... */
+  }
+  async processEmailQueue(): Promise<void> {
+    /* fetches pending, processes with retry + exponential backoff */
+  }
 }
 const emailService = new EmailService()
 export default emailService
 ```
+
 - **csvService.ts** -- CSV parsing, validation, roll import, and template generation
 
 ```typescript
 export const csvService = {
-  parseCSV(csvText: string): CSVRow[] { /* splits lines, maps headers to rows */ },
-  transformToRolls(csvRows: CSVRow[]): Partial<Roll>[] { /* validates required fields, parses numbers */ },
-  async uploadRolls(rolls: Partial<Roll>[]) { /* auto-creates missing material_types, then inserts */ },
-  async processCSVFile(file: File) { /* end-to-end: parse -> transform -> upload */ },
-  generateTemplate(): string { /* returns CSV header row */ },
-  downloadTemplate() { /* triggers browser download of template CSV */ },
+  parseCSV(csvText: string): CSVRow[] {
+    /* splits lines, maps headers to rows */
+  },
+  transformToRolls(csvRows: CSVRow[]): Partial<Roll>[] {
+    /* validates required fields, parses numbers */
+  },
+  async uploadRolls(rolls: Partial<Roll>[]) {
+    /* auto-creates missing material_types, then inserts */
+  },
+  async processCSVFile(file: File) {
+    /* end-to-end: parse -> transform -> upload */
+  },
+  generateTemplate(): string {
+    /* returns CSV header row */
+  },
+  downloadTemplate() {
+    /* triggers browser download of template CSV */
+  },
 }
 ```
+
 - **exportService.ts** -- CSV export for inventory, cut history, waste analysis, and material usage
 
 ```typescript
@@ -376,6 +460,7 @@ export const exportService = {
   exportMaterialUsage(data: Record<string, unknown>[]) { /* ... */ },
 }
 ```
+
 - **exportPdfService.ts** -- PDF report generation via jsPDF (inventory reports, waste reports)
 
 ```typescript
@@ -385,11 +470,18 @@ export const exportPdfService = {
     // Parses HTML content, renders headings/paragraphs/tables/metric cards
     // Auto-paginates with checkNewPage(), adds footer
   },
-  fallbackPDFDownload(title: string, htmlContent: string) { /* strips HTML, saves as .txt */ },
-  async generateInventoryReport(rolls, summary) { /* builds HTML template, calls generatePDFReport */ },
-  async generateWasteReport(data, charts?) { /* builds HTML template, calls generatePDFReport */ },
+  fallbackPDFDownload(title: string, htmlContent: string) {
+    /* strips HTML, saves as .txt */
+  },
+  async generateInventoryReport(rolls, summary) {
+    /* builds HTML template, calls generatePDFReport */
+  },
+  async generateWasteReport(data, charts?) {
+    /* builds HTML template, calls generatePDFReport */
+  },
 }
 ```
+
 - **profileService.ts** -- User profile updates and avatar upload to Supabase Storage
 
 ```typescript
@@ -402,12 +494,17 @@ export const profileService = {
   },
   async uploadAvatar(userId: string, file: File) {
     const filePath = `avatars/${userId}-${Math.random()}.${fileExt}`
-    await supabase.storage.from("avatars").upload(filePath, file, { cacheControl: "3600", upsert: true })
-    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(filePath)
+    await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, { cacheControl: "3600", upsert: true })
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(filePath)
     return { success: true, url: publicUrl }
   },
 }
 ```
+
 - **useRole.ts** -- React hook for fetching and checking user roles/permissions from Supabase profiles
 
 ```typescript

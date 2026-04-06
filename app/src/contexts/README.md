@@ -38,16 +38,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 // if (loading) return <Spinner />
 // if (!user) return <LoginPage />
 ```
+
 - **auth-actions.ts** -- Factory functions for auth operations (signIn, signUp, signOut, resetPassword, updatePassword, signInWithGoogle).
 
 ```typescript
 // Each function is a factory that returns an async action, closing over setUser/setLoading/router:
 
 export function createSignIn(setUser: SetUser, setLoading: SetLoading, router: AppRouterInstance) {
-  return async (email: string, password: string, redirectTo?: string | null): Promise<AuthResult> => {
+  return async (
+    email: string,
+    password: string,
+    redirectTo?: string | null
+  ): Promise<AuthResult> => {
     setLoading(true)
     const { user: authUser, error } = await authService.signIn(email, password)
-    if (error) { setLoading(false); return { success: false, error: error.message } }
+    if (error) {
+      setLoading(false)
+      return { success: false, error: error.message }
+    }
     if (authUser) {
       setUser(authUser)
       router.push(resolvePostAuthRedirect(authUser.roles, redirectTo))

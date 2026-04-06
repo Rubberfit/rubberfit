@@ -5,12 +5,15 @@ The cut planner is the core feature of RubberFit Pro. It calculates optimal layo
 ## Modes
 
 ### Simple Mode (Interactive)
+
 User selects a part type, enters dimensions, and sees a real-time preview of the layout on stock. Supports rectangles, circles, cylinders, cones, and trapezoids.
 
 ### Batch Mode
+
 User queues multiple parts with different shapes/sizes. The system uses NFP (No-Fit Polygon) optimization with a genetic algorithm to find the best combined layout.
 
 ### Manual Mode
+
 Direct input of cut dimensions against a specific roll. Used for quick one-off calculations.
 
 ## Architecture
@@ -38,53 +41,53 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### Core Components
 
-| File | Purpose |
-|------|---------|
-| `NestingVisualizer.tsx` | Main orchestrator component — manages state, mode switching, delegates rendering to sub-components |
-| `nesting-viz-simple-mode.tsx` | Simple mode SVG render — draws stock sheet, placed shapes, waste bands, dimension labels |
-| `nesting-viz-simple-parts.tsx` | Sub-components for simple mode (header, pattern defs, metrics, footer, cut plan, offcut labels, dimension labels) |
-| `nesting-viz-simple-layout.ts` | Pure computation for simple mode — all derived values (scale, positions, metrics, labels) |
-| `nesting-viz-rect-panel.tsx` | Rectangle strategy detail panel — shows scored strategies with mini-roll previews |
-| `nesting-viz-controls.tsx` | Control panels — dimension inputs, shape selectors, strategy controls |
-| `nesting-viz-nonrect-render.ts` | Imperative SVG drawing for non-rectangular shapes (circles, cones) in background |
-| `PresetDimensionSelector.tsx` | Preset template picker — standard sizes organized by shape type |
-| `preset-part-type-selector.tsx` | Part type button grid (extracted from PresetDimensionSelector) |
-| `preset-template-grid.tsx` | Template grid component for preset dimensions |
+| File                            | Purpose                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `NestingVisualizer.tsx`         | Main orchestrator component — manages state, mode switching, delegates rendering to sub-components                |
+| `nesting-viz-simple-mode.tsx`   | Simple mode SVG render — draws stock sheet, placed shapes, waste bands, dimension labels                          |
+| `nesting-viz-simple-parts.tsx`  | Sub-components for simple mode (header, pattern defs, metrics, footer, cut plan, offcut labels, dimension labels) |
+| `nesting-viz-simple-layout.ts`  | Pure computation for simple mode — all derived values (scale, positions, metrics, labels)                         |
+| `nesting-viz-rect-panel.tsx`    | Rectangle strategy detail panel — shows scored strategies with mini-roll previews                                 |
+| `nesting-viz-controls.tsx`      | Control panels — dimension inputs, shape selectors, strategy controls                                             |
+| `nesting-viz-nonrect-render.ts` | Imperative SVG drawing for non-rectangular shapes (circles, cones) in background                                  |
+| `PresetDimensionSelector.tsx`   | Preset template picker — standard sizes organized by shape type                                                   |
+| `preset-part-type-selector.tsx` | Part type button grid (extracted from PresetDimensionSelector)                                                    |
+| `preset-template-grid.tsx`      | Template grid component for preset dimensions                                                                     |
 
 ### Math & Algorithms
 
-| File | Purpose |
-|------|---------|
-| `nesting-layout-utils.ts` | Core layout math — grid calculation, strategy scoring, formatting |
-| `nesting-packing-utils.ts` | Bin-packing algorithms — shelf packing, guillotine cutting, centered column |
-| `nesting-nfp-helpers.ts` | Shape-to-polygon converters for NFP solver, result-to-preview converters |
-| `nesting-preview-builders.ts` | High-level preview builders — waste analysis, fabrication scoring, strategy comparison |
-| `nesting-shape-previews-basic.ts` | Rectangle and circle preview generation |
-| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation |
+| File                                 | Purpose                                                                                |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                      |
+| `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing, guillotine cutting, centered column            |
+| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters               |
+| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison |
+| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                |
+| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                       |
 | `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout |
-| `nesting-shape-previews.ts` | Barrel re-export of all preview generators |
+| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                             |
 
 ### SVG Rendering
 
-| File | Purpose |
-|------|---------|
-| `nesting-shape-renderer.tsx` | Renders individual placed shapes (rect, circle, sector, trapezoid, polygon) |
-| `nesting-svg-detail-step.ts` | Draws detailed step-by-step cut visualization SVG |
-| `nesting-svg-detail-helpers.ts` | Helper functions for SVG detail rendering (cut lines, overlays) |
-| `nesting-svg-mini-roll.ts` | Draws miniature roll previews for strategy comparison |
+| File                            | Purpose                                                                     |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `nesting-shape-renderer.tsx`    | Renders individual placed shapes (rect, circle, sector, trapezoid, polygon) |
+| `nesting-svg-detail-step.ts`    | Draws detailed step-by-step cut visualization SVG                           |
+| `nesting-svg-detail-helpers.ts` | Helper functions for SVG detail rendering (cut lines, overlays)             |
+| `nesting-svg-mini-roll.ts`      | Draws miniature roll previews for strategy comparison                       |
 
 ### State & Hooks
 
-| File | Purpose |
-|------|---------|
+| File                     | Purpose                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------- |
 | `use-nesting-compute.ts` | Main hook — manages all nesting state (dimensions, strategies, scoring, view mode) |
-| `use-nfp-optimizer.ts` | NFP optimization hook — manages solver lifecycle, results, cancellation |
-| `use-preset-state.ts` | State management for preset dimension selector |
+| `use-nfp-optimizer.ts`   | NFP optimization hook — manages solver lifecycle, results, cancellation            |
+| `use-preset-state.ts`    | State management for preset dimension selector                                     |
 
 ### Types
 
-| File | Purpose |
-|------|---------|
+| File                          | Purpose                                                                                 |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
 | `nesting-visualizer-types.ts` | All type definitions — PreviewItem, SimplePartPreview, SimplePartSpec, strategies, etc. |
 
 #### Key Type Definitions (`nesting-visualizer-types.ts`)
@@ -181,7 +184,9 @@ export const MIN_REUSABLE_STRIP_LENGTH = 24
 ### 1. Rectangle Layout (`nesting-layout-utils.ts`)
 
 #### Grid Calculation (`calcLayout`)
+
 Given a roll (W x L) and a cut piece (w x h):
+
 ```
 cols = floor(W / w)
 rows = floor(L / h)
@@ -206,17 +211,19 @@ export function calcLayout(rollW: number, rollL: number, cw: number, ch: number)
 ```
 
 #### Strategy Scoring (`scoreStrat`)
+
 Each strategy gets a score 0-100 based on:
 
-| Factor | Weight | Logic |
-|--------|--------|-------|
-| Waste efficiency | ~50 | `100 - wastePct * 1.2` (lower waste = higher score) |
-| Grain alignment | -45 | Penalty if cut direction conflicts with grain |
-| Feed direction | +12 | Bonus if horizontal feed (easier for operator) |
-| Diagonal bonus | +8 | If using diagonal cuts (2 triangles per rectangle) |
-| Quantity met | +5 | Bonus if all requested pieces fit |
+| Factor           | Weight | Logic                                               |
+| ---------------- | ------ | --------------------------------------------------- |
+| Waste efficiency | ~50    | `100 - wastePct * 1.2` (lower waste = higher score) |
+| Grain alignment  | -45    | Penalty if cut direction conflicts with grain       |
+| Feed direction   | +12    | Bonus if horizontal feed (easier for operator)      |
+| Diagonal bonus   | +8     | If using diagonal cuts (2 triangles per rectangle)  |
+| Quantity met     | +5     | Bonus if all requested pieces fit                   |
 
 Six strategies are generated for every rectangle:
+
 1. **Horizontal strips** — H-cuts first, then V-cuts
 2. **Vertical strips** — V-cuts first, then H-cuts
 3. **Rotated 90 deg** — Swap width/height, try both orientations
@@ -353,7 +360,12 @@ export function packPreviewItemsOnShelves(
   })
 
   const bounds = getPlacementBounds(placedItems)
-  return { items: placedItems, usedArea, occupiedWidth: bounds.occupiedWidth, occupiedHeight: bounds.occupiedHeight }
+  return {
+    items: placedItems,
+    usedArea,
+    occupiedWidth: bounds.occupiedWidth,
+    occupiedHeight: bounds.occupiedHeight,
+  }
 }
 ```
 
@@ -397,7 +409,8 @@ export function packRectItemsWithGuillotine(
       return !rects.some((other, otherIndex) => {
         if (index === otherIndex) return false
         return (
-          rect.x >= other.x && rect.y >= other.y &&
+          rect.x >= other.x &&
+          rect.y >= other.y &&
           rect.x + rect.width <= other.x + other.width &&
           rect.y + rect.height <= other.y + other.height
         )
@@ -418,8 +431,11 @@ export function packRectItemsWithGuillotine(
     // Find best fit using short-side-fit heuristic across all free rects
     freeRects.forEach((freeRect, freeIndex) => {
       orientations.forEach((orientation) => {
-        if (orientation.width > freeRect.width + 0.001 ||
-            orientation.height > freeRect.height + 0.001) return
+        if (
+          orientation.width > freeRect.width + 0.001 ||
+          orientation.height > freeRect.height + 0.001
+        )
+          return
         // ... short-side-fit comparison logic ...
       })
     })
@@ -433,14 +449,30 @@ export function packRectItemsWithGuillotine(
     // Split remaining space into right-split and bottom-split
     const nextRects = freeRects.filter((_, index) => index !== chosen.freeIndex)
     nextRects.push(
-      { x: host.x + chosen.width, y: host.y, width: host.width - chosen.width, height: chosen.height },
-      { x: host.x, y: host.y + chosen.height, width: host.width, height: host.height - chosen.height }
+      {
+        x: host.x + chosen.width,
+        y: host.y,
+        width: host.width - chosen.width,
+        height: chosen.height,
+      },
+      {
+        x: host.x,
+        y: host.y + chosen.height,
+        width: host.width,
+        height: host.height - chosen.height,
+      }
     )
     freeRects = pruneFreeRects(nextRects)
   })
 
   const bounds = getPlacementBounds(placedItems)
-  return { items: placedItems, usedArea, occupiedWidth: bounds.occupiedWidth, occupiedHeight: bounds.occupiedHeight, freeRects }
+  return {
+    items: placedItems,
+    usedArea,
+    occupiedWidth: bounds.occupiedWidth,
+    occupiedHeight: bounds.occupiedHeight,
+    freeRects,
+  }
 }
 ```
 
@@ -449,7 +481,9 @@ export function packRectItemsWithGuillotine(
 For complex shapes. Uses a genetic algorithm to optimize placement:
 
 #### Shape Conversion (`nesting-nfp-helpers.ts`)
+
 Each UI shape is converted to a polygon:
+
 - **Rectangle** → 4-vertex polygon
 - **Circle** → 24-sided regular polygon (approximation)
 - **Cylinder** → Unrolled rectangle(s): `width = pi * diameter`
@@ -488,8 +522,12 @@ Example — cylinder part builder (splits circumference into panels or bands):
 
 ```typescript
 function buildCylinderParts(
-  spec: SimplePartSpec, id: string, qty: number,
-  fallbackW: number, fallbackH: number, index: number
+  spec: SimplePartSpec,
+  id: string,
+  qty: number,
+  fallbackW: number,
+  fallbackH: number,
+  index: number
 ): NestingPart[] {
   const circumference = spec.diameter ? Math.PI * spec.diameter : fallbackW
   const h = spec.height ?? fallbackH
@@ -497,7 +535,8 @@ function buildCylinderParts(
     const ratios = normalizeCutRatios(spec.cutRatios, qty)
     return ratios.map((ratio, pieceIndex) => {
       const pieceWidth = isCylinderPanelSplit(spec.cutDirection)
-        ? circumference * ratio : circumference
+        ? circumference * ratio
+        : circumference
       const pieceHeight = isCylinderPanelSplit(spec.cutDirection) ? h : h * ratio
       const pieceId = `${id}-piece-${pieceIndex}`
       return {
@@ -508,15 +547,31 @@ function buildCylinderParts(
         pieceIndex,
         piecesPerUnit: qty,
         renderShape: "rect",
-        originalSpec: { width: pieceWidth, height: pieceHeight, cutDirection: spec.cutDirection,
-          label: `${formatInches(pieceWidth)}" × ${formatInches(pieceHeight)}"` },
+        originalSpec: {
+          width: pieceWidth,
+          height: pieceHeight,
+          cutDirection: spec.cutDirection,
+          label: `${formatInches(pieceWidth)}" × ${formatInches(pieceHeight)}"`,
+        },
       }
     })
   }
-  return [{ id, polygon: { id, points: rectToPolygon(circumference, h) },
-    quantity: qty, sourceSpecIndex: index, pieceIndex: 0, piecesPerUnit: 1,
-    renderShape: "rect", originalSpec: { width: circumference, height: h,
-      label: `${formatInches(circumference)}" × ${formatInches(h)}"` } }]
+  return [
+    {
+      id,
+      polygon: { id, points: rectToPolygon(circumference, h) },
+      quantity: qty,
+      sourceSpecIndex: index,
+      pieceIndex: 0,
+      piecesPerUnit: 1,
+      renderShape: "rect",
+      originalSpec: {
+        width: circumference,
+        height: h,
+        label: `${formatInches(circumference)}" × ${formatInches(h)}"`,
+      },
+    },
+  ]
 }
 ```
 
@@ -538,11 +593,21 @@ export function nestingResultToPreviewItems(
     const rs = np?.renderShape ?? "rect"
 
     const base: PreviewItem = {
-      x: p.x, y: p.y, width: p.width, height: p.height,
-      flipped: p.flipped, rotation: p.rotation,
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+      flipped: p.flipped,
+      rotation: p.rotation,
       placedPolygon: p.placedPolygon,
-      renderShape: rs === "circle" ? "circle" : rs === "sector" ? "sector"
-        : rs === "trapezoid" ? "trapezoid" : "rect",
+      renderShape:
+        rs === "circle"
+          ? "circle"
+          : rs === "sector"
+            ? "sector"
+            : rs === "trapezoid"
+              ? "trapezoid"
+              : "rect",
       label: "",
     }
 
@@ -557,12 +622,15 @@ export function nestingResultToPreviewItems(
 ```
 
 #### Splitting
+
 Shapes can be split into multiple pieces based on `cutRatios`:
+
 - **Cylinder**: Split circumference into panels (vertical cuts) or bands (horizontal cuts)
 - **Cone**: Split into radial sections or arc sections
 - **Trapezoid**: Split vertically or horizontally with proportional widths
 
 #### GA Solver (`lib/nesting/nfp-solver.ts`)
+
 ```
 Population: 4-8 individuals (layout permutations)
 Generations: 10-18 (based on piece count)
@@ -579,7 +647,9 @@ For each individual:
 ```
 
 #### NFP Computation
+
 The No-Fit Polygon of shape A relative to shape B defines all positions where B can be placed without overlapping A. Computed using Clipper-lib (Vatti polygon clipping algorithm):
+
 ```
 NFP(A, B) = Minkowski sum of A and reflected(-B)
 Valid placements for B = points inside/on NFP boundary
@@ -605,10 +675,14 @@ Actual waste computation (from `withWaste`):
 ```typescript
 export function withWaste(preview: RectLikePreview, rollW: number, rollL: number): RectLikePreview {
   const rollArea = rollW * rollL
-  const positioned = preview.placementMode === "center"
-    ? centerPlacements(preview.placements, rollW, rollL)
-    : { positions: preview.placements, occupiedWidth: preview.occupiedWidth,
-        occupiedHeight: preview.occupiedHeight }
+  const positioned =
+    preview.placementMode === "center"
+      ? centerPlacements(preview.placements, rollW, rollL)
+      : {
+          positions: preview.placements,
+          occupiedWidth: preview.occupiedWidth,
+          occupiedHeight: preview.occupiedHeight,
+        }
   const bounds = getPlacementBounds(positioned.positions)
   const pieceW = positioned.positions[0]?.width ?? 0
   const pieceH = positioned.positions[0]?.height ?? 0
@@ -624,23 +698,33 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       allBands.forEach((band) => {
         const area = band.width * band.height
         if (isReusableOffcutBand(band, pieceW, pieceH)) {
-          reusableBands.push(band); reusableArea += area
+          reusableBands.push(band)
+          reusableArea += area
         } else {
-          scrapBands.push(band); scrapArea += area
+          scrapBands.push(band)
+          scrapArea += area
         }
       })
 
       const totalWasteArea = reusableArea + scrapArea
-      return { ...preview, placements: positioned.positions,
-        wasteArea: totalWasteArea, wastePct: rollArea > 0 ? (totalWasteArea / rollArea) * 100 : 100,
-        reusableArea, scrapArea, offcutBands: reusableBands, scrapBands }
+      return {
+        ...preview,
+        placements: positioned.positions,
+        wasteArea: totalWasteArea,
+        wastePct: rollArea > 0 ? (totalWasteArea / rollArea) * 100 : 100,
+        reusableArea,
+        scrapArea,
+        offcutBands: reusableBands,
+        scrapBands,
+      }
     }
 
     // Non-rect shapes: also account for intra-blank waste
     const allBands = buildOffcutBands(bounds, rollW, rollL, "origin")
     // ... classify bands as reusable vs scrap ...
     const intraBlankWaste = preview.items.reduce(
-      (sum, item) => sum + computeIntraBlankWaste(item), 0
+      (sum, item) => sum + computeIntraBlankWaste(item),
+      0
     )
     // scrapArea += intraBlankWaste
     // ...
@@ -652,6 +736,7 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
 ### 6. Fabrication Score (`nesting-preview-builders.ts`)
 
 Composite score 0-100:
+
 ```
 wasteScore     = max(0, 100 - wastePct * 2)              // 40% weight
 reusableScore  = (reusableArea / wasteArea) * 100         // 20% weight
@@ -698,6 +783,7 @@ export function computeFabricationScore(preview: SimplePreviewBase, rollW: numbe
 ### 7. Multi-Part Layout (`nesting-shape-previews-dispatch.ts`)
 
 When multiple different parts are placed together:
+
 ```
 1. Generate items from all part specs
 2. Try 4 sorting strategies: area, height, width, max-edge
@@ -746,7 +832,8 @@ Candidate evaluation (per sorting strategy):
 ```typescript
 function evaluatePackingCandidate(
   requestedItems: (PreviewItem & { usedArea: number })[],
-  rollW: number, rollL: number,
+  rollW: number,
+  rollL: number,
   sortBy: "area" | "height" | "width" | "max-edge",
   allRectangles: boolean
 ): PackingCandidate {
@@ -761,23 +848,22 @@ function evaluatePackingCandidate(
   // Classify bands as reusable offcuts vs scrap
   // Add intra-blank waste for non-rectangular shapes
   const intraBlankWaste = packed.items.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
-  const trimDensity = bounds.occupiedWidth * bounds.occupiedHeight > 0
-    ? scrapArea / (bounds.occupiedWidth * bounds.occupiedHeight) : 1
+  const trimDensity =
+    bounds.occupiedWidth * bounds.occupiedHeight > 0
+      ? scrapArea / (bounds.occupiedWidth * bounds.occupiedHeight)
+      : 1
 
   return { sortBy, packed, bounds, offcutBands, scrapBands, reusableArea, scrapArea, trimDensity }
 }
 
 function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): number {
   if (a.packed.items.length !== b.packed.items.length)
-    return b.packed.items.length - a.packed.items.length       // more items placed = better
-  if (Math.abs(a.scrapArea - b.scrapArea) > 0.001)
-    return a.scrapArea - b.scrapArea                           // less scrap = better
-  if (Math.abs(a.trimDensity - b.trimDensity) > 0.0001)
-    return a.trimDensity - b.trimDensity                       // lower trim density = better
-  if (Math.abs(a.reusableArea - b.reusableArea) > 0.001)
-    return b.reusableArea - a.reusableArea                     // more reusable area = better
+    return b.packed.items.length - a.packed.items.length // more items placed = better
+  if (Math.abs(a.scrapArea - b.scrapArea) > 0.001) return a.scrapArea - b.scrapArea // less scrap = better
+  if (Math.abs(a.trimDensity - b.trimDensity) > 0.0001) return a.trimDensity - b.trimDensity // lower trim density = better
+  if (Math.abs(a.reusableArea - b.reusableArea) > 0.001) return b.reusableArea - a.reusableArea // more reusable area = better
   if (Math.abs(a.bounds.occupiedHeight - b.bounds.occupiedHeight) > 0.001)
-    return a.bounds.occupiedHeight - b.bounds.occupiedHeight   // shorter = better
+    return a.bounds.occupiedHeight - b.bounds.occupiedHeight // shorter = better
   return 0
 }
 ```
@@ -853,29 +939,58 @@ Hook signature and key internal logic:
 ```typescript
 export function useNestingCompute(props: NestingVisualizerProps): UseNestingComputeResult {
   const {
-    defaultRollWidth = 48, defaultRollLength = 96,
-    defaultCutWidth = 24, defaultCutHeight = 12,
-    defaultQty = 6, simpleMode = false, simplePart, simpleParts,
+    defaultRollWidth = 48,
+    defaultRollLength = 96,
+    defaultCutWidth = 24,
+    defaultCutHeight = 12,
+    defaultQty = 6,
+    simpleMode = false,
+    simplePart,
+    simpleParts,
   } = props
 
   // Derive active specs from props (simpleParts > simplePart > defaults)
   const activeSimpleSpecs = useMemo(() => {
     if (simpleParts && simpleParts.length > 0) return simpleParts
     if (simplePart) return [simplePart]
-    return [{ partType: "rectangle" as const, quantity: defaultQty,
-      width: defaultCutWidth, length: defaultCutHeight }]
+    return [
+      {
+        partType: "rectangle" as const,
+        quantity: defaultQty,
+        width: defaultCutWidth,
+        length: defaultCutHeight,
+      },
+    ]
   }, [simpleParts, simplePart, defaultQty, defaultCutWidth, defaultCutHeight])
 
   // Compute base preview (multi-part vs single-part routing)
   const baseSimplePreview = useMemo<SimplePartPreview | null>(() => {
     if (!simpleMode) return null
     return activeSimpleSpecs.length > 1
-      ? generateMultiPartPreview(defaultRollWidth, defaultRollLength,
-          activeSimpleSpecs, defaultCutWidth, defaultCutHeight)
-      : generateSimplePartPreview(defaultRollWidth, defaultRollLength,
-          activeSimpleSpecs[0], defaultCutWidth, defaultCutHeight, defaultQty)
-  }, [simpleMode, activeSimpleSpecs, defaultRollWidth, defaultRollLength,
-      defaultCutWidth, defaultCutHeight, defaultQty])
+      ? generateMultiPartPreview(
+          defaultRollWidth,
+          defaultRollLength,
+          activeSimpleSpecs,
+          defaultCutWidth,
+          defaultCutHeight
+        )
+      : generateSimplePartPreview(
+          defaultRollWidth,
+          defaultRollLength,
+          activeSimpleSpecs[0],
+          defaultCutWidth,
+          defaultCutHeight,
+          defaultQty
+        )
+  }, [
+    simpleMode,
+    activeSimpleSpecs,
+    defaultRollWidth,
+    defaultRollLength,
+    defaultCutWidth,
+    defaultCutHeight,
+    defaultQty,
+  ])
 
   // Rect strategy scoring (runs when rect mode dimensions change)
   useEffect(() => {
@@ -893,7 +1008,7 @@ export function useNestingCompute(props: NestingVisualizerProps): UseNestingComp
   }, [simpleMode, shape, rollW, rollL, cutW, cutH, qty, diagAng, ddir, grain, activeId])
 
   // ...NFP background optimizer, non-rect render callback, cleanup...
-  return { shape, setShape, rollW, setRollW, /* ...all state and refs... */ }
+  return { shape, setShape, rollW, setRollW /* ...all state and refs... */ }
 }
 ```
 
@@ -925,14 +1040,20 @@ export function useNfpOptimizer(
   const [nfpError, setNfpError] = useState<string | null>(null)
 
   // Cleanup on unmount
-  useEffect(() => { return () => { nfpSolverRef.current?.cancel() } }, [])
+  useEffect(() => {
+    return () => {
+      nfpSolverRef.current?.cancel()
+    }
+  }, [])
 
   useEffect(() => {
     if (!simpleMode) return
     // Reset state
     queueMicrotask(() => {
-      setOptimizedResult(null); setOptimizedItems(null)
-      setIsOptimizing(false); setNfpError(null)
+      setOptimizedResult(null)
+      setOptimizedItems(null)
+      setIsOptimizing(false)
+      setNfpError(null)
     })
 
     if (!shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs)) return
@@ -948,9 +1069,14 @@ export function useNfpOptimizer(
     const populationSize = totalRequestedPieces > 16 ? 4 : totalRequestedPieces > 8 ? 6 : 8
 
     const input: NestingInput = {
-      binWidth: defaultRollWidth, binHeight: defaultRollLength,
-      parts: nestingParts, spacing: 0.125, rotationSteps: 4,
-      generations, populationSize, mutationRate: 0.2,
+      binWidth: defaultRollWidth,
+      binHeight: defaultRollLength,
+      parts: nestingParts,
+      spacing: 0.125,
+      rotationSteps: 4,
+      generations,
+      populationSize,
+      mutationRate: 0.2,
     }
 
     if (!nfpSolverRef.current) nfpSolverRef.current = new NFPSolver()
@@ -961,20 +1087,31 @@ export function useNfpOptimizer(
       cancel = nfpSolverRef.current!.solve(input, {
         onComplete: (result) => {
           const items = nestingResultToPreviewItems(
-            result, nestingParts, activeSimpleSpecs, defaultCutWidth, defaultCutHeight)
+            result,
+            nestingParts,
+            activeSimpleSpecs,
+            defaultCutWidth,
+            defaultCutHeight
+          )
           setOptimizedResult(result)
           setOptimizedItems(items.length > 0 ? items : null)
           setIsOptimizing(false)
         },
         onError: (msg) => {
-          setNfpError(msg); setOptimizedResult(null)
-          setOptimizedItems(null); setIsOptimizing(false)
+          setNfpError(msg)
+          setOptimizedResult(null)
+          setOptimizedItems(null)
+          setIsOptimizing(false)
         },
       })
     }, 220)
 
-    return () => { window.clearTimeout(timer); cancel?.(); setIsOptimizing(false) }
-  }, [nfpInputKey, simpleMode, activeSimpleSpecs, /* ...deps... */])
+    return () => {
+      window.clearTimeout(timer)
+      cancel?.()
+      setIsOptimizing(false)
+    }
+  }, [nfpInputKey, simpleMode, activeSimpleSpecs /* ...deps... */])
 
   return { optimizedResult, optimizedItems, isOptimizing, nfpError }
 }
@@ -1039,14 +1176,26 @@ Core function signature and key logic:
 
 ```typescript
 export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleModeLayout {
-  const { preview, previewRollW, previewRollL, patternSeed, viewMode,
-    optimizedResult, optimizedItems } = input
+  const {
+    preview,
+    previewRollW,
+    previewRollL,
+    patternSeed,
+    viewMode,
+    optimizedResult,
+    optimizedItems,
+  } = input
 
   // Compare heuristic vs NFP-optimized layout, pick the better one
   let displayPreview: SimplePartPreview = preview
   if (viewMode === "stock" && optimizedResult && optimizedItems?.length) {
     const optimizedStockPreview = buildOptimizedStockPreview(
-      preview, optimizedResult, optimizedItems, previewRollW, previewRollL)
+      preview,
+      optimizedResult,
+      optimizedItems,
+      previewRollW,
+      previewRollL
+    )
     if (compareStockLayoutPreviews(optimizedStockPreview, preview) < 0) {
       displayPreview = optimizedStockPreview
     }
@@ -1062,7 +1211,7 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
   // SVG viewport and scaling
   const viewWidth = 980
   const viewHeight = 560
-  const drawWidth = viewWidth - 74 - 112  // padLeft + padRight
+  const drawWidth = viewWidth - 74 - 112 // padLeft + padRight
   const drawHeight = viewHeight - 82 - 80 // padTop + padBottom
   const canvasUnitsW = previewRollW
   const canvasUnitsH = previewRollL
@@ -1073,6 +1222,6 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
   const surfaceY = 82 + (drawHeight - surfacePxH) / 2
 
   // ...derive pattern IDs, label positions, metric strings, offcut label bands...
-  return { displayPreview, isOptimizedResult, fabScore, stockSqFt, usedSqFt, scale, /* ... */ }
+  return { displayPreview, isOptimizedResult, fabScore, stockSqFt, usedSqFt, scale /* ... */ }
 }
 ```

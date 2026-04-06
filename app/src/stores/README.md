@@ -23,7 +23,10 @@ interface PurchaseOrderState {
   createPO: (order: CreatePurchaseOrder) => Promise<PurchaseOrderWithDetails>
   submitForApproval: (id: string, submittedBy?: string) => Promise<void>
   approvePO: (id: string, approvedBy?: string) => Promise<void>
-  receivePO: (id: string, items: Array<{ itemId: string; quantityReceived: number; rollData?: Partial<Roll> }>) => Promise<POReceiptResult>
+  receivePO: (
+    id: string,
+    items: Array<{ itemId: string; quantityReceived: number; rollData?: Partial<Roll> }>
+  ) => Promise<POReceiptResult>
   // ...
 }
 
@@ -43,6 +46,7 @@ createPO: async (order: CreatePurchaseOrder) => {
 // const { purchaseOrders, isLoading, fetchPurchaseOrders } = usePurchaseOrderStore()
 // const pos = usePurchaseOrderStore((s) => s.purchaseOrders)
 ```
+
 - **reorderStore.ts** -- Reorder state: rule management, suggestion generation, auto-PO creation, optimal quantity calculation
 
 ```typescript
@@ -80,6 +84,7 @@ createPurchaseOrderFromSuggestion: async (suggestion) => {
 // Usage:
 // const { suggestions, checkReorderPoints } = useReorderStore()
 ```
+
 - **supplierStore.ts** -- Supplier state: CRUD, material-supplier linking, preferred supplier management, price history tracking
 
 ```typescript
@@ -97,8 +102,15 @@ interface SupplierState {
   fetchSuppliers: () => Promise<void>
   createSupplier: (supplier: CreateSupplier) => Promise<Supplier>
   linkMaterialToSupplier: (ms: CreateMaterialSupplier) => Promise<MaterialSupplierWithDetails>
-  setPreferredSupplier: (materialTypeId: string, supplierId: string) => Promise<MaterialSupplierWithDetails>
-  updateMaterialPrice: (materialSupplierId: string, newPrice: number, reason?: string) => Promise<void>
+  setPreferredSupplier: (
+    materialTypeId: string,
+    supplierId: string
+  ) => Promise<MaterialSupplierWithDetails>
+  updateMaterialPrice: (
+    materialSupplierId: string,
+    newPrice: number,
+    reason?: string
+  ) => Promise<void>
   // ...
 }
 
@@ -106,10 +118,21 @@ interface SupplierState {
 updateMaterialPrice: async (materialSupplierId, newPrice, reason?, changedBy?) => {
   set({ isUpdating: true, error: null })
   const currentMS = get().materialSuppliers.find((ms) => ms.id === materialSupplierId)
-  await priceHistoryService.trackPriceChange(materialSupplierId, currentMS?.cost_per_sqft, newPrice, reason, changedBy)
-  const updated = await supplierService.updateMaterialSupplier(materialSupplierId, { cost_per_sqft: newPrice, effective_date: new Date().toISOString() })
+  await priceHistoryService.trackPriceChange(
+    materialSupplierId,
+    currentMS?.cost_per_sqft,
+    newPrice,
+    reason,
+    changedBy
+  )
+  const updated = await supplierService.updateMaterialSupplier(materialSupplierId, {
+    cost_per_sqft: newPrice,
+    effective_date: new Date().toISOString(),
+  })
   set((state) => ({
-    materialSuppliers: state.materialSuppliers.map((ms) => ms.id === materialSupplierId ? updated : ms),
+    materialSuppliers: state.materialSuppliers.map((ms) =>
+      ms.id === materialSupplierId ? updated : ms
+    ),
     isUpdating: false,
   }))
 }
@@ -147,6 +170,7 @@ export const createPreferencesStore = (init?: Partial<PreferencesState>) =>
     // ...
   }))
 ```
+
 - **preferences-provider.tsx** -- React context provider that hydrates the preferences store from cookies/DOM and syncs changes
 
 ```typescript

@@ -8,7 +8,7 @@ Materials management pages for material types, suppliers, and pricing.
 
 ## Subdirectories
 
-### _components/
+### \_components/
 
 Shared components used on the materials overview page.
 
@@ -23,13 +23,13 @@ Shared components used on the materials overview page.
 Price tracking and comparison across suppliers.
 
 - **page.tsx** -- Pricing dashboard with tabs: Price Comparison and Price History (chart + table)
-- **_components/pricing-stats-cards.tsx** -- Summary stat cards (avg price, trends, alerts)
-- **_components/pricing-history-chart.tsx** -- Historical price line chart
-- **_components/pricing-history-table.tsx** -- Tabular price history with filters
-- **_components/pricing-comparison-table.tsx** -- Side-by-side supplier price comparison
-- **_components/pricing-alerts-card.tsx** -- Cards for significant price change alerts (>5%)
+- **\_components/pricing-stats-cards.tsx** -- Summary stat cards (avg price, trends, alerts)
+- **\_components/pricing-history-chart.tsx** -- Historical price line chart
+- **\_components/pricing-history-table.tsx** -- Tabular price history with filters
+- **\_components/pricing-comparison-table.tsx** -- Side-by-side supplier price comparison
+- **\_components/pricing-alerts-card.tsx** -- Cards for significant price change alerts (>5%)
 
-- **_components/pricing-types.ts** -- Core pricing type definitions:
+- **\_components/pricing-types.ts** -- Core pricing type definitions:
 
 ```typescript
 export interface PriceHistoryWithJoins extends PriceHistory {
@@ -43,8 +43,12 @@ export interface PriceComparisonData {
   materialTypeId: string
   materialName: string
   suppliers: {
-    supplierId: string; supplierName: string; currentPrice: number
-    leadTime: number; minOrder: number; isPreferred: boolean
+    supplierId: string
+    supplierName: string
+    currentPrice: number
+    leadTime: number
+    minOrder: number
+    isPreferred: boolean
   }[]
   bestPrice: number
   avgPrice: number
@@ -52,13 +56,18 @@ export interface PriceComparisonData {
 }
 
 export interface PriceAlert {
-  id: string; materialName: string; supplierName: string
-  oldPrice: number; newPrice: number; changePercentage: number
-  changeDate: string; type: "increase" | "decrease"
+  id: string
+  materialName: string
+  supplierName: string
+  oldPrice: number
+  newPrice: number
+  changePercentage: number
+  changeDate: string
+  type: "increase" | "decrease"
 }
 ```
 
-- **_components/pricing-data.ts** -- Data fetching and alert generation:
+- **\_components/pricing-data.ts** -- Data fetching and alert generation:
 
 ```typescript
 export async function fetchPricingData(dateRange: string): Promise<{
@@ -78,26 +87,26 @@ export async function fetchPricingData(dateRange: string): Promise<{
 Supplier management and material-supplier relationships.
 
 - **page.tsx** -- Supplier list with search, preferred/active filters, and detail view
-- **_components/index.ts** -- Barrel export for supplier components
-- **_components/suppliers-table-card.tsx** -- Supplier data table card
-- **_components/supplier-form-modal.tsx** -- Create/edit supplier modal (tabbed: Basic Info, Address, Tax & Shipping, Preferences, Materials)
-- **_components/supplier-form-schema.ts** -- Zod validation schema + `supplierToFormData` / `buildSupplierPayload` helpers
-- **_components/supplier-general-fields.tsx** -- General info form fields (name, contact, etc.)
-- **_components/supplier-address-fields.tsx** -- Address form fields (street, city, state, zip)
-- **_components/supplier-shipping-fields.tsx** -- Shipping/delivery form fields
-- **_components/supplier-preferences-fields.tsx** -- Preference settings form fields
-- **_components/supplier-detail-view.tsx** -- Full supplier detail panel with tabs: Overview, Materials & Pricing, Performance
-- **_components/supplier-overview-tab.tsx** -- Overview tab in supplier detail
-- **_components/supplier-materials-tab.tsx** -- Materials tab in supplier detail
-- **_components/supplier-performance-tab.tsx** -- Performance metrics tab in supplier detail
-- **_components/supplier-linked-materials.tsx** -- List of materials linked to a supplier
-- **_components/supplier-selection.tsx** -- Supplier picker/selector component
-- **_components/material-supplier-link.tsx** -- Material-supplier relationship card
-- **_components/material-supplier-link-form.tsx** -- Form for linking a material to a supplier
-- **_components/material-supplier-preferences.tsx** -- Preferred supplier settings
-- **_components/material-supplier-pricing-section.tsx** -- Pricing section in material-supplier view
-- **_components/material-supplier-selection-section.tsx** -- Supplier selection section
-- **_components/pricing-terms-card.tsx** -- Pricing terms and conditions display
+- **\_components/index.ts** -- Barrel export for supplier components
+- **\_components/suppliers-table-card.tsx** -- Supplier data table card
+- **\_components/supplier-form-modal.tsx** -- Create/edit supplier modal (tabbed: Basic Info, Address, Tax & Shipping, Preferences, Materials)
+- **\_components/supplier-form-schema.ts** -- Zod validation schema + `supplierToFormData` / `buildSupplierPayload` helpers
+- **\_components/supplier-general-fields.tsx** -- General info form fields (name, contact, etc.)
+- **\_components/supplier-address-fields.tsx** -- Address form fields (street, city, state, zip)
+- **\_components/supplier-shipping-fields.tsx** -- Shipping/delivery form fields
+- **\_components/supplier-preferences-fields.tsx** -- Preference settings form fields
+- **\_components/supplier-detail-view.tsx** -- Full supplier detail panel with tabs: Overview, Materials & Pricing, Performance
+- **\_components/supplier-overview-tab.tsx** -- Overview tab in supplier detail
+- **\_components/supplier-materials-tab.tsx** -- Materials tab in supplier detail
+- **\_components/supplier-performance-tab.tsx** -- Performance metrics tab in supplier detail
+- **\_components/supplier-linked-materials.tsx** -- List of materials linked to a supplier
+- **\_components/supplier-selection.tsx** -- Supplier picker/selector component
+- **\_components/material-supplier-link.tsx** -- Material-supplier relationship card
+- **\_components/material-supplier-link-form.tsx** -- Form for linking a material to a supplier
+- **\_components/material-supplier-preferences.tsx** -- Preferred supplier settings
+- **\_components/material-supplier-pricing-section.tsx** -- Pricing section in material-supplier view
+- **\_components/material-supplier-selection-section.tsx** -- Supplier selection section
+- **\_components/pricing-terms-card.tsx** -- Pricing terms and conditions display
 
 ### types/
 

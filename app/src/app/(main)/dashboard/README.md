@@ -7,7 +7,7 @@ Main dashboard layout, navigation, and shared components. All authenticated page
 - **layout.tsx** -- Server component: reads user preferences from cookies, renders ProtectedRoute wrapper, SidebarProvider, and the app sidebar shell
 - **page.tsx** -- Redirects `/dashboard` to `/dashboard/default`
 
-## _components/
+## \_components/
 
 Shared components used across multiple dashboard pages.
 
@@ -19,7 +19,7 @@ Shared components used across multiple dashboard pages.
 - **material-summary-chart.tsx** -- Recharts bar chart showing material type distribution
 - **waste-trend-chart.tsx** -- Recharts line chart showing waste percentage over time
 
-### _components/sidebar/
+### \_components/sidebar/
 
 - **app-sidebar.tsx** -- Main sidebar: RBAC-filtered nav items, role-based home link
 - **account-switcher.tsx** -- Account/org switcher dropdown
