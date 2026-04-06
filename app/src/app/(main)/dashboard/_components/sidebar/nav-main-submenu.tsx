@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 
 import { materialTypeService } from "@/services/materialTypeService"
 import { rollService } from "@/services/rollService"
-import type { Roll } from "@/lib/supabase"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import {
@@ -97,7 +96,14 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         return
       }
 
-      await rollService.addRoll({
+      const now = new Date()
+      const dateReceived = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-")
+
+      const newRoll: Parameters<typeof rollService.addRoll>[0] = {
         material_type: formData.material_type,
         width,
         length,
@@ -109,8 +115,10 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         notes: formData.notes || undefined,
         remaining_length: length,
         status: "active",
-        date_received: new Date().toISOString().split("T")[0],
-      } as Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">)
+        date_received: dateReceived,
+      }
+
+      await rollService.addRoll(newRoll)
 
       toast.success("Roll added successfully!")
       onOpenChange(false)

@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("oauth callback error:", error)
     const loginParams = new URLSearchParams()
-    loginParams.set("error", "authentication failed. please try again.")
+    loginParams.set("error", "Authentication failed. Please try again.")
 
     if (requestedPath) {
       loginParams.set("redirectTo", requestedPath)

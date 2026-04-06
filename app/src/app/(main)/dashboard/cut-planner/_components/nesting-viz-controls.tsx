@@ -9,19 +9,41 @@ const inp =
 const lbl =
   "block text-[9px] font-semibold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-1"
 
-function parseInputValue(value: string, minimum: number) {
+function parseInputValue(
+  value: string,
+  minimum: number,
+  maximum = Number.POSITIVE_INFINITY,
+  integerOnly = false
+) {
   const trimmed = value.trim()
   if (!trimmed) {
     return null
   }
 
   const parsed = Number.parseFloat(trimmed)
-  return Number.isFinite(parsed) && parsed >= minimum ? parsed : null
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    return null
+  }
+
+  if (integerOnly && !Number.isInteger(parsed)) {
+    return null
+  }
+
+  return parsed
 }
 
-function applyParsedValue(value: string, minimum: number, setter: (n: number) => void) {
-  const parsed = parseInputValue(value, minimum)
-  if (parsed !== null) {
+function applyParsedValue(
+  value: string,
+  minimum: number,
+  setter: (n: number) => void,
+  options?: {
+    maximum?: number
+    integerOnly?: boolean
+    validate?: (value: number) => boolean
+  }
+) {
+  const parsed = parseInputValue(value, minimum, options?.maximum, options?.integerOnly)
+  if (parsed !== null && (options?.validate ? options.validate(parsed) : true)) {
     setter(parsed)
   }
 }
@@ -222,8 +244,10 @@ function RectControls({
         <input
           type="number"
           min="1"
+          step="1"
+          inputMode="numeric"
           value={qty}
-          onChange={(e) => applyParsedValue(e.target.value, 1, setQty)}
+          onChange={(e) => applyParsedValue(e.target.value, 1, setQty, { integerOnly: true })}
           className={inp}
         />
       </div>
@@ -235,7 +259,7 @@ function RectControls({
           max="80"
           step="1"
           value={diagAng}
-          onChange={(e) => applyParsedValue(e.target.value, 10, setDiagAng)}
+          onChange={(e) => applyParsedValue(e.target.value, 10, setDiagAng, { maximum: 80 })}
           className={inp}
         />
       </div>
@@ -290,7 +314,11 @@ function ConeControls({
           min="0"
           step="0.5"
           value={innerR}
-          onChange={(e) => applyParsedValue(e.target.value, 0, setInnerR)}
+          onChange={(e) =>
+            applyParsedValue(e.target.value, 0, setInnerR, {
+              validate: (value) => value < outerR,
+            })
+          }
           className={inp}
         />
       </div>
@@ -301,7 +329,11 @@ function ConeControls({
           min="2"
           step="0.5"
           value={outerR}
-          onChange={(e) => applyParsedValue(e.target.value, 2, setOuterR)}
+          onChange={(e) =>
+            applyParsedValue(e.target.value, 2, setOuterR, {
+              validate: (value) => value > innerR,
+            })
+          }
           className={inp}
         />
       </div>
@@ -313,7 +345,7 @@ function ConeControls({
           max="359"
           step="5"
           value={arcDeg}
-          onChange={(e) => applyParsedValue(e.target.value, 10, setArcDeg)}
+          onChange={(e) => applyParsedValue(e.target.value, 10, setArcDeg, { maximum: 359 })}
           className={inp}
         />
       </div>

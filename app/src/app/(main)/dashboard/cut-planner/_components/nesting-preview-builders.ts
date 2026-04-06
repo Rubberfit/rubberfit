@@ -258,7 +258,7 @@ export function shouldAutoOptimizeInteractiveLayout(specs: SimplePartSpec[]) {
     return false
   }
 
-  return false
+  return true
 }
 
 // Re-export stock preview builders from their new module
@@ -443,14 +443,3 @@ export function buildPartPreviewItem(
     }
   }
 }
-
-// Re-export generate* functions from their new module
-export {
-  generateRectanglePreview,
-  generateCirclePreview,
-  generateCylinderPreview,
-  generateConePreview,
-  generateTrapezoidPreview,
-  generateMultiPartPreview,
-  generateSimplePartPreview,
-} from "./nesting-shape-previews"

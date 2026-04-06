@@ -17,7 +17,7 @@ import type {
 
 import { getStrategies, scoreStrat } from "./nesting-layout-utils"
 
-import { generateSimplePartPreview, generateMultiPartPreview } from "./nesting-preview-builders"
+import { generateSimplePartPreview, generateMultiPartPreview } from "./nesting-shape-previews"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
