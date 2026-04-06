@@ -175,7 +175,15 @@ function renderCircleBg(
     },
     g
   )
-  return { count: circles.length, used: 90.7, waste: 9.3 }
+  const rollArea = rollW * rollL
+  const usedArea = circles.length * Math.PI * (diam / 2) ** 2
+  const used = rollArea > 0 ? Math.max(0, Math.min(100, (usedArea / rollArea) * 100)) : 0
+
+  return {
+    count: circles.length,
+    used,
+    waste: Math.max(0, 100 - used),
+  }
 }
 
 function renderConeBg(

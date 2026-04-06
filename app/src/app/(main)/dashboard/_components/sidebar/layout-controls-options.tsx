@@ -91,9 +91,9 @@ export function LayoutControlsOptions({
             <SelectValue placeholder="Select font" />
           </SelectTrigger>
           <SelectContent>
-            {fontOptions.map((font) => (
-              <SelectItem key={font.key} className="text-xs" value={font.key}>
-                {font.label}
+            {fontOptions.map((fontOption) => (
+              <SelectItem key={fontOption.key} className="text-xs" value={fontOption.key}>
+                {fontOption.label}
               </SelectItem>
             ))}
           </SelectContent>

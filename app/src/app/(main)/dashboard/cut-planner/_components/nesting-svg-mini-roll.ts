@@ -243,7 +243,8 @@ export function drawMiniRoll(
   const diagAng =
     s.diagType === "corner" ? (Math.atan2(s.cutH, s.cutW) * 180) / Math.PI : (s.diagAngle ?? 45)
   const diagRad = (diagAng * Math.PI) / 180
-  const doff = Math.min(s.cutH / Math.tan(diagRad), s.cutW)
+  const tanVal = Math.tan(diagRad)
+  const doff = Math.abs(tanVal) > 1e-9 ? Math.min(s.cutH / tanVal, s.cutW) : s.cutW
 
   drawMiniPieces(svg, s, P, sx, sy, doff)
   drawGrainLines(svg, grain, P, RW, RH, uw, uh)

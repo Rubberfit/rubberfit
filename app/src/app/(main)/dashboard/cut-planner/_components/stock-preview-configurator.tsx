@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { Package } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -65,11 +65,57 @@ interface StockPreviewConfiguratorProps {
   onStockChange: React.Dispatch<React.SetStateAction<StockConfig>>
 }
 
+type StockField = "width" | "length" | "thickness"
+
+function formatDraftValue(value: number) {
+  return Number.isFinite(value) ? String(value) : ""
+}
+
 export function StockPreviewConfigurator({
   activeStockPreset,
   stock,
   onStockChange,
 }: StockPreviewConfiguratorProps) {
+  const [activeDraftField, setActiveDraftField] = useState<StockField | null>(null)
+  const [drafts, setDrafts] = useState(() => ({
+    width: formatDraftValue(stock.width),
+    length: formatDraftValue(stock.length),
+    thickness: formatDraftValue(stock.thickness),
+  }))
+
+  const updateDraft = (field: StockField, value: string) => {
+    setDrafts((previous) => ({
+      ...previous,
+      [field]: value,
+    }))
+  }
+
+  const commitDraft = (field: StockField, rawValue: string, minimum: number) => {
+    const trimmed = rawValue.trim()
+    const parsed = Number.parseFloat(trimmed)
+
+    if (Number.isFinite(parsed) && parsed >= minimum) {
+      const normalized = formatDraftValue(parsed)
+      setDrafts((previous) => ({
+        ...previous,
+        [field]: normalized,
+      }))
+      onStockChange((previous) => ({
+        ...previous,
+        [field]: parsed,
+      }))
+      return
+    }
+
+    setDrafts((previous) => ({
+      ...previous,
+      [field]: formatDraftValue(stock[field]),
+    }))
+  }
+
+  const getInputValue = (field: StockField) =>
+    activeDraftField === field ? drafts[field] : formatDraftValue(stock[field])
+
   return (
     <Card className="border border-slate-200 shadow-sm">
       <CardHeader className="pb-4">
@@ -113,57 +159,101 @@ export function StockPreviewConfigurator({
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor="stock-width"
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+            >
               Width
-            </div>
+            </label>
             <Input
+              id="stock-width"
               min={1}
               step="0.5"
               type="number"
-              value={stock.width}
-              onChange={(event) => {
-                const nextValue = Number.parseFloat(event.target.value)
-                onStockChange((previous) => ({
+              value={getInputValue("width")}
+              onFocus={() => {
+                setActiveDraftField("width")
+                setDrafts((previous) => ({
                   ...previous,
-                  width: Number.isFinite(nextValue) && nextValue > 0 ? nextValue : previous.width,
+                  width: formatDraftValue(stock.width),
                 }))
+              }}
+              onChange={(event) => updateDraft("width", event.target.value)}
+              onBlur={(event) => {
+                commitDraft("width", event.target.value, 1)
+                setActiveDraftField((previous) => (previous === "width" ? null : previous))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitDraft("width", event.currentTarget.value, 1)
+                  event.currentTarget.blur()
+                }
               }}
             />
           </div>
           <div>
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor="stock-length"
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+            >
               Length
-            </div>
+            </label>
             <Input
+              id="stock-length"
               min={1}
               step="0.5"
               type="number"
-              value={stock.length}
-              onChange={(event) => {
-                const nextValue = Number.parseFloat(event.target.value)
-                onStockChange((previous) => ({
+              value={getInputValue("length")}
+              onFocus={() => {
+                setActiveDraftField("length")
+                setDrafts((previous) => ({
                   ...previous,
-                  length: Number.isFinite(nextValue) && nextValue > 0 ? nextValue : previous.length,
+                  length: formatDraftValue(stock.length),
                 }))
+              }}
+              onChange={(event) => updateDraft("length", event.target.value)}
+              onBlur={(event) => {
+                commitDraft("length", event.target.value, 1)
+                setActiveDraftField((previous) => (previous === "length" ? null : previous))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitDraft("length", event.currentTarget.value, 1)
+                  event.currentTarget.blur()
+                }
               }}
             />
           </div>
           <div>
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor="stock-thickness"
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+            >
               Thickness
-            </div>
+            </label>
             <Input
+              id="stock-thickness"
               min={0.0625}
               step="0.0625"
               type="number"
-              value={stock.thickness}
-              onChange={(event) => {
-                const nextValue = Number.parseFloat(event.target.value)
-                onStockChange((previous) => ({
+              value={getInputValue("thickness")}
+              onFocus={() => {
+                setActiveDraftField("thickness")
+                setDrafts((previous) => ({
                   ...previous,
-                  thickness:
-                    Number.isFinite(nextValue) && nextValue > 0 ? nextValue : previous.thickness,
+                  thickness: formatDraftValue(stock.thickness),
                 }))
+              }}
+              onChange={(event) => updateDraft("thickness", event.target.value)}
+              onBlur={(event) => {
+                commitDraft("thickness", event.target.value, 0.0625)
+                setActiveDraftField((previous) => (previous === "thickness" ? null : previous))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitDraft("thickness", event.currentTarget.value, 0.0625)
+                  event.currentTarget.blur()
+                }
               }}
             />
           </div>

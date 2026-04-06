@@ -95,7 +95,7 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
           ? format(new Date(roll.date_received), "yyyy-MM-dd")
           : format(new Date(), "yyyy-MM-dd"),
         supplier: roll.supplier || "",
-        cost_per_sqft: roll.cost_per_sqft || 2.5,
+        cost_per_sqft: roll.cost_per_sqft ?? 2.5,
         notes: roll.notes || "",
         remaining_length: roll.remaining_length,
       })

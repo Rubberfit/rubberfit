@@ -11,7 +11,7 @@ import { SecurityCard } from "./_components/security-card"
 import { AccountInfoCard } from "./_components/account-info-card"
 
 export default function AccountPage() {
-  const { user } = useAuth()
+  const { user, updatePassword } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || "")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -112,14 +112,20 @@ export default function AccountPage() {
 
     setIsLoading(true)
     try {
-      // In real implementation, this would update the password in Supabase
-      await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
-      toast.success("Password updated successfully")
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      })
+      const { success, error } = await updatePassword(passwordData.newPassword)
+
+      if (success) {
+        toast.success("Password updated successfully")
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        })
+      } else {
+        toast.error("Failed to update password", {
+          description: error || "An unexpected error occurred",
+        })
+      }
     } catch (_error) {
       toast.error("Failed to update password")
     } finally {

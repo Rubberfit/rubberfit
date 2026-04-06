@@ -2,17 +2,17 @@
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript 5.9 (strict mode) |
-| UI | TailwindCSS 4 + Radix UI primitives |
-| State | Zustand 5 |
-| Forms | React Hook Form + Zod validation |
-| Database | Supabase (PostgreSQL + Auth + Storage) |
-| Charts | Recharts |
-| PDF | jsPDF |
-| Email | React Email + Resend |
+| Layer     | Technology                             |
+| --------- | -------------------------------------- |
+| Framework | Next.js 16 (App Router)                |
+| Language  | TypeScript 5.9 (strict mode)           |
+| UI        | TailwindCSS 4 + Radix UI primitives    |
+| State     | Zustand 5                              |
+| Forms     | React Hook Form + Zod validation       |
+| Database  | Supabase (PostgreSQL + Auth + Storage) |
+| Charts    | Recharts                               |
+| PDF       | jsPDF                                  |
+| Email     | React Email + Resend                   |
 
 ---
 
@@ -47,18 +47,18 @@
 
 ```typescript
 // Prefer nullish coalescing over logical OR
-const name = user.name ?? "Unknown"      // correct
-const name = user.name || "Unknown"      // wrong — false/0/"" are valid values
+const name = user.name ?? "Unknown" // correct
+const name = user.name || "Unknown" // wrong — false/0/"" are valid values
 
 // Prefer optional chaining
-const city = user.address?.city          // correct
-const city = user && user.address && user.address.city  // wrong
+const city = user.address?.city // correct
+const city = user && user.address && user.address.city // wrong
 
 // Narrow before use, don't assert
 if (data) {
-  process(data)   // correct — narrowed
+  process(data) // correct — narrowed
 }
-process(data!)    // wrong — suppresses the compiler
+process(data!) // wrong — suppresses the compiler
 ```
 
 ### Error handling
@@ -104,8 +104,12 @@ type StateCreator<TState, TActions> = (
 
 ```typescript
 // Use string literal unions, not enums
-type RollStatus = "available" | "in_use" | "depleted"     // correct
-enum RollStatus { Available, InUse, Depleted }              // wrong
+type RollStatus = "available" | "in_use" | "depleted" // correct
+enum RollStatus {
+  Available,
+  InUse,
+  Depleted,
+} // wrong
 
 // Exception: numeric enums for bit flags are acceptable
 ```
@@ -166,12 +170,12 @@ if (!data) return <EmptyState />
 
 ### State management hierarchy
 
-| Scope | Tool | Example |
-|-------|------|---------|
-| Component-local UI | `useState` | form inputs, toggles, modals |
-| Derived/computed | `useMemo` | filtered lists, calculations |
-| Shared across routes | Zustand store | inventory, PO state, cuts |
-| Auth only | React Context | current user, session |
+| Scope                | Tool          | Example                      |
+| -------------------- | ------------- | ---------------------------- |
+| Component-local UI   | `useState`    | form inputs, toggles, modals |
+| Derived/computed     | `useMemo`     | filtered lists, calculations |
+| Shared across routes | Zustand store | inventory, PO state, cuts    |
+| Auth only            | React Context | current user, session        |
 
 Never mix — don't put UI state (modal open/close) in Zustand. Don't put shared data in useState.
 
@@ -250,7 +254,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   deleteRoll: async (id) => {
     try {
       await rollService.delete(id)
-      set({ rolls: get().rolls.filter(r => r.id !== id) })
+      set({ rolls: get().rolls.filter((r) => r.id !== id) })
     } catch (error) {
       set({ error: (error as Error).message })
     }
@@ -287,11 +291,7 @@ export const rollService = {
   },
 
   async create(roll: CreateRoll): Promise<Roll> {
-    const { data, error } = await supabase
-      .from("rolls")
-      .insert(roll)
-      .select()
-      .single()
+    const { data, error } = await supabase.from("rolls").insert(roll).select().single()
     if (error) throw error
     return data
   },
@@ -359,15 +359,10 @@ return <RollList rolls={rolls} />
 
 ```typescript
 // Use Promise.all for independent operations
-const [rolls, materials] = await Promise.all([
-  rollService.getAll(),
-  materialService.getAll(),
-])
+const [rolls, materials] = await Promise.all([rollService.getAll(), materialService.getAll()])
 
 // Use Promise.allSettled when partial failure is acceptable
-const results = await Promise.allSettled(
-  ids.map(id => rollService.delete(id))
-)
+const results = await Promise.allSettled(ids.map((id) => rollService.delete(id)))
 ```
 
 ### Cancellation
@@ -385,11 +380,11 @@ useEffect(() => {
 
 ## File Size & Complexity Limits
 
-| Rule | Limit | Action when exceeded |
-|------|-------|---------------------|
-| `max-lines` | 500 per file | Extract sub-components or helpers |
-| `max-lines-per-function` | 200 per function | Break into smaller functions |
-| `complexity` | 20 cyclomatic | Simplify branching or extract helpers |
+| Rule                     | Limit            | Action when exceeded                  |
+| ------------------------ | ---------------- | ------------------------------------- |
+| `max-lines`              | 500 per file     | Extract sub-components or helpers     |
+| `max-lines-per-function` | 200 per function | Break into smaller functions          |
+| `complexity`             | 20 cyclomatic    | Simplify branching or extract helpers |
 
 ### Extraction strategies
 
@@ -402,19 +397,19 @@ useEffect(() => {
 
 ## Naming Conventions
 
-| Thing | Convention | Example |
-|-------|-----------|---------|
-| Components | PascalCase | `NestingVisualizer`, `RollCard` |
-| Hooks | camelCase, `use` prefix | `useNestingCompute`, `usePresetState` |
-| Functions | camelCase | `computeWaste`, `handleSubmit` |
-| Constants | SCREAMING_SNAKE | `MAX_ROLLS_PER_PAGE`, `DEFAULT_WIDTH` |
-| Types/Interfaces | PascalCase | `CutPlannerState`, `NestingResult` |
-| Files: components | PascalCase.tsx | `NestingVisualizer.tsx` |
-| Files: everything else | kebab-case.ts | `use-nesting-compute.ts`, `roll-utils.ts` |
-| Booleans | `is`/`has`/`should` prefix | `isLoading`, `hasError`, `shouldOptimize` |
-| Arrays | plural nouns | `rolls`, `materials`, `cutResults` |
-| Handlers (component) | `handle` prefix | `handleDelete`, `handleRollSelect` |
-| Handlers (props) | `on` prefix | `onDelete`, `onRollSelect` |
+| Thing                  | Convention                 | Example                                   |
+| ---------------------- | -------------------------- | ----------------------------------------- |
+| Components             | PascalCase                 | `NestingVisualizer`, `RollCard`           |
+| Hooks                  | camelCase, `use` prefix    | `useNestingCompute`, `usePresetState`     |
+| Functions              | camelCase                  | `computeWaste`, `handleSubmit`            |
+| Constants              | SCREAMING_SNAKE            | `MAX_ROLLS_PER_PAGE`, `DEFAULT_WIDTH`     |
+| Types/Interfaces       | PascalCase                 | `CutPlannerState`, `NestingResult`        |
+| Files: components      | kebab-case.tsx (preferred) | `quick-create-form.tsx`, `roll-card.tsx`  |
+| Files: everything else | kebab-case.ts              | `use-nesting-compute.ts`, `roll-utils.ts` |
+| Booleans               | `is`/`has`/`should` prefix | `isLoading`, `hasError`, `shouldOptimize` |
+| Arrays                 | plural nouns               | `rolls`, `materials`, `cutResults`        |
+| Handlers (component)   | `handle` prefix            | `handleDelete`, `handleRollSelect`        |
+| Handlers (props)       | `on` prefix                | `onDelete`, `onRollSelect`                |
 
 ---
 

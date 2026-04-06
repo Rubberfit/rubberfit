@@ -28,9 +28,10 @@ export function AccountSwitcher({
     readonly role: string
   }>
 }) {
-  const [activeUser, setActiveUser] = useState(users[0])
+  const [activeUserId, setActiveUserId] = useState(() => users[0]?.id ?? null)
   const { signOut } = useAuth()
   const router = useRouter()
+  const activeUser = users.find((user) => user.id === activeUserId) ?? users[0] ?? null
 
   const handleSignOut = async () => {
     try {
@@ -46,6 +47,10 @@ export function AccountSwitcher({
 
   const handleNotificationsClick = () => {
     router.push("/dashboard/notifications")
+  }
+
+  if (!activeUser) {
+    return null
   }
 
   return (
@@ -74,7 +79,7 @@ export function AccountSwitcher({
               "p-0",
               user.id === activeUser.id && "border-l-2 border-l-primary bg-accent/50"
             )}
-            onClick={() => setActiveUser(user)}
+            onClick={() => setActiveUserId(user.id)}
           >
             <div className="flex w-full items-center justify-between gap-2 px-1 py-1.5">
               <Avatar className="size-9 rounded-lg">

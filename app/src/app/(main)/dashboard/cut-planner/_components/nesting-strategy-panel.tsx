@@ -105,13 +105,15 @@ export default function NestingStrategyPanel({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-4 pb-3">
         {scored.map((s, rank) => (
-          <div
+          <button
             key={s.id}
+            type="button"
             onClick={() => {
               setActiveId(s.id)
               setActiveStep(0)
             }}
-            className="rounded-lg overflow-hidden cursor-pointer transition-transform hover:-translate-y-px bg-card"
+            aria-pressed={s.id === activeId}
+            className="w-full rounded-lg overflow-hidden bg-card text-left transition-transform hover:-translate-y-px"
             style={{
               border:
                 s.id === activeId
@@ -180,7 +182,7 @@ export default function NestingStrategyPanel({
                 }}
               />
             </div>
-          </div>
+          </button>
         ))}
       </div>
 

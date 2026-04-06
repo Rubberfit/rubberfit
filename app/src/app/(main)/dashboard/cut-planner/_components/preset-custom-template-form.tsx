@@ -131,10 +131,14 @@ export default function PresetCustomTemplateForm({
       >
         {customFields.map((field) => (
           <div key={field.key}>
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor={`${selectedPart}-${field.key}`}
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+            >
               {field.label}
-            </div>
+            </label>
             <Input
+              id={`${selectedPart}-${field.key}`}
               min={0}
               step="0.5"
               type="number"
