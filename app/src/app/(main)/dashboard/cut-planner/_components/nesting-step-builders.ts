@@ -156,7 +156,7 @@ export function buildTrapezoidSteps(
             "Mark the finished hopper or transition panel at full size before breaking it into smaller cut sections.",
         },
         {
-          title: `Split the profile into ${piecesPerUnit} tapered panel${piecesPerUnit === 1 ? "" : "s"}`,
+          title: `Split the profile into ${piecesPerUnit} tapered panels`,
           detail: `Use evenly spaced section lines so the final trapezoid is built from ${piecesPerUnit} tapered cuts instead of repeating the whole profile.`,
         },
         {
