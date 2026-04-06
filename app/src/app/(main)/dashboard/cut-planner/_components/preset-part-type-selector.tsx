@@ -26,7 +26,7 @@ export function PartTypeSelector({ selectedPart, onPartChange }: PartTypeSelecto
               onClick={() => onPartChange(part.partType)}
               className={`rounded-lg border p-3 text-left transition-all ${
                 isSelected
-                  ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-200 dark:bg-white/5 text-slate-100"
+                  ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-200 dark:bg-white/5 dark:text-slate-100"
                   : "border-slate-300 bg-white hover:bg-slate-50 dark:bg-card dark:border-slate-700 dark:hover:bg-slate-700"
               }`}
             >

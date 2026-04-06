@@ -7,10 +7,14 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 
 interface AccountInfoCardProps {
-  user: { id: string; avatar?: string | null }
+  user: { id: string; email: string; created_at?: string; app_metadata?: { provider?: string } }
 }
 
 export function AccountInfoCard({ user }: AccountInfoCardProps) {
+  const provider = user.app_metadata?.provider
+  const signInMethod =
+    provider === "google" ? "Google OAuth" : provider === "email" ? "Email & Password" : "Email & Password"
+
   return (
     <Card>
       <CardHeader>
@@ -34,14 +38,14 @@ export function AccountInfoCard({ user }: AccountInfoCardProps) {
           </div>
           <div>
             <Label className="text-sm font-medium text-muted-foreground">Sign-In Method</Label>
-            <p className="text-sm mt-1">
-              {user.avatar?.includes("dicebear") ? "Email & Password" : "Google OAuth"}
-            </p>
+            <p className="text-sm mt-1">{signInMethod}</p>
           </div>
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Member Since</Label>
-            <p className="text-sm mt-1">{new Date().toLocaleDateString()}</p>
-          </div>
+          {user.created_at && (
+            <div>
+              <Label className="text-sm font-medium text-muted-foreground">Member Since</Label>
+              <p className="text-sm mt-1">{new Date(user.created_at).toLocaleDateString()}</p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

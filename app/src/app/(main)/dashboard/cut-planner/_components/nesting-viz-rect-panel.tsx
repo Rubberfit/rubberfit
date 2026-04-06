@@ -77,13 +77,14 @@ export default function NestingVizRectPanel({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 px-4 pb-3">
         {scored.map((s, rank) => (
-          <div
+          <button
+            type="button"
             key={s.id}
             onClick={() => {
               setActiveId(s.id)
               setActiveStep(0)
             }}
-            className="rounded-lg overflow-hidden cursor-pointer transition-transform hover:-translate-y-px bg-card"
+            className="rounded-lg overflow-hidden cursor-pointer transition-transform hover:-translate-y-px bg-card text-left"
             style={{
               border:
                 s.id === activeId
@@ -152,7 +153,7 @@ export default function NestingVizRectPanel({
                 }}
               />
             </div>
-          </div>
+          </button>
         ))}
       </div>
 

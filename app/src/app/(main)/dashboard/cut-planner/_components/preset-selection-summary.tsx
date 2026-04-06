@@ -44,7 +44,8 @@ export default function PresetSelectionSummary({
 
       <div className="flex gap-1.5 flex-wrap">
         {selectedTemplates.map((template) => (
-          <span
+          <button
+            type="button"
             key={template.id}
             onClick={() => {
               if (template.isCustom) {
@@ -53,11 +54,12 @@ export default function PresetSelectionSummary({
                 onToggle(template.id)
               }
             }}
+            aria-label={`Remove ${template.label}`}
             className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium cursor-pointer border transition-colors hover:opacity-75 ${CAT_CARD[template.category]}`}
           >
             {template.label}
             <span className="ml-0.5 opacity-50">&times;</span>
-          </span>
+          </button>
         ))}
       </div>
 

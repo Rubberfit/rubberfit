@@ -57,16 +57,8 @@ export const STOCK_PRESETS = [
   return leftShortest - rightShortest
 })
 
-export function formatInches(value: number) {
-  if (Number.isInteger(value)) {
-    return String(value)
-  }
-
-  return value
-    .toFixed(2)
-    .replace(/\.00$/, "")
-    .replace(/(\.\d*[1-9])0+$/, "$1")
-}
+import { formatInches } from "./nesting-layout-utils"
+export { formatInches }
 
 interface StockPreviewConfiguratorProps {
   activeStockPreset?: string

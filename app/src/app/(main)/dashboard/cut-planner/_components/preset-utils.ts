@@ -2,16 +2,8 @@ import type { SimplePartType } from "./NestingVisualizer"
 import type { CustomPartDrafts, PartTemplate, SupportedPartType } from "./preset-template-data"
 import { Shapes, Triangle } from "lucide-react"
 
-export function formatInches(value: number) {
-  if (Number.isInteger(value)) {
-    return String(value)
-  }
-
-  return value
-    .toFixed(2)
-    .replace(/\.00$/, "")
-    .replace(/(\.\d*[1-9])0+$/, "$1")
-}
+import { formatInches } from "./nesting-layout-utils"
+export { formatInches }
 
 export function parsePositiveMeasurement(value: string) {
   const trimmed = value.trim()
