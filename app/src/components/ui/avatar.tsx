@@ -29,7 +29,7 @@ function AvatarImage({
   className,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image> & {
-  crossOrigin?: 'anonymous' | 'use-credentials',
+  crossOrigin?: "anonymous" | "use-credentials"
   referrerPolicy?: string
 }) {
   return (
@@ -86,10 +86,7 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function AvatarGroupCount({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function AvatarGroupCount({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="avatar-group-count"
@@ -102,11 +99,4 @@ function AvatarGroupCount({
   )
 }
 
-export {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-  AvatarBadge,
-  AvatarGroup,
-  AvatarGroupCount,
-}
+export { Avatar, AvatarImage, AvatarFallback, AvatarBadge, AvatarGroup, AvatarGroupCount }

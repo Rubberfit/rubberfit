@@ -1,36 +1,38 @@
-"use client";
+"use client"
 
-import { TrendingDown, DollarSign, AlertCircle, Target } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type Cut } from "@/lib/supabase";
+import { TrendingDown, DollarSign, AlertCircle, Target } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { type Cut } from "@/lib/supabase"
 
 interface WasteMetricsProps {
-  cuts: (Cut & { roll?: { cost_per_sqft?: number } })[];
+  cuts: (Cut & { roll?: { cost_per_sqft?: number } })[]
 }
 
 export function WasteMetrics({ cuts }: WasteMetricsProps) {
-  const totalWasteSqft = cuts.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0);
-  const totalCutsWithWaste = cuts.filter(cut => cut.waste_percentage !== null).length;
+  const totalWasteSqft = cuts.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0)
+  const totalCutsWithWaste = cuts.filter((cut) => cut.waste_percentage !== null).length
 
-  const averageWastePercentage = totalCutsWithWaste > 0
-    ? cuts.filter(cut => cut.waste_percentage !== null)
-           .reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / totalCutsWithWaste
-    : 0;
+  const averageWastePercentage =
+    totalCutsWithWaste > 0
+      ? cuts
+          .filter((cut) => cut.waste_percentage !== null)
+          .reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / totalCutsWithWaste
+      : 0
 
   const totalWasteValue = cuts.reduce((sum, cut) => {
-    const costPerSqft = cut.roll?.cost_per_sqft || 2.5;
-    return sum + (cut.waste_sqft || 0) * costPerSqft;
-  }, 0);
+    const costPerSqft = cut.roll?.cost_per_sqft || 2.5
+    return sum + (cut.waste_sqft || 0) * costPerSqft
+  }, 0)
 
-  const highWasteCuts = cuts.filter(cut => (cut.waste_percentage || 0) > 20).length;
+  const highWasteCuts = cuts.filter((cut) => (cut.waste_percentage || 0) > 20).length
 
   const getWasteStatus = (percentage: number) => {
-    if (percentage <= 10) return { text: "Excellent", color: "text-green-600" };
-    if (percentage <= 20) return { text: "Good", color: "text-blue-600" };
-    return { text: "Needs Improvement", color: "text-red-600" };
-  };
+    if (percentage <= 10) return { text: "Excellent", color: "text-green-600" }
+    if (percentage <= 20) return { text: "Good", color: "text-blue-600" }
+    return { text: "Needs Improvement", color: "text-red-600" }
+  }
 
-  const wasteStatus = getWasteStatus(averageWastePercentage);
+  const wasteStatus = getWasteStatus(averageWastePercentage)
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -40,12 +42,8 @@ export function WasteMetrics({ cuts }: WasteMetricsProps) {
           <TrendingDown className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {averageWastePercentage.toFixed(1)}%
-          </div>
-          <p className={`text-xs ${wasteStatus.color}`}>
-            {wasteStatus.text}
-          </p>
+          <div className="text-2xl font-bold">{averageWastePercentage.toFixed(1)}%</div>
+          <p className={`text-xs ${wasteStatus.color}`}>{wasteStatus.text}</p>
         </CardContent>
       </Card>
 
@@ -55,12 +53,8 @@ export function WasteMetrics({ cuts }: WasteMetricsProps) {
           <Target className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {totalWasteSqft.toFixed(1)} sq ft
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Material wasted in period
-          </p>
+          <div className="text-2xl font-bold">{totalWasteSqft.toFixed(1)} sq ft</div>
+          <p className="text-xs text-muted-foreground">Material wasted in period</p>
         </CardContent>
       </Card>
 
@@ -70,12 +64,8 @@ export function WasteMetrics({ cuts }: WasteMetricsProps) {
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            ${totalWasteValue.toFixed(0)}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Estimated value of wasted material
-          </p>
+          <div className="text-2xl font-bold">${totalWasteValue.toFixed(0)}</div>
+          <p className="text-xs text-muted-foreground">Estimated value of wasted material</p>
         </CardContent>
       </Card>
 
@@ -85,14 +75,10 @@ export function WasteMetrics({ cuts }: WasteMetricsProps) {
           <AlertCircle className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {highWasteCuts}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Cuts with &gt;20% waste
-          </p>
+          <div className="text-2xl font-bold">{highWasteCuts}</div>
+          <p className="text-xs text-muted-foreground">Cuts with &gt;20% waste</p>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

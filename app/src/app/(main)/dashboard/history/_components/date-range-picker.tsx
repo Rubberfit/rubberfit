@@ -1,30 +1,30 @@
-"use client";
+"use client"
 
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { DateRange } from "react-day-picker";
+import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
+import { DateRange } from "react-day-picker"
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 interface DateRangePickerProps {
   dateRange: {
-    from: Date;
-    to: Date;
-  };
-  onDateRangeChange: (range: { from: Date; to: Date }) => void;
+    from: Date
+    to: Date
+  }
+  onDateRangeChange: (range: { from: Date; to: Date }) => void
 }
 
 export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
   const handleSelect = (range: DateRange | undefined) => {
     if (range?.from && range?.to) {
-      onDateRangeChange({ from: range.from, to: range.to });
+      onDateRangeChange({ from: range.from, to: range.to })
     } else if (range?.from) {
-      onDateRangeChange({ from: range.from, to: range.from });
+      onDateRangeChange({ from: range.from, to: range.from })
     }
-  };
+  }
 
   return (
     <div className="grid gap-2">
@@ -42,8 +42,7 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
             {dateRange?.from ? (
               dateRange.to ? (
                 <>
-                  {format(dateRange.from, "LLL dd, y")} -{" "}
-                  {format(dateRange.to, "LLL dd, y")}
+                  {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
                 </>
               ) : (
                 format(dateRange.from, "LLL dd, y")
@@ -65,5 +64,5 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
         </PopoverContent>
       </Popover>
     </div>
-  );
+  )
 }

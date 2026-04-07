@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from "@/lib/supabase"
 
 export const profileService = {
   // Update user profile information
@@ -8,21 +8,21 @@ export const profileService = {
         data: {
           full_name: updates.name,
           avatar_url: updates.avatar,
-        }
-      });
+        },
+      })
 
       if (error) {
-        console.error('Error updating profile:', error);
-        return { success: false, error: error.message };
+        console.error("Error updating profile:", error)
+        return { success: false, error: error.message }
       }
 
-      return { success: true, data };
+      return { success: true, data }
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error("Error updating profile:", error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to update profile'
-      };
+        error: error instanceof Error ? error.message : "Failed to update profile",
+      }
     }
   },
 
@@ -30,35 +30,33 @@ export const profileService = {
   async uploadAvatar(userId: string, file: File) {
     try {
       // Create a unique file name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${userId}-${Math.random()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${userId}-${Math.random()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
 
       // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      const { data: _data, error } = await supabase.storage.from("avatars").upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      })
 
       if (error) {
-        console.error('Error uploading avatar:', error);
-        return { success: false, error: error.message };
+        console.error("Error uploading avatar:", error)
+        return { success: false, error: error.message }
       }
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(filePath)
 
-      return { success: true, url: publicUrl };
+      return { success: true, url: publicUrl }
     } catch (error) {
-      console.error('Error uploading avatar:', error);
+      console.error("Error uploading avatar:", error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload avatar'
-      };
+        error: error instanceof Error ? error.message : "Failed to upload avatar",
+      }
     }
   },
 
@@ -66,31 +64,31 @@ export const profileService = {
   async createAvatarsBucket() {
     try {
       // Check if bucket exists
-      const { data: buckets } = await supabase.storage.listBuckets();
+      const { data: buckets } = await supabase.storage.listBuckets()
 
-      if (buckets?.find(b => b.name === 'avatars')) {
-        return { success: true, message: 'Bucket already exists' };
+      if (buckets?.find((b) => b.name === "avatars")) {
+        return { success: true, message: "Bucket already exists" }
       }
 
       // Create the bucket
-      const { data, error } = await supabase.storage.createBucket('avatars', {
+      const { data, error } = await supabase.storage.createBucket("avatars", {
         public: true,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-        fileSizeLimit: 5242880 // 5MB
-      });
+        allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        fileSizeLimit: 5242880, // 5MB
+      })
 
       if (error) {
-        console.error('Error creating avatars bucket:', error);
-        return { success: false, error: error.message };
+        console.error("Error creating avatars bucket:", error)
+        return { success: false, error: error.message }
       }
 
-      return { success: true, data };
+      return { success: true, data }
     } catch (error) {
-      console.error('Error creating avatars bucket:', error);
+      console.error("Error creating avatars bucket:", error)
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create avatars bucket'
-      };
+        error: error instanceof Error ? error.message : "Failed to create avatars bucket",
+      }
     }
-  }
-};
+  },
+}

@@ -1,12 +1,12 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return twMerge(clsx(inputs))
 }
 
 export const getInitials = (str: string): string => {
-  if (typeof str !== "string" || !str.trim()) return "?";
+  if (typeof str !== "string" || !str.trim()) return "?"
 
   return (
     str
@@ -16,27 +16,33 @@ export const getInitials = (str: string): string => {
       .map((word) => word[0])
       .join("")
       .toUpperCase() || "?"
-  );
-};
+  )
+}
 
 export function formatCurrency(
   amount: number,
   opts?: {
-    currency?: string;
-    locale?: string;
-    minimumFractionDigits?: number;
-    maximumFractionDigits?: number;
-    noDecimals?: boolean;
-  },
+    currency?: string
+    locale?: string
+    minimumFractionDigits?: number
+    maximumFractionDigits?: number
+    noDecimals?: boolean
+  }
 ) {
-  const { currency = "USD", locale = "en-US", minimumFractionDigits, maximumFractionDigits, noDecimals } = opts ?? {};
+  const {
+    currency = "USD",
+    locale = "en-US",
+    minimumFractionDigits,
+    maximumFractionDigits,
+    noDecimals,
+  } = opts ?? {}
 
   const formatOptions: Intl.NumberFormatOptions = {
     style: "currency",
     currency,
     minimumFractionDigits: noDecimals ? 0 : minimumFractionDigits,
     maximumFractionDigits: noDecimals ? 0 : maximumFractionDigits,
-  };
+  }
 
-  return new Intl.NumberFormat(locale, formatOptions).format(amount);
+  return new Intl.NumberFormat(locale, formatOptions).format(amount)
 }

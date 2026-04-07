@@ -11,45 +11,50 @@
  * Others are flexible and can use any persistence.
  */
 
-import type { FontKey } from "@/lib/fonts/registry";
+import type { FontKey } from "@/lib/fonts/registry"
 
-import type { ContentLayout, NavbarStyle, SidebarCollapsible, SidebarVariant } from "./layout-config";
-import type { ThemeMode, ThemePreset } from "./theme";
+import type {
+  ContentLayout,
+  NavbarStyle,
+  SidebarCollapsible,
+  SidebarVariant,
+} from "./layout-config"
+import type { ThemeMode, ThemePreset } from "./theme"
 
-export type PreferencePersistence = "none" | "client-cookie" | "server-cookie" | "localStorage";
+export type PreferencePersistence = "none" | "client-cookie" | "server-cookie" | "localStorage"
 
 /**
  * All available preference keys and their value types.
  */
 export type PreferenceValueMap = {
-  theme_mode: ThemeMode;
-  theme_preset: ThemePreset;
-  font: FontKey;
-  content_layout: ContentLayout;
-  navbar_style: NavbarStyle;
-  sidebar_variant: SidebarVariant;
-  sidebar_collapsible: SidebarCollapsible;
-};
+  theme_mode: ThemeMode
+  theme_preset: ThemePreset
+  font: FontKey
+  content_layout: ContentLayout
+  navbar_style: NavbarStyle
+  sidebar_variant: SidebarVariant
+  sidebar_collapsible: SidebarCollapsible
+}
 
-export type PreferenceKey = keyof PreferenceValueMap;
+export type PreferenceKey = keyof PreferenceValueMap
 
 /**
  * Layout-critical keys → these affect SSR UI (sidebar shape)
  * so they must be accessible on the server.
  */
-export const LAYOUT_CRITICAL_KEYS = ["sidebar_variant", "sidebar_collapsible"] as const;
-export type LayoutCriticalKey = (typeof LAYOUT_CRITICAL_KEYS)[number];
+export const LAYOUT_CRITICAL_KEYS = ["sidebar_variant", "sidebar_collapsible"] as const
+export type LayoutCriticalKey = (typeof LAYOUT_CRITICAL_KEYS)[number]
 
 /**
  * Everything else is non-critical and can be read from the client.
  */
-export type NonCriticalKey = Exclude<PreferenceKey, LayoutCriticalKey>;
+export type NonCriticalKey = Exclude<PreferenceKey, LayoutCriticalKey>
 
 /**
  * Layout-critical cannot use "localStorage" because SSR needs the value.
  * So remove it from allowed persistence types for those keys.
  */
-type LayoutCriticalPersistence = Exclude<PreferencePersistence, "localStorage">;
+type LayoutCriticalPersistence = Exclude<PreferencePersistence, "localStorage">
 
 /**
  * Final config:
@@ -57,10 +62,10 @@ type LayoutCriticalPersistence = Exclude<PreferencePersistence, "localStorage">;
  * - non-critical keys → can use any persistence
  */
 type PreferencePersistenceConfig = {
-  [K in LayoutCriticalKey]: LayoutCriticalPersistence;
+  [K in LayoutCriticalKey]: LayoutCriticalPersistence
 } & {
-  [K in NonCriticalKey]: PreferencePersistence;
-};
+  [K in NonCriticalKey]: PreferencePersistence
+}
 
 /**
  * Default preference values on first load.
@@ -73,7 +78,7 @@ export const PREFERENCE_DEFAULTS: PreferenceValueMap = {
   navbar_style: "sticky",
   sidebar_variant: "inset",
   sidebar_collapsible: "icon",
-};
+}
 
 /**
  * How each preference is persisted.
@@ -87,4 +92,4 @@ export const PREFERENCE_PERSISTENCE: PreferencePersistenceConfig = {
   navbar_style: "client-cookie",
   sidebar_variant: "client-cookie", // layout-critical → cannot be "localStorage"
   sidebar_collapsible: "client-cookie", // layout-critical → cannot be "localStorage"
-};
+}

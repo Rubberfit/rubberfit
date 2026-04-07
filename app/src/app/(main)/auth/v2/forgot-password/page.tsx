@@ -1,10 +1,10 @@
-import Link from "next/link";
+import Link from "next/link"
 
-import { Globe } from "lucide-react";
+import { Globe } from "lucide-react"
 
-import { APP_CONFIG } from "@/config/app-config";
+import { APP_CONFIG } from "@/config/app-config"
 
-import { ForgotPasswordForm } from "../../_components/forgot-password-form";
+import { ForgotPasswordForm } from "../../_components/forgot-password-form"
 
 export default function ForgotPasswordPage() {
   return (
@@ -38,5 +38,5 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </>
-  );
+  )
 }

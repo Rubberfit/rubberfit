@@ -1,9 +1,8 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from "react"
 
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react"
 
-import { Separator } from "@/components/ui/separator";
-import { APP_CONFIG } from "@/config/app-config";
+import { Separator } from "@/components/ui/separator"
 
 export default function Layout({ children }: Readonly<{ children: ReactNode }>) {
   return (
@@ -19,13 +18,17 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
           <div className="absolute bottom-10 flex w-full justify-between px-10">
             <div className="flex-1 space-y-1 text-primary-foreground">
               <h2 className="font-medium">Maximize Efficiency</h2>
-              <p className="text-sm">Reduce material waste by up to 30% with intelligent cut optimization and real-time inventory tracking.</p>
+              <p className="text-sm">
+                Reduce material waste by up to 30% with intelligent cut optimization and real-time
+                inventory tracking.
+              </p>
             </div>
             <Separator orientation="vertical" className="mx-3 h-auto!" />
             <div className="flex-1 space-y-1 text-primary-foreground">
               <h2 className="font-medium">Built for Manufacturing</h2>
               <p className="text-sm">
-                Designed specifically for rubber fabrication facilities. Simple interface, powerful analytics, zero training required.
+                Designed specifically for rubber fabrication facilities. Simple interface, powerful
+                analytics, zero training required.
               </p>
             </div>
           </div>
@@ -33,5 +36,5 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
         <div className="relative order-1 flex h-full">{children}</div>
       </div>
     </main>
-  );
+  )
 }

@@ -1,12 +1,12 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 
-import { BadgeCheck, Bell, LogOut } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { BadgeCheck, Bell, LogOut } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,46 +14,51 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn, getInitials } from "@/lib/utils";
+} from "@/components/ui/dropdown-menu"
+import { cn, getInitials } from "@/lib/utils"
 
 export function AccountSwitcher({
   users,
 }: {
   readonly users: ReadonlyArray<{
-    readonly id: string;
-    readonly name: string;
-    readonly email: string;
-    readonly avatar: string;
-    readonly role: string;
-  }>;
+    readonly id: string
+    readonly name: string
+    readonly email: string
+    readonly avatar: string
+    readonly role: string
+  }>
 }) {
-  const [activeUser, setActiveUser] = useState(users[0]);
-  const { signOut } = useAuth();
-  const router = useRouter();
+  const [activeUserId, setActiveUserId] = useState(() => users[0]?.id ?? null)
+  const { signOut } = useAuth()
+  const router = useRouter()
+  const activeUser = users.find((user) => user.id === activeUserId) ?? users[0] ?? null
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await signOut()
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out:", error)
     }
-  };
+  }
 
   const handleAccountClick = () => {
-    router.push('/dashboard/account');
-  };
+    router.push("/dashboard/account")
+  }
 
   const handleNotificationsClick = () => {
-    router.push('/dashboard/notifications');
-  };
+    router.push("/dashboard/notifications")
+  }
+
+  if (!activeUser) {
+    return null
+  }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="size-9 rounded-lg">
           <AvatarImage
-            src={activeUser.avatar || undefined}
+            src={activeUser.avatar ?? undefined}
             alt={activeUser.name}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
@@ -61,17 +66,25 @@ export function AccountSwitcher({
           <AvatarFallback className="rounded-lg">{getInitials(activeUser.name)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-56 space-y-1 rounded-lg" side="bottom" align="end" sideOffset={4}>
+      <DropdownMenuContent
+        className="min-w-56 space-y-1 rounded-lg"
+        side="bottom"
+        align="end"
+        sideOffset={4}
+      >
         {users.map((user) => (
           <DropdownMenuItem
             key={user.email}
-            className={cn("p-0", user.id === activeUser.id && "border-l-2 border-l-primary bg-accent/50")}
-            onClick={() => setActiveUser(user)}
+            className={cn(
+              "p-0",
+              user.id === activeUser.id && "border-l-2 border-l-primary bg-accent/50"
+            )}
+            onClick={() => setActiveUserId(user.id)}
           >
             <div className="flex w-full items-center justify-between gap-2 px-1 py-1.5">
               <Avatar className="size-9 rounded-lg">
                 <AvatarImage
-                  src={user.avatar || undefined}
+                  src={user.avatar ?? undefined}
                   alt={user.name}
                   crossOrigin="anonymous"
                   referrerPolicy="no-referrer"
@@ -103,5 +116,5 @@ export function AccountSwitcher({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }

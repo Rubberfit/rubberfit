@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import { Ellipsis, Folder, Forward, type LucideIcon, Trash2 } from "lucide-react";
+import { Ellipsis, Folder, Forward, type LucideIcon, Trash2 } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -17,18 +17,18 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@/components/ui/sidebar"
 
 export function NavDocuments({
   items,
 }: {
   readonly items: readonly {
-    readonly name: string;
-    readonly url: string;
-    readonly icon: LucideIcon;
-  }[];
+    readonly name: string
+    readonly url: string
+    readonly icon: LucideIcon
+  }[]
 }) {
-  const { isMobile } = useSidebar();
+  const { isMobile } = useSidebar()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -79,5 +79,5 @@ export function NavDocuments({
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarGroup>
-  );
+  )
 }

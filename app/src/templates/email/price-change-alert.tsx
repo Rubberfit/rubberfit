@@ -1,4 +1,4 @@
-import * as React from 'react';
+import * as React from "react"
 import {
   Body,
   Button,
@@ -11,16 +11,16 @@ import {
   Preview,
   Section,
   Text,
-} from '@react-email/components';
+} from "@react-email/components"
 
 interface PriceChangeAlertEmailProps {
-  materialName: string;
-  supplier: string;
-  oldPrice: number;
-  newPrice: number;
-  changePercentage: number;
-  effectiveDate: Date;
-  companyName: string;
+  materialName: string
+  supplier: string
+  oldPrice: number
+  newPrice: number
+  changePercentage: number
+  effectiveDate: Date
+  companyName: string
 }
 
 const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
@@ -32,8 +32,8 @@ const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
   effectiveDate,
   companyName,
 }) => {
-  const previewText = `Price change alert: ${materialName} from ${supplier}`;
-  const isIncrease = changePercentage > 0;
+  const previewText = `Price change alert: ${materialName} from ${supplier}`
+  const isIncrease = changePercentage > 0
 
   return (
     <Html>
@@ -41,13 +41,9 @@ const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>
-            {isIncrease ? '📈' : '📉'} Price Change Notification
-          </Heading>
+          <Heading style={h1}>{isIncrease ? "📈" : "📉"} Price Change Notification</Heading>
 
-          <Text style={text}>
-            A supplier has updated their pricing for the following material:
-          </Text>
+          <Text style={text}>A supplier has updated their pricing for the following material:</Text>
 
           <Section style={alertBox}>
             <Text style={alertTitle}>{materialName}</Text>
@@ -69,10 +65,9 @@ const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
             <Section style={changeSection}>
               <Text style={changeText}>
                 <span style={isIncrease ? increaseStyle : decreaseStyle}>
-                  {isIncrease ? '↑' : '↓'} {Math.abs(changePercentage).toFixed(1)}%
-                </span>
-                {' '}
-                {isIncrease ? 'increase' : 'decrease'}
+                  {isIncrease ? "↑" : "↓"} {Math.abs(changePercentage).toFixed(1)}%
+                </span>{" "}
+                {isIncrease ? "increase" : "decrease"}
               </Text>
             </Section>
 
@@ -86,10 +81,7 @@ const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
           </Text>
 
           <Section style={buttonContainer}>
-            <Button
-              style={button}
-              href={`${process.env.NEXT_PUBLIC_APP_URL}/suppliers`}
-            >
+            <Button style={button} href={`${process.env.NEXT_PUBLIC_APP_URL}/suppliers`}>
               View Supplier Details
             </Button>
           </Section>
@@ -99,161 +91,162 @@ const PriceChangeAlertEmail: React.FC<PriceChangeAlertEmailProps> = ({
           <Text style={footer}>
             This is an automated notification from {companyName} RubberFit Pro.
             <br />
-            To manage your notification preferences, visit your{' '}
+            To manage your notification preferences, visit your{" "}
             <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/settings/notifications`} style={link}>
               settings
-            </Link>.
+            </Link>
+            .
           </Text>
         </Container>
       </Body>
     </Html>
-  );
-};
+  )
+}
 
-export default PriceChangeAlertEmail;
+export default PriceChangeAlertEmail
 
 // Styles
 const main = {
-  backgroundColor: '#f8f9fa',
+  backgroundColor: "#f8f9fa",
   fontFamily:
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-};
+}
 
 const container = {
-  margin: '0 auto',
-  padding: '40px 20px',
-  width: '100%',
-  maxWidth: '580px',
-};
+  margin: "0 auto",
+  padding: "40px 20px",
+  width: "100%",
+  maxWidth: "580px",
+}
 
 const h1 = {
-  color: '#111827',
-  fontSize: '24px',
-  fontWeight: '600',
-  lineHeight: '32px',
-  margin: '0 0 20px',
-};
+  color: "#111827",
+  fontSize: "24px",
+  fontWeight: "600",
+  lineHeight: "32px",
+  margin: "0 0 20px",
+}
 
 const text = {
-  color: '#6b7280',
-  fontSize: '14px',
-  lineHeight: '24px',
-  margin: '0 0 16px',
-};
+  color: "#6b7280",
+  fontSize: "14px",
+  lineHeight: "24px",
+  margin: "0 0 16px",
+}
 
 const alertBox = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #e5e7eb',
-  borderRadius: '8px',
-  padding: '20px',
-  margin: '20px 0',
-};
+  backgroundColor: "#ffffff",
+  border: "1px solid #e5e7eb",
+  borderRadius: "8px",
+  padding: "20px",
+  margin: "20px 0",
+}
 
 const alertTitle = {
-  color: '#111827',
-  fontSize: '18px',
-  fontWeight: '600',
-  margin: '0 0 4px',
-};
+  color: "#111827",
+  fontSize: "18px",
+  fontWeight: "600",
+  margin: "0 0 4px",
+}
 
 const supplierText = {
-  color: '#6b7280',
-  fontSize: '14px',
-  margin: '0 0 12px',
-};
+  color: "#6b7280",
+  fontSize: "14px",
+  margin: "0 0 12px",
+}
 
 const priceRow = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  margin: '20px 0',
-};
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  margin: "20px 0",
+}
 
 const priceColumn = {
-  flex: '1',
-  textAlign: 'center' as const,
-};
+  flex: "1",
+  textAlign: "center" as const,
+}
 
 const priceLabel = {
-  color: '#6b7280',
-  fontSize: '12px',
-  margin: '0 0 4px',
-};
+  color: "#6b7280",
+  fontSize: "12px",
+  margin: "0 0 4px",
+}
 
 const priceValue = {
-  color: '#111827',
-  fontSize: '20px',
-  fontWeight: '600',
-  margin: '0',
-};
+  color: "#111827",
+  fontSize: "20px",
+  fontWeight: "600",
+  margin: "0",
+}
 
 const arrow = {
-  color: '#9ca3af',
-  fontSize: '24px',
-  padding: '0 20px',
-};
+  color: "#9ca3af",
+  fontSize: "24px",
+  padding: "0 20px",
+}
 
 const changeSection = {
-  backgroundColor: '#f9fafb',
-  borderRadius: '6px',
-  padding: '12px',
-  margin: '16px 0',
-  textAlign: 'center' as const,
-};
+  backgroundColor: "#f9fafb",
+  borderRadius: "6px",
+  padding: "12px",
+  margin: "16px 0",
+  textAlign: "center" as const,
+}
 
 const changeText = {
-  fontSize: '16px',
-  margin: '0',
-};
+  fontSize: "16px",
+  margin: "0",
+}
 
 const increaseStyle = {
-  color: '#dc2626',
-  fontWeight: '600',
-};
+  color: "#dc2626",
+  fontWeight: "600",
+}
 
 const decreaseStyle = {
-  color: '#16a34a',
-  fontWeight: '600',
-};
+  color: "#16a34a",
+  fontWeight: "600",
+}
 
 const metric = {
-  color: '#374151',
-  fontSize: '14px',
-  lineHeight: '20px',
-  margin: '8px 0',
-};
+  color: "#374151",
+  fontSize: "14px",
+  lineHeight: "20px",
+  margin: "8px 0",
+}
 
 const buttonContainer = {
-  margin: '30px 0',
-  textAlign: 'center' as const,
-};
+  margin: "30px 0",
+  textAlign: "center" as const,
+}
 
 const button = {
-  backgroundColor: '#2563eb',
-  borderRadius: '6px',
-  color: '#ffffff',
-  display: 'inline-block',
-  fontSize: '14px',
-  fontWeight: '500',
-  lineHeight: '44px',
-  textAlign: 'center' as const,
-  textDecoration: 'none',
-  width: '200px',
-};
+  backgroundColor: "#2563eb",
+  borderRadius: "6px",
+  color: "#ffffff",
+  display: "inline-block",
+  fontSize: "14px",
+  fontWeight: "500",
+  lineHeight: "44px",
+  textAlign: "center" as const,
+  textDecoration: "none",
+  width: "200px",
+}
 
 const divider = {
-  borderColor: '#e5e7eb',
-  margin: '20px 0',
-};
+  borderColor: "#e5e7eb",
+  margin: "20px 0",
+}
 
 const footer = {
-  color: '#9ca3af',
-  fontSize: '12px',
-  lineHeight: '18px',
-  margin: '20px 0 0',
-};
+  color: "#9ca3af",
+  fontSize: "12px",
+  lineHeight: "18px",
+  margin: "20px 0 0",
+}
 
 const link = {
-  color: '#2563eb',
-  textDecoration: 'underline',
-};
+  color: "#2563eb",
+  textDecoration: "underline",
+}

@@ -6,7 +6,7 @@
  * Runs early in <head> to apply the correct data attributes before hydration,
  * preventing layout or theme flicker and keeping RootLayout fully static.
  */
-import { PREFERENCE_DEFAULTS, PREFERENCE_PERSISTENCE } from "@/lib/preferences/preferences-config";
+import { PREFERENCE_DEFAULTS, PREFERENCE_PERSISTENCE } from "@/lib/preferences/preferences-config"
 
 export function ThemeBootScript() {
   const persistence = JSON.stringify({
@@ -17,7 +17,7 @@ export function ThemeBootScript() {
     navbar_style: PREFERENCE_PERSISTENCE.navbar_style,
     sidebar_variant: PREFERENCE_PERSISTENCE.sidebar_variant,
     sidebar_collapsible: PREFERENCE_PERSISTENCE.sidebar_collapsible,
-  });
+  })
 
   const defaults = JSON.stringify({
     theme_mode: PREFERENCE_DEFAULTS.theme_mode,
@@ -27,7 +27,7 @@ export function ThemeBootScript() {
     navbar_style: PREFERENCE_DEFAULTS.navbar_style,
     sidebar_variant: PREFERENCE_DEFAULTS.sidebar_variant,
     sidebar_collapsible: PREFERENCE_DEFAULTS.sidebar_collapsible,
-  });
+  })
 
   const code = `
     (function () {
@@ -106,8 +106,8 @@ export function ThemeBootScript() {
         console.warn("ThemeBootScript error:", e);
       }
     })();
-  `;
+  `
 
   /* biome-ignore lint/security/noDangerouslySetInnerHtml: required for pre-hydration boot script */
-  return <script dangerouslySetInnerHTML={{ __html: code }} />;
+  return <script dangerouslySetInnerHTML={{ __html: code }} />
 }

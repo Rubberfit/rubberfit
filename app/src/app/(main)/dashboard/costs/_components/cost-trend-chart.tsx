@@ -1,25 +1,25 @@
-"use client";
+"use client"
 
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface MonthlyCosts {
-  period: string;
-  materialCost: number;
-  wasteCost: number;
-  totalCost: number;
-  cuts: number;
+  period: string
+  materialCost: number
+  wasteCost: number
+  totalCost: number
+  cuts: number
 }
 
 interface CostTrendChartProps {
-  data: MonthlyCosts[];
+  data: MonthlyCosts[]
 }
 
 export function CostTrendChart({ data }: CostTrendChartProps) {
-  const chartData = data.map(item => ({
+  const chartData = data.map((item) => ({
     ...item,
     utilizationCost: item.totalCost - item.wasteCost,
-  }));
+  }))
 
   return (
     <Card>
@@ -34,7 +34,7 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as MonthlyCosts & { utilizationCost: number };
+                  const data = payload[0].payload as MonthlyCosts & { utilizationCost: number }
                   return (
                     <div className="rounded-lg border bg-background p-2 shadow-md">
                       <p className="font-medium">{label}</p>
@@ -57,9 +57,9 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
                         </p>
                       </div>
                     </div>
-                  );
+                  )
                 }
-                return null;
+                return null
               }}
             />
             <Area
@@ -92,5 +92,5 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

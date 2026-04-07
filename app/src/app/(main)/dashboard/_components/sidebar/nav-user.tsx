@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot } from "lucide-react"
+import { useRouter } from "next/navigation"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,39 +12,44 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
-import { useAuth } from "@/contexts/AuthContext";
-import { getInitials } from "@/lib/utils";
+} from "@/components/ui/dropdown-menu"
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { useAuth } from "@/contexts/AuthContext"
+import { getInitials } from "@/lib/utils"
 
 export function NavUser({
   user,
 }: {
   readonly user: {
-    readonly name: string;
-    readonly email: string;
-    readonly avatar: string;
-  };
+    readonly name: string
+    readonly email: string
+    readonly avatar: string
+  }
 }) {
-  const { isMobile } = useSidebar();
-  const { signOut } = useAuth();
-  const router = useRouter();
+  const { isMobile } = useSidebar()
+  const { signOut } = useAuth()
+  const router = useRouter()
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await signOut()
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out:", error)
     }
-  };
+  }
 
   const handleAccountClick = () => {
-    router.push('/dashboard/account');
-  };
+    router.push("/dashboard/account")
+  }
 
   const handleNotificationsClick = () => {
-    router.push('/dashboard/notifications');
-  };
+    router.push("/dashboard/notifications")
+  }
 
   return (
     <SidebarMenu>
@@ -114,5 +119,5 @@ export function NavUser({
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  );
+  )
 }

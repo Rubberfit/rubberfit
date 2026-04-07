@@ -1,48 +1,62 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from "react"
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+import { z } from "zod"
 
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
 
 const FormSchema = z
   .object({
     password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-    confirmPassword: z.string().min(6, { message: "Confirm Password must be at least 6 characters." }),
+    confirmPassword: z
+      .string()
+      .min(6, { message: "Confirm Password must be at least 6 characters." }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match.",
     path: ["confirmPassword"],
-  });
+  })
 
 interface ResetPasswordFormProps {
-  recoveryMode?: boolean;
+  recoveryMode?: boolean
 }
 
 function hasRecoveryHash() {
-  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
-  const hashParams = new URLSearchParams(hash);
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash
+  const hashParams = new URLSearchParams(hash)
 
-  return hashParams.get("type") === "recovery" || (hashParams.has("access_token") && hashParams.has("refresh_token"));
+  return (
+    hashParams.get("type") === "recovery" ||
+    (hashParams.has("access_token") && hashParams.has("refresh_token"))
+  )
 }
 
 export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState<"checking" | "ready" | "error">("checking");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const router = useRouter();
-  const { updatePassword } = useAuth();
+  const [isLoading, setIsLoading] = useState(false)
+  const [status, setStatus] = useState<"checking" | "ready" | "error">("checking")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const router = useRouter()
+  const { updatePassword } = useAuth()
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -50,129 +64,131 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
       password: "",
       confirmPassword: "",
     },
-  });
+  })
 
   useEffect(() => {
-    let active = true;
-    const isRecoveryRequest = recoveryMode || hasRecoveryHash();
+    let active = true
+    const isRecoveryRequest = recoveryMode || hasRecoveryHash()
 
     const markReady = () => {
       if (!active) {
-        return;
+        return
       }
 
-      setStatus("ready");
-      setErrorMessage(null);
-    };
+      setStatus("ready")
+      setErrorMessage(null)
+    }
 
     const markError = (message: string) => {
       if (!active) {
-        return;
+        return
       }
 
-      setStatus("error");
-      setErrorMessage(message);
-    };
+      setStatus("error")
+      setErrorMessage(message)
+    }
 
     const getRecoverySession = async () => {
       const {
         data: { session },
         error,
-      } = await supabase.auth.getSession();
+      } = await supabase.auth.getSession()
 
-      return { session, error };
-    };
+      return { session, error }
+    }
 
     const hydrateRecoverySession = async () => {
-      const { session, error } = await getRecoverySession();
+      const { session, error } = await getRecoverySession()
 
       if (!active) {
-        return;
+        return
       }
 
       if (error) {
-        markError(error.message);
-        return;
+        markError(error.message)
+        return
       }
 
       if (session && isRecoveryRequest) {
-        markReady();
+        markReady()
       }
-    };
+    }
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || !session) {
-        return;
+        return
       }
 
       if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isRecoveryRequest)) {
-        markReady();
+        markReady()
       }
-    });
+    })
 
-    void hydrateRecoverySession();
+    void hydrateRecoverySession()
 
     const timeoutId = window.setTimeout(async () => {
-      const { session, error } = await getRecoverySession();
+      const { session, error } = await getRecoverySession()
 
       if (!active) {
-        return;
+        return
       }
 
       if (error) {
-        markError(error.message);
-        return;
+        markError(error.message)
+        return
       }
 
       if (session && isRecoveryRequest) {
-        markReady();
-        return;
+        markReady()
+        return
       }
 
-      markError("This password reset link is invalid or has expired. Request a new reset email.");
-    }, 1500);
+      markError("This password reset link is invalid or has expired. Request a new reset email.")
+    }, 1500)
 
     return () => {
-      active = false;
-      window.clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
-  }, [recoveryMode]);
+      active = false
+      window.clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
+  }, [recoveryMode])
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
-      const { success, error, redirectTo } = await updatePassword(data.password);
+      const { success, error, redirectTo } = await updatePassword(data.password)
 
       if (success) {
         toast.success("Password updated", {
           description: "Your password has been reset. Redirecting now.",
-        });
-        router.replace(redirectTo ?? "/dashboard/default");
+        })
+        router.replace(redirectTo ?? "/dashboard/default")
       } else {
         toast.error("Password reset failed", {
           description: error || "Please request a new reset link and try again.",
-        });
+        })
       }
     } catch (_error) {
       toast.error("Password reset failed", {
         description: "An unexpected error occurred. Please request a new reset link and try again.",
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   if (status === "checking") {
     return (
       <div className="space-y-2 text-center">
         <h3 className="font-semibold text-lg">Verifying reset link</h3>
-        <p className="text-muted-foreground text-sm">Please wait while we prepare your password reset session.</p>
+        <p className="text-muted-foreground text-sm">
+          Please wait while we prepare your password reset session.
+        </p>
       </div>
-    );
+    )
   }
 
   if (status === "error") {
@@ -191,7 +207,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
           </Button>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -240,5 +256,5 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         </Button>
       </form>
     </Form>
-  );
+  )
 }

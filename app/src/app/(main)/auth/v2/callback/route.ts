@@ -1,105 +1,114 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server"
 
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr"
 
-import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/lib/auth-redirect";
-import { type AppRole, DEFAULT_ROLES } from "@/lib/permissions";
+import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/lib/auth-redirect"
+import { type AppRole, DEFAULT_ROLES } from "@/lib/permissions"
 
 type PendingCookie = {
-  name: string;
-  value: string;
-  options?: Parameters<NextResponse["cookies"]["set"]>[2];
-};
+  name: string
+  value: string
+  options?: Parameters<NextResponse["cookies"]["set"]>[2]
+}
 
 function redirectWithCookies(
   requestUrl: URL,
   pathname: string,
   pendingCookies: PendingCookie[],
-  searchParams?: URLSearchParams,
+  searchParams?: URLSearchParams
 ) {
-  const redirectUrl = new URL(pathname, requestUrl.origin);
+  const redirectUrl = new URL(pathname, requestUrl.origin)
 
   if (searchParams) {
-    redirectUrl.search = searchParams.toString();
+    redirectUrl.search = searchParams.toString()
   }
 
-  const response = NextResponse.redirect(redirectUrl);
+  const response = NextResponse.redirect(redirectUrl)
 
   for (const { name, value, options } of pendingCookies) {
-    response.cookies.set(name, value, options);
+    response.cookies.set(name, value, options)
   }
 
-  response.headers.set("Cache-Control", "private, no-store");
-  return response;
+  response.headers.set("Cache-Control", "private, no-store")
+  return response
 }
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const requestedPath = sanitizeRedirectPath(requestUrl.searchParams.get("next"));
-  const pendingCookies: PendingCookie[] = [];
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get("code")
+  const requestedPath = sanitizeRedirectPath(requestUrl.searchParams.get("next"))
+  const pendingCookies: PendingCookie[] = []
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    const loginParams = new URLSearchParams();
-    loginParams.set("error", "Supabase environment variables are missing.");
+    const loginParams = new URLSearchParams()
+    loginParams.set("error", "Supabase environment variables are missing.")
 
     if (requestedPath) {
-      loginParams.set("redirectTo", requestedPath);
+      loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams);
+    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
   }
 
   if (!code) {
-    const loginParams = new URLSearchParams();
-    loginParams.set("error", "Missing Google authentication code.");
+    const loginParams = new URLSearchParams()
+    loginParams.set("error", "Missing Google authentication code.")
 
     if (requestedPath) {
-      loginParams.set("redirectTo", requestedPath);
+      loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams);
+    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {
-        pendingCookies.length = 0;
-        pendingCookies.push(...cookiesToSet);
+        pendingCookies.length = 0
+        pendingCookies.push(...cookiesToSet)
 
         for (const { name, value } of cookiesToSet) {
-          request.cookies.set(name, value);
+          request.cookies.set(name, value)
         }
       },
     },
-  });
+  })
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    const loginParams = new URLSearchParams();
-    loginParams.set("error", error.message);
+    console.error("oauth callback error:", error)
+    const loginParams = new URLSearchParams()
+    loginParams.set("error", "Authentication failed. Please try again.")
 
     if (requestedPath) {
-      loginParams.set("redirectTo", requestedPath);
+      loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams);
+    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
   }
 
-  let roles: AppRole[] = [...DEFAULT_ROLES];
+  let roles: AppRole[] = [...DEFAULT_ROLES]
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: profile } = await supabase.from("profiles").select("roles").eq("id", user.id).maybeSingle();
-    roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[];
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("roles")
+      .eq("id", user.id)
+      .maybeSingle()
+    roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
   }
 
-  return redirectWithCookies(requestUrl, resolvePostAuthRedirect(roles, requestedPath), pendingCookies);
+  return redirectWithCookies(
+    requestUrl,
+    resolvePostAuthRedirect(roles, requestedPath),
+    pendingCookies
+  )
 }
