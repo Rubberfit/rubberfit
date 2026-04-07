@@ -24,6 +24,22 @@ export function useNfpOptimizer(
   defaultRollWidth: number,
   defaultRollLength: number
 ): NFPOptimizerResult {
+  // EVENT: DEBUG
+  console.log({
+    event: "Debug",
+    file: "use-nfp-optimizer.ts",
+    function: "useNfpOptimizer",
+    params: {
+      simpleMode: simpleMode,
+      activeSimpleSpecs: activeSimpleSpecs,
+      defaultCutWidth: defaultCutWidth,
+      defaultCutHeight: defaultCutHeight,
+      defaultQty: defaultQty,
+      defaultRollWidth: defaultRollWidth,
+      defaultRollLength: defaultRollLength,
+    },
+  })
+
   const nfpSolverRef = useRef<NFPSolver | null>(null)
   const [optimizedResult, setOptimizedResult] = useState<NestingResult | null>(null)
   const [optimizedItems, setOptimizedItems] = useState<PreviewItem[] | null>(null)
@@ -66,15 +82,18 @@ export function useNfpOptimizer(
       setNfpError(null)
     })
 
-    // STOPS CONE FROM RUNNING NFP RESOLVER
-    // TODO: Understand what this even does, but in the mean time I will allow cones to run.
-    // TODO: UNCOMMENT
+    /**
+     * This current attempts to optimize the by skip algorithm when cones are passed.
+     */
     if (!shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs)) {
-      console.log(
-        "SHOULD OPTIMIZE?",
-        shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs),
-        activeSimpleSpecs
-      )
+      // EVENT: DEBUG
+      console.log({
+        event: "debug",
+        file: "use-nefp-optimizer.ts",
+        function: "useNfpOptimizer",
+        data: shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs),
+        activeSimpleSpecs,
+      })
       // return
     }
 
@@ -104,7 +123,7 @@ export function useNfpOptimizer(
     let cancel: (() => void) | null = null
     // THIS IS WHERE THE NFP ALGORITHM IS TRIGGERED
     const timer = window.setTimeout(() => {
-      console.log("RUNNING SOLVER", input)
+      // console.log("Running NFP Solver", input)
       setIsOptimizing(true)
       cancel = nfpSolverRef.current!.solve(input, {
         onComplete: (result) => {

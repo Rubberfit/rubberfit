@@ -41,6 +41,24 @@ export default function NestingVizSimpleMode({
   isOptimizing,
   nfpError,
 }: SimpleModeProps) {
+  // EVENT: DEBUG
+  console.log({
+    event: "Debug",
+    file: "nesting-viz-simple-mode.tsx",
+    function: "NestingVizSimpleMode",
+    params: {
+      preview: preview,
+      previewRollW: previewRollW,
+      previewRollL: previewRollL,
+      patternSeed: patternSeed,
+      viewMode: viewMode,
+      optimizedResult: optimizedResult,
+      optimizedItems: optimizedItems,
+      isOptimizing: isOptimizing,
+      nfpError: nfpError,
+    },
+  })
+
   const layout = computeSimpleModeLayout({
     preview,
     previewRollW,

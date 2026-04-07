@@ -38,6 +38,23 @@ export default function NestingVisualizer({
   simplePart,
   simpleParts,
 }: NestingVisualizerProps) {
+  // EVENT: DEBUG
+  console.log({
+    event: "Debug",
+    file: "NestingVisualizer.tsx",
+    function: "NestingVisualizer",
+    params: {
+      defaultRollWidth: defaultRollWidth,
+      defaultRollLength: defaultRollLength,
+      defaultCutWidth: defaultCutWidth,
+      defaultCutHeight: defaultCutHeight,
+      defaultQty: defaultQty,
+      simpleMode: simpleMode,
+      simplePart: simplePart,
+      simpleParts: simpleParts,
+    },
+  })
+
   const patternSeed = useId().replace(/:/g, "")
 
   // shared
@@ -158,6 +175,7 @@ export default function NestingVisualizer({
   const activeStrat = scored.find((s) => s.id === activeId)
   const stepNote = computeStepNote(activeStrat, activeStep, rollW, rollL, qty)
 
+  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
   const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
     simpleMode,
     activeSimpleSpecs,

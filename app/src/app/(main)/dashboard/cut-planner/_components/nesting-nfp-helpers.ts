@@ -352,12 +352,12 @@ export function nestingResultToPreviewItems(
       applyRectFields(base, np, p)
     }
 
-    console.log({
-      x: p.x,
-      y: p.y,
-      polyMinX: Math.min(...p.placedPolygon.map((p) => p.x)),
-      polyMinY: Math.min(...p.placedPolygon.map((p) => p.y)),
-    })
+    // console.log({
+    //   x: p.x,
+    //   y: p.y,
+    //   polyMinX: Math.min(...p.placedPolygon.map((p) => p.x)),
+    //   polyMinY: Math.min(...p.placedPolygon.map((p) => p.y)),
+    // })
 
     return base
   })
