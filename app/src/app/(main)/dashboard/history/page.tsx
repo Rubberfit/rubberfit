@@ -1,86 +1,93 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
-import { Calendar, Search, Download } from "lucide-react";
+import { useEffect, useState } from "react"
+import { format } from "date-fns"
+import { Search, Download } from "lucide-react"
 
-import { type Cut } from "@/lib/supabase";
-import { cutService } from "@/services/cutService";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { type Cut } from "@/lib/supabase"
+import { cutService } from "@/services/cutService"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
-import { DateRangePicker } from "./_components/date-range-picker";
-import { CutHistoryStats } from "./_components/cut-history-stats";
+import { DateRangePicker } from "./_components/date-range-picker"
+import { CutHistoryStats } from "./_components/cut-history-stats"
 
 interface CutWithRoll extends Cut {
   roll?: {
-    material_type: string;
-    location: string;
-  };
+    material_type: string
+    location: string
+  }
 }
 
 export default function CutHistoryPage() {
-  const [cuts, setCuts] = useState<CutWithRoll[]>([]);
-  const [filteredCuts, setFilteredCuts] = useState<CutWithRoll[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [cuts, setCuts] = useState<CutWithRoll[]>([])
+  const [filteredCuts, setFilteredCuts] = useState<CutWithRoll[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
   const [dateRange, setDateRange] = useState<{
-    from: Date;
-    to: Date;
+    from: Date
+    to: Date
   }>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: new Date(),
-  });
-
-  const fetchCuts = async () => {
-    setLoading(true);
-    try {
-      const data = await cutService.getCutsByDateRangeWithRolls(dateRange.from, dateRange.to);
-      setCuts(data || []);
-    } catch (error) {
-      console.error("Error fetching cuts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  })
 
   useEffect(() => {
-    fetchCuts();
-  }, [dateRange]);
+    const fetchCuts = async () => {
+      setLoading(true)
+      try {
+        const data = await cutService.getCutsByDateRangeWithRolls(dateRange.from, dateRange.to)
+        setCuts(data || [])
+      } catch (error) {
+        console.error("Error fetching cuts:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCuts()
+  }, [dateRange])
 
   useEffect(() => {
     const filtered = cuts.filter((cut) => {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = searchTerm.toLowerCase()
       return (
         cut.job_reference?.toLowerCase().includes(searchLower) ||
         cut.cut_by?.toLowerCase().includes(searchLower) ||
         cut.roll?.material_type?.toLowerCase().includes(searchLower) ||
         cut.roll?.location?.toLowerCase().includes(searchLower) ||
         cut.notes?.toLowerCase().includes(searchLower)
-      );
-    });
-    setFilteredCuts(filtered);
-  }, [cuts, searchTerm]);
+      )
+    })
+    setFilteredCuts(filtered)
+  }, [cuts, searchTerm])
 
   const formatDimensions = (width: number, length: number) => {
-    return `${width}" × ${length}"`;
-  };
+    return `${width}" × ${length}"`
+  }
 
   const formatWastePercentage = (percentage?: number) => {
-    if (!percentage) return "N/A";
-    const rounded = Math.round(percentage * 100) / 100;
-    return `${rounded}%`;
-  };
+    if (!percentage) return "N/A"
+    const rounded = Math.round(percentage * 100) / 100
+    return `${rounded}%`
+  }
 
   const getWasteBadgeColor = (percentage?: number) => {
-    if (!percentage) return "secondary";
-    if (percentage <= 5) return "default";
-    if (percentage <= 15) return "secondary";
-    return "destructive";
-  };
+    if (!percentage) return "secondary"
+    if (percentage <= 5) return "default"
+    if (percentage <= 15) return "secondary"
+    return "destructive"
+  }
 
   const exportToCsv = () => {
     const headers = [
@@ -93,7 +100,7 @@ export default function CutHistoryPage() {
       "Job Reference",
       "Cut By",
       "Location",
-    ];
+    ]
 
     const csvData = filteredCuts.map((cut) => [
       format(new Date(cut.created_at), "yyyy-MM-dd HH:mm:ss"),
@@ -105,20 +112,20 @@ export default function CutHistoryPage() {
       cut.job_reference || "",
       cut.cut_by || "",
       cut.roll?.location || "N/A",
-    ]);
+    ])
 
-    const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n");
+    const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n")
 
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `cut-history-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `cut-history-${format(new Date(), "yyyy-MM-dd")}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -156,10 +163,7 @@ export default function CutHistoryPage() {
               />
             </div>
           </div>
-          <DateRangePicker
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-          />
+          <DateRangePicker dateRange={dateRange} onDateRangeChange={setDateRange} />
         </CardContent>
       </Card>
 
@@ -207,16 +211,12 @@ export default function CutHistoryPage() {
                         {format(new Date(cut.created_at), "MMM d, yyyy HH:mm")}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">
-                          {cut.roll?.material_type || "Unknown"}
-                        </div>
+                        <div className="font-medium">{cut.roll?.material_type || "Unknown"}</div>
                       </TableCell>
                       <TableCell className="font-mono">
                         {formatDimensions(cut.cut_width, cut.cut_length)}
                       </TableCell>
-                      <TableCell className="text-center">
-                        {cut.quantity}
-                      </TableCell>
+                      <TableCell className="text-center">{cut.quantity}</TableCell>
                       <TableCell>
                         <Badge variant={getWasteBadgeColor(cut.waste_percentage)}>
                           {formatWastePercentage(cut.waste_percentage)}
@@ -225,15 +225,9 @@ export default function CutHistoryPage() {
                       <TableCell className="font-mono">
                         {cut.total_sqft_used?.toFixed(2) || "N/A"}
                       </TableCell>
-                      <TableCell>
-                        {cut.job_reference || "—"}
-                      </TableCell>
-                      <TableCell>
-                        {cut.cut_by || "—"}
-                      </TableCell>
-                      <TableCell>
-                        {cut.roll?.location || "—"}
-                      </TableCell>
+                      <TableCell>{cut.job_reference || "—"}</TableCell>
+                      <TableCell>{cut.cut_by || "—"}</TableCell>
+                      <TableCell>{cut.roll?.location || "—"}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -243,5 +237,5 @@ export default function CutHistoryPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

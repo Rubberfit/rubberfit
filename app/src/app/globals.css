@@ -109,7 +109,7 @@ These serve as the fallback; there is no separate default.css file. */
   --color-border: #334155;
   --color-border-tertiary: #4e484833;
 
-  --svg-bg:#ffffff;
+  --svg-bg: #ffffff;
 }
 
 /* Ensure toast text is visible - force black/white text */
@@ -187,10 +187,10 @@ These serve as the fallback; there is no separate default.css file. */
   --color-background: #3b3b3b;
   --color-background-secondary: #222225;
 
-  --svg-bg:#18181b;
+  --svg-bg: #18181b;
 
   --btn-bg: #222225;
-   
+
   --btn-text: #ffff;
   --btn-border: #4b5563;
   --btn-hover-border: #cbd5f5;

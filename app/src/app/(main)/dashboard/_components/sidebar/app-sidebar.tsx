@@ -1,15 +1,12 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { useMemo } from "react";
+import Link from "next/link"
+import { useMemo } from "react"
 
-import { CircleHelp, ClipboardList, Command, Database, File, Search, Settings } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
+import { CircleHelp, ClipboardList, Command, Database, File, Search, Settings } from "lucide-react"
+import { useShallow } from "zustand/react/shallow"
 
-import {
-  filterNavGroupsForRoles,
-  getDefaultAuthorizedPath,
-} from "@/lib/rbac";
+import { filterNavGroupsForRoles, getDefaultAuthorizedPath } from "@/lib/rbac"
 import {
   Sidebar,
   SidebarContent,
@@ -18,14 +15,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { APP_CONFIG } from "@/config/app-config";
-import { useAuth } from "@/contexts/AuthContext";
-import { sidebarItems } from "@/navigation/sidebar/sidebar-items";
-import { usePreferencesStore } from "@/stores/preferences/preferences-provider";
+} from "@/components/ui/sidebar"
+import { APP_CONFIG } from "@/config/app-config"
+import { useAuth } from "@/contexts/AuthContext"
+import { sidebarItems } from "@/navigation/sidebar/sidebar-items"
+import { usePreferencesStore } from "@/stores/preferences/preferences-provider"
 
-import { NavMain } from "./nav-main";
-import { NavUser } from "./nav-user";
+import { NavMain } from "./nav-main"
+import { NavUser } from "./nav-user"
 
 const _data = {
   navSecondary: [
@@ -62,25 +59,25 @@ const _data = {
       icon: File,
     },
   ],
-};
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useAuth();
+  const { user } = useAuth()
   const { sidebarVariant, sidebarCollapsible, isSynced } = usePreferencesStore(
     useShallow((s) => ({
       sidebarVariant: s.sidebarVariant,
       sidebarCollapsible: s.sidebarCollapsible,
       isSynced: s.isSynced,
-    })),
-  );
+    }))
+  )
 
-  const variant = isSynced ? sidebarVariant : props.variant;
-  const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
+  const variant = isSynced ? sidebarVariant : props.variant
+  const collapsible = isSynced ? sidebarCollapsible : props.collapsible
   const visibleItems = useMemo(
     () => filterNavGroupsForRoles(sidebarItems, user?.roles),
-    [user?.roles],
-  );
-  const homeHref = getDefaultAuthorizedPath(user?.roles);
+    [user?.roles]
+  )
+  const homeHref = getDefaultAuthorizedPath(user?.roles)
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>
       <SidebarHeader>
@@ -106,11 +103,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             user={{
               name: user.name || user.email,
               email: user.email,
-              avatar: user.avatar || ""
+              avatar: user.avatar || "",
             }}
           />
         )}
       </SidebarFooter>
     </Sidebar>
-  );
+  )
 }

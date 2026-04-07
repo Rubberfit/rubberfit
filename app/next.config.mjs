@@ -6,11 +6,7 @@ const nextConfig = {
   },
   // Empty turbopack config to silence the warning
   turbopack: {},
-  // Output configuration for Electron
-  output: process.env.ELECTRON_BUILD === 'true' ? 'export' : undefined,
-  // Disable image optimization for Electron builds
   images: {
-    unoptimized: process.env.ELECTRON_BUILD === 'true',
     remotePatterns: [
       {
         protocol: 'https',
@@ -34,13 +30,6 @@ const nextConfig = {
         permanent: false,
       },
     ];
-  },
-  // Webpack configuration for Electron
-  webpack: (config, { isServer }) => {
-    if (process.env.ELECTRON_BUILD === 'true') {
-      config.target = 'electron-renderer';
-    }
-    return config;
   },
 };
 

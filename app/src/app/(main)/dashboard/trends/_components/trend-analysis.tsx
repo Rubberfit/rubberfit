@@ -1,20 +1,20 @@
-"use client";
+"use client"
 
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 interface TrendData {
-  date: string;
-  cuts: number;
-  materialUsed: number;
-  wastePercentage: number;
-  efficiency: number;
-  cost: number;
+  date: string
+  cuts: number
+  materialUsed: number
+  wastePercentage: number
+  efficiency: number
+  cost: number
 }
 
 interface TrendAnalysisProps {
-  data: TrendData[];
+  data: TrendData[]
 }
 
 export function TrendAnalysis({ data }: TrendAnalysisProps) {
@@ -26,67 +26,63 @@ export function TrendAnalysis({ data }: TrendAnalysisProps) {
           <CardDescription>Not enough data for trend analysis</CardDescription>
         </CardHeader>
       </Card>
-    );
+    )
   }
 
   // Calculate trends using linear regression
   const calculateTrend = (values: number[]) => {
-    const n = values.length;
-    const x = Array.from({ length: n }, (_, i) => i);
-    const sumX = x.reduce((a, b) => a + b, 0);
-    const sumY = values.reduce((a, b) => a + b, 0);
-    const sumXY = x.reduce((sum, xi, i) => sum + xi * values[i], 0);
-    const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0);
+    const n = values.length
+    const x = Array.from({ length: n }, (_, i) => i)
+    const sumX = x.reduce((a, b) => a + b, 0)
+    const sumY = values.reduce((a, b) => a + b, 0)
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * values[i], 0)
+    const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0)
 
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    return slope;
-  };
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    return slope
+  }
 
   const getTrendDirection = (slope: number, threshold = 0.01) => {
-    if (Math.abs(slope) < threshold) return "stable";
-    return slope > 0 ? "increasing" : "decreasing";
-  };
+    if (Math.abs(slope) < threshold) return "stable"
+    return slope > 0 ? "increasing" : "decreasing"
+  }
 
   const trends = {
-    cuts: calculateTrend(data.map(d => d.cuts)),
-    materialUsed: calculateTrend(data.map(d => d.materialUsed)),
-    wastePercentage: calculateTrend(data.map(d => d.wastePercentage)),
-    efficiency: calculateTrend(data.map(d => d.efficiency)),
-    cost: calculateTrend(data.map(d => d.cost)),
-  };
+    cuts: calculateTrend(data.map((d) => d.cuts)),
+    materialUsed: calculateTrend(data.map((d) => d.materialUsed)),
+    wastePercentage: calculateTrend(data.map((d) => d.wastePercentage)),
+    efficiency: calculateTrend(data.map((d) => d.efficiency)),
+    cost: calculateTrend(data.map((d) => d.cost)),
+  }
 
   const TrendIndicator = ({ trend, inverse = false }: { trend: number; inverse?: boolean }) => {
-    const direction = getTrendDirection(trend);
-    const isGood = inverse
-      ? direction === "decreasing"
-      : direction === "increasing";
+    const direction = getTrendDirection(trend)
+    const isGood = inverse ? direction === "decreasing" : direction === "increasing"
 
     if (direction === "stable") {
-      return <Minus className="h-4 w-4 text-muted-foreground" />;
+      return <Minus className="h-4 w-4 text-muted-foreground" />
     }
 
-    const Icon = direction === "increasing" ? TrendingUp : TrendingDown;
-    const color = isGood ? "text-green-600" : "text-red-600";
+    const Icon = direction === "increasing" ? TrendingUp : TrendingDown
+    const color = isGood ? "text-green-600" : "text-red-600"
 
-    return <Icon className={`h-4 w-4 ${color}`} />;
-  };
+    return <Icon className={`h-4 w-4 ${color}`} />
+  }
 
   const getTrendBadge = (trend: number, inverse = false) => {
-    const direction = getTrendDirection(trend);
-    const isGood = inverse
-      ? direction === "decreasing"
-      : direction === "increasing";
+    const direction = getTrendDirection(trend)
+    const isGood = inverse ? direction === "decreasing" : direction === "increasing"
 
     if (direction === "stable") {
-      return <Badge variant="secondary">Stable</Badge>;
+      return <Badge variant="secondary">Stable</Badge>
     }
 
     return (
       <Badge variant={isGood ? "default" : "destructive"}>
         {direction === "increasing" ? "↗ Rising" : "↘ Falling"}
       </Badge>
-    );
-  };
+    )
+  }
 
   const trendItems = [
     {
@@ -119,15 +115,13 @@ export function TrendAnalysis({ data }: TrendAnalysisProps) {
       description: "Material spending",
       inverse: true,
     },
-  ];
+  ]
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Trend Analysis</CardTitle>
-        <CardDescription>
-          Mathematical trend analysis of key performance indicators
-        </CardDescription>
+        <CardDescription>Mathematical trend analysis of key performance indicators</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -140,9 +134,7 @@ export function TrendAnalysis({ data }: TrendAnalysisProps) {
                   <p className="text-xs text-muted-foreground">{item.description}</p>
                 </div>
               </div>
-              <div className="text-right">
-                {getTrendBadge(item.trend, item.inverse)}
-              </div>
+              <div className="text-right">{getTrendBadge(item.trend, item.inverse)}</div>
             </div>
           ))}
         </div>
@@ -170,14 +162,15 @@ export function TrendAnalysis({ data }: TrendAnalysisProps) {
                 ⚠ Waste levels are increasing - review processes
               </div>
             )}
-            {getTrendDirection(trends.cost) === "increasing" && getTrendDirection(trends.materialUsed) !== "increasing" && (
-              <div className="text-sm text-red-700 dark:text-red-300">
-                ⚠ Costs rising without proportional usage increase
-              </div>
-            )}
+            {getTrendDirection(trends.cost) === "increasing" &&
+              getTrendDirection(trends.materialUsed) !== "increasing" && (
+                <div className="text-sm text-red-700 dark:text-red-300">
+                  ⚠ Costs rising without proportional usage increase
+                </div>
+              )}
           </div>
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

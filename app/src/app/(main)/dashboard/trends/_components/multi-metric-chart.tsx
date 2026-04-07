@@ -1,71 +1,77 @@
-"use client";
+"use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts";
-import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts"
+import { format } from "date-fns"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useState } from "react"
 
 interface TrendData {
-  date: string;
-  cuts: number;
-  materialUsed: number;
-  wastePercentage: number;
-  efficiency: number;
-  cost: number;
+  date: string
+  cuts: number
+  materialUsed: number
+  wastePercentage: number
+  efficiency: number
+  cost: number
 }
 
 interface MultiMetricChartProps {
-  data: TrendData[];
-  timeframe: string;
+  data: TrendData[]
+  timeframe: string
 }
 
-type MetricType = "cuts" | "materialUsed" | "wastePercentage" | "efficiency" | "cost";
+type MetricType = "cuts" | "materialUsed" | "wastePercentage" | "efficiency" | "cost"
 
 export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
-  const [primaryMetric, setPrimaryMetric] = useState<MetricType>("cuts");
-  const [secondaryMetric, setSecondaryMetric] = useState<MetricType>("wastePercentage");
+  const [primaryMetric, setPrimaryMetric] = useState<MetricType>("cuts")
+  const [secondaryMetric, setSecondaryMetric] = useState<MetricType>("wastePercentage")
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = new Date(dateStr)
     if (timeframe === "12months") {
-      return format(date, "MMM yyyy");
+      return format(date, "MMM yyyy")
     } else if (timeframe === "12weeks") {
-      return format(date, "MMM d");
+      return format(date, "MMM d")
     } else {
-      return format(date, "MMM d");
+      return format(date, "MMM d")
     }
-  };
+  }
 
   const getMetricLabel = (metric: MetricType) => {
     switch (metric) {
       case "cuts":
-        return "Cuts";
+        return "Cuts"
       case "materialUsed":
-        return "Material Used (sq ft)";
+        return "Material Used (sq ft)"
       case "wastePercentage":
-        return "Waste (%)";
+        return "Waste (%)"
       case "efficiency":
-        return "Efficiency (%)";
+        return "Efficiency (%)"
       case "cost":
-        return "Cost ($)";
+        return "Cost ($)"
     }
-  };
+  }
 
   const getMetricColor = (metric: MetricType) => {
     switch (metric) {
       case "cuts":
-        return "#3b82f6";
+        return "#3b82f6"
       case "materialUsed":
-        return "#22c55e";
+        return "#22c55e"
       case "wastePercentage":
-        return "#ef4444";
+        return "#ef4444"
       case "efficiency":
-        return "#f59e0b";
+        return "#f59e0b"
       case "cost":
-        return "#8b5cf6";
+        return "#8b5cf6"
     }
-  };
+  }
 
   return (
     <Card>
@@ -73,7 +79,10 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <CardTitle>Performance Trends</CardTitle>
           <div className="flex gap-2">
-            <Select value={primaryMetric} onValueChange={(value) => setPrimaryMetric(value as MetricType)}>
+            <Select
+              value={primaryMetric}
+              onValueChange={(value) => setPrimaryMetric(value as MetricType)}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -85,7 +94,10 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
                 <SelectItem value="cost">Cost</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={secondaryMetric} onValueChange={(value) => setSecondaryMetric(value as MetricType)}>
+            <Select
+              value={secondaryMetric}
+              onValueChange={(value) => setSecondaryMetric(value as MetricType)}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -103,17 +115,13 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
       <CardContent>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={data}>
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatDate}
-              interval="preserveStartEnd"
-            />
+            <XAxis dataKey="date" tickFormatter={formatDate} interval="preserveStartEnd" />
             <YAxis yAxisId="left" />
             <YAxis yAxisId="right" orientation="right" />
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as TrendData;
+                  const data = payload[0].payload as TrendData
                   return (
                     <div className="rounded-lg border bg-background p-3 shadow-md">
                       <p className="font-medium">{formatDate(label as string)}</p>
@@ -140,9 +148,9 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
                         </p>
                       </div>
                     </div>
-                  );
+                  )
                 }
-                return null;
+                return null
               }}
             />
             <Legend />
@@ -171,5 +179,5 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  );
+  )
 }

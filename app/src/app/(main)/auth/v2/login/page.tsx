@@ -1,32 +1,32 @@
-import Link from "next/link";
+import Link from "next/link"
 
-import { Globe } from "lucide-react";
+import { Globe } from "lucide-react"
 
-import { APP_CONFIG } from "@/config/app-config";
+import { APP_CONFIG } from "@/config/app-config"
 
-import { LoginForm } from "../../_components/login-form";
-import { GoogleButton } from "../../_components/social-auth/google-button";
+import { LoginForm } from "../../_components/login-form"
+import { GoogleButton } from "../../_components/social-auth/google-button"
 
 interface LoginV2Props {
   searchParams?:
     | Promise<{
-        error?: string | string[];
-        redirectTo?: string | string[];
+        error?: string | string[]
+        redirectTo?: string | string[]
       }>
     | {
-        error?: string | string[];
-        redirectTo?: string | string[];
-      };
+        error?: string | string[]
+        redirectTo?: string | string[]
+      }
 }
 
 export default async function LoginV2({ searchParams }: LoginV2Props) {
-  const resolvedSearchParams = await Promise.resolve(searchParams);
+  const resolvedSearchParams = await Promise.resolve(searchParams)
   const authError = Array.isArray(resolvedSearchParams?.error)
     ? resolvedSearchParams.error[0]
-    : resolvedSearchParams?.error;
+    : resolvedSearchParams?.error
   const redirectTo = Array.isArray(resolvedSearchParams?.redirectTo)
     ? resolvedSearchParams.redirectTo[0]
-    : resolvedSearchParams?.redirectTo;
+    : resolvedSearchParams?.redirectTo
 
   return (
     <>
@@ -43,7 +43,9 @@ export default async function LoginV2({ searchParams }: LoginV2Props) {
           ) : null}
           <GoogleButton className="w-full" redirectTo={redirectTo} />
           <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-border after:border-t">
-            <span className="relative z-10 bg-background px-2 text-muted-foreground">Or continue with</span>
+            <span className="relative z-10 bg-background px-2 text-muted-foreground">
+              Or continue with
+            </span>
           </div>
           <LoginForm redirectTo={redirectTo} />
         </div>
@@ -66,5 +68,5 @@ export default async function LoginV2({ searchParams }: LoginV2Props) {
         </div>
       </div>
     </>
-  );
+  )
 }

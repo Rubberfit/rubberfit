@@ -1,19 +1,19 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Link2, Package, DollarSign, Clock, ShoppingCart } from "lucide-react";
+import { useState, useEffect, useCallback } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { Link2 } from "lucide-react"
 
 import type {
   Supplier,
   MaterialType,
   MaterialSupplier,
   CreateMaterialSupplier,
-} from "@/lib/supabase";
-import { materialTypeService } from "@/services/materialTypeService";
-import { supplierService } from "@/services/supplierService";
+} from "@/lib/supabase"
+import { materialTypeService } from "@/services/materialTypeService"
+import { supplierService } from "@/services/supplierService"
 import {
   Dialog,
   DialogContent,
@@ -21,31 +21,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+import { Form } from "@/components/ui/form"
+import { MaterialSupplierLinkForm } from "./material-supplier-link-form"
 
 const materialSupplierSchema = z.object({
   material_type_id: z.string().min(1, "Material type is required"),
@@ -59,17 +39,17 @@ const materialSupplierSchema = z.object({
   notes: z.string().optional(),
   effective_date: z.string(),
   expiration_date: z.string().optional(),
-});
+})
 
-type MaterialSupplierFormData = z.infer<typeof materialSupplierSchema>;
+type MaterialSupplierFormData = z.infer<typeof materialSupplierSchema>
 
 interface MaterialSupplierLinkProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  materialSupplier?: MaterialSupplier | null;
-  defaultMaterialId?: string;
-  defaultSupplierId?: string;
-  onSuccess: () => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  materialSupplier?: MaterialSupplier | null
+  defaultMaterialId?: string
+  defaultSupplierId?: string
+  onSuccess: () => void
 }
 
 export function MaterialSupplierLink({
@@ -80,10 +60,10 @@ export function MaterialSupplierLink({
   defaultSupplierId,
   onSuccess,
 }: MaterialSupplierLinkProps) {
-  const [submitting, setSubmitting] = useState(false);
-  const [materials, setMaterials] = useState<MaterialType[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [submitting, setSubmitting] = useState(false)
+  const [materials, setMaterials] = useState<MaterialType[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [loadingData, setLoadingData] = useState(true)
 
   const form = useForm<MaterialSupplierFormData>({
     resolver: zodResolver(materialSupplierSchema),
@@ -100,13 +80,31 @@ export function MaterialSupplierLink({
       effective_date: new Date().toISOString().split("T")[0],
       expiration_date: "",
     },
-  });
+  })
+
+  const fetchData = useCallback(async () => {
+    setLoadingData(true)
+    try {
+      const [materialsData, suppliersData] = await Promise.all([
+        materialTypeService.getAll(),
+        supplierService.getActiveSuppliers(),
+      ])
+
+      setMaterials(materialsData)
+      setSuppliers(suppliersData)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      toast.error("Failed to load data")
+    } finally {
+      setLoadingData(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (open) {
-      fetchData();
+      fetchData()
     }
-  }, [open]);
+  }, [open, fetchData])
 
   useEffect(() => {
     if (materialSupplier) {
@@ -122,7 +120,7 @@ export function MaterialSupplierLink({
         notes: materialSupplier.notes || "",
         effective_date: materialSupplier.effective_date,
         expiration_date: materialSupplier.expiration_date || "",
-      });
+      })
     } else {
       form.reset({
         material_type_id: defaultMaterialId || "",
@@ -136,42 +134,24 @@ export function MaterialSupplierLink({
         notes: "",
         effective_date: new Date().toISOString().split("T")[0],
         expiration_date: "",
-      });
+      })
     }
-  }, [materialSupplier, defaultMaterialId, defaultSupplierId, form]);
-
-  const fetchData = async () => {
-    setLoadingData(true);
-    try {
-      const [materialsData, suppliersData] = await Promise.all([
-        materialTypeService.getAll(),
-        supplierService.getActiveSuppliers(),
-      ]);
-
-      setMaterials(materialsData);
-      setSuppliers(suppliersData);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setLoadingData(false);
-    }
-  };
+  }, [materialSupplier, defaultMaterialId, defaultSupplierId, form])
 
   const onSubmit = async (data: MaterialSupplierFormData) => {
-    setSubmitting(true);
+    setSubmitting(true)
     try {
       // Check for existing link if creating new
       if (!materialSupplier) {
         const existingLink = await supplierService.checkMaterialSupplierLink(
           data.material_type_id,
           data.supplier_id
-        );
+        )
 
         if (existingLink) {
-          toast.error("This material-supplier link already exists");
-          setSubmitting(false);
-          return;
+          toast.error("This material-supplier link already exists")
+          setSubmitting(false)
+          return
         }
       }
 
@@ -187,27 +167,27 @@ export function MaterialSupplierLink({
         notes: data.notes?.trim() || undefined,
         effective_date: data.effective_date,
         expiration_date: data.expiration_date || undefined,
-      };
-
-      if (materialSupplier) {
-        await supplierService.updateMaterialSupplier(materialSupplier.id, linkData);
-        toast.success("Material-supplier link updated successfully");
-      } else {
-        await supplierService.linkMaterialToSupplier(linkData);
-        toast.success("Material-supplier link created successfully");
       }
 
-      onSuccess();
-    } catch (error: any) {
-      console.error("Error saving material-supplier link:", error);
-      toast.error(error.message || "Failed to save material-supplier link");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      if (materialSupplier) {
+        await supplierService.updateMaterialSupplier(materialSupplier.id, linkData)
+        toast.success("Material-supplier link updated successfully")
+      } else {
+        await supplierService.linkMaterialToSupplier(linkData)
+        toast.success("Material-supplier link created successfully")
+      }
 
-  const selectedMaterial = materials.find((m) => m.id === form.watch("material_type_id"));
-  const selectedSupplier = suppliers.find((s) => s.id === form.watch("supplier_id"));
+      onSuccess()
+    } catch (error) {
+      console.error("Error saving material-supplier link:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to save material-supplier link")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const selectedMaterial = materials.find((m) => m.id === form.watch("material_type_id"))
+  const _selectedSupplier = suppliers.find((s) => s.id === form.watch("supplier_id"))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -223,329 +203,19 @@ export function MaterialSupplierLink({
         </DialogHeader>
 
         {loadingData ? (
-          <div className="py-8 text-center text-muted-foreground">
-            Loading...
-          </div>
+          <div className="py-8 text-center text-muted-foreground">Loading...</div>
         ) : (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Selection Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Material & Supplier</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="material_type_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          <Package className="inline h-4 w-4 mr-2" />
-                          Material Type *
-                        </FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={!!materialSupplier || !!defaultMaterialId}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="min-h-[44px]">
-                              <SelectValue placeholder="Select material type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {materials.map((material) => (
-                              <SelectItem key={material.id} value={material.id}>
-                                {material.name}
-                                {material.default_cost && (
-                                  <span className="text-muted-foreground ml-2">
-                                    (${material.default_cost}/sq ft)
-                                  </span>
-                                )}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="supplier_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          <Package className="inline h-4 w-4 mr-2" />
-                          Supplier *
-                        </FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={!!materialSupplier || !!defaultSupplierId}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="min-h-[44px]">
-                              <SelectValue placeholder="Select supplier" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {suppliers.map((supplier) => (
-                              <SelectItem key={supplier.id} value={supplier.id}>
-                                <div className="flex items-center gap-2">
-                                  {supplier.name}
-                                  {supplier.preferred && (
-                                    <Badge variant="secondary" className="ml-2">
-                                      Preferred
-                                    </Badge>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="supplier_material_code"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Supplier Material Code</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g., NEO-4870-BK"
-                            {...field}
-                            className="min-h-[44px]"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          The supplier's internal code for this material
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Pricing Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Pricing & Terms</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="cost_per_sqft"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            <DollarSign className="inline h-4 w-4 mr-2" />
-                            Cost per sq ft *
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              placeholder="2.50"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              className="min-h-[44px]"
-                            />
-                          </FormControl>
-                          {selectedMaterial?.default_cost && (
-                            <FormDescription>
-                              Default: ${selectedMaterial.default_cost.toFixed(2)}
-                            </FormDescription>
-                          )}
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="minimum_order_sqft"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            <ShoppingCart className="inline h-4 w-4 mr-2" />
-                            Minimum Order (sq ft)
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="1"
-                              min="0"
-                              placeholder="500"
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(
-                                  e.target.value ? parseInt(e.target.value) : undefined
-                                )
-                              }
-                              className="min-h-[44px]"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="lead_time_days"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          <Clock className="inline h-4 w-4 mr-2" />
-                          Lead Time (days)
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="1"
-                            min="0"
-                            placeholder="14"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value ? parseInt(e.target.value) : undefined
-                              )
-                            }
-                            className="min-h-[44px]"
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Standard delivery time for this material from this supplier
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4 items-start">
-                    <FormField
-                      control={form.control}
-                      name="effective_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Effective Date *</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              className="min-h-[44px]"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="expiration_date"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Expiration Date</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              className="min-h-[44px]"
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Leave blank for no expiration
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Preferences Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preferences</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="preferred_supplier"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Preferred Supplier for Material
-                          </FormLabel>
-                          <FormDescription>
-                            Mark this supplier as preferred for this specific material
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="active"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Active</FormLabel>
-                          <FormDescription>
-                            Enable or disable this material-supplier relationship
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Notes</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Special terms, conditions, or notes about this material-supplier relationship..."
-                            className="resize-none"
-                            rows={3}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
+              <MaterialSupplierLinkForm
+                form={form}
+                materials={materials}
+                suppliers={suppliers}
+                materialSupplier={materialSupplier}
+                defaultMaterialId={defaultMaterialId}
+                defaultSupplierId={defaultSupplierId}
+                selectedMaterial={selectedMaterial}
+              />
 
               <DialogFooter>
                 <Button
@@ -558,11 +228,7 @@ export function MaterialSupplierLink({
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting} className="min-h-[44px]">
-                  {submitting
-                    ? "Saving..."
-                    : materialSupplier
-                    ? "Update Link"
-                    : "Create Link"}
+                  {submitting ? "Saving..." : materialSupplier ? "Update Link" : "Create Link"}
                 </Button>
               </DialogFooter>
             </form>
@@ -570,5 +236,5 @@ export function MaterialSupplierLink({
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }

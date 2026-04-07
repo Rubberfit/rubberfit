@@ -1,29 +1,29 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { type MaterialType } from "@/lib/supabase";
-import { materialTypeService } from "@/services/materialTypeService";
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { type MaterialType } from "@/lib/supabase"
+import { materialTypeService } from "@/services/materialTypeService"
 
 export function MaterialTypesOverview() {
-  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
+  const [loading, setLoading] = useState(true)
 
   const fetchMaterialTypes = async () => {
     try {
-      const data = await materialTypeService.getAll();
-      setMaterialTypes(data);
+      const data = await materialTypeService.getAll()
+      setMaterialTypes(data)
     } catch (error) {
-      console.error("Error fetching material types:", error);
+      console.error("Error fetching material types:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchMaterialTypes();
-  }, []);
+    fetchMaterialTypes()
+  }, [])
 
   if (loading) {
     return (
@@ -35,7 +35,7 @@ export function MaterialTypesOverview() {
           <p className="text-sm text-muted-foreground">Loading material types...</p>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -54,9 +54,7 @@ export function MaterialTypesOverview() {
                 </p>
               </div>
               <div className="text-right">
-                <Badge variant="outline">
-                  ${material.default_cost?.toFixed(2) || "N/A"}
-                </Badge>
+                <Badge variant="outline">${material.default_cost?.toFixed(2) || "N/A"}</Badge>
                 <p className="text-xs text-muted-foreground mt-1">
                   Alert: {material.min_stock_alert || 0} sq ft
                 </p>
@@ -71,5 +69,5 @@ export function MaterialTypesOverview() {
         </div>
       </CardContent>
     </Card>
-  );
+  )
 }

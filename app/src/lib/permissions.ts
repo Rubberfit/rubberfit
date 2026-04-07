@@ -1,6 +1,6 @@
-export type AppRole = "admin" | "cutter" | "manager" | "member" | "supervisor" | "viewer";
+export type AppRole = "admin" | "cutter" | "manager" | "member" | "supervisor" | "viewer"
 
-export const DEFAULT_ROLES = ["member"] as const satisfies readonly AppRole[];
+export const DEFAULT_ROLES = ["member"] as const satisfies readonly AppRole[]
 
 export const PERMISSIONS = {
   // Inventory
@@ -29,9 +29,9 @@ export const PERMISSIONS = {
   viewCostReports: ["admin", "manager"],
   viewTrends: ["admin", "manager"],
   viewReports: ["admin", "manager", "supervisor"],
-} as const satisfies Record<string, readonly AppRole[]>;
+} as const satisfies Record<string, readonly AppRole[]>
 
-export type Permission = keyof typeof PERMISSIONS;
+export type Permission = keyof typeof PERMISSIONS
 
 export const ROUTE_PERMISSIONS = {
   // Cut Planner
@@ -63,24 +63,24 @@ export const ROUTE_PERMISSIONS = {
 
   // Settings & Users
   "/dashboard/settings": "manageUsers",
-} as const satisfies Record<string, Permission>;
+} as const satisfies Record<string, Permission>
 
 export function hasAnyRole(userRoles: readonly AppRole[], requiredRoles: readonly AppRole[]) {
-  return requiredRoles.some((role) => userRoles.includes(role));
+  return requiredRoles.some((role) => userRoles.includes(role))
 }
 
 export function hasPermission(userRoles: readonly AppRole[], permission: Permission) {
-  return hasAnyRole(userRoles, PERMISSIONS[permission]);
+  return hasAnyRole(userRoles, PERMISSIONS[permission])
 }
 
 export function getRequiredPermission(pathname: string): Permission | null {
   if (pathname in ROUTE_PERMISSIONS) {
-    return ROUTE_PERMISSIONS[pathname as keyof typeof ROUTE_PERMISSIONS];
+    return ROUTE_PERMISSIONS[pathname as keyof typeof ROUTE_PERMISSIONS]
   }
 
   const matchedKey = Object.keys(ROUTE_PERMISSIONS)
     .sort((a, b) => b.length - a.length)
-    .find((route) => pathname.startsWith(route));
+    .find((route) => pathname.startsWith(route))
 
-  return matchedKey ? ROUTE_PERMISSIONS[matchedKey as keyof typeof ROUTE_PERMISSIONS] : null;
+  return matchedKey ? ROUTE_PERMISSIONS[matchedKey as keyof typeof ROUTE_PERMISSIONS] : null
 }

@@ -1,16 +1,16 @@
-"use client";
+"use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface UsageData {
-  period: string;
-  totalUsage: number;
-  cuts: number;
+  period: string
+  totalUsage: number
+  cuts: number
 }
 
 interface UsageTrendChartProps {
-  data: UsageData[];
+  data: UsageData[]
 }
 
 export function UsageTrendChart({ data }: UsageTrendChartProps) {
@@ -27,7 +27,7 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as UsageData;
+                  const data = payload[0].payload as UsageData
                   return (
                     <div className="rounded-lg border bg-background p-2 shadow-md">
                       <p className="font-medium">{label}</p>
@@ -42,9 +42,9 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
                         </p>
                       </div>
                     </div>
-                  );
+                  )
                 }
-                return null;
+                return null
               }}
             />
             <Line
@@ -59,5 +59,5 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
         </ResponsiveContainer>
       </CardContent>
     </Card>
-  );
+  )
 }

@@ -1,56 +1,63 @@
-"use client";
+"use client"
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+import { z } from "zod"
 
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/contexts/AuthContext"
 
 const FormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
-});
+})
 
 export function ForgotPasswordForm() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const { resetPassword } = useAuth();
+  const [isLoading, setIsLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const { resetPassword } = useAuth()
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       email: "",
     },
-  });
+  })
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
-      const { success, error } = await resetPassword(data.email);
+      const { success, error } = await resetPassword(data.email)
 
       if (success) {
-        setEmailSent(true);
+        setEmailSent(true)
         toast.success("Reset link sent!", {
           description: "Please check your email for password reset instructions.",
-        });
+        })
       } else {
         toast.error("Reset failed", {
           description: error || "Please check your email address and try again.",
-        });
+        })
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Reset failed", {
         description: "An unexpected error occurred. Please try again.",
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   if (emailSent) {
     return (
@@ -64,15 +71,15 @@ export function ForgotPasswordForm() {
         <Button
           variant="outline"
           onClick={() => {
-            setEmailSent(false);
-            form.reset();
+            setEmailSent(false)
+            form.reset()
           }}
           className="w-full"
         >
           Send another email
         </Button>
       </div>
-    );
+    )
   }
 
   return (
@@ -102,5 +109,5 @@ export function ForgotPasswordForm() {
         </Button>
       </form>
     </Form>
-  );
+  )
 }

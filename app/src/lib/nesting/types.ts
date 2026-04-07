@@ -1,97 +1,97 @@
 /** A 2D point */
 export interface Point2D {
-  x: number;
-  y: number;
+  x: number
+  y: number
 }
 
 /** A polygon defined by its vertices (CCW winding) */
 export interface Polygon2D {
-  id: string;
-  points: Point2D[];
+  id: string
+  points: Point2D[]
   /** How many discrete rotation steps to allow (4 = 0/90/180/270) */
-  rotationSteps?: number;
+  rotationSteps?: number
 }
 
 /** A single part to nest */
 export interface NestingPart {
-  id: string;
-  polygon: Polygon2D;
-  quantity: number;
+  id: string
+  polygon: Polygon2D
+  quantity: number
   /** Index of the originating UI spec */
-  sourceSpecIndex?: number;
+  sourceSpecIndex?: number
   /** Piece index within a split fabrication strategy */
-  pieceIndex?: number;
+  pieceIndex?: number
   /** Total number of pieces required for one finished unit */
-  piecesPerUnit?: number;
+  piecesPerUnit?: number
   /** Original shape type for rendering */
-  renderShape: "rect" | "circle" | "trapezoid" | "sector";
+  renderShape: "rect" | "circle" | "trapezoid" | "sector"
   /** Original shape fields preserved for rendering */
-  originalSpec: Record<string, unknown>;
+  originalSpec: Record<string, unknown>
 }
 
 /** Input to the nesting engine */
 export interface NestingInput {
   /** Bin (stock sheet) width in inches */
-  binWidth: number;
+  binWidth: number
   /** Bin (stock sheet) height in inches */
-  binHeight: number;
+  binHeight: number
   /** Parts to place */
-  parts: NestingPart[];
+  parts: NestingPart[]
   /** Spacing/kerf between parts (inches) */
-  spacing: number;
+  spacing: number
   /** Discrete rotation steps (4 = 0/90/180/270, default: 4) */
-  rotationSteps: number;
+  rotationSteps: number
   /** GA population size (default: 10) */
-  populationSize?: number;
+  populationSize?: number
   /** GA mutation rate 0-1 (default: 0.2) */
-  mutationRate?: number;
+  mutationRate?: number
   /** GA generations (default: 30) */
-  generations?: number;
+  generations?: number
   /** PRNG seed */
-  seed?: number;
+  seed?: number
 }
 
 /** A single placed part */
 export interface Placement2D {
-  partId: string;
+  partId: string
   /** Position of the part origin after placement */
-  x: number;
-  y: number;
+  x: number
+  y: number
   /** Bounding box of the placed part */
-  width: number;
-  height: number;
+  width: number
+  height: number
   /** True polygon area of the placed part */
-  polygonArea: number;
+  polygonArea: number
   /** Bounding-box area of the placed part */
-  boundingBoxArea: number;
+  boundingBoxArea: number
   /** Rotation in radians */
-  rotation: number;
+  rotation: number
   /** The actual polygon vertices after placement + rotation */
-  placedPolygon: Point2D[];
+  placedPolygon: Point2D[]
   /** Whether the part was flipped (~180° rotation) for rendering compatibility */
-  flipped: boolean;
+  flipped: boolean
 }
 
 /** Result from the nesting engine */
 export interface NestingResult {
-  placements: Placement2D[];
+  placements: Placement2D[]
   /** Number of parts successfully placed */
-  placed: number;
+  placed: number
   /** Number of parts that didn't fit */
-  overflow: number;
+  overflow: number
   /** Total true polygon area occupied by placed parts */
-  usedArea: number;
+  usedArea: number
   /** Bounding-box area of the overall placed layout */
-  occupiedArea: number;
+  occupiedArea: number
   /** Bounding box of all placed parts */
-  occupiedWidth: number;
-  occupiedHeight: number;
+  occupiedWidth: number
+  occupiedHeight: number
   /** Area of the stock/bin used for the nesting run */
-  stockArea: number;
+  stockArea: number
   /** Unused stock area based on true polygon usage */
-  wasteArea: number;
+  wasteArea: number
   /** Optimization quality metric (0-100) */
-  efficiency: number;
+  efficiency: number
   /** Whether this is a heuristic or optimized result */
-  source: "heuristic" | "optimized";
+  source: "heuristic" | "optimized"
 }

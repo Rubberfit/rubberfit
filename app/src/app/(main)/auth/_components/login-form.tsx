@@ -1,33 +1,40 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import { useState } from "react"
 
-import Link from "next/link";
+import Link from "next/link"
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
+import { z } from "zod"
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { useAuth } from "@/contexts/AuthContext"
 
 const FormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   remember: z.boolean().optional(),
-});
+})
 
 interface LoginFormProps {
-  redirectTo?: string | null;
+  redirectTo?: string | null
 }
 
 export function LoginForm({ redirectTo }: LoginFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [isLoading, setIsLoading] = useState(false)
+  const { signIn } = useAuth()
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -36,31 +43,31 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       password: "",
       remember: false,
     },
-  });
+  })
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
-      const { success, error } = await signIn(data.email, data.password, redirectTo);
+      const { success, error } = await signIn(data.email, data.password, redirectTo)
 
       if (success) {
         toast.success("Sign in successful!", {
           description: "Welcome back! Redirecting to dashboard...",
-        });
+        })
       } else {
         toast.error("Sign in failed", {
           description: error || "Please check your credentials and try again.",
-        });
+        })
       }
     } catch (_error) {
       toast.error("Sign in failed", {
         description: "An unexpected error occurred. Please try again.",
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
     <Form {...form}>
@@ -72,7 +79,13 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             <FormItem>
               <FormLabel>Email Address</FormLabel>
               <FormControl>
-                <Input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -110,7 +123,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
                   className="size-4"
                 />
               </FormControl>
-              <FormLabel htmlFor="login-remember" className="ml-1 font-medium text-muted-foreground text-sm">
+              <FormLabel
+                htmlFor="login-remember"
+                className="ml-1 font-medium text-muted-foreground text-sm"
+              >
                 Remember me for 30 days
               </FormLabel>
             </FormItem>
@@ -129,5 +145,5 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         </div>
       </form>
     </Form>
-  );
+  )
 }

@@ -1,6 +1,6 @@
-import Link from "next/link";
+import Link from "next/link"
 
-import { Lock } from "lucide-react";
+import { Lock } from "lucide-react"
 
 export default function page() {
   return (
@@ -9,8 +9,8 @@ export default function page() {
         <Lock className="mx-auto size-12 text-primary" />
         <h1 className="mt-4 font-bold text-3xl tracking-tight sm:text-4xl">Unauthorized Access</h1>
         <p className="mt-4 text-muted-foreground">
-          You do not have permission to view the requested content. Please contact the site administrator if you believe
-          this is an error.
+          You do not have permission to view the requested content. Please contact the site
+          administrator if you believe this is an error.
         </p>
         <div className="mt-6">
           <Link
@@ -23,5 +23,5 @@ export default function page() {
         </div>
       </div>
     </div>
-  );
+  )
 }

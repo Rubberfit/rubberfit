@@ -1,85 +1,92 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Plus, Download, FileText } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { isRestrictedCutter } from "@/lib/rbac";
-import { CSVUpload } from "../_components/csv-upload";
-import { InventoryTable } from "../_components/inventory-table";
-import { InventorySearch } from "../_components/inventory-search";
-import { RollFormDialog } from "../_components/roll-form-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { rollService } from "@/services/rollService";
-import { exportService } from "@/services/exportService";
-import { toast } from "sonner";
+import { useState } from "react"
+import { Plus, Download, FileText } from "lucide-react"
+import { useAuth } from "@/contexts/AuthContext"
+import { isRestrictedCutter } from "@/lib/rbac"
+import { CSVUpload } from "../_components/csv-upload"
+import { InventoryTable } from "../_components/inventory-table"
+import { InventorySearch } from "../_components/inventory-search"
+import { RollFormDialog } from "../_components/roll-form-dialog"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { rollService } from "@/services/rollService"
+import { exportService } from "@/services/exportService"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useRole } from "@/services/useRole";
+} from "@/components/ui/dropdown-menu"
+import { useRole } from "@/services/useRole"
 
 export default function InventoryPage() {
-  const { user } = useAuth();
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const readOnlyInventory = isRestrictedCutter(user?.roles);
+  const { user } = useAuth()
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const readOnlyInventory = isRestrictedCutter(user?.roles)
 
-  const { can, isLoading } = useRole();
-  const canManageRolls = can("manageRolls");
+  const { can, isLoading } = useRole()
+  const canManageRolls = can("manageRolls")
 
   const handleUploadComplete = () => {
-    setRefreshKey(prev => prev + 1);
-  };
+    setRefreshKey((prev) => prev + 1)
+  }
 
   const handleAddSuccess = () => {
-    setRefreshKey(prev => prev + 1);
-  };
+    setRefreshKey((prev) => prev + 1)
+  }
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
-  };
+    setSearchQuery(query)
+  }
 
   const handleExportCSV = async () => {
     try {
-      const rolls = await rollService.getActiveRolls();
+      const rolls = await rollService.getActiveRolls()
       if (rolls && rolls.length > 0) {
-        exportService.exportInventory(rolls);
+        exportService.exportInventory(rolls as unknown as Record<string, unknown>[])
       } else {
-        toast.error('No data to export');
+        toast.error("No data to export")
       }
     } catch (error) {
-      console.error('Error exporting inventory:', error);
-      toast.error('Failed to export inventory');
+      console.error("Error exporting inventory:", error)
+      toast.error("Failed to export inventory")
     }
-  };
+  }
 
   const handleExportPDF = async () => {
     try {
-      const rolls = await rollService.getActiveRolls();
+      const rolls = await rollService.getActiveRolls()
       const summary = {
         totalRolls: rolls?.length || 0,
-        activeRolls: rolls?.filter(r => r.status === 'active').length || 0,
-        totalValue: rolls?.reduce((sum, roll) =>
-          sum + ((roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144), 0) || 0,
-        totalSqft: rolls?.reduce((sum, roll) =>
-          sum + ((roll.remaining_length * roll.width) / 144), 0) || 0,
-      };
+        activeRolls: rolls?.filter((r) => r.status === "active").length || 0,
+        totalValue:
+          rolls?.reduce(
+            (sum, roll) =>
+              sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
+            0
+          ) || 0,
+        totalSqft:
+          rolls?.reduce((sum, roll) => sum + (roll.remaining_length * roll.width) / 144, 0) || 0,
+      }
       if (rolls && rolls.length > 0) {
-        await exportService.generateInventoryReport(rolls, summary);
+        await exportService.generateInventoryReport(
+          rolls as unknown as Record<string, unknown>[],
+          summary as Record<string, unknown>
+        )
       } else {
-        toast.error('No data to export');
+        toast.error("No data to export")
       }
     } catch (error) {
-      console.error('Error generating report:', error);
-      toast.error('Failed to generate report');
+      console.error("Error generating report:", error)
+      toast.error("Failed to generate report")
     }
-  };
+  }
 
-  if (isLoading) return null;
+  if (isLoading) return null
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -87,7 +94,9 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-2xl font-bold">Inventory Management</h1>
           <p className="text-muted-foreground">
-            {readOnlyInventory ? "View current rubber roll inventory" : "Manage your rubber roll inventory"}
+            {readOnlyInventory
+              ? "View current rubber roll inventory"
+              : "Manage your rubber roll inventory"}
           </p>
         </div>
         <div className="flex gap-2">
@@ -122,9 +131,7 @@ export default function InventoryPage() {
       </div>
 
       {/* CSV Upload — admin and manager only */}
-      {canManageRolls && (
-        <CSVUpload onUploadComplete={handleUploadComplete} />
-      )}
+      {canManageRolls && <CSVUpload onUploadComplete={handleUploadComplete} />}
 
       <Card>
         <CardHeader>
@@ -158,5 +165,5 @@ export default function InventoryPage() {
         />
       )}
     </div>
-  );
+  )
 }

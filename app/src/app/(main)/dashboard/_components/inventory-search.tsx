@@ -1,41 +1,40 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react"
+import { Search, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 interface InventorySearchProps {
-  onSearch: (query: string) => void;
-  placeholder?: string;
+  onSearch: (query: string) => void
+  placeholder?: string
 }
 
 export function InventorySearch({
   onSearch,
-  placeholder = "Search by material type, color, location, or supplier..."
+  placeholder = "Search by material type, color, location, or supplier...",
 }: InventorySearchProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
 
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 300);
+      setDebouncedQuery(searchQuery)
+    }, 300)
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Trigger search when debounced query changes
   useEffect(() => {
-    onSearch(debouncedQuery);
-  }, [debouncedQuery, onSearch]);
+    onSearch(debouncedQuery)
+  }, [debouncedQuery, onSearch])
 
   const handleClear = () => {
-    setSearchQuery("");
-    setDebouncedQuery("");
-    onSearch("");
-  };
+    setSearchQuery("")
+    setDebouncedQuery("")
+  }
 
   return (
     <div className="relative">
@@ -59,5 +58,5 @@ export function InventorySearch({
         </Button>
       )}
     </div>
-  );
+  )
 }

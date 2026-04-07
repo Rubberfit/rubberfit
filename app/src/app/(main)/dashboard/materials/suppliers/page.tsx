@@ -1,16 +1,14 @@
-"use client";
+"use client"
 
-import { useEffect, useState, useMemo } from "react";
-import { Plus, Edit, Trash2, Building, Phone, Mail, Star, Search, Filter } from "lucide-react";
+import { useCallback, useEffect, useState, useMemo } from "react"
+import { Plus, Search, Filter, Star } from "lucide-react"
 
-import { type Supplier } from "@/lib/supabase";
-import { supplierService } from "@/services/supplierService";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { type Supplier } from "@/lib/supabase"
+import { supplierService } from "@/services/supplierService"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,115 +17,98 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
-import { SupplierFormModal } from "./_components/supplier-form-modal";
-import { SupplierDetailView } from "./_components/supplier-detail-view";
+import { SupplierFormModal } from "./_components/supplier-form-modal"
+import { SupplierDetailView } from "./_components/supplier-detail-view"
+import { SuppliersTableCard } from "./_components/suppliers-table-card"
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterPreferred, setFilterPreferred] = useState(false);
-  const [filterActive, setFilterActive] = useState(true);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterPreferred, setFilterPreferred] = useState(false)
+  const [filterActive, setFilterActive] = useState(true)
 
   // Modal states
-  const [formModalOpen, setFormModalOpen] = useState(false);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [deleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
 
   // Selected supplier states
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
 
-  const fetchSuppliers = async () => {
-    setLoading(true);
+  const fetchSuppliers = useCallback(async () => {
+    setLoading(true)
     try {
-      const data = await supplierService.getAllSuppliersOrdered();
-      setSuppliers(data);
+      const data = await supplierService.getAllSuppliersOrdered()
+      setSuppliers(data)
     } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      toast.error("Failed to load suppliers");
+      console.error("Error fetching suppliers:", error)
+      toast.error("Failed to load suppliers")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }, [])
 
   useEffect(() => {
-    fetchSuppliers();
-  }, []);
+    fetchSuppliers()
+  }, [fetchSuppliers])
 
   // Filter suppliers based on search and filter criteria
   const filteredSuppliers = useMemo(() => {
-    return suppliers.filter(supplier => {
-      const matchesSearch = searchTerm === "" ||
+    return suppliers.filter((supplier) => {
+      const matchesSearch =
+        searchTerm === "" ||
         supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         supplier.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        supplier.email?.toLowerCase().includes(searchTerm.toLowerCase())
 
-      const matchesPreferred = !filterPreferred || supplier.preferred;
-      const matchesActive = !filterActive || supplier.active;
+      const matchesPreferred = !filterPreferred || supplier.preferred
+      const matchesActive = !filterActive || supplier.active
 
-      return matchesSearch && matchesPreferred && matchesActive;
-    });
-  }, [suppliers, searchTerm, filterPreferred, filterActive]);
+      return matchesSearch && matchesPreferred && matchesActive
+    })
+  }, [suppliers, searchTerm, filterPreferred, filterActive])
 
   const handleAddSupplier = () => {
-    setSelectedSupplier(null);
-    setFormModalOpen(true);
-  };
+    setSelectedSupplier(null)
+    setFormModalOpen(true)
+  }
 
   const handleEditSupplier = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setFormModalOpen(true);
-  };
+    setSelectedSupplier(supplier)
+    setFormModalOpen(true)
+  }
 
   const handleViewSupplier = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setDetailModalOpen(true);
-  };
+    setSelectedSupplier(supplier)
+    setDetailModalOpen(true)
+  }
 
   const handleDeleteClick = (supplier: Supplier) => {
-    setSupplierToDelete(supplier);
-    setDeleteAlertOpen(true);
-  };
+    setSupplierToDelete(supplier)
+    setDeleteAlertOpen(true)
+  }
 
   const handleDeleteConfirm = async () => {
-    if (!supplierToDelete) return;
+    if (!supplierToDelete) return
 
     try {
-      await supplierService.deleteSupplier(supplierToDelete.id);
+      await supplierService.deleteSupplier(supplierToDelete.id)
 
-      toast.success(`${supplierToDelete.name} has been deleted`);
-      fetchSuppliers();
-    } catch (error: any) {
-      console.error("Error deleting supplier:", error);
-      toast.error(error.message || "Failed to delete supplier");
+      toast.success(`${supplierToDelete.name} has been deleted`)
+      fetchSuppliers()
+    } catch (error) {
+      console.error("Error deleting supplier:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete supplier")
     } finally {
-      setDeleteAlertOpen(false);
-      setSupplierToDelete(null);
+      setDeleteAlertOpen(false)
+      setSupplierToDelete(null)
     }
-  };
-
-  const renderRatingStars = (rating: number | null | undefined) => {
-    if (!rating) return <span className="text-muted-foreground">—</span>;
-
-    return (
-      <div className="flex gap-0.5">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`h-4 w-4 ${
-              star <= rating
-                ? "fill-yellow-500 text-yellow-500"
-                : "text-gray-300"
-            }`}
-          />
-        ))}
-      </div>
-    );
-  };
+  }
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -185,131 +166,16 @@ export default function SuppliersPage() {
         </CardContent>
       </Card>
 
-      {/* Suppliers Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Supplier List</CardTitle>
-          <CardDescription>
-            {filteredSuppliers.length} supplier{filteredSuppliers.length !== 1 ? 's' : ''} found
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      Loading suppliers...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredSuppliers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      {searchTerm || filterPreferred || !filterActive
-                        ? "No suppliers match your search criteria."
-                        : "No suppliers found. Add your first supplier to get started."}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredSuppliers.map((supplier) => (
-                    <TableRow
-                      key={supplier.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleViewSupplier(supplier)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <div className="font-medium">{supplier.name}</div>
-                            {supplier.preferred && (
-                              <Badge variant="secondary" className="mt-1">
-                                Preferred
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {supplier.contact_person || <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {supplier.email ? (
-                          <a
-                            href={`mailto:${supplier.email}`}
-                            className="text-blue-600 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {supplier.email}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {supplier.phone ? (
-                          <a
-                            href={`tel:${supplier.phone}`}
-                            className="text-blue-600 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {supplier.phone}
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{renderRatingStars(supplier.rating)}</TableCell>
-                      <TableCell>
-                        <Badge variant={supplier.active ? "default" : "secondary"}>
-                          {supplier.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditSupplier(supplier);
-                            }}
-                            className="min-h-[36px] min-w-[36px]"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClick(supplier);
-                            }}
-                            className="min-h-[36px] min-w-[36px] hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <SuppliersTableCard
+        suppliers={filteredSuppliers}
+        loading={loading}
+        searchTerm={searchTerm}
+        filterPreferred={filterPreferred}
+        filterActive={filterActive}
+        onViewSupplier={handleViewSupplier}
+        onEditSupplier={handleEditSupplier}
+        onDeleteClick={handleDeleteClick}
+      />
 
       {/* Modals */}
       <SupplierFormModal
@@ -317,8 +183,8 @@ export default function SuppliersPage() {
         onOpenChange={setFormModalOpen}
         supplier={selectedSupplier}
         onSuccess={() => {
-          fetchSuppliers();
-          setFormModalOpen(false);
+          fetchSuppliers()
+          setFormModalOpen(false)
         }}
       />
 
@@ -328,8 +194,8 @@ export default function SuppliersPage() {
           onOpenChange={setDetailModalOpen}
           supplier={selectedSupplier}
           onEdit={() => {
-            setDetailModalOpen(false);
-            handleEditSupplier(selectedSupplier);
+            setDetailModalOpen(false)
+            handleEditSupplier(selectedSupplier)
           }}
         />
       )}
@@ -340,8 +206,8 @@ export default function SuppliersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{supplierToDelete?.name}</strong>?
-              This action cannot be undone and will remove all associated pricing and order history.
+              Are you sure you want to delete <strong>{supplierToDelete?.name}</strong>? This action
+              cannot be undone and will remove all associated pricing and order history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -356,5 +222,5 @@ export default function SuppliersPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
+  )
 }
