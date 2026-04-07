@@ -41,14 +41,13 @@ export function sectorToPolygon(
   innerRadius: number,
   outerRadius: number,
   arcDegrees: number,
-  segments = 16
+  segments = 24
 ): Point2D[] {
   const arcRad = (arcDegrees * Math.PI) / 180
   const points: Point2D[] = []
 
   // Center the sector vertically: arc spans from -arcRad/2 to +arcRad/2
   // Origin at (outerRadius, outerRadius) so all points are positive
-
   // Outer arc (forward)
   for (let i = 0; i <= segments; i++) {
     const angle = -arcRad / 2 + (arcRad * i) / segments
@@ -66,6 +65,5 @@ export function sectorToPolygon(
       y: outerRadius - innerRadius * Math.cos(angle),
     })
   }
-
   return points
 }
