@@ -1,9 +1,9 @@
 import * as XLSX from "xlsx"
 import type { ExtractedPart } from "./upload-types"
 
-const WIDTH_ALIASES = ["width", "w", "wid"]
-const LENGTH_ALIASES = ["length", "len", "l", "height", "h"]
-const QTY_ALIASES = ["quantity", "qty", "count", "pcs", "pieces", "ea"]
+const WIDTH_ALIASES = ["width", "w", "wid", "wide"]
+const LENGTH_ALIASES = ["length", "len", "l", "height", "h", "long"]
+const QTY_ALIASES = ["quantity", "qty", "count", "pcs", "pieces", "ea", "amount", "amt", "#"]
 const PART_ALIASES = [
   "part number",
   "part #",
@@ -13,11 +13,23 @@ const PART_ALIASES = [
   "description",
   "desc",
   "name",
+  "label",
+  "sku",
 ]
+const SIZE_ALIASES = ["size", "sizes", "dimension", "dimensions", "dim", "dims", "cut", "cut size"]
 
 function matchColumn(header: string, aliases: string[]): boolean {
   const h = header.toLowerCase().trim()
-  return aliases.some((a) => h === a || h.startsWith(a + " ") || h.endsWith(" " + a))
+  if (!h) return false
+  return aliases.some(
+    (a) =>
+      h === a ||
+      h.startsWith(a + " ") ||
+      h.startsWith(a + "(") ||
+      h.endsWith(" " + a) ||
+      h.endsWith(")" + a) ||
+      h.includes(a)
+  )
 }
 
 /**
@@ -56,11 +68,27 @@ export function parseFractionalInches(raw: string | number): number {
   return Number.isFinite(num) ? num : 0
 }
 
+/**
+ * Parse a combined dimension string like "18 x 14", "18x14", "11-1/2 x 40"
+ * Returns [width, length] or null if not a dimension pattern
+ */
+function parseCombinedDimension(raw: string | number): [number, number] | null {
+  if (typeof raw === "number") return null
+  const s = String(raw).trim()
+  const match = s.match(/^(.+?)\s*[xX×]\s*(.+)$/)
+  if (!match) return null
+  const w = parseFractionalInches(match[1])
+  const l = parseFractionalInches(match[2])
+  if (w > 0 && l > 0) return [w, l]
+  return null
+}
+
 interface ColumnMap {
   width: number
   length: number
   qty: number
   partNumber: number
+  combined: number // single column with "WxL" dimensions
 }
 
 function detectColumns(headers: string[]): ColumnMap | null {
@@ -68,17 +96,72 @@ function detectColumns(headers: string[]): ColumnMap | null {
   let length = -1
   let qty = -1
   let partNumber = -1
+  let combined = -1
 
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i]
+    if (!h || !String(h).trim()) continue
+
     if (width < 0 && matchColumn(h, WIDTH_ALIASES)) width = i
     else if (length < 0 && matchColumn(h, LENGTH_ALIASES)) length = i
     else if (qty < 0 && matchColumn(h, QTY_ALIASES)) qty = i
     else if (partNumber < 0 && matchColumn(h, PART_ALIASES)) partNumber = i
+    else if (combined < 0 && matchColumn(h, SIZE_ALIASES)) combined = i
   }
 
-  if (width < 0 || length < 0) return null
-  return { width, length, qty, partNumber }
+  // If we found separate width + length columns, use those
+  if (width >= 0 && length >= 0) return { width, length, qty, partNumber, combined: -1 }
+
+  // If we found a combined size/dimension column, use that
+  if (combined >= 0) return { width: -1, length: -1, qty, partNumber, combined }
+
+  return null
+}
+
+/**
+ * Fallback: scan all columns in the first data row looking for numeric pairs
+ * that could be width/length
+ */
+function detectColumnsFromData(headers: string[], firstDataRow: string[]): ColumnMap | null {
+  const numericCols: number[] = []
+  const dimCols: number[] = []
+
+  for (let i = 0; i < firstDataRow.length; i++) {
+    const val = String(firstDataRow[i]).trim()
+    if (!val) continue
+
+    if (parseCombinedDimension(val)) {
+      dimCols.push(i)
+    } else if (parseFractionalInches(val) > 0) {
+      numericCols.push(i)
+    }
+  }
+
+  // Combined dimension column found in data
+  if (dimCols.length > 0) {
+    let qty = -1
+    let partNumber = -1
+    for (let i = 0; i < headers.length; i++) {
+      if (i === dimCols[0]) continue
+      if (qty < 0 && matchColumn(String(headers[i]), QTY_ALIASES)) qty = i
+      else if (partNumber < 0 && matchColumn(String(headers[i]), PART_ALIASES)) partNumber = i
+    }
+    return { width: -1, length: -1, qty, partNumber, combined: dimCols[0] }
+  }
+
+  // Two numeric columns could be width + length
+  if (numericCols.length >= 2) {
+    let qty = -1
+    let partNumber = -1
+    for (let i = 0; i < headers.length; i++) {
+      if (i === numericCols[0] || i === numericCols[1]) continue
+      if (qty < 0 && matchColumn(String(headers[i]), QTY_ALIASES)) qty = i
+      else if (partNumber < 0 && matchColumn(String(headers[i]), PART_ALIASES)) partNumber = i
+    }
+    return { width: numericCols[0], length: numericCols[1], qty, partNumber, combined: -1 }
+  }
+
+  return null
 }
 
 export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
@@ -91,19 +174,35 @@ export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
   if (rows.length < 2) return []
 
   const headerRow = rows[0].map(String)
-  const cols = detectColumns(headerRow)
+  let cols = detectColumns(headerRow)
+
+  // If header detection fails, try inferring from first data row
+  if (!cols && rows.length >= 2) {
+    cols = detectColumnsFromData(headerRow, rows[1].map(String))
+  }
+
   if (!cols) {
     throw new Error(
-      "Could not detect Width and Length columns. " +
-        "Expected headers like: Width, Length, Qty, Part Number"
+      "Could not detect dimension columns. " +
+        "Expected headers like: Width, Length, Size, or columns with dimension data (e.g. 18 x 14)."
     )
   }
 
   const parts: ExtractedPart[] = []
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i]
-    const w = parseFractionalInches(row[cols.width])
-    const l = parseFractionalInches(row[cols.length])
+    let w: number
+    let l: number
+
+    if (cols.combined >= 0) {
+      const dim = parseCombinedDimension(row[cols.combined])
+      if (!dim) continue
+      ;[w, l] = dim
+    } else {
+      w = parseFractionalInches(row[cols.width])
+      l = parseFractionalInches(row[cols.length])
+    }
+
     if (w <= 0 || l <= 0) continue
 
     const q = cols.qty >= 0 ? Math.max(1, Math.round(parseFractionalInches(row[cols.qty]))) : 1
