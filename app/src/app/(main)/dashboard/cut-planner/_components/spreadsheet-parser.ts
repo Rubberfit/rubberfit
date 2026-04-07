@@ -21,15 +21,12 @@ const SIZE_ALIASES = ["size", "sizes", "dimension", "dimensions", "dim", "dims",
 function matchColumn(header: string, aliases: string[]): boolean {
   const h = header.toLowerCase().trim()
   if (!h) return false
-  return aliases.some(
-    (a) =>
-      h === a ||
-      h.startsWith(a + " ") ||
-      h.startsWith(a + "(") ||
-      h.endsWith(" " + a) ||
-      h.endsWith(")" + a) ||
-      h.includes(a)
-  )
+  return aliases.some((a) => {
+    if (h === a) return true
+    // Short aliases (1-2 chars) must be exact match only to avoid false positives
+    if (a.length <= 2) return false
+    return h.startsWith(a + " ") || h.startsWith(a + "(") || h.includes(a)
+  })
 }
 
 /**
@@ -164,6 +161,32 @@ function detectColumnsFromData(headers: string[], firstDataRow: string[]): Colum
   return null
 }
 
+/**
+ * Scan the first rows to find the actual header row.
+ * Spreadsheets often have title rows, blank rows, or unit labels before the real headers.
+ */
+function findHeaderRow(
+  rows: string[][],
+  maxScan: number = 10
+): { headerIndex: number; cols: ColumnMap } | null {
+  const limit = Math.min(maxScan, rows.length - 1)
+  for (let r = 0; r < limit; r++) {
+    const candidate = rows[r].map(String)
+    const cols = detectColumns(candidate)
+    if (cols) return { headerIndex: r, cols }
+  }
+
+  // Fallback: infer from data rows
+  for (let r = 0; r < limit; r++) {
+    const nextRow = rows[r + 1]
+    if (!nextRow) continue
+    const cols = detectColumnsFromData(rows[r].map(String), nextRow.map(String))
+    if (cols) return { headerIndex: r, cols }
+  }
+
+  return null
+}
+
 export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: "array" })
@@ -173,23 +196,18 @@ export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
 
   if (rows.length < 2) return []
 
-  const headerRow = rows[0].map(String)
-  let cols = detectColumns(headerRow)
-
-  // If header detection fails, try inferring from first data row
-  if (!cols && rows.length >= 2) {
-    cols = detectColumnsFromData(headerRow, rows[1].map(String))
-  }
-
-  if (!cols) {
+  const found = findHeaderRow(rows)
+  if (!found) {
     throw new Error(
       "Could not detect dimension columns. " +
         "Expected headers like: Width, Length, Size, or columns with dimension data (e.g. 18 x 14)."
     )
   }
 
+  const { headerIndex, cols } = found
   const parts: ExtractedPart[] = []
-  for (let i = 1; i < rows.length; i++) {
+
+  for (let i = headerIndex + 1; i < rows.length; i++) {
     const row = rows[i]
     let w: number
     let l: number
