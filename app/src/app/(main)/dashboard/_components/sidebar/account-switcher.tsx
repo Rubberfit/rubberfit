@@ -58,7 +58,7 @@ export function AccountSwitcher({
       <DropdownMenuTrigger asChild>
         <Avatar className="size-9 rounded-lg">
           <AvatarImage
-            src={activeUser.avatar || undefined}
+            src={activeUser.avatar ?? undefined}
             alt={activeUser.name}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
@@ -84,7 +84,7 @@ export function AccountSwitcher({
             <div className="flex w-full items-center justify-between gap-2 px-1 py-1.5">
               <Avatar className="size-9 rounded-lg">
                 <AvatarImage
-                  src={user.avatar || undefined}
+                  src={user.avatar ?? undefined}
                   alt={user.name}
                   crossOrigin="anonymous"
                   referrerPolicy="no-referrer"

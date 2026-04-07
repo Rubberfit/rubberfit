@@ -89,14 +89,14 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
         width: roll.width,
         length: roll.length,
         thickness: roll.thickness,
-        color: roll.color || "",
-        location: roll.location || "",
+        color: roll.color ?? "",
+        location: roll.location ?? "",
         date_received: roll.date_received
           ? format(new Date(roll.date_received), "yyyy-MM-dd")
           : format(new Date(), "yyyy-MM-dd"),
-        supplier: roll.supplier || "",
+        supplier: roll.supplier ?? "",
         cost_per_sqft: roll.cost_per_sqft ?? 2.5,
-        notes: roll.notes || "",
+        notes: roll.notes ?? "",
         remaining_length: roll.remaining_length,
       })
     } else {
@@ -114,7 +114,7 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
         remaining_length: undefined,
       })
     }
-  }, [roll, form])
+  }, [roll, open, form])
 
   const onSubmit = async (values: RollFormValues) => {
     setLoading(true)

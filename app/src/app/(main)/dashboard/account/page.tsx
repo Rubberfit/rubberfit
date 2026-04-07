@@ -13,7 +13,7 @@ import { AccountInfoCard } from "./_components/account-info-card"
 export default function AccountPage() {
   const { user, updatePassword } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar || "")
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar ?? "")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -23,8 +23,8 @@ export default function AccountPage() {
   }, [user?.avatar])
 
   const [profileData, setProfileData] = useState({
-    name: user?.name || "",
-    email: user?.email || "",
+    name: user?.name ?? "",
+    email: user?.email ?? "",
   })
 
   const [passwordData, setPasswordData] = useState({
@@ -123,7 +123,7 @@ export default function AccountPage() {
         })
       } else {
         toast.error("Failed to update password", {
-          description: error || "An unexpected error occurred",
+          description: error ?? "An unexpected error occurred",
         })
       }
     } catch (_error) {
