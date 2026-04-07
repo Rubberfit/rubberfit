@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Layers3, Ruler, Scissors, Shapes } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import PresetDimensionSelector, { type PartTemplate } from "./_components/PresetDimensionSelector"
+import CutListUpload from "./_components/cut-list-upload"
+import type { ExtractedPart } from "./_components/upload-types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import {
   StockPreviewConfigurator,
@@ -184,6 +186,21 @@ export default function CutPlannerPage() {
     setCustomCutRatioInput("")
   }
 
+  const handleUploadedParts = (parts: ExtractedPart[]) => {
+    const uploaded: PartTemplate[] = parts.map((p, i) => ({
+      id: `uploaded-${Date.now()}-${i}`,
+      partType: "rectangle" as const,
+      label: `${p.width}" \u00D7 ${p.length}"`,
+      summary: p.partNumber ? `Uploaded: ${p.partNumber}` : "Uploaded dimension",
+      quantity: p.quantity,
+      category: "custom" as const,
+      width: p.width,
+      length: p.length,
+      isCustom: true,
+    }))
+    setSelectedTemplates((prev) => [...prev, ...uploaded])
+  }
+
   const safeQuantity = Math.max(1, Number.isFinite(quantity) ? quantity : 1)
   const customCutRatios = useMemo(
     () => parseCutRatios(customCutRatioInput, safeQuantity),
@@ -215,6 +232,8 @@ export default function CutPlannerPage() {
           <Link href="/dashboard/cut-planner/batch">Batch Mode</Link>
         </Button>
       </div>
+
+      <CutListUpload onPartsConfirmed={handleUploadedParts} />
 
       <StockPreviewConfigurator
         activeStockPreset={activeStockPreset}
