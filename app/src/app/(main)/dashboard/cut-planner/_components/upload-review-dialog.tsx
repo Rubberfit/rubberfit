@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { AlertTriangle, Trash2 } from "lucide-react"
 import {
   Dialog,
@@ -61,6 +61,10 @@ export default function UploadReviewDialog({
   onCancel,
 }: UploadReviewDialogProps) {
   const [parts, setParts] = useState<ExtractedPart[]>(initialParts)
+
+  useEffect(() => {
+    setParts(initialParts)
+  }, [initialParts])
 
   const updateField = (index: number, field: keyof ExtractedPart, value: string) => {
     setParts((prev) =>
