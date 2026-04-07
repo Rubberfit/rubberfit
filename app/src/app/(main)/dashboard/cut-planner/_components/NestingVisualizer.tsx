@@ -158,6 +158,7 @@ export default function NestingVisualizer({
   const activeStrat = scored.find((s) => s.id === activeId)
   const stepNote = computeStepNote(activeStrat, activeStep, rollW, rollL, qty)
 
+  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
   const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
     simpleMode,
     activeSimpleSpecs,
