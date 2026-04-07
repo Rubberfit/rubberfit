@@ -12,4 +12,5 @@ export {
 export {
   generateMultiPartPreview,
   generateSimplePartPreview,
+  computeMultiSheetPreviews,
 } from "./nesting-shape-previews-dispatch"

@@ -13,11 +13,16 @@ import type {
   ScoredStrategy,
   NestingVisualizerProps,
   SimplePartPreview,
+  MultiSheetResult,
 } from "./nesting-visualizer-types"
 
 import { getStrategies, scoreStrat } from "./nesting-layout-utils"
 
-import { generateSimplePartPreview, generateMultiPartPreview } from "./nesting-shape-previews"
+import {
+  generateSimplePartPreview,
+  generateMultiPartPreview,
+  computeMultiSheetPreviews,
+} from "./nesting-shape-previews"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -27,7 +32,30 @@ import NestingVizSimpleMode from "./nesting-viz-simple-mode"
 import NestingVizRectPanel from "./nesting-viz-rect-panel"
 import NestingVizControls from "./nesting-viz-controls"
 
-// Main Component
+function buildMultiSheet(
+  simpleMode: boolean,
+  basePreview: SimplePartPreview | null,
+  specs: NestingVisualizerProps["simpleParts"] & object,
+  rollW: number,
+  rollL: number,
+  cutW: number,
+  cutH: number
+): MultiSheetResult | null {
+  if (!simpleMode || !basePreview) return null
+  const regenerateForQty = (qty: number) => {
+    const partWithQty = { ...specs[0], quantity: qty }
+    return generateSimplePartPreview(rollW, rollL, partWithQty, cutW, cutH, qty)
+  }
+  return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerateForQty)
+}
+
+function buildTagMap(basePreview: SimplePartPreview | null) {
+  if (!basePreview) return new Map<string, string>()
+  const labels = [...new Set(basePreview.items.map((i) => i.label))]
+  return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]))
+}
+
+// eslint-disable-next-line max-lines-per-function
 export default function NestingVisualizer({
   defaultRollWidth = 48,
   defaultRollLength = 96,
@@ -54,15 +82,11 @@ export default function NestingVisualizer({
   const [activeId, setActiveId] = useState<string>("")
   const [activeStep, setActiveStep] = useState(0)
   const [scored, setScored] = useState<ScoredStrategy[]>([])
-  // circle
   const [diam, setDiam] = useState(12)
-  // cone
   const [innerR, setInnerR] = useState(10)
   const [outerR, setOuterR] = useState(24)
   const [arcDeg, setArcDeg] = useState(120)
-  // non-rect stats
   const [bgStats, setBgStats] = useState({ count: 0, used: 0, waste: 100 })
-  // view mode for non-rect shapes
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
 
   const activeSimpleSpecs = useMemo(() => {
@@ -168,6 +192,30 @@ export default function NestingVisualizer({
     defaultRollLength
   )
 
+  const multiSheet = useMemo(
+    () =>
+      buildMultiSheet(
+        simpleMode,
+        baseSimplePreview,
+        activeSimpleSpecs,
+        defaultRollWidth,
+        defaultRollLength,
+        defaultCutWidth,
+        defaultCutHeight
+      ),
+    [
+      simpleMode,
+      baseSimplePreview,
+      activeSimpleSpecs,
+      defaultRollWidth,
+      defaultRollLength,
+      defaultCutWidth,
+      defaultCutHeight,
+    ]
+  )
+
+  const tagMap = useMemo(() => buildTagMap(baseSimplePreview), [baseSimplePreview])
+
   if (simpleMode) {
     const preview =
       baseSimplePreview ??
@@ -190,6 +238,8 @@ export default function NestingVisualizer({
         optimizedItems={optimizedItems}
         isOptimizing={isOptimizing}
         nfpError={nfpError}
+        multiSheet={multiSheet}
+        tagMap={tagMap}
       />
     )
   }

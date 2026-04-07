@@ -120,6 +120,7 @@ export default function PresetDimensionSelector({
             onToggle={handleToggle}
             onEditCustom={editCustomTemplate}
             onRemoveCustom={removeCustomTemplate}
+            tagMap={tagMap}
           />
 
           <PresetCustomTemplateForm

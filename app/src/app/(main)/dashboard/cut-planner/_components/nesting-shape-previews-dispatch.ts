@@ -6,6 +6,8 @@ import type {
   SimplePartPreview,
   SimplePartSpec,
   NestingVisualizerProps,
+  MultiSheetResult,
+  SheetPreview,
 } from "./nesting-visualizer-types"
 import {
   bandFitsAnyPreviewItem,
@@ -16,6 +18,7 @@ import {
 import { packPreviewItemsOnShelves, packRectItemsWithGuillotine } from "./nesting-packing-utils"
 import { buildPartPreviewItem, getPartTypeLabel } from "./nesting-preview-builders"
 import { generateRectanglePreview, generateCirclePreview } from "./nesting-shape-previews-basic"
+import { computeFabricationScore } from "./nesting-preview-builders"
 import {
   generateCylinderPreview,
   generateConePreview,
@@ -212,5 +215,71 @@ export function generateSimplePartPreview(
         simplePart.length ?? fallbackHeight,
         qty
       )
+  }
+}
+
+export function computeMultiSheetPreviews(
+  preview: SimplePartPreview,
+  rollW: number,
+  rollL: number,
+  maxSheets: number = 4,
+  regenerate?: (qty: number) => SimplePartPreview
+): MultiSheetResult {
+  const capacityPerSheet = preview.unitsCompleted
+  const totalNeeded = preview.unitsCompleted + preview.overflowUnits
+  const stockArea = rollW * rollL
+
+  if (preview.overflowUnits <= 0 || capacityPerSheet <= 0) {
+    const fab = computeFabricationScore(preview, rollW, rollL)
+    return {
+      sheets: [{ sheetIndex: 0, preview, isPartial: false }],
+      totalUnitsCompleted: preview.unitsCompleted,
+      totalUsedArea: preview.usedArea,
+      totalReusableArea: preview.reusableArea,
+      totalScrapArea: preview.scrapArea,
+      totalStockArea: stockArea,
+      remainingOverflow: capacityPerSheet <= 0 ? totalNeeded : 0,
+      avgFabScore: fab.score,
+    }
+  }
+
+  const sheets: SheetPreview[] = []
+  let placed = 0
+
+  while (placed < totalNeeded && sheets.length < maxSheets) {
+    const remaining = totalNeeded - placed
+    const unitsOnSheet = Math.min(capacityPerSheet, remaining)
+
+    let sheetPreview: SimplePartPreview
+    if (sheets.length === 0) {
+      sheetPreview = preview
+    } else if (regenerate) {
+      sheetPreview = regenerate(unitsOnSheet)
+    } else {
+      sheetPreview = preview
+    }
+
+    const isPartial = sheetPreview.unitsCompleted < capacityPerSheet
+    sheets.push({ sheetIndex: sheets.length, preview: sheetPreview, isPartial })
+    placed += sheetPreview.unitsCompleted
+  }
+
+  const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0)
+  const totalUsedArea = sheets.reduce((s, sh) => s + sh.preview.usedArea, 0)
+  const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0)
+  const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0)
+  const remainingOverflow = Math.max(0, totalNeeded - totalUnitsCompleted)
+  const fabScores = sheets.map((sh) => computeFabricationScore(sh.preview, rollW, rollL).score)
+  const avgFabScore = Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length)
+
+  return {
+    sheets,
+    totalUnitsCompleted,
+    totalUsedArea,
+    totalReusableArea,
+    totalScrapArea,
+    totalStockArea: stockArea * sheets.length,
+    remainingOverflow,
+    avgFabScore,
   }
 }

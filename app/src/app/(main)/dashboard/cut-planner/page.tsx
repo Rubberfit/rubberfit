@@ -173,9 +173,9 @@ export default function CutPlannerPage() {
   )
 
   const tagMap = useMemo(() => {
-    const labels = [...new Set(selectedTemplates.map((t) => t.label))];
-    return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]));
-  }, [selectedTemplates]);
+    const labels = [...new Set(selectedTemplates.map((t) => t.label))]
+    return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]))
+  }, [selectedTemplates])
 
   const handleTemplateApply = (templates: PartTemplate[]) => {
     setSelectedTemplates(templates)

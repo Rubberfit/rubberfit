@@ -12,6 +12,7 @@ interface PresetTemplateGridProps {
   onToggle: (templateId: string) => void
   onEditCustom: (template: PartTemplate) => void
   onRemoveCustom: (templateId: string) => void
+  tagMap?: Map<string, string>
 }
 
 export function PresetTemplateGrid({
@@ -21,6 +22,7 @@ export function PresetTemplateGrid({
   onToggle,
   onEditCustom,
   onRemoveCustom,
+  tagMap,
 }: PresetTemplateGridProps) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -66,6 +68,11 @@ export function PresetTemplateGrid({
               <div className="flex items-start gap-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {isChecked && tagMap?.has(template.label) && (
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+                        {tagMap.get(template.label)}
+                      </span>
+                    )}
                     <span className="font-mono text-sm font-semibold leading-tight">
                       {template.label}
                     </span>

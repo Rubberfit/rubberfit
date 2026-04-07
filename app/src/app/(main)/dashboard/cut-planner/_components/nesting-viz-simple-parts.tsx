@@ -2,9 +2,63 @@
 // Split from nesting-viz-simple-mode.tsx to keep files under 500 lines
 
 import React from "react"
-import type { SimplePartPreview, OffcutBand } from "./nesting-visualizer-types"
+import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
 import { formatInches } from "./nesting-layout-utils"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
+
+function computeHeaderMetrics(
+  multiSheet: MultiSheetResult | null | undefined,
+  reusableOffcutSqFt: number,
+  reusableOffcutPct: number,
+  scrapPct: number
+) {
+  const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
+  const showReusable = isMultiSheet ? multiSheet!.totalReusableArea > 0 : reusableOffcutSqFt > 0
+  const totalStock = isMultiSheet ? multiSheet!.totalStockArea : 0
+  const reusablePctDisplay = isMultiSheet
+    ? totalStock > 0
+      ? ((multiSheet!.totalReusableArea / totalStock) * 100).toFixed(1)
+      : "0.0"
+    : reusableOffcutPct.toFixed(1)
+  const scrapPctDisplay = isMultiSheet
+    ? totalStock > 0
+      ? ((multiSheet!.totalScrapArea / totalStock) * 100).toFixed(1)
+      : "0.0"
+    : scrapPct.toFixed(1)
+  return { isMultiSheet, showReusable, reusablePctDisplay, scrapPctDisplay }
+}
+
+function OverflowBadge({
+  multiSheet,
+  displayPreview,
+  isSplitStockPreview,
+  missingCutPieceCount,
+}: {
+  multiSheet?: MultiSheetResult | null
+  displayPreview: SimplePartPreview
+  isSplitStockPreview: boolean
+  missingCutPieceCount: number
+}) {
+  if (multiSheet && multiSheet.remainingOverflow > 0) {
+    return (
+      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
+        +{multiSheet.remainingOverflow} part{multiSheet.remainingOverflow === 1 ? "" : "s"} exceed{" "}
+        {multiSheet.sheets.length}-sheet limit
+      </span>
+    )
+  }
+  if (!multiSheet && displayPreview.overflowUnits > 0) {
+    const label = isSplitStockPreview
+      ? `+${missingCutPieceCount} cut piece${missingCutPieceCount === 1 ? "" : "s"} need another sheet`
+      : `+${displayPreview.overflowUnits} part${displayPreview.overflowUnits === 1 ? "" : "s"} need another sheet`
+    return (
+      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
+        {label}
+      </span>
+    )
+  }
+  return null
+}
 
 export function SimpleModeHeader({
   previewTitle,
@@ -22,6 +76,7 @@ export function SimpleModeHeader({
   isOptimizedResult,
   isOptimizing,
   nfpError,
+  multiSheet,
 }: {
   previewTitle: string
   layoutNote: string
@@ -38,7 +93,15 @@ export function SimpleModeHeader({
   isOptimizedResult: boolean
   isOptimizing: boolean
   nfpError: string | null
+  multiSheet?: MultiSheetResult | null
 }) {
+  const { isMultiSheet, showReusable, reusablePctDisplay, scrapPctDisplay } = computeHeaderMetrics(
+    multiSheet,
+    reusableOffcutSqFt,
+    reusableOffcutPct,
+    scrapPct
+  )
+
   return (
     <div className="border-b border-border bg-[#1b1b19] px-4 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -54,19 +117,23 @@ export function SimpleModeHeader({
           <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1 font-medium text-green-600">
             {pieceCountLabel}: {pieceCountValue}
           </span>
-          {reusableOffcutSqFt > 0 && (
+          {showReusable && (
             <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
-              {reusableMetricLabel}: {reusableOffcutPct.toFixed(1)}%
+              {reusableMetricLabel}: {reusablePctDisplay}%
             </span>
           )}
           <span className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 font-medium text-red-600">
-            {scrapMetricLabel}: {scrapPct.toFixed(1)}%
+            {scrapMetricLabel}: {scrapPctDisplay}%
           </span>
-          {displayPreview.overflowUnits > 0 && (
-            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 font-medium text-amber-600">
-              {isSplitStockPreview
-                ? `+${missingCutPieceCount} cut piece${missingCutPieceCount === 1 ? "" : "s"} need another sheet`
-                : `+${displayPreview.overflowUnits} part${displayPreview.overflowUnits === 1 ? "" : "s"} need another sheet`}
+          <OverflowBadge
+            multiSheet={multiSheet}
+            displayPreview={displayPreview}
+            isSplitStockPreview={isSplitStockPreview}
+            missingCutPieceCount={missingCutPieceCount}
+          />
+          {isMultiSheet && multiSheet!.remainingOverflow === 0 && (
+            <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1 font-medium text-blue-400">
+              {multiSheet!.sheets.length} sheets
             </span>
           )}
           {isOptimizedResult && (
@@ -164,6 +231,7 @@ export function SimpleModeMetrics({
   pieceCountLabel,
   pieceCountValue,
   fabScore,
+  multiSheet,
 }: {
   displayPreview: SimplePartPreview
   usedSqFt: number
@@ -173,7 +241,11 @@ export function SimpleModeMetrics({
   pieceCountLabel: string
   pieceCountValue: string
   fabScore: { score: number }
+  multiSheet?: MultiSheetResult | null
 }) {
+  const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
+  const displayScore = isMultiSheet ? multiSheet!.avgFabScore : fabScore.score
+
   return (
     <div className="grid gap-3 border-t border-border bg-background px-4 py-4 md:grid-cols-6">
       <div className="rounded-lg border bg-muted/20 p-3">
@@ -181,7 +253,12 @@ export function SimpleModeMetrics({
           Parts Completed
         </div>
         <div className="mt-1 text-2xl font-semibold text-foreground">
-          {displayPreview.unitsCompleted}
+          {isMultiSheet ? multiSheet!.totalUnitsCompleted : displayPreview.unitsCompleted}
+          {isMultiSheet && (
+            <span className="ml-1 text-xs text-muted-foreground">
+              across {multiSheet!.sheets.length} sheets
+            </span>
+          )}
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
@@ -189,7 +266,7 @@ export function SimpleModeMetrics({
           Material Used
         </div>
         <div className="mt-1 text-2xl font-semibold text-foreground">
-          {usedSqFt.toFixed(2)} sq ft
+          {isMultiSheet ? (multiSheet!.totalUsedArea / 144).toFixed(2) : usedSqFt.toFixed(2)} sq ft
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
@@ -197,14 +274,20 @@ export function SimpleModeMetrics({
           {reusableMetricLabel}
         </div>
         <div className="mt-1 text-2xl font-semibold text-amber-600">
-          {reusableOffcutSqFt.toFixed(2)} sq ft
+          {isMultiSheet
+            ? (multiSheet!.totalReusableArea / 144).toFixed(2)
+            : reusableOffcutSqFt.toFixed(2)}{" "}
+          sq ft
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Scrap / Waste
         </div>
-        <div className="mt-1 text-2xl font-semibold text-red-600">{scrapSqFt.toFixed(2)} sq ft</div>
+        <div className="mt-1 text-2xl font-semibold text-red-600">
+          {isMultiSheet ? (multiSheet!.totalScrapArea / 144).toFixed(2) : scrapSqFt.toFixed(2)} sq
+          ft
+        </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -218,14 +301,14 @@ export function SimpleModeMetrics({
         </div>
         <div
           className={`mt-1 text-2xl font-semibold ${
-            fabScore.score >= 80
+            displayScore >= 80
               ? "text-green-600"
-              : fabScore.score >= 60
+              : displayScore >= 60
                 ? "text-amber-600"
                 : "text-red-600"
           }`}
         >
-          {fabScore.score}/100
+          {displayScore}/100
         </div>
       </div>
     </div>
@@ -238,19 +321,40 @@ export function SimpleModeFooter({
   displayPreview,
   isSplitStockPreview,
   missingCutPieceCount,
+  multiSheet,
 }: {
   metricsAreEstimatedFromStock: boolean
   stockSqFt: number
   displayPreview: SimplePartPreview
   isSplitStockPreview: boolean
   missingCutPieceCount: number
+  multiSheet?: MultiSheetResult | null
 }) {
+  const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
+  const displayStockSqFt = isMultiSheet
+    ? (multiSheet!.totalStockArea / 144).toFixed(2)
+    : stockSqFt.toFixed(2)
+  const sheetSuffix = isMultiSheet ? ` (${multiSheet!.sheets.length} sheets)` : ""
+
   return (
     <div className="border-t border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
       {metricsAreEstimatedFromStock
-        ? `Optimized from placed stock area: ${stockSqFt.toFixed(2)} sq ft`
-        : `Preview stock area: ${stockSqFt.toFixed(2)} sq ft`}
-      {displayPreview.overflowUnits > 0 && (
+        ? `Optimized from placed stock area: ${displayStockSqFt} sq ft`
+        : `Preview stock area: ${displayStockSqFt} sq ft`}
+      {sheetSuffix}
+      {multiSheet && multiSheet.remainingOverflow > 0 && (
+        <span className="ml-2 font-medium text-amber-600">
+          +{multiSheet.remainingOverflow} part
+          {multiSheet.remainingOverflow === 1 ? "" : "s"} exceed the {multiSheet.sheets.length}
+          -sheet limit.
+        </span>
+      )}
+      {isMultiSheet && multiSheet!.remainingOverflow === 0 && (
+        <span className="ml-2 font-medium text-blue-400">
+          All parts fit across {multiSheet!.sheets.length} sheets.
+        </span>
+      )}
+      {!multiSheet && displayPreview.overflowUnits > 0 && (
         <span className="ml-2 font-medium text-amber-600">
           {isSplitStockPreview
             ? `Another sheet is required to place the remaining ${missingCutPieceCount} cut piece${missingCutPieceCount === 1 ? "" : "s"}.`

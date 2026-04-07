@@ -16,6 +16,7 @@ interface NestingShapeRendererProps {
   wastePatternId: string
   viewHeight: number
   surfacePxW: number
+  tagLetter?: string
 }
 
 interface ShapeCoords {
@@ -290,11 +291,13 @@ function RectShape({
   index,
   coords,
   usablePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
+  tagLetter?: string
 }) {
   return (
     <g key={index + 1}>
@@ -311,14 +314,13 @@ function RectShape({
       {coords.pw > 36 && coords.ph > 16 && (
         <text
           x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
+          y={coords.py + coords.ph / 2 + 4}
           textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
+          fill="#e7e5e4"
+          fontSize={Math.min(28, Math.min(coords.pw * 0.4, coords.ph * 0.35))}
+          fontWeight="700"
         >
-          {item.label}
+          {tagLetter ?? item.label}
         </text>
       )}
     </g>
@@ -340,6 +342,7 @@ export default function NestingShapeRenderer({
   wastePatternId,
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
+  tagLetter,
 }: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
     item,
@@ -403,5 +406,13 @@ export default function NestingShapeRenderer({
     )
   }
 
-  return <RectShape item={item} index={index} coords={coords} usablePatternId={usablePatternId} />
+  return (
+    <RectShape
+      item={item}
+      index={index}
+      coords={coords}
+      usablePatternId={usablePatternId}
+      tagLetter={tagLetter}
+    />
+  )
 }
