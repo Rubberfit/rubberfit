@@ -169,8 +169,17 @@ function SectorShape({
   const arcDeg = item.arcDegrees ?? 120
   const halfArc = (arcDeg * Math.PI) / 360
   const cx = coords.px + coords.pw / 2
-  const cy = coords.py + coords.ph - (item.flipped ? coords.ph - outerR : 0)
+  const cy = coords.py + outerR
   const flipSign = item.flipped ? -1 : 1
+
+  console.log({
+    location: "Sector Shape Debugging",
+    px: coords.px,
+    py: coords.py,
+    cx,
+    cy,
+    outerR,
+  })
 
   const buildArcPath = () => {
     const a1 = -Math.PI / 2 - halfArc * flipSign

@@ -66,8 +66,16 @@ export function useNfpOptimizer(
       setNfpError(null)
     })
 
+    // STOPS CONE FROM RUNNING NFP RESOLVER
+    // TODO: Understand what this even does, but in the mean time I will allow cones to run.
+    // TODO: UNCOMMENT
     if (!shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs)) {
-      return
+      console.log(
+        "SHOULD OPTIMIZE?",
+        shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs),
+        activeSimpleSpecs
+      )
+      // return
     }
 
     const nestingParts: NestingPart[] = activeSimpleSpecs.flatMap((spec, i) =>
@@ -94,7 +102,9 @@ export function useNfpOptimizer(
     }
 
     let cancel: (() => void) | null = null
+    // THIS IS WHERE THE NFP ALGORITHM IS TRIGGERED
     const timer = window.setTimeout(() => {
+      console.log("RUNNING SOLVER", input)
       setIsOptimizing(true)
       cancel = nfpSolverRef.current!.solve(input, {
         onComplete: (result) => {
