@@ -161,7 +161,6 @@ export default class Packer {
     let dominant: DNA | null = null
 
     for (let gen = 0; gen <= generations; gen++) {
-      // console.log(gen)
       if (!this.running) break
 
       // Evaluate all individuals

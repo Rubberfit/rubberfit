@@ -172,20 +172,6 @@ function SectorShape({
   const cy = coords.py + outerR
   const flipSign = item.flipped ? -1 : 1
 
-  // EVENT: DEBUG
-  console.log({
-    event: "Debug",
-    file: "nesting-viz-simple-mode.tsx",
-    function: "SectorShape",
-    params: {
-      item: item,
-      index: index,
-      coords: coords,
-      usablePatternId: usablePatternId,
-      wastePatternId: wastePatternId,
-    },
-  })
-
   const buildArcPath = () => {
     const a1 = -Math.PI / 2 - halfArc * flipSign
     const a2 = -Math.PI / 2 + halfArc * flipSign
@@ -355,26 +341,6 @@ export default function NestingShapeRenderer({
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
 }: NestingShapeRendererProps) {
-  // EVENT: DEBUG
-  console.log({
-    event: "Debug",
-    file: "nesting-shape-renderer.tsx",
-    function: "NestingShapeRenderer",
-    params: {
-      item: item,
-      index: index,
-      surfaceX: surfaceX,
-      surfaceY: surfaceY,
-      unitOriginX: unitOriginX,
-      unitOriginY: unitOriginY,
-      scale: scale,
-      usablePatternId: usablePatternId,
-      wastePatternId: wastePatternId,
-      viewHeight: _viewHeight,
-      surfacePxW: _surfacePxW,
-    },
-  })
-
   const coords = computeShapeCoords(
     item,
     index,
@@ -414,14 +380,6 @@ export default function NestingShapeRenderer({
   }
 
   if (item.renderShape === "sector") {
-    // EVENT: DEBUG
-    console.log({
-      event: "Debug",
-      file: "nesting-shape-renderer.tsx",
-      function: "NestingShapeRenderer",
-      message: `${item.renderShape} has been passed.`,
-    })
-
     return (
       <SectorShape
         item={item}

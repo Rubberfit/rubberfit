@@ -38,23 +38,6 @@ export default function NestingVisualizer({
   simplePart,
   simpleParts,
 }: NestingVisualizerProps) {
-  // EVENT: DEBUG
-  console.log({
-    event: "Debug",
-    file: "NestingVisualizer.tsx",
-    function: "NestingVisualizer",
-    params: {
-      defaultRollWidth: defaultRollWidth,
-      defaultRollLength: defaultRollLength,
-      defaultCutWidth: defaultCutWidth,
-      defaultCutHeight: defaultCutHeight,
-      defaultQty: defaultQty,
-      simpleMode: simpleMode,
-      simplePart: simplePart,
-      simpleParts: simpleParts,
-    },
-  })
-
   const patternSeed = useId().replace(/:/g, "")
 
   // shared
