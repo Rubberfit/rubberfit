@@ -186,7 +186,17 @@ export default function CutPlannerPage() {
 
   const tagMap = useMemo(() => {
     const labels = [...new Set(selectedTemplates.map((t) => t.label))]
-    return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]))
+    return new Map(
+      labels.map((label, i) => {
+        let tag = ""
+        let n = i
+        do {
+          tag = String.fromCharCode(65 + (n % 26)) + tag
+          n = Math.floor(n / 26) - 1
+        } while (n >= 0)
+        return [label, tag]
+      })
+    )
   }, [selectedTemplates])
 
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {

@@ -61,6 +61,16 @@ function buildMultiSheet(
   return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate)
 }
 
+function indexToTag(i: number): string {
+  let tag = ""
+  let n = i
+  do {
+    tag = String.fromCharCode(65 + (n % 26)) + tag
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return tag
+}
+
 function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
   if (!basePreview) return new Map<string, string>()
   // Collect labels from ALL sheets so overflow items get tags too
@@ -76,7 +86,7 @@ function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiShe
       if (!allLabels.includes(item.label)) allLabels.push(item.label)
     })
   }
-  return new Map(allLabels.map((label, i) => [label, String.fromCharCode(65 + i)]))
+  return new Map(allLabels.map((label, i) => [label, indexToTag(i)]))
 }
 
 // eslint-disable-next-line max-lines-per-function

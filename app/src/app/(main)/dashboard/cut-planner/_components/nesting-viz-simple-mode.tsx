@@ -56,6 +56,7 @@ function SheetSvg({
   const layout = baseLayout
 
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
+  const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
   const sStockPat = `${layout.stockPatternId}${sPat}`
   const sOffcutPat = `${layout.offcutPatternId}${sPat}`
   const sWastePat = `${layout.wastePatternId}${sPat}`
@@ -242,7 +243,7 @@ function SheetSvg({
           {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
-        <clipPath id={`stock-clip${sPat}`}>
+        <clipPath id={sClip}>
           <rect
             x={layout.surfaceX}
             y={layout.surfaceY}
@@ -261,7 +262,7 @@ function SheetSvg({
           stroke="#d6d3d1"
           strokeWidth="2"
         />
-        <g clipPath={`url(#stock-clip${sPat})`}>
+        <g clipPath={`url(#${sClip})`}>
           {!layout.shapeFirstView &&
             sheet.preview.scrapBands.map((band, index) => (
               <rect
