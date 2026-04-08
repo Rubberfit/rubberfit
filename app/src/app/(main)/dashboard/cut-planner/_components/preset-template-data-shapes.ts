@@ -100,7 +100,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-90",
     partType: "cone",
-    label: '90\u00b0 - R8" to R22"',
+    label: '90\u00b0 \u2022 R8" to R22"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "standard",
@@ -111,7 +111,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-100",
     partType: "cone",
-    label: '100\u00b0 - R10" to R24"',
+    label: '100\u00b0 \u2022 R10" to R24"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "standard",
@@ -122,7 +122,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-120",
     partType: "cone",
-    label: '120\u00b0 - R10" to R28"',
+    label: '120\u00b0 \u2022 R10" to R28"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "standard",
@@ -133,7 +133,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-130",
     partType: "cone",
-    label: '130\u00b0 - R12" to R26"',
+    label: '130\u00b0 \u2022 R12" to R26"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "standard",
@@ -144,7 +144,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-140",
     partType: "cone",
-    label: '140\u00b0 - R12" to R30"',
+    label: '140\u00b0 \u2022 R12" to R30"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -155,7 +155,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-150",
     partType: "cone",
-    label: '150\u00b0 - R14" to R32"',
+    label: '150\u00b0 \u2022 R14" to R32"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -166,7 +166,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-160",
     partType: "cone",
-    label: '160\u00b0 - R16" to R34"',
+    label: '160\u00b0 \u2022 R16" to R34"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -177,7 +177,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-180",
     partType: "cone",
-    label: '180\u00b0 - R18" to R38"',
+    label: '180\u00b0 \u2022 R18" to R38"',
     summary: "Cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -188,7 +188,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-200",
     partType: "cone",
-    label: '200\u00b0 - R18" to R36"',
+    label: '200\u00b0 \u2022 R18" to R36"',
     summary: "Wide cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -199,7 +199,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-220",
     partType: "cone",
-    label: '220\u00b0 - R20" to R40"',
+    label: '220\u00b0 \u2022 R20" to R40"',
     summary: "Wide cone/frustum spread",
     quantity: 1,
     category: "large",
@@ -210,7 +210,7 @@ export const CONE_TEMPLATES: PartTemplate[] = [
   {
     id: "cone-240",
     partType: "cone",
-    label: '240\u00b0 - R22" to R44"',
+    label: '240\u00b0 \u2022 R22" to R44"',
     summary: "Wide cone/frustum spread",
     quantity: 1,
     category: "large",
