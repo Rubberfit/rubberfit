@@ -164,9 +164,9 @@ function SectorShape({
   const innerR = (item.innerRadius ?? 0) * scale
   const outerR = (item.outerRadius ?? 0) * scale
   const arcDeg = item.arcDegrees ?? 120
-  const halfArc = (arcDeg * Math.PI) / 360
+  const halfArc = (arcDeg * Math.PI) / 360 // Converts radians to degrees
   const cx = coords.px + coords.pw / 2
-  const cy = coords.py + coords.ph - (item.flipped ? coords.ph - outerR : 0)
+  const cy = coords.py + outerR
   const flipSign = item.flipped ? -1 : 1
 
   const buildArcPath = () => {

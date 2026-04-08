@@ -66,8 +66,11 @@ export function useNfpOptimizer(
       setNfpError(null)
     })
 
+    /**
+     * This current attempts to optimize the by skip algorithm when cones are passed.
+     */
     if (!shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs)) {
-      return
+      // return
     }
 
     const nestingParts: NestingPart[] = activeSimpleSpecs.flatMap((spec, i) =>
@@ -94,6 +97,8 @@ export function useNfpOptimizer(
     }
 
     let cancel: (() => void) | null = null
+    // NFP algorithm is triggered here.
+    // Requires a web worker to place calculations on a separate thread.
     const timer = window.setTimeout(() => {
       setIsOptimizing(true)
       cancel = nfpSolverRef.current!.solve(input, {

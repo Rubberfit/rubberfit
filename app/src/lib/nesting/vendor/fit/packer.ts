@@ -150,6 +150,7 @@ export default class Packer {
   private packSync(callbacks: PackerCallbacks): void {
     const cache: Record<string, Polygon[]> = {}
 
+    // Initializing the genetic algorithm
     const ga = new GA(this.rnd, this.parts.length, {
       population: this.config.population ?? 10,
       mutationRate: this.config.mutationRate ?? 0.2,
