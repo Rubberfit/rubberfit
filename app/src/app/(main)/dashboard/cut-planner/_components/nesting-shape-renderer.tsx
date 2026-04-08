@@ -192,14 +192,8 @@ function SectorShape({
     return `M${x1o} ${y1o} A${outerR} ${outerR} 0 ${lg} ${sweepOuter} ${x2o} ${y2o} L${x1i} ${y1i} A${innerR} ${innerR} 0 ${lg} ${sweepInner} ${x2i} ${y2i} Z`
   }
 
-  const clipId = `sector-clip-${index}`
   return (
     <g key={index + 1}>
-      <defs>
-        <clipPath id={clipId}>
-          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} />
-        </clipPath>
-      </defs>
       <rect
         x={coords.px}
         y={coords.py}
@@ -209,17 +203,15 @@ function SectorShape({
         opacity="0.4"
         rx="2"
       />
-      <g clipPath={`url(#${clipId})`}>
-        <path
-          d={buildArcPath()}
-          fill={`url(#${usablePatternId})`}
-          stroke="#84cc16"
-          strokeWidth="1.5"
-        />
-      </g>
+      <path
+        d={buildArcPath()}
+        fill={`url(#${usablePatternId})`}
+        stroke="#84cc16"
+        strokeWidth="1.5"
+      />
       <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph * 0.45}
+        x={cx}
+        y={cy - ((outerR - innerR) / 2) * flipSign}
         textAnchor="middle"
         dominantBaseline="middle"
         fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
