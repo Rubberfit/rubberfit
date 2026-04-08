@@ -55,6 +55,7 @@ function PolygonShape({
   unitOriginY,
   scale,
   usablePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
@@ -65,6 +66,7 @@ function PolygonShape({
   unitOriginY: number
   scale: number
   usablePatternId: string
+  tagLetter?: string
 }) {
   const points = item
     .placedPolygon!.map(
@@ -90,7 +92,7 @@ function PolygonShape({
         fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
-        {item.label}
+        {tagLetter ?? item.label}
       </text>
     </g>
   )
@@ -102,12 +104,14 @@ function CircleShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const diameter = item.diameter ?? item.width
   const r = (diameter / 2) * (coords.pw / item.width)
@@ -141,7 +145,7 @@ function CircleShape({
         fontSize={Math.max(0, Math.min(10, r * 0.6))}
         fontWeight="600"
       >
-        {item.label}
+        {tagLetter ?? item.label}
       </text>
     </g>
   )
@@ -153,12 +157,14 @@ function SectorShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const scale = coords.pw / item.width
   const innerR = (item.innerRadius ?? 0) * scale
@@ -212,7 +218,7 @@ function SectorShape({
         fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
-        {item.label}
+        {tagLetter ?? item.label}
       </text>
     </g>
   )
@@ -224,12 +230,14 @@ function TrapezoidShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -272,7 +280,7 @@ function TrapezoidShape({
         fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
-        {item.label}
+        {tagLetter ?? item.label}
       </text>
     </g>
   )
@@ -356,6 +364,7 @@ export default function NestingShapeRenderer({
         unitOriginY={unitOriginY}
         scale={scale}
         usablePatternId={usablePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -368,6 +377,7 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -380,6 +390,7 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -392,6 +403,7 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
