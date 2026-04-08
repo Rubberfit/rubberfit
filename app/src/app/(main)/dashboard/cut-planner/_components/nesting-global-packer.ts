@@ -743,7 +743,7 @@ export function globalMultiSheetPack(
 
     // maxExhaustive=14 inside exhaustiveRotationSearch; items beyond that
     // count fall back to greedy sort orders only (still beneficial)
-    if (lastBinItems.length > 0 && lastBinItems.length <= 14) {
+    if (lastBinItems.length > 0) {
       const optimized = exhaustiveRotationSearch(lastBinItems, binW, binH, heuristic)
       if (optimized && optimized.placements.length === lastBinItems.length) {
         binGroups.set(lastBinId, optimized.placements)
