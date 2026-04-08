@@ -33,7 +33,7 @@ function matchColumn(header: string, aliases: string[]): boolean {
  * Parse fractional inch strings like "11-1/2", "½", "11.5", "11 1/2"
  */
 export function parseFractionalInches(raw: string | number): number {
-  if (typeof raw === "number") return raw
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : 0
   const s = raw
     .trim()
     .replace(/\u00bd/g, ".5") // ½
@@ -52,13 +52,19 @@ export function parseFractionalInches(raw: string | number): number {
   // "11-1/2" or "11 1/2"
   const mixedMatch = s.match(/^(\d+)[\s-]+(\d+)\/(\d+)$/)
   if (mixedMatch) {
-    return Number(mixedMatch[1]) + Number(mixedMatch[2]) / Number(mixedMatch[3])
+    const denom = Number(mixedMatch[3])
+    if (denom === 0) return 0
+    const result = Number(mixedMatch[1]) + Number(mixedMatch[2]) / denom
+    return Number.isFinite(result) ? result : 0
   }
 
   // "1/2"
   const fracMatch = s.match(/^(\d+)\/(\d+)$/)
   if (fracMatch) {
-    return Number(fracMatch[1]) / Number(fracMatch[2])
+    const denom = Number(fracMatch[2])
+    if (denom === 0) return 0
+    const result = Number(fracMatch[1]) / denom
+    return Number.isFinite(result) ? result : 0
   }
 
   const num = Number(s)
