@@ -1,8 +1,18 @@
 language: en-US
+tone_instructions: >
+  Focus on architectural insights, potential issues, and maintainability.
+  Be direct and specific. Nitpicks are welcome — flag style, naming, and minor issues too.
 reviews:
+  profile: assertive
   request_changes_workflow: true
   high_level_summary: true
   high_level_summary_placeholder: "@coderabbitai summary"
+  high_level_summary_in_walkthrough: true
+  sequence_diagrams: true
+  related_issues: true
+  related_prs: true
+  assess_linked_issues: true
+  estimate_code_review_effort: true
   poem: false
   review_status: true
   collapse_walkthrough: false
@@ -38,6 +48,18 @@ reviews:
       instructions: "Zustand stores. They call services, never Supabase directly. Check that duplicate type definitions are imported from services, not redefined."
     - path: "app/src/components/**"
       instructions: "React components should never import supabase directly. All data access goes through stores or contexts."
+    - path: "app/src/**/*.ts"
+      instructions: |
+        TypeScript source files. Check for:
+        - Proper type safety — no unnecessary `any` or type assertions
+        - Consistent error handling patterns
+        - Functions that are too large should be decomposed
+    - path: "app/src/**/*.tsx"
+      instructions: |
+        React component files. Check for:
+        - Components should be focused and single-responsibility
+        - No direct Supabase imports — use stores or services
+        - Proper memoization where performance matters
     - path: "supabase/migrations/**"
       instructions: |
         Database migrations. Verify:
