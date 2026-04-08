@@ -2,9 +2,9 @@ import DNA from "./dna"
 import type XorShift from "../xorshift"
 
 export interface GAConfig {
-  steps: number
-  population: number
-  mutationRate: number
+  steps: number // Number of rotations
+  population: number // How many candiates per generation
+  mutationRate: number // How often genes change
 }
 
 export default class GA {
@@ -14,9 +14,9 @@ export default class GA {
   config: GAConfig
 
   constructor(rnd: XorShift, gene: number, config: Partial<GAConfig> = {}) {
-    this.rnd = rnd
-    this.generations = 0
-    this.population = []
+    this.rnd = rnd // Deterministic random number generator
+    this.generations = 0 // Total generations (iterations)
+    this.population = [] // Population to be evaluated
 
     this.config = {
       steps: config.steps ?? 4,
@@ -30,6 +30,7 @@ export default class GA {
     }
   }
 
+  // Creates random genes
   adam(length: number, steps = 4): DNA {
     const gene: number[] = []
     for (let i = 0; i < length; i++) {
@@ -39,6 +40,8 @@ export default class GA {
     return new DNA(gene)
   }
 
+  // Heart of the algorithm
+  // Performs reproduction
   step(): void {
     this.generations++
 
@@ -63,7 +66,7 @@ export default class GA {
   select(): DNA[] {
     const pool: DNA[] = []
     const range = this.getMinMaxCost()
-    const l = range.max - range.min
+    const l = range.max - range.min // Possible division by 0
     this.population.forEach((dna) => {
       const cost01 = 1.0 - (dna.cost - range.min) / l
       const n = Math.floor(cost01 * 50)

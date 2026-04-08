@@ -6,6 +6,11 @@ export default class BoundingBox {
   width: number
   height: number
 
+  /**
+   * @summary AABB with min-max implementation.
+   * @param min
+   * @param max
+   */
   constructor(min: Vector, max: Vector) {
     this.min = min
     this.max = max
