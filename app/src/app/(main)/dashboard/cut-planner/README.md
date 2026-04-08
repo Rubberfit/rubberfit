@@ -60,6 +60,8 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | ------------------------------------ | -------------------------------------------------------------------------------------- |
 | `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                      |
 | `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing, guillotine cutting, centered column            |
+| `nesting-global-packer.ts`          | Global multi-sheet MaxRect bin packing — ported from open-source repos (see attribution below) |
+| `nesting-width-pair-packer.ts`      | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects  |
 | `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters               |
 | `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison |
 | `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                |
@@ -1225,3 +1227,147 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
   return { displayPreview, isOptimizedResult, fabScore, stockSqFt, usedSqFt, scale /* ... */ }
 }
 ```
+
+### 10. Global Multi-Sheet Bin Packing (`nesting-global-packer.ts`)
+
+When multiple distinct part types are packed together (e.g., a 45-part cut list with different sizes), the global packer replaces the sequential per-sheet overflow approach with a globally-optimal assignment. This produces fewer sheets for the same set of items.
+
+The engine implements all 5 MaxRects heuristics from Jukka Jylänki's "A Thousand Ways to Pack the Bin" (2010) paper, combined with batch insertion from Python's rectpack library and multi-start optimization across 70 candidate configurations.
+
+**All 5 heuristics (from Jylänki's reference implementation):**
+
+| Heuristic | Primary Score (minimize) | Tiebreaker | Intuition |
+|-----------|--------------------------|------------|-----------|
+| **BSSF** (Best Short Side Fit) | `min(leftH, leftV)` | `max(leftH, leftV)` | Snug fit on at least one edge |
+| **BLSF** (Best Long Side Fit) | `max(leftH, leftV)` | `min(leftH, leftV)` | Avoid creating thin slivers |
+| **BAF** (Best Area Fit) | `freeArea - itemArea` | `min(leftH, leftV)` | Least wasted area in free rect |
+| **BL** (Bottom-Left) | `freeY + itemH` | `freeX` | Gravity/Tetris-style packing |
+| **CP** (Contact Point) | `-contactLength` | — | Maximum adjacency with walls/items |
+
+**Three packing modes run in parallel:**
+
+```
+Mode 1 — Batch Insertion (Jylänki Insert + rectpack Global):
+  For each bin, repeatedly pick the best-fitting remaining item.
+  5 heuristics × 2 bin orientations = 10 candidates.
+
+Mode 2 — Greedy with BBF (Bin Best Fit):
+  Process items in sort order, try ALL bins for each item.
+  5 heuristics × 6 sort strategies × 2 bin orientations = 60 candidates.
+
+Mode 3 — Width-Pair Packing (novel hybrid — see below):
+  Group items by similar width (±1" tolerance), pair them side-by-side
+  as virtual rectangles, pack through MaxRects, then unpack.
+  5 heuristics × 2 bin orientations = 10 candidates.
+
+Total: 80 candidates evaluated, best result kept.
+```
+
+**Algorithm overview:**
+
+```
+1. Expand all SimplePartSpec[] into individual packable items
+2. For each of 80 candidate configurations:
+   a. Pack items using batch insertion, greedy BBF, or width-pair packing
+   b. Exhaustive rotation search on the last bin (2^n combos, n <= 14)
+   c. Build SheetPreview for each bin
+   d. Score: most items placed → fewest sheets → tightest packing
+3. Return the best MultiSheetResult across all candidates
+```
+
+#### Width-Pair Packing (`nesting-width-pair-packer.ts`)
+
+Mode 3 exploits the fact that many cut lists contain items with similar widths. For example, on 78" stock with 35.5"-wide items, two items fit side-by-side (71" total, 7" residual) — a layout MaxRects cannot discover when treating items individually.
+
+**How it works:**
+
+```
+1. Group items by width within ±1" tolerance
+   - Exclude items wider than binWidth/2 (can't pair)
+   - Sort groups by member count descending
+
+2. Pair items within each group by length descending
+   - (tallest, 2nd tallest), (3rd, 4th), etc.
+   - Minimizes height gaps within each virtual rectangle
+   - Odd item remains unpaired
+
+3. Create virtual composite rectangles
+   - Each pair → width = leftW + rightW, height = max(leftH, rightH)
+   - Unpaired items pass through as-is
+
+4. Pack virtual items through standard MaxRects batch fill
+
+5. Unpack pair placements back to individual items
+   - Normal: left at (x, y), right at (x + leftW, y)
+   - Rotated: left at (x, y) rotated, right at (x, y + leftW) rotated
+```
+
+**This is a novel hybrid approach.** Research across 10+ open-source packing repositories found no existing implementation that creates virtual composite rectangles from paired items before feeding them to a packing engine. The approach combines elements from three established algorithm families:
+
+| Component | Closest Algorithm | Our Innovation |
+|---|---|---|
+| Group by width similarity | Split-Fit (width bands) | Absolute tolerance (±1") instead of fractional bin-width thresholds |
+| Pair longest-with-next-longest | Floor-Ceiling (pack both edges of a level) | Pre-pairing before packing, not during |
+| Virtual rectangles through MaxRects | Standard MaxRects pipeline | Composite items as MaxRects input — reduces problem size |
+
+**Key difference from guillotine packing:** When an item is placed, MaxRect clips ALL overlapping free rectangles (not just the hosting one), generating up to 4 sub-rects per overlap. This allows items to be placed in positions that span multiple free regions.
+
+---
+
+## Open Source Attribution
+
+The global multi-sheet bin packing system (`nesting-global-packer.ts`) was built by porting and adapting algorithms from three open-source repositories. Each repository contributed a specific capability to our system.
+
+### 1. RectangleBinPack — Jukka Jylänki's MaxRects Reference Implementation
+
+- **Repository:** [https://github.com/juj/RectangleBinPack](https://github.com/juj/RectangleBinPack)
+- **License:** Public domain
+- **Paper:** "A Thousand Ways to Pack the Bin — A Practical Approach to Two-Dimensional Rectangle Bin Packing" (2010)
+- **What it does:** The definitive C++ reference implementation of the MaxRects bin packing algorithm. Implements all 5 placement heuristics (BSSF, BLSF, BAF, BL, CP), the free rectangle splitting strategy, containment-based pruning, and batch insertion (the `Insert()` method that picks the globally best item-position pair at each step).
+- **What we ported:**
+  - All 5 `FindPositionForNewNode*` scoring functions → `scoreRect()` method with `HeuristicType` parameter
+  - `SplitFreeNode()` overlap splitting → `place()` method (4-way maximal remainder generation)
+  - `PruneFreeList()` + `InsertNewFreeRectangle()` → containment pruning in `place()`
+  - `Insert(vector<RectSize>)` batch insertion strategy → `batchFillBin()` function
+  - `ContactPointScoreNode()` + `CommonIntervalLength()` → `contactPointScore()` private method
+- **Value to our system:** The 5 heuristics cover different item geometry profiles — BSSF works best for snug fits, BAF for varied sizes, CP for clustering, BL for gravity-style layouts. Running all 5 and keeping the best result produces significantly tighter packing than BSSF alone. The batch insertion strategy (picking the globally best item at each step rather than processing a fixed sort order) is the single largest quality improvement.
+
+### 2. rectpack — Python 2D Rectangle Packing Library
+
+- **Repository:** [https://github.com/secnot/rectpack](https://github.com/secnot/rectpack)
+- **License:** Apache 2.0
+- **What it does:** A comprehensive Python library implementing MaxRects, Guillotine, and Skyline algorithms with 4 bin-selection strategies (BNF, BFF, BBF, Global) and 7 sort orders. The key innovation is the `PackerGlobal` strategy that reverses the packing loop: instead of "for each item, find a bin", it does "for each bin, find the best item."
+- **What we ported:**
+  - `PackerGlobal` strategy → `globalBatchPack()` function (fills each bin using batch insertion before opening the next)
+  - `PackerBBFMixin` (Bin Best Fit) → `globalGreedyPack()` function (for each item, tries ALL bins and picks the best fit)
+  - Sort strategies: `SORT_AREA`, `SORT_PERI`, `SORT_SSIDE`, `SORT_LSIDE`, `SORT_DIFF` → 6 sort functions in `globalMultiSheetPack()`
+  - Per-placement rotation evaluation (both orientations scored against all free rects) → integrated into `scoreRect()`
+- **Value to our system:** The Global + BBF dual-mode approach covers both "fill bins optimally" (batch) and "assign items to best bin" (greedy) strategies. Different item mixes favor different modes — running both and keeping the best result catches cases where one mode outperforms the other.
+
+### 3. maxrects-packer — TypeScript MaxRects Implementation
+
+- **Repository:** [https://github.com/soimy/maxrects-packer](https://github.com/soimy/maxrects-packer)
+- **License:** MIT
+- **What it does:** A TypeScript MaxRects implementation designed for sprite sheet generation. Features smart bin sizing, power-of-2 rounding, tag-based grouping, and per-rectangle rotation overrides. The most popular JS MaxRects library (14k+ weekly npm downloads).
+- **What we referenced:**
+  - `splitNode()` implementation for split/prune correctness verification
+  - `findNode()` scoring logic as a cross-reference against Jylänki's C++ original
+  - `pruneFreeList()` containment check pattern
+  - Rotation handling pattern (per-rect `allowRotation` override)
+- **Value to our system:** Used as a TypeScript reference implementation to verify our port of Jylänki's C++ code was correct. The library's split/prune logic confirmed our implementation handles edge cases (overlapping maximal rectangles, tiny remainder filtering) correctly.
+
+### Research References (Width-Pair Packing)
+
+The following repositories were analyzed during the design of Mode 3 (width-pair packing). None implement our exact approach, but each contributed to validating the algorithm design:
+
+- **greedypacker** ([github.com/solomon-b/greedypacker](https://github.com/solomon-b/greedypacker), Apache 2.0) — Python library implementing Shelf, Guillotine, MaxRects, and Skyline algorithms. Its shelf mode with `best_width_fit` heuristic is the closest open-source equivalent to width-aware packing, though it groups by shelf height, not item width similarity.
+- **shelf-pack** ([github.com/mapbox/shelf-pack](https://github.com/mapbox/shelf-pack), ISC) — JavaScript shelf packing library from Mapbox. Documentation notes it "works best when rectangles have similar heights" but performs no pre-grouping — exactly the gap our width-pair approach fills.
+- **BinPack** ([github.com/hellerbarde/BinPack](https://github.com/hellerbarde/BinPack), public domain) — Python Shelf + Guillotine implementation with 8 heuristics each, including `best_width_fit`. Confirmed that no existing shelf algorithm pre-pairs items by dimensional similarity.
+
+### Historical References
+
+The following repositories influenced the original v1 implementation and contributed conceptual approaches still present in the codebase:
+
+- **G2DBP** ([github.com/tsinghua-fib-lab/G2DBP](https://github.com/tsinghua-fib-lab/G2DBP), MIT) — Original source for the MaxRect BSSF packing engine and global multi-bin assignment loop. Replaced by Jylänki's reference implementation with all 5 heuristics.
+- **D-Wave 3D Bin Packing** ([github.com/dwave-examples/3d-bin-packing](https://github.com/dwave-examples/3d-bin-packing), Apache 2.0) — Height minimization objective concept. Adapted to 2D: our exhaustive rotation search minimizes `occupiedHeight` on the last sheet for dynamic stock sizing.
+- **Exhaustive Grid Search** ([github.com/DavidBoja/exhaustive-grid-search](https://github.com/DavidBoja/exhaustive-grid-search), MIT) — Exhaustive rotation enumeration pattern. Adapted from 3D SO(3) rotation search to 2D binary rotation masks (2^n combinations for n items).

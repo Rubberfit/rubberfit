@@ -288,6 +288,109 @@ export function packRectItemsWithGuillotine(
   }
 }
 
+/**
+ * Pack additional items into existing free rects (second-pass gap filling).
+ * Uses the same best-short-side-fit heuristic as the guillotine packer.
+ */
+export function packIntoFreeRects(
+  items: Array<PreviewItem & { usedArea: number }>,
+  startingFreeRects: OffcutBand[]
+): { placed: PreviewItem[]; usedArea: number; remainingFreeRects: OffcutBand[] } {
+  type RectChoice = {
+    freeIndex: number
+    width: number
+    height: number
+    rotated: boolean
+    shortSide: number
+    longSide: number
+    areaFit: number
+    y: number
+    x: number
+  }
+
+  const sorted = [...items].sort((a, b) => b.usedArea - a.usedArea)
+  let freeRects = startingFreeRects.filter((r) => r.width > 0.25 && r.height > 0.25)
+  const placed: PreviewItem[] = []
+  let usedArea = 0
+
+  const prune = (rects: OffcutBand[]) =>
+    rects.filter((rect, i) => {
+      if (rect.width <= 0.25 || rect.height <= 0.25) return false
+      return !rects.some(
+        (other, j) =>
+          i !== j &&
+          rect.x >= other.x &&
+          rect.y >= other.y &&
+          rect.x + rect.width <= other.x + other.width &&
+          rect.y + rect.height <= other.y + other.height
+      )
+    })
+
+  sorted.forEach((item) => {
+    let best: RectChoice | null = null
+    const orientations = [
+      { width: item.width, height: item.height, rotated: false },
+      ...(Math.abs(item.width - item.height) > 0.001
+        ? [{ width: item.height, height: item.width, rotated: true }]
+        : []),
+    ]
+
+    freeRects.forEach((fr, fi) => {
+      orientations.forEach((o) => {
+        if (o.width > fr.width + 0.001 || o.height > fr.height + 0.001) return
+        const lw = fr.width - o.width
+        const lh = fr.height - o.height
+        const c: RectChoice = {
+          freeIndex: fi,
+          width: o.width,
+          height: o.height,
+          rotated: o.rotated,
+          shortSide: Math.min(lw, lh),
+          longSide: Math.max(lw, lh),
+          areaFit: lw * fr.height + o.width * lh,
+          y: fr.y,
+          x: fr.x,
+        }
+        if (
+          !best ||
+          c.shortSide < best.shortSide - 0.001 ||
+          (Math.abs(c.shortSide - best.shortSide) < 0.001 &&
+            (c.longSide < best.longSide - 0.001 ||
+              (Math.abs(c.longSide - best.longSide) < 0.001 &&
+                (c.areaFit < best.areaFit - 0.001 ||
+                  (Math.abs(c.areaFit - best.areaFit) < 0.001 &&
+                    (c.y < best.y - 0.001 ||
+                      (Math.abs(c.y - best.y) < 0.001 && c.x < best.x - 0.001)))))))
+        ) {
+          best = c
+        }
+      })
+    })
+
+    if (!best) return
+    const chosen = best as RectChoice
+    const host = freeRects[chosen.freeIndex]
+    placed.push({
+      ...item,
+      x: host.x,
+      y: host.y,
+      width: chosen.width,
+      height: chosen.height,
+      flipped: chosen.rotated ? !(item.flipped ?? false) : item.flipped,
+    })
+    usedArea += item.usedArea
+
+    const next = freeRects.filter((_, i) => i !== chosen.freeIndex)
+    next.push(
+      { x: host.x + chosen.width, y: host.y, width: host.width - chosen.width, height: chosen.height },
+      { x: host.x, y: host.y + chosen.height, width: host.width, height: host.height - chosen.height }
+    )
+    freeRects = prune(next)
+  })
+
+  return { placed, usedArea, remainingFreeRects: freeRects }
+}
+
 // eslint-disable-next-line complexity
 export function calculatePackedShapeLayout(
   rollW: number,

@@ -14,8 +14,9 @@ import {
   computeIntraBlankWaste,
   getPlacementBounds,
   buildShelfGapBands,
+  formatInches,
 } from "./nesting-layout-utils"
-import { packPreviewItemsOnShelves, packRectItemsWithGuillotine } from "./nesting-packing-utils"
+import { packPreviewItemsOnShelves, packRectItemsWithGuillotine, packIntoFreeRects } from "./nesting-packing-utils"
 import { buildPartPreviewItem, getPartTypeLabel } from "./nesting-preview-builders"
 import { generateRectanglePreview, generateCirclePreview } from "./nesting-shape-previews-basic"
 import { computeFabricationScore } from "./nesting-preview-builders"
@@ -25,6 +26,8 @@ import {
   generateTrapezoidPreview,
 } from "./nesting-shape-previews-advanced"
 import type { PreviewItem } from "./nesting-visualizer-types"
+
+export { globalMultiSheetPack } from "./nesting-global-packer"
 
 interface PackingCandidate {
   sortBy: string
@@ -223,7 +226,8 @@ export function computeMultiSheetPreviews(
   rollW: number,
   rollL: number,
   maxSheets: number = 4,
-  regenerate?: (qty: number) => SimplePartPreview
+  regenerate?: (qty: number, remainingSpecs?: SimplePartSpec[]) => SimplePartPreview,
+  allSpecs?: SimplePartSpec[]
 ): MultiSheetResult {
   const capacityPerSheet = preview.unitsCompleted
   const totalNeeded = preview.unitsCompleted + preview.overflowUnits
@@ -243,8 +247,12 @@ export function computeMultiSheetPreviews(
     }
   }
 
+  // For multi-part layouts, track remaining items by building overflow specs
+  const isMultiPart = allSpecs && allSpecs.length > 1
+
   const sheets: SheetPreview[] = []
   let placed = 0
+  let overflowSpecs = allSpecs ? [...allSpecs] : undefined
 
   while (placed < totalNeeded && sheets.length < maxSheets) {
     const remaining = totalNeeded - placed
@@ -254,14 +262,105 @@ export function computeMultiSheetPreviews(
     if (sheets.length === 0) {
       sheetPreview = preview
     } else if (regenerate) {
-      sheetPreview = regenerate(unitsOnSheet)
+      sheetPreview = regenerate(unitsOnSheet, overflowSpecs)
     } else {
       sheetPreview = preview
+    }
+
+    // Second pass: try to fill this sheet's free rects with remaining overflow items
+    if (isMultiPart && overflowSpecs && overflowSpecs.length > 0) {
+      // Reduce overflow specs by what was placed on this sheet
+      const placedLabels = new Map<string, number>()
+      sheetPreview.items.forEach((item) => {
+        placedLabels.set(item.label, (placedLabels.get(item.label) ?? 0) + 1)
+      })
+      let remainingSpecs = overflowSpecs
+        .map((spec) => {
+          const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
+          const placedCount = placedLabels.get(label) ?? 0
+          if (placedCount <= 0) return spec
+          const left = Math.max(0, (spec.quantity || 1) - placedCount)
+          placedLabels.set(label, placedCount - Math.min(placedCount, spec.quantity || 1))
+          return left > 0 ? { ...spec, quantity: left } : null
+        })
+        .filter((s): s is SimplePartSpec => s !== null)
+
+      // Build items from remaining specs and try to fit into this sheet's free space
+      const allFreeRects = [...(sheetPreview.offcutBands ?? []), ...(sheetPreview.scrapBands ?? [])]
+        .filter((r) => r.width > 1 && r.height > 1)
+      if (remainingSpecs.length > 0 && allFreeRects.length > 0) {
+        const overflowItems = remainingSpecs.flatMap((spec) =>
+          Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
+            buildPartPreviewItem(spec, rollW, rollL)
+          )
+        )
+        const gapFill = packIntoFreeRects(overflowItems, allFreeRects)
+        if (gapFill.placed.length > 0) {
+          // Merge gap-filled items into this sheet's preview
+          const mergedItems = [...sheetPreview.items, ...gapFill.placed]
+          const mergedUsedArea = sheetPreview.usedArea + gapFill.usedArea
+          const bounds = getPlacementBounds(mergedItems)
+          // Reclassify remaining free rects
+          const newOffcutBands: OffcutBand[] = []
+          const newScrapBands: OffcutBand[] = []
+          let newReusableArea = 0
+          let newScrapArea = 0
+          gapFill.remainingFreeRects.forEach((band) => {
+            const area = band.width * band.height
+            if (bandFitsAnyPreviewItem(band, mergedItems)) {
+              newOffcutBands.push(band)
+              newReusableArea += area
+            } else {
+              newScrapBands.push(band)
+              newScrapArea += area
+            }
+          })
+          const intraWaste = mergedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
+          newScrapArea += intraWaste
+
+          sheetPreview = {
+            ...sheetPreview,
+            items: mergedItems,
+            placements: mergedItems,
+            unitsCompleted: mergedItems.length,
+            usedArea: mergedUsedArea,
+            offcutBands: newOffcutBands,
+            scrapBands: newScrapBands,
+            reusableArea: newReusableArea,
+            scrapArea: newScrapArea,
+            wasteArea: newReusableArea + newScrapArea,
+            wastePct: stockArea > 0 ? ((newReusableArea + newScrapArea) / stockArea) * 100 : 100,
+            occupiedWidth: bounds.occupiedWidth,
+            occupiedHeight: bounds.occupiedHeight,
+            overflowUnits: Math.max(0, sheetPreview.overflowUnits - gapFill.placed.length),
+          } as SimplePartPreview
+
+          // Reduce remaining specs by gap-filled items
+          const gapLabels = new Map<string, number>()
+          gapFill.placed.forEach((item) => {
+            gapLabels.set(item.label, (gapLabels.get(item.label) ?? 0) + 1)
+          })
+          remainingSpecs = remainingSpecs
+            .map((spec) => {
+              const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
+              const gapCount = gapLabels.get(label) ?? 0
+              if (gapCount <= 0) return spec
+              const left = Math.max(0, (spec.quantity || 1) - gapCount)
+              gapLabels.set(label, gapCount - Math.min(gapCount, spec.quantity || 1))
+              return left > 0 ? { ...spec, quantity: left } : null
+            })
+            .filter((s): s is SimplePartSpec => s !== null)
+        }
+      }
+
+      overflowSpecs = remainingSpecs
     }
 
     const isPartial = sheetPreview.unitsCompleted < capacityPerSheet
     sheets.push({ sheetIndex: sheets.length, preview: sheetPreview, isPartial })
     placed += sheetPreview.unitsCompleted
+
+    if (isMultiPart && overflowSpecs && overflowSpecs.length === 0) break
   }
 
   const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0)

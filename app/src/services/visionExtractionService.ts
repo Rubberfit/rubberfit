@@ -13,14 +13,27 @@ export async function extractFromImage(file: File): Promise<VisionExtractionResp
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const response = await fetch(`${supabaseUrl}/functions/v1/extract-cut-dimensions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      apikey: supabaseAnonKey,
-    },
-    body: formData,
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 60_000)
+  let response: Response
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/extract-cut-dimensions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: formData,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Extraction timed out. Try a smaller or clearer image.")
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({ error: "Unknown error" }))

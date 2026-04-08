@@ -181,8 +181,8 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     ? `${displayPreview.piecesShown}/${requestedCutPieceCount}`
     : `${displayPreview.piecesShown}`
   const previewTitle = isSplitStockPreview
-    ? `${displayPreview.strategyName} \u2022 ${displayPreview.requestedUnits} finished profile${displayPreview.requestedUnits === 1 ? "" : "s"} / ${requestedCutPieceCount} cut section${requestedCutPieceCount === 1 ? "" : "s"}`
-    : `${displayPreview.strategyName} \u2022 ${displayPreview.requestedUnits} part${displayPreview.requestedUnits === 1 ? "" : "s"} requested`
+    ? `${displayPreview.strategyName} - ${displayPreview.requestedUnits} finished profile${displayPreview.requestedUnits === 1 ? "" : "s"} / ${requestedCutPieceCount} cut section${requestedCutPieceCount === 1 ? "" : "s"}`
+    : `${displayPreview.strategyName} - ${displayPreview.requestedUnits} part${displayPreview.requestedUnits === 1 ? "" : "s"} requested`
 
   // Blank and offcut labels
   const localBlankX = surfaceX + (previewBounds.minX - unitOriginX) * scale

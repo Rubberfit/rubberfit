@@ -22,6 +22,7 @@ import {
   generateSimplePartPreview,
   generateMultiPartPreview,
   computeMultiSheetPreviews,
+  globalMultiSheetPack,
 } from "./nesting-shape-previews"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
@@ -42,17 +43,45 @@ function buildMultiSheet(
   cutH: number
 ): MultiSheetResult | null {
   if (!simpleMode || !basePreview) return null
-  const regenerateForQty = (qty: number) => {
+  const shouldUseGlobalPacker =
+    specs.length > 1 ||
+    (specs.length === 1 &&
+      specs[0]?.partType === "rectangle" &&
+      basePreview.overflowUnits > 0)
+
+  // A single uploaded template can still represent many identical parts.
+  // Route overflowing rectangle jobs through the global packer as well.
+  if (shouldUseGlobalPacker) {
+    return globalMultiSheetPack(specs, rollW, rollL, 4, cutW, cutH)
+  }
+
+  // Single-part: use existing sequential overflow packing
+  const regenerate = (qty: number) => {
     const partWithQty = { ...specs[0], quantity: qty }
     return generateSimplePartPreview(rollW, rollL, partWithQty, cutW, cutH, qty)
   }
-  return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerateForQty)
+  return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate)
 }
 
-function buildTagMap(basePreview: SimplePartPreview | null) {
+function buildTagMap(
+  basePreview: SimplePartPreview | null,
+  multiSheet: MultiSheetResult | null
+) {
   if (!basePreview) return new Map<string, string>()
-  const labels = [...new Set(basePreview.items.map((i) => i.label))]
-  return new Map(labels.map((label, i) => [label, String.fromCharCode(65 + i)]))
+  // Collect labels from ALL sheets so overflow items get tags too
+  const allLabels: string[] = []
+  if (multiSheet) {
+    multiSheet.sheets.forEach((sheet) => {
+      sheet.preview.items.forEach((item) => {
+        if (!allLabels.includes(item.label)) allLabels.push(item.label)
+      })
+    })
+  } else {
+    basePreview.items.forEach((item) => {
+      if (!allLabels.includes(item.label)) allLabels.push(item.label)
+    })
+  }
+  return new Map(allLabels.map((label, i) => [label, String.fromCharCode(65 + i)]))
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -214,7 +243,7 @@ export default function NestingVisualizer({
     ]
   )
 
-  const tagMap = useMemo(() => buildTagMap(baseSimplePreview), [baseSimplePreview])
+  const tagMap = useMemo(() => buildTagMap(baseSimplePreview, multiSheet), [baseSimplePreview, multiSheet])
 
   if (simpleMode) {
     const preview =

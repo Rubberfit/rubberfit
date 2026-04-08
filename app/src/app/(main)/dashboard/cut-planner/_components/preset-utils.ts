@@ -75,7 +75,7 @@ export function buildCustomTemplate(
       return {
         id: `custom-cone-${innerRadius}-${outerRadius}-${arcDegrees}`,
         partType,
-        label: `${formatInches(arcDegrees)}\u00b0 \u2022 R${formatInches(innerRadius)}" to R${formatInches(outerRadius)}"`,
+        label: `${formatInches(arcDegrees)}\u00b0 - R${formatInches(innerRadius)}" to R${formatInches(outerRadius)}"`,
         summary: "Custom cone/frustum spread",
         quantity: 1,
         category: "custom",

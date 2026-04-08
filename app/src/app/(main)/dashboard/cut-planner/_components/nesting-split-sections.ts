@@ -37,7 +37,7 @@ export function buildConeSplitSections(
     width: Math.max(2, 2 * safeOuterRadius * Math.sin(fullHalfArcRad)),
     height: Math.max(2, safeOuterRadius - safeInnerRadius * Math.cos(fullHalfArcRad)),
     renderShape: "sector",
-    label: `${Math.round(safeArcDegrees)}\u00b0 \u2022 R${formatInches(safeInnerRadius)}"-R${formatInches(safeOuterRadius)}"`,
+    label: `${Math.round(safeArcDegrees)}\u00b0 - R${formatInches(safeInnerRadius)}"-R${formatInches(safeOuterRadius)}"`,
     cutDirection,
     innerRadius: safeInnerRadius,
     outerRadius: safeOuterRadius,
@@ -49,7 +49,7 @@ export function buildConeSplitSections(
     if (isConeRadialSplit(cutDirection)) {
       const sectionArcDegrees = Math.max(8, safeArcDegrees * (end - start))
       const sectionHalfArcRad = (sectionArcDegrees * Math.PI) / 360
-      const label = `${Math.round(sectionArcDegrees)}\u00b0 \u2022 R${formatInches(safeInnerRadius)}"-R${formatInches(safeOuterRadius)}"`
+      const label = `${Math.round(sectionArcDegrees)}\u00b0 - R${formatInches(safeInnerRadius)}"-R${formatInches(safeOuterRadius)}"`
       const item = {
         x: 0,
         y: 0,

@@ -409,7 +409,10 @@ export function SimpleModeOffcutLabels({
         const centerX = surfaceX + (band.x + band.width / 2) * scale
         const centerY = surfaceY + (band.y + band.height / 2) * scale
         const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
-        const tallEnoughForTitle = band.height * scale >= 30
+        const bandPxW = band.width * scale
+        const bandPxH = band.height * scale
+        const titleSize = Math.max(0, Math.min(13, bandPxW * 0.12, bandPxH * 0.25))
+        const dimsSize = Math.max(0, Math.min(11, bandPxW * 0.1, bandPxH * 0.2))
 
         return (
           <text
@@ -420,15 +423,13 @@ export function SimpleModeOffcutLabels({
             fill="#d6d3d1"
             fontWeight="500"
           >
-            {tallEnoughForTitle && (
-              <tspan x={centerX} dy="-2" fontSize="13">
-                Reusable offcut
-              </tspan>
-            )}
+            <tspan x={centerX} dy={-dimsSize * 0.6} fontSize={titleSize}>
+              Reusable offcut
+            </tspan>
             <tspan
               x={centerX}
-              dy={tallEnoughForTitle ? "16" : "0"}
-              fontSize={tallEnoughForTitle ? "11" : "12"}
+              dy={titleSize + dimsSize * 0.3}
+              fontSize={dimsSize}
               fill="#fbbf24"
             >
               {dims}

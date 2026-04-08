@@ -10,8 +10,56 @@ import { parseSpreadsheet } from "./spreadsheet-parser"
 import { extractFromImage } from "@/services/visionExtractionService"
 import UploadReviewDialog from "./upload-review-dialog"
 
+const MAX_IMAGE_DIMENSION = 4096
+const MAX_IMAGE_BYTES = 3.5 * 1024 * 1024 // 3.5MB target → ~4.7MB after base64 (under Anthropic 5MB limit)
+
+function compressImage(file: File): Promise<File> {
+  if (file.type === "application/pdf") return Promise.resolve(file)
+  if (file.size <= MAX_IMAGE_BYTES) return Promise.resolve(file)
+
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let { width, height } = img
+      const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(width, height))
+      width = Math.round(width * scale)
+      height = Math.round(height * scale)
+
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return reject(new Error("Canvas not supported"))
+      ctx.drawImage(img, 0, 0, width, height)
+
+      const tryCompress = (quality: number) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return reject(new Error("Compression failed"))
+            if (blob.size > MAX_IMAGE_BYTES && quality > 0.4) {
+              tryCompress(quality - 0.1)
+              return
+            }
+            resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }))
+          },
+          "image/jpeg",
+          quality
+        )
+      }
+      tryCompress(0.92)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error("Failed to load image for compression"))
+    }
+    img.src = objectUrl
+  })
+}
+
 interface CutListUploadProps {
-  onPartsConfirmed: (parts: ExtractedPart[]) => void
+  onPartsConfirmed: (parts: ExtractedPart[], stockWidth?: number) => void
 }
 
 export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) {
@@ -42,7 +90,8 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
         setStockWidth(undefined)
         setStatus("review")
       } else if (isImageFile(file)) {
-        const result = await extractFromImage(file)
+        const compressed = await compressImage(file)
+        const result = await extractFromImage(compressed)
         if (!result.parts || result.parts.length === 0) {
           toast.error("No dimensions could be extracted from the image.")
           setStatus("idle")
@@ -80,7 +129,7 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
   }
 
   const handleConfirm = (parts: ExtractedPart[]) => {
-    onPartsConfirmed(parts)
+    onPartsConfirmed(parts, stockWidth)
     setStatus("idle")
     setExtractedParts([])
     toast.success(`${parts.length} part${parts.length !== 1 ? "s" : ""} added to cut planner.`)
@@ -142,7 +191,7 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
               Browse Files
             </Button>
             <p className="text-[11px] text-muted-foreground/70">
-              JPG, PNG, PDF, XLSX, CSV \u2022 Max 10MB
+              JPG, PNG, PDF, XLSX, CSV - Max 10MB
             </p>
           </div>
         )}

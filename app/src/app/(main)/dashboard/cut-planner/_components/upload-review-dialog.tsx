@@ -30,28 +30,6 @@ interface UploadReviewDialogProps {
   onCancel: () => void
 }
 
-function ConfidenceBadge({ value }: { value: number }) {
-  if (value >= 0.9) {
-    return (
-      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-        High
-      </span>
-    )
-  }
-  if (value >= 0.7) {
-    return (
-      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-        Med
-      </span>
-    )
-  }
-  return (
-    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
-      Low
-    </span>
-  )
-}
-
 export default function UploadReviewDialog({
   open,
   parts: initialParts,
@@ -82,8 +60,6 @@ export default function UploadReviewDialog({
     setParts((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const lowConfidenceCount = parts.filter((p) => p.confidence < 0.7).length
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
@@ -91,20 +67,14 @@ export default function UploadReviewDialog({
           <DialogTitle>Review Extracted Dimensions</DialogTitle>
           <DialogDescription>
             {parts.length} part{parts.length !== 1 ? "s" : ""} extracted
-            {stockWidth ? ` \u2022 Stock width: ${stockWidth}"` : ""}
+            {stockWidth ? ` - Stock width: ${stockWidth}"` : ""}
           </DialogDescription>
         </DialogHeader>
 
-        {(warnings.length > 0 || lowConfidenceCount > 0) && (
+        {warnings.length > 0 && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <div>
-              {lowConfidenceCount > 0 && (
-                <p>
-                  {lowConfidenceCount} dimension{lowConfidenceCount !== 1 ? "s" : ""} have low
-                  confidence. Please verify highlighted rows.
-                </p>
-              )}
               {warnings.map((w, i) => (
                 <p key={i}>{w}</p>
               ))}
@@ -120,16 +90,12 @@ export default function UploadReviewDialog({
                 <TableHead className="w-[90px]">Width</TableHead>
                 <TableHead className="w-[90px]">Length</TableHead>
                 <TableHead className="w-[70px]">Qty</TableHead>
-                <TableHead className="w-[70px]">Conf.</TableHead>
                 <TableHead className="w-[40px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {parts.map((part, index) => (
-                <TableRow
-                  key={index}
-                  className={part.confidence < 0.7 ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}
-                >
+                <TableRow key={index}>
                   <TableCell>
                     <input
                       className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-sm"
@@ -167,9 +133,6 @@ export default function UploadReviewDialog({
                       min="1"
                       step="1"
                     />
-                  </TableCell>
-                  <TableCell>
-                    <ConfidenceBadge value={part.confidence} />
                   </TableCell>
                   <TableCell>
                     <button

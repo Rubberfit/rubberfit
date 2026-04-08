@@ -81,19 +81,17 @@ function PolygonShape({
         strokeWidth="1.5"
         opacity="0.95"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#e7e5e4"
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#e7e5e4"
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {item.label}
+      </text>
     </g>
   )
 }
@@ -134,19 +132,17 @@ function CircleShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {r > 14 && (
-        <text
-          x={cx}
-          y={cy}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, r * 0.6))}
+        fontWeight="600"
+      >
+        {item.label}
+      </text>
     </g>
   )
 }
@@ -207,19 +203,17 @@ function SectorShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={cx}
-          y={cy - ((outerR - innerR) / 2) * flipSign}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize={coords.pw > 60 ? "10" : "8"}
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={cx}
+        y={cy - ((outerR - innerR) / 2) * flipSign}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {item.label}
+      </text>
     </g>
   )
 }
@@ -269,19 +263,17 @@ function TrapezoidShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {item.label}
+      </text>
     </g>
   )
 }
@@ -311,18 +303,16 @@ function RectShape({
         strokeWidth="1.5"
         rx="3"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2 + 4}
-          textAnchor="middle"
-          fill="#e7e5e4"
-          fontSize={Math.min(28, Math.min(coords.pw * 0.4, coords.ph * 0.35))}
-          fontWeight="700"
-        >
-          {tagLetter ?? item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
+        textAnchor="middle"
+        fill="#e7e5e4"
+        fontSize={Math.min(28, Math.min(coords.pw * 0.4, coords.ph * 0.35))}
+        fontWeight="700"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
