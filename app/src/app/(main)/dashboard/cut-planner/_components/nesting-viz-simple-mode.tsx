@@ -67,7 +67,12 @@ function SheetSvg({
   const svgRef = React.useRef<SVGSVGElement>(null)
   const panRef = React.useRef(pan)
   const zoomRef = React.useRef(zoom)
-  const dragRef = React.useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
+  const dragRef = React.useRef<{
+    startX: number
+    startY: number
+    startPanX: number
+    startPanY: number
+  } | null>(null)
 
   React.useLayoutEffect(() => {
     panRef.current = pan
@@ -118,15 +123,17 @@ function SheetSvg({
   }, [layout.viewWidth, layout.viewHeight])
 
   // Drag-to-pan (reads refs to avoid stale closures)
-  const onPointerDown = React.useCallback(
-    (e: React.PointerEvent) => {
-      if (zoomRef.current <= 1) return
-      e.currentTarget.setPointerCapture(e.pointerId)
-      const curPan = panRef.current
-      dragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: curPan.x, startPanY: curPan.y }
-    },
-    []
-  )
+  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    if (zoomRef.current <= 1) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const curPan = panRef.current
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startPanX: curPan.x,
+      startPanY: curPan.y,
+    }
+  }, [])
   const onPointerMove = React.useCallback(
     (e: React.PointerEvent) => {
       if (!dragRef.current) return
@@ -166,7 +173,7 @@ function SheetSvg({
           onClick={() => {
             setZoom((z) => {
               const nz = Math.max(1, +(z * 0.67).toFixed(2))
-              setPan((p) => nz === 1 ? { x: 0, y: 0 } : clampPan(p.x, p.y, nz))
+              setPan((p) => (nz === 1 ? { x: 0, y: 0 } : clampPan(p.x, p.y, nz)))
               return nz
             })
           }}
@@ -255,50 +262,50 @@ function SheetSvg({
           strokeWidth="2"
         />
         <g clipPath={`url(#stock-clip${sPat})`}>
-        {!layout.shapeFirstView &&
-          sheet.preview.scrapBands.map((band, index) => (
-            <rect
-              key={`scrap-band-${index + 1}`}
-              x={layout.surfaceX + band.x * layout.scale}
-              y={layout.surfaceY + band.y * layout.scale}
-              width={band.width * layout.scale}
-              height={band.height * layout.scale}
-              fill={`url(#${sWastePat})`}
-              opacity="0.95"
+          {!layout.shapeFirstView &&
+            sheet.preview.scrapBands.map((band, index) => (
+              <rect
+                key={`scrap-band-${index + 1}`}
+                x={layout.surfaceX + band.x * layout.scale}
+                y={layout.surfaceY + band.y * layout.scale}
+                width={band.width * layout.scale}
+                height={band.height * layout.scale}
+                fill={`url(#${sWastePat})`}
+                opacity="0.95"
+              />
+            ))}
+          {!layout.shapeFirstView &&
+            sheet.preview.offcutBands.map((band, index) => (
+              <rect
+                key={`band-${index + 1}`}
+                x={layout.surfaceX + band.x * layout.scale}
+                y={layout.surfaceY + band.y * layout.scale}
+                width={band.width * layout.scale}
+                height={band.height * layout.scale}
+                fill={`url(#${sOffcutPat})`}
+                opacity="0.95"
+              />
+            ))}
+          {sheet.preview.items.map((item, index) => (
+            <NestingShapeRenderer
+              key={index + 1}
+              item={item}
+              index={index}
+              surfaceX={layout.surfaceX}
+              surfaceY={layout.surfaceY}
+              unitOriginX={layout.unitOriginX}
+              unitOriginY={layout.unitOriginY}
+              scale={layout.scale}
+              shapeFirstView={layout.shapeFirstView}
+              preview={preview}
+              displayPreview={sheet.preview}
+              usablePatternId={sUsablePat}
+              wastePatternId={sWastePat}
+              viewHeight={layout.viewHeight}
+              surfacePxW={layout.surfacePxW}
+              tagLetter={tagMap?.get(item.label)}
             />
           ))}
-        {!layout.shapeFirstView &&
-          sheet.preview.offcutBands.map((band, index) => (
-            <rect
-              key={`band-${index + 1}`}
-              x={layout.surfaceX + band.x * layout.scale}
-              y={layout.surfaceY + band.y * layout.scale}
-              width={band.width * layout.scale}
-              height={band.height * layout.scale}
-              fill={`url(#${sOffcutPat})`}
-              opacity="0.95"
-            />
-          ))}
-        {sheet.preview.items.map((item, index) => (
-          <NestingShapeRenderer
-            key={index + 1}
-            item={item}
-            index={index}
-            surfaceX={layout.surfaceX}
-            surfaceY={layout.surfaceY}
-            unitOriginX={layout.unitOriginX}
-            unitOriginY={layout.unitOriginY}
-            scale={layout.scale}
-            shapeFirstView={layout.shapeFirstView}
-            preview={preview}
-            displayPreview={sheet.preview}
-            usablePatternId={sUsablePat}
-            wastePatternId={sWastePat}
-            viewHeight={layout.viewHeight}
-            surfacePxW={layout.surfacePxW}
-            tagLetter={tagMap?.get(item.label)}
-          />
-        ))}
         </g>
         <SimpleModeOffcutLabels
           offcutLabelBands={
@@ -312,11 +319,7 @@ function SheetSvg({
                     const cx = band.x + band.width / 2
                     const cy = band.y + band.height / 2
                     const overlaps = kept.some(
-                      (k) =>
-                        cx >= k.x &&
-                        cx <= k.x + k.width &&
-                        cy >= k.y &&
-                        cy <= k.y + k.height
+                      (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
                     )
                     if (overlaps) return kept
                     kept.push(band)

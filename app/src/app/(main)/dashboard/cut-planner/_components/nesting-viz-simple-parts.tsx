@@ -426,12 +426,7 @@ export function SimpleModeOffcutLabels({
             <tspan x={centerX} dy={-dimsSize * 0.6} fontSize={titleSize}>
               Reusable offcut
             </tspan>
-            <tspan
-              x={centerX}
-              dy={titleSize + dimsSize * 0.3}
-              fontSize={dimsSize}
-              fill="#fbbf24"
-            >
+            <tspan x={centerX} dy={titleSize + dimsSize * 0.3} fontSize={dimsSize} fill="#fbbf24">
               {dims}
             </tspan>
           </text>

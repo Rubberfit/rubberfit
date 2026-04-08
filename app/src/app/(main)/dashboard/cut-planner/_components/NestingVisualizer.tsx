@@ -45,9 +45,7 @@ function buildMultiSheet(
   if (!simpleMode || !basePreview) return null
   const shouldUseGlobalPacker =
     specs.length > 1 ||
-    (specs.length === 1 &&
-      specs[0]?.partType === "rectangle" &&
-      basePreview.overflowUnits > 0)
+    (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
 
   // A single uploaded template can still represent many identical parts.
   // Route overflowing rectangle jobs through the global packer as well.
@@ -63,10 +61,7 @@ function buildMultiSheet(
   return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate)
 }
 
-function buildTagMap(
-  basePreview: SimplePartPreview | null,
-  multiSheet: MultiSheetResult | null
-) {
+function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
   if (!basePreview) return new Map<string, string>()
   // Collect labels from ALL sheets so overflow items get tags too
   const allLabels: string[] = []
@@ -243,7 +238,10 @@ export default function NestingVisualizer({
     ]
   )
 
-  const tagMap = useMemo(() => buildTagMap(baseSimplePreview, multiSheet), [baseSimplePreview, multiSheet])
+  const tagMap = useMemo(
+    () => buildTagMap(baseSimplePreview, multiSheet),
+    [baseSimplePreview, multiSheet]
+  )
 
   if (simpleMode) {
     const preview =

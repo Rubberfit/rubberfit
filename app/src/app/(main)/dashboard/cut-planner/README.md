@@ -56,18 +56,18 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### Math & Algorithms
 
-| File                                 | Purpose                                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------------------- |
-| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                      |
-| `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing, guillotine cutting, centered column            |
-| `nesting-global-packer.ts`          | Global multi-sheet MaxRect bin packing — ported from open-source repos (see attribution below) |
-| `nesting-width-pair-packer.ts`      | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects  |
-| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters               |
-| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison |
-| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                |
-| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                       |
-| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout |
-| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                             |
+| File                                 | Purpose                                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                              |
+| `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing, guillotine cutting, centered column                    |
+| `nesting-global-packer.ts`           | Global multi-sheet MaxRect bin packing — ported from open-source repos (see attribution below) |
+| `nesting-width-pair-packer.ts`       | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects         |
+| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters                       |
+| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison         |
+| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                        |
+| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                               |
+| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout         |
+| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                                     |
 
 ### SVG Rendering
 
@@ -1236,13 +1236,13 @@ The engine implements all 5 MaxRects heuristics from Jukka Jylänki's "A Thousan
 
 **All 5 heuristics (from Jylänki's reference implementation):**
 
-| Heuristic | Primary Score (minimize) | Tiebreaker | Intuition |
-|-----------|--------------------------|------------|-----------|
-| **BSSF** (Best Short Side Fit) | `min(leftH, leftV)` | `max(leftH, leftV)` | Snug fit on at least one edge |
-| **BLSF** (Best Long Side Fit) | `max(leftH, leftV)` | `min(leftH, leftV)` | Avoid creating thin slivers |
-| **BAF** (Best Area Fit) | `freeArea - itemArea` | `min(leftH, leftV)` | Least wasted area in free rect |
-| **BL** (Bottom-Left) | `freeY + itemH` | `freeX` | Gravity/Tetris-style packing |
-| **CP** (Contact Point) | `-contactLength` | — | Maximum adjacency with walls/items |
+| Heuristic                      | Primary Score (minimize) | Tiebreaker          | Intuition                          |
+| ------------------------------ | ------------------------ | ------------------- | ---------------------------------- |
+| **BSSF** (Best Short Side Fit) | `min(leftH, leftV)`      | `max(leftH, leftV)` | Snug fit on at least one edge      |
+| **BLSF** (Best Long Side Fit)  | `max(leftH, leftV)`      | `min(leftH, leftV)` | Avoid creating thin slivers        |
+| **BAF** (Best Area Fit)        | `freeArea - itemArea`    | `min(leftH, leftV)` | Least wasted area in free rect     |
+| **BL** (Bottom-Left)           | `freeY + itemH`          | `freeX`             | Gravity/Tetris-style packing       |
+| **CP** (Contact Point)         | `-contactLength`         | —                   | Maximum adjacency with walls/items |
 
 **Three packing modes run in parallel:**
 
@@ -1304,11 +1304,11 @@ Mode 3 exploits the fact that many cut lists contain items with similar widths. 
 
 **This is a novel hybrid approach.** Research across 10+ open-source packing repositories found no existing implementation that creates virtual composite rectangles from paired items before feeding them to a packing engine. The approach combines elements from three established algorithm families:
 
-| Component | Closest Algorithm | Our Innovation |
-|---|---|---|
-| Group by width similarity | Split-Fit (width bands) | Absolute tolerance (±1") instead of fractional bin-width thresholds |
-| Pair longest-with-next-longest | Floor-Ceiling (pack both edges of a level) | Pre-pairing before packing, not during |
-| Virtual rectangles through MaxRects | Standard MaxRects pipeline | Composite items as MaxRects input — reduces problem size |
+| Component                           | Closest Algorithm                          | Our Innovation                                                      |
+| ----------------------------------- | ------------------------------------------ | ------------------------------------------------------------------- |
+| Group by width similarity           | Split-Fit (width bands)                    | Absolute tolerance (±1") instead of fractional bin-width thresholds |
+| Pair longest-with-next-longest      | Floor-Ceiling (pack both edges of a level) | Pre-pairing before packing, not during                              |
+| Virtual rectangles through MaxRects | Standard MaxRects pipeline                 | Composite items as MaxRects input — reduces problem size            |
 
 **Key difference from guillotine packing:** When an item is placed, MaxRect clips ALL overlapping free rectangles (not just the hosting one), generating up to 4 sub-rects per overlap. This allows items to be placed in positions that span multiple free regions.
 

@@ -47,7 +47,11 @@ function getRequestedSqFt(templates: PartTemplate[], quantity: number) {
   }
 
   return templates.reduce((total, template) => {
-    const qty = template.isCustom ? template.quantity : template.partType === "rectangle" ? Math.max(1, quantity) : 1
+    const qty = template.isCustom
+      ? template.quantity
+      : template.partType === "rectangle"
+        ? Math.max(1, quantity)
+        : 1
     switch (template.partType) {
       case "circle": {
         const radius = (template.diameter ?? 0) / 2

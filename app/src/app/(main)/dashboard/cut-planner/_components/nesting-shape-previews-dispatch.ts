@@ -16,7 +16,11 @@ import {
   buildShelfGapBands,
   formatInches,
 } from "./nesting-layout-utils"
-import { packPreviewItemsOnShelves, packRectItemsWithGuillotine, packIntoFreeRects } from "./nesting-packing-utils"
+import {
+  packPreviewItemsOnShelves,
+  packRectItemsWithGuillotine,
+  packIntoFreeRects,
+} from "./nesting-packing-utils"
 import { buildPartPreviewItem, getPartTypeLabel } from "./nesting-preview-builders"
 import { generateRectanglePreview, generateCirclePreview } from "./nesting-shape-previews-basic"
 import { computeFabricationScore } from "./nesting-preview-builders"
@@ -286,8 +290,10 @@ export function computeMultiSheetPreviews(
         .filter((s): s is SimplePartSpec => s !== null)
 
       // Build items from remaining specs and try to fit into this sheet's free space
-      const allFreeRects = [...(sheetPreview.offcutBands ?? []), ...(sheetPreview.scrapBands ?? [])]
-        .filter((r) => r.width > 1 && r.height > 1)
+      const allFreeRects = [
+        ...(sheetPreview.offcutBands ?? []),
+        ...(sheetPreview.scrapBands ?? []),
+      ].filter((r) => r.width > 1 && r.height > 1)
       if (remainingSpecs.length > 0 && allFreeRects.length > 0) {
         const overflowItems = remainingSpecs.flatMap((spec) =>
           Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
@@ -315,7 +321,10 @@ export function computeMultiSheetPreviews(
               newScrapArea += area
             }
           })
-          const intraWaste = mergedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
+          const intraWaste = mergedItems.reduce(
+            (sum, item) => sum + computeIntraBlankWaste(item),
+            0
+          )
           newScrapArea += intraWaste
 
           sheetPreview = {

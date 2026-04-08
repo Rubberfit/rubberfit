@@ -382,8 +382,18 @@ export function packIntoFreeRects(
 
     const next = freeRects.filter((_, i) => i !== chosen.freeIndex)
     next.push(
-      { x: host.x + chosen.width, y: host.y, width: host.width - chosen.width, height: chosen.height },
-      { x: host.x, y: host.y + chosen.height, width: host.width, height: host.height - chosen.height }
+      {
+        x: host.x + chosen.width,
+        y: host.y,
+        width: host.width - chosen.width,
+        height: chosen.height,
+      },
+      {
+        x: host.x,
+        y: host.y + chosen.height,
+        width: host.width,
+        height: host.height - chosen.height,
+      }
     )
     freeRects = prune(next)
   })
