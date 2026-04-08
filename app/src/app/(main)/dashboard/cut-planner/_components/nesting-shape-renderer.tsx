@@ -210,8 +210,8 @@ function SectorShape({
         strokeWidth="1.5"
       />
       <text
-        x={cx}
-        y={cy - ((outerR - innerR) / 2) * flipSign}
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph * 0.45}
         textAnchor="middle"
         dominantBaseline="middle"
         fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
