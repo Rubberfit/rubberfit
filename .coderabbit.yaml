@@ -8,11 +8,6 @@ reviews:
   high_level_summary: true
   high_level_summary_placeholder: "@coderabbitai summary"
   high_level_summary_in_walkthrough: true
-  sequence_diagrams: true
-  related_issues: true
-  related_prs: true
-  assess_linked_issues: true
-  estimate_code_review_effort: true
   poem: false
   review_status: true
   collapse_walkthrough: false
