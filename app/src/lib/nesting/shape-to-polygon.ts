@@ -56,7 +56,6 @@ export function sectorToPolygon(
       y: outerRadius - outerRadius * Math.cos(angle),
     })
   }
-  segments = 16
   // Inner arc (reverse)
   for (let i = segments; i >= 0; i--) {
     const angle = -arcRad / 2 + (arcRad * i) / segments
