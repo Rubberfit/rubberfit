@@ -436,24 +436,14 @@ export function SimpleModeOffcutLabels({
   )
 }
 
-export function SimpleModeDimensionLabels({
-  layout,
-  physicalRollW,
-  physicalRollL,
-  rotated = false,
-}: {
-  layout: SimpleModeLayout
-  physicalRollW?: number
-  physicalRollL?: number
-  rotated?: boolean
-}) {
-  const rollW = physicalRollW ?? layout.previewRollW
-  const rollL = physicalRollL ?? layout.previewRollL
-  // When rotated, the horizontal axis spans the roll length and the vertical spans the width
-  const horzValue = rotated ? rollL : rollW
-  const horzLabel = rotated ? "length" : "width"
-  const vertValue = rotated ? rollW : rollL
-  const vertLabel = rotated ? "width" : "height"
+export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
+  // When the sheet is displayed in landscape (W > L) the horizontal axis
+  // spans what is physically the roll length, so swap the labels accordingly.
+  const isLandscape = layout.previewRollW >= layout.previewRollL
+  const horzValue = layout.previewRollW
+  const horzLabel = isLandscape ? "length" : "width"
+  const vertValue = layout.previewRollL
+  const vertLabel = isLandscape ? "width" : "height"
   return (
     <>
       <line

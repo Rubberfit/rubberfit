@@ -56,6 +56,7 @@ function PolygonShape({
   unitOriginY,
   scale,
   usablePatternId,
+  wastePatternId,
   tagLetter,
 }: {
   item: PreviewItem
@@ -67,6 +68,7 @@ function PolygonShape({
   unitOriginY: number
   scale: number
   usablePatternId: string
+  wastePatternId: string
   tagLetter?: string
 }) {
   const points = item
@@ -77,6 +79,14 @@ function PolygonShape({
     .join(" ")
   return (
     <g key={index + 1}>
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
+        fill={`url(#${wastePatternId})`}
+        opacity="0.4"
+      />
       <polygon
         points={points}
         fill={`url(#${usablePatternId})`}
@@ -365,6 +375,7 @@ export default function NestingShapeRenderer({
         unitOriginY={unitOriginY}
         scale={scale}
         usablePatternId={usablePatternId}
+        wastePatternId={wastePatternId}
         tagLetter={tagLetter}
       />
     )

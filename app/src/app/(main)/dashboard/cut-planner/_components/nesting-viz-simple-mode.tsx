@@ -36,8 +36,7 @@ interface SimpleModeProps {
 // eslint-disable-next-line max-lines-per-function
 function SheetSvg({
   sheet,
-  layout: baseLayout,
-  rotatedLayout,
+  layout,
   preview,
   previewRollW,
   previewRollL,
@@ -47,7 +46,6 @@ function SheetSvg({
 }: {
   sheet: SheetPreview
   layout: SimpleModeLayout
-  rotatedLayout: SimpleModeLayout | null
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
@@ -55,46 +53,6 @@ function SheetSvg({
   totalSheets: number
   tagMap?: Map<string, string>
 }) {
-  const shouldRotate = rotatedLayout !== null
-  const layout = rotatedLayout ?? baseLayout
-
-  // When rotated (90° CW), swap item and band coordinates so they map into
-  // the transposed canvas (rollL becomes horizontal, rollW becomes vertical).
-  const rotateItem = React.useCallback(
-    <T extends { x: number; y: number; width: number; height: number }>(item: T): T => ({
-      ...item,
-      x: previewRollL - item.y - item.height,
-      y: item.x,
-      width: item.height,
-      height: item.width,
-    }),
-    [previewRollL]
-  )
-
-  const displayItems = React.useMemo(
-    () =>
-      shouldRotate
-        ? sheet.preview.items.map((item) => ({
-            ...rotateItem(item),
-            placedPolygon: item.placedPolygon?.map((pt) => ({
-              x: previewRollL - pt.y,
-              y: pt.x,
-            })),
-          }))
-        : sheet.preview.items,
-    [shouldRotate, sheet.preview.items, rotateItem, previewRollL]
-  )
-
-  const displayScrapBands = React.useMemo(
-    () => (shouldRotate ? sheet.preview.scrapBands.map(rotateItem) : sheet.preview.scrapBands),
-    [shouldRotate, sheet.preview.scrapBands, rotateItem]
-  )
-
-  const displayOffcutBands = React.useMemo(
-    () => (shouldRotate ? sheet.preview.offcutBands.map(rotateItem) : sheet.preview.offcutBands),
-    [shouldRotate, sheet.preview.offcutBands, rotateItem]
-  )
-
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
   const sStockPat = `${layout.stockPatternId}${sPat}`
@@ -302,7 +260,7 @@ function SheetSvg({
         />
         <g clipPath={`url(#${sClip})`}>
           {!layout.shapeFirstView &&
-            displayScrapBands.map((band, index) => (
+            sheet.preview.scrapBands.map((band, index) => (
               <rect
                 key={`scrap-band-${index + 1}`}
                 x={layout.surfaceX + band.x * layout.scale}
@@ -314,7 +272,7 @@ function SheetSvg({
               />
             ))}
           {!layout.shapeFirstView &&
-            displayOffcutBands.map((band, index) => (
+            sheet.preview.offcutBands.map((band, index) => (
               <rect
                 key={`band-${index + 1}`}
                 x={layout.surfaceX + band.x * layout.scale}
@@ -325,7 +283,7 @@ function SheetSvg({
                 opacity="0.95"
               />
             ))}
-          {displayItems.map((item, index) => (
+          {sheet.preview.items.map((item, index) => (
             <NestingShapeRenderer
               key={index + 1}
               item={item}
@@ -349,8 +307,8 @@ function SheetSvg({
         </g>
         <SimpleModeOffcutLabels
           offcutLabelBands={
-            !layout.shapeFirstView && displayOffcutBands.length > 0
-              ? [...displayOffcutBands]
+            !layout.shapeFirstView && sheet.preview.offcutBands.length > 0
+              ? [...sheet.preview.offcutBands]
                   .sort((a, b) => b.width * b.height - a.width * a.height)
                   .reduce<typeof sheet.preview.offcutBands>((kept, band) => {
                     const pw = band.width * layout.scale
@@ -371,12 +329,7 @@ function SheetSvg({
           surfaceY={layout.surfaceY}
           scale={layout.scale}
         />
-        <SimpleModeDimensionLabels
-          layout={layout}
-          physicalRollW={shouldRotate ? previewRollW : undefined}
-          physicalRollL={shouldRotate ? previewRollL : undefined}
-          rotated={shouldRotate}
-        />
+        <SimpleModeDimensionLabels layout={layout} />
       </svg>
     </div>
   )
@@ -406,22 +359,6 @@ export default function NestingVizSimpleMode({
         optimizedResult,
         optimizedItems,
       }),
-    [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
-  )
-
-  const rotatedLayout = React.useMemo(
-    () =>
-      previewRollL > previewRollW
-        ? computeSimpleModeLayout({
-            preview,
-            previewRollW: previewRollL,
-            previewRollL: previewRollW,
-            patternSeed,
-            viewMode,
-            optimizedResult,
-            optimizedItems,
-          })
-        : null,
     [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
   )
 
@@ -473,7 +410,6 @@ export default function NestingVizSimpleMode({
             key={`sheet-${sheet.sheetIndex}`}
             sheet={sheet}
             layout={layout}
-            rotatedLayout={rotatedLayout}
             preview={preview}
             previewRollW={previewRollW}
             previewRollL={previewRollL}
