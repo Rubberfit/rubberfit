@@ -17,6 +17,7 @@ interface NestingShapeRendererProps {
   viewHeight: number
   surfacePxW: number
   tagLetter?: string
+  zoom?: number
 }
 
 interface ShapeCoords {
@@ -302,14 +303,13 @@ function RectShape({
   return (
     <g key={index + 1}>
       <rect
-        x={coords.px + 1}
-        y={coords.py + 1}
-        width={coords.pw - 2}
-        height={coords.ph - 2}
+        x={coords.px + 0.5}
+        y={coords.py + 0.5}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${usablePatternId})`}
         stroke="#84cc16"
-        strokeWidth="1.5"
-        rx="3"
+        strokeWidth="1"
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -341,6 +341,7 @@ export default function NestingShapeRenderer({
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
   tagLetter,
+  zoom: _zoom,
 }: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
     item,

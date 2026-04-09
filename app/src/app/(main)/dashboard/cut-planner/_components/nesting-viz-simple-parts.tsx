@@ -436,7 +436,24 @@ export function SimpleModeOffcutLabels({
   )
 }
 
-export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
+export function SimpleModeDimensionLabels({
+  layout,
+  physicalRollW,
+  physicalRollL,
+  rotated = false,
+}: {
+  layout: SimpleModeLayout
+  physicalRollW?: number
+  physicalRollL?: number
+  rotated?: boolean
+}) {
+  const rollW = physicalRollW ?? layout.previewRollW
+  const rollL = physicalRollL ?? layout.previewRollL
+  // When rotated, the horizontal axis spans the roll length and the vertical spans the width
+  const horzValue = rotated ? rollL : rollW
+  const horzLabel = rotated ? "length" : "width"
+  const vertValue = rotated ? rollW : rollL
+  const vertLabel = rotated ? "width" : "height"
   return (
     <>
       <line
@@ -465,7 +482,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         fontSize="14"
         fontWeight="600"
       >
-        {`${formatInches(layout.previewRollW)}" stock width`}
+        {`${formatInches(horzValue)}" ${horzLabel}`}
       </text>
 
       <line
@@ -495,7 +512,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         fontWeight="600"
         transform={`rotate(90 ${layout.colLabelX + 26} ${layout.shapeFirstView ? layout.localBlankY + layout.localBlankH / 2 : layout.surfaceY + layout.surfacePxH / 2})`}
       >
-        {`${formatInches(layout.previewRollL)}" height`}
+        {`${formatInches(vertValue)}" ${vertLabel}`}
       </text>
     </>
   )
