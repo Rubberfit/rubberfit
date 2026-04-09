@@ -40,7 +40,13 @@ function rotateItem90CW<T extends { x: number; y: number; width: number; height:
   item: T,
   rollL: number
 ): T {
-  return { ...item, x: rollL - item.y - item.height, y: item.x, width: item.height, height: item.width }
+  return {
+    ...item,
+    x: rollL - item.y - item.height,
+    y: item.x,
+    width: item.height,
+    height: item.width,
+  }
 }
 
 function rotatePreviewItem(item: PreviewItem, rollL: number): PreviewItem {
@@ -342,7 +348,10 @@ export default function NestingVisualizer({
   const shouldRotate = defaultRollLength > defaultRollWidth
 
   const rotatedMultiSheet = useMemo(
-    () => (shouldRotate && multiSheet ? rotateMultiSheetResult(multiSheet, defaultRollLength) : multiSheet),
+    () =>
+      shouldRotate && multiSheet
+        ? rotateMultiSheetResult(multiSheet, defaultRollLength)
+        : multiSheet,
     [shouldRotate, multiSheet, defaultRollLength]
   )
 
@@ -365,7 +374,9 @@ export default function NestingVisualizer({
         defaultCutHeight,
         defaultQty
       )
-    const preview = shouldRotate ? rotateSimplePartPreview(rawPreview, defaultRollLength) : rawPreview
+    const preview = shouldRotate
+      ? rotateSimplePartPreview(rawPreview, defaultRollLength)
+      : rawPreview
     return (
       <NestingVizSimpleMode
         preview={preview}
