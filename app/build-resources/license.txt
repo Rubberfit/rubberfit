@@ -1,4 +1,4 @@
-RubberFit Pro License Agreement
+Rema Portal License Agreement
 
 Copyright (c) 2024 USI Manufacturing
 
@@ -9,7 +9,7 @@ END USER LICENSE AGREEMENT
 IMPORTANT: READ THIS LICENSE CAREFULLY BEFORE USING THIS SOFTWARE.
 
 1. LICENSE GRANT
-USI Manufacturing grants you a non-exclusive, non-transferable license to use RubberFit Pro software.
+USI Manufacturing grants you a non-exclusive, non-transferable license to use Rema Portal software.
 
 2. RESTRICTIONS
 You may not:

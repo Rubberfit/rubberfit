@@ -1,4 +1,4 @@
-# RubberFit Pro — Coding Standards
+# Rema Portal — Coding Standards
 
 ## Stack
 

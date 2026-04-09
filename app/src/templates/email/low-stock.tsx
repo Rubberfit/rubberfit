@@ -30,7 +30,7 @@ export const LowStockEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={header}>
-          <Heading style={h1}>RubberFit Pro</Heading>
+          <Heading style={h1}>Rema Portal</Heading>
           <Text style={subtitle}>Inventory Management System</Text>
         </Section>
 
@@ -72,7 +72,7 @@ export const LowStockEmail = ({
 
         <Section style={footer}>
           <Text style={footerText}>
-            This is an automated notification from RubberFit Pro.
+            This is an automated notification from Rema Portal.
             <br />
             To manage your notification preferences, visit your account settings.
           </Text>

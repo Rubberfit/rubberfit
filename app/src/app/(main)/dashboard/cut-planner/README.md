@@ -1,6 +1,6 @@
 # Cut Planner
 
-The cut planner is the core feature of RubberFit Pro. It calculates optimal layouts for cutting rubber shapes from stock sheets, minimizing waste and maximizing material utilization.
+The cut planner is the core feature of Rema Portal. It calculates optimal layouts for cutting rubber shapes from stock sheets, minimizing waste and maximizing material utilization.
 
 ## Modes
 

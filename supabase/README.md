@@ -1,6 +1,6 @@
-# RubberFit Pro Database Setup
+# Rema Portal Database Setup
 
-This directory contains the complete database schema and setup files for RubberFit Pro, a material optimization and inventory management system for rubber manufacturing.
+This directory contains the complete database schema and setup files for Rema Portal, a material optimization and inventory management system for rubber manufacturing.
 
 ## Quick Start for Interns
 
@@ -15,7 +15,7 @@ This directory contains the complete database schema and setup files for RubberF
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd rubberfit-pro
+cd rema-portal
 
 # Install Supabase CLI if you haven't already
 npm install -g supabase
@@ -189,7 +189,7 @@ For questions about the database schema or setup:
 3. Connect your React app using the local credentials
 4. Begin development with a fully functional database
 
-The schema is designed to support the full RubberFit Pro application including:
+The schema is designed to support the full Rema Portal application including:
 - Inventory management
 - Cut optimization algorithm
 - Waste tracking and reporting

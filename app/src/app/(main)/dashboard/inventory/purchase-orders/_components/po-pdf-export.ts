@@ -129,7 +129,7 @@ export function handleDownloadPDF(po: PurchaseOrderWithDetails) {
         }
 
         <div class="footer">
-          <p>Generated on ${format(new Date(), "MMM dd, yyyy HH:mm")} | RubberFit Pro</p>
+          <p>Generated on ${format(new Date(), "MMM dd, yyyy HH:mm")} | Rema Portal</p>
         </div>
       </body>
       </html>

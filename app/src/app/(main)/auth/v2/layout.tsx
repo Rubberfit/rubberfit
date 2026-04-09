@@ -11,7 +11,7 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
         <div className="relative order-2 hidden h-full rounded-3xl bg-primary lg:flex">
           <div className="absolute top-10 space-y-1 px-10 text-primary-foreground">
             <TrendingUp className="size-10" />
-            <h1 className="font-medium text-2xl">RubberFit Pro</h1>
+            <h1 className="font-medium text-2xl">Rema Portal</h1>
             <p className="text-sm">Optimize. Track. Save. Excel.</p>
           </div>
 

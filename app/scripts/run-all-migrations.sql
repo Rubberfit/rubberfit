@@ -1,4 +1,4 @@
--- RubberFit Pro - Complete Database Setup
+-- Rema Portal - Complete Database Setup
 -- Run this entire script in Supabase SQL Editor
 
 -- 1. Create material_types table

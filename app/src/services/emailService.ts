@@ -269,7 +269,7 @@ class EmailService {
 
     return this.sendEmail({
       to: params.to,
-      subject: `Welcome to ${COMPANY_NAME} RubberFit Pro`,
+      subject: `Welcome to ${COMPANY_NAME} Rema Portal`,
       html,
       tags: [{ name: "notification_type", value: "welcome" }],
     })
@@ -412,7 +412,7 @@ class EmailService {
                 <p>${notification.message}</p>
                 <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e5e5;">
                 <p style="color: #666; font-size: 12px;">
-                  This is an automated message from ${COMPANY_NAME} RubberFit Pro
+                  This is an automated message from ${COMPANY_NAME} Rema Portal
                 </p>
               </div>
             `,

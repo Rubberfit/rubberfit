@@ -1,4 +1,4 @@
-# RubberFit Pro
+# Rema Portal
 
 A material optimization and inventory management system for USI Manufacturing, designed to track rubber roll inventory and optimize material cuts to minimize waste.
 
@@ -34,7 +34,7 @@ A material optimization and inventory management system for USI Manufacturing, d
 
 ```bash
 git clone <repository-url>
-cd rubberfit-pro
+cd rema-portal
 
 # Navigate to app directory and install all dependencies
 cd app
@@ -121,7 +121,7 @@ npm run electron:dist:all   # Build for all platforms
 ## 🗂 Project Structure
 
 ```
-rubberfit-pro/
+rema-portal/
 ├── app/
 │   ├── .next/               # Next.js build output
 │   ├── electron/            # Electron main process & IPC handlers

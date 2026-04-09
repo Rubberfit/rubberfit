@@ -1,9 +1,9 @@
-# Supabase Configuration for RubberFit Pro
+# Supabase Configuration for Rema Portal
 # This file contains the local development configuration for Supabase
 # No secrets or production URLs are included
 
 # Project identifier for local development
-project_id = "rubberfit-pro"
+project_id = "rema-portal"
 
 [api]
 enabled = true

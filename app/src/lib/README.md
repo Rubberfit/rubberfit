@@ -195,13 +195,13 @@ export function resolvePostAuthRedirect(
 }
 ```
 
-- **auth-email-logo.ts** -- Returns the RubberFit logo URL for transactional emails
+- **auth-email-logo.ts** -- Returns the auth email logo for transactional emails
 
 ```typescript
-export const RUBBER_FIT_EMAIL_LOGO_BASE64 = "iVBORw0KGgo..." // base64-encoded PNG
+export const AUTH_EMAIL_LOGO_BASE64 = "iVBORw0KGgo..." // base64-encoded PNG
 
-export function getRubberFitEmailLogoPng() {
-  return Buffer.from(RUBBER_FIT_EMAIL_LOGO_BASE64, "base64")
+export function getAuthEmailLogoPng() {
+  return Buffer.from(AUTH_EMAIL_LOGO_BASE64, "base64")
 }
 ```
 

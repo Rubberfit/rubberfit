@@ -94,13 +94,13 @@ const POApprovalRequestEmail: React.FC<POApprovalRequestEmailProps> = ({
 
           <Text style={noteText}>
             <strong>Note:</strong> This purchase order will remain pending until approved. You can
-            also review it later in the RubberFit Pro application.
+            also review it later in the Rema Portal application.
           </Text>
 
           <Hr style={divider} />
 
           <Text style={footer}>
-            This is an automated notification from {companyName} RubberFit Pro.
+            This is an automated notification from {companyName} Rema Portal.
             <br />
             To manage your notification preferences, visit your{" "}
             <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/settings/notifications`} style={link}>

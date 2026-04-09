@@ -72,7 +72,7 @@ const LowStockAlertEmail: React.FC<LowStockAlertEmailProps> = ({
           <Hr style={divider} />
 
           <Text style={footer}>
-            This is an automated notification from {companyName} RubberFit Pro.
+            This is an automated notification from {companyName} Rema Portal.
             <br />
             To manage your notification preferences, visit your{" "}
             <Link href={`${process.env.NEXT_PUBLIC_APP_URL}/settings/notifications`} style={link}>

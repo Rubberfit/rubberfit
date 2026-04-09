@@ -151,10 +151,10 @@ export const exportPdfService = {
 
       doc.setProperties({
         title: title,
-        subject: "RubberFit Pro Report",
-        author: "RubberFit Pro",
+        subject: "Rema Portal Report",
+        author: "Rema Portal",
         keywords: "inventory, materials, rubber, optimization",
-        creator: "RubberFit Pro",
+        creator: "Rema Portal",
       })
 
       let yPosition = 20
@@ -208,7 +208,7 @@ export const exportPdfService = {
 
       doc.setFontSize(8)
       doc.setTextColor(107, 114, 128)
-      doc.text("RubberFit Pro - Material Optimization System", margin, pageHeight - 10)
+      doc.text("Rema Portal - Material Optimization System", margin, pageHeight - 10)
       doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin - 10, pageHeight - 10)
 
       const filename = `${title.replace(/\s+/g, "_")}_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
@@ -227,7 +227,7 @@ export const exportPdfService = {
       const textContent = `${title}\n${"=".repeat(50)}\n\nGenerated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}\n\n${htmlContent
         .replace(/<[^>]*>/g, "")
         .replace(/\s+/g, " ")
-        .trim()}\n\n---\nRubberFit Pro - Material Optimization System`
+        .trim()}\n\n---\nRema Portal - Material Optimization System`
 
       const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" })
       const url = URL.createObjectURL(blob)

@@ -7,7 +7,7 @@ updates:
       day: "monday"
     open-pull-requests-limit: 10
     reviewers:
-      - "Arc-and-Anchor/rubberfit-pro"
+      - "Arc-and-Anchor/rema-portal"
     labels:
       - "dependencies"
     groups:

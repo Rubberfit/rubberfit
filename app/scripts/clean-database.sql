@@ -1,4 +1,4 @@
--- RubberFit Pro - Clean Database (Remove all dummy data)
+-- Rema Portal - Clean Database (Remove all dummy data)
 -- This script removes all test data, leaving only material types
 
 -- 1. Delete all cuts (must be first due to foreign key)
