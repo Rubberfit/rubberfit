@@ -216,6 +216,23 @@ export interface CirclePreview extends SimplePreviewBase {
 
 export type SimplePartPreview = RectLikePreview | CirclePreview
 
+export interface SheetPreview {
+  sheetIndex: number
+  preview: SimplePartPreview
+  isPartial: boolean
+}
+
+export interface MultiSheetResult {
+  sheets: SheetPreview[]
+  totalUnitsCompleted: number
+  totalUsedArea: number
+  totalReusableArea: number
+  totalScrapArea: number
+  totalStockArea: number
+  remainingOverflow: number
+  avgFabScore: number
+}
+
 export type PreviewPackSort = "area" | "height" | "width" | "max-edge"
 
 export const MIN_REUSABLE_OFFCUT_WIDTH = 11.5

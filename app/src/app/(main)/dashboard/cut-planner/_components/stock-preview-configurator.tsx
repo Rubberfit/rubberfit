@@ -38,6 +38,7 @@ export const STOCK_PRESETS = [
   { id: "48x11-5", label: '48" × 11½"', width: 48, length: 11.5 },
   { id: "40x12", label: '40" × 12"', width: 40, length: 12 },
   { id: "38x12", label: '38" × 12"', width: 38, length: 12 },
+  { id: "78x396", label: '78" × 396"', width: 78, length: 396 },
 ].sort((left, right) => {
   const leftArea = left.width * left.length
   const rightArea = right.width * right.length

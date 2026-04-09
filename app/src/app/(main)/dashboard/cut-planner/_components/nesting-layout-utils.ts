@@ -192,7 +192,7 @@ export function formatInches(value: number) {
   }
 
   return value
-    .toFixed(2)
+    .toFixed(4)
     .replace(/\.00$/, "")
     .replace(/(\.\d*[1-9])0+$/, "$1")
 }

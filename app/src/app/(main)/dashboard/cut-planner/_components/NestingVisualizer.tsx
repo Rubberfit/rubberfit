@@ -13,11 +13,18 @@ import type {
   ScoredStrategy,
   NestingVisualizerProps,
   SimplePartPreview,
+  MultiSheetResult,
+  PreviewItem,
 } from "./nesting-visualizer-types"
 
 import { getStrategies, scoreStrat } from "./nesting-layout-utils"
 
-import { generateSimplePartPreview, generateMultiPartPreview } from "./nesting-shape-previews"
+import {
+  generateSimplePartPreview,
+  generateMultiPartPreview,
+  computeMultiSheetPreviews,
+  globalMultiSheetPack,
+} from "./nesting-shape-previews"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -27,7 +34,152 @@ import NestingVizSimpleMode from "./nesting-viz-simple-mode"
 import NestingVizRectPanel from "./nesting-viz-rect-panel"
 import NestingVizControls from "./nesting-viz-controls"
 
-// Main Component
+// ── 90° CW rotation utilities ───────────────────────────────────────────────
+
+function rotateItem90CW<T extends { x: number; y: number; width: number; height: number }>(
+  item: T,
+  rollL: number
+): T {
+  return {
+    ...item,
+    x: rollL - item.y - item.height,
+    y: item.x,
+    width: item.height,
+    height: item.width,
+  }
+}
+
+function rotatePreviewItem(item: PreviewItem, rollL: number): PreviewItem {
+  const rotatePt = (pt: { x: number; y: number }) => ({ x: rollL - pt.y, y: pt.x })
+  // Existing NFP polygon — rotate vertices only
+  if (item.placedPolygon && item.placedPolygon.length > 0) {
+    return { ...rotateItem90CW(item, rollL), placedPolygon: item.placedPolygon.map(rotatePt) }
+  }
+  // Trapezoid — tessellate 4 corners then rotate
+  if (item.renderShape === "trapezoid") {
+    const topW = item.topWidth ?? item.width
+    const botW = item.bottomWidth ?? item.width
+    const pts = item.flipped
+      ? [
+          { x: item.x + (item.width - botW) / 2, y: item.y },
+          { x: item.x + (item.width + botW) / 2, y: item.y },
+          { x: item.x + (item.width + topW) / 2, y: item.y + item.height },
+          { x: item.x + (item.width - topW) / 2, y: item.y + item.height },
+        ]
+      : [
+          { x: item.x + (item.width - topW) / 2, y: item.y },
+          { x: item.x + (item.width + topW) / 2, y: item.y },
+          { x: item.x + (item.width + botW) / 2, y: item.y + item.height },
+          { x: item.x + (item.width - botW) / 2, y: item.y + item.height },
+        ]
+    return { ...rotateItem90CW(item, rollL), placedPolygon: pts.map(rotatePt) }
+  }
+  // Sector (cone) — tessellate arcs then rotate
+  if (item.renderShape === "sector") {
+    const innerR = item.innerRadius ?? 0
+    const outerR = item.outerRadius ?? 0
+    const arcDeg = item.arcDegrees ?? 120
+    const halfArc = (arcDeg * Math.PI) / 360
+    const cx = item.x + item.width / 2
+    const cy = item.y + outerR
+    const flipSign = item.flipped ? -1 : 1
+    const a1 = -Math.PI / 2 - halfArc * flipSign
+    const a2 = -Math.PI / 2 + halfArc * flipSign
+    const segments = 32
+    const pts: Array<{ x: number; y: number }> = []
+    for (let i = 0; i <= segments; i++) {
+      const a = a1 + (i / segments) * (a2 - a1)
+      pts.push({ x: cx + outerR * Math.cos(a), y: cy + outerR * Math.sin(a) })
+    }
+    for (let i = 0; i <= segments; i++) {
+      const a = a2 + (i / segments) * (a1 - a2)
+      pts.push({ x: cx + innerR * Math.cos(a), y: cy + innerR * Math.sin(a) })
+    }
+    return { ...rotateItem90CW(item, rollL), placedPolygon: pts.map(rotatePt) }
+  }
+  return rotateItem90CW(item, rollL)
+}
+
+function rotateSimplePartPreview(preview: SimplePartPreview, rollL: number): SimplePartPreview {
+  const rotBand = (b: { x: number; y: number; width: number; height: number }) =>
+    rotateItem90CW(b, rollL)
+  return {
+    ...preview,
+    items: preview.items.map((item) => rotatePreviewItem(item, rollL)),
+    offcutBands: preview.offcutBands.map(rotBand),
+    scrapBands: preview.scrapBands.map(rotBand),
+  }
+}
+
+function rotateMultiSheetResult(result: MultiSheetResult, rollL: number): MultiSheetResult {
+  return {
+    ...result,
+    sheets: result.sheets.map((sheet) => ({
+      ...sheet,
+      preview: rotateSimplePartPreview(sheet.preview, rollL),
+    })),
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
+function buildMultiSheet(
+  simpleMode: boolean,
+  basePreview: SimplePartPreview | null,
+  specs: NestingVisualizerProps["simpleParts"] & object,
+  rollW: number,
+  rollL: number,
+  cutW: number,
+  cutH: number
+): MultiSheetResult | null {
+  if (!simpleMode || !basePreview) return null
+  const shouldUseGlobalPacker =
+    specs.length > 1 ||
+    (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
+
+  // A single uploaded template can still represent many identical parts.
+  // Route overflowing rectangle jobs through the global packer as well.
+  if (shouldUseGlobalPacker) {
+    return globalMultiSheetPack(specs, rollW, rollL, 4, cutW, cutH)
+  }
+
+  // Single-part: use existing sequential overflow packing
+  const regenerate = (qty: number) => {
+    const partWithQty = { ...specs[0], quantity: qty }
+    return generateSimplePartPreview(rollW, rollL, partWithQty, cutW, cutH, qty)
+  }
+  return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate)
+}
+
+function indexToTag(i: number): string {
+  let tag = ""
+  let n = i
+  do {
+    tag = String.fromCharCode(65 + (n % 26)) + tag
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return tag
+}
+
+function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
+  if (!basePreview) return new Map<string, string>()
+  // Collect labels from ALL sheets so overflow items get tags too
+  const allLabels: string[] = []
+  if (multiSheet) {
+    multiSheet.sheets.forEach((sheet) => {
+      sheet.preview.items.forEach((item) => {
+        if (!allLabels.includes(item.label)) allLabels.push(item.label)
+      })
+    })
+  } else {
+    basePreview.items.forEach((item) => {
+      if (!allLabels.includes(item.label)) allLabels.push(item.label)
+    })
+  }
+  return new Map(allLabels.map((label, i) => [label, indexToTag(i)]))
+}
+
+// eslint-disable-next-line max-lines-per-function
 export default function NestingVisualizer({
   defaultRollWidth = 48,
   defaultRollLength = 96,
@@ -54,15 +206,11 @@ export default function NestingVisualizer({
   const [activeId, setActiveId] = useState<string>("")
   const [activeStep, setActiveStep] = useState(0)
   const [scored, setScored] = useState<ScoredStrategy[]>([])
-  // circle
   const [diam, setDiam] = useState(12)
-  // cone
   const [innerR, setInnerR] = useState(10)
   const [outerR, setOuterR] = useState(24)
   const [arcDeg, setArcDeg] = useState(120)
-  // non-rect stats
   const [bgStats, setBgStats] = useState({ count: 0, used: 0, waste: 100 })
-  // view mode for non-rect shapes
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
 
   const activeSimpleSpecs = useMemo(() => {
@@ -169,8 +317,54 @@ export default function NestingVisualizer({
     defaultRollLength
   )
 
+  const multiSheet = useMemo(
+    () =>
+      buildMultiSheet(
+        simpleMode,
+        baseSimplePreview,
+        activeSimpleSpecs,
+        defaultRollWidth,
+        defaultRollLength,
+        defaultCutWidth,
+        defaultCutHeight
+      ),
+    [
+      simpleMode,
+      baseSimplePreview,
+      activeSimpleSpecs,
+      defaultRollWidth,
+      defaultRollLength,
+      defaultCutWidth,
+      defaultCutHeight,
+    ]
+  )
+
+  const tagMap = useMemo(
+    () => buildTagMap(baseSimplePreview, multiSheet),
+    [baseSimplePreview, multiSheet]
+  )
+
+  // Rotate the entire result once after nesting so the display layer never needs to transform.
+  const shouldRotate = defaultRollLength > defaultRollWidth
+
+  const rotatedMultiSheet = useMemo(
+    () =>
+      shouldRotate && multiSheet
+        ? rotateMultiSheetResult(multiSheet, defaultRollLength)
+        : multiSheet,
+    [shouldRotate, multiSheet, defaultRollLength]
+  )
+
+  const rotatedOptimizedItems = useMemo(
+    () =>
+      shouldRotate && optimizedItems
+        ? optimizedItems.map((item) => rotatePreviewItem(item, defaultRollLength))
+        : optimizedItems,
+    [shouldRotate, optimizedItems, defaultRollLength]
+  )
+
   if (simpleMode) {
-    const preview =
+    const rawPreview =
       baseSimplePreview ??
       generateSimplePartPreview(
         defaultRollWidth,
@@ -180,17 +374,22 @@ export default function NestingVisualizer({
         defaultCutHeight,
         defaultQty
       )
+    const preview = shouldRotate
+      ? rotateSimplePartPreview(rawPreview, defaultRollLength)
+      : rawPreview
     return (
       <NestingVizSimpleMode
         preview={preview}
-        previewRollW={defaultRollWidth}
-        previewRollL={defaultRollLength}
+        previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
+        previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
         patternSeed={patternSeed}
         viewMode={viewMode}
         optimizedResult={optimizedResult}
-        optimizedItems={optimizedItems}
+        optimizedItems={rotatedOptimizedItems}
         isOptimizing={isOptimizing}
         nfpError={nfpError}
+        multiSheet={rotatedMultiSheet}
+        tagMap={tagMap}
       />
     )
   }

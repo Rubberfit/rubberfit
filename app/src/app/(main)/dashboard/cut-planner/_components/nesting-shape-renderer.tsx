@@ -16,6 +16,8 @@ interface NestingShapeRendererProps {
   wastePatternId: string
   viewHeight: number
   surfacePxW: number
+  tagLetter?: string
+  zoom?: number
 }
 
 interface ShapeCoords {
@@ -54,6 +56,8 @@ function PolygonShape({
   unitOriginY,
   scale,
   usablePatternId,
+  wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
@@ -64,6 +68,8 @@ function PolygonShape({
   unitOriginY: number
   scale: number
   usablePatternId: string
+  wastePatternId: string
+  tagLetter?: string
 }) {
   const points = item
     .placedPolygon!.map(
@@ -73,6 +79,14 @@ function PolygonShape({
     .join(" ")
   return (
     <g key={index + 1}>
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
+        fill={`url(#${wastePatternId})`}
+        opacity="0.4"
+      />
       <polygon
         points={points}
         fill={`url(#${usablePatternId})`}
@@ -80,19 +94,17 @@ function PolygonShape({
         strokeWidth="1.5"
         opacity="0.95"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill="#e7e5e4"
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#e7e5e4"
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
@@ -103,12 +115,14 @@ function CircleShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const diameter = item.diameter ?? item.width
   const r = (diameter / 2) * (coords.pw / item.width)
@@ -133,19 +147,17 @@ function CircleShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {r > 14 && (
-        <text
-          x={cx}
-          y={cy}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, r * 0.6))}
+        fontWeight="600"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
@@ -156,12 +168,14 @@ function SectorShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const scale = coords.pw / item.width
   const innerR = (item.innerRadius ?? 0) * scale
@@ -206,19 +220,17 @@ function SectorShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={cx}
-          y={cy - ((outerR - innerR) / 2) * flipSign}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize={coords.pw > 60 ? "10" : "8"}
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={cx}
+        y={cy - ((outerR - innerR) / 2) * flipSign}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
@@ -229,12 +241,14 @@ function TrapezoidShape({
   coords,
   usablePatternId,
   wastePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   wastePatternId: string
+  tagLetter?: string
 }) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -268,19 +282,17 @@ function TrapezoidShape({
         stroke="#84cc16"
         strokeWidth="1.5"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
+        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
@@ -290,37 +302,35 @@ function RectShape({
   index,
   coords,
   usablePatternId,
+  tagLetter,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
+  tagLetter?: string
 }) {
   return (
     <g key={index + 1}>
       <rect
-        x={coords.px + 1}
-        y={coords.py + 1}
-        width={coords.pw - 2}
-        height={coords.ph - 2}
+        x={coords.px + 0.5}
+        y={coords.py + 0.5}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${usablePatternId})`}
         stroke="#84cc16"
-        strokeWidth="1.5"
-        rx="3"
+        strokeWidth="1"
       />
-      {coords.pw > 36 && coords.ph > 16 && (
-        <text
-          x={coords.px + coords.pw / 2}
-          y={coords.py + coords.ph / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-          fontSize="10"
-          fontWeight="600"
-        >
-          {item.label}
-        </text>
-      )}
+      <text
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
+        textAnchor="middle"
+        fill="#e7e5e4"
+        fontSize={Math.min(28, Math.min(coords.pw * 0.4, coords.ph * 0.35))}
+        fontWeight="700"
+      >
+        {tagLetter ?? item.label}
+      </text>
     </g>
   )
 }
@@ -340,6 +350,8 @@ export default function NestingShapeRenderer({
   wastePatternId,
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
+  tagLetter,
+  zoom: _zoom,
 }: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
     item,
@@ -363,6 +375,8 @@ export default function NestingShapeRenderer({
         unitOriginY={unitOriginY}
         scale={scale}
         usablePatternId={usablePatternId}
+        wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -375,6 +389,7 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -387,6 +402,7 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
@@ -399,9 +415,18 @@ export default function NestingShapeRenderer({
         coords={coords}
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
+        tagLetter={tagLetter}
       />
     )
   }
 
-  return <RectShape item={item} index={index} coords={coords} usablePatternId={usablePatternId} />
+  return (
+    <RectShape
+      item={item}
+      index={index}
+      coords={coords}
+      usablePatternId={usablePatternId}
+      tagLetter={tagLetter}
+    />
+  )
 }

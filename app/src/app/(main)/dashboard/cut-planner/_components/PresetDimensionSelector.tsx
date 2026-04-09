@@ -19,12 +19,14 @@ interface PresetDimensionSelectorProps {
   onApply?: (templates: PartTemplate[]) => void
   rollWidth?: number
   rollLength?: number
+  tagMap?: Map<string, string>
 }
 
 export default function PresetDimensionSelector({
   onApply,
   rollWidth = 96,
   rollLength = 48,
+  tagMap,
 }: PresetDimensionSelectorProps) {
   const {
     selectedPart,
@@ -118,6 +120,7 @@ export default function PresetDimensionSelector({
             onToggle={handleToggle}
             onEditCustom={editCustomTemplate}
             onRemoveCustom={removeCustomTemplate}
+            tagMap={tagMap}
           />
 
           <PresetCustomTemplateForm

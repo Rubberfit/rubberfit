@@ -78,3 +78,6 @@ release/
 # Backup files
 *.backup
 *.bak
+
+# AI CLI configs
+.claude
