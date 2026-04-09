@@ -209,7 +209,8 @@ export const exportPdfService = {
       doc.setFontSize(8)
       doc.setTextColor(107, 114, 128)
       doc.text("Rema Portal - Material Optimization System", margin, pageHeight - 10)
-      doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin - 10, pageHeight - 10)
+      const totalPages = Math.max(doc.internal.pages.length - 1, 1)
+      doc.text(`Page ${totalPages}`, pageWidth - margin - 10, pageHeight - 10)
 
       const filename = `${title.replace(/\s+/g, "_")}_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
 
