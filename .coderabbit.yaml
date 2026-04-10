@@ -1,7 +1,7 @@
 language: en-US
 tone_instructions: >
-  Focus on architectural insights, potential issues, and maintainability.
-  Be direct and specific. Nitpicks are welcome — flag style, naming, and minor issues too.
+  Be direct and specific. Focus on architectural risk and maintainability.
+  When enriching issues, suggest a primary type, a 1-6 story-point estimate, and any applicable secondary labels.
 reviews:
   profile: assertive
   request_changes_workflow: true
@@ -11,6 +11,9 @@ reviews:
   poem: false
   review_status: true
   collapse_walkthrough: false
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
   tools:
     biome:
       enabled: true
@@ -66,3 +69,32 @@ reviews:
       instructions: "Environment files should never be committed. Flag this immediately."
 chat:
   auto_reply: true
+knowledge_base:
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+issue_enrichment:
+  auto_enrich:
+    enabled: true
+  planning:
+    enabled: true
+    auto_planning:
+      enabled: true
+      labels:
+        - "!no-plan"
+  labeling:
+    auto_apply_labels: true
+    labeling_instructions:
+      - label: request
+        instructions: Apply when the issue is clearly client-requested work or a stakeholder asks for a new change.
+      - label: intern
+        instructions: Apply when the issue is tightly scoped, low-risk, and appropriate for an intern to implement with review.
+      - label: performance
+        instructions: Apply when the issue focuses on runtime speed, rendering responsiveness, memory use, heavy computations, or large data handling.
+      - label: cut-planner
+        instructions: Apply when the issue touches packing logic, nesting, layout generation, cut plans, or geometry placement behavior.
+      - label: refactor
+        instructions: Apply when the main goal is structural cleanup, maintainability, or internal simplification without changing product scope.
+      - label: ui
+        instructions: Apply when the issue mainly changes visible workflows, controls, layouts, styling, or interaction design.
