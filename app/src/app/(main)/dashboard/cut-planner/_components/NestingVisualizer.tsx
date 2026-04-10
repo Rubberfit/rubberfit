@@ -364,25 +364,36 @@ export default function NestingVisualizer({
   }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
-  const shouldRotate = defaultRollLength > defaultRollWidth
+  // const shouldRotate = defaultRollLength > defaultRollWidth
 
-  const rotatedMultiSheet = useMemo(
-    () =>
-      shouldRotate && multiSheet
-        ? rotateMultiSheetResult(multiSheet, defaultRollLength)
-        : multiSheet,
-    [shouldRotate, multiSheet, defaultRollLength]
-  )
+  // const rotatedMultiSheet = useMemo(
+  //   () =>
+  //     shouldRotate && multiSheet
+  //       ? rotateMultiSheetResult(multiSheet, defaultRollLength)
+  //       : multiSheet,
+  //   [shouldRotate, multiSheet, defaultRollLength]
+  // )
 
-  const rotatedOptimizedItems = useMemo(
-    () =>
-      shouldRotate && optimizedItems
-        ? optimizedItems.map((item) => rotatePreviewItem(item, defaultRollLength))
-        : optimizedItems,
-    [shouldRotate, optimizedItems, defaultRollLength]
-  )
+  const rotatedMultiSheet = useMemo(() => multiSheet, [multiSheet])
+
+  // const rotatedOptimizedItems = useMemo(
+  //   () =>
+  //     shouldRotate && optimizedItems
+  //       ? optimizedItems.map((item) => rotatePreviewItem(item, defaultRollLength))
+  //       : optimizedItems,
+  //   [shouldRotate, optimizedItems, defaultRollLength]
+  // )
+
+  const rotatedOptimizedItems = useMemo(() => optimizedItems, [optimizedItems])
 
   if (simpleMode) {
+    // DEBUG
+    console.log({
+      location: "NestingVisualizer.tsx",
+      method: "NestingVisualizer",
+      simpleMode: "true",
+    })
+
     const rawPreview =
       baseSimplePreview ??
       generateSimplePartPreview(
@@ -393,14 +404,31 @@ export default function NestingVisualizer({
         defaultCutHeight,
         defaultQty
       )
-    const preview = shouldRotate
-      ? rotateSimplePartPreview(rawPreview, defaultRollLength)
-      : rawPreview
+
+    // DEBUG: ROTATION
+    // const preview = shouldRotate
+    //   ? rotateSimplePartPreview(rawPreview, defaultRollLength)
+    //   : rawPreview
+    const preview = rawPreview
+
     return (
+      // <NestingVizSimpleMode
+      //   preview={preview}
+      //   previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
+      //   previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
+      //   patternSeed={patternSeed}
+      //   viewMode={viewMode}
+      //   optimizedResult={optimizedResult}
+      //   optimizedItems={rotatedOptimizedItems}
+      //   isOptimizing={isOptimizing}
+      //   nfpError={nfpError}
+      //   multiSheet={rotatedMultiSheet}
+      //   tagMap={tagMap}
+      // />
       <NestingVizSimpleMode
         preview={preview}
-        previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
-        previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
+        previewRollW={defaultRollWidth}
+        previewRollL={defaultRollLength}
         patternSeed={patternSeed}
         viewMode={viewMode}
         optimizedResult={optimizedResult}
@@ -412,6 +440,14 @@ export default function NestingVisualizer({
       />
     )
   }
+
+  /* 
+    This return will never be executed because simpleMode evaluates to true always.
+    Claude:
+      simpleMode is always true when the component is rendered from the cut planner page. 
+      The false default only applies if someone renders <NestingVisualizer /> without the prop — 
+      which never happens anywhere in the current codebase.
+  */
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
