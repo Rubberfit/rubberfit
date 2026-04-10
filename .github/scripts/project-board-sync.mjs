@@ -6,7 +6,6 @@ const STATUS_FIELD_NAME = "Status";
 const SPRINT_FIELD_NAME = "Sprint";
 const ACTIVE_SPRINT_STATUSES = new Set(["Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
-const CANCELED_LABELS = new Set(["duplicate", "invalid", "wontfix"]);
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 const token = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
@@ -26,6 +25,7 @@ const payload = process.env.GITHUB_EVENT_PATH
 
 const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
+const normalizeStateReason = (value) => (value ? String(value).toLowerCase() : null);
 
 const graphql = async (query, variables = {}) => {
   const response = await fetch("https://api.github.com/graphql", {
@@ -105,11 +105,6 @@ const getProjectContext = async () => {
                     repository {
                       nameWithOwner
                     }
-                    labels(first: 30) {
-                      nodes {
-                        name
-                      }
-                    }
                   }
                 }
                 fieldValues(first: 20) {
@@ -184,7 +179,6 @@ const getProjectContext = async () => {
       issueId: node.content.id,
       issueNumber: node.content.number,
       issueState: node.content.state,
-      labels: node.content.labels?.nodes?.map((label) => label.name) || [],
       status: statusValue?.name || null,
       sprintIterationId: sprintValue?.iterationId || null,
       sprintTitle: sprintValue?.title || null,
@@ -243,11 +237,6 @@ const getIssue = async (issueNumber) => {
             id
             number
             state
-            labels(first: 30) {
-              nodes {
-                name
-              }
-            }
           }
         }
       }
@@ -264,7 +253,6 @@ const getIssue = async (issueNumber) => {
     id: issue.id,
     number: issue.number,
     state: issue.state,
-    labels: issue.labels?.nodes?.map((label) => label.name) || [],
   };
 };
 
@@ -280,11 +268,6 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
                 id
                 number
                 state
-                labels(first: 30) {
-                  nodes {
-                    name
-                  }
-                }
               }
             }
           }
@@ -303,7 +286,6 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
     id: issue.id,
     number: issue.number,
     state: issue.state,
-    labels: issue.labels?.nodes?.map((label) => label.name) || [],
   })) || [];
 
   if (linked.length > 0) {
@@ -351,7 +333,6 @@ const ensureItem = async (project, issue) => {
       issueId: issue.id,
       issueNumber: issue.number,
       issueState: issue.state,
-      labels: issue.labels,
       status: null,
       sprintIterationId: null,
       sprintTitle: null,
@@ -376,7 +357,6 @@ const ensureItem = async (project, issue) => {
     issueId: issue.id,
     issueNumber: issue.number,
     issueState: issue.state,
-    labels: issue.labels,
     status: null,
     sprintIterationId: null,
     sprintTitle: null,
@@ -547,7 +527,7 @@ const handleIssueEvent = async () => {
     id: issue.node_id,
     number: issue.number,
     state: issue.state,
-    labels: (issue.labels || []).map((label) => label.name),
+    stateReason: normalizeStateReason(issue.state_reason || issue.stateReason),
   };
 
   if (eventAction === "opened" || eventAction === "reopened") {
@@ -556,7 +536,13 @@ const handleIssueEvent = async () => {
   }
 
   if (eventAction === "closed") {
-    const nextStatus = issueDetails.labels.some((label) => CANCELED_LABELS.has(label)) ? "Canceled" : "Done";
+    const existing = project.itemsByIssueNumber.get(issue.number);
+    const nextStatus =
+      existing?.status && CLOSED_STATUS_NAMES.has(existing.status)
+        ? existing.status
+        : issueDetails.stateReason === "not_planned"
+          ? "Canceled"
+          : "Done";
     await syncIssue(project, issueDetails, nextStatus);
   }
 };
