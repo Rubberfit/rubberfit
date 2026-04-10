@@ -364,27 +364,28 @@ export default function NestingVisualizer({
   }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
-  // const shouldRotate = defaultRollLength > defaultRollWidth
+  const shouldRotate = defaultRollLength > defaultRollWidth
 
-  // const rotatedMultiSheet = useMemo(
-  //   () =>
-  //     shouldRotate && multiSheet
-  //       ? rotateMultiSheetResult(multiSheet, defaultRollLength)
-  //       : multiSheet,
-  //   [shouldRotate, multiSheet, defaultRollLength]
-  // )
+  const rotatedMultiSheet = useMemo(
+    () =>
+      shouldRotate && multiSheet
+        ? rotateMultiSheetResult(multiSheet, defaultRollLength)
+        : multiSheet,
+    [shouldRotate, multiSheet, defaultRollLength]
+  )
 
-  const rotatedMultiSheet = useMemo(() => multiSheet, [multiSheet])
+  // const rotatedMultiSheet = useMemo(() => multiSheet, [multiSheet])
 
-  // const rotatedOptimizedItems = useMemo(
-  //   () =>
-  //     shouldRotate && optimizedItems
-  //       ? optimizedItems.map((item) => rotatePreviewItem(item, defaultRollLength))
-  //       : optimizedItems,
-  //   [shouldRotate, optimizedItems, defaultRollLength]
-  // )
+  const rotatedOptimizedItems = useMemo(
+    () =>
+      shouldRotate && optimizedItems
+        ? optimizedItems.map((item) => rotatePreviewItem(item, defaultRollLength))
+        : optimizedItems,
+    [shouldRotate, optimizedItems, defaultRollLength]
+  )
 
-  const rotatedOptimizedItems = useMemo(() => optimizedItems, [optimizedItems])
+  // DEBUG
+  // const rotatedOptimizedItems = useMemo(() => optimizedItems, [optimizedItems])
 
   if (simpleMode) {
     // DEBUG
@@ -406,29 +407,18 @@ export default function NestingVisualizer({
       )
 
     // DEBUG: ROTATION
-    // const preview = shouldRotate
-    //   ? rotateSimplePartPreview(rawPreview, defaultRollLength)
-    //   : rawPreview
-    const preview = rawPreview
+    const preview = shouldRotate
+      ? rotateSimplePartPreview(rawPreview, defaultRollLength)
+      : rawPreview
+
+    // const preview = rawPreview
 
     return (
-      // <NestingVizSimpleMode
-      //   preview={preview}
-      //   previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
-      //   previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
-      //   patternSeed={patternSeed}
-      //   viewMode={viewMode}
-      //   optimizedResult={optimizedResult}
-      //   optimizedItems={rotatedOptimizedItems}
-      //   isOptimizing={isOptimizing}
-      //   nfpError={nfpError}
-      //   multiSheet={rotatedMultiSheet}
-      //   tagMap={tagMap}
-      // />
       <NestingVizSimpleMode
         preview={preview}
-        previewRollW={defaultRollWidth}
-        previewRollL={defaultRollLength}
+        previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
+        previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
+        wasRotated={shouldRotate}
         patternSeed={patternSeed}
         viewMode={viewMode}
         optimizedResult={optimizedResult}
@@ -438,6 +428,19 @@ export default function NestingVisualizer({
         multiSheet={rotatedMultiSheet}
         tagMap={tagMap}
       />
+      // <NestingVizSimpleMode
+      //   preview={preview}
+      //   previewRollW={defaultRollWidth}
+      //   previewRollL={defaultRollLength}
+      //   patternSeed={patternSeed}
+      //   viewMode={viewMode}
+      //   optimizedResult={optimizedResult}
+      //   optimizedItems={rotatedOptimizedItems}
+      //   isOptimizing={isOptimizing}
+      //   nfpError={nfpError}
+      //   multiSheet={rotatedMultiSheet}
+      //   tagMap={tagMap}
+      // />
     )
   }
 

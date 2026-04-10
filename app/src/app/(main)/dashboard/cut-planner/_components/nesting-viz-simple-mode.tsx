@@ -23,6 +23,7 @@ interface SimpleModeProps {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
+  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -335,10 +336,12 @@ function SheetSvg({
   )
 }
 
+// Responsible for performing the calculations and rendering the SVG
 export default function NestingVizSimpleMode({
   preview,
   previewRollW,
   previewRollL,
+  wasRotated,
   patternSeed,
   viewMode,
   optimizedResult,
@@ -354,12 +357,13 @@ export default function NestingVizSimpleMode({
         preview,
         previewRollW,
         previewRollL,
+        wasRotated,
         patternSeed,
         viewMode,
         optimizedResult,
         optimizedItems,
       }),
-    [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
+    [preview, previewRollW, previewRollL, wasRotated, patternSeed, viewMode, optimizedResult, optimizedItems]
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
