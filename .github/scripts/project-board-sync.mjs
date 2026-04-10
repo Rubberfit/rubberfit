@@ -3,12 +3,29 @@ import { readFile } from "node:fs/promises";
 const PROJECT_OWNER = process.env.PROJECT_OWNER;
 const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER || "1");
 const STATUS_FIELD_NAME = "Status";
+const PRIORITY_FIELD_NAME = "Priority";
+const STORY_POINTS_FIELD_NAME = "Story Points";
 const SPRINT_FIELD_NAME = "Sprint";
 const TARGET_DATE_FIELD_NAME = "Target date";
 const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
 const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
 const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+const CODERABBIT_LOGINS = new Set(["coderabbitai", "coderabbitai[bot]"]);
+const MANAGED_LABELS = new Set(["request", "intern", "performance", "cut-planner", "refactor", "ui"]);
+const CLASSIFICATION_REQUEST_MARKER = "<!-- rema-project-classification-request -->";
+const CLASSIFICATION_CODE_FENCE = "rema-project-classification";
+const ISSUE_TYPE_NAMES = new Map([
+  ["task", "Task"],
+  ["bug", "Bug"],
+  ["feature", "Feature"],
+]);
+const PRIORITY_NAMES = new Map([
+  ["p0", "P0"],
+  ["p1", "P1"],
+  ["p2", "P2"],
+  ["p3", "P3"],
+]);
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 const projectToken = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
@@ -41,6 +58,8 @@ const payload = await loadPayload();
 const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
 const normalizeStateReason = (value) => (value ? String(value).toLowerCase() : null);
+const normalizeToken = (value) => (value ? String(value).trim().toLowerCase() : "");
+const normalizeIssueState = (value) => (value ? String(value).trim().toUpperCase() : null);
 
 const formatDate = (value) => {
   if (!value) {
@@ -96,6 +115,78 @@ const assertConnectionComplete = (connectionName, pageInfo) => {
   }
 };
 
+const canonicalizeIssueType = (value) => ISSUE_TYPE_NAMES.get(normalizeToken(value)) || null;
+const canonicalizePriority = (value) => PRIORITY_NAMES.get(normalizeToken(value)) || null;
+const canonicalizeStoryPoints = (value) => {
+  const normalized = normalizeToken(value);
+  return /^[1-6]$/.test(normalized) ? normalized : null;
+};
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const extractFieldValue = (text, fieldName) => {
+  const pattern = new RegExp(`^\\s*${escapeRegExp(fieldName)}\\s*:\\s*(.+?)\\s*$`, "im");
+  const match = text.match(pattern);
+  return match ? match[1].trim() : null;
+};
+
+const extractListFieldValue = (text, fieldName) => {
+  const blockPattern = new RegExp(
+    `^\\s*${escapeRegExp(fieldName)}\\s*:\\s*\\n((?:\\s*-\\s*.+\\n?)*)`,
+    "im",
+  );
+  const blockMatch = text.match(blockPattern);
+
+  if (blockMatch && blockMatch[1].trim()) {
+    return blockMatch[1]
+      .split("\n")
+      .map((line) => line.replace(/^\s*-\s*/, "").trim())
+      .filter(Boolean);
+  }
+
+  const inline = extractFieldValue(text, fieldName);
+  if (!inline || normalizeToken(inline) === "none") {
+    return [];
+  }
+
+  return inline
+    .replace(/^\[(.*)\]$/, "$1")
+    .split(",")
+    .map((label) => normalizeToken(label))
+    .filter(Boolean);
+};
+
+const extractClassification = (body) => {
+  if (!body) {
+    return null;
+  }
+
+  const fencePattern = new RegExp(`\`\`\`${CLASSIFICATION_CODE_FENCE}\\s*\\n([\\s\\S]*?)\\n\`\`\``, "i");
+  const fenced = body.match(fencePattern);
+  const source = fenced ? fenced[1] : body;
+
+  const type = canonicalizeIssueType(extractFieldValue(source, "type"));
+  const priority = canonicalizePriority(extractFieldValue(source, "priority"));
+  const storyPoints = canonicalizeStoryPoints(
+    extractFieldValue(source, "story_points") || extractFieldValue(source, "story points"),
+  );
+
+  if (!type || !priority || !storyPoints) {
+    return null;
+  }
+
+  const labels = extractListFieldValue(source, "labels").filter((label) => MANAGED_LABELS.has(label));
+  const reason = extractFieldValue(source, "reason");
+
+  return {
+    type,
+    priority,
+    storyPoints,
+    labels: [...new Set(labels)],
+    reason,
+  };
+};
+
 const isTrustedPullRequest = (pullRequest) => {
   if (!pullRequest) {
     return true;
@@ -137,6 +228,16 @@ const getProjectContext = async () => {
     `
       query ProjectContext($owner: String!, $number: Int!) {
         organization(login: $owner) {
+          issueTypes(first: 20) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              name
+            }
+          }
           projectV2(number: $number) {
             id
             fields(first: 50) {
@@ -192,6 +293,10 @@ const getProjectContext = async () => {
                     number
                     state
                     closedAt
+                    issueType {
+                      id
+                      name
+                    }
                     repository {
                       nameWithOwner
                     }
@@ -246,8 +351,17 @@ const getProjectContext = async () => {
     throw new Error(`Project ${PROJECT_OWNER}#${PROJECT_NUMBER} was not found.`);
   }
 
+  const issueTypes = data.organization?.issueTypes;
+  assertConnectionComplete("organization issue types", issueTypes?.pageInfo);
+
   const statusField = project.fields.nodes.find(
     (field) => field.__typename === "ProjectV2SingleSelectField" && field.name === STATUS_FIELD_NAME,
+  );
+  const priorityField = project.fields.nodes.find(
+    (field) => field.__typename === "ProjectV2SingleSelectField" && field.name === PRIORITY_FIELD_NAME,
+  );
+  const storyPointsField = project.fields.nodes.find(
+    (field) => field.__typename === "ProjectV2SingleSelectField" && field.name === STORY_POINTS_FIELD_NAME,
   );
   const sprintField = project.fields.nodes.find(
     (field) => field.__typename === "ProjectV2IterationField" && field.name === SPRINT_FIELD_NAME,
@@ -258,10 +372,21 @@ const getProjectContext = async () => {
     throw new Error(`Project is missing the ${STATUS_FIELD_NAME} field.`);
   }
 
+  if (!priorityField) {
+    throw new Error(`Project is missing the ${PRIORITY_FIELD_NAME} field.`);
+  }
+
+  if (!storyPointsField) {
+    throw new Error(`Project is missing the ${STORY_POINTS_FIELD_NAME} field.`);
+  }
+
   assertConnectionComplete("project fields", project.fields.pageInfo);
   assertConnectionComplete("project items", project.items.pageInfo);
 
   const statusOptionIds = new Map(statusField.options.map((option) => [option.name, option.id]));
+  const priorityOptionIds = new Map(priorityField.options.map((option) => [option.name, option.id]));
+  const storyPointOptionIds = new Map(storyPointsField.options.map((option) => [option.name, option.id]));
+  const issueTypeIds = new Map((issueTypes?.nodes || []).map((issueType) => [issueType.name, issueType.id]));
   const currentIteration = getCurrentIteration(sprintField);
   const itemsByIssueNumber = new Map();
 
@@ -287,6 +412,12 @@ const getProjectContext = async () => {
     const sprintValue = node.fieldValues.nodes.find(
       (value) => value.field?.name === SPRINT_FIELD_NAME && typeof value.iterationId === "string",
     );
+    const priorityValue = node.fieldValues.nodes.find(
+      (value) => value.field?.name === PRIORITY_FIELD_NAME && typeof value.name === "string",
+    );
+    const storyPointsValue = node.fieldValues.nodes.find(
+      (value) => value.field?.name === STORY_POINTS_FIELD_NAME && typeof value.name === "string",
+    );
     const targetDateValue = node.fieldValues.nodes.find(
       (value) => value.field?.name === TARGET_DATE_FIELD_NAME && typeof value.date === "string",
     );
@@ -297,7 +428,10 @@ const getProjectContext = async () => {
       issueNumber: node.content.number,
       issueState: node.content.state,
       issueClosedAt: formatDate(node.content.closedAt),
+      issueType: node.content.issueType?.name || null,
       status: statusValue?.name || null,
+      priority: priorityValue?.name || null,
+      storyPoints: storyPointsValue?.name || null,
       sprintIterationId: sprintValue?.iterationId || null,
       sprintTitle: sprintValue?.title || null,
       targetDate: targetDateValue?.date || null,
@@ -306,8 +440,13 @@ const getProjectContext = async () => {
 
   return {
     projectId: project.id,
+    issueTypeIds,
     statusFieldId: statusField.id,
     statusOptionIds,
+    priorityFieldId: priorityField.id,
+    priorityOptionIds,
+    storyPointsFieldId: storyPointsField.id,
+    storyPointOptionIds,
     sprintFieldId: sprintField?.id || null,
     targetDateFieldId: targetDateField?.id || null,
     currentIteration,
@@ -358,6 +497,9 @@ const getIssue = async (issueNumber) => {
             number
             state
             closedAt
+            issueType {
+              name
+            }
           }
         }
       }
@@ -374,8 +516,9 @@ const getIssue = async (issueNumber) => {
   return {
     id: issue.id,
     number: issue.number,
-    state: issue.state,
+    state: normalizeIssueState(issue.state),
     closedAt: formatDate(issue.closedAt),
+    issueType: issue.issueType?.name || null,
   };
 };
 
@@ -396,6 +539,9 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
                 number
                 state
                 closedAt
+                issueType {
+                  name
+                }
               }
             }
           }
@@ -417,8 +563,9 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
     pullRequest.closingIssuesReferences?.nodes?.map((issue) => ({
       id: issue.id,
       number: issue.number,
-      state: issue.state,
+      state: normalizeIssueState(issue.state),
       closedAt: formatDate(issue.closedAt),
+      issueType: issue.issueType?.name || null,
     })) || [];
 
   if (linked.length > 0) {
@@ -469,7 +616,10 @@ const ensureItem = async (project, issue) => {
       issueNumber: issue.number,
       issueState: issue.state,
       issueClosedAt: issue.closedAt || null,
+      issueType: issue.issueType || null,
       status: null,
+      priority: null,
+      storyPoints: null,
       sprintIterationId: null,
       sprintTitle: null,
       targetDate: null,
@@ -496,7 +646,10 @@ const ensureItem = async (project, issue) => {
     issueNumber: issue.number,
     issueState: issue.state,
     issueClosedAt: issue.closedAt || null,
+    issueType: issue.issueType || null,
     status: null,
+    priority: null,
+    storyPoints: null,
     sprintIterationId: null,
     sprintTitle: null,
     targetDate: null,
@@ -555,6 +708,244 @@ const setStatus = async (project, item, statusName) => {
 
   item.status = statusName;
   console.log(`Set issue #${item.issueNumber} status to ${statusName}`);
+};
+
+const setIssueType = async (project, item, issueTypeName) => {
+  if (!item.issueId || !issueTypeName) {
+    return;
+  }
+
+  if (item.issueType === issueTypeName) {
+    return;
+  }
+
+  const issueTypeId = project.issueTypeIds.get(issueTypeName);
+  if (!issueTypeId) {
+    throw new Error(`Unknown issue type: ${issueTypeName}`);
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] set #${item.issueNumber} issue type: ${item.issueType || "unset"} -> ${issueTypeName}`);
+    item.issueType = issueTypeName;
+    return;
+  }
+
+  await graphql(
+    `
+      mutation SetIssueType($issueId: ID!, $issueTypeId: ID) {
+        updateIssueIssueType(input: { issueId: $issueId, issueTypeId: $issueTypeId }) {
+          issue {
+            id
+          }
+        }
+      }
+    `,
+    {
+      issueId: item.issueId,
+      issueTypeId,
+    },
+    "SetIssueType",
+  );
+
+  item.issueType = issueTypeName;
+  console.log(`Set issue #${item.issueNumber} type to ${issueTypeName}`);
+};
+
+const setPriority = async (project, item, priorityName) => {
+  if (!item.itemId || !priorityName) {
+    return;
+  }
+
+  if (item.priority === priorityName) {
+    return;
+  }
+
+  const optionId = project.priorityOptionIds.get(priorityName);
+  if (!optionId) {
+    throw new Error(`Unknown priority option: ${priorityName}`);
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] set #${item.issueNumber} priority: ${item.priority || "unset"} -> ${priorityName}`);
+    item.priority = priorityName;
+    return;
+  }
+
+  await graphql(
+    `
+      mutation SetProjectPriority($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId
+            itemId: $itemId
+            fieldId: $fieldId
+            value: { singleSelectOptionId: $optionId }
+          }
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }
+    `,
+    {
+      projectId: project.projectId,
+      itemId: item.itemId,
+      fieldId: project.priorityFieldId,
+      optionId,
+    },
+    "SetProjectPriority",
+  );
+
+  item.priority = priorityName;
+  console.log(`Set issue #${item.issueNumber} priority to ${priorityName}`);
+};
+
+const setStoryPoints = async (project, item, storyPoints) => {
+  if (!item.itemId || !storyPoints) {
+    return;
+  }
+
+  if (item.storyPoints === storyPoints) {
+    return;
+  }
+
+  const optionId = project.storyPointOptionIds.get(storyPoints);
+  if (!optionId) {
+    throw new Error(`Unknown story point option: ${storyPoints}`);
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] set #${item.issueNumber} story points: ${item.storyPoints || "unset"} -> ${storyPoints}`);
+    item.storyPoints = storyPoints;
+    return;
+  }
+
+  await graphql(
+    `
+      mutation SetProjectStoryPoints($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId
+            itemId: $itemId
+            fieldId: $fieldId
+            value: { singleSelectOptionId: $optionId }
+          }
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }
+    `,
+    {
+      projectId: project.projectId,
+      itemId: item.itemId,
+      fieldId: project.storyPointsFieldId,
+      optionId,
+    },
+    "SetProjectStoryPoints",
+  );
+
+  item.storyPoints = storyPoints;
+  console.log(`Set issue #${item.issueNumber} story points to ${storyPoints}`);
+};
+
+const listIssueComments = async (issueNumber) =>
+  rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}/comments?per_page=100`);
+
+const addLabels = async (issueNumber, labels) => {
+  const nextLabels = [...new Set(labels.filter((label) => MANAGED_LABELS.has(label)))];
+  if (nextLabels.length === 0) {
+    return;
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] add labels to #${issueNumber}: ${nextLabels.join(", ")}`);
+    return;
+  }
+
+  await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}/labels`, {
+    method: "POST",
+    body: { labels: nextLabels },
+  });
+
+  console.log(`Added labels to issue #${issueNumber}: ${nextLabels.join(", ")}`);
+};
+
+const buildClassificationRequestBody = () => `${CLASSIFICATION_REQUEST_MARKER}
+@coderabbitai classify this issue for the Rema project using the repository context.
+
+Reply with exactly one fenced block and no extra prose:
+
+\`\`\`${CLASSIFICATION_CODE_FENCE}
+type: Task
+priority: P2
+story_points: 3
+labels: none
+reason: one short sentence
+\`\`\`
+
+Rules:
+- type must be one of Task, Bug, Feature
+- priority must be one of P0, P1, P2, P3
+- story_points must be one of 1, 2, 3, 4, 5, 6
+- labels must be a comma-separated list using only request, intern, performance, cut-planner, refactor, ui, or \`none\`
+- base the answer on the expected implementation work in this repository
+- choose the higher story point bucket when the issue spans multiple buckets`;
+
+const applyClassification = async (project, issue, classification) => {
+  const item = await ensureItem(project, issue);
+
+  if (!item.status && issue.state !== "CLOSED") {
+    await setStatus(project, item, "Backlog");
+    await setSprint(project, item);
+    await clearTargetDate(project, item);
+  }
+
+  await setIssueType(project, item, classification.type);
+  await setPriority(project, item, classification.priority);
+  await setStoryPoints(project, item, classification.storyPoints);
+  await addLabels(issue.number, classification.labels || []);
+};
+
+const requestIssueClassification = async (project, issue) => {
+  const existing = project.itemsByIssueNumber.get(issue.number);
+  if (existing?.issueType && existing.priority && existing.storyPoints) {
+    console.log(`Issue #${issue.number} already has complete classification.`);
+    return;
+  }
+
+  const comments = await listIssueComments(issue.number);
+  const existingClassificationComment = [...comments]
+    .reverse()
+    .find((comment) => CODERABBIT_LOGINS.has(comment.user?.login || "") && extractClassification(comment.body));
+
+  if (existingClassificationComment) {
+    await applyClassification(project, issue, extractClassification(existingClassificationComment.body));
+    return;
+  }
+
+  const hasPendingRequest = comments.some(
+    (comment) => typeof comment.body === "string" && comment.body.includes(CLASSIFICATION_REQUEST_MARKER),
+  );
+
+  if (hasPendingRequest) {
+    console.log(`Issue #${issue.number} already has a pending classification request.`);
+    return;
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] request CodeRabbit issue classification for #${issue.number}`);
+    return;
+  }
+
+  await rest(`/repos/${repoOwner}/${repoName}/issues/${issue.number}/comments`, {
+    method: "POST",
+    body: { body: buildClassificationRequestBody() },
+  });
+
+  console.log(`Requested CodeRabbit classification for issue #${issue.number}`);
 };
 
 const setSprint = async (project, item) => {
@@ -748,7 +1139,7 @@ const handleIssueEvent = async () => {
   const issueDetails = {
     id: issue.node_id,
     number: issue.number,
-    state: issue.state,
+    state: normalizeIssueState(issue.state),
     stateReason: normalizeStateReason(issue.state_reason || issue.stateReason),
     closedAt: formatDate(issue.closed_at || issue.closedAt),
   };
@@ -758,6 +1149,7 @@ const handleIssueEvent = async () => {
       assignSprint: true,
       clearTargetDate: true,
     });
+    await requestIssueClassification(project, issueDetails);
     return;
   }
 
@@ -775,6 +1167,38 @@ const handleIssueEvent = async () => {
       targetDate: issueDetails.closedAt || formatDate(new Date()),
     });
   }
+};
+
+const handleIssueCommentEvent = async () => {
+  const issue = payload.issue;
+  const comment = payload.comment;
+  if (!issue || issue.pull_request || !comment) {
+    return;
+  }
+
+  const authorLogin = comment.user?.login || "";
+  if (!CODERABBIT_LOGINS.has(authorLogin)) {
+    return;
+  }
+
+  const classification = extractClassification(comment.body || "");
+  if (!classification) {
+    console.log(`No machine-readable classification found in CodeRabbit comment on issue #${issue.number}.`);
+    return;
+  }
+
+  const project = await getProjectContext();
+  await applyClassification(
+    project,
+    {
+      id: issue.node_id,
+      number: issue.number,
+      state: normalizeIssueState(issue.state),
+      closedAt: formatDate(issue.closed_at || issue.closedAt),
+      issueType: issue.issue_type?.name || issue.issueType?.name || null,
+    },
+    classification,
+  );
 };
 
 const handleBranchCreated = async () => {
@@ -888,6 +1312,11 @@ const main = async () => {
 
   if (eventName === "issues") {
     await handleIssueEvent();
+    return;
+  }
+
+  if (eventName === "issue_comment") {
+    await handleIssueCommentEvent();
     return;
   }
 
