@@ -149,10 +149,6 @@ export function generateConePreview(
   const arcArea = (safeArcDegrees / 360) * Math.PI * (safeOuterRadius ** 2 - safeInnerRadius ** 2)
   const requestedCutSections = Math.max(1, qty)
   const halfArcRad = (safeArcDegrees * Math.PI) / 360
-  // const sectorWidth = Math.max(2, 2 * safeOuterRadius * Math.sin(halfArcRad))
-  // const sectorHeight = Math.max(2, safeOuterRadius - safeInnerRadius * Math.cos(halfArcRad))
-
-  // DEBUG
   const sectorWidth = Math.max(
     2,
     halfArcRad <= Math.PI / 2 ? 2 * safeOuterRadius * Math.sin(halfArcRad) : 2 * safeOuterRadius

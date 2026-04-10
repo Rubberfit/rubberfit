@@ -376,8 +376,6 @@ export default function NestingVisualizer({
     [shouldRotate, multiSheet, defaultRollLength]
   )
 
-  // const rotatedMultiSheet = useMemo(() => multiSheet, [multiSheet])
-
   const rotatedOptimizedItems = useMemo(
     () =>
       shouldRotate && optimizedItems
@@ -386,17 +384,7 @@ export default function NestingVisualizer({
     [shouldRotate, optimizedItems, defaultRollLength]
   )
 
-  // DEBUG
-  // const rotatedOptimizedItems = useMemo(() => optimizedItems, [optimizedItems])
-
   if (simpleMode) {
-    // DEBUG
-    // console.log({
-    //   location: "NestingVisualizer.tsx",
-    //   method: "NestingVisualizer",
-    //   simpleMode: "true",
-    // })
-
     const rawPreview =
       baseSimplePreview ??
       generateSimplePartPreview(
@@ -408,12 +396,9 @@ export default function NestingVisualizer({
         defaultQty
       )
 
-    // DEBUG: ROTATION
     const preview = shouldRotate
       ? rotateSimplePartPreview(rawPreview, defaultRollLength)
       : rawPreview
-
-    // const preview = rawPreview
 
     return (
       <NestingVizSimpleMode
@@ -430,19 +415,6 @@ export default function NestingVisualizer({
         multiSheet={rotatedMultiSheet}
         tagMap={tagMap}
       />
-      // <NestingVizSimpleMode
-      //   preview={preview}
-      //   previewRollW={defaultRollWidth}
-      //   previewRollL={defaultRollLength}
-      //   patternSeed={patternSeed}
-      //   viewMode={viewMode}
-      //   optimizedResult={optimizedResult}
-      //   optimizedItems={rotatedOptimizedItems}
-      //   isOptimizing={isOptimizing}
-      //   nfpError={nfpError}
-      //   multiSheet={rotatedMultiSheet}
-      //   tagMap={tagMap}
-      // />
     )
   }
 
