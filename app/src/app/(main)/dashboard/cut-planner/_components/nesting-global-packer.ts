@@ -284,7 +284,9 @@ export function batchFillBin(
 
     for (const idx of remaining) {
       const item = items[idx]
-      const result = bin.scoreRect(item.w, item.h, heuristic)
+      const rs = item.item.renderShape
+      const allowRot = rs !== "trapezoid" && rs !== "sector"
+      const result = bin.scoreRect(item.w, item.h, heuristic, allowRot)
       if (
         result &&
         (result.score1 < bestS1 - 0.001 ||
@@ -366,10 +368,12 @@ function globalGreedyPack(
     let bestResult: ScoreResult | null = null
     let bestS1 = Infinity
     let bestS2 = Infinity
+    const rs = item.item.renderShape
+    const allowRot = rs !== "trapezoid" && rs !== "sector"
 
     // BBF: try all bins, pick best fit
     for (const bin of bins) {
-      const result = bin.scoreRect(item.w, item.h, heuristic)
+      const result = bin.scoreRect(item.w, item.h, heuristic, allowRot)
       if (
         result &&
         (result.score1 < bestS1 - 0.001 ||
@@ -395,7 +399,7 @@ function globalGreedyPack(
       })
     } else if (bins.length < maxBins) {
       const bin = new MaxRectBin(bins.length, binW, binH)
-      const result = bin.scoreRect(item.w, item.h, heuristic)
+      const result = bin.scoreRect(item.w, item.h, heuristic, allowRot)
       if (result) {
         bin.place(result.x, result.y, result.w, result.h)
         bins.push(bin)
@@ -428,10 +432,15 @@ function exhaustiveRotationSearch(
   const n = items.length
   if (n === 0) return null
 
-  // Only non-square items contribute to rotation search
+  // Only non-square, non-oriented items contribute to rotation search.
+  // Trapezoids and sectors have semantic geometry fields (topWidth/bottomWidth,
+  // innerRadius/outerRadius) that are perpendicular to height — rotating them
+  // 90° produces inconsistent PreviewItem state and broken rendering.
   const rotatableIndices: number[] = []
   for (let i = 0; i < n; i++) {
-    if (Math.abs(items[i].w - items[i].h) > 0.001) rotatableIndices.push(i)
+    const rs = items[i].item.renderShape
+    const isOriented = rs === "trapezoid" || rs === "sector"
+    if (!isOriented && Math.abs(items[i].w - items[i].h) > 0.001) rotatableIndices.push(i)
   }
   const effectiveN = rotatableIndices.length
   const maxExhaustive = 14

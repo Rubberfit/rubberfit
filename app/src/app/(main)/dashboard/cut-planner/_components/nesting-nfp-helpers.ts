@@ -295,7 +295,14 @@ function applyTrapezoidFields(
 ) {
   base.topWidth = (np.originalSpec.topWidth as number) ?? fallbackW
   base.bottomWidth = (np.originalSpec.bottomWidth as number) ?? fallbackW
+  // Always render trapezoids in their original upright orientation regardless of how the
+  // NFP solver rotated them for packing. Override width/height with the original spec
+  // dimensions and clear placedPolygon so TrapezoidShape (not PolygonShape) is used.
+  base.width = Math.max(base.topWidth, base.bottomWidth)
   base.height = (np.originalSpec.height as number) ?? fallbackH
+  base.placedPolygon = undefined
+  base.rotation = 0
+  base.flipped = false
   base.cutDirection = np.originalSpec.cutDirection as SimpleCutDirection | undefined
   base.label =
     (np.originalSpec.label as string) ??

@@ -25,6 +25,7 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
+import { buildPartPreviewItem } from "./nesting-preview-builders"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -161,20 +162,36 @@ function indexToTag(i: number): string {
   return tag
 }
 
-function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
+function buildTagMap(
+  basePreview: SimplePartPreview | null,
+  multiSheet: MultiSheetResult | null,
+  specOrderedLabels?: string[]
+) {
   if (!basePreview) return new Map<string, string>()
-  // Collect labels from ALL sheets so overflow items get tags too
-  const allLabels: string[] = []
+  // Collect all unique item labels that actually appear in the layout.
+  const itemLabels: string[] = []
+  const addItem = (label: string) => {
+    if (!itemLabels.includes(label)) itemLabels.push(label)
+  }
   if (multiSheet) {
-    multiSheet.sheets.forEach((sheet) => {
-      sheet.preview.items.forEach((item) => {
-        if (!allLabels.includes(item.label)) allLabels.push(item.label)
-      })
-    })
+    multiSheet.sheets.forEach((sheet) => sheet.preview.items.forEach((item) => addItem(item.label)))
   } else {
-    basePreview.items.forEach((item) => {
-      if (!allLabels.includes(item.label)) allLabels.push(item.label)
-    })
+    basePreview.items.forEach((item) => addItem(item.label))
+  }
+  // Order by spec selection so tags match the user's A/B/C… checkboxes.
+  // Only include spec labels that actually appear in items — spec labels that
+  // don't match any item (e.g. full-circumference label for a split cylinder)
+  // are skipped so no phantom legend entry is created.
+  const allLabels: string[] = []
+  if (specOrderedLabels) {
+    for (const specLabel of specOrderedLabels) {
+      if (itemLabels.includes(specLabel) && !allLabels.includes(specLabel)) {
+        allLabels.push(specLabel)
+      }
+    }
+  }
+  for (const label of itemLabels) {
+    if (!allLabels.includes(label)) allLabels.push(label)
   }
   return new Map(allLabels.map((label, i) => [label, indexToTag(i)]))
 }
@@ -339,10 +356,12 @@ export default function NestingVisualizer({
     ]
   )
 
-  const tagMap = useMemo(
-    () => buildTagMap(baseSimplePreview, multiSheet),
-    [baseSimplePreview, multiSheet]
-  )
+  const tagMap = useMemo(() => {
+    const specLabels = activeSimpleSpecs.map((spec) =>
+      buildPartPreviewItem(spec, defaultCutWidth, defaultCutHeight).label
+    )
+    return buildTagMap(baseSimplePreview, multiSheet, specLabels)
+  }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
   const shouldRotate = defaultRollLength > defaultRollWidth
