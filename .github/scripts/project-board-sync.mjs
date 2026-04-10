@@ -8,6 +8,7 @@ const TARGET_DATE_FIELD_NAME = "Target date";
 const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
 const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
+const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 const token = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
@@ -21,9 +22,20 @@ if (!PROJECT_OWNER || !repoOwner || !repoName) {
   throw new Error("Missing repository or project owner context.");
 }
 
-const payload = process.env.GITHUB_EVENT_PATH
-  ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"))
-  : {};
+const loadPayload = async () => {
+  if (!process.env.GITHUB_EVENT_PATH) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read GitHub event payload from ${process.env.GITHUB_EVENT_PATH}: ${message}`);
+  }
+};
+
+const payload = await loadPayload();
 
 const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
@@ -46,7 +58,12 @@ const formatDate = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const graphql = async (query, variables = {}) => {
+const formatGraphqlContext = (operationName, variables) => {
+  const trimmedVariables = JSON.stringify(variables).slice(0, 400);
+  return `${operationName} variables=${trimmedVariables}`;
+};
+
+const graphql = async (query, variables = {}, operationName = "GraphQLRequest") => {
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: {
@@ -58,16 +75,37 @@ const graphql = async (query, variables = {}) => {
   });
 
   if (!response.ok) {
-    throw new Error(`GitHub GraphQL request failed with ${response.status}.`);
+    throw new Error(
+      `GitHub GraphQL request failed with ${response.status} (${formatGraphqlContext(operationName, variables)}).`,
+    );
   }
 
   const body = await response.json();
   if (body.errors?.length) {
     const message = body.errors.map((error) => error.message).join("; ");
-    throw new Error(message);
+    throw new Error(`GitHub GraphQL error (${formatGraphqlContext(operationName, variables)}): ${message}`);
   }
 
   return body.data;
+};
+
+const assertConnectionComplete = (connectionName, pageInfo) => {
+  if (pageInfo?.hasNextPage) {
+    throw new Error(`${connectionName} exceeded the configured GitHub pagination window.`);
+  }
+};
+
+const isTrustedPullRequest = (pullRequest) => {
+  if (!pullRequest) {
+    return true;
+  }
+
+  if (pullRequest.head?.repo?.full_name === `${repoOwner}/${repoName}`) {
+    return true;
+  }
+
+  const association = String(pullRequest.author_association || pullRequest.authorAssociation || "").toUpperCase();
+  return TRUSTED_AUTHOR_ASSOCIATIONS.has(association);
 };
 
 const rest = async (path, { method = "GET", body } = {}) => {
@@ -101,6 +139,10 @@ const getProjectContext = async () => {
           projectV2(number: $number) {
             id
             fields(first: 50) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
               nodes {
                 __typename
                 ... on ProjectV2Field {
@@ -136,6 +178,10 @@ const getProjectContext = async () => {
               }
             }
             items(first: 100) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
               nodes {
                 id
                 content {
@@ -151,6 +197,10 @@ const getProjectContext = async () => {
                   }
                 }
                 fieldValues(first: 30) {
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
                   nodes {
                     __typename
                     ... on ProjectV2ItemFieldSingleSelectValue {
@@ -187,6 +237,7 @@ const getProjectContext = async () => {
       }
     `,
     { owner: PROJECT_OWNER, number: PROJECT_NUMBER },
+    "ProjectContext",
   );
 
   const project = data.organization?.projectV2;
@@ -206,11 +257,21 @@ const getProjectContext = async () => {
     throw new Error(`Project is missing the ${STATUS_FIELD_NAME} field.`);
   }
 
+  assertConnectionComplete("project fields", project.fields.pageInfo);
+  assertConnectionComplete("project items", project.items.pageInfo);
+
   const statusOptionIds = new Map(statusField.options.map((option) => [option.name, option.id]));
   const currentIteration = getCurrentIteration(sprintField);
   const itemsByIssueNumber = new Map();
 
   for (const node of project.items.nodes) {
+    assertConnectionComplete(
+      node.content?.__typename === "Issue"
+        ? `project field values for issue #${node.content.number}`
+        : `project field values for item ${node.id}`,
+      node.fieldValues.pageInfo,
+    );
+
     if (node.content?.__typename !== "Issue") {
       continue;
     }
@@ -301,6 +362,7 @@ const getIssue = async (issueNumber) => {
       }
     `,
     { owner: repoOwner, repo: repoName, issueNumber },
+    "IssueByNumber",
   );
 
   const issue = data.repository?.issue;
@@ -324,6 +386,10 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
           pullRequest(number: $pullRequestNumber) {
             headRefName
             closingIssuesReferences(first: 20) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
               nodes {
                 id
                 number
@@ -336,12 +402,15 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
       }
     `,
     { owner: repoOwner, repo: repoName, pullRequestNumber },
+    "PullRequestIssues",
   );
 
   const pullRequest = data.repository?.pullRequest;
   if (!pullRequest) {
     return [];
   }
+
+  assertConnectionComplete(`linked issues for PR #${pullRequestNumber}`, pullRequest.closingIssuesReferences.pageInfo);
 
   const linked =
     pullRequest.closingIssuesReferences?.nodes?.map((issue) => ({
@@ -417,6 +486,7 @@ const ensureItem = async (project, issue) => {
       }
     `,
     { projectId: project.projectId, contentId: issue.id },
+    "AddIssueToProject",
   );
 
   const item = {
@@ -479,6 +549,7 @@ const setStatus = async (project, item, statusName) => {
       fieldId: project.statusFieldId,
       optionId,
     },
+    "SetProjectStatus",
   );
 
   item.status = statusName;
@@ -524,6 +595,7 @@ const setSprint = async (project, item) => {
       fieldId: project.sprintFieldId,
       iterationId: project.currentIteration.id,
     },
+    "SetProjectSprint",
   );
 
   item.sprintIterationId = project.currentIteration.id;
@@ -570,6 +642,7 @@ const setTargetDate = async (project, item, dateValue) => {
       fieldId: project.targetDateFieldId,
       date: nextDate,
     },
+    "SetProjectTargetDate",
   );
 
   item.targetDate = nextDate;
@@ -608,6 +681,7 @@ const clearTargetDate = async (project, item) => {
       itemId: item.itemId,
       fieldId: project.targetDateFieldId,
     },
+    "ClearProjectTargetDate",
   );
 
   item.targetDate = null;
@@ -732,6 +806,11 @@ const handlePullRequestEvent = async () => {
     return;
   }
 
+  if (!isTrustedPullRequest(pullRequest)) {
+    console.log(`Skipping PR #${pullRequest.number} because it is not from a trusted source.`);
+    return;
+  }
+
   const inferredIssueNumber = parseIssueNumberFromBranch(pullRequest.head?.ref || "");
   if (eventAction !== "closed") {
     await updatePullRequestBody(pullRequest.number, pullRequest.body || "", inferredIssueNumber);
@@ -829,4 +908,10 @@ const main = async () => {
   console.log("Event is not configured for project sync. Skipping.");
 };
 
-await main();
+try {
+  await main();
+} catch (error) {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  console.error(message);
+  process.exit(1);
+}
