@@ -11,10 +11,11 @@ const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s
 const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const DRY_RUN = process.env.DRY_RUN === "true";
 
-const token = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
+const projectToken = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
+const repoToken = process.env.GITHUB_TOKEN || process.env.PROJECT_TOKEN;
 const [repoOwner, repoName] = (process.env.GITHUB_REPOSITORY || "").split("/");
 
-if (!token) {
+if (!projectToken) {
   throw new Error("Missing PROJECT_TOKEN or GITHUB_TOKEN.");
 }
 
@@ -67,7 +68,7 @@ const graphql = async (query, variables = {}, operationName = "GraphQLRequest") 
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${projectToken}`,
       "Content-Type": "application/json",
       "User-Agent": "rema-project-board-sync",
     },
@@ -112,7 +113,7 @@ const rest = async (path, { method = "GET", body } = {}) => {
   const response = await fetch(`https://api.github.com${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${repoToken}`,
       "Content-Type": "application/json",
       "User-Agent": "rema-project-board-sync",
     },
@@ -836,7 +837,7 @@ const handlePullRequestEvent = async () => {
     nextStatus = "In Progress";
     assignSprint = true;
     clearDate = true;
-  } else if (eventAction === "converted_to_draft") {
+  } else if (eventAction === "converted_to_draft" || pullRequest.draft) {
     nextStatus = "In Progress";
     assignSprint = true;
     clearDate = true;
