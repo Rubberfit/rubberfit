@@ -389,11 +389,11 @@ export default function NestingVisualizer({
 
   if (simpleMode) {
     // DEBUG
-    console.log({
-      location: "NestingVisualizer.tsx",
-      method: "NestingVisualizer",
-      simpleMode: "true",
-    })
+    // console.log({
+    //   location: "NestingVisualizer.tsx",
+    //   method: "NestingVisualizer",
+    //   simpleMode: "true",
+    // })
 
     const rawPreview =
       baseSimplePreview ??

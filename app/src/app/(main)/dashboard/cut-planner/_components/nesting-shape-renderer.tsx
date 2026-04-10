@@ -214,6 +214,16 @@ function SectorShape({
         opacity="0.4"
         rx="2"
       />
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
+        fill="none"
+        stroke="red"
+        strokeWidth="1"
+        strokeDasharray="4 2"
+      />
       <path
         d={buildArcPath()}
         fill={`url(#${usablePatternId})`}
