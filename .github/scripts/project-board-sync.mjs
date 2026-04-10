@@ -4,8 +4,10 @@ const PROJECT_OWNER = process.env.PROJECT_OWNER;
 const PROJECT_NUMBER = Number(process.env.PROJECT_NUMBER || "1");
 const STATUS_FIELD_NAME = "Status";
 const SPRINT_FIELD_NAME = "Sprint";
-const ACTIVE_SPRINT_STATUSES = new Set(["Todo", "In Progress", "Blocked", "In Review"]);
+const TARGET_DATE_FIELD_NAME = "Target date";
+const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
+const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 const token = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
@@ -27,13 +29,30 @@ const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
 const normalizeStateReason = (value) => (value ? String(value).toLowerCase() : null);
 
+const formatDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+};
+
 const graphql = async (query, variables = {}) => {
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "User-Agent": "rubberfit-project-board-sync",
+      "User-Agent": "rema-project-board-sync",
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -51,6 +70,29 @@ const graphql = async (query, variables = {}) => {
   return body.data;
 };
 
+const rest = async (path, { method = "GET", body } = {}) => {
+  const response = await fetch(`https://api.github.com${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": "rema-project-board-sync",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`GitHub REST request failed with ${response.status}: ${text}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+};
+
 const getProjectContext = async () => {
   const data = await graphql(
     `
@@ -61,7 +103,7 @@ const getProjectContext = async () => {
             fields(first: 50) {
               nodes {
                 __typename
-                ... on ProjectV2FieldCommon {
+                ... on ProjectV2Field {
                   id
                   name
                 }
@@ -102,12 +144,13 @@ const getProjectContext = async () => {
                     id
                     number
                     state
+                    closedAt
                     repository {
                       nameWithOwner
                     }
                   }
                 }
-                fieldValues(first: 20) {
+                fieldValues(first: 30) {
                   nodes {
                     __typename
                     ... on ProjectV2ItemFieldSingleSelectValue {
@@ -123,6 +166,14 @@ const getProjectContext = async () => {
                       title
                       field {
                         ... on ProjectV2IterationField {
+                          name
+                        }
+                      }
+                    }
+                    ... on ProjectV2ItemFieldDateValue {
+                      date
+                      field {
+                        ... on ProjectV2Field {
                           name
                         }
                       }
@@ -149,6 +200,7 @@ const getProjectContext = async () => {
   const sprintField = project.fields.nodes.find(
     (field) => field.__typename === "ProjectV2IterationField" && field.name === SPRINT_FIELD_NAME,
   );
+  const targetDateField = project.fields.nodes.find((field) => field.name === TARGET_DATE_FIELD_NAME);
 
   if (!statusField) {
     throw new Error(`Project is missing the ${STATUS_FIELD_NAME} field.`);
@@ -173,15 +225,20 @@ const getProjectContext = async () => {
     const sprintValue = node.fieldValues.nodes.find(
       (value) => value.field?.name === SPRINT_FIELD_NAME && typeof value.iterationId === "string",
     );
+    const targetDateValue = node.fieldValues.nodes.find(
+      (value) => value.field?.name === TARGET_DATE_FIELD_NAME && typeof value.date === "string",
+    );
 
     itemsByIssueNumber.set(node.content.number, {
       itemId: node.id,
       issueId: node.content.id,
       issueNumber: node.content.number,
       issueState: node.content.state,
+      issueClosedAt: formatDate(node.content.closedAt),
       status: statusValue?.name || null,
       sprintIterationId: sprintValue?.iterationId || null,
       sprintTitle: sprintValue?.title || null,
+      targetDate: targetDateValue?.date || null,
     });
   }
 
@@ -190,6 +247,7 @@ const getProjectContext = async () => {
     statusFieldId: statusField.id,
     statusOptionIds,
     sprintFieldId: sprintField?.id || null,
+    targetDateFieldId: targetDateField?.id || null,
     currentIteration,
     itemsByIssueNumber,
   };
@@ -237,6 +295,7 @@ const getIssue = async (issueNumber) => {
             id
             number
             state
+            closedAt
           }
         }
       }
@@ -253,6 +312,7 @@ const getIssue = async (issueNumber) => {
     id: issue.id,
     number: issue.number,
     state: issue.state,
+    closedAt: formatDate(issue.closedAt),
   };
 };
 
@@ -268,6 +328,7 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
                 id
                 number
                 state
+                closedAt
               }
             }
           }
@@ -282,11 +343,13 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
     return [];
   }
 
-  const linked = pullRequest.closingIssuesReferences?.nodes?.map((issue) => ({
-    id: issue.id,
-    number: issue.number,
-    state: issue.state,
-  })) || [];
+  const linked =
+    pullRequest.closingIssuesReferences?.nodes?.map((issue) => ({
+      id: issue.id,
+      number: issue.number,
+      state: issue.state,
+      closedAt: formatDate(issue.closedAt),
+    })) || [];
 
   if (linked.length > 0) {
     return linked;
@@ -323,6 +386,8 @@ const parseIssueNumberFromBranch = (branchName) => {
 const ensureItem = async (project, issue) => {
   const existing = project.itemsByIssueNumber.get(issue.number);
   if (existing) {
+    existing.issueState = issue.state;
+    existing.issueClosedAt = issue.closedAt || existing.issueClosedAt;
     return existing;
   }
 
@@ -333,9 +398,11 @@ const ensureItem = async (project, issue) => {
       issueId: issue.id,
       issueNumber: issue.number,
       issueState: issue.state,
+      issueClosedAt: issue.closedAt || null,
       status: null,
       sprintIterationId: null,
       sprintTitle: null,
+      targetDate: null,
     };
   }
 
@@ -357,9 +424,11 @@ const ensureItem = async (project, issue) => {
     issueId: issue.id,
     issueNumber: issue.number,
     issueState: issue.state,
+    issueClosedAt: issue.closedAt || null,
     status: null,
     sprintIterationId: null,
     sprintTitle: null,
+    targetDate: null,
   };
 
   project.itemsByIssueNumber.set(issue.number, item);
@@ -462,21 +531,65 @@ const setSprint = async (project, item) => {
   console.log(`Set issue #${item.issueNumber} sprint to ${project.currentIteration.title}`);
 };
 
-const clearSprint = async (project, item) => {
-  if (!project.sprintFieldId || !item.itemId || !item.sprintIterationId) {
+const setTargetDate = async (project, item, dateValue) => {
+  const nextDate = formatDate(dateValue);
+  if (!project.targetDateFieldId || !item.itemId || !nextDate) {
+    return;
+  }
+
+  if (item.targetDate === nextDate) {
     return;
   }
 
   if (DRY_RUN) {
-    console.log(`[dry-run] clear sprint on #${item.issueNumber}`);
-    item.sprintIterationId = null;
-    item.sprintTitle = null;
+    console.log(`[dry-run] set #${item.issueNumber} target date -> ${nextDate}`);
+    item.targetDate = nextDate;
     return;
   }
 
   await graphql(
     `
-      mutation ClearProjectSprint($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
+      mutation SetProjectTargetDate($projectId: ID!, $itemId: ID!, $fieldId: ID!, $date: Date!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId
+            itemId: $itemId
+            fieldId: $fieldId
+            value: { date: $date }
+          }
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }
+    `,
+    {
+      projectId: project.projectId,
+      itemId: item.itemId,
+      fieldId: project.targetDateFieldId,
+      date: nextDate,
+    },
+  );
+
+  item.targetDate = nextDate;
+  console.log(`Set issue #${item.issueNumber} target date to ${nextDate}`);
+};
+
+const clearTargetDate = async (project, item) => {
+  if (!project.targetDateFieldId || !item.itemId || !item.targetDate) {
+    return;
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] clear target date on #${item.issueNumber}`);
+    item.targetDate = null;
+    return;
+  }
+
+  await graphql(
+    `
+      mutation ClearProjectTargetDate($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
         clearProjectV2ItemFieldValue(
           input: {
             projectId: $projectId
@@ -493,26 +606,60 @@ const clearSprint = async (project, item) => {
     {
       projectId: project.projectId,
       itemId: item.itemId,
-      fieldId: project.sprintFieldId,
+      fieldId: project.targetDateFieldId,
     },
   );
 
-  item.sprintIterationId = null;
-  item.sprintTitle = null;
-  console.log(`Cleared sprint on issue #${item.issueNumber}`);
+  item.targetDate = null;
+  console.log(`Cleared target date on issue #${item.issueNumber}`);
+};
+
+const hasClosingReference = (body, issueNumber) => {
+  if (!body || !issueNumber) {
+    return false;
+  }
+
+  const pattern = new RegExp(
+    `\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s+#${issueNumber}\\b`,
+    "i",
+  );
+  return pattern.test(body);
+};
+
+const updatePullRequestBody = async (pullRequestNumber, body, issueNumber) => {
+  if (!issueNumber || hasClosingReference(body, issueNumber) || CLOSING_REFERENCE_PATTERN.test(body || "")) {
+    return;
+  }
+
+  const nextBody = `${body ? body.trimEnd() : ""}\n\nCloses #${issueNumber}`.trim();
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] append closing reference to PR #${pullRequestNumber}: Closes #${issueNumber}`);
+    return;
+  }
+
+  await rest(`/repos/${repoOwner}/${repoName}/pulls/${pullRequestNumber}`, {
+    method: "PATCH",
+    body: { body: nextBody },
+  });
+
+  console.log(`Updated PR #${pullRequestNumber} body with Closes #${issueNumber}`);
 };
 
 const syncIssue = async (project, issue, statusName, options = {}) => {
   const item = await ensureItem(project, issue);
   await setStatus(project, item, statusName);
 
-  if (options.clearSprint) {
-    await clearSprint(project, item);
-    return;
+  if (options.assignSprint ?? ACTIVE_SPRINT_STATUSES.has(statusName)) {
+    await setSprint(project, item);
   }
 
-  if (options.assignSprint) {
-    await setSprint(project, item);
+  if (options.clearTargetDate) {
+    await clearTargetDate(project, item);
+  }
+
+  if (options.targetDate) {
+    await setTargetDate(project, item, options.targetDate);
   }
 };
 
@@ -528,10 +675,14 @@ const handleIssueEvent = async () => {
     number: issue.number,
     state: issue.state,
     stateReason: normalizeStateReason(issue.state_reason || issue.stateReason),
+    closedAt: formatDate(issue.closed_at || issue.closedAt),
   };
 
   if (eventAction === "opened" || eventAction === "reopened") {
-    await syncIssue(project, issueDetails, "Backlog", { clearSprint: true });
+    await syncIssue(project, issueDetails, "Backlog", {
+      assignSprint: true,
+      clearTargetDate: true,
+    });
     return;
   }
 
@@ -543,7 +694,11 @@ const handleIssueEvent = async () => {
         : issueDetails.stateReason === "not_planned"
           ? "Canceled"
           : "Done";
-    await syncIssue(project, issueDetails, nextStatus);
+
+    await syncIssue(project, issueDetails, nextStatus, {
+      assignSprint: false,
+      targetDate: issueDetails.closedAt || formatDate(new Date()),
+    });
   }
 };
 
@@ -565,13 +720,21 @@ const handleBranchCreated = async () => {
   }
 
   const project = await getProjectContext();
-  await syncIssue(project, issue, "In Progress", { assignSprint: true });
+  await syncIssue(project, issue, "In Progress", {
+    assignSprint: true,
+    clearTargetDate: true,
+  });
 };
 
 const handlePullRequestEvent = async () => {
   const pullRequest = payload.pull_request;
   if (!pullRequest) {
     return;
+  }
+
+  const inferredIssueNumber = parseIssueNumberFromBranch(pullRequest.head?.ref || "");
+  if (eventAction !== "closed") {
+    await updatePullRequestBody(pullRequest.number, pullRequest.body || "", inferredIssueNumber);
   }
 
   const project = await getProjectContext();
@@ -584,22 +747,37 @@ const handlePullRequestEvent = async () => {
 
   let nextStatus = null;
   let assignSprint = false;
+  let clearDate = false;
+  let targetDate = null;
 
   if (eventAction === "closed" && pullRequest.merged) {
     nextStatus = "Done";
+    targetDate = formatDate(pullRequest.merged_at || pullRequest.closed_at || new Date());
   } else if (eventAction === "closed" && !pullRequest.merged) {
     nextStatus = "In Progress";
     assignSprint = true;
+    clearDate = true;
   } else if (eventAction === "converted_to_draft") {
     nextStatus = "In Progress";
     assignSprint = true;
+    clearDate = true;
   } else {
     nextStatus = "In Review";
     assignSprint = true;
+    clearDate = true;
   }
 
   for (const issue of issues) {
-    await syncIssue(project, issue, nextStatus, { assignSprint });
+    if (nextStatus !== "Done" && issue.state === "CLOSED") {
+      console.log(`Skipping closed issue #${issue.number} for PR #${pullRequest.number}.`);
+      continue;
+    }
+
+    await syncIssue(project, issue, nextStatus, {
+      assignSprint,
+      clearTargetDate: clearDate,
+      targetDate,
+    });
   }
 };
 
@@ -608,23 +786,20 @@ const runRollover = async () => {
 
   for (const item of project.itemsByIssueNumber.values()) {
     if (!item.status) {
-      await setStatus(project, item, "Backlog");
-      await clearSprint(project, item);
-      continue;
+      const fallbackStatus = item.issueState === "CLOSED" ? "Done" : "Backlog";
+      await setStatus(project, item, fallbackStatus);
+      item.status = fallbackStatus;
     }
 
     if (CLOSED_STATUS_NAMES.has(item.status)) {
+      if (!item.targetDate) {
+        await setTargetDate(project, item, item.issueClosedAt || formatDate(new Date()));
+      }
       continue;
     }
 
-    if (item.status === "Backlog") {
-      await clearSprint(project, item);
-      continue;
-    }
-
-    if (ACTIVE_SPRINT_STATUSES.has(item.status)) {
-      await setSprint(project, item);
-    }
+    await setSprint(project, item);
+    await clearTargetDate(project, item);
   }
 };
 
