@@ -329,6 +329,7 @@ function SheetSvg({
           surfaceX={layout.surfaceX}
           surfaceY={layout.surfaceY}
           scale={layout.scale}
+          wasRotated={layout.wasRotated}
         />
         <SimpleModeDimensionLabels layout={layout} />
       </svg>

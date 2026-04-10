@@ -397,18 +397,22 @@ export function SimpleModeOffcutLabels({
   surfaceX,
   surfaceY,
   scale,
+  wasRotated,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
   surfaceY: number
   scale: number
+  wasRotated: boolean
 }) {
   return (
     <>
       {offcutLabelBands.map((band, index) => {
         const centerX = surfaceX + (band.x + band.width / 2) * scale
         const centerY = surfaceY + (band.y + band.height / 2) * scale
-        const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
+        const labelW = wasRotated ? band.height : band.width
+        const labelH = wasRotated ? band.width : band.height
+        const dims = `${formatInches(labelW)}" \u00D7 ${formatInches(labelH)}"`
         const bandPxW = band.width * scale
         const bandPxH = band.height * scale
         const titleSize = Math.max(0, Math.min(13, bandPxW * 0.12, bandPxH * 0.25))
