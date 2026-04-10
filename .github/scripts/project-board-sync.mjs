@@ -45,7 +45,6 @@ const FEATURE_PATTERNS = [
 ];
 const REFACTOR_PATTERNS = [
   /\brefactor\b/i,
-  /\bcleanup\b/i,
   /\brestructure\b/i,
   /\bsimplif(?:y|ication)\b/i,
   /\bmigrate\b/i,
@@ -113,7 +112,7 @@ const LARGE_PATTERNS = [
   /\brewrite\b/i,
   /\bmigration\b/i,
   /\bmultiple\b/i,
-  /\ball\b/i,
+  /\ball (?:pages|components|services|modules|screens|workflows|tables|sheets?)\b/i,
 ];
 const P0_PATTERNS = [
   /\bp0\b/i,
@@ -244,7 +243,7 @@ const deriveIssueType = (text) => {
     return "Bug";
   }
 
-  if (featureScore > 0 && refactorScore === 0) {
+  if (featureScore > 0 && featureScore >= refactorScore) {
     return "Feature";
   }
 
@@ -308,7 +307,7 @@ const deriveStoryPoints = (text, issueType) => {
   return points;
 };
 
-const deriveManagedLabels = (text, storyPoints) => {
+const deriveManagedLabels = (text) => {
   const labels = new Set();
 
   if (hasAnyPattern(text, REQUEST_PATTERNS)) {
@@ -348,7 +347,7 @@ const classifyIssueFromRepositoryContext = (issue) => {
     issueType,
     priority,
     storyPoints,
-    labels: deriveManagedLabels(text, storyPoints),
+    labels: deriveManagedLabels(text),
   };
 };
 
