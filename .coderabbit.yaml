@@ -80,9 +80,7 @@ issue_enrichment:
   planning:
     enabled: true
     auto_planning:
-      enabled: true
-      labels:
-        - "!no-plan"
+      enabled: false
   labeling:
     auto_apply_labels: true
     labeling_instructions:

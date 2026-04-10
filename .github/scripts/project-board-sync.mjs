@@ -11,21 +11,139 @@ const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Block
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
 const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
 const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-const CODERABBIT_LOGINS = new Set(["coderabbitai", "coderabbitai[bot]"]);
 const MANAGED_LABELS = new Set(["request", "intern", "performance", "cut-planner", "refactor", "ui"]);
-const CLASSIFICATION_REQUEST_MARKER = "<!-- rema-project-classification-request -->";
-const CLASSIFICATION_CODE_FENCE = "rema-project-classification";
-const ISSUE_TYPE_NAMES = new Map([
-  ["task", "Task"],
-  ["bug", "Bug"],
-  ["feature", "Feature"],
-]);
-const PRIORITY_NAMES = new Map([
-  ["p0", "P0"],
-  ["p1", "P1"],
-  ["p2", "P2"],
-  ["p3", "P3"],
-]);
+const DEFAULT_PRIORITY = "P2";
+const DEFAULT_STORY_POINTS = "3";
+const BUG_PATTERNS = [
+  /\bbug\b/i,
+  /\bfix(?:e[sd])?\b/i,
+  /\berror\b/i,
+  /\bbroken\b/i,
+  /\bwrong\b/i,
+  /\bfail(?:ing|s|ed)?\b/i,
+  /\bcrash(?:es|ed|ing)?\b/i,
+  /\bmissing\b/i,
+  /\boverlap(?:ping)?\b/i,
+  /\binvalid\b/i,
+  /\bincorrect\b/i,
+  /\bnot working\b/i,
+  /\bunable\b/i,
+  /\bcan(?:not|'t)\b/i,
+  /\bregression\b/i,
+];
+const FEATURE_PATTERNS = [
+  /\bfeature\b/i,
+  /\bimplement\b/i,
+  /\badd\b/i,
+  /\bcreate\b/i,
+  /\ballow\b/i,
+  /\benable\b/i,
+  /\bsupport\b/i,
+  /\bintroduce\b/i,
+  /\bbuild\b/i,
+  /\brequest(?:ed)?\b/i,
+];
+const REFACTOR_PATTERNS = [
+  /\brefactor\b/i,
+  /\bcleanup\b/i,
+  /\brestructure\b/i,
+  /\bsimplif(?:y|ication)\b/i,
+  /\bmigrate\b/i,
+  /\bmaintainab(?:le|ility)\b/i,
+  /\btechnical debt\b/i,
+];
+const PERFORMANCE_PATTERNS = [
+  /\bperformance\b/i,
+  /\boptimi[sz]e\b/i,
+  /\bslow\b/i,
+  /\blag(?:gy)?\b/i,
+  /\bhang(?:s|ing)?\b/i,
+  /\bfreeze(?:s|d|ing)?\b/i,
+  /\bresponsive(?:ness)?\b/i,
+];
+const CUT_PLANNER_PATTERNS = [
+  /\bcut planner\b/i,
+  /\bcut plan\b/i,
+  /\bpacking\b/i,
+  /\bnesting\b/i,
+  /\bsheet\b/i,
+  /\bgeometry\b/i,
+  /\bcone(?:s)?\b/i,
+  /\btrapezoid(?:s)?\b/i,
+];
+const UI_PATTERNS = [
+  /\bui\b/i,
+  /\bux\b/i,
+  /\bbutton\b/i,
+  /\bmodal\b/i,
+  /\bdialog\b/i,
+  /\bpage\b/i,
+  /\bform\b/i,
+  /\bdisplay\b/i,
+  /\blayout\b/i,
+  /\btable\b/i,
+];
+const REQUEST_PATTERNS = [
+  /\bclient request(?:ed)?\b/i,
+  /\bcustomer request(?:ed)?\b/i,
+  /\bstakeholder\b/i,
+  /\brequested\b/i,
+  /\bwould like\b/i,
+  /\basks? for\b/i,
+];
+const SIMPLE_PATTERNS = [
+  /\btypo\b/i,
+  /\bcopy\b/i,
+  /\btext\b/i,
+  /\bspell(?:ing)?\b/i,
+  /\brename\b/i,
+  /\bminor\b/i,
+  /\bnit\b/i,
+  /\bsmall\b/i,
+  /\bcleanup\b/i,
+];
+const LARGE_PATTERNS = [
+  /\bentire\b/i,
+  /\bwhole\b/i,
+  /\bportal\b/i,
+  /\bacross\b/i,
+  /\bsystem(?:-wide)?\b/i,
+  /\bend-to-end\b/i,
+  /\boverhaul\b/i,
+  /\brewrite\b/i,
+  /\bmigration\b/i,
+  /\bmultiple\b/i,
+  /\ball\b/i,
+];
+const P0_PATTERNS = [
+  /\bp0\b/i,
+  /\bblocker\b/i,
+  /\bproduction\b/i,
+  /\boutage\b/i,
+  /\bsecurity\b/i,
+  /\bdata loss\b/i,
+  /\bdown\b/i,
+];
+const P1_PATTERNS = [
+  /\bp1\b/i,
+  /\burgent\b/i,
+  /\bcrash(?:es|ed|ing)?\b/i,
+  /\bregression\b/i,
+  /\bbroken\b/i,
+  /\bnot working\b/i,
+  /\bunable\b/i,
+  /\bcan(?:not|'t)\b/i,
+  /\bfail(?:ing|s|ed)?\b/i,
+];
+const P3_PATTERNS = [
+  /\bp3\b/i,
+  /\bdocs?\b/i,
+  /\bdocumentation\b/i,
+  /\bcopy\b/i,
+  /\btypo\b/i,
+  /\bpolish\b/i,
+  /\bnice to have\b/i,
+];
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 const projectToken = process.env.PROJECT_TOKEN || process.env.GITHUB_TOKEN;
@@ -58,7 +176,6 @@ const payload = await loadPayload();
 const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
 const normalizeStateReason = (value) => (value ? String(value).toLowerCase() : null);
-const normalizeToken = (value) => (value ? String(value).trim().toLowerCase() : "");
 const normalizeIssueState = (value) => (value ? String(value).trim().toUpperCase() : null);
 
 const formatDate = (value) => {
@@ -115,75 +232,123 @@ const assertConnectionComplete = (connectionName, pageInfo) => {
   }
 };
 
-const canonicalizeIssueType = (value) => ISSUE_TYPE_NAMES.get(normalizeToken(value)) || null;
-const canonicalizePriority = (value) => PRIORITY_NAMES.get(normalizeToken(value)) || null;
-const canonicalizeStoryPoints = (value) => {
-  const normalized = normalizeToken(value);
-  return /^[1-6]$/.test(normalized) ? normalized : null;
+const countMatches = (text, patterns) => patterns.filter((pattern) => pattern.test(text)).length;
+const hasAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
+
+const deriveIssueType = (text) => {
+  const bugScore = countMatches(text, BUG_PATTERNS);
+  const featureScore = countMatches(text, FEATURE_PATTERNS);
+  const refactorScore = countMatches(text, REFACTOR_PATTERNS);
+
+  if (bugScore > 0 && bugScore >= featureScore) {
+    return "Bug";
+  }
+
+  if (featureScore > 0 && refactorScore === 0) {
+    return "Feature";
+  }
+
+  return "Task";
 };
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const derivePriority = (text) => {
+  if (hasAnyPattern(text, P0_PATTERNS)) {
+    return "P0";
+  }
 
-const extractFieldValue = (text, fieldName) => {
-  const pattern = new RegExp(`^\\s*${escapeRegExp(fieldName)}\\s*:\\s*(.+?)\\s*$`, "im");
-  const match = text.match(pattern);
-  return match ? match[1].trim() : null;
+  if (hasAnyPattern(text, P1_PATTERNS)) {
+    return "P1";
+  }
+
+  if (hasAnyPattern(text, P3_PATTERNS)) {
+    return "P3";
+  }
+
+  return DEFAULT_PRIORITY;
 };
 
-const extractListFieldValue = (text, fieldName) => {
-  const blockPattern = new RegExp(
-    `^\\s*${escapeRegExp(fieldName)}\\s*:\\s*\\n((?:\\s*-\\s*.+\\n?)*)`,
-    "im",
-  );
-  const blockMatch = text.match(blockPattern);
-
-  if (blockMatch && blockMatch[1].trim()) {
-    return blockMatch[1]
-      .split("\n")
-      .map((line) => line.replace(/^\s*-\s*/, "").trim())
-      .filter(Boolean);
+const deriveStoryPoints = (text, issueType) => {
+  if (hasAnyPattern(text, LARGE_PATTERNS) && (hasAnyPattern(text, PERFORMANCE_PATTERNS) || hasAnyPattern(text, REFACTOR_PATTERNS))) {
+    return "6";
   }
 
-  const inline = extractFieldValue(text, fieldName);
-  if (!inline || normalizeToken(inline) === "none") {
-    return [];
+  if (hasAnyPattern(text, SIMPLE_PATTERNS) && !hasAnyPattern(text, LARGE_PATTERNS)) {
+    return issueType === "Bug" ? "2" : "1";
   }
 
-  return inline
-    .replace(/^\[(.*)\]$/, "$1")
-    .split(",")
-    .map((label) => normalizeToken(label))
-    .filter(Boolean);
+  let points = DEFAULT_STORY_POINTS;
+
+  if (issueType === "Bug") {
+    points = "2";
+  }
+
+  if (issueType === "Feature" || hasAnyPattern(text, UI_PATTERNS)) {
+    points = String(Math.max(Number(points), 4));
+  }
+
+  if (hasAnyPattern(text, PERFORMANCE_PATTERNS) || hasAnyPattern(text, CUT_PLANNER_PATTERNS) || hasAnyPattern(text, REFACTOR_PATTERNS)) {
+    points = String(Math.max(Number(points), 4));
+  }
+
+  const multiSurfaceScore = countMatches(text, [
+    ...PERFORMANCE_PATTERNS,
+    ...CUT_PLANNER_PATTERNS,
+    ...REFACTOR_PATTERNS,
+    ...FEATURE_PATTERNS,
+    ...LARGE_PATTERNS,
+  ]);
+  if (multiSurfaceScore >= 3) {
+    points = "5";
+  }
+
+  if (hasAnyPattern(text, LARGE_PATTERNS) && Number(points) >= 5) {
+    return "6";
+  }
+
+  return points;
 };
 
-const extractClassification = (body) => {
-  if (!body) {
-    return null;
+const deriveManagedLabels = (text, storyPoints) => {
+  const labels = new Set();
+
+  if (hasAnyPattern(text, REQUEST_PATTERNS)) {
+    labels.add("request");
   }
 
-  const fencePattern = new RegExp(`\`\`\`${CLASSIFICATION_CODE_FENCE}\\s*\\n([\\s\\S]*?)\\n\`\`\``, "i");
-  const fenced = body.match(fencePattern);
-  const source = fenced ? fenced[1] : body;
-
-  const type = canonicalizeIssueType(extractFieldValue(source, "type"));
-  const priority = canonicalizePriority(extractFieldValue(source, "priority"));
-  const storyPoints = canonicalizeStoryPoints(
-    extractFieldValue(source, "story_points") || extractFieldValue(source, "story points"),
-  );
-
-  if (!type || !priority || !storyPoints) {
-    return null;
+  if (hasAnyPattern(text, PERFORMANCE_PATTERNS)) {
+    labels.add("performance");
   }
 
-  const labels = extractListFieldValue(source, "labels").filter((label) => MANAGED_LABELS.has(label));
-  const reason = extractFieldValue(source, "reason");
+  if (hasAnyPattern(text, CUT_PLANNER_PATTERNS)) {
+    labels.add("cut-planner");
+  }
+
+  if (hasAnyPattern(text, REFACTOR_PATTERNS)) {
+    labels.add("refactor");
+  }
+
+  if (hasAnyPattern(text, UI_PATTERNS)) {
+    labels.add("ui");
+  }
+
+  if (/\bintern\b/i.test(text)) {
+    labels.add("intern");
+  }
+
+  return [...labels];
+};
+
+const classifyIssueFromRepositoryContext = (issue) => {
+  const text = `${issue.title || ""}\n${issue.body || ""}`;
+  const issueType = deriveIssueType(text);
+  const priority = derivePriority(text);
+  const storyPoints = deriveStoryPoints(text, issueType);
 
   return {
-    type,
+    issueType,
     priority,
     storyPoints,
-    labels: [...new Set(labels)],
-    reason,
+    labels: deriveManagedLabels(text, storyPoints),
   };
 };
 
@@ -851,29 +1016,6 @@ const setStoryPoints = async (project, item, storyPoints) => {
   console.log(`Set issue #${item.issueNumber} story points to ${storyPoints}`);
 };
 
-const listIssueComments = async (issueNumber) => {
-  const perPage = 100;
-  const comments = [];
-
-  for (let page = 1; ; page += 1) {
-    const batch = await rest(
-      `/repos/${repoOwner}/${repoName}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`,
-    );
-
-    if (!Array.isArray(batch) || batch.length === 0) {
-      break;
-    }
-
-    comments.push(...batch);
-
-    if (batch.length < perPage) {
-      break;
-    }
-  }
-
-  return comments;
-};
-
 const addLabels = async (issueNumber, labels) => {
   const nextLabels = [...new Set(labels.filter((label) => MANAGED_LABELS.has(label)))];
   if (nextLabels.length === 0) {
@@ -893,29 +1035,9 @@ const addLabels = async (issueNumber, labels) => {
   console.log(`Added labels to issue #${issueNumber}: ${nextLabels.join(", ")}`);
 };
 
-const buildClassificationRequestBody = () => `${CLASSIFICATION_REQUEST_MARKER}
-@coderabbitai classify this issue for the Rema project using the repository context.
-
-Reply with exactly one fenced block and no extra prose:
-
-\`\`\`${CLASSIFICATION_CODE_FENCE}
-type: Task
-priority: P2
-story_points: 3
-labels: none
-reason: one short sentence
-\`\`\`
-
-Rules:
-- type must be one of Task, Bug, Feature
-- priority must be one of P0, P1, P2, P3
-- story_points must be one of 1, 2, 3, 4, 5, 6
-- labels must be a comma-separated list using only request, intern, performance, cut-planner, refactor, ui, or \`none\`
-- base the answer on the expected implementation work in this repository
-- choose the higher story point bucket when the issue spans multiple buckets`;
-
-const applyClassification = async (project, issue, classification) => {
+const applyIssueDefaults = async (project, issue) => {
   const item = await ensureItem(project, issue);
+  const classification = classifyIssueFromRepositoryContext(issue);
 
   if (!item.status && issue.state !== "CLOSED") {
     await setStatus(project, item, "Backlog");
@@ -923,49 +1045,27 @@ const applyClassification = async (project, issue, classification) => {
     await clearTargetDate(project, item);
   }
 
-  await setIssueType(project, item, classification.type);
-  await setPriority(project, item, classification.priority);
-  await setStoryPoints(project, item, classification.storyPoints);
+  if (!item.issueType) {
+    await setIssueType(project, item, classification.issueType);
+  }
+
+  if (!item.priority) {
+    await setPriority(project, item, classification.priority);
+  }
+
+  if (!item.storyPoints) {
+    await setStoryPoints(project, item, classification.storyPoints);
+  }
+
   await addLabels(issue.number, classification.labels || []);
 };
 
-const requestIssueClassification = async (project, issue) => {
-  const existing = project.itemsByIssueNumber.get(issue.number);
-  if (existing?.issueType && existing.priority && existing.storyPoints) {
-    console.log(`Issue #${issue.number} already has complete classification.`);
-    return;
-  }
-
-  const comments = await listIssueComments(issue.number);
-  const existingClassificationComment = [...comments]
-    .reverse()
-    .find((comment) => CODERABBIT_LOGINS.has(comment.user?.login || "") && extractClassification(comment.body));
-
-  if (existingClassificationComment) {
-    await applyClassification(project, issue, extractClassification(existingClassificationComment.body));
-    return;
-  }
-
-  const hasPendingRequest = comments.some(
-    (comment) => typeof comment.body === "string" && comment.body.includes(CLASSIFICATION_REQUEST_MARKER),
-  );
-
-  if (hasPendingRequest) {
-    console.log(`Issue #${issue.number} already has a pending classification request.`);
-    return;
-  }
-
-  if (DRY_RUN) {
-    console.log(`[dry-run] request CodeRabbit issue classification for #${issue.number}`);
-    return;
-  }
-
-  await rest(`/repos/${repoOwner}/${repoName}/issues/${issue.number}/comments`, {
-    method: "POST",
-    body: { body: buildClassificationRequestBody() },
+const syncNewIssue = async (project, issue) => {
+  await syncIssue(project, issue, "Backlog", {
+    assignSprint: true,
+    clearTargetDate: true,
   });
-
-  console.log(`Requested CodeRabbit classification for issue #${issue.number}`);
+  await applyIssueDefaults(project, issue);
 };
 
 const setSprint = async (project, item) => {
@@ -1149,6 +1249,17 @@ const syncIssue = async (project, issue, statusName, options = {}) => {
   }
 };
 
+const buildIssueDetails = (issue) => ({
+  id: issue.node_id,
+  number: issue.number,
+  state: normalizeIssueState(issue.state),
+  stateReason: normalizeStateReason(issue.state_reason || issue.stateReason),
+  closedAt: formatDate(issue.closed_at || issue.closedAt),
+  issueType: issue.issue_type?.name || issue.issueType?.name || null,
+  title: issue.title || "",
+  body: issue.body || "",
+});
+
 const handleIssueEvent = async () => {
   const issue = payload.issue;
   if (!issue || payload.issue?.pull_request) {
@@ -1156,20 +1267,10 @@ const handleIssueEvent = async () => {
   }
 
   const project = await getProjectContext();
-  const issueDetails = {
-    id: issue.node_id,
-    number: issue.number,
-    state: normalizeIssueState(issue.state),
-    stateReason: normalizeStateReason(issue.state_reason || issue.stateReason),
-    closedAt: formatDate(issue.closed_at || issue.closedAt),
-  };
+  const issueDetails = buildIssueDetails(issue);
 
   if (eventAction === "opened" || eventAction === "reopened") {
-    await syncIssue(project, issueDetails, "Backlog", {
-      assignSprint: true,
-      clearTargetDate: true,
-    });
-    await requestIssueClassification(project, issueDetails);
+    await syncNewIssue(project, issueDetails);
     return;
   }
 
@@ -1187,38 +1288,6 @@ const handleIssueEvent = async () => {
       targetDate: issueDetails.closedAt || formatDate(new Date()),
     });
   }
-};
-
-const handleIssueCommentEvent = async () => {
-  const issue = payload.issue;
-  const comment = payload.comment;
-  if (!issue || issue.pull_request || !comment) {
-    return;
-  }
-
-  const authorLogin = comment.user?.login || "";
-  if (!CODERABBIT_LOGINS.has(authorLogin)) {
-    return;
-  }
-
-  const classification = extractClassification(comment.body || "");
-  if (!classification) {
-    console.log(`No machine-readable classification found in CodeRabbit comment on issue #${issue.number}.`);
-    return;
-  }
-
-  const project = await getProjectContext();
-  await applyClassification(
-    project,
-    {
-      id: issue.node_id,
-      number: issue.number,
-      state: normalizeIssueState(issue.state),
-      closedAt: formatDate(issue.closed_at || issue.closedAt),
-      issueType: issue.issue_type?.name || issue.issueType?.name || null,
-    },
-    classification,
-  );
 };
 
 const handleBranchCreated = async () => {
@@ -1332,11 +1401,6 @@ const main = async () => {
 
   if (eventName === "issues") {
     await handleIssueEvent();
-    return;
-  }
-
-  if (eventName === "issue_comment") {
-    await handleIssueCommentEvent();
     return;
   }
 
