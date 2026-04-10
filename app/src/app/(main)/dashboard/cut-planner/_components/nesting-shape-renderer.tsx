@@ -181,14 +181,18 @@ function SectorShape({
   const innerR = (item.innerRadius ?? 0) * scale
   const outerR = (item.outerRadius ?? 0) * scale
   const arcDeg = item.arcDegrees ?? 120
-  const halfArc = (arcDeg * Math.PI) / 360 // Converts radians to degrees
-  const cx = coords.px + coords.pw / 2
-  const cy = coords.py + outerR
+  const halfArc = (arcDeg * Math.PI) / 360
   const flipSign = item.flipped ? -1 : 1
+  // When the packer rotated this item 90° CW, the arc dome points right instead of up.
+  // Shift all arc angles by +π/2 and recompute cx/cy for the swapped bounding box.
+  const arcAngleOffset = item.rotated90 ? Math.PI / 2 : 0
+  // Rotated 90° CW: dome points right → apex at right edge, center = right_edge − outerR
+  const cx = item.rotated90 ? coords.px + coords.pw - outerR : coords.px + coords.pw / 2
+  const cy = item.rotated90 ? coords.py + coords.ph / 2 : coords.py + outerR
 
   const buildArcPath = () => {
-    const a1 = -Math.PI / 2 - halfArc * flipSign
-    const a2 = -Math.PI / 2 + halfArc * flipSign
+    const a1 = -Math.PI / 2 - halfArc * flipSign + arcAngleOffset
+    const a2 = -Math.PI / 2 + halfArc * flipSign + arcAngleOffset
     const x1o = cx + outerR * Math.cos(a1)
     const y1o = cy + outerR * Math.sin(a1)
     const x2o = cx + outerR * Math.cos(a2)
@@ -231,8 +235,8 @@ function SectorShape({
         strokeWidth="1.5"
       />
       <text
-        x={cx}
-        y={cy - ((outerR - innerR) / 2) * flipSign}
+        x={coords.px + coords.pw / 2}
+        y={coords.py + coords.ph / 2}
         textAnchor="middle"
         dominantBaseline="middle"
         fill={coords.isFirst ? "#e7e5e4" : "#bef264"}

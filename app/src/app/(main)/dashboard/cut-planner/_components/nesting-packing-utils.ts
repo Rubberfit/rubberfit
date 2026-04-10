@@ -54,27 +54,37 @@ export function packPreviewItemsOnShelves(
   let placedIndex = 0
 
   sortedItems.forEach((item) => {
+    const canRotate = Math.abs(item.width - item.height) > 0.001
+    const orientations = [
+      { w: item.width, h: item.height, rotated: false },
+      ...(canRotate ? [{ w: item.height, h: item.width, rotated: true }] : []),
+    ]
+
     let bestShelfIndex = -1
     let bestShelfWaste = Number.POSITIVE_INFINITY
     let bestShelfHeight = item.height
+    let bestRotated = false
 
-    for (let index = 0; index < shelves.length; index += 1) {
-      const shelf = shelves[index]
-      const nextShelfY = shelves[index + 1]?.y ?? rollL
-      const availableHeight = nextShelfY - shelf.y
-      const nextHeight = Math.max(shelf.height, item.height)
-      if (nextHeight > availableHeight + 0.001) continue
-      if (shelf.x + item.width > rollW + 0.001) continue
-      if (shelf.y + nextHeight > rollL + 0.001) continue
+    for (const orient of orientations) {
+      for (let index = 0; index < shelves.length; index += 1) {
+        const shelf = shelves[index]
+        const nextShelfY = shelves[index + 1]?.y ?? rollL
+        const availableHeight = nextShelfY - shelf.y
+        const nextHeight = Math.max(shelf.height, orient.h)
+        if (nextHeight > availableHeight + 0.001) continue
+        if (shelf.x + orient.w > rollW + 0.001) continue
+        if (shelf.y + nextHeight > rollL + 0.001) continue
 
-      const remainingWidth = rollW - (shelf.x + item.width)
-      const heightPenalty = nextHeight - shelf.height
-      const shelfWaste = remainingWidth + heightPenalty * 0.75
+        const remainingWidth = rollW - (shelf.x + orient.w)
+        const heightPenalty = nextHeight - shelf.height
+        const shelfWaste = remainingWidth + heightPenalty * 0.75
 
-      if (shelfWaste < bestShelfWaste) {
-        bestShelfWaste = shelfWaste
-        bestShelfIndex = index
-        bestShelfHeight = nextHeight
+        if (shelfWaste < bestShelfWaste) {
+          bestShelfWaste = shelfWaste
+          bestShelfIndex = index
+          bestShelfHeight = nextHeight
+          bestRotated = orient.rotated
+        }
       }
     }
 
@@ -82,24 +92,29 @@ export function packPreviewItemsOnShelves(
       const nextY =
         shelves.length === 0 ? 0 : Math.max(...shelves.map((shelf) => shelf.y + shelf.height))
 
-      if (nextY + item.height > rollL + 0.001) {
-        return
-      }
+      // Try both orientations for a new shelf
+      const orient = orientations.find((o) => nextY + o.h <= rollL + 0.001 && o.w <= rollW + 0.001)
+      if (!orient) return
 
-      shelves.push({ y: nextY, height: item.height, x: 0 })
+      shelves.push({ y: nextY, height: orient.h, x: 0 })
       bestShelfIndex = shelves.length - 1
-      bestShelfHeight = item.height
+      bestShelfHeight = orient.h
+      bestRotated = orient.rotated
     }
 
     const shelf = shelves[bestShelfIndex]
+    const placedW = bestRotated ? item.height : item.width
     placedItems.push({
       ...item,
       x: shelf.x,
       y: shelf.y,
+      width: bestRotated ? item.height : item.width,
+      height: bestRotated ? item.width : item.height,
+      rotated90: bestRotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
       flipped: flipPattern === "checker" ? placedIndex % 2 === 1 : (item.flipped ?? false),
     })
     placedIndex += 1
-    shelf.x += item.width
+    shelf.x += placedW
     shelf.height = bestShelfHeight
     usedArea += item.usedArea
   })
@@ -257,6 +272,7 @@ export function packRectItemsWithGuillotine(
       y: host.y,
       width: chosen.width,
       height: chosen.height,
+      rotated90: chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
       flipped: chosen.rotated ? !(item.flipped ?? false) : item.flipped,
     })
     usedArea += item.usedArea
@@ -376,6 +392,7 @@ export function packIntoFreeRects(
       y: host.y,
       width: chosen.width,
       height: chosen.height,
+      rotated90: chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
       flipped: chosen.rotated ? !(item.flipped ?? false) : item.flipped,
     })
     usedArea += item.usedArea
@@ -414,6 +431,7 @@ export function calculatePackedShapeLayout(
     rowOffset?: number
     alternateOffset?: boolean
     flipPattern?: "none" | "row" | "checker"
+    rotated90?: boolean
   }
 ): PackedShapeLayout {
   const positions: ShapePlacement[] = []
@@ -433,6 +451,7 @@ export function calculatePackedShapeLayout(
   const stepY = options?.stepY ?? footprintH
   const rowOffset = options?.rowOffset ?? 0
   const flipPattern = options?.flipPattern ?? "none"
+  const rotated90 = options?.rotated90 ?? false
 
   if (stepX <= 0 || stepY <= 0) {
     return {
@@ -472,6 +491,7 @@ export function calculatePackedShapeLayout(
         width: footprintW,
         height: footprintH,
         flipped,
+        rotated90,
       })
     }
   }

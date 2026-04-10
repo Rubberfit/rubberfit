@@ -104,6 +104,7 @@ export interface ShapePlacement {
   width: number
   height: number
   flipped?: boolean
+  rotated90?: boolean
 }
 
 export interface OffcutBand {

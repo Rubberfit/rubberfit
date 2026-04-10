@@ -81,11 +81,13 @@ function rotatePreviewItem(item: PreviewItem, rollL: number): PreviewItem {
     const outerR = item.outerRadius ?? 0
     const arcDeg = item.arcDegrees ?? 120
     const halfArc = (arcDeg * Math.PI) / 360
-    const cx = item.x + item.width / 2
-    const cy = item.y + outerR
     const flipSign = item.flipped ? -1 : 1
-    const a1 = -Math.PI / 2 - halfArc * flipSign
-    const a2 = -Math.PI / 2 + halfArc * flipSign
+    const arcAngleOffset = item.rotated90 ? Math.PI / 2 : 0
+    // Rotated 90° CW: dome points right → apex at right edge, center = right_edge − outerR
+    const cx = item.rotated90 ? item.x + item.width - outerR : item.x + item.width / 2
+    const cy = item.rotated90 ? item.y + item.height / 2 : item.y + outerR
+    const a1 = -Math.PI / 2 - halfArc * flipSign + arcAngleOffset
+    const a2 = -Math.PI / 2 + halfArc * flipSign + arcAngleOffset
     const segments = 32
     const pts: Array<{ x: number; y: number }> = []
     for (let i = 0; i <= segments; i++) {

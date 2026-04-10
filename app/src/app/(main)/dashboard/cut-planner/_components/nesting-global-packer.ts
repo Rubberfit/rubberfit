@@ -546,6 +546,7 @@ function buildSheetFromPlacements(
       y: p.y,
       width: p.w,
       height: p.h,
+      rotated90: p.rotated ? !(original.rotated90 ?? false) : (original.rotated90 ?? false),
       flipped: p.rotated ? !(original.flipped ?? false) : (original.flipped ?? false),
     }
   })
