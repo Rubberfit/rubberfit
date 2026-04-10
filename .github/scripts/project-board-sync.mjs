@@ -851,8 +851,28 @@ const setStoryPoints = async (project, item, storyPoints) => {
   console.log(`Set issue #${item.issueNumber} story points to ${storyPoints}`);
 };
 
-const listIssueComments = async (issueNumber) =>
-  rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}/comments?per_page=100`);
+const listIssueComments = async (issueNumber) => {
+  const perPage = 100;
+  const comments = [];
+
+  for (let page = 1; ; page += 1) {
+    const batch = await rest(
+      `/repos/${repoOwner}/${repoName}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`,
+    );
+
+    if (!Array.isArray(batch) || batch.length === 0) {
+      break;
+    }
+
+    comments.push(...batch);
+
+    if (batch.length < perPage) {
+      break;
+    }
+  }
+
+  return comments;
+};
 
 const addLabels = async (issueNumber, labels) => {
   const nextLabels = [...new Set(labels.filter((label) => MANAGED_LABELS.has(label)))];
