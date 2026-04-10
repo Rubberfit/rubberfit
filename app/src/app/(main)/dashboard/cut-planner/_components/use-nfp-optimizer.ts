@@ -66,11 +66,13 @@ export function useNfpOptimizer(
       setNfpError(null)
     })
 
-    /**
-     * This current attempts to optimize the by skip algorithm when cones are passed.
-     */
+    /* 
+      If the passed partType is a cone, cylinder or trapezoid, then the NFP solver does not
+      does not run to reduce UI lag.
+      Nesting will be done on the bounding boxes instead.
+    */
     if (!shouldAutoOptimizeInteractiveLayout(activeSimpleSpecs)) {
-      // return
+      return
     }
 
     const nestingParts: NestingPart[] = activeSimpleSpecs.flatMap((spec, i) =>

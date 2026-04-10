@@ -164,7 +164,7 @@ function parseCutRatios(input: string, count: number) {
 
   return values
 }
-
+// eslint-disable-next-line max-lines-per-function
 export default function CutPlannerPage() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
