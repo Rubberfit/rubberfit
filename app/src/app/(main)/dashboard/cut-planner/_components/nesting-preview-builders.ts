@@ -397,9 +397,7 @@ export function buildPartPreviewItem(
       // Width: if arc spans > 180°, it passes through ±90° (sin=1) → full diameter
       const width = Math.max(
         2,
-        halfArcRad <= Math.PI / 2
-          ? 2 * outerRadius * Math.sin(halfArcRad)
-          : 2 * outerRadius
+        halfArcRad <= Math.PI / 2 ? 2 * outerRadius * Math.sin(halfArcRad) : 2 * outerRadius
       )
       // Height: max of outer arc top extent and inner arc extent at the arc ends
       const height = Math.max(

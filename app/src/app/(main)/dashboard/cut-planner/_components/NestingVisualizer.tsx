@@ -357,8 +357,8 @@ export default function NestingVisualizer({
   )
 
   const tagMap = useMemo(() => {
-    const specLabels = activeSimpleSpecs.map((spec) =>
-      buildPartPreviewItem(spec, defaultCutWidth, defaultCutHeight).label
+    const specLabels = activeSimpleSpecs.map(
+      (spec) => buildPartPreviewItem(spec, defaultCutWidth, defaultCutHeight).label
     )
     return buildTagMap(baseSimplePreview, multiSheet, specLabels)
   }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
@@ -536,6 +536,7 @@ function NonRectStatsPanel({
   )
 }
 
+/* eslint-disable max-lines */
 function computeStepNote(
   activeStrat: ScoredStrategy | undefined,
   activeStep: number,
