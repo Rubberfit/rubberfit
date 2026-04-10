@@ -36,7 +36,7 @@ export function generateRectanglePreview(
       qty,
       1,
       width * length,
-      `${formatInches(layout.pieceW)}" \u00D7 ${formatInches(layout.pieceH)}"`
+      `${formatInches(width)}" \u00D7 ${formatInches(length)}"`
     ),
     rollW,
     rollL

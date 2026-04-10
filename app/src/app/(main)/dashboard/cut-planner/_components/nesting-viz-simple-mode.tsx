@@ -239,7 +239,7 @@ function SheetSvg({
           {"Rubber Sheet Nesting Layout"}
         </text>
         <text x={layout.viewWidth / 2} y="60" textAnchor="middle" fill="#f5f5f4" fontSize="12">
-          {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
+          {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
         <clipPath id={sClip}>
@@ -364,7 +364,16 @@ export default function NestingVizSimpleMode({
         optimizedResult,
         optimizedItems,
       }),
-    [preview, previewRollW, previewRollL, wasRotated, patternSeed, viewMode, optimizedResult, optimizedItems]
+    [
+      preview,
+      previewRollW,
+      previewRollL,
+      wasRotated,
+      patternSeed,
+      viewMode,
+      optimizedResult,
+      optimizedItems,
+    ]
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
