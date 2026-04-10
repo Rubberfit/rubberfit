@@ -1,0 +1,42 @@
+name: Project Board Sync
+
+on:
+  create:
+  issues:
+    types: [opened, reopened, closed]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, closed]
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log actions without mutating the project
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  repository-projects: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Sync project board
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PROJECT_OWNER: Arc-and-Anchor
+          PROJECT_NUMBER: 7
+          PROJECT_TOKEN: ${{ secrets.ORG_PROJECT_TOKEN }}
+        run: node .github/scripts/project-board-sync.mjs
