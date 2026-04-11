@@ -78,7 +78,7 @@ issue_enrichment:
   auto_enrich:
     enabled: true
   planning:
-    enabled: true
+    enabled: false
     auto_planning:
       enabled: false
   labeling:
