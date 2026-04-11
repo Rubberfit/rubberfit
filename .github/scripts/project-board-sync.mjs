@@ -7,6 +7,7 @@ const PRIORITY_FIELD_NAME = "Priority";
 const STORY_POINTS_FIELD_NAME = "Story Points";
 const SPRINT_FIELD_NAME = "Sprint";
 const TARGET_DATE_FIELD_NAME = "Target date";
+const REQUESTED_REVIEWERS_FIELD_NAME = "Requested reviewers";
 const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
 const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
@@ -176,6 +177,7 @@ const eventName = process.env.GITHUB_EVENT_NAME || "";
 const eventAction = payload.action || "";
 const normalizeStateReason = (value) => (value ? String(value).toLowerCase() : null);
 const normalizeIssueState = (value) => (value ? String(value).trim().toUpperCase() : null);
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const formatDate = (value) => {
   if (!value) {
@@ -233,6 +235,28 @@ const assertConnectionComplete = (connectionName, pageInfo) => {
 
 const countMatches = (text, patterns) => patterns.filter((pattern) => pattern.test(text)).length;
 const hasAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
+const parseIssueNumbersFromPullRequestBody = (body) => {
+  if (!body) {
+    return [];
+  }
+
+  const issueNumbers = new Set();
+  const sameRepoIssueUrlPattern = new RegExp(
+    `(?:https://github\\.com)?/${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}/issues/(\\d+)(?:[/?#][^\\s)]*)?`,
+    "gi",
+  );
+  const sameRepoReferencePattern = new RegExp(`${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}#(\\d+)`, "gi");
+
+  for (const match of body.matchAll(sameRepoIssueUrlPattern)) {
+    issueNumbers.add(Number(match[1]));
+  }
+
+  for (const match of body.matchAll(sameRepoReferencePattern)) {
+    issueNumbers.add(Number(match[1]));
+  }
+
+  return [...issueNumbers];
+};
 
 const deriveIssueType = (text) => {
   const bugScore = countMatches(text, BUG_PATTERNS);
@@ -414,6 +438,7 @@ const getProjectContext = async () => {
                 ... on ProjectV2Field {
                   id
                   name
+                  dataType
                 }
                 ... on ProjectV2SingleSelectField {
                   id
@@ -466,7 +491,7 @@ const getProjectContext = async () => {
                     }
                   }
                 }
-                fieldValues(first: 30) {
+                fieldValues(first: 50) {
                   pageInfo {
                     hasNextPage
                     endCursor
@@ -492,6 +517,14 @@ const getProjectContext = async () => {
                     }
                     ... on ProjectV2ItemFieldDateValue {
                       date
+                      field {
+                        ... on ProjectV2Field {
+                          name
+                        }
+                      }
+                    }
+                    ... on ProjectV2ItemFieldTextValue {
+                      text
                       field {
                         ... on ProjectV2Field {
                           name
@@ -531,6 +564,9 @@ const getProjectContext = async () => {
     (field) => field.__typename === "ProjectV2IterationField" && field.name === SPRINT_FIELD_NAME,
   );
   const targetDateField = project.fields.nodes.find((field) => field.name === TARGET_DATE_FIELD_NAME);
+  const requestedReviewersField = project.fields.nodes.find(
+    (field) => field.name === REQUESTED_REVIEWERS_FIELD_NAME && field.dataType === "TEXT",
+  );
 
   if (!statusField) {
     throw new Error(`Project is missing the ${STATUS_FIELD_NAME} field.`);
@@ -585,6 +621,9 @@ const getProjectContext = async () => {
     const targetDateValue = node.fieldValues.nodes.find(
       (value) => value.field?.name === TARGET_DATE_FIELD_NAME && typeof value.date === "string",
     );
+    const requestedReviewersValue = node.fieldValues.nodes.find(
+      (value) => value.field?.name === REQUESTED_REVIEWERS_FIELD_NAME && typeof value.text === "string",
+    );
 
     itemsByIssueNumber.set(node.content.number, {
       itemId: node.id,
@@ -599,6 +638,7 @@ const getProjectContext = async () => {
       sprintIterationId: sprintValue?.iterationId || null,
       sprintTitle: sprintValue?.title || null,
       targetDate: targetDateValue?.date || null,
+      requestedReviewers: requestedReviewersValue?.text || null,
     });
   }
 
@@ -613,6 +653,7 @@ const getProjectContext = async () => {
     storyPointOptionIds,
     sprintFieldId: sprintField?.id || null,
     targetDateFieldId: targetDateField?.id || null,
+    requestedReviewersFieldId: requestedReviewersField?.id || null,
     currentIteration,
     itemsByIssueNumber,
   };
@@ -692,6 +733,7 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
       query PullRequestIssues($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
         repository(owner: $owner, name: $repo) {
           pullRequest(number: $pullRequestNumber) {
+            body
             headRefName
             closingIssuesReferences(first: 20) {
               pageInfo {
@@ -736,13 +778,13 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
     return linked;
   }
 
-  const inferredIssueNumber = parseIssueNumberFromBranch(pullRequest.headRefName || "");
-  if (!inferredIssueNumber) {
+  const candidateIssueNumbers = getPullRequestIssueCandidates(pullRequest.body || "", pullRequest.headRefName || "");
+  if (candidateIssueNumbers.length === 0) {
     return [];
   }
 
-  const inferredIssue = await getIssue(inferredIssueNumber);
-  return inferredIssue ? [inferredIssue] : [];
+  const inferredIssues = await Promise.all(candidateIssueNumbers.map((issueNumber) => getIssue(issueNumber)));
+  return inferredIssues.filter(Boolean);
 };
 
 const parseIssueNumberFromBranch = (branchName) => {
@@ -762,6 +804,17 @@ const parseIssueNumberFromBranch = (branchName) => {
 
   const fallback = branchName.match(/(?:^|[/-])(\d+)(?=$|[-_])/);
   return fallback ? Number(fallback[1]) : null;
+};
+
+const getPullRequestIssueCandidates = (body, branchName) => {
+  const issueNumbers = new Set(parseIssueNumbersFromPullRequestBody(body));
+  const branchIssueNumber = parseIssueNumberFromBranch(branchName || "");
+
+  if (branchIssueNumber) {
+    issueNumbers.add(branchIssueNumber);
+  }
+
+  return [...issueNumbers];
 };
 
 const ensureItem = async (project, issue) => {
@@ -787,6 +840,7 @@ const ensureItem = async (project, issue) => {
       sprintIterationId: null,
       sprintTitle: null,
       targetDate: null,
+      requestedReviewers: null,
     };
   }
 
@@ -817,6 +871,7 @@ const ensureItem = async (project, issue) => {
     sprintIterationId: null,
     sprintTitle: null,
     targetDate: null,
+    requestedReviewers: null,
   };
 
   project.itemsByIssueNumber.set(issue.number, item);
@@ -1160,6 +1215,93 @@ const setTargetDate = async (project, item, dateValue) => {
   console.log(`Set issue #${item.issueNumber} target date to ${nextDate}`);
 };
 
+const setRequestedReviewers = async (project, item, reviewers) => {
+  if (!project.requestedReviewersFieldId || !item.itemId) {
+    return;
+  }
+
+  const nextValue = reviewers ? reviewers.trim() : null;
+
+  if (!nextValue) {
+    if (!item.requestedReviewers) {
+      return;
+    }
+
+    if (DRY_RUN) {
+      console.log(`[dry-run] clear requested reviewers on #${item.issueNumber}`);
+      item.requestedReviewers = null;
+      return;
+    }
+
+    await graphql(
+      `
+        mutation ClearProjectRequestedReviewers($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
+          clearProjectV2ItemFieldValue(
+            input: {
+              projectId: $projectId
+              itemId: $itemId
+              fieldId: $fieldId
+            }
+          ) {
+            projectV2Item {
+              id
+            }
+          }
+        }
+      `,
+      {
+        projectId: project.projectId,
+        itemId: item.itemId,
+        fieldId: project.requestedReviewersFieldId,
+      },
+      "ClearProjectRequestedReviewers",
+    );
+
+    item.requestedReviewers = null;
+    console.log(`Cleared requested reviewers on issue #${item.issueNumber}`);
+    return;
+  }
+
+  if (item.requestedReviewers === nextValue) {
+    return;
+  }
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] set #${item.issueNumber} requested reviewers -> ${nextValue}`);
+    item.requestedReviewers = nextValue;
+    return;
+  }
+
+  await graphql(
+    `
+      mutation SetProjectRequestedReviewers($projectId: ID!, $itemId: ID!, $fieldId: ID!, $text: String!) {
+        updateProjectV2ItemFieldValue(
+          input: {
+            projectId: $projectId
+            itemId: $itemId
+            fieldId: $fieldId
+            value: { text: $text }
+          }
+        ) {
+          projectV2Item {
+            id
+          }
+        }
+      }
+    `,
+    {
+      projectId: project.projectId,
+      itemId: item.itemId,
+      fieldId: project.requestedReviewersFieldId,
+      text: nextValue,
+    },
+    "SetProjectRequestedReviewers",
+  );
+
+  item.requestedReviewers = nextValue;
+  console.log(`Set issue #${item.issueNumber} requested reviewers to ${nextValue}`);
+};
+
 const clearTargetDate = async (project, item) => {
   if (!project.targetDateFieldId || !item.itemId || !item.targetDate) {
     return;
@@ -1197,6 +1339,29 @@ const clearTargetDate = async (project, item) => {
 
   item.targetDate = null;
   console.log(`Cleared target date on issue #${item.issueNumber}`);
+};
+
+const formatRequestedReviewers = (pullRequest) => {
+  const reviewers = new Set();
+
+  for (const reviewer of pullRequest?.requested_reviewers || []) {
+    if (reviewer?.login) {
+      reviewers.add(`@${reviewer.login}`);
+    }
+  }
+
+  for (const team of pullRequest?.requested_teams || []) {
+    if (team?.organization?.login && team?.slug) {
+      reviewers.add(`@${team.organization.login}/${team.slug}`);
+      continue;
+    }
+
+    if (team?.slug) {
+      reviewers.add(`@${team.slug}`);
+    }
+  }
+
+  return reviewers.size > 0 ? [...reviewers].join(", ") : null;
 };
 
 const hasClosingReference = (body, issueNumber) => {
@@ -1246,6 +1411,8 @@ const syncIssue = async (project, issue, statusName, options = {}) => {
   if (options.targetDate) {
     await setTargetDate(project, item, options.targetDate);
   }
+
+  return item;
 };
 
 const buildIssueDetails = (issue) => ({
@@ -1324,9 +1491,10 @@ const handlePullRequestEvent = async () => {
     return;
   }
 
-  const inferredIssueNumber = parseIssueNumberFromBranch(pullRequest.head?.ref || "");
+  const candidateIssueNumbers = getPullRequestIssueCandidates(pullRequest.body || "", pullRequest.head?.ref || "");
+  const issueNumberForBodyUpdate = candidateIssueNumbers.length === 1 ? candidateIssueNumbers[0] : null;
   if (eventAction !== "closed") {
-    await updatePullRequestBody(pullRequest.number, pullRequest.body || "", inferredIssueNumber);
+    await updatePullRequestBody(pullRequest.number, pullRequest.body || "", issueNumberForBodyUpdate);
   }
 
   const project = await getProjectContext();
@@ -1341,6 +1509,7 @@ const handlePullRequestEvent = async () => {
   let assignSprint = false;
   let clearDate = false;
   let targetDate = null;
+  const requestedReviewers = formatRequestedReviewers(pullRequest);
 
   if (eventAction === "closed" && pullRequest.merged) {
     nextStatus = "Done";
@@ -1365,11 +1534,17 @@ const handlePullRequestEvent = async () => {
       continue;
     }
 
-    await syncIssue(project, issue, nextStatus, {
+    const item = await syncIssue(project, issue, nextStatus, {
       assignSprint,
       clearTargetDate: clearDate,
       targetDate,
     });
+
+    if (eventAction === "closed" && pullRequest.merged) {
+      continue;
+    }
+
+    await setRequestedReviewers(project, item, eventAction === "closed" ? null : requestedReviewers);
   }
 };
 
