@@ -79,5 +79,9 @@ release/
 *.backup
 *.bak
 
-# AI CLI configs
-.claude
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
