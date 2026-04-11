@@ -196,6 +196,9 @@ function findHeaderRow(
 export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: "array" })
+  if (workbook.SheetNames.length === 0) {
+    throw new Error("Spreadsheet contains no sheets.")
+  }
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
   const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
