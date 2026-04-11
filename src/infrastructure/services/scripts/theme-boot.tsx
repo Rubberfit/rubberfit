@@ -6,7 +6,11 @@
  * Runs early in <head> to apply the correct data attributes before hydration,
  * preventing layout or theme flicker and keeping RootLayout fully static.
  */
-import { PREFERENCE_DEFAULTS, PREFERENCE_PERSISTENCE } from "@/app/lib/preferences/preferences-config"
+import Script from "next/script"
+import {
+  PREFERENCE_DEFAULTS,
+  PREFERENCE_PERSISTENCE,
+} from "@/app/lib/preferences/preferences-config"
 
 export function ThemeBootScript() {
   const persistence = JSON.stringify({
@@ -108,6 +112,11 @@ export function ThemeBootScript() {
     })();
   `
 
-  /* biome-ignore lint/security/noDangerouslySetInnerHtml: required for pre-hydration boot script */
-  return <script dangerouslySetInnerHTML={{ __html: code }} />
+  return (
+    <Script
+      id="theme-boot"
+      strategy="beforeInteractive"
+      dangerouslySetInnerHTML={{ __html: code }}
+    />
+  )
 }
