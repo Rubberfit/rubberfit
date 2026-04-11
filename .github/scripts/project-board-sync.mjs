@@ -10,7 +10,6 @@ const TARGET_DATE_FIELD_NAME = "Target date";
 const REQUESTED_REVIEWERS_FIELD_NAME = "Requested reviewers";
 const ACTIVE_SPRINT_STATUSES = new Set(["Backlog", "Todo", "In Progress", "Blocked", "In Review"]);
 const CLOSED_STATUS_NAMES = new Set(["Done", "Canceled"]);
-const CLOSING_REFERENCE_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#\d+\b/i;
 const TRUSTED_AUTHOR_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const MANAGED_LABELS = new Set(["request", "intern", "performance", "cut-planner", "refactor", "ui"]);
 const DEFAULT_PRIORITY = "P2";
@@ -241,6 +240,7 @@ const parseIssueNumbersFromPullRequestBody = (body) => {
   }
 
   const issueNumbers = new Set();
+  const plainTextBody = body.replace(/\[[^\]]*]\((?:[^)]+)\)/g, " ");
   const sameRepoIssueUrlPattern = new RegExp(
     `(?:https://github\\.com)?/${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}/issues/(\\d+)(?:[/?#][^\\s)]*)?`,
     "gi",
@@ -256,7 +256,7 @@ const parseIssueNumbersFromPullRequestBody = (body) => {
     issueNumbers.add(Number(match[1]));
   }
 
-  for (const match of body.matchAll(shorthandReferencePattern)) {
+  for (const match of plainTextBody.matchAll(shorthandReferencePattern)) {
     issueNumbers.add(Number(match[1]));
   }
 
@@ -1372,7 +1372,7 @@ const formatRequestedReviewers = (pullRequest) => {
     }
   }
 
-  return reviewers.size > 0 ? [...reviewers].join(", ") : null;
+  return reviewers.size > 0 ? [...reviewers].sort().join(", ") : null;
 };
 
 const hasClosingReference = (body, issueNumber) => {
@@ -1380,15 +1380,22 @@ const hasClosingReference = (body, issueNumber) => {
     return false;
   }
 
+  const sameRepoIssueUrlPattern = `(?:https://github\\.com)?/${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}/issues/${issueNumber}(?:[/?#][^\\s)]*)?`;
+  const issueReferencePattern = [
+    `#${issueNumber}\\b`,
+    `${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}#${issueNumber}\\b`,
+    sameRepoIssueUrlPattern,
+    `\\[[^\\]]*\\]\\(${sameRepoIssueUrlPattern}\\)`,
+  ].join("|");
   const pattern = new RegExp(
-    `\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s+#${issueNumber}\\b`,
+    `\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s*(?:${issueReferencePattern})`,
     "i",
   );
   return pattern.test(body);
 };
 
 const updatePullRequestBody = async (pullRequestNumber, body, issueNumber) => {
-  if (!issueNumber || hasClosingReference(body, issueNumber) || CLOSING_REFERENCE_PATTERN.test(body || "")) {
+  if (!issueNumber || hasClosingReference(body, issueNumber)) {
     return;
   }
 
