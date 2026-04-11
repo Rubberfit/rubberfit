@@ -2,11 +2,11 @@
 
 import { useState, useRef } from "react"
 import { Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Alert, AlertDescription } from "@/app/components/ui/alert"
 import { toast } from "sonner"
-import { csvService } from "@/services/csvService"
+import { csvService } from "@/src/infrastructure/services/csvService"
 
 export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [isUploading, setIsUploading] = useState(false)

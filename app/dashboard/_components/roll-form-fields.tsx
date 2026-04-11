@@ -10,20 +10,20 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/app/components/ui/form"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/app/components/ui/select"
+import { Input } from "@/app/components/ui/input"
+import { Textarea } from "@/app/components/ui/textarea"
 
-import type { MaterialType } from "@/lib/supabase"
+import type { MaterialType } from "@/app/lib/supabase"
 import { SupplierSelect } from "../materials/suppliers/_components/supplier-selection"
-import { supplierService } from "@/services/supplierService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import type { rollFormSchema } from "./roll-form-dialog"
 
 type RollFormValues = z.infer<typeof rollFormSchema>

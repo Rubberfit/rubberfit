@@ -13,13 +13,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Form } from "@/components/ui/form"
-import { Button } from "@/components/ui/button"
+} from "@/app/components/ui/dialog"
+import { Form } from "@/app/components/ui/form"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
-import { rollService } from "@/services/rollService"
-import type { Roll, MaterialType } from "@/lib/supabase"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import type { Roll, MaterialType } from "@/app/lib/supabase"
 import { RollFormFields } from "./roll-form-fields"
 
 export const rollFormSchema = z.object({

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { rollService } from "@/services/rollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import {
   Table,
   TableBody,
@@ -9,7 +9,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/app/components/ui/table"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,13 +19,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+} from "@/app/components/ui/alert-dialog"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
 import { Trash2, Edit } from "lucide-react"
 import { toast } from "sonner"
 import { RollFormDialog } from "./roll-form-dialog"
-import type { Roll } from "@/lib/supabase"
+import type { Roll } from "@/app/lib/supabase"
 
 interface InventoryTableProps {
   onRefresh?: number

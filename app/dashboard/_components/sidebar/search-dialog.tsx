@@ -11,7 +11,7 @@ import {
   ShoppingBag,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import {
   CommandDialog,
   CommandEmpty,
@@ -20,7 +20,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command"
+} from "@/app/components/ui/command"
 
 const searchItems = [
   { group: "Dashboards", icon: LayoutDashboard, label: "Default" },

@@ -2,9 +2,9 @@
 
 import { Monitor, Moon, Sun } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { persistPreference } from "@/lib/preferences/preferences-storage"
-import { usePreferencesStore } from "@/stores/preferences/preferences-provider"
+import { Button } from "@/app/components/ui/button"
+import { persistPreference } from "@/app/lib/preferences/preferences-storage"
+import { usePreferencesStore } from "@/app/stores/preferences/preferences-provider"
 
 const THEME_CYCLE = ["light", "dark", "system"] as const
 
