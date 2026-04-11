@@ -6,7 +6,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables")
 }
 
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    debug: process.env.NODE_ENV === "development",
+  },
+})
 // Database Types
 export interface MaterialType {
   id: string

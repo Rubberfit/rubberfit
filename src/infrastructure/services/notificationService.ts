@@ -1,4 +1,8 @@
-import { supabase, type NotificationPreferences, type NotificationQueue } from "@/app/lib/supabase"
+import {
+  supabase,
+  type NotificationPreferences,
+  type NotificationQueue,
+} from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import emailService from "./emailService"
 import { toast } from "sonner"

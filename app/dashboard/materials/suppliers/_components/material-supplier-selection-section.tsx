@@ -2,7 +2,7 @@
 
 import { Package } from "lucide-react"
 
-import type { MaterialType, Supplier, MaterialSupplier } from "@/app/lib/supabase"
+import type { MaterialType, Supplier, MaterialSupplier } from "@/src/infrastructure/models/supabase"
 import { Input } from "@/app/components/ui/input"
 import {
   FormControl,

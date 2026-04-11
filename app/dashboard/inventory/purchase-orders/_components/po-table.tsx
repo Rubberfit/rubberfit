@@ -17,7 +17,11 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 
-import { type PurchaseOrder, type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import {
+  type PurchaseOrder,
+  type PurchaseOrderWithDetails,
+  type Supplier,
+} from "@/src/infrastructure/models/supabase"
 import { Badge } from "@/app/components/ui/badge"
 import {
   Table,

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { Search, Download } from "lucide-react"
 
-import { type Cut } from "@/app/lib/supabase"
+import { type Cut } from "@/src/infrastructure/models/supabase"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"

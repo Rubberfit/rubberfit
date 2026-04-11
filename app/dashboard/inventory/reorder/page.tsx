@@ -4,7 +4,11 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ShoppingCart, Truck, Activity } from "lucide-react"
 
-import { type MaterialType, type ReorderRuleWithDetails, type Supplier } from "@/app/lib/supabase"
+import {
+  type MaterialType,
+  type ReorderRuleWithDetails,
+  type Supplier,
+} from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"

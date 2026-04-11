@@ -2,7 +2,7 @@
 
 import { Scissors, Zap, TrendingDown, Package } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type Cut } from "@/app/lib/supabase"
+import { type Cut } from "@/src/infrastructure/models/supabase"
 
 interface CutHistoryStatsProps {
   cuts: (Cut & { roll?: { material_type: string; location: string } })[]

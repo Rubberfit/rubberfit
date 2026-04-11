@@ -2,7 +2,7 @@
 
 import { Package } from "lucide-react"
 
-import { type MaterialSupplierWithDetails } from "@/app/lib/supabase"
+import { type MaterialSupplierWithDetails } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import {

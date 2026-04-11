@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Plus } from "lucide-react"
 
-import { type MaterialType } from "@/app/lib/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"

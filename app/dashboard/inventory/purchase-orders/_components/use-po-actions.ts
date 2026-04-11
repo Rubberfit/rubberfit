@@ -2,7 +2,11 @@
 
 import { useState, useCallback } from "react"
 
-import { type PurchaseOrder, type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import {
+  type PurchaseOrder,
+  type PurchaseOrderWithDetails,
+  type Supplier,
+} from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { toast } from "sonner"
 

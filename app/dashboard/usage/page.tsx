@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { BarChart3, Package, TrendingUp, Activity } from "lucide-react"
 import { subMonths } from "date-fns"
 
-import { type Cut } from "@/app/lib/supabase"
+import { type Cut } from "@/src/infrastructure/models/supabase"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"

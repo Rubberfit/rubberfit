@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react"
 import { Building, CreditCard, Star, Edit } from "lucide-react"
 
-import { type Supplier, type MaterialSupplierWithDetails } from "@/app/lib/supabase"
+import {
+  type Supplier,
+  type MaterialSupplierWithDetails,
+} from "@/src/infrastructure/models/supabase"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import {
   Dialog,

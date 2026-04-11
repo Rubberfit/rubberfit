@@ -13,7 +13,10 @@ import {
   Building2,
 } from "lucide-react"
 
-import { type PurchaseOrder, type PurchaseOrderWithDetails } from "@/app/lib/supabase"
+import {
+  type PurchaseOrder,
+  type PurchaseOrderWithDetails,
+} from "@/src/infrastructure/models/supabase"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import {

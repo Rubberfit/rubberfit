@@ -3,7 +3,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
   type Roll,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import type { POReceiptResult } from "./purchaseOrderService"
 

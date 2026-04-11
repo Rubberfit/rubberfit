@@ -2,7 +2,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 
 import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/app/lib/auth-redirect"
-import { supabase } from "@/app/lib/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase"
 import { type AuthUser, authService } from "@/src/infrastructure/services/authService"
 
 type AuthResult = { success: boolean; error?: string }

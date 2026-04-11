@@ -3,7 +3,7 @@ import {
   type MaterialType,
   type ReorderRuleWithDetails,
   type Supplier,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 

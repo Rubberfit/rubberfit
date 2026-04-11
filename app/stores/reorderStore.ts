@@ -9,7 +9,7 @@ import type {
   CreateReorderRule,
   UpdateReorderRule,
   PurchaseOrder,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 
 interface ReorderState {
   // Data

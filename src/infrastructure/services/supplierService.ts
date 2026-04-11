@@ -7,7 +7,7 @@ import {
   type UpdateSupplier,
   type CreateMaterialSupplier,
   type UpdateMaterialSupplier,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import { priceHistoryService } from "./priceHistoryService"
 

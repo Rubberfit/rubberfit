@@ -1,4 +1,4 @@
-import { supabase, type Roll } from "@/app/lib/supabase"
+import { supabase, type Roll } from "@/src/infrastructure/models/supabase"
 
 interface CSVRow {
   material_type: string

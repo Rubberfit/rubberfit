@@ -1,4 +1,8 @@
-import { supabase, type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import {
+  supabase,
+  type PurchaseOrderWithDetails,
+  type Supplier,
+} from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { toast } from "sonner"

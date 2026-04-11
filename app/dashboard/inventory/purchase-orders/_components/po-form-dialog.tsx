@@ -2,7 +2,7 @@
 
 import { format, addDays } from "date-fns"
 
-import { type Supplier } from "@/app/lib/supabase"
+import { type Supplier } from "@/src/infrastructure/models/supabase"
 
 export interface POFormData {
   supplier_id: string

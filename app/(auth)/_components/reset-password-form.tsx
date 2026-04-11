@@ -21,7 +21,7 @@ import {
 } from "@/app/components/ui/form"
 import { Input } from "@/app/components/ui/input"
 import { useAuth } from "@/app/contexts/AuthContext"
-import { supabase } from "@/app/lib/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase"
 
 const FormSchema = z
   .object({

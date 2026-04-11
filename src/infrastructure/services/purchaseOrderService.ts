@@ -8,7 +8,7 @@ import {
   type CreatePurchaseOrderItem,
   type UpdatePurchaseOrderItem,
   type Roll,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"

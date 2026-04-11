@@ -1,4 +1,4 @@
-import { supabase } from "@/app/lib/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase"
 import { taxApiService } from "./taxApiService"
 
 const API_CACHE_DAYS = 30

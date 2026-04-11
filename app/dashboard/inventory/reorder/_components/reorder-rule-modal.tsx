@@ -17,7 +17,7 @@ import {
   type Supplier,
   type CreateReorderRule,
   type UpdateReorderRule,
-} from "@/app/lib/supabase"
+} from "@/src/infrastructure/models/supabase"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { ReorderRuleFormFields } from "./reorder-rule-form-fields"
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { format, addDays } from "date-fns"
 
-import { type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import { type PurchaseOrderWithDetails, type Supplier } from "@/src/infrastructure/models/supabase"
 
 import {
   type TaxDetails,

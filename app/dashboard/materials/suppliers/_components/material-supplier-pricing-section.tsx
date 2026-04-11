@@ -2,7 +2,7 @@
 
 import { DollarSign, Clock, ShoppingCart } from "lucide-react"
 
-import type { MaterialType } from "@/app/lib/supabase"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { Input } from "@/app/components/ui/input"
 import {
   FormControl,

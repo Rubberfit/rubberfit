@@ -1,4 +1,4 @@
-import { supabase } from "@/app/lib/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase"
 
 export const profileService = {
   // Update user profile information

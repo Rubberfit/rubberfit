@@ -1,4 +1,4 @@
-import { supabase, type MaterialType } from "@/app/lib/supabase"
+import { supabase, type MaterialType } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 
 export const materialTypeService = {

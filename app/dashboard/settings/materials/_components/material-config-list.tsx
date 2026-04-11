@@ -5,7 +5,7 @@ import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import { Save, Trash2 } from "lucide-react"
-import { type MaterialType } from "@/app/lib/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/supabase"
 
 interface MaterialConfigListProps {
   materials: MaterialType[]

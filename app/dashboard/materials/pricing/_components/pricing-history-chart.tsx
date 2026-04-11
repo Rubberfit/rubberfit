@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import { type Supplier } from "@/app/lib/supabase"
+import { type Supplier } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 interface PricingHistoryChartProps {

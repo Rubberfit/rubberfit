@@ -25,7 +25,7 @@ import { Button } from "@/app/components/ui/button"
 import { Trash2, Edit } from "lucide-react"
 import { toast } from "sonner"
 import { RollFormDialog } from "./roll-form-dialog"
-import type { Roll } from "@/app/lib/supabase"
+import type { Roll } from "@/src/infrastructure/models/supabase"
 
 interface InventoryTableProps {
   onRefresh?: number

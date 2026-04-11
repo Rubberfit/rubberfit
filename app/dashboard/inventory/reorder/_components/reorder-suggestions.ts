@@ -1,4 +1,4 @@
-import type { MaterialType, ReorderRuleWithDetails } from "@/app/lib/supabase"
+import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 
 export interface ReorderSuggestion {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useMemo } from "react"
 import { Plus, Search, Filter, Star } from "lucide-react"
 
-import { type Supplier } from "@/app/lib/supabase"
+import { type Supplier } from "@/src/infrastructure/models/supabase"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"

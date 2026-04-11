@@ -12,7 +12,10 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "typecheck": "tsc --noEmit --pretty false",
     "start": "next start",
-    "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts"
+    "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
+    "supabase:start": "cd src/infrastructure/supabase && supabase start",
+    "supabase:stop": "cd src/infrastructure/supabase && supabase stop",
+    "supabase:reset": "cd src/infrastructure/supabase && supabase db reset"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
