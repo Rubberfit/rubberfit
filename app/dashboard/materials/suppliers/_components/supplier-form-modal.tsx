@@ -8,9 +8,9 @@ import {
   type Supplier,
   type MaterialSupplier,
   type MaterialSupplierWithDetails,
-} from "@/lib/supabase"
-import { supplierService } from "@/services/supplierService"
-import { taxService } from "@/services/taxService"
+} from "@/app/lib/supabase"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { taxService } from "@/src/infrastructure/services/taxService"
 import { MaterialSupplierLink } from "./material-supplier-link"
 import { SupplierLinkedMaterials } from "./supplier-linked-materials"
 import { SupplierGeneralFields } from "./supplier-general-fields"
@@ -31,11 +31,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+} from "@/app/components/ui/dialog"
+import { Button } from "@/app/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { toast } from "sonner"
-import { Form } from "@/components/ui/form"
+import { Form } from "@/app/components/ui/form"
 
 interface SupplierFormModalProps {
   open: boolean

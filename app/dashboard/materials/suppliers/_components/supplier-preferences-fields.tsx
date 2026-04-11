@@ -3,15 +3,15 @@
 import { type UseFormReturn } from "react-hook-form"
 import { CreditCard, Star } from "lucide-react"
 
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/app/components/ui/textarea"
+import { Switch } from "@/app/components/ui/switch"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/app/components/ui/select"
 import {
   FormControl,
   FormDescription,
@@ -19,7 +19,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/app/components/ui/form"
 import type { SupplierFormData } from "./supplier-form-schema"
 
 interface SupplierPreferencesFieldsProps {

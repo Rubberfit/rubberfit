@@ -4,7 +4,7 @@
 
 import React from "react"
 import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
-import type { NestingResult } from "@/lib/nesting/types"
+import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
 import {
   SimpleModeHeader,

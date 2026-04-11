@@ -4,14 +4,14 @@ import { useEffect, useState } from "react"
 import { Activity } from "lucide-react"
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 
-import { cutService } from "@/services/cutService"
+import { cutService } from "@/src/infrastructure/services/cutService"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/app/components/ui/select"
 
 import { MultiMetricChart } from "./_components/multi-metric-chart"
 import { TrendAnalysis } from "./_components/trend-analysis"

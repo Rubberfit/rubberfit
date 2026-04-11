@@ -1,12 +1,12 @@
 "use client"
 
 import { FileText, Plus, DollarSign, Truck, Clock, AlertCircle, Download } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { ConfirmationDialog } from "@/components/common/confirmation-dialog"
-import { purchaseOrderService } from "@/services/purchaseOrderService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
+import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { toast } from "sonner"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"

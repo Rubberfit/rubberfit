@@ -1,9 +1,9 @@
 "use client"
 
 import { Scissors } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Badge } from "@/app/components/ui/badge"
 
 interface CutOptimization {
   roll: { id: string; location?: string }

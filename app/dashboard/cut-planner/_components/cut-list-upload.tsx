@@ -2,12 +2,12 @@
 
 import React, { useState, useRef, useCallback } from "react"
 import { Upload, FileSpreadsheet, Image, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 import type { ExtractedPart, UploadStatus } from "./upload-types"
 import { isImageFile, isSpreadsheetFile, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from "./upload-types"
 import { parseSpreadsheet } from "./spreadsheet-parser"
-import { extractFromImage } from "@/services/visionExtractionService"
+import { extractFromImage } from "@/src/infrastructure/services/visionExtractionService"
 import UploadReviewDialog from "./upload-review-dialog"
 
 const MAX_IMAGE_DIMENSION = 4096

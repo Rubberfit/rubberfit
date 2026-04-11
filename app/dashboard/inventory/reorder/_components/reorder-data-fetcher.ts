@@ -3,8 +3,8 @@ import {
   type MaterialType,
   type ReorderRuleWithDetails,
   type Supplier,
-} from "@/lib/supabase"
-import { reorderService } from "@/services/reorderService"
+} from "@/app/lib/supabase"
+import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 
 interface FetchDataResult {

@@ -2,9 +2,9 @@
 
 import { Download, Search, CheckCircle2 } from "lucide-react"
 
-import type { MaterialType, Supplier } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import type { MaterialType, Supplier } from "@/app/lib/supabase"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -12,17 +12,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+} from "@/app/components/ui/table"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { exportService } from "@/services/exportService"
+} from "@/app/components/ui/select"
+import { exportService } from "@/src/infrastructure/services/exportService"
 import { toast } from "sonner"
 import type { PriceComparisonData } from "./pricing-types"
 

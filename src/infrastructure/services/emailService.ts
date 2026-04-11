@@ -1,7 +1,7 @@
 import { Resend } from "resend"
 // import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
-import { supabase, type NotificationQueue } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type NotificationQueue } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 // Email templates - some still need to be created
 // import LowStockAlertEmail from '@/templates/email/low-stock-alert';
 // import PriceChangeAlertEmail from '@/templates/email/price-change-alert';

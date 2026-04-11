@@ -2,8 +2,8 @@
 
 import { Package } from "lucide-react"
 
-import type { MaterialType, Supplier, MaterialSupplier } from "@/lib/supabase"
-import { Input } from "@/components/ui/input"
+import type { MaterialType, Supplier, MaterialSupplier } from "@/app/lib/supabase"
+import { Input } from "@/app/components/ui/input"
 import {
   FormControl,
   FormDescription,
@@ -11,16 +11,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/app/components/ui/form"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 import type { UseFormReturn } from "react-hook-form"
 
 interface MaterialSupplierFormData {

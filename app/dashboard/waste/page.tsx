@@ -4,10 +4,10 @@ import { useEffect, useState } from "react"
 import { AlertTriangle, Activity } from "lucide-react"
 import { format, subDays, subMonths } from "date-fns"
 
-import { type Cut } from "@/lib/supabase"
-import { cutService } from "@/services/cutService"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { type Cut } from "@/app/lib/supabase"
+import { cutService } from "@/src/infrastructure/services/cutService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -15,7 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/app/components/ui/table"
 
 import { WasteTrendChart } from "./_components/waste-trend-chart"
 import { MaterialWasteChart } from "./_components/material-waste-chart"

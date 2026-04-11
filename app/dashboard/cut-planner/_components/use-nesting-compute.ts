@@ -2,8 +2,8 @@
 // Extracts state management, NFP solving, and strategy scoring from the main component
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import { NFPSolver } from "@/lib/nesting/nfp-solver"
-import type { NestingInput, NestingPart, NestingResult } from "@/lib/nesting/types"
+import { NFPSolver } from "@/nesting/nfp-solver"
+import type { NestingInput, NestingPart, NestingResult } from "@/nesting/types"
 
 import type {
   ShapeType,

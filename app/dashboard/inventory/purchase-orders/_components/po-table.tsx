@@ -17,8 +17,8 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 
-import { type PurchaseOrder, type PurchaseOrderWithDetails, type Supplier } from "@/lib/supabase"
-import { Badge } from "@/components/ui/badge"
+import { type PurchaseOrder, type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -26,23 +26,23 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+} from "@/app/components/ui/table"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/app/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/app/components/ui/dropdown-menu"
 import { getStatusBadge } from "./po-view-dialog"
 import { handleDownloadPDF } from "./po-pdf-export"
 

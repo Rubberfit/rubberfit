@@ -1,7 +1,7 @@
 "use client"
 
 import { Package, Scissors, AlertTriangle, DollarSign } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 interface SummaryCardsProps {
   loading: boolean

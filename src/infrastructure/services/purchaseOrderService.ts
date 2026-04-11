@@ -8,9 +8,9 @@ import {
   type CreatePurchaseOrderItem,
   type UpdatePurchaseOrderItem,
   type Roll,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 import { taxService } from "./taxService"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"
 
 interface _POStatusChange {

@@ -2,8 +2,8 @@
 
 import React, { useState } from "react"
 import { Package } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Input } from "@/app/components/ui/input"
 
 export interface StockConfig {
   width: number

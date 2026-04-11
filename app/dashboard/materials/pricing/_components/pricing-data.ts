@@ -3,7 +3,7 @@ import {
   type MaterialType,
   type MaterialSupplierWithDetails,
   type Supplier,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 import { subDays } from "date-fns"
 import type { PriceHistoryWithJoins, PriceAlert } from "./pricing-types"
 

@@ -2,10 +2,10 @@
 
 import { AlertTriangle, CheckCircle, Eye } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
 import { type Notification, formatTimestamp, getSeverity } from "./notification-helpers"
 
 interface NotificationListProps {

@@ -2,8 +2,8 @@
 // Extracted from NestingVisualizer.tsx
 
 import { useState, useRef, useEffect, useMemo } from "react"
-import { NFPSolver } from "@/lib/nesting/nfp-solver"
-import type { NestingInput, NestingPart, NestingResult } from "@/lib/nesting/types"
+import { NFPSolver } from "@/nesting/nfp-solver"
+import type { NestingInput, NestingPart, NestingResult } from "@/nesting/types"
 import type { SimplePartSpec, PreviewItem } from "./nesting-visualizer-types"
 import { shouldAutoOptimizeInteractiveLayout } from "./nesting-preview-builders"
 import { simplePartToNestingParts, nestingResultToPreviewItems } from "./nesting-nfp-helpers"

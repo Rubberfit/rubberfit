@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import { DatePickerWithRange } from "@/app/components/ui/date-range-picker"
 import { toast } from "sonner"
 import { Calendar } from "lucide-react"
-import { cutService } from "@/services/cutService"
-import { rollService } from "@/services/rollService"
-import type { Cut } from "@/lib/supabase"
+import { cutService } from "@/src/infrastructure/services/cutService"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import type { Cut } from "@/app/lib/supabase"
 import { format, subDays, startOfMonth } from "date-fns"
 
 import { ComparisonSummaryCards } from "./_components/comparison-summary-cards"

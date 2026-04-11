@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Input } from "@/app/components/ui/input"
 import {
   Form,
   FormControl,
@@ -9,9 +9,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/app/components/ui/form"
 import { Scissors } from "lucide-react"
-import type { Roll } from "@/lib/supabase"
+import type { Roll } from "@/app/lib/supabase"
 import { SelectedRollInfo } from "./roll-selector"
 import type { UseFormReturn } from "react-hook-form"
 

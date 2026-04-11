@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation"
 import { Package, Scissors, AlertTriangle, Plus, Eye, Clock } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { useRole } from "@/services/useRole"
+import { Card, CardContent } from "@/app/components/ui/card"
+import { Alert, AlertTitle, AlertDescription } from "@/app/components/ui/alert"
+import { Button } from "@/app/components/ui/button"
+import { useRole } from "@/src/infrastructure/services/useRole"
 
 interface DashboardSidebarProps {
   loading: boolean

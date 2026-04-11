@@ -2,24 +2,24 @@
 
 import { useState } from "react"
 import { Plus, Download, FileText } from "lucide-react"
-import { useAuth } from "@/contexts/AuthContext"
-import { isRestrictedCutter } from "@/lib/rbac"
+import { useAuth } from "@/app/contexts/AuthContext"
+import { isRestrictedCutter } from "@/app/lib/rbac"
 import { CSVUpload } from "../_components/csv-upload"
 import { InventoryTable } from "../_components/inventory-table"
 import { InventorySearch } from "../_components/inventory-search"
 import { RollFormDialog } from "../_components/roll-form-dialog"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { rollService } from "@/services/rollService"
-import { exportService } from "@/services/exportService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import { exportService } from "@/src/infrastructure/services/exportService"
 import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useRole } from "@/services/useRole"
+} from "@/app/components/ui/dropdown-menu"
+import { useRole } from "@/src/infrastructure/services/useRole"
 
 export default function InventoryPage() {
   const { user } = useAuth()

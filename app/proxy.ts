@@ -2,12 +2,11 @@ import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
 import {
-  DEFAULT_ROLES,
   getRequiredPermission,
   hasPermission,
-  type AppRole,
-} from "@/lib/permissions"
+} from "@/src/infrastructure/services/permissionService"
 
 function redirectWithCookies(
   url: URL,

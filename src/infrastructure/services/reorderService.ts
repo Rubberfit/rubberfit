@@ -3,8 +3,8 @@ import {
   type ReorderRuleWithDetails,
   type CreateReorderRule,
   type UpdateReorderRule,
-} from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+} from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
 
 export interface ReorderSuggestion {

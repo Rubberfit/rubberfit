@@ -2,7 +2,7 @@
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader } from "@/app/components/ui/card"
 
 interface ComparisonData {
   current: { avgWaste: number; totalCuts: number }

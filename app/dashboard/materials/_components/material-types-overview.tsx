@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { type MaterialType } from "@/lib/supabase"
-import { materialTypeService } from "@/services/materialTypeService"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
+import { type MaterialType } from "@/app/lib/supabase"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 
 export function MaterialTypesOverview() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])

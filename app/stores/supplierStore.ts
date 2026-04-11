@@ -1,6 +1,6 @@
 import { create } from "zustand"
-import { supplierService } from "@/services/supplierService"
-import { priceHistoryService } from "@/services/priceHistoryService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
 import type {
   Supplier,
   MaterialSupplierWithDetails,
@@ -8,7 +8,7 @@ import type {
   UpdateSupplier,
   CreateMaterialSupplier,
   UpdateMaterialSupplier,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 
 interface SupplierState {
   // Data

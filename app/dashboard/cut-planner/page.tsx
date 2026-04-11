@@ -2,9 +2,9 @@
 
 import { useMemo, useState, useCallback } from "react"
 import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { FileUp, Ruler, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import PresetDimensionSelector, { type PartTemplate } from "./_components/PresetDimensionSelector"

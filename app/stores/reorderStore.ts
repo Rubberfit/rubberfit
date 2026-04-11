@@ -3,13 +3,13 @@ import {
   reorderService,
   type ReorderSuggestion,
   type OptimalOrderQuantity,
-} from "@/services/reorderService"
+} from "@/src/infrastructure/services/reorderService"
 import type {
   ReorderRuleWithDetails,
   CreateReorderRule,
   UpdateReorderRule,
   PurchaseOrder,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 
 interface ReorderState {
   // Data

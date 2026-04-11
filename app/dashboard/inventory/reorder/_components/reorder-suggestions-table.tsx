@@ -1,7 +1,7 @@
 "use client"
 
 import { Calculator, CheckCircle, Clock, ShoppingCart } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -9,16 +9,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+} from "@/app/components/ui/table"
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   handleCreatePO,
   handleCreateIndividualPOs,
   handleCreateBulkPO,
 } from "./reorder-po-handlers"
 import type { ReorderSuggestion } from "./reorder-suggestions"
-import type { ReorderRuleWithDetails } from "@/lib/supabase"
+import type { ReorderRuleWithDetails } from "@/app/lib/supabase"
 
 function getUrgencyBadge(level: string) {
   switch (level) {

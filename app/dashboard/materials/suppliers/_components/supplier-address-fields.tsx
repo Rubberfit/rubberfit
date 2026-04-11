@@ -3,8 +3,8 @@
 import { type UseFormReturn } from "react-hook-form"
 import { MapPin } from "lucide-react"
 
-import { Input } from "@/components/ui/input"
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/app/components/ui/input"
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form"
 import type { SupplierFormData } from "./supplier-form-schema"
 
 interface SupplierAddressFieldsProps {

@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+} from "@/app/components/ui/dialog"
+import { Label } from "@/app/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
 import { toast } from "sonner"
-import { globalEvents, EVENTS } from "@/lib/events"
+import { globalEvents, EVENTS } from "@/app/lib/events"
 import { type Notification, formatTimestamp } from "./notification-helpers"
 
 interface NotificationDetailModalProps {

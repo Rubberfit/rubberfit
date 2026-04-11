@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/app/components/ui/input"
 
 import type { PartTemplate, SupportedPartType, CustomPartDrafts } from "./preset-template-data"
 import { DEFAULT_CUSTOM_DRAFTS } from "./preset-template-data"

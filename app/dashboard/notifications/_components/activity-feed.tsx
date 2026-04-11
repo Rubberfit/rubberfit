@@ -2,8 +2,8 @@
 
 import { Bell, Clock } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 import { getActivityIcon, getActivityColor, formatTimestamp } from "./notification-helpers"
 
 interface Activity {

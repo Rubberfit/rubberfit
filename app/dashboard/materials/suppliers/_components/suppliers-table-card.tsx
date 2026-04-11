@@ -2,9 +2,9 @@
 
 import { Edit, Trash2, Star } from "lucide-react"
 
-import { type Supplier } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { type Supplier } from "@/app/lib/supabase"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
 import {
   Table,
   TableBody,
@@ -12,8 +12,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/table"
+import { Badge } from "@/app/components/ui/badge"
 
 interface SuppliersTableCardProps {
   suppliers: Supplier[]

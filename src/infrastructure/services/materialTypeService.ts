@@ -1,5 +1,5 @@
-import { supabase, type MaterialType } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type MaterialType } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 
 export const materialTypeService = {
   async getAll() {

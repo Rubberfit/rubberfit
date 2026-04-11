@@ -2,10 +2,10 @@
 
 import { Calendar } from "lucide-react"
 
-import type { AuthUser } from "@/services/authService"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import type { AuthUser } from "@/src/infrastructure/services/authService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Label } from "@/app/components/ui/label"
+import { Badge } from "@/app/components/ui/badge"
 
 interface AccountInfoCardProps {
   user: Pick<AuthUser, "id" | "authProvider" | "createdAt">

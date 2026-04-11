@@ -4,15 +4,15 @@ import { useState } from "react"
 import { Filter, Calendar } from "lucide-react"
 import { toast } from "sonner"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/select"
+import { Badge } from "@/app/components/ui/badge"
 import { STANDARD_REPORT_COLORS, DEFAULT_REPORT_TEMPLATES } from "./_components/report-templates"
 import { generateReport } from "./_components/report-generator"
 import { getPeriodDateRange, getPeriodLabel } from "./_components/report-helpers"

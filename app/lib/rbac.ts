@@ -1,11 +1,9 @@
+import { DEFAULT_ROLES, type AppRole, type Permission } from "@/src/application/permissions"
 import {
-  DEFAULT_ROLES,
   getRequiredPermission,
   hasPermission,
-  type AppRole,
-  type Permission,
-} from "@/lib/permissions"
-import type { NavGroup, NavMainItem, NavSubItem } from "@/navigation/sidebar/sidebar-items"
+} from "@/src/infrastructure/services/permissionService"
+import type { NavGroup, NavMainItem, NavSubItem } from "@/app/navigation/sidebar/sidebar-items"
 
 const ELEVATED_ROLES = new Set<AppRole>(["admin", "manager", "supervisor"])
 const CUTTER_ALLOWED_EXACT_PATHS = new Set([

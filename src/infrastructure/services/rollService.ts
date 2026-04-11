@@ -1,5 +1,5 @@
-import { supabase, type Roll, type MaterialType } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type Roll, type MaterialType } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 
 export const rollService = {
   // Fetch all rolls

@@ -4,20 +4,20 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ShoppingCart, Truck, Activity } from "lucide-react"
 
-import { type MaterialType, type ReorderRuleWithDetails, type Supplier } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
+import { type MaterialType, type ReorderRuleWithDetails, type Supplier } from "@/app/lib/supabase"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import { Progress } from "@/app/components/ui/progress"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/app/components/ui/select"
 import { Plus } from "lucide-react"
 import { ReorderRuleModal } from "./_components/reorder-rule-modal"
 import type { ReorderSuggestion } from "./_components/reorder-suggestions"

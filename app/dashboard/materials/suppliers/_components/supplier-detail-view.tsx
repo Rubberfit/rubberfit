@@ -3,18 +3,18 @@
 import { useCallback, useEffect, useState } from "react"
 import { Building, CreditCard, Star, Edit } from "lucide-react"
 
-import { type Supplier, type MaterialSupplierWithDetails } from "@/lib/supabase"
-import { supplierService } from "@/services/supplierService"
+import { type Supplier, type MaterialSupplierWithDetails } from "@/app/lib/supabase"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+} from "@/app/components/ui/dialog"
+import { Button } from "@/app/components/ui/button"
+import { Badge } from "@/app/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { SupplierOverviewTab } from "./supplier-overview-tab"
 import { SupplierMaterialsTab } from "./supplier-materials-tab"
 import { SupplierPerformanceTab } from "./supplier-performance-tab"

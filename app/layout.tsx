@@ -2,13 +2,13 @@ import type { ReactNode } from "react"
 
 import type { Metadata } from "next"
 
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/app/components/ui/sonner"
 import { APP_CONFIG } from "@/config/app-config"
-import { AuthProvider } from "@/contexts/AuthContext"
-import { fontVars } from "@/lib/fonts/registry"
-import { PREFERENCE_DEFAULTS } from "@/lib/preferences/preferences-config"
-import { ThemeBootScript } from "@/scripts/theme-boot"
-import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider"
+import { AuthProvider } from "@/app/contexts/AuthContext"
+import { fontVars } from "@/app/lib/fonts/registry"
+import { PREFERENCE_DEFAULTS } from "@/app/lib/preferences/preferences-config"
+import { ThemeBootScript } from "@/src/infrastructure/services/scripts/theme-boot"
+import { PreferencesStoreProvider } from "@/app/stores/preferences/preferences-provider"
 
 import "./globals.css"
 

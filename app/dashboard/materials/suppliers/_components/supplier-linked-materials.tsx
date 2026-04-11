@@ -2,11 +2,11 @@
 
 import { Plus, Trash2, Link2 } from "lucide-react"
 
-import { type MaterialSupplierWithDetails, type MaterialSupplier } from "@/lib/supabase"
-import { supplierService } from "@/services/supplierService"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { type MaterialSupplierWithDetails, type MaterialSupplier } from "@/app/lib/supabase"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Badge } from "@/app/components/ui/badge"
 import { toast } from "sonner"
 
 interface SupplierLinkedMaterialsProps {

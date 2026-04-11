@@ -11,9 +11,9 @@ import type {
   MaterialType,
   MaterialSupplier,
   CreateMaterialSupplier,
-} from "@/lib/supabase"
-import { materialTypeService } from "@/services/materialTypeService"
-import { supplierService } from "@/services/supplierService"
+} from "@/app/lib/supabase"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import {
   Dialog,
   DialogContent,
@@ -21,10 +21,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from "@/app/components/ui/dialog"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
-import { Form } from "@/components/ui/form"
+import { Form } from "@/app/components/ui/form"
 import { MaterialSupplierLinkForm } from "./material-supplier-link-form"
 
 const materialSupplierSchema = z.object({

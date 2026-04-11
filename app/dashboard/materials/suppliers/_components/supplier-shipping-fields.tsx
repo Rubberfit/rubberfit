@@ -1,9 +1,9 @@
 "use client"
 
 import { Loader2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/app/components/ui/input"
+import { Switch } from "@/app/components/ui/switch"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   FormControl,
   FormDescription,
@@ -11,14 +11,14 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
+} from "@/app/components/ui/form"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/app/components/ui/select"
 import type { UseFormReturn } from "react-hook-form"
 import type { SupplierFormData } from "./supplier-form-schema"
 

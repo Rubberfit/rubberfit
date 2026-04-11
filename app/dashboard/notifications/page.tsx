@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react"
 
 import { toast } from "sonner"
-import { notificationCrudService } from "@/services/notificationCrudService"
-import { globalEvents, EVENTS } from "@/lib/events"
+import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
+import { globalEvents, EVENTS } from "@/app/lib/events"
 import { useRouter } from "next/navigation"
 import { type Notification } from "./_components/notification-helpers"
 import { NotificationList } from "./_components/notification-list"

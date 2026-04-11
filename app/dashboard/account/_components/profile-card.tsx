@@ -2,13 +2,13 @@
 
 import { User, Camera } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { getInitials } from "@/lib/utils"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
+import { Label } from "@/app/components/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
+import { Separator } from "@/app/components/ui/separator"
+import { getInitials } from "@/app/lib/utils"
 
 interface ProfileCardProps {
   user: { name?: string | null; email: string; avatar?: string | null; id: string }

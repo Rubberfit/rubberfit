@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/app/lib/supabase"
+import { DEFAULT_ROLES, type AppRole, type Permission } from "@/src/application/permissions"
 import {
-  DEFAULT_ROLES,
   hasAnyRole as hasAnyRoleForRoles,
   hasPermission,
-  type AppRole,
-  type Permission,
-} from "@/lib/permissions"
+} from "@/src/infrastructure/services/permissionService"
 
 // Hook return type
 export interface UseRoleReturn {

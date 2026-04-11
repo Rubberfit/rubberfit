@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
-import { cutService } from "@/services/cutService"
-import { rollService } from "@/services/rollService"
+import { cutService } from "@/src/infrastructure/services/cutService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 
 export interface Activity {
   id: string

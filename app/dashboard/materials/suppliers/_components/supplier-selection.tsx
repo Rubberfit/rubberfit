@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Check, ChevronsUpDown, Star, Building } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/app/lib/utils"
 
-import { type Supplier } from "@/lib/supabase"
-import { supplierService } from "@/services/supplierService"
-import { Button } from "@/components/ui/button"
+import { type Supplier } from "@/app/lib/supabase"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { Button } from "@/app/components/ui/button"
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/app/components/ui/popover"
+import { Badge } from "@/app/components/ui/badge"
 
 interface SupplierSelectionProps {
   value?: string

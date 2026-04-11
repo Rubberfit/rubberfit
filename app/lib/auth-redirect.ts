@@ -1,4 +1,4 @@
-import { canAccessPath, getDefaultAuthorizedPath } from "@/app/lib/rbac"
+import { canAccessPath, getDefaultAuthorizedPath } from "./rbac"
 
 export function sanitizeRedirectPath(pathname?: string | null): string | null {
   if (!pathname) {

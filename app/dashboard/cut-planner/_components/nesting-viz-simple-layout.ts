@@ -2,7 +2,7 @@
 // Extracted to reduce function complexity below ESLint threshold
 
 import type { SimplePartPreview, PreviewItem } from "./nesting-visualizer-types"
-import type { NestingResult } from "@/lib/nesting/types"
+import type { NestingResult } from "@/nesting/types"
 import { formatInches, getPlacementBounds } from "./nesting-layout-utils"
 import {
   computeFabricationScore,

@@ -2,8 +2,8 @@
 
 import { DollarSign, TrendingDown, Building2, AlertTriangle } from "lucide-react"
 
-import type { MaterialSupplierWithDetails } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { MaterialSupplierWithDetails } from "@/app/lib/supabase"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { PriceAlert, PriceComparisonData } from "./pricing-types"
 
 interface PricingStatsCardsProps {

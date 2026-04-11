@@ -3,8 +3,8 @@ import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
   type Roll,
-} from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+} from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import type { POReceiptResult } from "./purchaseOrderService"
 
 export const purchaseOrderAnalytics = {

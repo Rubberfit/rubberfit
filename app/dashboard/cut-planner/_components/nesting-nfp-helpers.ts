@@ -5,8 +5,8 @@ import {
   circleToPolygon,
   trapezoidToPolygon,
   sectorToPolygon,
-} from "@/lib/nesting/shape-to-polygon"
-import type { NestingPart, NestingResult, Placement2D } from "@/lib/nesting/types"
+} from "@/nesting/shape-to-polygon"
+import type { NestingPart, NestingResult, Placement2D } from "@/nesting/types"
 import type { SimplePartSpec, SimpleCutDirection, PreviewItem } from "./nesting-visualizer-types"
 import { formatInches, normalizeCutRatios, isCylinderPanelSplit } from "./nesting-layout-utils"
 import { buildConeSplitSections, buildTrapezoidSplitSections } from "./nesting-preview-builders"

@@ -4,7 +4,7 @@ import { Settings } from "lucide-react"
 
 import { Button } from "@/app/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/app/components/ui/popover"
-import type { FontKey } from "@/lib/fonts/registry"
+import type { FontKey } from "@/app/lib/fonts/registry"
 import type {
   ContentLayout,
   NavbarStyle,

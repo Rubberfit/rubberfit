@@ -1,7 +1,7 @@
 "use client"
 
 import { Edit2, Save, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -9,15 +9,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Progress } from "@/components/ui/progress"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+} from "@/app/components/ui/table"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
+import { Switch } from "@/app/components/ui/switch"
+import { Progress } from "@/app/components/ui/progress"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { toast } from "sonner"
-import type { ReorderRuleWithDetails } from "@/lib/supabase"
-import { reorderService } from "@/services/reorderService"
+import type { ReorderRuleWithDetails } from "@/app/lib/supabase"
+import { reorderService } from "@/src/infrastructure/services/reorderService"
 
 export interface EditableRule {
   id: string

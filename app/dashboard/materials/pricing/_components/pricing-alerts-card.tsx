@@ -2,9 +2,9 @@
 
 import { AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
 import type { PriceAlert } from "./pricing-types"
 
 interface PricingAlertsCardProps {

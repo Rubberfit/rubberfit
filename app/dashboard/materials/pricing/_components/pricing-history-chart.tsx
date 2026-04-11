@@ -12,8 +12,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import { type Supplier } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { type Supplier } from "@/app/lib/supabase"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 interface PricingHistoryChartProps {
   selectedMaterial: string

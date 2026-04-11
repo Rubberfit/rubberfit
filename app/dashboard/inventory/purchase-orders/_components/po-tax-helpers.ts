@@ -1,5 +1,5 @@
-import { type PurchaseOrderWithDetails } from "@/lib/supabase"
-import { taxService } from "@/services/taxService"
+import { type PurchaseOrderWithDetails } from "@/app/lib/supabase"
+import { taxService } from "@/src/infrastructure/services/taxService"
 
 export interface TaxDetails {
   taxRate: number

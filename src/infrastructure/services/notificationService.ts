@@ -1,5 +1,5 @@
-import { supabase, type NotificationPreferences, type NotificationQueue } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type NotificationPreferences, type NotificationQueue } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 import emailService from "./emailService"
 import { toast } from "sonner"
 

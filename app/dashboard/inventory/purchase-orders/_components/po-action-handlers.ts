@@ -1,6 +1,6 @@
-import { supabase, type PurchaseOrderWithDetails, type Supplier } from "@/lib/supabase"
-import { purchaseOrderService } from "@/services/purchaseOrderService"
-import { taxService } from "@/services/taxService"
+import { supabase, type PurchaseOrderWithDetails, type Supplier } from "@/app/lib/supabase"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { taxService } from "@/src/infrastructure/services/taxService"
 import { toast } from "sonner"
 
 import { type POFormData, getDefaultFormData } from "./po-form-dialog"

@@ -8,8 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from "@/app/components/ui/dialog"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 import {
   type ReorderRule,
@@ -17,8 +17,8 @@ import {
   type Supplier,
   type CreateReorderRule,
   type UpdateReorderRule,
-} from "@/lib/supabase"
-import { reorderService } from "@/services/reorderService"
+} from "@/app/lib/supabase"
+import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { ReorderRuleFormFields } from "./reorder-rule-form-fields"
 
 interface ReorderRuleModalProps {

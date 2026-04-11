@@ -1,8 +1,8 @@
 "use client"
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 
 interface TrendData {
   date: string

@@ -10,8 +10,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/table"
+import { Badge } from "@/app/components/ui/badge"
 import type { PriceHistoryWithJoins } from "./pricing-types"
 
 interface PricingHistoryTableProps {

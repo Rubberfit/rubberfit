@@ -1,8 +1,8 @@
-import { Input } from "@/components/ui/input"
+import { Input } from "@/app/components/ui/input"
 import { Layers3, Scissors, Shapes, Ruler } from "lucide-react"
 import { PartTemplate } from "./preset-template-data"
 import { SimpleCutDirection } from "./nesting-visualizer-types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   getCutDirectionOptions,
   getCutModeDescription,

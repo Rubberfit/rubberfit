@@ -1,7 +1,7 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
 import { Trash2 } from "lucide-react"
 
 interface NotificationPageHeaderProps {

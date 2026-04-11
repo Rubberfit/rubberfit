@@ -9,8 +9,8 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from "@/app/components/ui/dialog"
+import { Button } from "@/app/components/ui/button"
 import {
   Table,
   TableBody,
@@ -18,7 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/app/components/ui/table"
 import type { ExtractedPart } from "./upload-types"
 
 interface UploadReviewDialogProps {

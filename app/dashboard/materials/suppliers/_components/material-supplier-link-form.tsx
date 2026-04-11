@@ -1,6 +1,6 @@
 "use client"
 
-import type { MaterialType, Supplier, MaterialSupplier } from "@/lib/supabase"
+import type { MaterialType, Supplier, MaterialSupplier } from "@/app/lib/supabase"
 import { MaterialSupplierPreferences } from "./material-supplier-preferences"
 import { MaterialSupplierSelectionSection } from "./material-supplier-selection-section"
 import { MaterialSupplierPricingSection } from "./material-supplier-pricing-section"

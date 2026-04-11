@@ -1,10 +1,10 @@
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 import { toast } from "sonner"
 
-import { cutService } from "@/services/cutService"
-import { rollService } from "@/services/rollService"
-import { materialTypeService } from "@/services/materialTypeService"
-import { exportService } from "@/services/exportService"
+import { cutService } from "@/src/infrastructure/services/cutService"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { exportService } from "@/src/infrastructure/services/exportService"
 import type { ReportTemplate } from "./report-templates"
 
 function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"): {

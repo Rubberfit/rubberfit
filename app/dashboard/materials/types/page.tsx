@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { Plus } from "lucide-react"
 
-import { type MaterialType } from "@/lib/supabase"
-import { materialTypeService } from "@/services/materialTypeService"
-import { Button } from "@/components/ui/button"
+import { type MaterialType } from "@/app/lib/supabase"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
 import { MaterialTypesTable } from "../_components/material-types-table"

@@ -4,11 +4,11 @@ import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import { Search, Download } from "lucide-react"
 
-import { type Cut } from "@/lib/supabase"
-import { cutService } from "@/services/cutService"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { type Cut } from "@/app/lib/supabase"
+import { cutService } from "@/src/infrastructure/services/cutService"
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Input } from "@/app/components/ui/input"
 import {
   Table,
   TableBody,
@@ -16,8 +16,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+} from "@/app/components/ui/table"
+import { Badge } from "@/app/components/ui/badge"
 
 import { DateRangePicker } from "./_components/date-range-picker"
 import { CutHistoryStats } from "./_components/cut-history-stats"

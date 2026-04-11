@@ -8,7 +8,7 @@ import {
   type PurchaseOrderWithDetails,
   type Supplier,
   type MaterialType,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 
 import { type TaxDetails } from "./po-tax-helpers"
 import { usePOFormState } from "./use-po-form-state"

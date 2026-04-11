@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState, useMemo } from "react"
 import { Plus, Search, Filter, Star } from "lucide-react"
 
-import { type Supplier } from "@/lib/supabase"
-import { supplierService } from "@/services/supplierService"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { type Supplier } from "@/app/lib/supabase"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -18,7 +18,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/app/components/ui/alert-dialog"
 
 import { SupplierFormModal } from "./_components/supplier-form-modal"
 import { SupplierDetailView } from "./_components/supplier-detail-view"

@@ -2,8 +2,8 @@
 
 import { format } from "date-fns"
 
-import { type Cut } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { type Cut } from "@/app/lib/supabase"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/app/components/ui/table"
 
 interface RecentUsageTableProps {
   data: (Cut & { roll?: { material_type: string; location: string } })[]

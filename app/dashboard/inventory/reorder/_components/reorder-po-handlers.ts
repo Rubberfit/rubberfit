@@ -1,7 +1,7 @@
-import type { ReorderRuleWithDetails } from "@/lib/supabase"
-import { purchaseOrderService } from "@/services/purchaseOrderService"
-import { reorderService } from "@/services/reorderService"
-import { supplierService } from "@/services/supplierService"
+import type { ReorderRuleWithDetails } from "@/app/lib/supabase"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { toast } from "sonner"
 import type { ReorderSuggestion } from "./reorder-suggestions"
 

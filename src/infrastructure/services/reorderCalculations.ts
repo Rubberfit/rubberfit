@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
-import type { PurchaseOrder } from "@/lib/supabase"
+import { supabase } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import type { PurchaseOrder } from "@/app/lib/supabase"
 import type { ReorderSuggestion, OptimalOrderQuantity } from "./reorderService"
 
 export const reorderCalculations = {

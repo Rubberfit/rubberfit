@@ -12,7 +12,7 @@ import {
   BarChart3,
   DollarSign,
 } from "lucide-react"
-import type { Permission } from "@/lib/permissions"
+import type { Permission } from "@/src/application/permissions"
 
 export interface NavSubItem {
   title: string

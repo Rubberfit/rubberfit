@@ -4,18 +4,18 @@ import { useEffect, useState, useMemo } from "react"
 import { Download } from "lucide-react"
 import { format } from "date-fns"
 
-import { type MaterialType, type MaterialSupplierWithDetails, type Supplier } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { type MaterialType, type MaterialSupplierWithDetails, type Supplier } from "@/app/lib/supabase"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { exportService } from "@/services/exportService"
+} from "@/app/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import { exportService } from "@/src/infrastructure/services/exportService"
 import { toast } from "sonner"
 import type {
   PriceHistoryWithJoins,

@@ -3,7 +3,7 @@ import {
   getLocalStorageValue,
   removeLocalStorageValue,
   setLocalStorageValue,
-} from "@/lib/local-storage.client"
+} from "@/app/lib/local-storage.client"
 
 import type {
   PartTemplate,

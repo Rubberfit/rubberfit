@@ -1,5 +1,5 @@
-import { supabase, type Cut } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type Cut } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 
 export const cutService = {
   // Record a new cut

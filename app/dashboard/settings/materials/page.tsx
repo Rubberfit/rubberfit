@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
-import { type MaterialType } from "@/lib/supabase"
-import { materialTypeService } from "@/services/materialTypeService"
-import { rollService } from "@/services/rollService"
+import { type MaterialType } from "@/app/lib/supabase"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 
 import { MaterialConfigList } from "./_components/material-config-list"
 import { MaterialDialogs } from "./_components/material-dialogs"

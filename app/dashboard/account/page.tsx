@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react"
 
 import { toast } from "sonner"
-import { useAuth } from "@/contexts/AuthContext"
-import { profileService } from "@/services/profileService"
+import { useAuth } from "@/app/contexts/AuthContext"
+import { profileService } from "@/src/infrastructure/services/profileService"
 
 import { ProfileCard } from "./_components/profile-card"
 import { SecurityCard } from "./_components/security-card"

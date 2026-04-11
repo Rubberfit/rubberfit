@@ -1,7 +1,7 @@
 "use client"
 
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/app/components/ui/switch"
+import { Textarea } from "@/app/components/ui/textarea"
 import {
   FormControl,
   FormDescription,
@@ -9,8 +9,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+} from "@/app/components/ui/form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { UseFormReturn } from "react-hook-form"
 
 interface MaterialSupplierFormData {

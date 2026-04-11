@@ -15,9 +15,9 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 
-import { type PurchaseOrderWithDetails } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { type PurchaseOrderWithDetails } from "@/app/lib/supabase"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -25,10 +25,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { taxService } from "@/services/taxService"
+} from "@/app/components/ui/table"
+import { Label } from "@/app/components/ui/label"
+import { Separator } from "@/app/components/ui/separator"
+import { taxService } from "@/src/infrastructure/services/taxService"
 import { type TaxDetails } from "./po-tax-helpers"
 import { getStatusBadge } from "./po-view-dialog"
 

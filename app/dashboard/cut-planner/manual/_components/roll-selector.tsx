@@ -1,9 +1,9 @@
 "use client"
 
 import { Package, CheckCircle, Info } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Badge } from "@/app/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -11,7 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/app/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -19,8 +19,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import type { Roll } from "@/lib/supabase"
+} from "@/app/components/ui/dialog"
+import type { Roll } from "@/app/lib/supabase"
 import { UseFormReturn } from "react-hook-form"
 
 interface CutRequest {

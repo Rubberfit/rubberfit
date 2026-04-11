@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { purchaseOrderService, type POReceiptResult } from "@/services/purchaseOrderService"
+import { purchaseOrderService, type POReceiptResult } from "@/src/infrastructure/services/purchaseOrderService"
 import type {
   PurchaseOrder,
   PurchaseOrderWithDetails,
@@ -9,7 +9,7 @@ import type {
   CreatePurchaseOrderItem,
   UpdatePurchaseOrderItem,
   Roll,
-} from "@/lib/supabase"
+} from "@/app/lib/supabase"
 
 interface POStats {
   total: number

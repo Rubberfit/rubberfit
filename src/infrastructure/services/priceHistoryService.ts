@@ -1,5 +1,5 @@
-import { supabase, type PriceHistory, type MaterialSupplierWithDetails } from "@/lib/supabase"
-import { getCurrentUserId } from "@/lib/getCurrentUserId"
+import { supabase, type PriceHistory, type MaterialSupplierWithDetails } from "@/app/lib/supabase"
+import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
 
 interface PriceHistoryWithJoins extends PriceHistory {
   material_supplier?: {

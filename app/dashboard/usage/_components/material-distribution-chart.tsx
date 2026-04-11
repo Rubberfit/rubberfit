@@ -1,7 +1,7 @@
 "use client"
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 interface MaterialUsage {
   materialType: string

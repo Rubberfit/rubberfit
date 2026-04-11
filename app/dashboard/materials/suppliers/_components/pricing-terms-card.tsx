@@ -1,8 +1,8 @@
 "use client"
 
 import { DollarSign, Clock, ShoppingCart } from "lucide-react"
-import type { MaterialType } from "@/lib/supabase"
-import { Input } from "@/components/ui/input"
+import type { MaterialType } from "@/app/lib/supabase"
+import { Input } from "@/app/components/ui/input"
 import {
   FormControl,
   FormDescription,
@@ -10,8 +10,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+} from "@/app/components/ui/form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { UseFormReturn } from "react-hook-form"
 
 interface MaterialSupplierFormData {

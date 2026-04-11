@@ -13,9 +13,9 @@ import {
   Building2,
 } from "lucide-react"
 
-import { type PurchaseOrder, type PurchaseOrderWithDetails } from "@/lib/supabase"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { type PurchaseOrder, type PurchaseOrderWithDetails } from "@/app/lib/supabase"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
+} from "@/app/components/ui/dialog"
+import { Separator } from "@/app/components/ui/separator"
 import { toast } from "sonner"
 import { type TaxDetails } from "./po-tax-helpers"
 import {

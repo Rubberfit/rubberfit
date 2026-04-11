@@ -9,7 +9,7 @@ import type {
   SimpleCutDirection,
   PackedPreviewItemsResult,
 } from "./nesting-visualizer-types"
-import type { NestingResult } from "@/lib/nesting/types"
+import type { NestingResult } from "@/nesting/types"
 import {
   buildOffcutBands,
   bandFitsAnyPreviewItem,

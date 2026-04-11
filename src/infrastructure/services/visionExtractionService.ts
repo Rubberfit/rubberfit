@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/app/lib/supabase"
 import type { VisionExtractionResponse } from "@/app/dashboard/cut-planner/_components/upload-types"
 
 export async function extractFromImage(file: File): Promise<VisionExtractionResponse> {

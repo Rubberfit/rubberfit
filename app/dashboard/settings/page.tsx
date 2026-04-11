@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
 import { GeneralSettingsCards } from "./_components/general-settings-cards"
