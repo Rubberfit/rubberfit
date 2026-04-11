@@ -867,26 +867,26 @@ export function globalMultiSheetPack(
   }
 
   // Diagnostic logging
-  if (typeof window !== "undefined") {
-    const br = bestResult as MultiSheetResult | null
-    if (br) {
-      const dims = allItems.map((it) => `${it.width}\u00D7${it.height}`)
-      const uniqueDims = [...new Set(dims)]
-      console.log(
-        `[GlobalPacker] ${allItems.length} items (${uniqueDims.length} unique sizes) on ${rollW}\u00D7${rollL} stock \u2192 ${br.sheets.length} sheets`,
-        {
-          uniqueDims,
-          itemsPerSheet: br.sheets.map((s, i) => `Sheet ${i + 1}: ${s.preview.items.length} items`),
-          totalArea: allItems.reduce((sum, it) => sum + it.width * it.height, 0),
-          stockArea: rollW * rollL,
-          candidates:
-            binOrientations.length * heuristics.length +
-            binOrientations.length * sortFns.length * heuristics.length +
-            binOrientations.length * heuristics.length,
-        }
-      )
-    }
-  }
+  // if (typeof window !== "undefined") {
+  //   const br = bestResult as MultiSheetResult | null
+  //   if (br) {
+  //     const dims = allItems.map((it) => `${it.width}\u00D7${it.height}`)
+  //     const uniqueDims = [...new Set(dims)]
+  //     console.log(
+  //       `[GlobalPacker] ${allItems.length} items (${uniqueDims.length} unique sizes) on ${rollW}\u00D7${rollL} stock \u2192 ${br.sheets.length} sheets`,
+  //       {
+  //         uniqueDims,
+  //         itemsPerSheet: br.sheets.map((s, i) => `Sheet ${i + 1}: ${s.preview.items.length} items`),
+  //         totalArea: allItems.reduce((sum, it) => sum + it.width * it.height, 0),
+  //         stockArea: rollW * rollL,
+  //         candidates:
+  //           binOrientations.length * heuristics.length +
+  //           binOrientations.length * sortFns.length * heuristics.length +
+  //           binOrientations.length * heuristics.length,
+  //       }
+  //     )
+  //   }
+  // }
 
   return (
     bestResult ?? {
