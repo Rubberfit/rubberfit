@@ -23,6 +23,7 @@ interface SimpleModeProps {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
+  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -238,7 +239,7 @@ function SheetSvg({
           {"Rubber Sheet Nesting Layout"}
         </text>
         <text x={layout.viewWidth / 2} y="60" textAnchor="middle" fill="#f5f5f4" fontSize="12">
-          {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
+          {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
         <clipPath id={sClip}>
@@ -328,6 +329,7 @@ function SheetSvg({
           surfaceX={layout.surfaceX}
           surfaceY={layout.surfaceY}
           scale={layout.scale}
+          wasRotated={layout.wasRotated}
         />
         <SimpleModeDimensionLabels layout={layout} />
       </svg>
@@ -335,10 +337,12 @@ function SheetSvg({
   )
 }
 
+// Responsible for performing the calculations and rendering the SVG
 export default function NestingVizSimpleMode({
   preview,
   previewRollW,
   previewRollL,
+  wasRotated,
   patternSeed,
   viewMode,
   optimizedResult,
@@ -354,12 +358,22 @@ export default function NestingVizSimpleMode({
         preview,
         previewRollW,
         previewRollL,
+        wasRotated,
         patternSeed,
         viewMode,
         optimizedResult,
         optimizedItems,
       }),
-    [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
+    [
+      preview,
+      previewRollW,
+      previewRollL,
+      wasRotated,
+      patternSeed,
+      viewMode,
+      optimizedResult,
+      optimizedItems,
+    ]
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1

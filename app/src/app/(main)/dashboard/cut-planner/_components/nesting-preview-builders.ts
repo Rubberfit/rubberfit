@@ -394,8 +394,19 @@ export function buildPartPreviewItem(
       const outerRadius = spec.outerRadius ?? Math.max(innerRadius + 1, fallbackHeight)
       const arcDegrees = spec.arcDegrees ?? 120
       const halfArcRad = (arcDegrees * Math.PI) / 360
-      const width = Math.max(2, 2 * outerRadius * Math.sin(halfArcRad))
-      const height = Math.max(2, outerRadius - innerRadius * Math.cos(halfArcRad))
+      // Width: if arc spans > 180°, it passes through ±90° (sin=1) → full diameter
+      const width = Math.max(
+        2,
+        halfArcRad <= Math.PI / 2 ? 2 * outerRadius * Math.sin(halfArcRad) : 2 * outerRadius
+      )
+      // Height: max of outer arc top extent and inner arc extent at the arc ends
+      const height = Math.max(
+        2,
+        Math.max(
+          outerRadius * (1 - Math.cos(halfArcRad)),
+          outerRadius - innerRadius * Math.cos(halfArcRad)
+        )
+      )
       return {
         x: 0,
         y: 0,

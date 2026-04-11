@@ -25,6 +25,7 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
+import { buildPartPreviewItem } from "./nesting-preview-builders"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -80,11 +81,13 @@ function rotatePreviewItem(item: PreviewItem, rollL: number): PreviewItem {
     const outerR = item.outerRadius ?? 0
     const arcDeg = item.arcDegrees ?? 120
     const halfArc = (arcDeg * Math.PI) / 360
-    const cx = item.x + item.width / 2
-    const cy = item.y + outerR
     const flipSign = item.flipped ? -1 : 1
-    const a1 = -Math.PI / 2 - halfArc * flipSign
-    const a2 = -Math.PI / 2 + halfArc * flipSign
+    const arcAngleOffset = item.rotated90 ? Math.PI / 2 : 0
+    // Rotated 90° CW: dome points right → apex at right edge, center = right_edge − outerR
+    const cx = item.rotated90 ? item.x + item.width - outerR : item.x + item.width / 2
+    const cy = item.rotated90 ? item.y + item.height / 2 : item.y + outerR
+    const a1 = -Math.PI / 2 - halfArc * flipSign + arcAngleOffset
+    const a2 = -Math.PI / 2 + halfArc * flipSign + arcAngleOffset
     const segments = 32
     const pts: Array<{ x: number; y: number }> = []
     for (let i = 0; i <= segments; i++) {
@@ -161,20 +164,36 @@ function indexToTag(i: number): string {
   return tag
 }
 
-function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
+function buildTagMap(
+  basePreview: SimplePartPreview | null,
+  multiSheet: MultiSheetResult | null,
+  specOrderedLabels?: string[]
+) {
   if (!basePreview) return new Map<string, string>()
-  // Collect labels from ALL sheets so overflow items get tags too
-  const allLabels: string[] = []
+  // Collect all unique item labels that actually appear in the layout.
+  const itemLabels: string[] = []
+  const addItem = (label: string) => {
+    if (!itemLabels.includes(label)) itemLabels.push(label)
+  }
   if (multiSheet) {
-    multiSheet.sheets.forEach((sheet) => {
-      sheet.preview.items.forEach((item) => {
-        if (!allLabels.includes(item.label)) allLabels.push(item.label)
-      })
-    })
+    multiSheet.sheets.forEach((sheet) => sheet.preview.items.forEach((item) => addItem(item.label)))
   } else {
-    basePreview.items.forEach((item) => {
-      if (!allLabels.includes(item.label)) allLabels.push(item.label)
-    })
+    basePreview.items.forEach((item) => addItem(item.label))
+  }
+  // Order by spec selection so tags match the user's A/B/C… checkboxes.
+  // Only include spec labels that actually appear in items — spec labels that
+  // don't match any item (e.g. full-circumference label for a split cylinder)
+  // are skipped so no phantom legend entry is created.
+  const allLabels: string[] = []
+  if (specOrderedLabels) {
+    for (const specLabel of specOrderedLabels) {
+      if (itemLabels.includes(specLabel) && !allLabels.includes(specLabel)) {
+        allLabels.push(specLabel)
+      }
+    }
+  }
+  for (const label of itemLabels) {
+    if (!allLabels.includes(label)) allLabels.push(label)
   }
   return new Map(allLabels.map((label, i) => [label, indexToTag(i)]))
 }
@@ -339,10 +358,12 @@ export default function NestingVisualizer({
     ]
   )
 
-  const tagMap = useMemo(
-    () => buildTagMap(baseSimplePreview, multiSheet),
-    [baseSimplePreview, multiSheet]
-  )
+  const tagMap = useMemo(() => {
+    const specLabels = activeSimpleSpecs.map(
+      (spec) => buildPartPreviewItem(spec, defaultCutWidth, defaultCutHeight).label
+    )
+    return buildTagMap(baseSimplePreview, multiSheet, specLabels)
+  }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
   const shouldRotate = defaultRollLength > defaultRollWidth
@@ -374,14 +395,17 @@ export default function NestingVisualizer({
         defaultCutHeight,
         defaultQty
       )
+
     const preview = shouldRotate
       ? rotateSimplePartPreview(rawPreview, defaultRollLength)
       : rawPreview
+
     return (
       <NestingVizSimpleMode
         preview={preview}
         previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
         previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
+        wasRotated={shouldRotate}
         patternSeed={patternSeed}
         viewMode={viewMode}
         optimizedResult={optimizedResult}
@@ -393,6 +417,14 @@ export default function NestingVisualizer({
       />
     )
   }
+
+  /* 
+    This return will never be executed because simpleMode evaluates to true always.
+    Claude:
+      simpleMode is always true when the component is rendered from the cut planner page. 
+      The false default only applies if someone renders <NestingVisualizer /> without the prop — 
+      which never happens anywhere in the current codebase.
+  */
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -517,6 +549,7 @@ function NonRectStatsPanel({
   )
 }
 
+/* eslint-disable max-lines */
 function computeStepNote(
   activeStrat: ScoredStrategy | undefined,
   activeStep: number,

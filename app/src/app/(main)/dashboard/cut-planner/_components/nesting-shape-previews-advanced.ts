@@ -149,8 +149,17 @@ export function generateConePreview(
   const arcArea = (safeArcDegrees / 360) * Math.PI * (safeOuterRadius ** 2 - safeInnerRadius ** 2)
   const requestedCutSections = Math.max(1, qty)
   const halfArcRad = (safeArcDegrees * Math.PI) / 360
-  const sectorWidth = Math.max(2, 2 * safeOuterRadius * Math.sin(halfArcRad))
-  const sectorHeight = Math.max(2, safeOuterRadius - safeInnerRadius * Math.cos(halfArcRad))
+  const sectorWidth = Math.max(
+    2,
+    halfArcRad <= Math.PI / 2 ? 2 * safeOuterRadius * Math.sin(halfArcRad) : 2 * safeOuterRadius
+  )
+  const sectorHeight = Math.max(
+    2,
+    Math.max(
+      safeOuterRadius * (1 - Math.cos(halfArcRad)),
+      safeOuterRadius - safeInnerRadius * Math.cos(halfArcRad)
+    )
+  )
 
   if (requestedCutSections > 1) {
     const split = buildConeSplitSections(
@@ -215,6 +224,17 @@ export function generateConePreview(
   }
 
   const rollArea = rollW * rollL
+
+  // Determine whether rotating the sector 90° fits more pieces on the stock
+  const uprightCapacity =
+    Math.floor(rollW / sectorWidth + 0.001) * Math.floor(rollL / sectorHeight + 0.001)
+  const rotatedCapacity =
+    Math.floor(rollW / sectorHeight + 0.001) * Math.floor(rollL / sectorWidth + 0.001)
+  const useSectorRotated =
+    rotatedCapacity > uprightCapacity && Math.abs(sectorWidth - sectorHeight) > 0.001
+  const placedW = useSectorRotated ? sectorHeight : sectorWidth
+  const placedH = useSectorRotated ? sectorWidth : sectorHeight
+
   const sectorConfig = {
     renderShape: "sector" as const,
     requestedUnits: qty,
@@ -227,24 +247,30 @@ export function generateConePreview(
   }
 
   const directGrid = withWaste(
-    buildPackedPreview(calculatePackedShapeLayout(rollW, rollL, sectorWidth, sectorHeight, qty), {
-      ...sectorConfig,
-      strategyName: "Single cone spread",
-      strategyNote:
-        "The cone/frustum liner is flattened into one full annular-sector spread per finished part.",
-    }),
+    buildPackedPreview(
+      calculatePackedShapeLayout(rollW, rollL, placedW, placedH, qty, {
+        rotated90: useSectorRotated,
+      }),
+      {
+        ...sectorConfig,
+        strategyName: "Single cone spread",
+        strategyNote:
+          "The cone/frustum liner is flattened into one full annular-sector spread per finished part.",
+      }
+    ),
     rollW,
     rollL
   )
 
   const checkerGrid = withWaste(
     buildPackedPreview(
-      calculatePackedShapeLayout(rollW, rollL, sectorWidth, sectorHeight, qty, {
-        stepX: Math.max(sectorWidth * 0.7, 2),
-        stepY: Math.max(sectorHeight * 0.88, 2),
-        rowOffset: sectorWidth * 0.38,
+      calculatePackedShapeLayout(rollW, rollL, placedW, placedH, qty, {
+        stepX: Math.max(placedW * 0.7, 2),
+        stepY: Math.max(placedH * 0.88, 2),
+        rowOffset: placedW * 0.38,
         alternateOffset: true,
         flipPattern: "checker",
+        rotated90: useSectorRotated,
       }),
       {
         ...sectorConfig,
