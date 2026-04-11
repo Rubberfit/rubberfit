@@ -246,12 +246,17 @@ const parseIssueNumbersFromPullRequestBody = (body) => {
     "gi",
   );
   const sameRepoReferencePattern = new RegExp(`${escapeRegExp(repoOwner)}/${escapeRegExp(repoName)}#(\\d+)`, "gi");
+  const shorthandReferencePattern = /(?:^|[^\w/])#(\d+)\b/g;
 
   for (const match of body.matchAll(sameRepoIssueUrlPattern)) {
     issueNumbers.add(Number(match[1]));
   }
 
   for (const match of body.matchAll(sameRepoReferencePattern)) {
+    issueNumbers.add(Number(match[1]));
+  }
+
+  for (const match of body.matchAll(shorthandReferencePattern)) {
     issueNumbers.add(Number(match[1]));
   }
 
@@ -568,6 +573,12 @@ const getProjectContext = async () => {
     (field) => field.name === REQUESTED_REVIEWERS_FIELD_NAME && field.dataType === "TEXT",
   );
 
+  if (!requestedReviewersField) {
+    console.warn(
+      `Project ${PROJECT_OWNER}#${PROJECT_NUMBER} is missing the ${REQUESTED_REVIEWERS_FIELD_NAME} text field. Reviewer sync will be skipped.`,
+    );
+  }
+
   if (!statusField) {
     throw new Error(`Project is missing the ${STATUS_FIELD_NAME} field.`);
   }
@@ -783,8 +794,8 @@ const getLinkedIssuesForPullRequest = async (pullRequestNumber) => {
     return [];
   }
 
-  const inferredIssues = await Promise.all(candidateIssueNumbers.map((issueNumber) => getIssue(issueNumber)));
-  return inferredIssues.filter(Boolean);
+  const inferredIssues = await Promise.allSettled(candidateIssueNumbers.map((issueNumber) => getIssue(issueNumber)));
+  return inferredIssues.filter((result) => result.status === "fulfilled" && result.value).map((result) => result.value);
 };
 
 const parseIssueNumberFromBranch = (branchName) => {
