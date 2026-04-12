@@ -1,7 +1,7 @@
 language: en-US
 tone_instructions: >
   Be direct and specific. Focus on architectural risk and maintainability.
-  When enriching issues, suggest a primary type, a 1-6 story-point estimate, and any applicable secondary labels.
+  Keep PR review comments concise — flag the problem and suggest a fix. Do not add story points, type classifications, or label suggestions to PR reviews.
 reviews:
   profile: assertive
   request_changes_workflow: true
