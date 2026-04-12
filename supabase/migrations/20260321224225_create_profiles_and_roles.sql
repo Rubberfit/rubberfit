@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
 
   -- Constraints
-  CONSTRAINT valid_role  CHECK (role IN ('admin', 'member', 'cutter', 'viewer')),
+  CONSTRAINT valid_role  CHECK (role IN ('admin', 'member', 'cutter', 'viewer', 'manager', 'supervisor')),
   CONSTRAINT valid_email CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
 );
 
