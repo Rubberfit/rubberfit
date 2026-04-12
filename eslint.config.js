@@ -14,6 +14,7 @@ export default tseslint.config(
       "out/",
       "build/",
       "coverage/",
+      "src/infrastructure/scripts/",
     ],
   },
   js.configs.recommended,

@@ -7,7 +7,7 @@ import { APP_CONFIG } from "@/config/app-config"
 import { AuthProvider } from "@/app/contexts/AuthContext"
 import { fontVars } from "@/app/lib/fonts/registry"
 import { PREFERENCE_DEFAULTS } from "@/app/lib/preferences/preferences-config"
-import { ThemeBootScript } from "@/src/infrastructure/services/scripts/theme-boot"
+import { ThemeBootScript } from "@/app/scripts/theme-boot"
 import { PreferencesStoreProvider } from "@/app/stores/preferences/preferences-provider"
 
 import "./globals.css"

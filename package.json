@@ -2,6 +2,7 @@
   "name": "rema-portal",
   "version": "1.0.0-beta.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
