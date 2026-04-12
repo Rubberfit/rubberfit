@@ -6,7 +6,10 @@ import type {
   OptimalOrderQuantity,
 } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
+@injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
   private generateOptimalQuantityReasoning(
     avgDailyUsage: number,

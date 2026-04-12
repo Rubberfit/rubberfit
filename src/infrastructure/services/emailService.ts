@@ -3,6 +3,8 @@ import { Resend } from "resend"
 import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 // Email templates - some still need to be created
 // import LowStockAlertEmail from '@/templates/email/low-stock-alert';
 // import PriceChangeAlertEmail from '@/templates/email/price-change-alert';
@@ -38,6 +40,7 @@ interface QueuedEmail {
   maxRetries: number
 }
 
+@injectable()
 export class EmailService implements IEmailService {
   private emailQueue: QueuedEmail[] = []
   private isProcessing = false

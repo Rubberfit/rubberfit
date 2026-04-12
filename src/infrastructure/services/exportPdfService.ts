@@ -2,7 +2,10 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
+@injectable()
 export class ExportPdfService implements IExportPdfService {
   private renderHeading(doc: jsPDF, element: Element, margin: number, yPosition: number): number {
     const fontSize = element.tagName === "H1" ? 16 : element.tagName === "H2" ? 14 : 12

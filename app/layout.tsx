@@ -1,3 +1,5 @@
+import "reflect-metadata"
+import "@/di/di-registration"
 import type { ReactNode } from "react"
 
 import type { Metadata } from "next"

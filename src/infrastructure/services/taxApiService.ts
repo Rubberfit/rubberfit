@@ -1,7 +1,10 @@
 import type { ITaxApiService, TaxApiResult, TaxRateBreakdown } from "@/src/application/services/tax-api.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
 export type { TaxApiResult, TaxRateBreakdown }
 
+@injectable()
 export class TaxApiService implements ITaxApiService {
   private readonly cache = new Map<string, { data: TaxApiResult; timestamp: number }>()
   private readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes

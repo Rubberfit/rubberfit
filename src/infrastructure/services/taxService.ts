@@ -1,12 +1,20 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { taxApiService } from "./taxApiService"
 import type { ITaxService, TaxCalculation, TaxRateDetails } from "@/src/application/services/tax.service.interface"
+import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
 export type { TaxRateDetails, TaxCalculation }
 
 const API_CACHE_DAYS = 30
 
+@injectable()
 export class TaxService implements ITaxService {
+  constructor(
+    @inject(TOKENS.ITaxApiService) private readonly taxApi: ITaxApiService
+  ) {}
   private readonly DEFAULT_TAX: TaxRateDetails = {
     tax_rate: 0.08,
     tax_name: "Default Tax Rate (8%)",
@@ -45,7 +53,7 @@ export class TaxService implements ITaxService {
     stateCode: string | null,
     city: string | null
   ): Promise<TaxRateDetails | null> {
-    const apiResult = await taxApiService.getTaxRateByZip(zipCode)
+    const apiResult = await this.taxApi.getTaxRateByZip(zipCode)
 
     if (!apiResult || apiResult.totalRate <= 0) return null
 
@@ -328,4 +336,4 @@ export class TaxService implements ITaxService {
   }
 }
 
-export const taxService = new TaxService()
+export const taxService = new TaxService(taxApiService)

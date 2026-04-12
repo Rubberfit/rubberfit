@@ -8,9 +8,12 @@ import type {
   OptimizeCutRequirements,
   OptimizeCutResult,
 } from "@/src/application/services/cut.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
 export type { WasteStats, WasteTrend, CutWithRoll, OptimizeCutRequirements, OptimizeCutResult }
 
+@injectable()
 export class CutService implements ICutService {
   async recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">): Promise<Cut> {
     const user_id = await getCurrentUserId()

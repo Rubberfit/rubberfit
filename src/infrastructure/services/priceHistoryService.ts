@@ -12,9 +12,12 @@ import type {
   PriceComparison,
   PriceHistoryWithJoins,
 } from "@/src/application/services/price-history.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
 export type { PriceHistoryWithJoins, PriceTrend, BestPriceOption, PriceComparison, PriceBulkChange }
 
+@injectable()
 export class PriceHistoryService implements IPriceHistoryService {
   async trackPriceChange(
     materialSupplierId: string,

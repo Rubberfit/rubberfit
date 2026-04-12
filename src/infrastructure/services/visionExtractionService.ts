@@ -1,7 +1,10 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import type { VisionExtractionResponse } from "@/app/dashboard/cut-planner/_components/upload-types"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
+@injectable()
 export class VisionExtractionService implements IVisionExtractionService {
   async extractFromImage(file: File): Promise<VisionExtractionResponse> {
     const {

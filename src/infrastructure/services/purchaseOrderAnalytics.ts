@@ -6,11 +6,14 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { POReceiptItem, POReceiptResult } from "@/src/application/services/purchase-order.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 import type {
   IPurchaseOrderAnalyticsService,
   POAnalyticsStats,
 } from "@/src/application/services/purchase-order-analytics.service.interface"
 
+@injectable()
 export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsService {
   // eslint-disable-next-line complexity
   async receivePurchaseOrder(

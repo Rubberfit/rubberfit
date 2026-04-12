@@ -16,10 +16,20 @@ import type {
   POReceiptItem,
   POReceiptResult,
 } from "@/src/application/services/purchase-order.service.interface"
+import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import type { IPurchaseOrderAnalyticsService } from "@/src/application/services/purchase-order-analytics.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
 export type { POReceiptResult }
 
+@injectable()
 export class PurchaseOrderService implements IPurchaseOrderService {
+  constructor(
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
+    @inject(TOKENS.IPurchaseOrderAnalyticsService) private readonly analytics: IPurchaseOrderAnalyticsService
+  ) {}
   async getAllPurchaseOrders(): Promise<PurchaseOrderWithDetails[]> {
     try {
       const { data, error } = await supabase
@@ -146,7 +156,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
         }
 
         if (supplierId) {
-          const taxCalc = await taxService.calculatePurchaseOrderTax(supplierId, updates.subtotal)
+          const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, updates.subtotal)
           updates.tax_amount = taxCalc.taxAmount
           updates.total_amount = updates.subtotal + taxCalc.taxAmount + (updates.shipping_cost || 0)
         } else {
@@ -409,7 +419,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     items: POReceiptItem[],
     receivedBy?: string
   ): Promise<POReceiptResult> {
-    return purchaseOrderAnalytics.receivePurchaseOrder(
+    return this.analytics.receivePurchaseOrder(
       id,
       items,
       receivedBy,
@@ -419,15 +429,15 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 
   async getPurchaseOrderStats() {
-    return purchaseOrderAnalytics.getPurchaseOrderStats()
+    return this.analytics.getPurchaseOrderStats()
   }
 
   async getSupplierPurchaseHistory(supplierId: string, limit: number = 10) {
-    return purchaseOrderAnalytics.getSupplierPurchaseHistory(supplierId, limit)
+    return this.analytics.getSupplierPurchaseHistory(supplierId, limit)
   }
 
   async getPendingDeliveries() {
-    return purchaseOrderAnalytics.getPendingDeliveries()
+    return this.analytics.getPendingDeliveries()
   }
 
   async generatePONumber(): Promise<string> {
@@ -464,7 +474,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       if (poError) throw poError
 
-      const taxCalc = await taxService.calculatePurchaseOrderTax(po.supplier_id, subtotal)
+      const taxCalc = await this.taxService.calculatePurchaseOrderTax(po.supplier_id, subtotal)
       const shippingCost = po?.shipping_cost || 0
       const totalAmount = subtotal + taxCalc.taxAmount + shippingCost
 
@@ -500,7 +510,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
   async getPurchaseOrderTaxDetails(supplierId: string, subtotal: number): Promise<unknown> {
     try {
-      return await taxService.calculatePurchaseOrderTax(supplierId, subtotal)
+      return await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
     } catch (error) {
       console.error("Error getting PO tax details:", error)
       throw error
@@ -508,4 +518,4 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 }
 
-export const purchaseOrderService = new PurchaseOrderService()
+export const purchaseOrderService = new PurchaseOrderService(taxService, purchaseOrderAnalytics)

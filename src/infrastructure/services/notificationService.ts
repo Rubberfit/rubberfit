@@ -4,9 +4,13 @@ import {
   type NotificationQueue,
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import emailService from "./emailService"
+import { emailService } from "./emailService"
 import { toast } from "sonner"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
+import type { IEmailService } from "@/src/application/services/email.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
 type NotificationType = NotificationQueue["notification_type"]
 type NotificationPriority = NotificationQueue["priority"]
@@ -27,9 +31,12 @@ interface NotificationParams {
   scheduledFor?: Date
 }
 
+@injectable()
 export class NotificationService implements INotificationService {
   private userPreferences: Map<string, NotificationPreferences> = new Map()
   private processingInterval: NodeJS.Timeout | null = null
+
+  constructor(@inject(TOKENS.IEmailService) private readonly emailService: IEmailService) {}
 
   /**
    * Initialize the notification service
@@ -483,6 +490,6 @@ export class NotificationService implements INotificationService {
 }
 
 // Export singleton instance
-const notificationService = new NotificationService()
+const notificationService = new NotificationService(emailService)
 export default notificationService
 export { notificationService }

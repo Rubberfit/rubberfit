@@ -3,6 +3,8 @@ import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { normalizeRoles } from "@/src/application/rbac"
 import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
 import type { IAuthService, AuthUser, AuthResponse } from "@/src/application/services/auth.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
 export type { AuthUser, AuthResponse }
 
@@ -60,6 +62,7 @@ async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
   }
 }
 
+@injectable()
 export class AuthService implements IAuthService {
   async signIn(email: string, password: string): Promise<AuthResponse> {
     try {

@@ -11,10 +11,18 @@ import type {
   ReorderSuggestion,
   OptimalOrderQuantity,
 } from "@/src/application/services/reorder.service.interface"
+import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
 export type { ReorderSuggestion, OptimalOrderQuantity }
 
+@injectable()
 export class ReorderService implements IReorderService {
+  constructor(
+    @inject(TOKENS.IReorderCalculationsService) private readonly calc: IReorderCalculationsService
+  ) {}
   async getAllReorderRules(): Promise<ReorderRuleWithDetails[]> {
     try {
       const { data, error } = await supabase
@@ -218,23 +226,23 @@ export class ReorderService implements IReorderService {
       const suggestions: ReorderSuggestion[] = []
 
       for (const rule of rules) {
-        const currentStock = await reorderCalculations.calculateCurrentStock(rule.material_type_id)
+        const currentStock = await this.calc.calculateCurrentStock(rule.material_type_id)
 
         if (currentStock <= rule.reorder_point) {
-          const suggestedQuantity = reorderCalculations.calculateSuggestedQuantity(
+          const suggestedQuantity = this.calc.calculateSuggestedQuantity(
             currentStock,
             rule.reorder_point,
             rule.reorder_quantity,
             rule.max_stock_level
           )
 
-          const estimatedCost = await reorderCalculations.estimateReorderCost(
+          const estimatedCost = await this.calc.estimateReorderCost(
             rule.material_type_id,
             suggestedQuantity,
             rule.supplier_id
           )
 
-          const urgency = reorderCalculations.determineUrgency(
+          const urgency = this.calc.determineUrgency(
             currentStock,
             rule.reorder_point,
             rule.safety_stock_days
@@ -250,7 +258,7 @@ export class ReorderService implements IReorderService {
             supplierName: rule.supplier?.name,
             estimatedCost,
             urgency,
-            reason: reorderCalculations.generateReorderReason(currentStock, rule.reorder_point),
+            reason: this.calc.generateReorderReason(currentStock, rule.reorder_point),
             reorderRuleId: rule.id,
           })
         }
@@ -280,19 +288,19 @@ export class ReorderService implements IReorderService {
       const suggestions: ReorderSuggestion[] = []
 
       for (const material of materials) {
-        const currentStock = await reorderCalculations.calculateCurrentStock(material.id)
+        const currentStock = await this.calc.calculateCurrentStock(material.id)
         const rule = await this.getReorderRuleByMaterial(material.id)
 
         if (rule && rule.active) {
           if (currentStock <= rule.reorder_point) {
-            const suggestedQuantity = reorderCalculations.calculateSuggestedQuantity(
+            const suggestedQuantity = this.calc.calculateSuggestedQuantity(
               currentStock,
               rule.reorder_point,
               rule.reorder_quantity,
               rule.max_stock_level
             )
 
-            const estimatedCost = await reorderCalculations.estimateReorderCost(
+            const estimatedCost = await this.calc.estimateReorderCost(
               material.id,
               suggestedQuantity,
               rule.supplier_id
@@ -307,19 +315,19 @@ export class ReorderService implements IReorderService {
               supplierId: rule.supplier_id,
               supplierName: rule.supplier?.name,
               estimatedCost,
-              urgency: reorderCalculations.determineUrgency(
+              urgency: this.calc.determineUrgency(
                 currentStock,
                 rule.reorder_point,
                 rule.safety_stock_days
               ),
-              reason: reorderCalculations.generateReorderReason(currentStock, rule.reorder_point),
+              reason: this.calc.generateReorderReason(currentStock, rule.reorder_point),
               reorderRuleId: rule.id,
             })
           }
         } else if (includeInactive && material.min_stock_alert) {
           if (currentStock <= material.min_stock_alert) {
             const suggestedQuantity = material.min_stock_alert * 2
-            const estimatedCost = await reorderCalculations.estimateReorderCost(
+            const estimatedCost = await this.calc.estimateReorderCost(
               material.id,
               suggestedQuantity,
               undefined
@@ -350,7 +358,7 @@ export class ReorderService implements IReorderService {
   }
 
   async createAutomaticPurchaseOrder(suggestion: ReorderSuggestion): Promise<unknown> {
-    return reorderCalculations.createAutomaticPurchaseOrder(
+    return this.calc.createAutomaticPurchaseOrder(
       suggestion,
       (id) => this.getReorderRuleById(id),
       () => this.generatePONumber()
@@ -361,7 +369,7 @@ export class ReorderService implements IReorderService {
     materialTypeId: string,
     supplierId?: string
   ): Promise<OptimalOrderQuantity> {
-    return reorderCalculations.calculateOptimalOrderQuantity(materialTypeId, supplierId)
+    return this.calc.calculateOptimalOrderQuantity(materialTypeId, supplierId)
   }
 
   async bulkUpdateReorderRules(
@@ -399,7 +407,7 @@ export class ReorderService implements IReorderService {
 
   // Delegate helpers to reorderCalculations instance
   calculateCurrentStock(materialTypeId: string): Promise<number> {
-    return reorderCalculations.calculateCurrentStock(materialTypeId)
+    return this.calc.calculateCurrentStock(materialTypeId)
   }
 
   calculateSuggestedQuantity(
@@ -408,7 +416,7 @@ export class ReorderService implements IReorderService {
     reorderQuantity: number,
     maxStock?: number
   ): number {
-    return reorderCalculations.calculateSuggestedQuantity(
+    return this.calc.calculateSuggestedQuantity(
       currentStock,
       reorderPoint,
       reorderQuantity,
@@ -421,7 +429,7 @@ export class ReorderService implements IReorderService {
     quantity: number,
     supplierId?: string
   ): Promise<number> {
-    return reorderCalculations.estimateReorderCost(materialTypeId, quantity, supplierId)
+    return this.calc.estimateReorderCost(materialTypeId, quantity, supplierId)
   }
 
   determineUrgency(
@@ -429,12 +437,12 @@ export class ReorderService implements IReorderService {
     reorderPoint: number,
     safetyStockDays: number
   ): "critical" | "high" | "normal" | "low" {
-    return reorderCalculations.determineUrgency(currentStock, reorderPoint, safetyStockDays)
+    return this.calc.determineUrgency(currentStock, reorderPoint, safetyStockDays)
   }
 
   generateReorderReason(currentStock: number, reorderPoint: number): string {
-    return reorderCalculations.generateReorderReason(currentStock, reorderPoint)
+    return this.calc.generateReorderReason(currentStock, reorderPoint)
   }
 }
 
-export const reorderService = new ReorderService()
+export const reorderService = new ReorderService(reorderCalculations)

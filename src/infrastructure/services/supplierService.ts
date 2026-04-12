@@ -11,7 +11,10 @@ import {
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { priceHistoryService } from "./priceHistoryService"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
+@injectable()
 export class SupplierService implements ISupplierService {
   async getAllSuppliers(): Promise<Supplier[]> {
     try {

@@ -1,8 +1,11 @@
 import { supabase, type Roll } from "@/src/infrastructure/models/supabase"
 import type { ICsvService, CSVRow } from "@/src/application/services/csv.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
 export type { CSVRow }
 
+@injectable()
 export class CsvService implements ICsvService {
   parseCSV(csvText: string): CSVRow[] {
     const lines = csvText.trim().split("\n")
