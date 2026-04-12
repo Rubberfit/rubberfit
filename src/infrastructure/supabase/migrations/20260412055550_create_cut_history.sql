@@ -24,6 +24,15 @@ CREATE TABLE IF NOT EXISTS cut_history (
 
   --Amount of matierial cut
   cut_amount              INT NOT NULL,
+
+  --Miscellaneous details
+  parts_completed          INT NOT NULL,
+  mat_used                 FLOAT NOT NULL,
+  reusable_offcuts         FLOAT NOT NULL,
+  waste_percentage         FLOAT NOT NULL,
+  fab_score                FLOAT NOT NULL,
+  cut_pieces               INT NOT NULL,
+
   --Timestamps
   cut_date                TIMESTAMPTZ DEFAULT NOW(),
   created_at              TIMESTAMPTZ DEFAULT NOW(),

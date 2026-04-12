@@ -323,3 +323,26 @@ export type CreateNotificationQueue = Omit<
   "id" | "user_id" | "created_at" | "updated_at" | "retry_count" | "next_retry_at"
 >
 export type UpdateNotificationQueue = Partial<CreateNotificationQueue>
+
+export interface CutHistory {
+  id: number
+  user_id: string | null
+  material_id: number
+  part_id: number
+  cut_length: number
+  cut_width: number
+  cut_thickness: number
+  part_custom_width: number | null
+  part_custom_height: number | null
+  part_selected_size: number[] | null
+  part_selected_size_text: string[] | null
+  part_selected_label: string[] | null
+  cut_amount: number
+  cut_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CutHistoryWithProfile extends CutHistory {
+  profiles: { full_name: string | null; roles: string[] | null } | null
+}
