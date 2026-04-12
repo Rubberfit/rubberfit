@@ -540,7 +540,7 @@ function buildSheetFromPlacements(
 
   const placedItems: PreviewItem[] = clampedPlacements.map((p) => {
     const original = sortedItems[p.itemIndex]
-    return {
+    const item: PreviewItem = {
       ...original,
       x: p.x,
       y: p.y,
@@ -549,6 +549,20 @@ function buildSheetFromPlacements(
       rotated90: p.rotated ? !(original.rotated90 ?? false) : (original.rotated90 ?? false),
       flipped: p.rotated ? !(original.flipped ?? false) : (original.flipped ?? false),
     }
+
+    // Trapezoids must render in their original upright orientation regardless of
+    // how the MaxRects solver rotated them for packing.  Restore the original
+    // dimensions so TrapezoidShape draws the correct top/bottom edge widths.
+    if (original.renderShape === "trapezoid" && original.topWidth != null) {
+      item.width = Math.max(original.topWidth, original.bottomWidth ?? original.topWidth)
+      item.height = original.height
+      item.rotated90 = false
+      item.rotation = 0
+      item.flipped = false
+      item.placedPolygon = undefined
+    }
+
+    return item
   })
 
   const usedArea = clampedPlacements.reduce((sum, p) => sum + sortedItems[p.itemIndex].usedArea, 0)
@@ -606,7 +620,7 @@ function buildSheetFromPlacements(
   const wasteArea = correctedReusable + correctedScrap
 
   const preview: RectLikePreview = {
-    renderShape: (placedItems[0]?.renderShape ?? "rect") as "rect" | "trapezoid" | "sector",
+    renderShape: placedItems[0]?.renderShape === "circle" ? "rect" : (placedItems[0]?.renderShape ?? "rect"),
     strategyName: "Global-optimized layout",
     strategyNote:
       "Items globally assigned across sheets using MaxRects with all 5 heuristics (BSSF/BLSF/BAF/BL/CP) and batch insertion for minimal waste.",
@@ -748,7 +762,8 @@ export function globalMultiSheetPack(
 
     // Exhaustive rotation search on the last bin
     const lastBinId = binIds[binIds.length - 1]
-    const lastBinPlacements = binGroups.get(lastBinId)!
+    const lastBinPlacements = binGroups.get(lastBinId)
+    if (!lastBinPlacements) return
     const lastBinItems = lastBinPlacements.map((p) => basePackItems[p.itemIndex])
 
     // maxExhaustive=14 inside exhaustiveRotationSearch; items beyond that
@@ -763,7 +778,7 @@ export function globalMultiSheetPack(
     // Transform swapped coordinates back to original
     if (swapped) {
       for (const binId of binIds) {
-        const group = binGroups.get(binId)!
+        const group = binGroups.get(binId) ?? []
         binGroups.set(
           binId,
           group.map((p) => ({
@@ -865,28 +880,6 @@ export function globalMultiSheetPack(
       }
     }
   }
-
-  // Diagnostic logging
-  // if (typeof window !== "undefined") {
-  //   const br = bestResult as MultiSheetResult | null
-  //   if (br) {
-  //     const dims = allItems.map((it) => `${it.width}\u00D7${it.height}`)
-  //     const uniqueDims = [...new Set(dims)]
-  //     console.log(
-  //       `[GlobalPacker] ${allItems.length} items (${uniqueDims.length} unique sizes) on ${rollW}\u00D7${rollL} stock \u2192 ${br.sheets.length} sheets`,
-  //       {
-  //         uniqueDims,
-  //         itemsPerSheet: br.sheets.map((s, i) => `Sheet ${i + 1}: ${s.preview.items.length} items`),
-  //         totalArea: allItems.reduce((sum, it) => sum + it.width * it.height, 0),
-  //         stockArea: rollW * rollL,
-  //         candidates:
-  //           binOrientations.length * heuristics.length +
-  //           binOrientations.length * sortFns.length * heuristics.length +
-  //           binOrientations.length * heuristics.length,
-  //       }
-  //     )
-  //   }
-  // }
 
   return (
     bestResult ?? {

@@ -40,7 +40,8 @@ export function generateCylinderPreview(
   cutRatios?: number[]
 ): SimplePartPreview {
   const circumference = Math.PI * diameter
-  if (qty > 1) {
+  const hasCutRatios = cutRatios != null && cutRatios.length > 0
+  if (qty > 1 && hasCutRatios) {
     const ratios = normalizeCutRatios(cutRatios, qty)
     const pieces = ratios.map((ratio, _index) => {
       const panelWidth = isCylinderPanelSplit(cutDirection) ? circumference * ratio : circumference
@@ -147,6 +148,7 @@ export function generateConePreview(
   const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
   const safeArcDegrees = Math.min(320, Math.max(20, arcDegrees))
   const arcArea = (safeArcDegrees / 360) * Math.PI * (safeOuterRadius ** 2 - safeInnerRadius ** 2)
+  const hasCutRatios = cutRatios != null && cutRatios.length > 0
   const requestedCutSections = Math.max(1, qty)
   const halfArcRad = (safeArcDegrees * Math.PI) / 360
   const sectorWidth = Math.max(
@@ -161,7 +163,7 @@ export function generateConePreview(
     )
   )
 
-  if (requestedCutSections > 1) {
+  if (requestedCutSections > 1 && hasCutRatios) {
     const split = buildConeSplitSections(
       safeInnerRadius,
       safeOuterRadius,
@@ -326,9 +328,10 @@ export function generateTrapezoidPreview(
 ): SimplePartPreview {
   const boxWidth = Math.max(topWidth, bottomWidth)
   const pieceArea = ((topWidth + bottomWidth) / 2) * height
+  const hasCutRatios = cutRatios != null && cutRatios.length > 0
   const requestedCutSections = Math.max(1, qty)
 
-  if (requestedCutSections > 1) {
+  if (requestedCutSections > 1 && hasCutRatios) {
     const split = buildTrapezoidSplitSections(
       topWidth,
       bottomWidth,

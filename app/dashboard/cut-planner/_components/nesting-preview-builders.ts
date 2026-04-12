@@ -4,6 +4,7 @@ import type {
   OffcutBand,
   PreviewItem,
   RectLikePreview,
+  ShapePlacement,
   SimplePartPreview,
   SimplePreviewBase,
   SimplePartSpec,
@@ -15,6 +16,7 @@ import {
   buildRectPlacements,
   buildOriginRectOffcutBands,
   buildOffcutBands,
+  buildShelfGapBands,
   isReusableOffcutBand,
   computeIntraBlankWaste,
   getPlacementBounds,
@@ -126,7 +128,7 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       }
     }
 
-    const allBands = buildOffcutBands(bounds, rollW, rollL, "origin")
+    const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
     const reusableBands: OffcutBand[] = []
     const scrapBands: OffcutBand[] = []
     let reusableArea = 0

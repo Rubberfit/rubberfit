@@ -122,7 +122,19 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     const sortedPlacements = [...row.placements].sort((a, b) => a.x - b.x)
     let rowMaxX = 0
 
-    sortedPlacements.forEach((placement) => {
+    sortedPlacements.forEach((placement, idx) => {
+      // Leading gap (first placement doesn't start at x=0)
+      if (idx === 0 && placement.x > 0.25) {
+        bands.push({ x: 0, y: row.y, width: placement.x, height: row.height })
+      }
+      // Inter-placement gap (gap between consecutive placements)
+      if (idx > 0) {
+        const prevEnd = sortedPlacements[idx - 1].x + sortedPlacements[idx - 1].width
+        const gapWidth = placement.x - prevEnd
+        if (gapWidth > 0.25) {
+          bands.push({ x: prevEnd, y: row.y, width: gapWidth, height: row.height })
+        }
+      }
       rowMaxX = Math.max(rowMaxX, placement.x + placement.width)
       const underfillHeight = row.height - placement.height
       if (underfillHeight > 0.25) {

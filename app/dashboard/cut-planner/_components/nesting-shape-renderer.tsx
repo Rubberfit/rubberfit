@@ -84,8 +84,15 @@ function PolygonShape({
         y={coords.py}
         width={coords.pw}
         height={coords.ph}
+        fill="#1c1917"
+      />
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${wastePatternId})`}
-        opacity="0.4"
+        opacity="0.5"
       />
       <polygon
         points={points}
