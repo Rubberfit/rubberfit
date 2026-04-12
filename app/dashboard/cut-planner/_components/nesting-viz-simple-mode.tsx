@@ -261,6 +261,19 @@ function SheetSvg({
         />
         <g clipPath={`url(#${sClip})`}>
           {!layout.shapeFirstView &&
+            sheet.preview.items.some(
+              (item) => item.placedPolygon && item.placedPolygon.length > 0
+            ) && (
+              <rect
+                x={layout.surfaceX}
+                y={layout.surfaceY}
+                width={layout.surfacePxW}
+                height={layout.surfacePxH}
+                fill={`url(#${sWastePat})`}
+                opacity="0.95"
+              />
+            )}
+          {!layout.shapeFirstView &&
             sheet.preview.scrapBands.map((band, index) => (
               <rect
                 key={`scrap-band-${index + 1}`}

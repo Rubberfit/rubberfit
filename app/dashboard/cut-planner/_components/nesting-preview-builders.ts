@@ -1,5 +1,6 @@
 // Preview builder functions for NestingVisualizer
 
+import type { GreedyPackResult } from "@/nesting/nfp-greedy-placer"
 import type {
   OffcutBand,
   PreviewItem,
@@ -145,10 +146,12 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       }
     })
 
-    const intraBlankWaste = preview.items.reduce(
-      (sum, item) => sum + computeIntraBlankWaste(item),
-      0
+    const hasPlacedPolygons = preview.items.some(
+      (item) => item.placedPolygon && item.placedPolygon.length > 0
     )
+    const intraBlankWaste = hasPlacedPolygons
+      ? Math.max(0, bounds.occupiedWidth * bounds.occupiedHeight - preview.usedArea)
+      : preview.items.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
     const scrapArea = bandScrapArea + intraBlankWaste
     const totalWasteArea = reusableArea + scrapArea
 
@@ -325,6 +328,86 @@ export function buildPackedPreview(
     placements: layout.positions,
     occupiedWidth: layout.occupiedWidth,
     occupiedHeight: layout.occupiedHeight,
+    offcutBands: [],
+    scrapBands: [],
+    label: config.label,
+    topWidth: config.topWidth,
+    bottomWidth: config.bottomWidth,
+    height: config.height,
+    innerRadius: config.innerRadius,
+    outerRadius: config.outerRadius,
+    arcDegrees: config.arcDegrees,
+  }
+}
+
+export function buildNfpPackedPreview(
+  nfpResult: GreedyPackResult,
+  rollW: number,
+  rollL: number,
+  config: {
+    renderShape: "trapezoid" | "sector"
+    strategyName: string
+    strategyNote: string
+    requestedUnits: number
+    piecesPerUnit: number
+    pieceArea: number
+    label: string
+    topWidth?: number
+    bottomWidth?: number
+    height?: number
+    innerRadius?: number
+    outerRadius?: number
+    arcDegrees?: number
+  }
+): RectLikePreview {
+  const unitsCompleted = Math.floor(nfpResult.placed / config.piecesPerUnit)
+  const usedArea = nfpResult.placed * config.pieceArea
+
+  const items: PreviewItem[] = nfpResult.placements.map((p) => ({
+    x: p.x,
+    y: p.y,
+    width: p.width,
+    height: p.height,
+    renderShape: config.renderShape,
+    label: config.label,
+    rotation: p.rotation,
+    placedPolygon: p.placedPolygon,
+    topWidth: config.topWidth,
+    bottomWidth: config.bottomWidth,
+    innerRadius: config.innerRadius,
+    outerRadius: config.outerRadius,
+    arcDegrees: config.arcDegrees,
+  }))
+
+  const placements: ShapePlacement[] = nfpResult.placements.map((p) => ({
+    x: p.x,
+    y: p.y,
+    width: p.width,
+    height: p.height,
+  }))
+
+  return {
+    renderShape: config.renderShape,
+    strategyName: config.strategyName,
+    strategyNote: config.strategyNote,
+    placementMode: "origin",
+    wasteMode: "bands",
+    cutPlanTitle: "Cut sequence",
+    cutSteps: [],
+    requestedUnits: config.requestedUnits,
+    unitsCompleted,
+    overflowUnits: Math.max(0, config.requestedUnits - unitsCompleted),
+    piecesShown: nfpResult.placed,
+    piecesPerUnit: config.piecesPerUnit,
+    usedArea,
+    wasteArea: 0,
+    wastePct: 0,
+    reusableArea: 0,
+    scrapArea: 0,
+    items,
+    placements,
+    occupiedWidth: nfpResult.occupiedWidth,
+    occupiedHeight: nfpResult.occupiedHeight,
     offcutBands: [],
     scrapBands: [],
     label: config.label,

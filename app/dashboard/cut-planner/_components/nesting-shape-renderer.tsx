@@ -56,7 +56,6 @@ function PolygonShape({
   unitOriginY,
   scale,
   usablePatternId,
-  wastePatternId,
   tagLetter,
 }: {
   item: PreviewItem
@@ -68,10 +67,9 @@ function PolygonShape({
   unitOriginY: number
   scale: number
   usablePatternId: string
-  wastePatternId: string
   tagLetter?: string
 }) {
-  const points = item
+  const polyPoints = item
     .placedPolygon!.map(
       (pt) =>
         `${surfaceX + (pt.x - unitOriginX) * scale},${surfaceY + (pt.y - unitOriginY) * scale}`
@@ -79,27 +77,11 @@ function PolygonShape({
     .join(" ")
   return (
     <g key={index + 1}>
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill="#1c1917"
-      />
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill={`url(#${wastePatternId})`}
-        opacity="0.5"
-      />
       <polygon
-        points={points}
+        points={polyPoints}
         fill={`url(#${usablePatternId})`}
         stroke="#84cc16"
         strokeWidth="1.5"
-        opacity="0.95"
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -142,8 +124,16 @@ function CircleShape({
         y={coords.py}
         width={coords.pw}
         height={coords.ph}
+        fill="#1c1917"
+        rx="2"
+      />
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${wastePatternId})`}
-        opacity="0.4"
+        opacity="0.5"
         rx="2"
       />
       <circle
@@ -221,8 +211,16 @@ function SectorShape({
         y={coords.py}
         width={coords.pw}
         height={coords.ph}
+        fill="#1c1917"
+        rx="2"
+      />
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${wastePatternId})`}
-        opacity="0.4"
+        opacity="0.5"
         rx="2"
       />
       <path
@@ -283,8 +281,16 @@ function TrapezoidShape({
         y={coords.py}
         width={coords.pw}
         height={coords.ph}
+        fill="#1c1917"
+        rx="2"
+      />
+      <rect
+        x={coords.px}
+        y={coords.py}
+        width={coords.pw}
+        height={coords.ph}
         fill={`url(#${wastePatternId})`}
-        opacity="0.4"
+        opacity="0.5"
         rx="2"
       />
       <path
@@ -386,7 +392,6 @@ export default function NestingShapeRenderer({
         unitOriginY={unitOriginY}
         scale={scale}
         usablePatternId={usablePatternId}
-        wastePatternId={wastePatternId}
         tagLetter={tagLetter}
       />
     )

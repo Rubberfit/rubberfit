@@ -1,5 +1,3 @@
-# CodeRabbit Summary
-
 @coderabbitai summary
 
 ## Context
