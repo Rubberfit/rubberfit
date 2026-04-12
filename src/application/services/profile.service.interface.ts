@@ -13,7 +13,7 @@ export interface AvatarUploadResult {
 export interface IProfileService {
   updateProfile(
     userId: string,
-    updates: { name?: string; avatar?: string },
+    updates: { name?: string; avatar?: string }
   ): Promise<ProfileUpdateResult>
   uploadAvatar(userId: string, file: File): Promise<AvatarUploadResult>
 }

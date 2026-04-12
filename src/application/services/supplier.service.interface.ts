@@ -19,24 +19,24 @@ export interface ISupplierService {
   updateSupplierRating(id: string, rating: number): Promise<Supplier>
   searchSuppliers(query: string): Promise<Supplier[]>
   linkMaterialToSupplier(
-    materialSupplier: CreateMaterialSupplier,
+    materialSupplier: CreateMaterialSupplier
   ): Promise<MaterialSupplierWithDetails>
   unlinkMaterialFromSupplier(materialSupplierId: string): Promise<boolean>
   updateMaterialSupplier(
     id: string,
-    updates: UpdateMaterialSupplier,
+    updates: UpdateMaterialSupplier
   ): Promise<MaterialSupplierWithDetails>
   getSuppliersByMaterialType(materialTypeId: string): Promise<MaterialSupplierWithDetails[]>
   getMaterialsBySupplier(supplierId: string): Promise<MaterialSupplierWithDetails[]>
   getPreferredSupplierForMaterial(
-    materialTypeId: string,
+    materialTypeId: string
   ): Promise<MaterialSupplierWithDetails | null>
   setPreferredSupplier(
     materialTypeId: string,
-    supplierId: string,
+    supplierId: string
   ): Promise<MaterialSupplierWithDetails>
   checkMaterialSupplierLink(
     materialTypeId: string,
-    supplierId: string,
+    supplierId: string
   ): Promise<MaterialSupplier | null>
 }

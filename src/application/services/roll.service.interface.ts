@@ -19,7 +19,7 @@ export interface IRollService {
   getRecentRolls(limit: number): Promise<Roll[]>
   bulkAddRolls(
     rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
-    batchSize?: number,
+    batchSize?: number
   ): Promise<BulkAddResult>
   getInventoryGrowthPercentage(): Promise<number>
   getThicknessesByMaterialType(materialType: string): Promise<number[]>

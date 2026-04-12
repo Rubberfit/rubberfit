@@ -1,4 +1,7 @@
-import type { NotificationPreferences, NotificationQueue } from "@/src/infrastructure/models/supabase"
+import type {
+  NotificationPreferences,
+  NotificationQueue,
+} from "@/src/infrastructure/models/supabase"
 
 export interface NotificationParams {
   userIdentifier: string
@@ -62,7 +65,7 @@ export interface INotificationService {
   sendCriticalAlert(params: CriticalAlertParams): Promise<void>
   updateUserPreferences(
     userIdentifier: string,
-    preferences: Partial<NotificationPreferences>,
+    preferences: Partial<NotificationPreferences>
   ): Promise<void>
   sendTestEmail(userIdentifier: string, email: string): Promise<boolean>
 }

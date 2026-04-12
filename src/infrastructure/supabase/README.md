@@ -88,31 +88,35 @@ material_types (1) → (N) rolls (1) → (N) cuts
 
 ## Migration Files
 
-| File | Description |
-|------|-------------|
-| `20240217000001_create_material_types_table.sql` | Create material types master table |
-| `20240217000002_create_rolls_table.sql` | Create rolls inventory table |
-| `20240217000003_create_cuts_table.sql` | Create cuts history table |
-| `20240217000004_create_notifications_table.sql` | Create notifications table |
-| `20240217000005_create_indexes.sql` | Create performance indexes |
+| File                                               | Description                              |
+| -------------------------------------------------- | ---------------------------------------- |
+| `20240217000001_create_material_types_table.sql`   | Create material types master table       |
+| `20240217000002_create_rolls_table.sql`            | Create rolls inventory table             |
+| `20240217000003_create_cuts_table.sql`             | Create cuts history table                |
+| `20240217000004_create_notifications_table.sql`    | Create notifications table               |
+| `20240217000005_create_indexes.sql`                | Create performance indexes               |
 | `20240217000006_create_functions_and_triggers.sql` | Create database functions and automation |
-| `20240217000007_enable_rls_policies.sql` | Enable Row Level Security policies |
+| `20240217000007_enable_rls_policies.sql`           | Enable Row Level Security policies       |
 
 ## Key Features
 
 ### Automatic Inventory Updates
+
 - When cuts are recorded, roll remaining length is automatically updated
 - Rolls are automatically marked as "depleted" when length reaches zero
 
 ### Low Stock Alerts
+
 - Automatic notifications when material stock falls below threshold
 - Function: `generate_low_stock_notifications()`
 
 ### Waste Tracking
+
 - All cuts record waste calculations for optimization analysis
 - Waste percentage and square footage tracked
 
 ### Data Integrity
+
 - Check constraints on dimensions (must be positive)
 - Foreign key relationships maintained
 - Row Level Security enabled on all tables
@@ -120,18 +124,22 @@ material_types (1) → (N) rolls (1) → (N) cuts
 ## Performance Optimizations
 
 ### Specialized Indexes
+
 - `idx_rolls_optimization` - Optimized for cut optimization algorithm
 - `idx_notifications_unread` - Fast unread notification queries
 - `idx_cuts_created_at_desc` - Recent cuts dashboard queries
 
 ### Functions for Complex Queries
+
 - `calculate_material_stock()` - Efficient stock level calculations
 - `update_roll_after_cut()` - Atomic inventory updates
 
 ## Security
 
 ### Row Level Security (RLS)
+
 All tables have RLS enabled with policies for:
+
 - **SELECT**: Allow all authenticated users
 - **INSERT**: Allow all authenticated users
 - **UPDATE**: Allow all (with 24hr limit on cuts for corrections)
@@ -142,6 +150,7 @@ All tables have RLS enabled with policies for:
 ## Sample Data
 
 The `seed.sql` file contains realistic test data:
+
 - 8 common rubber material types
 - 12 sample rolls with various dimensions and statuses
 - 5 historical cut records
@@ -177,6 +186,7 @@ supabase stop
 ## Support
 
 For questions about the database schema or setup:
+
 1. Check the migration files for detailed comments
 2. Review this README
 3. Check the Supabase logs for specific error messages
@@ -190,6 +200,7 @@ For questions about the database schema or setup:
 4. Begin development with a fully functional database
 
 The schema is designed to support the full Rema Portal application including:
+
 - Inventory management
 - Cut optimization algorithm
 - Waste tracking and reporting

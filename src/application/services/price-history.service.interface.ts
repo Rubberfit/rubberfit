@@ -44,19 +44,19 @@ export interface IPriceHistoryService {
     oldPrice: number | undefined,
     newPrice: number,
     changeReason?: string,
-    changedBy?: string,
+    changedBy?: string
   ): Promise<PriceHistory>
   getPriceHistory(materialSupplierId: string, limit?: number): Promise<PriceHistory[]>
   getMaterialPriceHistory(
     materialTypeId: string,
-    daysBack?: number,
+    daysBack?: number
   ): Promise<PriceHistoryWithJoins[]>
   comparePrices(materialTypeId: string): Promise<PriceComparison>
   calculatePriceTrends(materialTypeId: string, daysBack?: number): Promise<PriceTrend[]>
   getBestPrice(materialTypeId: string): Promise<BestPriceOption | null>
   getSignificantPriceChanges(
     thresholdPercentage?: number,
-    daysBack?: number,
+    daysBack?: number
   ): Promise<PriceHistoryWithJoins[]>
   bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]>
 }
