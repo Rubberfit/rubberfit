@@ -2,6 +2,7 @@ import { Resend } from "resend"
 // import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
 import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type { IEmailService } from "@/src/application/services/email.service.interface"
 // Email templates - some still need to be created
 // import LowStockAlertEmail from '@/templates/email/low-stock-alert';
 // import PriceChangeAlertEmail from '@/templates/email/price-change-alert';
@@ -37,7 +38,7 @@ interface QueuedEmail {
   maxRetries: number
 }
 
-class EmailService {
+export class EmailService implements IEmailService {
   private emailQueue: QueuedEmail[] = []
   private isProcessing = false
 
@@ -522,6 +523,7 @@ class EmailService {
 // Export singleton instance
 const emailService = new EmailService()
 export default emailService
+export { emailService }
 
 // Export types for use in other modules
 export type { EmailOptions, QueuedEmail }

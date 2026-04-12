@@ -2,6 +2,7 @@ import { format, subDays, subWeeks, subMonths } from "date-fns"
 import { toast } from "sonner"
 
 import { cutService } from "@/src/infrastructure/services/cutService"
+import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { exportService } from "@/src/infrastructure/services/exportService"
@@ -78,7 +79,7 @@ function buildHtmlContent(
       string,
       { activeRolls: number; totalSqft: number; totalValue: number }
     >
-    data: { cuts: Array<Record<string, unknown>> }
+    data: { cuts: CutWithRoll[] }
   },
   periodLabel: string,
   startDate: Date,
@@ -150,10 +151,10 @@ function buildHtmlContent(
         ${reportData.data.cuts
           .slice(0, 20)
           .map(
-            (cut: Record<string, unknown>) => `
+            (cut: CutWithRoll) => `
           <tr>
-            <td style="border: 1px solid #ddd; padding: 8px;">${format(new Date(String(cut.created_at)), "MM/dd/yyyy")}</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${(cut.roll as Record<string, unknown>)?.material_type || "Unknown"}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${format(new Date(cut.created_at), "MM/dd/yyyy")}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${cut.roll?.material_type || "Unknown"}</td>
             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${cut.cut_width}" × ${cut.cut_length}"</td>
             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${cut.quantity}</td>
             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${(Number(cut.waste_percentage) || 0).toFixed(1)}%</td>
@@ -223,19 +224,7 @@ export async function generateReport(
   // Generate PDF report
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
   const htmlContent = buildHtmlContent(
-    reportData as {
-      summary: {
-        totalCuts: number
-        totalMaterialUsed: number
-        averageWaste: number
-        totalInventoryValue: number
-      }
-      materialBreakdown: Record<
-        string,
-        { activeRolls: number; totalSqft: number; totalValue: number }
-      >
-      data: { cuts: Array<Record<string, unknown>> }
-    },
+    reportData,
     periodLabel,
     startDate,
     endDate

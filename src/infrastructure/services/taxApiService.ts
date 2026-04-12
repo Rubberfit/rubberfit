@@ -1,22 +1,11 @@
-export interface TaxRateBreakdown {
-  rate: number
-  name: string
-  type: string
-}
+import type { ITaxApiService, TaxApiResult, TaxRateBreakdown } from "@/src/application/services/tax-api.service.interface"
 
-export interface TaxApiResult {
-  totalRate: number
-  rates: TaxRateBreakdown[]
-  postalCode: string
-  city?: string
-  state?: string
-  county?: string
-}
+export type { TaxApiResult, TaxRateBreakdown }
 
-const memoryCache = new Map<string, { data: TaxApiResult; timestamp: number }>()
-const MEMORY_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+export class TaxApiService implements ITaxApiService {
+  private readonly cache = new Map<string, { data: TaxApiResult; timestamp: number }>()
+  private readonly CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
-export const taxApiService = {
   async getTaxRateByZip(postalCode: string): Promise<TaxApiResult | null> {
     const zip5 = postalCode.trim().substring(0, 5)
 
@@ -26,8 +15,8 @@ export const taxApiService = {
     }
 
     // Check in-memory cache
-    const cached = memoryCache.get(zip5)
-    if (cached && Date.now() - cached.timestamp < MEMORY_CACHE_TTL) {
+    const cached = this.cache.get(zip5)
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       return cached.data
     }
 
@@ -41,16 +30,18 @@ export const taxApiService = {
 
       const data: TaxApiResult = await response.json()
 
-      memoryCache.set(zip5, { data, timestamp: Date.now() })
+      this.cache.set(zip5, { data, timestamp: Date.now() })
 
       return data
     } catch (error) {
       console.error("Failed to fetch tax rate:", error)
       return null
     }
-  },
+  }
 
-  clearCache() {
-    memoryCache.clear()
-  },
+  clearCache(): void {
+    this.cache.clear()
+  }
 }
+
+export const taxApiService = new TaxApiService()

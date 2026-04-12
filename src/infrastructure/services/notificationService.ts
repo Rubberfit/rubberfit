@@ -6,6 +6,7 @@ import {
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import emailService from "./emailService"
 import { toast } from "sonner"
+import type { INotificationService } from "@/src/application/services/notification.service.interface"
 
 type NotificationType = NotificationQueue["notification_type"]
 type NotificationPriority = NotificationQueue["priority"]
@@ -26,7 +27,7 @@ interface NotificationParams {
   scheduledFor?: Date
 }
 
-class NotificationService {
+export class NotificationService implements INotificationService {
   private userPreferences: Map<string, NotificationPreferences> = new Map()
   private processingInterval: NodeJS.Timeout | null = null
 
@@ -484,3 +485,4 @@ class NotificationService {
 // Export singleton instance
 const notificationService = new NotificationService()
 export default notificationService
+export { notificationService }

@@ -1,20 +1,9 @@
 import { supabase, type Roll } from "@/src/infrastructure/models/supabase"
+import type { ICsvService, CSVRow } from "@/src/application/services/csv.service.interface"
 
-interface CSVRow {
-  material_type: string
-  width: string
-  length: string
-  thickness: string
-  color?: string
-  location?: string
-  supplier?: string
-  cost_per_sqft?: string
-  date_received?: string
-  notes?: string
-}
+export type { CSVRow }
 
-export const csvService = {
-  // Parse CSV text to array of objects
+export class CsvService implements ICsvService {
   parseCSV(csvText: string): CSVRow[] {
     const lines = csvText.trim().split("\n")
     if (lines.length < 2) {
@@ -36,19 +25,16 @@ export const csvService = {
     }
 
     return rows
-  },
+  }
 
-  // Validate and transform CSV data to Roll format
   transformToRolls(csvRows: CSVRow[]): Partial<Roll>[] {
     return csvRows.map((row, index) => {
-      // Validate required fields
       if (!row.material_type || !row.width || !row.length || !row.thickness) {
         throw new Error(
           `Row ${index + 2}: Missing required fields (material_type, width, length, thickness)`
         )
       }
 
-      // Parse numeric values
       const width = parseFloat(row.width)
       const length = parseFloat(row.length)
       const thickness = parseFloat(row.thickness)
@@ -63,7 +49,7 @@ export const csvService = {
         width,
         length,
         thickness,
-        remaining_length: length, // Initially, remaining = original length
+        remaining_length: length,
         color: row.color || undefined,
         location: row.location || undefined,
         supplier: row.supplier || undefined,
@@ -73,14 +59,12 @@ export const csvService = {
         status: "active" as const,
       }
     })
-  },
+  }
 
-  // Upload rolls to Supabase
   async uploadRolls(
     rolls: Partial<Roll>[]
   ): Promise<{ success: boolean; error?: string; count?: number }> {
     try {
-      // Auto-create material_types for any new materials in the CSV
       const uniqueMaterials = [...new Set(rolls.map((r) => r.material_type).filter(Boolean))]
       if (uniqueMaterials.length > 0) {
         const { data: existing } = await supabase.from("material_types").select("name")
@@ -107,9 +91,8 @@ export const csvService = {
         error: error instanceof Error ? error.message : "Failed to upload rolls",
       }
     }
-  },
+  }
 
-  // Process CSV file and upload to database
   async processCSVFile(file: File): Promise<{ success: boolean; error?: string; count?: number }> {
     try {
       const text = await file.text()
@@ -123,9 +106,8 @@ export const csvService = {
         error: error instanceof Error ? error.message : "Failed to process CSV file",
       }
     }
-  },
+  }
 
-  // Generate sample CSV template
   generateTemplate(): string {
     const headers = [
       "Material Type",
@@ -140,12 +122,10 @@ export const csvService = {
       "Notes",
     ]
 
-    // Return only headers - no sample data
     return headers.join(",")
-  },
+  }
 
-  // Download template CSV
-  downloadTemplate() {
+  downloadTemplate(): void {
     const csv = this.generateTemplate()
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
     const url = window.URL.createObjectURL(blob)
@@ -157,5 +137,7 @@ export const csvService = {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-  },
+  }
 }
+
+export const csvService = new CsvService()

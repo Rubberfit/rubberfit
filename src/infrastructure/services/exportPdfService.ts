@@ -1,144 +1,149 @@
 import { format } from "date-fns"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
+import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
 
-function renderHeading(doc: jsPDF, element: Element, margin: number, yPosition: number): number {
-  const fontSize = element.tagName === "H1" ? 16 : element.tagName === "H2" ? 14 : 12
-  doc.setFontSize(fontSize)
-  doc.setTextColor(55, 65, 81)
-  doc.text(element.textContent || "", margin, yPosition)
-  return fontSize === 16 ? 12 : fontSize === 14 ? 10 : 8
-}
+export class ExportPdfService implements IExportPdfService {
+  private renderHeading(doc: jsPDF, element: Element, margin: number, yPosition: number): number {
+    const fontSize = element.tagName === "H1" ? 16 : element.tagName === "H2" ? 14 : 12
+    doc.setFontSize(fontSize)
+    doc.setTextColor(55, 65, 81)
+    doc.text(element.textContent || "", margin, yPosition)
+    return fontSize === 16 ? 12 : fontSize === 14 ? 10 : 8
+  }
 
-function renderParagraph(
-  doc: jsPDF,
-  element: Element,
-  margin: number,
-  contentWidth: number,
-  yPosition: number,
-  checkNewPage: (space: number) => boolean
-): number {
-  doc.setFontSize(10)
-  doc.setTextColor(75, 85, 99)
-  const lines = doc.splitTextToSize(element.textContent || "", contentWidth)
-  let offset = 0
-  lines.forEach((line: string) => {
-    checkNewPage(5)
-    doc.text(line, margin, yPosition + offset)
-    offset += 5
-  })
-  return offset + 3
-}
-
-function renderList(
-  doc: jsPDF,
-  element: Element,
-  margin: number,
-  contentWidth: number,
-  yPosition: number,
-  checkNewPage: (space: number) => boolean
-): number {
-  const items = element.querySelectorAll("li")
-  let offset = 0
-  items.forEach((item) => {
-    checkNewPage(8)
+  private renderParagraph(
+    doc: jsPDF,
+    element: Element,
+    margin: number,
+    contentWidth: number,
+    yPosition: number,
+    checkNewPage: (space: number) => boolean
+  ): number {
     doc.setFontSize(10)
     doc.setTextColor(75, 85, 99)
-    const bullet = element.tagName === "UL" ? "• " : "- "
-    const text = bullet + (item.textContent || "")
-    const lines = doc.splitTextToSize(text, contentWidth - 5)
-    lines.forEach((line: string, index: number) => {
+    const lines = doc.splitTextToSize(element.textContent || "", contentWidth)
+    let offset = 0
+    lines.forEach((line: string) => {
       checkNewPage(5)
-      doc.text(index === 0 ? line : "  " + line, margin, yPosition + offset)
+      doc.text(line, margin, yPosition + offset)
       offset += 5
     })
-  })
-  return offset + 3
-}
-
-function renderMetricCard(doc: jsPDF, element: Element, margin: number, yPosition: number): number {
-  const valueEl = element.querySelector(".metric-value")
-  const labelEl = element.querySelector(".metric-label")
-
-  if (valueEl && labelEl) {
-    doc.setFillColor(249, 250, 251)
-    doc.rect(margin, yPosition - 5, 60, 12, "F")
-
-    doc.setFontSize(12)
-    doc.setTextColor(31, 41, 55)
-    doc.text(valueEl.textContent || "", margin + 2, yPosition)
-
-    doc.setFontSize(9)
-    doc.setTextColor(107, 114, 128)
-    doc.text(labelEl.textContent || "", margin + 2, yPosition + 4)
-
-    return 15
+    return offset + 3
   }
-  return 0
-}
 
-function renderTable(
-  doc: jsPDF,
-  element: Element,
-  margin: number,
-  contentWidth: number,
-  yPosition: number,
-  checkNewPage: (space: number) => boolean
-): number {
-  const headers: string[] = []
-  const rows: string[][] = []
-
-  element.querySelectorAll("thead th").forEach((th) => {
-    headers.push(th.textContent || "")
-  })
-
-  element.querySelectorAll("tbody tr").forEach((tr) => {
-    const row: string[] = []
-    tr.querySelectorAll("td").forEach((td) => {
-      row.push(td.textContent || "")
+  private renderList(
+    doc: jsPDF,
+    element: Element,
+    margin: number,
+    contentWidth: number,
+    yPosition: number,
+    checkNewPage: (space: number) => boolean
+  ): number {
+    const items = element.querySelectorAll("li")
+    let offset = 0
+    items.forEach((item) => {
+      checkNewPage(8)
+      doc.setFontSize(10)
+      doc.setTextColor(75, 85, 99)
+      const bullet = element.tagName === "UL" ? "• " : "- "
+      const text = bullet + (item.textContent || "")
+      const lines = doc.splitTextToSize(text, contentWidth - 5)
+      lines.forEach((line: string, index: number) => {
+        checkNewPage(5)
+        doc.text(index === 0 ? line : "  " + line, margin, yPosition + offset)
+        offset += 5
+      })
     })
-    if (row.length > 0) {
-      rows.push(row)
+    return offset + 3
+  }
+
+  private renderMetricCard(
+    doc: jsPDF,
+    element: Element,
+    margin: number,
+    yPosition: number
+  ): number {
+    const valueEl = element.querySelector(".metric-value")
+    const labelEl = element.querySelector(".metric-label")
+
+    if (valueEl && labelEl) {
+      doc.setFillColor(249, 250, 251)
+      doc.rect(margin, yPosition - 5, 60, 12, "F")
+
+      doc.setFontSize(12)
+      doc.setTextColor(31, 41, 55)
+      doc.text(valueEl.textContent || "", margin + 2, yPosition)
+
+      doc.setFontSize(9)
+      doc.setTextColor(107, 114, 128)
+      doc.text(labelEl.textContent || "", margin + 2, yPosition + 4)
+
+      return 15
     }
-  })
+    return 0
+  }
 
-  if (headers.length === 0 || rows.length === 0) return 0
+  private renderTable(
+    doc: jsPDF,
+    element: Element,
+    margin: number,
+    contentWidth: number,
+    yPosition: number,
+    checkNewPage: (space: number) => boolean
+  ): number {
+    const headers: string[] = []
+    const rows: string[][] = []
 
-  const colWidth = contentWidth / headers.length
-  let offset = 0
-
-  doc.setFillColor(243, 244, 246)
-  doc.rect(margin, yPosition - 5, contentWidth, 8, "F")
-  doc.setFontSize(9)
-  doc.setTextColor(31, 41, 55)
-  headers.forEach((header, index) => {
-    doc.text(header, margin + index * colWidth + 2, yPosition)
-  })
-  offset += 8
-
-  doc.setFontSize(8)
-  doc.setTextColor(75, 85, 99)
-  rows.forEach((row) => {
-    checkNewPage(7)
-    row.forEach((cell, index) => {
-      const maxWidth = colWidth - 4
-      const text = doc.splitTextToSize(cell, maxWidth)[0]
-      doc.text(text, margin + index * colWidth + 2, yPosition + offset)
+    element.querySelectorAll("thead th").forEach((th) => {
+      headers.push(th.textContent || "")
     })
-    offset += 6
-  })
 
-  return offset + 5
-}
+    element.querySelectorAll("tbody tr").forEach((tr) => {
+      const row: string[] = []
+      tr.querySelectorAll("td").forEach((td) => {
+        row.push(td.textContent || "")
+      })
+      if (row.length > 0) {
+        rows.push(row)
+      }
+    })
 
-function savePDFDocument(doc: jsPDF, filename: string) {
-  doc.save(filename)
-  toast.success("PDF report downloaded successfully")
-}
+    if (headers.length === 0 || rows.length === 0) return 0
 
-export const exportPdfService = {
-  // Generate PDF report with jsPDF
-  async generatePDFReport(title: string, content: string) {
+    const colWidth = contentWidth / headers.length
+    let offset = 0
+
+    doc.setFillColor(243, 244, 246)
+    doc.rect(margin, yPosition - 5, contentWidth, 8, "F")
+    doc.setFontSize(9)
+    doc.setTextColor(31, 41, 55)
+    headers.forEach((header, index) => {
+      doc.text(header, margin + index * colWidth + 2, yPosition)
+    })
+    offset += 8
+
+    doc.setFontSize(8)
+    doc.setTextColor(75, 85, 99)
+    rows.forEach((row) => {
+      checkNewPage(7)
+      row.forEach((cell, index) => {
+        const maxWidth = colWidth - 4
+        const text = doc.splitTextToSize(cell, maxWidth)[0]
+        doc.text(text, margin + index * colWidth + 2, yPosition + offset)
+      })
+      offset += 6
+    })
+
+    return offset + 5
+  }
+
+  private savePDFDocument(doc: jsPDF, filename: string): void {
+    doc.save(filename)
+    toast.success("PDF report downloaded successfully")
+  }
+
+  async generatePDFReport(title: string, content: string): Promise<void> {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -173,7 +178,7 @@ export const exportPdfService = {
       doc.text(`Generated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}`, margin, yPosition)
       yPosition += 15
 
-      const checkNewPage = (requiredSpace: number) => {
+      const checkNewPage = (requiredSpace: number): boolean => {
         if (yPosition + requiredSpace > pageHeight - 20) {
           doc.addPage()
           yPosition = 20
@@ -191,18 +196,18 @@ export const exportPdfService = {
 
         if (element.tagName === "H1" || element.tagName === "H2" || element.tagName === "H3") {
           checkNewPage(15)
-          yPosition += renderHeading(doc, element, margin, yPosition)
+          yPosition += this.renderHeading(doc, element, margin, yPosition)
         } else if (element.tagName === "P" && !element.closest(".metric-card")) {
           checkNewPage(10)
-          yPosition += renderParagraph(doc, element, margin, contentWidth, yPosition, checkNewPage)
+          yPosition += this.renderParagraph(doc, element, margin, contentWidth, yPosition, checkNewPage)
         } else if (element.tagName === "UL" || element.tagName === "OL") {
-          yPosition += renderList(doc, element, margin, contentWidth, yPosition, checkNewPage)
+          yPosition += this.renderList(doc, element, margin, contentWidth, yPosition, checkNewPage)
         } else if (element.classList.contains("metric-card")) {
           checkNewPage(15)
-          yPosition += renderMetricCard(doc, element, margin, yPosition)
+          yPosition += this.renderMetricCard(doc, element, margin, yPosition)
         } else if (element.tagName === "TABLE") {
           checkNewPage(20)
-          yPosition += renderTable(doc, element, margin, contentWidth, yPosition, checkNewPage)
+          yPosition += this.renderTable(doc, element, margin, contentWidth, yPosition, checkNewPage)
         }
       })
 
@@ -214,16 +219,15 @@ export const exportPdfService = {
 
       const filename = `${title.replace(/\s+/g, "_")}_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
 
-      savePDFDocument(doc, filename)
+      this.savePDFDocument(doc, filename)
     } catch (error) {
       console.error("Error generating PDF report:", error)
       toast.error("Failed to generate PDF report")
       this.fallbackPDFDownload(title, content)
     }
-  },
+  }
 
-  // Fallback method using blob download
-  fallbackPDFDownload(title: string, htmlContent: string) {
+  fallbackPDFDownload(title: string, htmlContent: string): void {
     try {
       const textContent = `${title}\n${"=".repeat(50)}\n\nGenerated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}\n\n${htmlContent
         .replace(/<[^>]*>/g, "")
@@ -245,13 +249,12 @@ export const exportPdfService = {
       console.error("Fallback download also failed:", fallbackError)
       toast.error("Unable to download report")
     }
-  },
+  }
 
-  // Generate inventory report
   async generateInventoryReport(
     rolls: Record<string, unknown>[],
     summary: Record<string, unknown>
-  ) {
+  ): Promise<void> {
     const content = `
       <h1>Inventory Report</h1>
 
@@ -309,10 +312,9 @@ export const exportPdfService = {
     `
 
     await this.generatePDFReport("Inventory Report", content)
-  },
+  }
 
-  // Generate waste analysis report
-  async generateWasteReport(data: Record<string, unknown>, charts?: string) {
+  async generateWasteReport(data: Record<string, unknown>, charts?: string): Promise<void> {
     const content = `
       <h1>Waste Analysis Report</h1>
 
@@ -380,5 +382,7 @@ export const exportPdfService = {
     `
 
     await this.generatePDFReport("Waste Analysis Report", content)
-  },
+  }
 }
+
+export const exportPdfService = new ExportPdfService()

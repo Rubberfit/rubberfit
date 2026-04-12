@@ -10,6 +10,7 @@ export interface NotificationParams {
   message: string
   priority?: NotificationQueue["priority"]
   contextData?: Record<string, unknown>
+  scheduledFor?: Date
 }
 
 export interface LowStockAlertParams {
@@ -58,6 +59,7 @@ export interface INotificationService {
   initialize(): Promise<void>
   getUserPreferences(userIdentifier: string): Promise<NotificationPreferences | null>
   sendNotification(params: NotificationParams): Promise<void>
+  stopQueueProcessor(): void
   sendLowStockAlert(params: LowStockAlertParams): Promise<void>
   sendPriceChangeAlert(params: PriceChangeAlertParams): Promise<void>
   sendPOStatusUpdate(params: POStatusUpdateParams): Promise<void>

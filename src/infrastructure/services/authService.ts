@@ -1,29 +1,16 @@
-import { supabase } from "@/src/infrastructure/models/supabase" // TODO: Refactor supabase to be placed in the infrastructure layer.
-import { getBrowserAppUrl } from "@/app/lib/app-url" // TODO: Refactor supabase to be placed in the infrastructure layer.
+import { supabase } from "@/src/infrastructure/models/supabase"
+import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { normalizeRoles } from "@/src/application/rbac"
 import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
+import type { IAuthService, AuthUser, AuthResponse } from "@/src/application/services/auth.service.interface"
 
-export interface AuthUser {
-  id: string
-  email: string
-  name?: string
-  avatar?: string
-  roles: string[]
-  authProvider?: string
-  createdAt: string
-}
+export type { AuthUser, AuthResponse }
 
-export interface AuthResponse {
-  user: AuthUser | null
-  error: AuthError | null
-}
-
-// Generate a random avatar using DiceBear API
-const generateRandomAvatar = (seed: string): string => {
+function generateRandomAvatar(seed: string): string {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=2563eb&textColor=ffffff`
 }
 
-const getUserAvatar = (user: SupabaseUser): string => {
+function getUserAvatar(user: SupabaseUser): string {
   return (
     user.user_metadata?.avatar_url ||
     user.user_metadata?.picture ||
@@ -32,28 +19,16 @@ const getUserAvatar = (user: SupabaseUser): string => {
   )
 }
 
-const getUserName = (user: SupabaseUser): string | undefined => {
+function getUserName(user: SupabaseUser): string | undefined {
   return user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0]
 }
 
-const getUserAuthProvider = (user: SupabaseUser): string | undefined => {
+function getUserAuthProvider(user: SupabaseUser): string | undefined {
   const provider = user.app_metadata?.provider
   return typeof provider === "string" ? provider : undefined
 }
 
-const buildAuthUser = async (user: SupabaseUser): Promise<AuthUser> => {
-  return {
-    id: user.id,
-    email: user.email!,
-    name: getUserName(user),
-    avatar: getUserAvatar(user),
-    roles: await getProfileRoles(user.id),
-    authProvider: getUserAuthProvider(user),
-    createdAt: user.created_at,
-  }
-}
-
-const getProfileRoles = async (userId: string): Promise<string[]> => {
+async function getProfileRoles(userId: string): Promise<string[]> {
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -73,8 +48,19 @@ const getProfileRoles = async (userId: string): Promise<string[]> => {
   }
 }
 
-export const authService = {
-  // Sign in with email and password
+async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
+  return {
+    id: user.id,
+    email: user.email!,
+    name: getUserName(user),
+    avatar: getUserAvatar(user),
+    roles: await getProfileRoles(user.id),
+    authProvider: getUserAuthProvider(user),
+    createdAt: user.created_at,
+  }
+}
+
+export class AuthService implements IAuthService {
   async signIn(email: string, password: string): Promise<AuthResponse> {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -108,9 +94,8 @@ export const authService = {
         } as AuthError,
       }
     }
-  },
+  }
 
-  // Sign up with email and password
   async signUp(email: string, password: string): Promise<AuthResponse> {
     try {
       const avatar = generateRandomAvatar(email)
@@ -120,8 +105,8 @@ export const authService = {
         password,
         options: {
           data: {
-            full_name: email.split("@")[0], // Use email prefix as default name
-            avatar_url: avatar, // Store generated avatar
+            full_name: email.split("@")[0],
+            avatar_url: avatar,
           },
         },
       })
@@ -161,9 +146,8 @@ export const authService = {
         } as AuthError,
       }
     }
-  },
+  }
 
-  // Sign out
   async signOut(): Promise<{ error: AuthError | null }> {
     try {
       const { error } = await supabase.auth.signOut()
@@ -177,9 +161,8 @@ export const authService = {
         } as AuthError,
       }
     }
-  },
+  }
 
-  // Reset password
   async resetPassword(email: string): Promise<{ error: AuthError | null }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -195,9 +178,8 @@ export const authService = {
         } as AuthError,
       }
     }
-  },
+  }
 
-  // Update password during recovery
   async updatePassword(password: string): Promise<AuthResponse> {
     try {
       const { error } = await supabase.auth.updateUser({ password })
@@ -206,7 +188,7 @@ export const authService = {
         return { user: null, error }
       }
 
-      const user = await authService.getCurrentUser()
+      const user = await this.getCurrentUser()
 
       if (!user) {
         return {
@@ -219,10 +201,7 @@ export const authService = {
         }
       }
 
-      return {
-        user,
-        error: null,
-      }
+      return { user, error: null }
     } catch (error) {
       return {
         user: null,
@@ -233,9 +212,8 @@ export const authService = {
         } as AuthError,
       }
     }
-  },
+  }
 
-  // Get current user
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
       const {
@@ -251,9 +229,8 @@ export const authService = {
       console.error("Error getting current user:", error)
       return null
     }
-  },
+  }
 
-  // Get auth session
   async getSession() {
     try {
       const {
@@ -264,9 +241,8 @@ export const authService = {
       console.error("Error getting session:", error)
       return null
     }
-  },
+  }
 
-  // Listen to auth state changes
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
     return supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
@@ -275,5 +251,7 @@ export const authService = {
         callback(null)
       }
     })
-  },
+  }
 }
+
+export const authService = new AuthService()

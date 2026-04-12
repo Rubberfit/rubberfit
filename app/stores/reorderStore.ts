@@ -8,7 +8,6 @@ import type {
   ReorderRuleWithDetails,
   CreateReorderRule,
   UpdateReorderRule,
-  PurchaseOrder,
 } from "@/src/infrastructure/models/supabase"
 
 interface ReorderState {
@@ -42,7 +41,7 @@ interface ReorderState {
   // Actions - Reorder Suggestions
   checkReorderPoints: () => Promise<void>
   generateSuggestions: (includeInactive?: boolean) => Promise<void>
-  createPurchaseOrderFromSuggestion: (suggestion: ReorderSuggestion) => Promise<PurchaseOrder>
+  createPurchaseOrderFromSuggestion: (suggestion: ReorderSuggestion) => Promise<unknown>
   calculateOptimalQuantity: (
     materialTypeId: string,
     supplierId?: string
