@@ -1,5 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 import type { ReorderSuggestion, OptimalOrderQuantity } from "./reorderService"
 

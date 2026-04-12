@@ -3,7 +3,7 @@ import {
   type PriceHistory,
   type MaterialSupplierWithDetails,
 } from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 
 interface PriceHistoryWithJoins extends PriceHistory {
   material_supplier?: {

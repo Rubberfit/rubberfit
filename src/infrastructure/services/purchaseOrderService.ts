@@ -10,7 +10,7 @@ import {
   type Roll,
 } from "@/src/infrastructure/models/supabase"
 import { taxService } from "./taxService"
-import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"
 
 interface _POStatusChange {

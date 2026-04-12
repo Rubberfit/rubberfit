@@ -4,7 +4,7 @@ import {
   type CreateReorderRule,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
 
 export interface ReorderSuggestion {

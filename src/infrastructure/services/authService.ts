@@ -1,6 +1,6 @@
 import { supabase } from "@/src/infrastructure/models/supabase" // TODO: Refactor supabase to be placed in the infrastructure layer.
 import { getBrowserAppUrl } from "@/app/lib/app-url" // TODO: Refactor supabase to be placed in the infrastructure layer.
-import { normalizeRoles } from "@/app/lib/rbac" // TODO: Refactor supabase to be placed in the infrastructure layer.
+import { normalizeRoles } from "@/src/application/rbac"
 import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
 
 export interface AuthUser {

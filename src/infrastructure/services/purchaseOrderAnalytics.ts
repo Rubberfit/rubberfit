@@ -4,7 +4,7 @@ import {
   type PurchaseOrderWithDetails,
   type Roll,
 } from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/app/lib/getCurrentUserId"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { POReceiptResult } from "./purchaseOrderService"
 
 export const purchaseOrderAnalytics = {
