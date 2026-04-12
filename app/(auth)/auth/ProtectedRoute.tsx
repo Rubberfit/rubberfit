@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/app/contexts/AuthContext"
-import { canAccessPath, getDefaultAuthorizedPath } from "@/app/lib/rbac"
+import { canAccessPath } from "@/app/lib/rbac"
 import { Spinner } from "@/app/components/ui/spinner"
 
 interface ProtectedRouteProps {
@@ -18,12 +18,12 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/auth/v2/login")
+      router.replace("/login")
       return
     }
 
     if (!loading && user && !canAccessPath(user.roles, pathname)) {
-      router.replace(getDefaultAuthorizedPath(user.roles))
+      router.replace("/status-pages/unauthorized")
     }
   }, [user, loading, pathname, router])
 

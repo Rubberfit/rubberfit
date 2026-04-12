@@ -58,7 +58,7 @@ export function RegisterForm() {
         })
         // Redirect to login page after successful registration
         setTimeout(() => {
-          router.push("/auth/v2/login")
+          router.push("/login")
         }, 2000)
       } else {
         toast.error("Registration failed", {
