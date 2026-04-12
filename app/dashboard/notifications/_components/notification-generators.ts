@@ -32,7 +32,7 @@ export async function generateLowStockNotifications() {
   const existingByMaterial = new Map<string, string>()
   if (existingNotifications) {
     existingNotifications.forEach((n) => {
-      existingByMaterial.set(n.material_type, n.id)
+      if (n.material_type) existingByMaterial.set(n.material_type, n.id)
     })
   }
 
@@ -119,7 +119,7 @@ export async function generateLowStockNotifications() {
 
     if (allLowStockNotifs) {
       const toDelete = allLowStockNotifs
-        .filter((n) => !materialsWithLowStock.has(n.material_type))
+        .filter((n) => !materialsWithLowStock.has(n.material_type ?? ""))
         .map((n) => n.id)
 
       if (toDelete.length > 0) {
