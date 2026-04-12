@@ -13,9 +13,6 @@ import { injectable } from "tsyringe"
 // import DailyDigestEmail from '@/templates/email/daily-digest';
 // import WelcomeEmail from '@/templates/email/welcome';
 
-// Initialize Resend client with API key from environment
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 // Company details for branding
 const COMPANY_NAME = "USI Manufacturing"
 const FROM_EMAIL = process.env.SENDER_EMAIL || "notifications@usimanufacturing.com"
@@ -44,6 +41,14 @@ interface QueuedEmail {
 export class EmailService implements IEmailService {
   private emailQueue: QueuedEmail[] = []
   private isProcessing = false
+  private _resend: Resend | null = null
+
+  private get resend(): Resend {
+    if (!this._resend) {
+      this._resend = new Resend(process.env.RESEND_API_KEY)
+    }
+    return this._resend
+  }
 
   /**
    * Send an email immediately
@@ -52,7 +57,7 @@ export class EmailService implements IEmailService {
     options: EmailOptions
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const { data, error } = await resend.emails.send({
+      const { data, error } = await this.resend.emails.send({
         from: `${COMPANY_NAME} <${FROM_EMAIL}>`,
         to: Array.isArray(options.to) ? options.to : [options.to],
         subject: options.subject,

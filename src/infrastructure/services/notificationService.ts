@@ -300,7 +300,7 @@ export class NotificationService implements INotificationService {
   private async processNotificationQueue(): Promise<void> {
     try {
       // Process email notifications
-      await emailService.processEmailQueue()
+      await this.emailService.processEmailQueue()
 
       // TODO: Process SMS notifications when SMS service is implemented
     } catch (error) {
@@ -474,7 +474,7 @@ export class NotificationService implements INotificationService {
    */
   async sendTestEmail(userIdentifier: string, email: string): Promise<boolean> {
     try {
-      await emailService.sendWelcomeEmail({
+      await this.emailService.sendWelcomeEmail({
         to: email,
         userName: userIdentifier,
       })

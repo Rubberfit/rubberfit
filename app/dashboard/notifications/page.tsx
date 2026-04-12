@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
 import { globalEvents, EVENTS } from "@/app/lib/events"
-import { useRouter } from "next/navigation"
 import { type Notification } from "./_components/notification-helpers"
 import { NotificationList } from "./_components/notification-list"
 import { ActivityFeed } from "./_components/activity-feed"
@@ -14,7 +13,6 @@ import { NotificationDetailModal } from "./_components/notification-detail-modal
 import { useRecentActivities } from "./_components/use-recent-activities"
 
 export default function NotificationsPage() {
-  const _router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
