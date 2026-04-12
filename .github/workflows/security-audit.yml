@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: /
+        working-directory: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v6
 
