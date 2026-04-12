@@ -1,43 +1,43 @@
 -- Create cut_history table for tracking cut operations
 CREATE TABLE IF NOT EXISTS cut_history (
   -- User ID
-  id                      SERIAL PRIMARY KEY,
-  user_id                 UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  id                            SERIAL PRIMARY KEY,
+  user_id                       UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 
   -- Material and cut details
-  material_id             INT NOT NULL,
-  part_id                 INT NOT NULL,
+  material_id                   INT NOT NULL,
+  part_id                       INT NOT NULL,
 
   --Cut dimensions
-  cut_length              FLOAT NOT NULL,
-  cut_width               FLOAT NOT NULL,
-  cut_thickness           FLOAT NOT NULL,
+  cut_length                    FLOAT NOT NULL,
+  cut_width                     FLOAT NOT NULL,
+  cut_thickness                 FLOAT NOT NULL,
   
   --Custom part sizes selected by the user (if applicable)
-  part_custom_width       FLOAT NULL,
-  part_custom_height      FLOAT NULL,
+  part_custom_width            FLOAT NULL,
+  part_custom_height           FLOAT NULL,
   
   --Size selections
-  part_selected_size      INTEGER[],
-  part_selected_size_text TEXT[],
-  part_selected_label     TEXT[],
+  part_selected_size           INTEGER[],
+  part_selected_size_text      TEXT[],
+  part_selected_label          TEXT[],
 
   --Amount of matierial cut
-  cut_amount              INT NOT NULL,
+  cut_amount                   INT NOT NULL,
 
   --Miscellaneous details
-  parts_completed          INT NOT NULL,
-  mat_used                 FLOAT NOT NULL,
-  reusable_offcuts         FLOAT NOT NULL,
-  waste_percentage         FLOAT NOT NULL,
-  fab_score                FLOAT NOT NULL,
-  cut_pieces               INT NOT NULL,
+  parts_completed              INT NOT NULL,
+  material_used_sqft           FLOAT NOT NULL,
+  reusable_offset_sqft         FLOAT NOT NULL,
+  scrap_sqft                   FLOAT NOT NULL,
+  fab_score                    FLOAT NOT NULL,
+  cut_pieces                   INT NOT NULL,
 
   --Timestamps
-  cut_date                TIMESTAMPTZ DEFAULT NOW(),
-  created_at              TIMESTAMPTZ DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ DEFAULT NOW(),
-
+  cut_date                      TIMESTAMPTZ DEFAULT NOW(),
+  created_at                    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at                    TIMESTAMPTZ DEFAULT NOW(),
+      
   -- Constraints
   CONSTRAINT positive_cut_length CHECK (cut_length > 0),  
   CONSTRAINT positive_cut_width CHECK (cut_width > 0),
@@ -65,3 +65,8 @@ COMMENT ON COLUMN cut_history.part_selected_size IS 'Array of selected size IDs 
 COMMENT ON COLUMN cut_history.part_selected_size_text IS 'Array of selected size descriptions for the part, if applicable.';
 COMMENT ON COLUMN cut_history.part_selected_label IS 'Array of selected size labels for the part, if applicable.';
 COMMENT ON COLUMN cut_history.cut_amount IS 'The amount of material cut in this operation.';
+COMMENT ON COLUMN cut_history.parts_completed      IS 'Number of parts/units completed by the nesting layout.';
+COMMENT ON COLUMN cut_history.material_used_sqft   IS 'Total material area used by placed parts, in square feet.';
+COMMENT ON COLUMN cut_history.reusable_offset_sqft IS 'Reusable offcut area remaining after cuts, in square feet.';
+COMMENT ON COLUMN cut_history.scrap_sqft           IS 'Scrap/waste area that cannot be reused, in square feet.';
+COMMENT ON COLUMN cut_history.fab_score            IS 'Fabrication score (0–100) from the nesting engine.';

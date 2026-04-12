@@ -338,6 +338,12 @@ export interface CutHistory {
   part_selected_size_text: string[] | null
   part_selected_label: string[] | null
   cut_amount: number
+  parts_completed: number
+  material_used_sqft: number
+  reusable_offset_sqft: number
+  scrap_sqft: number
+  fab_score: number
+  cut_pieces: number
   cut_date: string
   created_at: string
   updated_at: string

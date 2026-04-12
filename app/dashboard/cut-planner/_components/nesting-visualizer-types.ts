@@ -56,6 +56,15 @@ export interface ScoredStrategy extends Strategy {
   reasons: { p: "p" | "w" | "f"; t: string }[]
 }
 
+export interface SimpleCutMetrics {
+  partsCompleted: number
+  cutPieces: number
+  materialUsedSqFt: number
+  reusableOffsetSqFt: number
+  scrapSqFt: number
+  fabScore: number
+}
+
 export interface NestingVisualizerProps {
   defaultRollWidth?: number
   defaultRollLength?: number
@@ -65,6 +74,7 @@ export interface NestingVisualizerProps {
   simpleMode?: boolean
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
+  onMetricsChange?: (metrics: SimpleCutMetrics) => void
 }
 
 export interface SimpleRectLayout {

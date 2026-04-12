@@ -5,12 +5,13 @@ import Link from "next/link"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { FileUp, Ruler, Shapes, X } from "lucide-react"
+import { FileUp, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import PresetDimensionSelector, { type PartTemplate } from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "./_components/upload-types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
+import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
   StockPreviewConfigurator,
   STOCK_PRESETS,
@@ -22,6 +23,7 @@ import {
   getDefaultCutDirection,
   parseCutRatios,
 } from "./_components/cut-planner-utils"
+import { PART_OPTIONS } from "./_components/preset-template-data"
 
 const DEMO_STOCK: StockConfig = {
   width: 96,
@@ -42,6 +44,8 @@ export default function CutPlannerPage() {
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
   const [customCutRatioInput, setCustomCutRatioInput] = useState("")
   const [stock, setStock] = useState(DEMO_STOCK)
+  const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
+  const [isRecordingCut, setIsRecordingCut] = useState(false)
 
   const selectedTemplates = useMemo(
     () => [...uploadedParts, ...presetParts],
@@ -111,6 +115,108 @@ export default function CutPlannerPage() {
   const activeStockPreset = STOCK_PRESETS.find(
     (preset) => preset.width === stock.width && preset.length === stock.length
   )?.id
+
+  const nestingSimpleParts = useMemo(
+    () =>
+      selectedTemplates.map((template) => ({
+        partType: template.partType,
+        quantity: template.isCustom ? template.quantity : safeQuantity,
+        cutDirection,
+        cutRatios: customCutRatios,
+        width: template.width,
+        length: template.length,
+        diameter: template.diameter,
+        height: template.height,
+        topWidth: template.topWidth,
+        bottomWidth: template.bottomWidth,
+        innerRadius: template.innerRadius,
+        outerRadius: template.outerRadius,
+        arcDegrees: template.arcDegrees,
+      })),
+    [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
+  )
+
+  const nestingSimplePart = useMemo(
+    () =>
+      selectedTemplate
+        ? {
+            partType: selectedTemplate.partType,
+            quantity: safeQuantity,
+            cutDirection,
+            cutRatios: customCutRatios,
+            width: selectedTemplate.width,
+            length: selectedTemplate.length,
+            diameter: selectedTemplate.diameter,
+            height: selectedTemplate.height,
+            topWidth: selectedTemplate.topWidth,
+            bottomWidth: selectedTemplate.bottomWidth,
+            innerRadius: selectedTemplate.innerRadius,
+            outerRadius: selectedTemplate.outerRadius,
+            arcDegrees: selectedTemplate.arcDegrees,
+          }
+        : undefined,
+    [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
+  )
+
+  const handleRecordCut = useCallback(async () => {
+    if (!selectedTemplate) return
+    setIsRecordingCut(true)
+    try {
+      const materialId = activeStockPreset
+        ? STOCK_PRESETS.findIndex((p) => p.id === activeStockPreset) + 1
+        : 0
+      const partId =
+        PART_OPTIONS.findIndex((p) => p.partType === selectedTemplate.partType) + 1
+
+      // Build 1-based size indices from position within selectedTemplates
+      const partSelectedSize = selectedTemplates.map((_, i) => i + 1)
+      const partSelectedSizeText = selectedTemplates.map((t) => t.label)
+      const partSelectedLabel = selectedTemplates.map((t) => t.summary)
+
+      const payload = {
+        material_id: materialId,
+        part_id: partId,
+        cut_width: stock.width,
+        cut_length: stock.length,
+        cut_thickness: stock.thickness,
+        cut_amount: safeQuantity,
+        part_custom_width: selectedTemplate.isCustom ? (selectedTemplate.width ?? null) : null,
+        part_custom_height: selectedTemplate.isCustom
+          ? (selectedTemplate.length ?? selectedTemplate.height ?? null)
+          : null,
+        part_selected_size: partSelectedSize,
+        part_selected_size_text: partSelectedSizeText,
+        part_selected_label: partSelectedLabel,
+        parts_completed: cutMetrics?.partsCompleted ?? 0,
+        cut_pieces: cutMetrics?.cutPieces ?? 0,
+        material_used_sqft: cutMetrics?.materialUsedSqFt ?? 0,
+        reusable_offset_sqft: cutMetrics?.reusableOffsetSqFt ?? 0,
+        scrap_sqft: cutMetrics?.scrapSqFt ?? 0,
+        fab_score: cutMetrics?.fabScore ?? 0,
+      }
+
+      const response = await fetch("/api/cuts/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        console.error("Failed to record cut:", await response.text())
+      }
+    } catch (error) {
+      console.error("Record cut error:", error)
+    } finally {
+      setIsRecordingCut(false)
+    }
+  }, [
+    selectedTemplate,
+    selectedTemplates,
+    activeStockPreset,
+    stock,
+    safeQuantity,
+    cutMetrics,
+  ])
 
   return (
     <div className="space-y-6">
@@ -224,10 +330,22 @@ export default function CutPlannerPage() {
 
           <Card className="border border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <LayoutLabel />
-                4. Graph
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                  <LayoutLabel />
+                  4. Graph
+                </CardTitle>
+                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={handleRecordCut}
+                    disabled={isRecordingCut}
+                  >
+                    <Scissors className="mr-1.5 h-4 w-4" />
+                    {isRecordingCut ? "Recording…" : "Cut"}
+                  </Button>
+                )}
+              </div>
               <CardDescription>
                 The graph starts from rectangular stock and shows the actual cut pieces placed on
                 that stock, with reusable offcut in amber and waste in red.
@@ -242,36 +360,9 @@ export default function CutPlannerPage() {
                 defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
                 defaultQty={safeQuantity}
                 simpleMode
-                simpleParts={selectedTemplates.map((template) => ({
-                  partType: template.partType,
-                  quantity: template.isCustom ? template.quantity : safeQuantity,
-                  cutDirection,
-                  cutRatios: customCutRatios,
-                  width: template.width,
-                  length: template.length,
-                  diameter: template.diameter,
-                  height: template.height,
-                  topWidth: template.topWidth,
-                  bottomWidth: template.bottomWidth,
-                  innerRadius: template.innerRadius,
-                  outerRadius: template.outerRadius,
-                  arcDegrees: template.arcDegrees,
-                }))}
-                simplePart={{
-                  partType: selectedTemplate.partType,
-                  quantity: safeQuantity,
-                  cutDirection,
-                  cutRatios: customCutRatios,
-                  width: selectedTemplate.width,
-                  length: selectedTemplate.length,
-                  diameter: selectedTemplate.diameter,
-                  height: selectedTemplate.height,
-                  topWidth: selectedTemplate.topWidth,
-                  bottomWidth: selectedTemplate.bottomWidth,
-                  innerRadius: selectedTemplate.innerRadius,
-                  outerRadius: selectedTemplate.outerRadius,
-                  arcDegrees: selectedTemplate.arcDegrees,
-                }}
+                onMetricsChange={setCutMetrics}
+                simpleParts={nestingSimpleParts}
+                simplePart={nestingSimplePart}
               />
             </CardContent>
           </Card>

@@ -15,6 +15,7 @@ import type {
   SimplePartPreview,
   MultiSheetResult,
   PreviewItem,
+  SimpleCutMetrics,
 } from "./nesting-visualizer-types"
 
 import { getStrategies, scoreStrat } from "./nesting-layout-utils"
@@ -25,7 +26,7 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
-import { buildPartPreviewItem } from "./nesting-preview-builders"
+import { buildPartPreviewItem, computeFabricationScore } from "./nesting-preview-builders"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -208,6 +209,7 @@ export default function NestingVisualizer({
   simpleMode = false,
   simplePart,
   simpleParts,
+  onMetricsChange,
 }: NestingVisualizerProps) {
   const patternSeed = useId().replace(/:/g, "")
 
@@ -364,6 +366,42 @@ export default function NestingVisualizer({
     )
     return buildTagMap(baseSimplePreview, multiSheet, specLabels)
   }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
+
+  useEffect(() => {
+    if (!simpleMode || !onMetricsChange || !baseSimplePreview) return
+    try {
+      let metrics: SimpleCutMetrics
+      if (multiSheet && multiSheet.sheets.length > 1) {
+        const totalPieces = multiSheet.sheets.reduce(
+          (sum, s) => sum + s.preview.piecesShown,
+          0
+        )
+        metrics = {
+          partsCompleted: multiSheet.totalUnitsCompleted,
+          cutPieces: totalPieces,
+          materialUsedSqFt: multiSheet.totalUsedArea / 144,
+          reusableOffsetSqFt: multiSheet.totalReusableArea / 144,
+          scrapSqFt: multiSheet.totalScrapArea / 144,
+          fabScore: multiSheet.avgFabScore / 100,
+        }
+      } else {
+        const rawScore =
+          baseSimplePreview.fabricationScore ??
+          computeFabricationScore(baseSimplePreview, defaultRollWidth, defaultRollLength).score
+        metrics = {
+          partsCompleted: baseSimplePreview.unitsCompleted,
+          cutPieces: baseSimplePreview.piecesShown,
+          materialUsedSqFt: baseSimplePreview.usedArea / 144,
+          reusableOffsetSqFt: baseSimplePreview.reusableArea / 144,
+          scrapSqFt: baseSimplePreview.scrapArea / 144,
+          fabScore: rawScore / 100,
+        }
+      }
+      onMetricsChange(metrics)
+    } catch (_error) {
+      // metrics computation failure must not break the visualizer
+    }
+  }, [simpleMode, baseSimplePreview, multiSheet, onMetricsChange])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
   const shouldRotate = defaultRollLength > defaultRollWidth
