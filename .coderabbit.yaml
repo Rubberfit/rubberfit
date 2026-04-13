@@ -1,7 +1,8 @@
 language: en-US
 tone_instructions: >
   Be direct and specific. Focus on architectural risk and maintainability.
-  When enriching issues, suggest a primary type, a 1-6 story-point estimate, and any applicable secondary labels.
+  Keep PR review comments concise: flag the problem and suggest a fix.
+  Do not add story points, type classifications, label suggestions, or issue-triage metadata to PR reviews.
 reviews:
   profile: assertive
   request_changes_workflow: true
@@ -11,9 +12,11 @@ reviews:
   poem: false
   review_status: true
   collapse_walkthrough: false
-  assess_linked_issues: true
-  related_issues: true
-  related_prs: true
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
   tools:
     biome:
       enabled: true
@@ -68,7 +71,7 @@ reviews:
     - path: "**/.env*"
       instructions: "Environment files should never be committed. Flag this immediately."
 chat:
-  auto_reply: true
+  auto_reply: false
 knowledge_base:
   issues:
     scope: local
@@ -76,7 +79,7 @@ knowledge_base:
     scope: local
 issue_enrichment:
   auto_enrich:
-    enabled: true
+    enabled: false
   planning:
     enabled: false
     auto_planning:
