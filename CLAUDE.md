@@ -26,10 +26,16 @@ This project uses **Clean Architecture**. The layer boundary is strictly enforce
 
 ```
 src/                        # Domain logic (framework-agnostic)
-├── application/            # Use cases and repository interfaces
+├── application/
+│   ├── services/           # Service interfaces (IPurchaseOrderService, etc.)
+│   ├── repositories/       # Repository interfaces
+│   └── use-cases/          # Business-logic orchestrators (complex ops only)
 ├── entities/               # Domain models and custom errors
-├── infrastructure/         # Supabase implementations (services, repositories)
-└── interface-adapters/     # Controllers — entry points into the domain
+├── infrastructure/
+│   ├── services/           # Supabase-backed service implementations
+│   ├── repositories/       # Supabase-backed repository implementations
+│   └── supabase/           # Generated types + SQL migrations
+└── interface-adapters/     # Reserved for controllers — currently empty, no server actions yet
 
 app/                        # Frameworks & Drivers (Next.js)
 nesting/                    # 2D NFP nesting engine (standalone)
@@ -39,10 +45,58 @@ config/                     # App-wide constants (APP_CONFIG)
 
 **Layer rules:**
 
-- `app/` (Next.js pages, server actions, components) calls interface-adapters controllers or calls infrastructure services directly
 - Infrastructure services are **the only** code that talks to Supabase — no direct Supabase calls outside `src/infrastructure/`
-- Zustand stores call services; they never call Supabase directly
+- Zustand stores call services (or use-cases); they never call Supabase directly
 - Next.js files must stay in `app/`; domain logic belongs in `src/`
+- Use-cases call services/repositories; services never call use-cases (one-way flow)
+
+### Data Flow
+
+Two valid flows, chosen based on the operation's complexity:
+
+**Simple (pure CRUD):**
+```
+app/ hook or component  →  infrastructure service  →  Supabase
+```
+Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
+
+**Complex (business rules or multi-service):**
+```
+app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
+```
+The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` → `createPurchaseOrderUseCase.execute()` → `purchaseOrderService` + `taxService`.
+
+Use-cases are **plain classes** with constructor injection, exported as module-level singletons (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`). They are not TSyringe-registered.
+
+### When to create a use-case
+
+Create one if the operation does **any** of:
+- Fires a side effect (notification, audit log, cache invalidation)
+- Touches more than one service (e.g., tax + PO + notification)
+- Enforces a business rule (status transition validation, threshold checks, EOQ math)
+- Will be reused from multiple entry points
+
+**Don't** create one for:
+- Pure read/list/get/delete — call the service directly from the hook
+- Single-field updates with no validation or side effect
+- Pass-through wrappers that add no logic
+
+See `src/application/use-cases/` for current examples (7 use-cases across `purchase-orders/` and `reorder/`).
+
+### Controllers
+
+`src/interface-adapters/` is reserved for controllers but currently empty. Controllers only earn their cost once server actions or API routes exist — at that point the action/route handler delegates to a controller that parses input, calls a use-case, and shapes the response. Until then, client hooks fill the controller role (form validation + use-case invocation + UI side effects).
+
+### Notifications gotcha
+
+There are **two separate tables**, read from different code paths:
+
+| Table | Purpose | Written by | Read by |
+|---|---|---|---|
+| `notifications` | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
+| `notification_queue` | Async email/SMS dispatch | `notificationService.queueNotification()` | `emailService.processEmailQueue()` |
+
+The `notifications` table has a CHECK constraint on `type` (`low_stock | roll_depleted | cut_completed | system_alert`); non-low-stock events are persisted as `system_alert`. When adding new notification triggers, always route through `notificationService.sendX()` methods — they handle preferences, quiet hours, toast, DB persist, and queue in one call. Don't write directly to either table from use-cases or hooks.
 
 ## State Management
 
