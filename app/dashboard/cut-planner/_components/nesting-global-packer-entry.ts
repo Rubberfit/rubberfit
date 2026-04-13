@@ -10,7 +10,7 @@ import type {
   SheetPreview,
 } from "./nesting-visualizer-types"
 import {
-  isReusableOffcutBand,
+  bandFitsAnyPreviewItem,
   computeIntraBlankWaste,
   getPlacementBounds,
 } from "./nesting-offcut-utils"
@@ -196,21 +196,18 @@ function buildSheetFromPlacements(
     bin.place(p.x, p.y, p.w, p.h)
   }
 
-  // Classify free rects as reusable offcuts vs scrap using the universal
-  // reusability check (standard offcut 11.5×12, reusable strip 6×24, or
-  // current piece fits). This ensures large leftover areas are always
-  // marked reusable even when the specific cut piece doesn't fit.
+  // Classify free rects as reusable offcuts vs scrap.
+  // For mixed-shape layouts, check ALL placed items' dimensions — not just
+  // the first — so a band that fits any of the placed shapes is reusable.
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
   let scrapArea = 0
-  const pieceW = sortedItems[0]?.width
-  const pieceH = sortedItems[0]?.height
 
   for (const fr of bin.freeRects) {
     const band: OffcutBand = { x: fr.x, y: fr.y, width: fr.w, height: fr.h }
     const bandArea = fr.w * fr.h
-    if (isReusableOffcutBand(band, pieceW, pieceH)) {
+    if (bandFitsAnyPreviewItem(band, placedItems)) {
       offcutBands.push(band)
       reusableArea += bandArea
     } else {

@@ -148,8 +148,8 @@ function buildMultiSheet(
   }
 
   if (allTrapezoids) {
-    const regenerate = (_qty: number) =>
-      generateMultiPartPreview(rollW, rollL, specs, cutW, cutH)
+    const regenerate = (_qty: number, remainingSpecs?: typeof specs) =>
+      generateMultiPartPreview(rollW, rollL, remainingSpecs ?? specs, cutW, cutH)
     return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate, specs)
   }
 
