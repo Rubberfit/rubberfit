@@ -97,6 +97,11 @@ export const sidebarItems: NavGroup[] = [
             requiredPermission: "createCut",
             isNew: true,
           },
+          {
+            title: "History",
+            url: "/dashboard/cut-planner/history",
+            requiredPermission: "viewCutHistory",
+          },
         ],
       },
       {

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
-import type { CutHistory, CutHistoryWithProfile } from "@/src/infrastructure/models/supabase"
+import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
@@ -29,12 +29,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // Check if the requesting user has a privileged role (admin / manager / supervisor)
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("roles")
+    .eq("id", user.id)
+    .single()
+
+  const callerRoles: string[] = (callerProfile?.roles as string[] | null) ?? []
+  const isPrivileged =
+    callerRoles.includes("admin") ||
+    callerRoles.includes("manager") ||
+    callerRoles.includes("supervisor")
+
   const { searchParams } = new URL(request.url)
 
   const rawPage = searchParams.get("page") ?? "1"
   const rawLimit = searchParams.get("limit") ?? String(DEFAULT_LIMIT)
   const from = searchParams.get("from")
   const to = searchParams.get("to")
+  const filterUserId = searchParams.get("userId")
 
   const page = parseInt(rawPage, 10)
   const limit = parseInt(rawLimit, 10)
@@ -62,9 +76,13 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("cut_history")
-    .select("*, profiles(full_name, roles)", { count: "exact" })
+    .select("*", { count: "exact" })
     .order("cut_date", { ascending: false })
     .range(offset, offset + limit - 1)
+
+  if (isPrivileged && filterUserId !== null) {
+    query = query.eq("user_id", filterUserId)
+  }
 
   if (from !== null) {
     query = query.gte("cut_date", from)
@@ -84,7 +102,7 @@ export async function GET(request: NextRequest) {
   const total = count ?? 0
 
   return NextResponse.json({
-    data: (data ?? []) as CutHistoryWithProfile[],
+    data: (data ?? []) as CutHistory[],
     pagination: {
       page,
       limit,

@@ -38,6 +38,7 @@ export const ROUTE_PERMISSIONS = {
   "/dashboard/cut-planner": "accessCutPlanner",
   "/dashboard/cut-planner/batch": "accessBatchCut",
   "/dashboard/cut-planner/manual": "createCut",
+  "/dashboard/cut-planner/history": "viewCutHistory",
 
   // History
   "/dashboard/history": "viewCutHistory",

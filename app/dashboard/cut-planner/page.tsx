@@ -171,7 +171,9 @@ export default function CutPlannerPage() {
       // Build 1-based size indices from position within selectedTemplates
       const partSelectedSize = selectedTemplates.map((_, i) => i + 1)
       const partSelectedSizeText = selectedTemplates.map((t) => t.label)
-      const partSelectedLabel = selectedTemplates.map((t) => t.summary)
+      const partSelectedLabel = selectedTemplates.map((t) =>
+        t.partType === "rectangle" ? t.summary : `${t.summary} ${t.label}`
+      )
 
       const payload = {
         material_id: materialId,
