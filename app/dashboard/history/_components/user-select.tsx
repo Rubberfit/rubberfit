@@ -22,7 +22,6 @@ interface UserSelectProps {
   onUserChange: (userId: string | null) => void
 }
 
-/** Shorten an email to at most maxLen characters, appending "…" if clipped. */
 function truncateEmail(email: string | null, maxLen = 24): string {
   if (!email) return ""
   return email.length > maxLen ? email.slice(0, maxLen - 1) + "…" : email

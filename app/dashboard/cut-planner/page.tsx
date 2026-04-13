@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -204,10 +205,15 @@ export default function CutPlannerPage() {
       })
 
       if (!response.ok) {
-        console.error("Failed to record cut:", await response.text())
+        const text = await response.text()
+        console.error("Failed to record cut:", text)
+        toast.error("Failed to save cut to history")
+      } else {
+        toast.success("Cut saved to history")
       }
     } catch (error) {
       console.error("Record cut error:", error)
+      toast.error("Failed to save cut to history")
     } finally {
       setIsRecordingCut(false)
     }

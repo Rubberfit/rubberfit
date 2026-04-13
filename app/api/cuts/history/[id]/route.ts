@@ -1,30 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+
+import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
+  // ── Authenticate caller ────────────────────────────────────────────────────
+  const authClient = makeAuthClient(request)
+  if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: () => {},
-    },
-  })
-
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await authClient.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // ── DB client (service role) ───────────────────────────────────────────────
+  const db = makeAdminClient()
+  if (!db) {
+    return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
   }
 
   const { id: rawId } = await params
@@ -34,8 +33,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 })
   }
 
-  // Fetch the cut record so we can check ownership for cutter self-delete
-  const { data: cut, error: fetchError } = await supabase
+  // ── Fetch record for ownership check ──────────────────────────────────────
+  const { data: cut, error: fetchError } = await db
     .from("cut_history")
     .select("id, user_id")
     .eq("id", cutId)
@@ -45,8 +44,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Cut record not found" }, { status: 404 })
   }
 
-  // Resolve caller role
-  const { data: profile } = await supabase
+  // ── Resolve caller role ────────────────────────────────────────────────────
+  const { data: profile } = await db
     .from("profiles")
     .select("roles")
     .eq("id", user.id)
@@ -54,15 +53,15 @@ export async function DELETE(
 
   const roles: string[] = (profile?.roles as string[] | null) ?? []
   const isPrivileged = roles.includes("admin") || roles.includes("manager")
-  const isOwnRecord = cut.user_id === user.id
+  const isOwnRecord = (cut as { user_id: string | null }).user_id === user.id
   const isCutter = roles.includes("cutter")
 
-  // Allow: admins/managers can delete any; cutters can only delete their own
+  // ── Authorize ─────────────────────────────────────────────────────────────
   if (!isPrivileged && !(isCutter && isOwnRecord)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { error } = await supabase.from("cut_history").delete().eq("id", cutId)
+  const { error } = await db.from("cut_history").delete().eq("id", cutId)
 
   if (error) {
     console.error("cut_history delete error:", error)

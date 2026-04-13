@@ -1,36 +1,34 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
 
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
+import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
 
 export async function GET(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
+  // ── Authenticate caller ────────────────────────────────────────────────────
+  const authClient = makeAuthClient(request)
+  if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: () => {},
-    },
-  })
-
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await authClient.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Check if the requesting user has a privileged role (admin / manager / supervisor)
-  const { data: callerProfile } = await supabase
+  // ── DB client (service role — bypasses RLS) ────────────────────────────────
+  const db = makeAdminClient()
+  if (!db) {
+    return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
+  }
+
+  // ── Resolve caller's role ──────────────────────────────────────────────────
+  const { data: callerProfile } = await db
     .from("profiles")
     .select("roles")
     .eq("id", user.id)
@@ -42,6 +40,7 @@ export async function GET(request: NextRequest) {
     callerRoles.includes("manager") ||
     callerRoles.includes("supervisor")
 
+  // ── Parse & validate query params ─────────────────────────────────────────
   const { searchParams } = new URL(request.url)
 
   const rawPage = searchParams.get("page") ?? "1"
@@ -74,14 +73,21 @@ export async function GET(request: NextRequest) {
 
   const offset = (page - 1) * limit
 
-  let query = supabase
+  // ── Build query ────────────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = db
     .from("cut_history")
     .select("*", { count: "exact" })
     .order("cut_date", { ascending: false })
     .range(offset, offset + limit - 1)
 
+  // Authorization: privileged users may scope to a specific user or see all;
+  // non-privileged users always see only their own records (enforced in code,
+  // independent of RLS policy state).
   if (isPrivileged && filterUserId !== null) {
     query = query.eq("user_id", filterUserId)
+  } else if (!isPrivileged) {
+    query = query.eq("user_id", user.id)
   }
 
   if (from !== null) {
@@ -133,26 +139,24 @@ interface RecordCutBody {
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
+  // ── Authenticate caller ────────────────────────────────────────────────────
+  const authClient = makeAuthClient(request)
+  if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: () => {},
-    },
-  })
-
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await authClient.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // ── DB client (service role) ───────────────────────────────────────────────
+  const db = makeAdminClient()
+  if (!db) {
+    return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
   }
 
   let body: RecordCutBody
@@ -226,7 +230,7 @@ export async function POST(request: NextRequest) {
     part_selected_label: body.part_selected_label ?? null,
   }
 
-  const { data, error } = await supabase.from("cut_history").insert(insert).select().single()
+  const { data, error } = await db.from("cut_history").insert(insert).select().single()
 
   if (error) {
     console.error("cut_history insert error:", error)
