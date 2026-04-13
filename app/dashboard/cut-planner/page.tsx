@@ -8,10 +8,13 @@ import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { FileUp, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
-import PresetDimensionSelector, { type PartTemplate } from "./_components/PresetDimensionSelector"
+import PresetDimensionSelector, {
+  type PartTemplate,
+  type LoadedSelection,
+} from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "./_components/upload-types"
-import type { SimpleCutDirection } from "./_components/NestingVisualizer"
+import type { SimpleCutDirection, SimplePartType } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
   StockPreviewConfigurator,
@@ -24,7 +27,11 @@ import {
   getDefaultCutDirection,
   parseCutRatios,
 } from "./_components/cut-planner-utils"
-import { PART_OPTIONS } from "./_components/preset-template-data"
+import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
+import { RecordedCutSelect } from "./_components/recorded-cut-select"
+import { type CutHistory } from "@/src/infrastructure/models/supabase"
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const DEMO_STOCK: StockConfig = {
   width: 96,
@@ -33,9 +40,68 @@ const DEMO_STOCK: StockConfig = {
   thickness: 0.5,
 }
 
+// Maps part_id (1-based index into PART_OPTIONS) back to a SupportedPartType
+const PART_ID_TO_TYPE: Record<number, SupportedPartType> = {
+  1: "rectangle",
+  2: "cylinder",
+  3: "cone",
+  4: "trapezoid",
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function LayoutLabel() {
   return <Ruler className="h-4 w-4 text-slate-500" />
 }
+
+/**
+ * Best-effort reconstruction of geometric parameters from a stored size label.
+ * Falls back to empty object if the label can't be parsed (nesting engine will
+ * use its own defaults in that case).
+ */
+function parseDimsFromLabel(
+  partType: SimplePartType,
+  label: string,
+  customWidth: number | null,
+  customHeight: number | null
+): Partial<PartTemplate> {
+  // Custom templates stored explicit dimensions — use them directly
+  if (customWidth != null && customHeight != null) {
+    if (partType === "rectangle") return { width: customWidth, length: customHeight }
+    if (partType === "cylinder") return { diameter: customWidth, height: customHeight }
+    return { width: customWidth, height: customHeight }
+  }
+
+  const n = "(\\d+(?:\\.\\d+)?)"
+
+  if (partType === "rectangle") {
+    // e.g. `18" × 14"`
+    const m = label.match(new RegExp(`${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m) return { width: parseFloat(m[1]), length: parseFloat(m[2]) }
+  }
+
+  if (partType === "cylinder") {
+    // e.g. `Ø18" × 24"`
+    const m = label.match(new RegExp(`[Øø]?\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m) return { diameter: parseFloat(m[1]), height: parseFloat(m[2]) }
+  }
+
+  if (partType === "cone") {
+    // e.g. `120° • R10" to R28"`
+    const m = label.match(new RegExp(`${n}°.*R${n}["\u2033]?\\s+to\\s+R${n}`))
+    if (m) return { arcDegrees: parseFloat(m[1]), innerRadius: parseFloat(m[2]), outerRadius: parseFloat(m[3]) }
+  }
+
+  if (partType === "trapezoid") {
+    // e.g. `18" / 24" × 42"`
+    const m = label.match(new RegExp(`${n}["\u2033]?\\s*/\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m) return { topWidth: parseFloat(m[1]), bottomWidth: parseFloat(m[2]), height: parseFloat(m[3]) }
+  }
+
+  return {}
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line max-lines-per-function
 export default function CutPlannerPage() {
@@ -47,6 +113,7 @@ export default function CutPlannerPage() {
   const [stock, setStock] = useState(DEMO_STOCK)
   const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
   const [isRecordingCut, setIsRecordingCut] = useState(false)
+  const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
 
   const selectedTemplates = useMemo(
     () => [...uploadedParts, ...presetParts],
@@ -74,6 +141,70 @@ export default function CutPlannerPage() {
     )
   }, [selectedTemplates])
 
+  // ── Load a previously recorded cut ────────────────────────────────────────
+  const handleLoadCut = useCallback((cut: CutHistory) => {
+    // 1. Restore stock dimensions
+    const stockPreset = cut.material_id >= 1 ? STOCK_PRESETS[cut.material_id - 1] : null
+    setStock({
+      width: cut.cut_width,
+      length: cut.cut_length,
+      thickness: cut.cut_thickness,
+      material: stockPreset?.label ?? `${cut.cut_width}" × ${cut.cut_length}"`,
+    })
+
+    // 2. Restore quantity
+    setQuantity(cut.cut_amount)
+
+    // 3. Reconstruct part templates from stored labels + dimensions
+    const partType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
+    const sizeTexts = cut.part_selected_size_text ?? []
+    const sizeLabels = cut.part_selected_label ?? []
+
+    const templates: PartTemplate[] =
+      sizeTexts.length > 0
+        ? sizeTexts.map((label, i) => ({
+            id: `loaded-${cut.id}-${i}`,
+            partType,
+            label,
+            summary: sizeLabels[i] ?? label,
+            quantity: cut.cut_amount,
+            category: "custom" as const,
+            isCustom: true,
+            // Only the first template carries custom dimensions
+            ...parseDimsFromLabel(
+              partType,
+              label,
+              i === 0 ? cut.part_custom_width : null,
+              i === 0 ? cut.part_custom_height : null
+            ),
+          }))
+        : [
+            {
+              id: `loaded-${cut.id}-0`,
+              partType,
+              label: `${cut.cut_width}" × ${cut.cut_length}"`,
+              summary: "Loaded cut",
+              quantity: cut.cut_amount,
+              category: "custom" as const,
+              isCustom: true,
+              width: cut.part_custom_width ?? cut.cut_width,
+              length: cut.part_custom_height ?? cut.cut_length,
+            },
+          ]
+
+    // 4. Apply — clear uploaded parts so loaded config is the only source
+    setUploadedParts([])
+    setPresetParts(templates)
+    setCutDirection(getDefaultCutDirection(partType))
+    setCustomCutRatioInput("")
+
+    // 5. Signal PresetDimensionSelector to select matching checkboxes
+    setLoadedSelection({ partType, labels: sizeTexts, nonce: Date.now() })
+
+    toast.success("Cut configuration loaded")
+  }, [])
+
+  // ── Other handlers ────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
     setQuantity((previous) => Math.max(1, previous))
@@ -94,7 +225,6 @@ export default function CutPlannerPage() {
       isCustom: true,
     }))
     setUploadedParts((prev) => [...prev, ...uploaded])
-
     if (stockWidth && stockWidth > 0) {
       setStock((prev) => ({ ...prev, width: stockWidth }))
     }
@@ -169,7 +299,6 @@ export default function CutPlannerPage() {
       const partId =
         PART_OPTIONS.findIndex((p) => p.partType === selectedTemplate.partType) + 1
 
-      // Build 1-based size indices from position within selectedTemplates
       const partSelectedSize = selectedTemplates.map((_, i) => i + 1)
       const partSelectedSizeText = selectedTemplates.map((t) => t.label)
       const partSelectedLabel = selectedTemplates.map((t) =>
@@ -217,15 +346,9 @@ export default function CutPlannerPage() {
     } finally {
       setIsRecordingCut(false)
     }
-  }, [
-    selectedTemplate,
-    selectedTemplates,
-    activeStockPreset,
-    stock,
-    safeQuantity,
-    cutMetrics,
-  ])
+  }, [selectedTemplate, selectedTemplates, activeStockPreset, stock, safeQuantity, cutMetrics])
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -244,9 +367,12 @@ export default function CutPlannerPage() {
           </div>
         </div>
 
-        <Button asChild variant="outline">
-          <Link href="/dashboard/cut-planner/batch">Batch Mode</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 md:shrink-0">
+          <RecordedCutSelect onLoad={handleLoadCut} />
+          <Button asChild variant="outline">
+            <Link href="/dashboard/cut-planner/batch">Batch Mode</Link>
+          </Button>
+        </div>
       </div>
 
       <CutListUpload onPartsConfirmed={handleUploadedParts} />
@@ -318,6 +444,7 @@ export default function CutPlannerPage() {
         rollWidth={stock.width}
         rollLength={stock.length}
         tagMap={tagMap}
+        loadedSelection={loadedSelection}
       />
 
       {selectedTemplates.length > 0 && selectedTemplate ? (

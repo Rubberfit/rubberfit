@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   getLocalStorageValue,
   removeLocalStorageValue,
@@ -21,9 +21,23 @@ import {
 } from "./preset-template-data"
 import { buildCustomTemplate, templateToDraft, getTemplateAreaSqFt } from "./preset-utils"
 
-export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
+export interface LoadedSelection {
+  /** Part type tab to switch to */
+  partType: SupportedPartType
+  /** Labels from part_selected_size_text — used to match PART_TEMPLATES by label */
+  labels: string[]
+  /** Increment to force the effect to re-run even when partType + labels are identical */
+  nonce: number
+}
+
+export function usePresetState(
+  onApply?: (templates: PartTemplate[]) => void,
+  loadedSelection?: LoadedSelection | null
+) {
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle")
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  /** When true the next onApply call is skipped (used when no preset match exists). */
+  const suppressNextApplyRef = useRef(false)
   const [filter, setFilter] = useState<"all" | TemplateCategory>("all")
   const [customDrafts, setCustomDrafts] = useState<CustomPartDrafts>(DEFAULT_CUSTOM_DRAFTS)
   const [customTemplates, setCustomTemplates] = useState<CustomTemplateMap>(EMPTY_CUSTOM_TEMPLATES)
@@ -100,7 +114,29 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
     0
   )
 
+  // Effect: respond to an external load trigger (e.g. loading a recorded cut)
   useEffect(() => {
+    if (!loadedSelection) return
+    const { partType, labels } = loadedSelection
+    const allForType = PART_TEMPLATES.filter((t) => t.partType === partType)
+    const matchedIds = new Set(
+      allForType.filter((t) => labels.includes(t.label)).map((t) => t.id)
+    )
+    if (matchedIds.size === 0) {
+      // No preset match — suppress the next onApply so we don't wipe caller state
+      suppressNextApplyRef.current = true
+    }
+    setSelectedPart(partType)
+    setFilter("all")
+    setEditingCustomId(null)
+    setChecked(matchedIds)
+  }, [loadedSelection])
+
+  useEffect(() => {
+    if (suppressNextApplyRef.current) {
+      suppressNextApplyRef.current = false
+      return
+    }
     onApply?.(selectedTemplates)
   }, [onApply, selectedTemplates])
 
