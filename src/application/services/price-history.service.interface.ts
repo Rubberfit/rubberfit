@@ -13,17 +13,28 @@ export interface PriceComparison {
 }
 
 export interface PriceTrend {
+  materialTypeId: string
   supplierId: string
-  supplierName: string
-  trend: "increasing" | "decreasing" | "stable"
+  currentPrice: number
+  previousPrice: number
+  changeAmount: number
   changePercentage: number
-  dataPoints: { date: string; price: number }[]
+  trend: "increasing" | "decreasing" | "stable"
+  priceHistory: PriceHistory[]
 }
 
 export interface BestPriceOption {
-  materialSupplier: MaterialSupplierWithDetails
+  supplierId: string
+  supplierName: string
+  materialSupplierId: string
   costPerSqft: number
-  valueScore: number
+  leadTimeDays: number
+  minimumOrderSqft: number
+  isPreferred: boolean
+  lastPriceChange?: {
+    date: string
+    changePercentage: number
+  }
 }
 
 export interface PriceBulkChange {
@@ -35,7 +46,11 @@ export interface PriceBulkChange {
 }
 
 export interface PriceHistoryWithJoins extends PriceHistory {
-  material_supplier?: MaterialSupplierWithDetails
+  material_supplier?: {
+    supplier?: { id: string; name: string }
+    material_type?: { id: string; name: string }
+    material_type_id?: string
+  }
 }
 
 export interface IPriceHistoryService {
@@ -59,4 +74,5 @@ export interface IPriceHistoryService {
     daysBack?: number
   ): Promise<PriceHistoryWithJoins[]>
   bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]>
+  calculateValueScore(supplier: MaterialSupplierWithDetails): number
 }

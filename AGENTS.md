@@ -22,19 +22,29 @@
 - src/
   - Clean architecture styled directory
   - application/
-    - Application Layer - holds use cases and interfaces for repositories
+    - services/ — service interfaces
+    - repositories/ — repository interfaces
+    - use-cases/ — business-logic orchestrators (complex ops only; pure CRUD skips this layer)
   - entities/
-    - Entities Layer - holds models and custom errors
+    - Models and custom errors
   - infrastructure/
-    - Infrastructure Layer - holds implementations of repositories and services, and pulls in the interfaces from application
+    - services/ and repositories/ — Supabase-backed implementations
+    - supabase/ — generated types + SQL migrations
   - interface-adapters/
-    - Interface Adapters Layer - holds controllers that serve as an entry point to the system (used in Frameworks & Drivers layer to interact with the system)
+    - Reserved for controllers. Currently empty — no server actions exist yet, so client hooks fill the controller role.
 
 - app/
-  - Frameworks & Drivers Layer - basically everything Next.js (pages, server actions, components, styles etc...) or whatever "consumes" the app's logic
+  - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
 
-- nesting/
-  - This is the 2D nesting engine
+- nesting/ — 2D nesting engine
+- di/ — TSyringe DI registration
 
-- di/
-  - Dependency injection directory that utilizes TSyringe for registering classes and interfaces
+## Data Flow
+
+- Simple (pure CRUD): `app/ hook → infrastructure service → Supabase`
+- Complex (rules/side effects): `app/ hook → src/application/use-cases/ → service(s) → Supabase`
+- Hooks own UI concerns (toast, router, loading). Use-cases own business logic (tax calc, cross-service coordination, notifications).
+- Use-cases are TSyringe-registered. Classes use `@injectable()` + `@inject(TOKEN)`; call sites resolve via `resolveUseCase<IFoo>(TOKENS.IFoo)` from `@/di/resolve`. No module-level singletons — class files are import-safe for unit tests.
+- Create a use-case when the op fires side effects, touches >1 service, or enforces rules. Skip for list/get/delete.
+- Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`.
+- Notifications: `notifications` table (in-app feed) and `notification_queue` (email/SMS) are separate. Always go through `notificationService.sendX()` — it writes both. Type CHECK limits `notifications.type` to `low_stock | roll_depleted | cut_completed | system_alert`; everything else persists as `system_alert`.

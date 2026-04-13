@@ -18,7 +18,7 @@ export interface IRollsRepository {
   getRollMaterialTypeMap(): Promise<Map<string, string>>
   bulkAddRolls(
     rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
-    batchSize?: number,
+    batchSize?: number
   ): Promise<{ imported: number; total: number }>
   getInventoryGrowthPercentage(): Promise<number>
   getThicknessesByMaterialType(materialType: string): Promise<number[]>

@@ -5,17 +5,23 @@ import {
   type Roll,
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import type { POReceiptResult } from "./purchaseOrderService"
+import type {
+  POReceiptItem,
+  POReceiptResult,
+} from "@/src/application/services/purchase-order.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
+import type {
+  IPurchaseOrderAnalyticsService,
+  POAnalyticsStats,
+} from "@/src/application/services/purchase-order-analytics.service.interface"
 
-export const purchaseOrderAnalytics = {
+@injectable()
+export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsService {
   // eslint-disable-next-line complexity
   async receivePurchaseOrder(
     id: string,
-    items: Array<{
-      itemId: string
-      quantityReceived: number
-      rollData?: Partial<Roll>
-    }>,
+    items: POReceiptItem[],
     receivedBy: string | undefined,
     updateStatus: (
       id: string,
@@ -119,18 +125,17 @@ export const purchaseOrderAnalytics = {
       console.error("Error receiving purchase order:", error)
       throw error
     }
-  },
+  }
 
-  // Analytics and Reporting
-  async getPurchaseOrderStats() {
+  async getPurchaseOrderStats(): Promise<POAnalyticsStats> {
     try {
       const { data, error } = await supabase.from("purchase_orders").select("status, total_amount")
 
       if (error) throw error
 
-      const stats = {
+      const stats: POAnalyticsStats = {
         total: data?.length || 0,
-        byStatus: {} as Record<string, number>,
+        byStatus: {},
         totalValue: 0,
         avgOrderValue: 0,
       }
@@ -149,9 +154,12 @@ export const purchaseOrderAnalytics = {
       console.error("Error getting purchase order stats:", error)
       throw error
     }
-  },
+  }
 
-  async getSupplierPurchaseHistory(supplierId: string, limit: number = 10) {
+  async getSupplierPurchaseHistory(
+    supplierId: string,
+    limit: number = 10
+  ): Promise<PurchaseOrderWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -171,9 +179,9 @@ export const purchaseOrderAnalytics = {
       console.error("Error getting supplier purchase history:", error)
       throw error
     }
-  },
+  }
 
-  async getPendingDeliveries() {
+  async getPendingDeliveries(): Promise<PurchaseOrderWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -193,5 +201,7 @@ export const purchaseOrderAnalytics = {
       console.error("Error getting pending deliveries:", error)
       throw error
     }
-  },
+  }
 }
+
+export const purchaseOrderAnalytics = new PurchaseOrderAnalyticsService()

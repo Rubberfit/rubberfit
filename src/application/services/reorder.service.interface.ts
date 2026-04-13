@@ -6,7 +6,7 @@ import type {
 
 export interface ReorderSuggestion {
   materialTypeId: string
-  materialTypeName: string
+  materialName: string
   supplierId?: string
   supplierName?: string
   currentStock: number
@@ -15,15 +15,14 @@ export interface ReorderSuggestion {
   estimatedCost: number
   urgency: "critical" | "high" | "normal" | "low"
   reason: string
-  reorderRuleId: string
+  reorderRuleId?: string
 }
 
 export interface OptimalOrderQuantity {
-  materialTypeId: string
-  optimalQuantity: number
-  estimatedCost: number
-  bulkDiscountApplied: boolean
+  quantity: number
   reasoning: string
+  costSavings?: number
+  bulkDiscountApplied: boolean
 }
 
 export interface IReorderService {
@@ -41,4 +40,26 @@ export interface IReorderService {
     materialTypeId: string,
     supplierId?: string
   ): Promise<OptimalOrderQuantity>
+  bulkUpdateReorderRules(
+    updates: Array<{ id: string; updates: UpdateReorderRule }>
+  ): Promise<ReorderRuleWithDetails[]>
+  generatePONumber(): Promise<string>
+  calculateCurrentStock(materialTypeId: string): Promise<number>
+  calculateSuggestedQuantity(
+    currentStock: number,
+    reorderPoint: number,
+    reorderQuantity: number,
+    maxStock?: number
+  ): number
+  estimateReorderCost(
+    materialTypeId: string,
+    quantity: number,
+    supplierId?: string
+  ): Promise<number>
+  determineUrgency(
+    currentStock: number,
+    reorderPoint: number,
+    safetyStockDays: number
+  ): "critical" | "high" | "normal" | "low"
+  generateReorderReason(currentStock: number, reorderPoint: number): string
 }

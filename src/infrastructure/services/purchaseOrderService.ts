@@ -7,31 +7,31 @@ import {
   type UpdatePurchaseOrder,
   type CreatePurchaseOrderItem,
   type UpdatePurchaseOrderItem,
-  type Roll,
 } from "@/src/infrastructure/models/supabase"
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"
+import type {
+  IPurchaseOrderService,
+  POReceiptItem,
+  POReceiptResult,
+} from "@/src/application/services/purchase-order.service.interface"
+import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import type { IPurchaseOrderAnalyticsService } from "@/src/application/services/purchase-order-analytics.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
-interface _POStatusChange {
-  fromStatus: PurchaseOrder["status"]
-  toStatus: PurchaseOrder["status"]
-  changedBy?: string
-  reason?: string
-  timestamp: string
-}
+export type { POReceiptResult }
 
-export interface POReceiptResult {
-  purchaseOrderId: string
-  itemsReceived: number
-  rollsCreated: Roll[]
-  partialReceipt: boolean
-  completedAt?: string
-}
-
-export const purchaseOrderService = {
-  // CRUD for Purchase Orders
-  async getAllPurchaseOrders() {
+@injectable()
+export class PurchaseOrderService implements IPurchaseOrderService {
+  constructor(
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
+    @inject(TOKENS.IPurchaseOrderAnalyticsService)
+    private readonly analytics: IPurchaseOrderAnalyticsService
+  ) {}
+  async getAllPurchaseOrders(): Promise<PurchaseOrderWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -56,9 +56,11 @@ export const purchaseOrderService = {
       console.error("Error fetching purchase orders:", error)
       throw error
     }
-  },
+  }
 
-  async getPurchaseOrdersByStatus(status: PurchaseOrder["status"]) {
+  async getPurchaseOrdersByStatus(
+    status: PurchaseOrder["status"]
+  ): Promise<PurchaseOrderWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -78,9 +80,9 @@ export const purchaseOrderService = {
       console.error("Error fetching purchase orders by status:", error)
       throw error
     }
-  },
+  }
 
-  async getPurchaseOrderById(id: string) {
+  async getPurchaseOrderById(id: string): Promise<PurchaseOrderWithDetails> {
     try {
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -103,9 +105,9 @@ export const purchaseOrderService = {
       console.error("Error fetching purchase order by ID:", error)
       throw error
     }
-  },
+  }
 
-  async createPurchaseOrder(order: CreatePurchaseOrder) {
+  async createPurchaseOrder(order: CreatePurchaseOrder): Promise<PurchaseOrderWithDetails> {
     try {
       const poNumber = await this.generatePONumber()
       const user_id = await getCurrentUserId()
@@ -134,9 +136,12 @@ export const purchaseOrderService = {
       console.error("Error creating purchase order:", error)
       throw error
     }
-  },
+  }
 
-  async updatePurchaseOrder(id: string, updates: UpdatePurchaseOrder) {
+  async updatePurchaseOrder(
+    id: string,
+    updates: UpdatePurchaseOrder
+  ): Promise<PurchaseOrderWithDetails> {
     try {
       if (updates.subtotal !== undefined) {
         let supplierId = updates.supplier_id
@@ -152,7 +157,10 @@ export const purchaseOrderService = {
         }
 
         if (supplierId) {
-          const taxCalc = await taxService.calculatePurchaseOrderTax(supplierId, updates.subtotal)
+          const taxCalc = await this.taxService.calculatePurchaseOrderTax(
+            supplierId,
+            updates.subtotal
+          )
           updates.tax_amount = taxCalc.taxAmount
           updates.total_amount = updates.subtotal + taxCalc.taxAmount + (updates.shipping_cost || 0)
         } else {
@@ -180,9 +188,9 @@ export const purchaseOrderService = {
       console.error("Error updating purchase order:", error)
       throw error
     }
-  },
+  }
 
-  async deletePurchaseOrder(id: string) {
+  async deletePurchaseOrder(id: string): Promise<boolean> {
     try {
       const { data: po, error: checkError } = await supabase
         .from("purchase_orders")
@@ -206,10 +214,11 @@ export const purchaseOrderService = {
       console.error("Error deleting purchase order:", error)
       throw error
     }
-  },
+  }
 
-  // Purchase Order Items Management
-  async addItemToPurchaseOrder(item: CreatePurchaseOrderItem) {
+  async addItemToPurchaseOrder(
+    item: CreatePurchaseOrderItem
+  ): Promise<PurchaseOrderItemWithDetails> {
     try {
       const lineTotal = item.quantity_sqft * item.unit_cost
       const user_id = await getCurrentUserId()
@@ -254,9 +263,12 @@ export const purchaseOrderService = {
       console.error("Error adding item to purchase order:", error)
       throw error
     }
-  },
+  }
 
-  async updatePurchaseOrderItem(id: string, updates: UpdatePurchaseOrderItem) {
+  async updatePurchaseOrderItem(
+    id: string,
+    updates: UpdatePurchaseOrderItem
+  ): Promise<PurchaseOrderItemWithDetails> {
     try {
       let lineTotal
       if (updates.quantity_sqft !== undefined || updates.unit_cost !== undefined) {
@@ -297,9 +309,9 @@ export const purchaseOrderService = {
       console.error("Error updating purchase order item:", error)
       throw error
     }
-  },
+  }
 
-  async deletePurchaseOrderItem(id: string) {
+  async deletePurchaseOrderItem(id: string): Promise<boolean> {
     try {
       const { data: item, error: fetchError } = await supabase
         .from("purchase_order_items")
@@ -322,9 +334,8 @@ export const purchaseOrderService = {
       console.error("Error deleting purchase order item:", error)
       throw error
     }
-  },
+  }
 
-  // Status Management
   async updatePurchaseOrderStatus(
     id: string,
     newStatus: PurchaseOrder["status"],
@@ -377,59 +388,62 @@ export const purchaseOrderService = {
       console.error("Error updating purchase order status:", error)
       throw error
     }
-  },
+  }
 
-  async submitForApproval(id: string, submittedBy?: string) {
+  async submitForApproval(id: string, submittedBy?: string): Promise<PurchaseOrder> {
     return this.updatePurchaseOrderStatus(id, "pending", submittedBy, "Submitted for approval")
-  },
+  }
 
-  async approvePurchaseOrder(id: string, approvedBy?: string) {
+  async approvePurchaseOrder(id: string, approvedBy?: string): Promise<PurchaseOrder> {
     return this.updatePurchaseOrderStatus(id, "approved", approvedBy, "Approved")
-  },
+  }
 
-  async rejectPurchaseOrder(id: string, rejectedBy?: string, reason?: string) {
+  async rejectPurchaseOrder(
+    id: string,
+    rejectedBy?: string,
+    reason?: string
+  ): Promise<PurchaseOrder> {
     return this.updatePurchaseOrderStatus(id, "draft", rejectedBy, reason || "Rejected")
-  },
+  }
 
-  async markAsOrdered(id: string) {
+  async markAsOrdered(id: string): Promise<PurchaseOrder> {
     return this.updatePurchaseOrderStatus(id, "ordered", undefined, "Order placed with supplier")
-  },
+  }
 
-  async cancelPurchaseOrder(id: string, cancelledBy?: string, reason?: string) {
+  async cancelPurchaseOrder(
+    id: string,
+    cancelledBy?: string,
+    reason?: string
+  ): Promise<PurchaseOrder> {
     return this.updatePurchaseOrderStatus(id, "cancelled", cancelledBy, reason || "Cancelled")
-  },
+  }
 
-  // Delegated to analytics module
   async receivePurchaseOrder(
     id: string,
-    items: Array<{
-      itemId: string
-      quantityReceived: number
-      rollData?: Partial<Roll>
-    }>,
+    items: POReceiptItem[],
     receivedBy?: string
   ): Promise<POReceiptResult> {
-    return purchaseOrderAnalytics.receivePurchaseOrder(
+    return this.analytics.receivePurchaseOrder(
       id,
       items,
       receivedBy,
-      this.updatePurchaseOrderStatus.bind(this)
+      (poId, status, changedBy, reason) =>
+        this.updatePurchaseOrderStatus(poId, status, changedBy, reason)
     )
-  },
+  }
 
   async getPurchaseOrderStats() {
-    return purchaseOrderAnalytics.getPurchaseOrderStats()
-  },
+    return this.analytics.getPurchaseOrderStats()
+  }
 
   async getSupplierPurchaseHistory(supplierId: string, limit: number = 10) {
-    return purchaseOrderAnalytics.getSupplierPurchaseHistory(supplierId, limit)
-  },
+    return this.analytics.getSupplierPurchaseHistory(supplierId, limit)
+  }
 
   async getPendingDeliveries() {
-    return purchaseOrderAnalytics.getPendingDeliveries()
-  },
+    return this.analytics.getPendingDeliveries()
+  }
 
-  // Helper functions
   async generatePONumber(): Promise<string> {
     const date = new Date()
     const year = date.getFullYear()
@@ -443,9 +457,9 @@ export const purchaseOrderService = {
 
     const sequence = String((count || 0) + 1).padStart(4, "0")
     return `PO-${year}${month}-${sequence}`
-  },
+  }
 
-  async recalculatePOTotals(purchaseOrderId: string) {
+  async recalculatePOTotals(purchaseOrderId: string): Promise<void> {
     try {
       const { data: items, error: itemsError } = await supabase
         .from("purchase_order_items")
@@ -464,7 +478,7 @@ export const purchaseOrderService = {
 
       if (poError) throw poError
 
-      const taxCalc = await taxService.calculatePurchaseOrderTax(po.supplier_id, subtotal)
+      const taxCalc = await this.taxService.calculatePurchaseOrderTax(po.supplier_id, subtotal)
       const shippingCost = po?.shipping_cost || 0
       const totalAmount = subtotal + taxCalc.taxAmount + shippingCost
 
@@ -480,7 +494,7 @@ export const purchaseOrderService = {
       console.error("Error recalculating PO totals:", error)
       throw error
     }
-  },
+  }
 
   isValidStatusTransition(from: PurchaseOrder["status"], to: PurchaseOrder["status"]): boolean {
     const validTransitions: Record<PurchaseOrder["status"], PurchaseOrder["status"][]> = {
@@ -493,14 +507,16 @@ export const purchaseOrderService = {
     }
 
     return validTransitions[from]?.includes(to) || false
-  },
+  }
 
-  async getPurchaseOrderTaxDetails(supplierId: string, subtotal: number) {
+  async getPurchaseOrderTaxDetails(supplierId: string, subtotal: number): Promise<unknown> {
     try {
-      return await taxService.calculatePurchaseOrderTax(supplierId, subtotal)
+      return await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
     } catch (error) {
       console.error("Error getting PO tax details:", error)
       throw error
     }
-  },
+  }
 }
+
+export const purchaseOrderService = new PurchaseOrderService(taxService, purchaseOrderAnalytics)

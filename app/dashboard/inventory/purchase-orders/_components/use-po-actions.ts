@@ -8,6 +8,9 @@ import {
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
+import { resolveUseCase } from "@/di/resolve"
+import { TOKENS } from "@/di/tokens"
 import { toast } from "sonner"
 
 import { type TaxDetails, fetchTaxDetails as fetchTaxDetailsHelper } from "./po-tax-helpers"
@@ -55,8 +58,15 @@ export function usePOActions({
 
   const updatePOStatus = async (poId: string, newStatus: PurchaseOrder["status"]) => {
     try {
-      const response = await purchaseOrderService.updatePurchaseOrderStatus(poId, newStatus)
-      if (!response) throw new Error("Failed to update status")
+      if (newStatus === "approved") {
+        const useCase = resolveUseCase<IApprovePurchaseOrderUseCase>(
+          TOKENS.IApprovePurchaseOrderUseCase
+        )
+        await useCase.execute({ purchaseOrderId: poId })
+      } else {
+        const response = await purchaseOrderService.updatePurchaseOrderStatus(poId, newStatus)
+        if (!response) throw new Error("Failed to update status")
+      }
 
       setPurchaseOrders((pos) =>
         pos.map((po) => (po.id === poId ? { ...po, status: newStatus } : po))

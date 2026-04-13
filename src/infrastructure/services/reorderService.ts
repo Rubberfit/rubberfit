@@ -6,31 +6,24 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
+import type {
+  IReorderService,
+  ReorderSuggestion,
+  OptimalOrderQuantity,
+} from "@/src/application/services/reorder.service.interface"
+import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
-export interface ReorderSuggestion {
-  materialTypeId: string
-  materialName: string
-  currentStock: number
-  reorderPoint: number
-  suggestedQuantity: number
-  supplierId?: string
-  supplierName?: string
-  estimatedCost: number
-  urgency: "critical" | "high" | "normal" | "low"
-  reason: string
-  reorderRuleId?: string
-}
+export type { ReorderSuggestion, OptimalOrderQuantity }
 
-export interface OptimalOrderQuantity {
-  quantity: number
-  reasoning: string
-  costSavings?: number
-  bulkDiscountApplied: boolean
-}
-
-export const reorderService = {
-  // CRUD for Reorder Rules
-  async getAllReorderRules() {
+@injectable()
+export class ReorderService implements IReorderService {
+  constructor(
+    @inject(TOKENS.IReorderCalculationsService) private readonly calc: IReorderCalculationsService
+  ) {}
+  async getAllReorderRules(): Promise<ReorderRuleWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -49,9 +42,9 @@ export const reorderService = {
       console.error("Error fetching reorder rules:", error)
       throw error
     }
-  },
+  }
 
-  async getActiveReorderRules() {
+  async getActiveReorderRules(): Promise<ReorderRuleWithDetails[]> {
     try {
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -71,9 +64,9 @@ export const reorderService = {
       console.error("Error fetching active reorder rules:", error)
       throw error
     }
-  },
+  }
 
-  async getReorderRuleById(id: string) {
+  async getReorderRuleById(id: string): Promise<ReorderRuleWithDetails> {
     try {
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -93,9 +86,9 @@ export const reorderService = {
       console.error("Error fetching reorder rule by ID:", error)
       throw error
     }
-  },
+  }
 
-  async getReorderRuleByMaterial(materialTypeId: string) {
+  async getReorderRuleByMaterial(materialTypeId: string): Promise<ReorderRuleWithDetails | null> {
     try {
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -116,9 +109,9 @@ export const reorderService = {
       console.error("Error fetching reorder rule by material:", error)
       throw error
     }
-  },
+  }
 
-  async createReorderRule(rule: CreateReorderRule) {
+  async createReorderRule(rule: CreateReorderRule): Promise<ReorderRuleWithDetails> {
     try {
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
@@ -139,9 +132,9 @@ export const reorderService = {
       console.error("Error creating reorder rule:", error)
       throw error
     }
-  },
+  }
 
-  async updateReorderRule(id: string, updates: UpdateReorderRule) {
+  async updateReorderRule(id: string, updates: UpdateReorderRule): Promise<ReorderRuleWithDetails> {
     try {
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
@@ -177,9 +170,9 @@ export const reorderService = {
       })
       throw error
     }
-  },
+  }
 
-  async deleteReorderRule(id: string) {
+  async deleteReorderRule(id: string): Promise<boolean> {
     try {
       const user_id = await getCurrentUserId()
       const { error } = await supabase
@@ -207,9 +200,8 @@ export const reorderService = {
       })
       throw error
     }
-  },
+  }
 
-  // Check materials against reorder points
   async checkReorderPoints(): Promise<ReorderSuggestion[]> {
     try {
       const { data: rules, error: rulesError } = await supabase
@@ -229,23 +221,23 @@ export const reorderService = {
       const suggestions: ReorderSuggestion[] = []
 
       for (const rule of rules) {
-        const currentStock = await reorderCalculations.calculateCurrentStock(rule.material_type_id)
+        const currentStock = await this.calc.calculateCurrentStock(rule.material_type_id)
 
         if (currentStock <= rule.reorder_point) {
-          const suggestedQuantity = reorderCalculations.calculateSuggestedQuantity(
+          const suggestedQuantity = this.calc.calculateSuggestedQuantity(
             currentStock,
             rule.reorder_point,
             rule.reorder_quantity,
             rule.max_stock_level
           )
 
-          const estimatedCost = await reorderCalculations.estimateReorderCost(
+          const estimatedCost = await this.calc.estimateReorderCost(
             rule.material_type_id,
             suggestedQuantity,
             rule.supplier_id
           )
 
-          const urgency = reorderCalculations.determineUrgency(
+          const urgency = this.calc.determineUrgency(
             currentStock,
             rule.reorder_point,
             rule.safety_stock_days
@@ -261,7 +253,7 @@ export const reorderService = {
             supplierName: rule.supplier?.name,
             estimatedCost,
             urgency,
-            reason: reorderCalculations.generateReorderReason(currentStock, rule.reorder_point),
+            reason: this.calc.generateReorderReason(currentStock, rule.reorder_point),
             reorderRuleId: rule.id,
           })
         }
@@ -275,9 +267,8 @@ export const reorderService = {
       console.error("Error checking reorder points:", error)
       throw error
     }
-  },
+  }
 
-  // Generate reorder suggestions
   async generateReorderSuggestions(includeInactive: boolean = false): Promise<ReorderSuggestion[]> {
     try {
       const { data: materials, error: matError } = await supabase.from("material_types").select("*")
@@ -288,19 +279,19 @@ export const reorderService = {
       const suggestions: ReorderSuggestion[] = []
 
       for (const material of materials) {
-        const currentStock = await reorderCalculations.calculateCurrentStock(material.id)
+        const currentStock = await this.calc.calculateCurrentStock(material.id)
         const rule = await this.getReorderRuleByMaterial(material.id)
 
         if (rule && rule.active) {
           if (currentStock <= rule.reorder_point) {
-            const suggestedQuantity = reorderCalculations.calculateSuggestedQuantity(
+            const suggestedQuantity = this.calc.calculateSuggestedQuantity(
               currentStock,
               rule.reorder_point,
               rule.reorder_quantity,
               rule.max_stock_level
             )
 
-            const estimatedCost = await reorderCalculations.estimateReorderCost(
+            const estimatedCost = await this.calc.estimateReorderCost(
               material.id,
               suggestedQuantity,
               rule.supplier_id
@@ -315,19 +306,19 @@ export const reorderService = {
               supplierId: rule.supplier_id,
               supplierName: rule.supplier?.name,
               estimatedCost,
-              urgency: reorderCalculations.determineUrgency(
+              urgency: this.calc.determineUrgency(
                 currentStock,
                 rule.reorder_point,
                 rule.safety_stock_days
               ),
-              reason: reorderCalculations.generateReorderReason(currentStock, rule.reorder_point),
+              reason: this.calc.generateReorderReason(currentStock, rule.reorder_point),
               reorderRuleId: rule.id,
             })
           }
         } else if (includeInactive && material.min_stock_alert) {
           if (currentStock <= material.min_stock_alert) {
             const suggestedQuantity = material.min_stock_alert * 2
-            const estimatedCost = await reorderCalculations.estimateReorderCost(
+            const estimatedCost = await this.calc.estimateReorderCost(
               material.id,
               suggestedQuantity,
               undefined
@@ -355,26 +346,26 @@ export const reorderService = {
       console.error("Error generating reorder suggestions:", error)
       throw error
     }
-  },
+  }
 
-  // Delegated to calculations module
-  async createAutomaticPurchaseOrder(suggestion: ReorderSuggestion) {
-    return reorderCalculations.createAutomaticPurchaseOrder(
+  async createAutomaticPurchaseOrder(suggestion: ReorderSuggestion): Promise<unknown> {
+    return this.calc.createAutomaticPurchaseOrder(
       suggestion,
-      this.getReorderRuleById.bind(this),
-      this.generatePONumber.bind(this)
+      (id) => this.getReorderRuleById(id),
+      () => this.generatePONumber()
     )
-  },
+  }
 
   async calculateOptimalOrderQuantity(
     materialTypeId: string,
     supplierId?: string
   ): Promise<OptimalOrderQuantity> {
-    return reorderCalculations.calculateOptimalOrderQuantity(materialTypeId, supplierId)
-  },
+    return this.calc.calculateOptimalOrderQuantity(materialTypeId, supplierId)
+  }
 
-  // Bulk update reorder rules
-  async bulkUpdateReorderRules(updates: Array<{ id: string; updates: UpdateReorderRule }>) {
+  async bulkUpdateReorderRules(
+    updates: Array<{ id: string; updates: UpdateReorderRule }>
+  ): Promise<ReorderRuleWithDetails[]> {
     try {
       const results = []
 
@@ -388,31 +379,7 @@ export const reorderService = {
       console.error("Error bulk updating reorder rules:", error)
       throw error
     }
-  },
-
-  // Re-exported helpers for external use
-  calculateCurrentStock: reorderCalculations.calculateCurrentStock,
-  calculateSuggestedQuantity: reorderCalculations.calculateSuggestedQuantity,
-  estimateReorderCost: reorderCalculations.estimateReorderCost,
-  determineUrgency: reorderCalculations.determineUrgency,
-  generateReorderReason: reorderCalculations.generateReorderReason,
-
-  generateOptimalQuantityReasoning(
-    avgDailyUsage: number,
-    optimalQuantity: number,
-    bulkDiscountApplied: boolean
-  ): string {
-    const daysSupply = avgDailyUsage > 0 ? Math.round(optimalQuantity / avgDailyUsage) : 0
-
-    let reasoning = `Based on average daily usage of ${avgDailyUsage.toFixed(1)} sq ft, `
-    reasoning += `ordering ${optimalQuantity} sq ft provides approximately ${daysSupply} days of supply. `
-
-    if (bulkDiscountApplied) {
-      reasoning += "Bulk discount applied for quantity over 1000 sq ft."
-    }
-
-    return reasoning
-  },
+  }
 
   async generatePONumber(): Promise<string> {
     const date = new Date()
@@ -427,5 +394,46 @@ export const reorderService = {
 
     const sequence = String((count || 0) + 1).padStart(4, "0")
     return `PO-${year}${month}-${sequence}`
-  },
+  }
+
+  // Delegate helpers to reorderCalculations instance
+  calculateCurrentStock(materialTypeId: string): Promise<number> {
+    return this.calc.calculateCurrentStock(materialTypeId)
+  }
+
+  calculateSuggestedQuantity(
+    currentStock: number,
+    reorderPoint: number,
+    reorderQuantity: number,
+    maxStock?: number
+  ): number {
+    return this.calc.calculateSuggestedQuantity(
+      currentStock,
+      reorderPoint,
+      reorderQuantity,
+      maxStock
+    )
+  }
+
+  estimateReorderCost(
+    materialTypeId: string,
+    quantity: number,
+    supplierId?: string
+  ): Promise<number> {
+    return this.calc.estimateReorderCost(materialTypeId, quantity, supplierId)
+  }
+
+  determineUrgency(
+    currentStock: number,
+    reorderPoint: number,
+    safetyStockDays: number
+  ): "critical" | "high" | "normal" | "low" {
+    return this.calc.determineUrgency(currentStock, reorderPoint, safetyStockDays)
+  }
+
+  generateReorderReason(currentStock: number, reorderPoint: number): string {
+    return this.calc.generateReorderReason(currentStock, reorderPoint)
+  }
 }
+
+export const reorderService = new ReorderService(reorderCalculations)

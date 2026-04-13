@@ -4,49 +4,28 @@ import {
   type MaterialSupplierWithDetails,
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type {
+  IPriceHistoryService,
+  PriceBulkChange,
+  BestPriceOption,
+  PriceTrend,
+  PriceComparison,
+  PriceHistoryWithJoins,
+} from "@/src/application/services/price-history.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
-interface PriceHistoryWithJoins extends PriceHistory {
-  material_supplier?: {
-    supplier?: { id: string; name: string }
-    material_type?: { id: string; name: string }
-    material_type_id?: string
-  }
-}
+export type { PriceHistoryWithJoins, PriceTrend, BestPriceOption, PriceComparison, PriceBulkChange }
 
-interface PriceTrend {
-  materialTypeId: string
-  supplierId: string
-  currentPrice: number
-  previousPrice: number
-  changeAmount: number
-  changePercentage: number
-  trend: "increasing" | "decreasing" | "stable"
-  priceHistory: PriceHistory[]
-}
-
-interface BestPriceOption {
-  supplierId: string
-  supplierName: string
-  materialSupplierId: string
-  costPerSqft: number
-  leadTimeDays: number
-  minimumOrderSqft: number
-  isPreferred: boolean
-  lastPriceChange?: {
-    date: string
-    changePercentage: number
-  }
-}
-
-export const priceHistoryService = {
-  // Track price changes
+@injectable()
+export class PriceHistoryService implements IPriceHistoryService {
   async trackPriceChange(
     materialSupplierId: string,
     oldPrice: number | undefined,
     newPrice: number,
     changeReason?: string,
     changedBy?: string
-  ) {
+  ): Promise<PriceHistory> {
     try {
       const priceChangePercentage = oldPrice ? ((newPrice - oldPrice) / oldPrice) * 100 : undefined
 
@@ -74,10 +53,9 @@ export const priceHistoryService = {
       console.error("Error tracking price change:", error)
       throw error
     }
-  },
+  }
 
-  // Get price history for a material-supplier combination
-  async getPriceHistory(materialSupplierId: string, limit?: number) {
+  async getPriceHistory(materialSupplierId: string, limit?: number): Promise<PriceHistory[]> {
     try {
       let query = supabase
         .from("price_history")
@@ -97,15 +75,16 @@ export const priceHistoryService = {
       console.error("Error fetching price history:", error)
       throw error
     }
-  },
+  }
 
-  // Get price history for a material across all suppliers
-  async getMaterialPriceHistory(materialTypeId: string, daysBack: number = 90) {
+  async getMaterialPriceHistory(
+    materialTypeId: string,
+    daysBack: number = 90
+  ): Promise<PriceHistoryWithJoins[]> {
     try {
       const startDate = new Date()
       startDate.setDate(startDate.getDate() - daysBack)
 
-      // First get all material-supplier relationships for this material
       const { data: materialSuppliers, error: msError } = await supabase
         .from("material_suppliers")
         .select("id, supplier_id")
@@ -119,7 +98,6 @@ export const priceHistoryService = {
 
       const materialSupplierIds = materialSuppliers.map((ms) => ms.id)
 
-      // Get price history for all these material-supplier relationships
       const { data, error } = await supabase
         .from("price_history")
         .select(
@@ -140,10 +118,9 @@ export const priceHistoryService = {
       console.error("Error fetching material price history:", error)
       throw error
     }
-  },
+  }
 
-  // Compare prices across suppliers for a material
-  async comparePrices(materialTypeId: string) {
+  async comparePrices(materialTypeId: string): Promise<PriceComparison> {
     try {
       const { data, error } = await supabase
         .from("material_suppliers")
@@ -161,7 +138,6 @@ export const priceHistoryService = {
 
       const suppliers = data as MaterialSupplierWithDetails[]
 
-      // Calculate statistics
       if (suppliers.length === 0) {
         return {
           suppliers: [],
@@ -178,7 +154,6 @@ export const priceHistoryService = {
       const highestPrice = Math.max(...prices)
       const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
 
-      // Best value considers price, lead time, and supplier rating
       const bestValue = suppliers.reduce((best, current) => {
         const currentScore = this.calculateValueScore(current)
         const bestScore = best ? this.calculateValueScore(best) : 0
@@ -197,15 +172,13 @@ export const priceHistoryService = {
       console.error("Error comparing prices:", error)
       throw error
     }
-  },
+  }
 
-  // Calculate price trends
   async calculatePriceTrends(materialTypeId: string, daysBack: number = 30): Promise<PriceTrend[]> {
     try {
       const startDate = new Date()
       startDate.setDate(startDate.getDate() - daysBack)
 
-      // Get current prices and supplier info
       const { data: currentPrices, error: cpError } = await supabase
         .from("material_suppliers")
         .select(
@@ -226,7 +199,6 @@ export const priceHistoryService = {
       const trends: PriceTrend[] = []
 
       for (const ms of currentPrices) {
-        // Get price history for this supplier
         const { data: history, error: histError } = await supabase
           .from("price_history")
           .select("*")
@@ -271,9 +243,8 @@ export const priceHistoryService = {
       console.error("Error calculating price trends:", error)
       throw error
     }
-  },
+  }
 
-  // Get current best price for material
   async getBestPrice(materialTypeId: string): Promise<BestPriceOption | null> {
     try {
       const { data, error } = await supabase
@@ -293,7 +264,6 @@ export const priceHistoryService = {
       if (error && error.code !== "PGRST116") throw error
       if (!data) return null
 
-      // Get last price change for this supplier
       const { data: lastChange } = await supabase
         .from("price_history")
         .select("effective_date, price_change_percentage")
@@ -321,10 +291,12 @@ export const priceHistoryService = {
       console.error("Error getting best price:", error)
       throw error
     }
-  },
+  }
 
-  // Get all prices with significant recent changes
-  async getSignificantPriceChanges(thresholdPercentage: number = 5, daysBack: number = 7) {
+  async getSignificantPriceChanges(
+    thresholdPercentage: number = 5,
+    daysBack: number = 7
+  ): Promise<PriceHistoryWithJoins[]> {
     try {
       const startDate = new Date()
       startDate.setDate(startDate.getDate() - daysBack)
@@ -352,18 +324,9 @@ export const priceHistoryService = {
       console.error("Error fetching significant price changes:", error)
       throw error
     }
-  },
+  }
 
-  // Bulk track price changes
-  async bulkTrackPriceChanges(
-    changes: Array<{
-      materialSupplierId: string
-      oldPrice?: number
-      newPrice: number
-      changeReason?: string
-      changedBy?: string
-    }>
-  ) {
+  async bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]> {
     try {
       const user_id = await getCurrentUserId()
       const priceHistoryRecords = changes.map((change) => ({
@@ -390,22 +353,16 @@ export const priceHistoryService = {
       console.error("Error bulk tracking price changes:", error)
       throw error
     }
-  },
+  }
 
-  // Helper to calculate value score
   calculateValueScore(supplier: MaterialSupplierWithDetails): number {
-    // Lower price is better
     const priceScore = 100 / (supplier.cost_per_sqft + 1)
-
-    // Shorter lead time is better
     const leadTimeScore = 100 / ((supplier.lead_time_days || 1) + 1)
-
-    // Higher rating is better
     const ratingScore = (supplier.supplier?.rating || 3) * 20
-
-    // Preferred supplier bonus
     const preferredBonus = supplier.preferred_supplier ? 20 : 0
 
     return priceScore + leadTimeScore + ratingScore + preferredBonus
-  },
+  }
 }
+
+export const priceHistoryService = new PriceHistoryService()

@@ -4,8 +4,14 @@ import {
   type NotificationQueue,
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import emailService from "./emailService"
+import { emailService } from "./emailService"
+import { notificationRepository } from "@/src/infrastructure/repositories/notifications.repository"
 import { toast } from "sonner"
+import type { INotificationService } from "@/src/application/services/notification.service.interface"
+import type { IEmailService } from "@/src/application/services/email.service.interface"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 
 type NotificationType = NotificationQueue["notification_type"]
 type NotificationPriority = NotificationQueue["priority"]
@@ -26,9 +32,12 @@ interface NotificationParams {
   scheduledFor?: Date
 }
 
-class NotificationService {
+@injectable()
+export class NotificationService implements INotificationService {
   private userPreferences: Map<string, NotificationPreferences> = new Map()
   private processingInterval: NodeJS.Timeout | null = null
+
+  constructor(@inject(TOKENS.IEmailService) private readonly emailService: IEmailService) {}
 
   /**
    * Initialize the notification service
@@ -196,6 +205,7 @@ class NotificationService {
     // Send in-app notification
     if (channels.inApp) {
       this.showInAppNotification(params)
+      await this.persistInAppNotification(params)
     }
 
     // Queue email/SMS notifications
@@ -205,6 +215,29 @@ class NotificationService {
         sendEmail: channels.email,
         sendSms: channels.sms,
       })
+    }
+  }
+
+  /**
+   * Persist in-app notification to the notifications table so it appears on the
+   * notifications page. The table's type CHECK restricts values, so non-low-stock
+   * events are stored as system_alert.
+   */
+  private async persistInAppNotification(params: NotificationParams): Promise<void> {
+    try {
+      const persistedType = params.type === "low_stock" ? "low_stock" : "system_alert"
+      const ctx = (params.contextData ?? {}) as Record<string, unknown>
+      await notificationRepository.create({
+        type: persistedType,
+        title: params.title,
+        description: params.message,
+        material_type: typeof ctx.materialName === "string" ? ctx.materialName : undefined,
+        current_value: typeof ctx.currentStock === "number" ? ctx.currentStock : undefined,
+        threshold_value: typeof ctx.reorderPoint === "number" ? ctx.reorderPoint : undefined,
+        is_read: false,
+      })
+    } catch (error) {
+      console.error("Failed to persist in-app notification:", error)
     }
   }
 
@@ -292,7 +325,7 @@ class NotificationService {
   private async processNotificationQueue(): Promise<void> {
     try {
       // Process email notifications
-      await emailService.processEmailQueue()
+      await this.emailService.processEmailQueue()
 
       // TODO: Process SMS notifications when SMS service is implemented
     } catch (error) {
@@ -466,7 +499,7 @@ class NotificationService {
    */
   async sendTestEmail(userIdentifier: string, email: string): Promise<boolean> {
     try {
-      await emailService.sendWelcomeEmail({
+      await this.emailService.sendWelcomeEmail({
         to: email,
         userName: userIdentifier,
       })
@@ -482,5 +515,6 @@ class NotificationService {
 }
 
 // Export singleton instance
-const notificationService = new NotificationService()
+const notificationService = new NotificationService(emailService)
 export default notificationService
+export { notificationService }

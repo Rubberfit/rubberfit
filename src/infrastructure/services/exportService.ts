@@ -1,18 +1,24 @@
 import { format } from "date-fns"
 import { toast } from "sonner"
+import type {
+  IExportService,
+  ExportData,
+} from "@/src/application/services/export.service.interface"
+import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
+import { exportPdfService } from "./exportPdfService"
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
+
+export type { ExportData }
 
 // Re-export PDF service for consumers that need it
 export { exportPdfService } from "./exportPdfService"
 
-interface ExportData {
-  headers: string[]
-  rows: (string | number | boolean | null | undefined)[][]
-  filename?: string
-}
-
-export const exportService = {
-  // Export data to CSV
-  exportToCSV(data: ExportData) {
+@injectable()
+export class ExportService implements IExportService {
+  constructor(@inject(TOKENS.IExportPdfService) private readonly pdfService: IExportPdfService) {}
+  exportToCSV(data: ExportData): void {
     try {
       const { headers, rows, filename = "export" } = data
 
@@ -46,10 +52,9 @@ export const exportService = {
       console.error("Error exporting CSV:", error)
       toast.error("Failed to export CSV")
     }
-  },
+  }
 
-  // Export inventory data
-  exportInventory(rolls: Record<string, unknown>[]) {
+  exportInventory(rolls: Record<string, unknown>[]): void {
     const headers = [
       "Material Type",
       "Width (in)",
@@ -87,15 +92,10 @@ export const exportService = {
       ).toFixed(2),
     ])
 
-    this.exportToCSV({
-      headers,
-      rows,
-      filename: "inventory_export",
-    })
-  },
+    this.exportToCSV({ headers, rows, filename: "inventory_export" })
+  }
 
-  // Export cut history
-  exportCutHistory(cuts: Record<string, unknown>[]) {
+  exportCutHistory(cuts: Record<string, unknown>[]): void {
     const headers = [
       "Date",
       "Material Type",
@@ -124,15 +124,10 @@ export const exportService = {
       String(cut.notes || ""),
     ])
 
-    this.exportToCSV({
-      headers,
-      rows,
-      filename: "cut_history_export",
-    })
-  },
+    this.exportToCSV({ headers, rows, filename: "cut_history_export" })
+  }
 
-  // Export waste analysis
-  exportWasteAnalysis(data: Record<string, unknown>[]) {
+  exportWasteAnalysis(data: Record<string, unknown>[]): void {
     const headers = [
       "Period",
       "Total Cuts",
@@ -151,15 +146,10 @@ export const exportService = {
       (100 - ((item.avgWaste as number) || 0)).toFixed(1),
     ])
 
-    this.exportToCSV({
-      headers,
-      rows,
-      filename: "waste_analysis_export",
-    })
-  },
+    this.exportToCSV({ headers, rows, filename: "waste_analysis_export" })
+  }
 
-  // Export material usage
-  exportMaterialUsage(data: Record<string, unknown>[]) {
+  exportMaterialUsage(data: Record<string, unknown>[]): void {
     const headers = [
       "Material Type",
       "Total Rolls",
@@ -180,35 +170,27 @@ export const exportService = {
       item.lowStock ? "Yes" : "No",
     ])
 
-    this.exportToCSV({
-      headers,
-      rows,
-      filename: "material_usage_export",
-    })
-  },
+    this.exportToCSV({ headers, rows, filename: "material_usage_export" })
+  }
 
-  // Delegate PDF operations to exportPdfService
-  async generatePDFReport(title: string, content: string) {
-    const { exportPdfService } = await import("./exportPdfService")
-    return exportPdfService.generatePDFReport(title, content)
-  },
+  async generatePDFReport(title: string, content: string): Promise<void> {
+    return this.pdfService.generatePDFReport(title, content)
+  }
 
-  fallbackPDFDownload(title: string, htmlContent: string) {
-    import("./exportPdfService").then(({ exportPdfService }) => {
-      exportPdfService.fallbackPDFDownload(title, htmlContent)
-    })
-  },
+  fallbackPDFDownload(title: string, htmlContent: string): void {
+    this.pdfService.fallbackPDFDownload(title, htmlContent)
+  }
 
   async generateInventoryReport(
     rolls: Record<string, unknown>[],
     summary: Record<string, unknown>
-  ) {
-    const { exportPdfService } = await import("./exportPdfService")
-    return exportPdfService.generateInventoryReport(rolls, summary)
-  },
+  ): Promise<void> {
+    return this.pdfService.generateInventoryReport(rolls, summary)
+  }
 
-  async generateWasteReport(data: Record<string, unknown>, charts?: string) {
-    const { exportPdfService } = await import("./exportPdfService")
-    return exportPdfService.generateWasteReport(data, charts)
-  },
+  async generateWasteReport(data: Record<string, unknown>, charts?: string): Promise<void> {
+    return this.pdfService.generateWasteReport(data, charts)
+  }
 }
+
+export const exportService = new ExportService(exportPdfService)

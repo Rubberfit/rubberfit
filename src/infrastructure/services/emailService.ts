@@ -2,6 +2,9 @@ import { Resend } from "resend"
 // import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
 import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type { IEmailService } from "@/src/application/services/email.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 // Email templates - some still need to be created
 // import LowStockAlertEmail from '@/templates/email/low-stock-alert';
 // import PriceChangeAlertEmail from '@/templates/email/price-change-alert';
@@ -9,9 +12,6 @@ import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId
 // import POStatusUpdateEmail from '@/templates/email/po-status-update';
 // import DailyDigestEmail from '@/templates/email/daily-digest';
 // import WelcomeEmail from '@/templates/email/welcome';
-
-// Initialize Resend client with API key from environment
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 // Company details for branding
 const COMPANY_NAME = "USI Manufacturing"
@@ -37,9 +37,18 @@ interface QueuedEmail {
   maxRetries: number
 }
 
-class EmailService {
+@injectable()
+export class EmailService implements IEmailService {
   private emailQueue: QueuedEmail[] = []
   private isProcessing = false
+  private _resend: Resend | null = null
+
+  private get resend(): Resend {
+    if (!this._resend) {
+      this._resend = new Resend(process.env.RESEND_API_KEY)
+    }
+    return this._resend
+  }
 
   /**
    * Send an email immediately
@@ -48,7 +57,7 @@ class EmailService {
     options: EmailOptions
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const { data, error } = await resend.emails.send({
+      const { data, error } = await this.resend.emails.send({
         from: `${COMPANY_NAME} <${FROM_EMAIL}>`,
         to: Array.isArray(options.to) ? options.to : [options.to],
         subject: options.subject,
@@ -522,6 +531,7 @@ class EmailService {
 // Export singleton instance
 const emailService = new EmailService()
 export default emailService
+export { emailService }
 
 // Export types for use in other modules
 export type { EmailOptions, QueuedEmail }

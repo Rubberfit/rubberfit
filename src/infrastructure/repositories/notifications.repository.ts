@@ -40,7 +40,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async create(
-    notification: Omit<Notification, "id" | "created_at" | "updated_at">,
+    notification: Omit<Notification, "id" | "created_at" | "updated_at">
   ): Promise<Notification> {
     const { data, error } = await supabase
       .from("notifications")
@@ -53,7 +53,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async bulkCreate(
-    notifications: Omit<Notification, "id" | "created_at" | "updated_at">[],
+    notifications: Omit<Notification, "id" | "created_at" | "updated_at">[]
   ): Promise<Notification[]> {
     if (notifications.length === 0) return []
     const { data, error } = await supabase.from("notifications").insert(notifications).select()

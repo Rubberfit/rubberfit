@@ -43,7 +43,7 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
   }
 
   async create(
-    material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">,
+    material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">
   ): Promise<MaterialType> {
     const user_id = await getCurrentUserId()
     const { data, error } = await supabase

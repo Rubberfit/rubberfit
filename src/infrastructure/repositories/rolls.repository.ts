@@ -91,7 +91,7 @@ export class RollsRepository implements IRollsRepository {
       .from("rolls")
       .select("*")
       .or(
-        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`,
+        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`
       )
       .order("created_at", { ascending: false })
 

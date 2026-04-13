@@ -16,8 +16,11 @@ export interface POReceiptItem {
 }
 
 export interface POReceiptResult {
-  purchaseOrder: PurchaseOrder
-  createdRolls: Roll[]
+  purchaseOrderId: string
+  itemsReceived: number
+  rollsCreated: Roll[]
+  partialReceipt: boolean
+  completedAt?: string
 }
 
 export interface IPurchaseOrderService {
@@ -45,4 +48,12 @@ export interface IPurchaseOrderService {
   ): Promise<POReceiptResult>
   generatePONumber(): Promise<string>
   isValidStatusTransition(from: PurchaseOrder["status"], to: PurchaseOrder["status"]): boolean
+  updatePurchaseOrderStatus(
+    id: string,
+    status: PurchaseOrder["status"],
+    changedBy?: string,
+    reason?: string
+  ): Promise<PurchaseOrder>
+  recalculatePOTotals(purchaseOrderId: string): Promise<void>
+  getPurchaseOrderTaxDetails(supplierId: string, subtotal: number): Promise<unknown>
 }

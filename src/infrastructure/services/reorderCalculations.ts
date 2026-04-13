@@ -1,10 +1,33 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
-import type { ReorderSuggestion, OptimalOrderQuantity } from "./reorderService"
+import type {
+  ReorderSuggestion,
+  OptimalOrderQuantity,
+} from "@/src/application/services/reorder.service.interface"
+import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
-export const reorderCalculations = {
-  // Calculate optimal order quantities (EOQ)
+@injectable()
+export class ReorderCalculationsService implements IReorderCalculationsService {
+  private generateOptimalQuantityReasoning(
+    avgDailyUsage: number,
+    optimalQuantity: number,
+    bulkDiscountApplied: boolean
+  ): string {
+    const daysSupply = avgDailyUsage > 0 ? Math.round(optimalQuantity / avgDailyUsage) : 0
+
+    let reasoning = `Based on average daily usage of ${avgDailyUsage.toFixed(1)} sq ft, `
+    reasoning += `ordering ${optimalQuantity} sq ft provides approximately ${daysSupply} days of supply. `
+
+    if (bulkDiscountApplied) {
+      reasoning += "Bulk discount applied for quantity over 1000 sq ft."
+    }
+
+    return reasoning
+  }
+
   async calculateOptimalOrderQuantity(
     materialTypeId: string,
     supplierId?: string
@@ -55,7 +78,7 @@ export const reorderCalculations = {
         costSavings = optimalQuantity * unitCost * 0.05
       }
 
-      const reasoning = generateOptimalQuantityReasoning(
+      const reasoning = this.generateOptimalQuantityReasoning(
         avgDailyUsage,
         optimalQuantity,
         bulkDiscountApplied
@@ -75,14 +98,13 @@ export const reorderCalculations = {
         bulkDiscountApplied: false,
       }
     }
-  },
+  }
 
-  // Create purchase orders automatically
   async createAutomaticPurchaseOrder(
     suggestion: ReorderSuggestion,
     getReorderRuleById: (id: string) => Promise<{ lead_time_days: number }>,
     generatePONumber: () => Promise<string>
-  ) {
+  ): Promise<unknown> {
     try {
       if (!suggestion.supplierId) {
         throw new Error("Cannot create purchase order without supplier")
@@ -172,9 +194,8 @@ export const reorderCalculations = {
       console.error("Error creating automatic purchase order:", error)
       throw error
     }
-  },
+  }
 
-  // Cost estimation
   async estimateReorderCost(
     materialTypeId: string,
     quantity: number,
@@ -214,9 +235,8 @@ export const reorderCalculations = {
       console.error("Error estimating reorder cost:", error)
       return quantity * 10
     }
-  },
+  }
 
-  // Current stock calculation
   async calculateCurrentStock(materialTypeId: string): Promise<number> {
     try {
       const { data, error } = await supabase
@@ -237,9 +257,8 @@ export const reorderCalculations = {
       console.error("Error calculating current stock:", error)
       return 0
     }
-  },
+  }
 
-  // Quantity calculation helpers
   calculateSuggestedQuantity(
     currentStock: number,
     reorderPoint: number,
@@ -257,7 +276,7 @@ export const reorderCalculations = {
     }
 
     return Math.round(suggested / 10) * 10
-  },
+  }
 
   determineUrgency(
     currentStock: number,
@@ -270,7 +289,7 @@ export const reorderCalculations = {
     if (stockRatio <= 0.25) return "high"
     if (stockRatio <= 0.5) return "normal"
     return "low"
-  },
+  }
 
   generateReorderReason(currentStock: number, reorderPoint: number): string {
     const percentage = (((reorderPoint - currentStock) / reorderPoint) * 100).toFixed(1)
@@ -285,22 +304,7 @@ export const reorderCalculations = {
       return `Low stock warning - ${percentage}% below reorder point`
     }
     return `Stock at reorder point (${currentStock.toFixed(0)} sq ft)`
-  },
-}
-
-function generateOptimalQuantityReasoning(
-  avgDailyUsage: number,
-  optimalQuantity: number,
-  bulkDiscountApplied: boolean
-): string {
-  const daysSupply = avgDailyUsage > 0 ? Math.round(optimalQuantity / avgDailyUsage) : 0
-
-  let reasoning = `Based on average daily usage of ${avgDailyUsage.toFixed(1)} sq ft, `
-  reasoning += `ordering ${optimalQuantity} sq ft provides approximately ${daysSupply} days of supply. `
-
-  if (bulkDiscountApplied) {
-    reasoning += "Bulk discount applied for quantity over 1000 sq ft."
   }
-
-  return reasoning
 }
+
+export const reorderCalculations = new ReorderCalculationsService()

@@ -1,9 +1,21 @@
 import { supabase, type Cut } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type {
+  ICutService,
+  WasteStats,
+  WasteTrend,
+  CutWithRoll,
+  OptimizeCutRequirements,
+  OptimizeCutResult,
+} from "@/src/application/services/cut.service.interface"
+import "reflect-metadata"
+import { injectable } from "tsyringe"
 
-export const cutService = {
-  // Record a new cut
-  async recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">) {
+export type { WasteStats, WasteTrend, CutWithRoll, OptimizeCutRequirements, OptimizeCutResult }
+
+@injectable()
+export class CutService implements ICutService {
+  async recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">): Promise<Cut> {
     const user_id = await getCurrentUserId()
     const { data, error } = await supabase
       .from("cuts")
@@ -13,7 +25,6 @@ export const cutService = {
 
     if (error) throw error
 
-    // Update the roll's remaining length
     if (cut.roll_id) {
       const { data: roll } = await supabase
         .from("rolls")
@@ -34,10 +45,9 @@ export const cutService = {
     }
 
     return data as Cut
-  },
+  }
 
-  // Get cut history
-  async getCutHistory(limit = 100) {
+  async getCutHistory(limit = 100): Promise<Cut[]> {
     const { data, error } = await supabase
       .from("cuts")
       .select(
@@ -50,11 +60,10 @@ export const cutService = {
       .limit(limit)
 
     if (error) throw error
-    return data
-  },
+    return data as Cut[]
+  }
 
-  // Get cuts for a specific roll
-  async getCutsByRoll(rollId: string) {
+  async getCutsByRoll(rollId: string): Promise<Cut[]> {
     const { data, error } = await supabase
       .from("cuts")
       .select("*")
@@ -63,10 +72,9 @@ export const cutService = {
 
     if (error) throw error
     return data as Cut[]
-  },
+  }
 
-  // Get cuts this week
-  async getCutsThisWeek() {
+  async getCutsThisWeek(): Promise<Cut[]> {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
@@ -78,10 +86,9 @@ export const cutService = {
 
     if (error) throw error
     return data as Cut[]
-  },
+  }
 
-  // Get waste statistics
-  async getWasteStats() {
+  async getWasteStats(): Promise<WasteStats> {
     const { data, error } = await supabase
       .from("cuts")
       .select("waste_percentage, waste_sqft, total_sqft_used")
@@ -89,7 +96,7 @@ export const cutService = {
 
     if (error) throw error
 
-    const stats = {
+    const stats: WasteStats = {
       averageWastePercentage: 0,
       totalWasteSqft: 0,
       totalMaterialUsed: 0,
@@ -103,17 +110,9 @@ export const cutService = {
     }
 
     return stats
-  },
+  }
 
-  // Optimize cut (find best roll)
-  async optimizeCut(requirements: {
-    materialType: string
-    width: number
-    length: number
-    quantity: number
-    thickness?: number
-  }) {
-    // Get eligible rolls
+  async optimizeCut(requirements: OptimizeCutRequirements): Promise<OptimizeCutResult> {
     let query = supabase
       .from("rolls")
       .select("*")
@@ -133,13 +132,11 @@ export const cutService = {
       return { recommendations: [], message: "No suitable rolls found" }
     }
 
-    // Calculate waste for each roll
     const recommendations = eligibleRolls.map((roll) => {
       const totalLengthNeeded = requirements.length * requirements.quantity
       const materialUsedSqft = (requirements.width * totalLengthNeeded) / 144
       const totalConsumedSqft = (roll.width * totalLengthNeeded) / 144
       const wasteSqft = totalConsumedSqft - materialUsedSqft
-      // Fix: Add guard against division by zero
       const wastePercentage = totalConsumedSqft > 0 ? (wasteSqft / totalConsumedSqft) * 100 : 0
       const remainingAfter = roll.remaining_length - totalLengthNeeded
 
@@ -151,21 +148,19 @@ export const cutService = {
         waste_percentage: wastePercentage,
         remaining_length_after: remainingAfter,
         remaining_value_after: (remainingAfter * roll.width * (roll.cost_per_sqft || 0)) / 144,
-        score: wastePercentage, // Lower is better
+        score: wastePercentage,
       }
     })
 
-    // Sort by lowest waste
     recommendations.sort((a, b) => a.score - b.score)
 
     return {
-      recommendations: recommendations.slice(0, 3), // Top 3 options
+      recommendations: recommendations.slice(0, 3),
       message: "Success",
     }
-  },
+  }
 
-  // Get all cuts
-  async getAllCuts() {
+  async getAllCuts(): Promise<Cut[]> {
     const { data, error } = await supabase
       .from("cuts")
       .select("*")
@@ -173,10 +168,9 @@ export const cutService = {
 
     if (error) throw error
     return data as Cut[]
-  },
+  }
 
-  // Get cuts this month
-  async getCutsThisMonth() {
+  async getCutsThisMonth(): Promise<Cut[]> {
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
@@ -188,10 +182,9 @@ export const cutService = {
 
     if (error) throw error
     return data as Cut[]
-  },
+  }
 
-  // Get total material used this week
-  async getTotalMaterialUsedThisWeek() {
+  async getTotalMaterialUsedThisWeek(): Promise<number> {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
@@ -207,16 +200,14 @@ export const cutService = {
     }
 
     return data.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
-  },
+  }
 
-  // Get cuts growth percentage (compared to last week)
-  async getCutsGrowthPercentage() {
+  async getCutsGrowthPercentage(): Promise<number> {
     try {
       const now = new Date()
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
       const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
 
-      // Get this week's cuts
       const { data: thisWeek, error: thisWeekError } = await supabase
         .from("cuts")
         .select("id")
@@ -224,7 +215,6 @@ export const cutService = {
 
       if (thisWeekError) throw thisWeekError
 
-      // Get last week's cuts
       const { data: lastWeek, error: lastWeekError } = await supabase
         .from("cuts")
         .select("id")
@@ -245,10 +235,9 @@ export const cutService = {
       console.error("Error getting cuts growth:", error)
       return 0
     }
-  },
+  }
 
-  // Get cuts by date range
-  async getCutsByDateRange(from: Date, to: Date) {
+  async getCutsByDateRange(from: Date, to: Date): Promise<Cut[]> {
     const { data, error } = await supabase
       .from("cuts")
       .select("*")
@@ -258,10 +247,13 @@ export const cutService = {
 
     if (error) throw error
     return data as Cut[]
-  },
+  }
 
-  // Get cuts by date range with roll join (material, location, cost info)
-  async getCutsByDateRangeWithRolls(from: Date, to?: Date, options?: { ascending?: boolean }) {
+  async getCutsByDateRangeWithRolls(
+    from: Date,
+    to?: Date,
+    options?: { ascending?: boolean }
+  ): Promise<CutWithRoll[]> {
     let query = supabase
       .from("cuts")
       .select("*, roll:rolls(material_type, location, cost_per_sqft, width, thickness)")
@@ -274,11 +266,10 @@ export const cutService = {
 
     const { data, error } = await query
     if (error) throw error
-    return data
-  },
+    return data as CutWithRoll[]
+  }
 
-  // Get recent cuts with roll info
-  async getRecentCutsWithRolls(limit: number) {
+  async getRecentCutsWithRolls(limit: number): Promise<CutWithRoll[]> {
     const { data, error } = await supabase
       .from("cuts")
       .select("*, roll:rolls(material_type, location)")
@@ -286,11 +277,10 @@ export const cutService = {
       .limit(limit)
 
     if (error) throw error
-    return data
-  },
+    return data as CutWithRoll[]
+  }
 
-  // Get monthly waste percentages (for dashboard)
-  async getMonthlyWastePercentages() {
+  async getMonthlyWastePercentages(): Promise<{ waste_percentage: number }[]> {
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
@@ -302,12 +292,11 @@ export const cutService = {
 
     if (error) throw error
     return data as { waste_percentage: number }[]
-  },
+  }
 
-  // Get waste trend by week (for dashboard chart)
-  async getWasteTrendByWeek(weeks: number) {
+  async getWasteTrendByWeek(weeks: number): Promise<WasteTrend[]> {
     const now = new Date()
-    const result: { period: string; wastePercentage: number }[] = []
+    const result: WasteTrend[] = []
 
     for (let i = weeks - 1; i >= 0; i--) {
       const weekStart = new Date(now)
@@ -335,17 +324,14 @@ export const cutService = {
     }
 
     return result
-  },
+  }
 
-  // Get waste improvement percentage (compared to last month)
-  async getWasteImprovementPercentage() {
+  async getWasteImprovementPercentage(): Promise<number> {
     try {
       const now = new Date()
-      // Fix: Create new date instances to avoid mutation
       const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
       const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate())
 
-      // Get this month's waste average
       const { data: thisMonth, error: thisMonthError } = await supabase
         .from("cuts")
         .select("waste_percentage")
@@ -353,7 +339,6 @@ export const cutService = {
 
       if (thisMonthError) throw thisMonthError
 
-      // Get last month's waste average
       const { data: lastMonth, error: lastMonthError } = await supabase
         .from("cuts")
         .select("waste_percentage")
@@ -376,11 +361,12 @@ export const cutService = {
         return 0
       }
 
-      // Negative is improvement (less waste)
       return ((thisMonthAvg - lastMonthAvg) / lastMonthAvg) * 100
     } catch (error) {
       console.error("Error getting waste improvement:", error)
       return 0
     }
-  },
+  }
 }
+
+export const cutService = new CutService()
