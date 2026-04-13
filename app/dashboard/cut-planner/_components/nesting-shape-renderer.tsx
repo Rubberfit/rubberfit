@@ -1,6 +1,8 @@
 import React from "react"
 import type { PreviewItem, SimplePartPreview } from "./nesting-visualizer-types"
 
+export type RenderPass = "background" | "foreground" | undefined
+
 interface NestingShapeRendererProps {
   item: PreviewItem
   index: number
@@ -18,6 +20,7 @@ interface NestingShapeRendererProps {
   surfacePxW: number
   tagLetter?: string
   zoom?: number
+  renderPass?: RenderPass
 }
 
 interface ShapeCoords {
@@ -89,7 +92,7 @@ function PolygonShape({
         textAnchor="middle"
         dominantBaseline="middle"
         fill="#e7e5e4"
-        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
         {tagLetter ?? item.label}
@@ -105,6 +108,7 @@ function CircleShape({
   usablePatternId,
   wastePatternId,
   tagLetter,
+  renderPass,
 }: {
   item: PreviewItem
   index: number
@@ -112,49 +116,57 @@ function CircleShape({
   usablePatternId: string
   wastePatternId: string
   tagLetter?: string
+  renderPass?: RenderPass
 }) {
+  const showBg = renderPass !== "foreground"
+  const showFg = renderPass !== "background"
   const diameter = item.diameter ?? item.width
   const r = (diameter / 2) * (coords.pw / item.width)
   const cx = coords.px + coords.pw / 2
   const cy = coords.py + coords.ph / 2
   return (
     <g key={index + 1}>
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill="#1c1917"
-        rx="2"
-      />
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill={`url(#${wastePatternId})`}
-        opacity="0.5"
-        rx="2"
-      />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={Math.max(r - 1, 0)}
-        fill={`url(#${usablePatternId})`}
-        stroke="#84cc16"
-        strokeWidth="1.5"
-      />
-      <text
-        x={cx}
-        y={cy}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-        fontSize={Math.max(0, Math.min(10, r * 0.6))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {showBg && (
+        <>
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill="#1c1917"
+          />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill={`url(#${wastePatternId})`}
+          />
+        </>
+      )}
+      {showFg && (
+        <>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={Math.max(r - 1, 0)}
+            fill={`url(#${usablePatternId})`}
+            stroke="#84cc16"
+            strokeWidth="1.5"
+          />
+          <text
+            x={cx}
+            y={cy}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#e7e5e4"
+            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            fontWeight="600"
+          >
+            {tagLetter ?? item.label}
+          </text>
+        </>
+      )}
     </g>
   )
 }
@@ -166,6 +178,7 @@ function SectorShape({
   usablePatternId,
   wastePatternId,
   tagLetter,
+  renderPass,
 }: {
   item: PreviewItem
   index: number
@@ -173,17 +186,17 @@ function SectorShape({
   usablePatternId: string
   wastePatternId: string
   tagLetter?: string
+  renderPass?: RenderPass
 }) {
+  const showBg = renderPass !== "foreground"
+  const showFg = renderPass !== "background"
   const scale = coords.pw / item.width
   const innerR = (item.innerRadius ?? 0) * scale
   const outerR = (item.outerRadius ?? 0) * scale
   const arcDeg = item.arcDegrees ?? 120
   const halfArc = (arcDeg * Math.PI) / 360
   const flipSign = item.flipped ? -1 : 1
-  // When the packer rotated this item 90° CW, the arc dome points right instead of up.
-  // Shift all arc angles by +π/2 and recompute cx/cy for the swapped bounding box.
   const arcAngleOffset = item.rotated90 ? Math.PI / 2 : 0
-  // Rotated 90° CW: dome points right → apex at right edge, center = right_edge − outerR
   const cx = item.rotated90 ? coords.px + coords.pw - outerR : coords.px + coords.pw / 2
   const cy = item.rotated90 ? coords.py + coords.ph / 2 : coords.py + outerR
 
@@ -206,40 +219,45 @@ function SectorShape({
 
   return (
     <g key={index + 1}>
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill="#1c1917"
-        rx="2"
-      />
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill={`url(#${wastePatternId})`}
-        opacity="0.5"
-        rx="2"
-      />
-      <path
-        d={buildArcPath()}
-        fill={`url(#${usablePatternId})`}
-        stroke="#84cc16"
-        strokeWidth="1.5"
-      />
-      <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {showBg && (
+        <>
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill="#1c1917"
+          />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill={`url(#${wastePatternId})`}
+          />
+        </>
+      )}
+      {showFg && (
+        <>
+          <path
+            d={buildArcPath()}
+            fill={`url(#${usablePatternId})`}
+            stroke="#84cc16"
+            strokeWidth="1.5"
+          />
+          <text
+            x={coords.px + coords.pw / 2}
+            y={coords.py + coords.ph / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#e7e5e4"
+            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            fontWeight="600"
+          >
+            {tagLetter ?? item.label}
+          </text>
+        </>
+      )}
     </g>
   )
 }
@@ -251,6 +269,7 @@ function TrapezoidShape({
   usablePatternId,
   wastePatternId,
   tagLetter,
+  renderPass,
 }: {
   item: PreviewItem
   index: number
@@ -258,6 +277,7 @@ function TrapezoidShape({
   usablePatternId: string
   wastePatternId: string
   tagLetter?: string
+  renderPass?: RenderPass
 }) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -274,42 +294,50 @@ function TrapezoidShape({
     return `M${coords.px + topInsetLeft} ${coords.py} L${coords.px + topInsetRight} ${coords.py} L${coords.px + botInsetRight} ${coords.py + coords.ph} L${coords.px + botInsetLeft} ${coords.py + coords.ph} Z`
   }
 
+  const showBg = renderPass !== "foreground"
+  const showFg = renderPass !== "background"
+
   return (
     <g key={index + 1}>
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill="#1c1917"
-        rx="2"
-      />
-      <rect
-        x={coords.px}
-        y={coords.py}
-        width={coords.pw}
-        height={coords.ph}
-        fill={`url(#${wastePatternId})`}
-        opacity="0.5"
-        rx="2"
-      />
-      <path
-        d={buildTrapPath()}
-        fill={`url(#${usablePatternId})`}
-        stroke="#84cc16"
-        strokeWidth="1.5"
-      />
-      <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={coords.isFirst ? "#e7e5e4" : "#bef264"}
-        fontSize={Math.max(0, Math.min(10, coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {showBg && (
+        <>
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill="#1c1917"
+          />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            fill={`url(#${wastePatternId})`}
+          />
+        </>
+      )}
+      {showFg && (
+        <>
+          <path
+            d={buildTrapPath()}
+            fill={`url(#${usablePatternId})`}
+            stroke="#84cc16"
+            strokeWidth="1.5"
+          />
+          <text
+            x={coords.px + coords.pw / 2}
+            y={coords.py + coords.ph / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#e7e5e4"
+            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            fontWeight="600"
+          >
+            {tagLetter ?? item.label}
+          </text>
+        </>
+      )}
     </g>
   )
 }
@@ -343,8 +371,8 @@ function RectShape({
         y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
         textAnchor="middle"
         fill="#e7e5e4"
-        fontSize={Math.min(28, Math.min(coords.pw * 0.4, coords.ph * 0.35))}
-        fontWeight="700"
+        fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+        fontWeight="600"
       >
         {tagLetter ?? item.label}
       </text>
@@ -369,6 +397,7 @@ export default function NestingShapeRenderer({
   surfacePxW: _surfacePxW,
   tagLetter,
   zoom: _zoom,
+  renderPass,
 }: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
     item,
@@ -381,6 +410,7 @@ export default function NestingShapeRenderer({
   )
 
   if (item.placedPolygon && item.placedPolygon.length > 0) {
+    if (renderPass === "background") return null
     return (
       <PolygonShape
         item={item}
@@ -406,6 +436,7 @@ export default function NestingShapeRenderer({
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
+        renderPass={renderPass}
       />
     )
   }
@@ -419,6 +450,7 @@ export default function NestingShapeRenderer({
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
+        renderPass={renderPass}
       />
     )
   }
@@ -432,10 +464,12 @@ export default function NestingShapeRenderer({
         usablePatternId={usablePatternId}
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
+        renderPass={renderPass}
       />
     )
   }
 
+  if (renderPass === "background") return null
   return (
     <RectShape
       item={item}

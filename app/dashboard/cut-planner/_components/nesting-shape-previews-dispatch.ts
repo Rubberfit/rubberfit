@@ -84,6 +84,8 @@ function evaluatePackingCandidate(
   return { sortBy, packed, bounds, offcutBands, scrapBands, reusableArea, scrapArea, trimDensity }
 }
 
+const MIN_TRAPEZOID_STEP = 2
+
 function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): number {
   if (a.packed.items.length !== b.packed.items.length)
     return b.packed.items.length - a.packed.items.length
@@ -93,6 +95,129 @@ function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): num
   if (Math.abs(a.bounds.occupiedHeight - b.bounds.occupiedHeight) > 0.001)
     return a.bounds.occupiedHeight - b.bounds.occupiedHeight
   return 0
+}
+
+function packInterleavedTrapezoids(
+  items: (PreviewItem & { usedArea: number })[],
+  rollW: number,
+  rollL: number
+): PackingCandidate | null {
+  const sorted = [...items].sort((a, b) => {
+    if (Math.abs(b.height - a.height) > 0.001) return b.height - a.height
+    return b.width - a.width
+  })
+
+  const placedItems: PreviewItem[] = []
+  let totalUsedArea = 0
+  let currentY = 0
+  let currentX = 0
+  let rowHeight = 0
+  let placedInRow = 0
+
+  const skipped: typeof sorted = []
+
+  for (let idx = 0; idx < sorted.length; idx++) {
+    const item = sorted[idx]
+    const topW = item.topWidth ?? item.width
+    const botW = item.bottomWidth ?? item.width
+    const boxW = Math.max(topW, botW)
+
+    if (currentX + boxW > rollW + 0.001) {
+      currentY += rowHeight
+      currentX = 0
+      rowHeight = 0
+      placedInRow = 0
+    }
+    if (currentY + item.height > rollL + 0.001) {
+      skipped.push(item)
+      continue
+    }
+
+    placedItems.push({
+      ...item,
+      x: currentX,
+      y: currentY,
+      flipped: placedInRow % 2 === 1,
+    })
+    totalUsedArea += item.usedArea
+    rowHeight = Math.max(rowHeight, item.height)
+    placedInRow++
+
+    const next = sorted[idx + 1]
+    let step = (topW + botW) / 2
+    if (next) {
+      const nTopW = next.topWidth ?? next.width
+      const nBotW = next.bottomWidth ?? next.width
+      const nBoxW = Math.max(nTopW, nBotW)
+      step = Math.max((boxW + botW - nBoxW + nTopW) / 2, (boxW + topW - nBoxW + nBotW) / 2)
+    }
+    currentX += Math.max(step, MIN_TRAPEZOID_STEP)
+  }
+
+  // Retry skipped items — they may fit after row advancement
+  for (const item of skipped) {
+    const topW = item.topWidth ?? item.width
+    const botW = item.bottomWidth ?? item.width
+    const boxW = Math.max(topW, botW)
+
+    if (currentX + boxW > rollW + 0.001) {
+      currentY += rowHeight
+      currentX = 0
+      rowHeight = 0
+      placedInRow = 0
+    }
+    if (currentY + item.height > rollL + 0.001) continue
+
+    placedItems.push({
+      ...item,
+      x: currentX,
+      y: currentY,
+      flipped: placedInRow % 2 === 1,
+    })
+    totalUsedArea += item.usedArea
+    rowHeight = Math.max(rowHeight, item.height)
+    placedInRow++
+
+    currentX += Math.max((topW + botW) / 2, MIN_TRAPEZOID_STEP)
+  }
+
+  if (placedItems.length === 0) return null
+
+  const bounds = getPlacementBounds(placedItems)
+  const allBands = buildShelfGapBands(placedItems, rollW, rollL)
+  const offcutBands: OffcutBand[] = []
+  const scrapBands: OffcutBand[] = []
+  let reusableArea = 0
+  let scrapArea = 0
+
+  allBands.forEach((band) => {
+    const area = band.width * band.height
+    if (bandFitsAnyPreviewItem(band, placedItems)) {
+      offcutBands.push(band)
+      reusableArea += area
+    } else {
+      scrapBands.push(band)
+      scrapArea += area
+    }
+  })
+
+  const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
+  scrapArea += intraBlankWaste
+  const trimDensity =
+    bounds.occupiedWidth * bounds.occupiedHeight > 0
+      ? scrapArea / (bounds.occupiedWidth * bounds.occupiedHeight)
+      : 1
+
+  return {
+    sortBy: "interleaved",
+    packed: { items: placedItems, usedArea: totalUsedArea },
+    bounds,
+    offcutBands,
+    scrapBands,
+    reusableArea,
+    scrapArea,
+    trimDensity,
+  }
 }
 
 // eslint-disable-next-line complexity -- multi-part packing with many derived metrics
@@ -109,13 +234,21 @@ export function generateMultiPartPreview(
     )
   )
   const allRectangles = requestedItems.every((item) => item.renderShape === "rect")
-  const candidates = (["area", "height", "width", "max-edge"] as const).map((sortBy) =>
-    evaluatePackingCandidate(requestedItems, rollW, rollL, sortBy, allRectangles)
-  )
+  const allTrapezoids = requestedItems.every((item) => item.renderShape === "trapezoid")
 
-  candidates.sort(comparePackingCandidates)
+  let best: PackingCandidate | undefined
 
-  const best = candidates[0]
+  if (allTrapezoids && requestedItems.length >= 2) {
+    best = packInterleavedTrapezoids(requestedItems, rollW, rollL) ?? undefined
+  }
+
+  if (!best) {
+    const candidates = (["area", "height", "width", "max-edge"] as const).map((sortBy) =>
+      evaluatePackingCandidate(requestedItems, rollW, rollL, sortBy, allRectangles)
+    )
+    candidates.sort(comparePackingCandidates)
+    best = candidates[0]
+  }
   const placedItems = best?.packed.items ?? []
   const usedArea = best?.packed.usedArea ?? 0
   const bounds = best?.bounds ?? getPlacementBounds([])

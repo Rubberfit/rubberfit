@@ -89,17 +89,38 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   const visible =
     filter === "all" ? sizeOptions : sizeOptions.filter((template) => template.category === filter)
 
+  const allTemplates = useMemo(
+    () => [
+      ...PART_TEMPLATES,
+      ...customTemplates.rectangle,
+      ...customTemplates.cylinder,
+      ...customTemplates.cone,
+      ...customTemplates.trapezoid,
+    ],
+    [customTemplates]
+  )
+
   const selectedTemplates = useMemo(
     () =>
       Array.from(checked)
-        .map((id) => sizeOptions.find((template) => template.id === id) ?? null)
+        .map((id) => allTemplates.find((template) => template.id === id) ?? null)
         .filter((template): template is PartTemplate => template !== null)
         .map((template) => ({
           ...template,
           quantity: quantities.get(template.id) ?? template.quantity,
         })),
-    [checked, sizeOptions, quantities]
+    [checked, allTemplates, quantities]
   )
+
+  const selectionCounts = useMemo(() => {
+    const idToType = new Map(allTemplates.map((t) => [t.id, t.partType]))
+    const counts = new Map<string, number>()
+    for (const id of checked) {
+      const partType = idToType.get(id)
+      if (partType) counts.set(partType, (counts.get(partType) ?? 0) + 1)
+    }
+    return counts
+  }, [checked, allTemplates])
 
   const pendingCustomTemplate = useMemo(
     () => buildCustomTemplate(selectedPart, customDrafts),
@@ -117,10 +138,8 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
 
   const handlePartChange = (partType: SupportedPartType) => {
     setSelectedPart(partType)
-    setChecked(new Set())
     setFilter("all")
     setEditingCustomId(null)
-    setQuantities(new Map())
   }
 
   const handleQuantityChange = (templateId: string, qty: number) => {
@@ -154,7 +173,13 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   }
 
   const handleSelectAll = () => {
-    setChecked(new Set(sizeOptions.map((template) => template.id)))
+    setChecked((previous) => {
+      const next = new Set(previous)
+      for (const template of sizeOptions) {
+        next.add(template.id)
+      }
+      return next
+    })
   }
 
   const handleClearAll = () => {
@@ -255,6 +280,7 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
     selectedPartLabel,
     savedCustomCount,
     quantities,
+    selectionCounts,
     handlePartChange,
     handleToggle,
     handleQuantityChange,

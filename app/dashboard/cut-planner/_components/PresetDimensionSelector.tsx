@@ -46,6 +46,7 @@ export default function PresetDimensionSelector({
     selectedPartLabel,
     savedCustomCount,
     quantities,
+    selectionCounts,
     handlePartChange,
     handleToggle,
     handleQuantityChange,
@@ -71,7 +72,11 @@ export default function PresetDimensionSelector({
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <PartTypeSelector selectedPart={selectedPart} onPartChange={handlePartChange} />
+        <PartTypeSelector
+          selectedPart={selectedPart}
+          onPartChange={handlePartChange}
+          selectionCounts={selectionCounts}
+        />
 
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">

@@ -134,16 +134,33 @@ function buildSheetFromPlacements(
   sheetIndex: number,
   isPartial: boolean
 ): SheetPreview {
-  // Clamp placements so items never exceed stock bounds
-  const clampedPlacements = placements.map((p) => {
-    const cw = Math.min(p.w, rollW - p.x)
-    const ch = Math.min(p.h, rollL - p.y)
-    const cx = Math.max(0, Math.min(p.x, rollW - cw))
-    const cy = Math.max(0, Math.min(p.y, rollL - ch))
-    return { ...p, x: cx, y: cy, w: cw, h: ch }
-  })
+  // Clamp placement sizes to stock bounds (shrink only, never move position).
+  // Moving x/y can push items into space occupied by other placements.
+  const clampedPlacements = placements
+    .map((p) => ({
+      ...p,
+      w: Math.min(p.w, Math.max(0, rollW - p.x)),
+      h: Math.min(p.h, Math.max(0, rollL - p.y)),
+    }))
+    .filter((p) => p.w > 0.001 && p.h > 0.001)
 
-  const placedItems: PreviewItem[] = clampedPlacements.map((p) => {
+  // Filter out overlapping items — the MaxRects packer shouldn't produce
+  // overlaps, but floating-point edge cases in dense layouts can cause them.
+  // Accept items greedily in placement order; reject any that overlap an
+  // already-accepted item (AABB overlap with 0.5 tolerance).
+  const accepted: Placement[] = []
+  for (const p of clampedPlacements) {
+    const overlaps = accepted.some(
+      (a) =>
+        p.x < a.x + a.w - 0.5 &&
+        p.x + p.w > a.x + 0.5 &&
+        p.y < a.y + a.h - 0.5 &&
+        p.y + p.h > a.y + 0.5
+    )
+    if (!overlaps) accepted.push(p)
+  }
+
+  const placedItems: PreviewItem[] = accepted.map((p) => {
     const original = sortedItems[p.itemIndex]
     const item: PreviewItem = {
       ...original,
@@ -170,12 +187,12 @@ function buildSheetFromPlacements(
     return item
   })
 
-  const usedArea = clampedPlacements.reduce((sum, p) => sum + sortedItems[p.itemIndex].usedArea, 0)
+  const usedArea = accepted.reduce((sum, p) => sum + sortedItems[p.itemIndex].usedArea, 0)
   const bounds = getPlacementBounds(placedItems)
 
   // Reconstruct free rects by replaying placements on a fresh bin
   const bin = new MaxRectBin(0, rollW, rollL)
-  for (const p of clampedPlacements) {
+  for (const p of accepted) {
     bin.place(p.x, p.y, p.w, p.h)
   }
 

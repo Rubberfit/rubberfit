@@ -325,27 +325,30 @@ function SheetSvg({
                 />
               )
             )}
-          {sheet.preview.items.map((item, index) => (
-            <NestingShapeRenderer
-              key={index + 1}
-              item={item}
-              index={index}
-              surfaceX={layout.surfaceX}
-              surfaceY={layout.surfaceY}
-              unitOriginX={layout.unitOriginX}
-              unitOriginY={layout.unitOriginY}
-              scale={layout.scale}
-              shapeFirstView={layout.shapeFirstView}
-              preview={preview}
-              displayPreview={sheet.preview}
-              usablePatternId={sUsablePat}
-              wastePatternId={sWastePat}
-              viewHeight={layout.viewHeight}
-              surfacePxW={layout.surfacePxW}
-              tagLetter={tagMap?.get(item.label)}
-              zoom={zoom}
-            />
-          ))}
+          {(["background", "foreground"] as const).map((pass) =>
+            sheet.preview.items.map((item, index) => (
+              <NestingShapeRenderer
+                key={`${pass}-${index}`}
+                item={item}
+                index={index}
+                surfaceX={layout.surfaceX}
+                surfaceY={layout.surfaceY}
+                unitOriginX={layout.unitOriginX}
+                unitOriginY={layout.unitOriginY}
+                scale={layout.scale}
+                shapeFirstView={layout.shapeFirstView}
+                preview={preview}
+                displayPreview={sheet.preview}
+                usablePatternId={sUsablePat}
+                wastePatternId={sWastePat}
+                viewHeight={layout.viewHeight}
+                surfacePxW={layout.surfacePxW}
+                tagLetter={tagMap?.get(item.label)}
+                zoom={zoom}
+                renderPass={pass}
+              />
+            ))
+          )}
         </g>
         <SimpleModeOffcutLabels
           offcutLabelBands={
@@ -362,6 +365,13 @@ function SheetSvg({
                       (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
                     )
                     if (overlaps) return kept
+                    const BAND_DIMENSION_TOLERANCE = 0.5
+                    const sameDims = kept.some(
+                      (k) =>
+                        Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
+                        Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
+                    )
+                    if (sameDims) return kept
                     kept.push(band)
                     return kept
                   }, [])
