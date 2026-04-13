@@ -14,7 +14,6 @@ import {
   computeIntraBlankWaste,
   getPlacementBounds,
   buildShelfGapBands,
-  formatInches,
 } from "./nesting-layout-utils"
 import {
   packPreviewItemsOnShelves,
@@ -254,8 +253,24 @@ export function generateMultiPartPreview(
   const bounds = best?.bounds ?? getPlacementBounds([])
   const offcutBands = best?.offcutBands ?? []
   const scrapBands = best?.scrapBands ?? []
-  const reusableArea = best?.reusableArea ?? 0
-  const scrapArea = best?.scrapArea ?? 0
+
+  // Raw band areas may overlap (maximal rectangles share area) and
+  // interlocked trapezoid bounding boxes double-count intra-blank waste.
+  // Proportionally correct so totals equal actual free area.
+  const stockArea = rollW * rollL
+  const actualFreeArea = Math.max(0, stockArea - usedArea)
+  const rawReusable = best?.reusableArea ?? 0
+  const rawScrap = best?.scrapArea ?? 0
+  const rawTotal = rawReusable + rawScrap
+  let reusableArea: number
+  let scrapArea: number
+  if (rawTotal > 0) {
+    reusableArea = actualFreeArea * (rawReusable / rawTotal)
+    scrapArea = actualFreeArea - reusableArea
+  } else {
+    reusableArea = 0
+    scrapArea = actualFreeArea
+  }
   const wasteArea = reusableArea + scrapArea
   const partType = simpleParts[0]?.partType ?? "rectangle"
   const partLabel = getPartTypeLabel(partType)
@@ -370,7 +385,9 @@ function reduceSpecsByPlacedItems(
   })
   return specs
     .map((spec) => {
-      const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
+      // Use buildPartPreviewItem to derive the label so all part types
+      // (trapezoid, cone, cylinder, etc.) match the placed-item format.
+      const label = buildPartPreviewItem(spec, 0, 0).label
       const count = labels.get(label) ?? 0
       if (count <= 0) return spec
       const left = Math.max(0, (spec.quantity || 1) - count)
@@ -427,18 +444,34 @@ function tryGapFillSheet(
   })
   newScrapArea += mergedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
 
+  // Proportionally correct waste areas to equal actual free area
+  // (raw band areas from MaxRects may overlap as maximal rectangles share space)
+  const actualFreeArea = Math.max(0, stockArea - mergedUsedArea)
+  const rawWasteTotal = newReusableArea + newScrapArea
+  let correctedReusable: number
+  let correctedScrap: number
+  if (rawWasteTotal > 0) {
+    correctedReusable = actualFreeArea * (newReusableArea / rawWasteTotal)
+    correctedScrap = actualFreeArea - correctedReusable
+  } else {
+    correctedReusable = 0
+    correctedScrap = actualFreeArea
+  }
+
   const updatedPreview = {
     ...sheetPreview,
     items: mergedItems,
     placements: mergedItems,
     unitsCompleted: mergedItems.length,
+    piecesShown: mergedItems.length,
+    requestedUnits: sheetPreview.requestedUnits,
     usedArea: mergedUsedArea,
     offcutBands: newOffcutBands,
     scrapBands: newScrapBands,
-    reusableArea: newReusableArea,
-    scrapArea: newScrapArea,
-    wasteArea: newReusableArea + newScrapArea,
-    wastePct: stockArea > 0 ? ((newReusableArea + newScrapArea) / stockArea) * 100 : 100,
+    reusableArea: correctedReusable,
+    scrapArea: correctedScrap,
+    wasteArea: correctedReusable + correctedScrap,
+    wastePct: stockArea > 0 ? ((correctedReusable + correctedScrap) / stockArea) * 100 : 100,
     occupiedWidth: bounds.occupiedWidth,
     occupiedHeight: bounds.occupiedHeight,
     overflowUnits: Math.max(0, sheetPreview.overflowUnits - gapFill.placed.length),

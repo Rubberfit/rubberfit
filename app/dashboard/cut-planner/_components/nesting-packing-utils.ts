@@ -10,6 +10,7 @@ import type {
   ShapePlacement,
 } from "./nesting-visualizer-types"
 import { getPlacementBounds } from "./nesting-offcut-utils"
+import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 
 export function sortPreviewItems(
   items: Array<PreviewItem & { usedArea: number }>,
@@ -316,6 +317,53 @@ export function packRectItemsWithGuillotine(
 }
 
 /**
+ * Recompute placedPolygon for a shaped item after rotation/repositioning.
+ * Uses the item's intrinsic dimensions to regenerate the base polygon,
+ * then applies the final rotated90 + flipped transforms at (tx, ty).
+ */
+function recomputePlacedPolygon(
+  item: PreviewItem,
+  rotated90: boolean,
+  flipped: boolean,
+  tx: number,
+  ty: number
+): Array<{ x: number; y: number }> | undefined {
+  let basePts: Array<{ x: number; y: number }> | null = null
+  if (
+    item.renderShape === "trapezoid" &&
+    item.topWidth != null &&
+    item.bottomWidth != null &&
+    item.height != null
+  ) {
+    basePts = trapezoidToPolygon(item.topWidth, item.bottomWidth, item.height)
+  } else if (
+    item.renderShape === "sector" &&
+    item.innerRadius != null &&
+    item.outerRadius != null &&
+    item.arcDegrees != null
+  ) {
+    basePts = sectorToPolygon(item.innerRadius, item.outerRadius, item.arcDegrees, 48)
+  }
+  if (!basePts) return undefined
+
+  // Mirror transformBasePolygon logic from nesting-preview-builders.ts
+  let pts = basePts.map((p) => ({ x: p.x, y: p.y }))
+  if (rotated90) {
+    pts = pts.map((p) => ({ x: p.y, y: -p.x }))
+  }
+  if (flipped) {
+    pts = pts.map((p) => ({ x: p.x, y: -p.y }))
+  }
+  let minX = Infinity
+  let minY = Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+  }
+  return pts.map((p) => ({ x: p.x - minX + tx, y: p.y - minY + ty }))
+}
+
+/**
  * Pack additional items into existing free rects (second-pass gap filling).
  * Uses the same best-short-side-fit heuristic as the guillotine packer.
  */
@@ -397,14 +445,23 @@ export function packIntoFreeRects(
     if (!best) return
     const chosen = best as RectChoice
     const host = freeRects[chosen.freeIndex]
+    const finalRotated90 = chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false)
+    const finalFlipped = chosen.rotated ? !(item.flipped ?? false) : item.flipped
     placed.push({
       ...item,
       x: host.x,
       y: host.y,
       width: chosen.width,
       height: chosen.height,
-      rotated90: chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
-      flipped: chosen.rotated ? !(item.flipped ?? false) : item.flipped,
+      rotated90: finalRotated90,
+      flipped: finalFlipped,
+      placedPolygon: recomputePlacedPolygon(
+        item,
+        finalRotated90,
+        finalFlipped ?? false,
+        host.x,
+        host.y
+      ),
     })
     usedArea += item.usedArea
 
