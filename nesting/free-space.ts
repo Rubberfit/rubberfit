@@ -103,11 +103,7 @@ function clipperDifference(
 }
 
 /** Ray-casting point-in-polygon test (real coordinates) */
-function pointInPolygon(
-  px: number,
-  py: number,
-  polygon: ReadonlyArray<Point2D>
-): boolean {
+function pointInPolygon(px: number, py: number, polygon: ReadonlyArray<Point2D>): boolean {
   let inside = false
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].x
@@ -327,9 +323,7 @@ function buildFreeSpaceGrid(
   const PIP_INSET = 0.001
   const rows = ys.length - 1
   const cols = xs.length - 1
-  const grid: boolean[][] = Array.from({ length: rows }, () =>
-    new Array<boolean>(cols).fill(false)
-  )
+  const grid: boolean[][] = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false))
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x0 = xs[c] + PIP_INSET
@@ -389,10 +383,7 @@ function findInscribedRect(
 }
 
 /** Subtract an axis-aligned rectangle from a polygon via Clipper difference */
-function clipperSubtractRect(
-  polygonPoints: ReadonlyArray<Point2D>,
-  rect: FreeRegion
-): Point2D[][] {
+function clipperSubtractRect(polygonPoints: ReadonlyArray<Point2D>, rect: FreeRegion): Point2D[][] {
   const polyPath = toClipperPath(polygonPoints)
   const rectPath = toClipperPath([
     { x: rect.x, y: rect.y },
@@ -485,8 +476,7 @@ export function extractMaximalFreeRects(
 export function classifyFreeRegion(region: FreeRegion): "reusable" | "scrap" {
   const { width, height } = region
 
-  const fits = (w: number, h: number) =>
-    (width >= w && height >= h) || (width >= h && height >= w)
+  const fits = (w: number, h: number) => (width >= w && height >= h) || (width >= h && height >= w)
 
   if (fits(MIN_REUSABLE_OFFCUT_W, MIN_REUSABLE_OFFCUT_H)) return "reusable"
 

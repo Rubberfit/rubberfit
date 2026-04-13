@@ -40,6 +40,43 @@ export function sortPreviewItems(
   })
 }
 
+function findBestShelf(
+  orientations: Array<{ w: number; h: number; rotated: boolean }>,
+  shelves: Array<{ y: number; height: number; x: number }>,
+  rollW: number,
+  rollL: number
+): { shelfIndex: number; shelfHeight: number; rotated: boolean; waste: number } {
+  let bestShelfIndex = -1
+  let bestShelfWaste = Number.POSITIVE_INFINITY
+  let bestShelfHeight = 0
+  let bestRotated = false
+
+  for (const orient of orientations) {
+    for (let index = 0; index < shelves.length; index += 1) {
+      const shelf = shelves[index]
+      const nextShelfY = shelves[index + 1]?.y ?? rollL
+      const availableHeight = nextShelfY - shelf.y
+      const nextHeight = Math.max(shelf.height, orient.h)
+      if (nextHeight > availableHeight + 0.001) continue
+      if (shelf.x + orient.w > rollW + 0.001) continue
+      if (shelf.y + nextHeight > rollL + 0.001) continue
+
+      const remainingWidth = rollW - (shelf.x + orient.w)
+      const heightPenalty = nextHeight - shelf.height
+      const shelfWaste = remainingWidth + heightPenalty * 0.75
+
+      if (shelfWaste < bestShelfWaste) {
+        bestShelfWaste = shelfWaste
+        bestShelfIndex = index
+        bestShelfHeight = nextHeight
+        bestRotated = orient.rotated
+      }
+    }
+  }
+
+  return { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated, waste: bestShelfWaste }
+}
+
 export function packPreviewItemsOnShelves(
   items: Array<PreviewItem & { usedArea: number }>,
   rollW: number,
@@ -60,39 +97,13 @@ export function packPreviewItemsOnShelves(
       ...(canRotate ? [{ w: item.height, h: item.width, rotated: true }] : []),
     ]
 
-    let bestShelfIndex = -1
-    let bestShelfWaste = Number.POSITIVE_INFINITY
-    let bestShelfHeight = item.height
-    let bestRotated = false
-
-    for (const orient of orientations) {
-      for (let index = 0; index < shelves.length; index += 1) {
-        const shelf = shelves[index]
-        const nextShelfY = shelves[index + 1]?.y ?? rollL
-        const availableHeight = nextShelfY - shelf.y
-        const nextHeight = Math.max(shelf.height, orient.h)
-        if (nextHeight > availableHeight + 0.001) continue
-        if (shelf.x + orient.w > rollW + 0.001) continue
-        if (shelf.y + nextHeight > rollL + 0.001) continue
-
-        const remainingWidth = rollW - (shelf.x + orient.w)
-        const heightPenalty = nextHeight - shelf.height
-        const shelfWaste = remainingWidth + heightPenalty * 0.75
-
-        if (shelfWaste < bestShelfWaste) {
-          bestShelfWaste = shelfWaste
-          bestShelfIndex = index
-          bestShelfHeight = nextHeight
-          bestRotated = orient.rotated
-        }
-      }
-    }
+    let { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated } =
+      findBestShelf(orientations, shelves, rollW, rollL)
 
     if (bestShelfIndex === -1) {
       const nextY =
         shelves.length === 0 ? 0 : Math.max(...shelves.map((shelf) => shelf.y + shelf.height))
 
-      // Try both orientations for a new shelf
       const orient = orientations.find((o) => nextY + o.h <= rollL + 0.001 && o.w <= rollW + 0.001)
       if (!orient) return
 

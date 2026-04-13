@@ -25,7 +25,10 @@ export function convexHull(points: ReadonlyArray<Point2D>): Point2D[] {
   // Lower hull
   const lower: Point2D[] = []
   for (let i = 0; i < n; i++) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0
+    ) {
       lower.pop()
     }
     lower.push(sorted[i])
@@ -34,7 +37,10 @@ export function convexHull(points: ReadonlyArray<Point2D>): Point2D[] {
   // Upper hull
   const upper: Point2D[] = []
   for (let i = n - 1; i >= 0; i--) {
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) {
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0
+    ) {
       upper.pop()
     }
     upper.push(sorted[i])

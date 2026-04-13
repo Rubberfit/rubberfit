@@ -31,7 +31,7 @@ import {
 } from "./nesting-shape-previews-advanced"
 import type { PreviewItem } from "./nesting-visualizer-types"
 
-export { globalMultiSheetPack } from "./nesting-global-packer"
+export { globalMultiSheetPack } from "./nesting-global-packer-entry"
 
 interface PackingCandidate {
   sortBy: string
@@ -225,6 +225,98 @@ export function generateSimplePartPreview(
   }
 }
 
+// Matches placed items back to specs by formatted dimension label. This couples
+// to the label format in buildPartPreviewItem — keep them in sync.
+function reduceSpecsByPlacedItems(
+  specs: SimplePartSpec[],
+  items: PreviewItem[]
+): SimplePartSpec[] {
+  const labels = new Map<string, number>()
+  items.forEach((item) => {
+    labels.set(item.label, (labels.get(item.label) ?? 0) + 1)
+  })
+  return specs
+    .map((spec) => {
+      const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
+      const count = labels.get(label) ?? 0
+      if (count <= 0) return spec
+      const left = Math.max(0, (spec.quantity || 1) - count)
+      labels.set(label, count - Math.min(count, spec.quantity || 1))
+      return left > 0 ? { ...spec, quantity: left } : null
+    })
+    .filter((s): s is SimplePartSpec => s !== null)
+}
+
+function tryGapFillSheet(
+  sheetPreview: SimplePartPreview,
+  remainingSpecs: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  stockArea: number
+): { preview: SimplePartPreview; remainingSpecs: SimplePartSpec[] } {
+  const allFreeRects = [
+    ...(sheetPreview.offcutBands ?? []),
+    ...(sheetPreview.scrapBands ?? []),
+  // 1" minimum is intentional: gap-fill only considers rects large enough to fit
+  // another part, unlike MIN_GAP_BAND_SIZE (0.25") which controls band rendering.
+  ].filter((r) => r.width > 1 && r.height > 1)
+
+  if (remainingSpecs.length === 0 || allFreeRects.length === 0) {
+    return { preview: sheetPreview, remainingSpecs }
+  }
+
+  const overflowItems = remainingSpecs.flatMap((spec) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
+      buildPartPreviewItem(spec, rollW, rollL)
+    )
+  )
+  const gapFill = packIntoFreeRects(overflowItems, allFreeRects)
+  if (gapFill.placed.length === 0) {
+    return { preview: sheetPreview, remainingSpecs }
+  }
+
+  const mergedItems = [...sheetPreview.items, ...gapFill.placed]
+  const mergedUsedArea = sheetPreview.usedArea + gapFill.usedArea
+  const bounds = getPlacementBounds(mergedItems)
+  const newOffcutBands: OffcutBand[] = []
+  const newScrapBands: OffcutBand[] = []
+  let newReusableArea = 0
+  let newScrapArea = 0
+  gapFill.remainingFreeRects.forEach((band) => {
+    const area = band.width * band.height
+    if (bandFitsAnyPreviewItem(band, mergedItems)) {
+      newOffcutBands.push(band)
+      newReusableArea += area
+    } else {
+      newScrapBands.push(band)
+      newScrapArea += area
+    }
+  })
+  newScrapArea += mergedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
+
+  const updatedPreview = {
+    ...sheetPreview,
+    items: mergedItems,
+    placements: mergedItems,
+    unitsCompleted: mergedItems.length,
+    usedArea: mergedUsedArea,
+    offcutBands: newOffcutBands,
+    scrapBands: newScrapBands,
+    reusableArea: newReusableArea,
+    scrapArea: newScrapArea,
+    wasteArea: newReusableArea + newScrapArea,
+    wastePct: stockArea > 0 ? ((newReusableArea + newScrapArea) / stockArea) * 100 : 100,
+    occupiedWidth: bounds.occupiedWidth,
+    occupiedHeight: bounds.occupiedHeight,
+    overflowUnits: Math.max(0, sheetPreview.overflowUnits - gapFill.placed.length),
+  } as SimplePartPreview
+
+  return {
+    preview: updatedPreview,
+    remainingSpecs: reduceSpecsByPlacedItems(remainingSpecs, gapFill.placed),
+  }
+}
+
 export function computeMultiSheetPreviews(
   preview: SimplePartPreview,
   rollW: number,
@@ -251,7 +343,6 @@ export function computeMultiSheetPreviews(
     }
   }
 
-  // For multi-part layouts, track remaining items by building overflow specs
   const isMultiPart = allSpecs && allSpecs.length > 1
 
   const sheets: SheetPreview[] = []
@@ -271,97 +362,11 @@ export function computeMultiSheetPreviews(
       sheetPreview = preview
     }
 
-    // Second pass: try to fill this sheet's free rects with remaining overflow items
     if (isMultiPart && overflowSpecs && overflowSpecs.length > 0) {
-      // Reduce overflow specs by what was placed on this sheet
-      const placedLabels = new Map<string, number>()
-      sheetPreview.items.forEach((item) => {
-        placedLabels.set(item.label, (placedLabels.get(item.label) ?? 0) + 1)
-      })
-      let remainingSpecs = overflowSpecs
-        .map((spec) => {
-          const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
-          const placedCount = placedLabels.get(label) ?? 0
-          if (placedCount <= 0) return spec
-          const left = Math.max(0, (spec.quantity || 1) - placedCount)
-          placedLabels.set(label, placedCount - Math.min(placedCount, spec.quantity || 1))
-          return left > 0 ? { ...spec, quantity: left } : null
-        })
-        .filter((s): s is SimplePartSpec => s !== null)
-
-      // Build items from remaining specs and try to fit into this sheet's free space
-      const allFreeRects = [
-        ...(sheetPreview.offcutBands ?? []),
-        ...(sheetPreview.scrapBands ?? []),
-      ].filter((r) => r.width > 1 && r.height > 1)
-      if (remainingSpecs.length > 0 && allFreeRects.length > 0) {
-        const overflowItems = remainingSpecs.flatMap((spec) =>
-          Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-            buildPartPreviewItem(spec, rollW, rollL)
-          )
-        )
-        const gapFill = packIntoFreeRects(overflowItems, allFreeRects)
-        if (gapFill.placed.length > 0) {
-          // Merge gap-filled items into this sheet's preview
-          const mergedItems = [...sheetPreview.items, ...gapFill.placed]
-          const mergedUsedArea = sheetPreview.usedArea + gapFill.usedArea
-          const bounds = getPlacementBounds(mergedItems)
-          // Reclassify remaining free rects
-          const newOffcutBands: OffcutBand[] = []
-          const newScrapBands: OffcutBand[] = []
-          let newReusableArea = 0
-          let newScrapArea = 0
-          gapFill.remainingFreeRects.forEach((band) => {
-            const area = band.width * band.height
-            if (bandFitsAnyPreviewItem(band, mergedItems)) {
-              newOffcutBands.push(band)
-              newReusableArea += area
-            } else {
-              newScrapBands.push(band)
-              newScrapArea += area
-            }
-          })
-          const intraWaste = mergedItems.reduce(
-            (sum, item) => sum + computeIntraBlankWaste(item),
-            0
-          )
-          newScrapArea += intraWaste
-
-          sheetPreview = {
-            ...sheetPreview,
-            items: mergedItems,
-            placements: mergedItems,
-            unitsCompleted: mergedItems.length,
-            usedArea: mergedUsedArea,
-            offcutBands: newOffcutBands,
-            scrapBands: newScrapBands,
-            reusableArea: newReusableArea,
-            scrapArea: newScrapArea,
-            wasteArea: newReusableArea + newScrapArea,
-            wastePct: stockArea > 0 ? ((newReusableArea + newScrapArea) / stockArea) * 100 : 100,
-            occupiedWidth: bounds.occupiedWidth,
-            occupiedHeight: bounds.occupiedHeight,
-            overflowUnits: Math.max(0, sheetPreview.overflowUnits - gapFill.placed.length),
-          } as SimplePartPreview
-
-          // Reduce remaining specs by gap-filled items
-          const gapLabels = new Map<string, number>()
-          gapFill.placed.forEach((item) => {
-            gapLabels.set(item.label, (gapLabels.get(item.label) ?? 0) + 1)
-          })
-          remainingSpecs = remainingSpecs
-            .map((spec) => {
-              const label = `${formatInches(spec.width ?? 0)}" \u00D7 ${formatInches(spec.length ?? 0)}"`
-              const gapCount = gapLabels.get(label) ?? 0
-              if (gapCount <= 0) return spec
-              const left = Math.max(0, (spec.quantity || 1) - gapCount)
-              gapLabels.set(label, gapCount - Math.min(gapCount, spec.quantity || 1))
-              return left > 0 ? { ...spec, quantity: left } : null
-            })
-            .filter((s): s is SimplePartSpec => s !== null)
-        }
-      }
-
+      let remainingSpecs = reduceSpecsByPlacedItems(overflowSpecs, sheetPreview.items)
+      const gapResult = tryGapFillSheet(sheetPreview, remainingSpecs, rollW, rollL, stockArea)
+      sheetPreview = gapResult.preview
+      remainingSpecs = gapResult.remainingSpecs
       overflowSpecs = remainingSpecs
     }
 

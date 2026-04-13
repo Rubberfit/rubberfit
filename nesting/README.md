@@ -34,8 +34,15 @@ shape-to-polygon.ts  nfp-greedy-placer.ts      free-space.ts
 Core type definitions shared across the nesting engine.
 
 ```typescript
-export interface Point2D { x: number; y: number }
-export interface Polygon2D { id: string; points: Point2D[]; rotationSteps?: number }
+export interface Point2D {
+  x: number
+  y: number
+}
+export interface Polygon2D {
+  id: string
+  points: Point2D[]
+  rotationSteps?: number
+}
 export interface NestingPart {
   id: string
   polygon: Polygon2D
@@ -44,20 +51,35 @@ export interface NestingPart {
   originalSpec: Record<string, unknown>
 }
 export interface NestingInput {
-  binWidth: number; binHeight: number
+  binWidth: number
+  binHeight: number
   parts: NestingPart[]
-  spacing: number; rotationSteps: number
-  populationSize?: number; mutationRate?: number; generations?: number; seed?: number
+  spacing: number
+  rotationSteps: number
+  populationSize?: number
+  mutationRate?: number
+  generations?: number
+  seed?: number
 }
 export interface Placement2D {
-  partId: string; x: number; y: number
-  width: number; height: number; polygonArea: number
-  rotation: number; placedPolygon: Point2D[]; flipped: boolean
+  partId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  polygonArea: number
+  rotation: number
+  placedPolygon: Point2D[]
+  flipped: boolean
 }
 export interface NestingResult {
   placements: Placement2D[]
-  placed: number; overflow: number
-  usedArea: number; occupiedArea: number; stockArea: number; wasteArea: number
+  placed: number
+  overflow: number
+  usedArea: number
+  occupiedArea: number
+  stockArea: number
+  wasteArea: number
   efficiency: number // 0-100
   source: "heuristic" | "optimized"
 }
@@ -67,11 +89,11 @@ export interface NestingResult {
 
 Converts geometric shapes to polygon vertex arrays for the nesting engine.
 
-| Function | Shape | Output |
-|----------|-------|--------|
-| `rectToPolygon(w, h)` | Rectangle | 4 vertices |
-| `circleToPolygon(d, segments=24)` | Circle | N vertices on circumference |
-| `trapezoidToPolygon(topW, bottomW, h)` | Trapezoid | 4 vertices, centered |
+| Function                                               | Shape                 | Output                                              |
+| ------------------------------------------------------ | --------------------- | --------------------------------------------------- |
+| `rectToPolygon(w, h)`                                  | Rectangle             | 4 vertices                                          |
+| `circleToPolygon(d, segments=24)`                      | Circle                | N vertices on circumference                         |
+| `trapezoidToPolygon(topW, bottomW, h)`                 | Trapezoid             | 4 vertices, centered                                |
 | `sectorToPolygon(innerR, outerR, arcDeg, segments=24)` | Annular sector (cone) | ~50 vertices: outer arc forward + inner arc reverse |
 
 ### convex-hull.ts
@@ -79,6 +101,7 @@ Converts geometric shapes to polygon vertex arrays for the nesting engine.
 Computational geometry utilities. No external dependencies.
 
 **Algorithms:**
+
 - **Convex hull**: Andrew's monotone chain algorithm (1979). O(n log n). Returns vertices in CCW order.
 - **Polygon area**: Shoelace formula. Returns absolute area regardless of winding.
 
@@ -105,8 +128,11 @@ Greedy bottom-left NFP placer for packing identical shapes. Optimized for the co
 ```typescript
 export function greedyNfpPack(
   polygon: Polygon2D,
-  binWidth: number, binHeight: number,
-  qty: number, spacing?: number, rotationSteps?: number
+  binWidth: number,
+  binHeight: number,
+  qty: number,
+  spacing?: number,
+  rotationSteps?: number
 ): GreedyPackResult
 ```
 
@@ -133,7 +159,8 @@ Polygon-aware free-space computation. After shapes are packed onto a stock sheet
 ```typescript
 // Extract up to 10 reusable offcut rectangles from free space
 export function extractMaximalFreeRects(
-  stockW: number, stockH: number,
+  stockW: number,
+  stockH: number,
   placedPolygons: ReadonlyArray<ReadonlyArray<Point2D>>,
   maxRects?: number // default: 10
 ): FreeRegion[]
@@ -148,11 +175,14 @@ Wraps the vendored Fit packer library for mixed-shape nesting. Converts `Nesting
 
 ```typescript
 export class NFPSolver {
-  solve(input: NestingInput, callbacks: {
-    onProgress?: (result: NestingResult) => void
-    onComplete: (result: NestingResult) => void
-    onError?: (message: string) => void
-  }): () => void  // returns cancel function
+  solve(
+    input: NestingInput,
+    callbacks: {
+      onProgress?: (result: NestingResult) => void
+      onComplete: (result: NestingResult) => void
+      onError?: (message: string) => void
+    }
+  ): () => void // returns cancel function
 
   cancel(): void
 }
@@ -162,24 +192,24 @@ export class NFPSolver {
 
 Third-party nesting library (vendored). Implements the core NFP packing algorithm with a genetic algorithm optimizer.
 
-| File | Purpose |
-|------|---------|
-| `index.ts` | Library entry point |
-| `packer.ts` | Main packing orchestrator |
-| `placer.ts` | Places parts using NFP calculations |
-| `placement.ts` | Placement data structures |
-| `part.ts` | Part representation |
-| `bin.ts` | Bin (stock material) representation |
-| `polygon.ts` | Polygon operations (NFP, intersection, containment) |
-| `bounding-box.ts` | Axis-aligned bounding box calculations |
-| `ga/ga.ts` | Genetic algorithm driver |
-| `ga/dna.ts` | DNA encoding for part orderings/rotations |
-| `gaussian.ts` | Gaussian distribution for GA mutation |
-| `xorshift.ts` | Fast PRNG for the GA |
-| `vector.ts` / `indexed-vector.ts` | 2D vector math |
-| `util-geometry.ts` | Geometry utilities |
-| `util.ts` | General utilities (Minkowski difference, NFP computation, Clipper helpers) |
-| `clipper-lib.d.ts` | Type declarations for Clipper polygon clipping library |
+| File                              | Purpose                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `index.ts`                        | Library entry point                                                        |
+| `packer.ts`                       | Main packing orchestrator                                                  |
+| `placer.ts`                       | Places parts using NFP calculations                                        |
+| `placement.ts`                    | Placement data structures                                                  |
+| `part.ts`                         | Part representation                                                        |
+| `bin.ts`                          | Bin (stock material) representation                                        |
+| `polygon.ts`                      | Polygon operations (NFP, intersection, containment)                        |
+| `bounding-box.ts`                 | Axis-aligned bounding box calculations                                     |
+| `ga/ga.ts`                        | Genetic algorithm driver                                                   |
+| `ga/dna.ts`                       | DNA encoding for part orderings/rotations                                  |
+| `gaussian.ts`                     | Gaussian distribution for GA mutation                                      |
+| `xorshift.ts`                     | Fast PRNG for the GA                                                       |
+| `vector.ts` / `indexed-vector.ts` | 2D vector math                                                             |
+| `util-geometry.ts`                | Geometry utilities                                                         |
+| `util.ts`                         | General utilities (Minkowski difference, NFP computation, Clipper helpers) |
+| `clipper-lib.d.ts`                | Type declarations for Clipper polygon clipping library                     |
 
 ## Dependencies
 
@@ -187,14 +217,14 @@ Third-party nesting library (vendored). Implements the core NFP packing algorith
 
 ## Key Algorithms Reference
 
-| Algorithm | Used In | Source |
-|-----------|---------|--------|
-| Andrew's monotone chain (convex hull) | `convex-hull.ts` | A.M. Andrew, 1979 |
-| Shoelace formula (polygon area) | `convex-hull.ts` | Standard computational geometry |
-| Minkowski difference (NFP) | `vendor/fit/util.ts` | Vendored from Fit packer |
-| Greedy bottom-left placement | `nfp-greedy-placer.ts` | Custom implementation |
-| Coarse-to-fine rotation search | `nfp-greedy-placer.ts` | Custom 3-pass strategy |
-| Clipper boolean intersection (overlap) | `nfp-greedy-placer.ts` | Via clipper-lib |
-| O(RC) histogram + monotonic stack | `free-space.ts` | Standard max-rectangle algorithm |
-| Ray-casting PIP | `free-space.ts` | Standard point-in-polygon test |
-| Iterative inscribed rect extraction | `free-space.ts` | Custom Clipper-based iteration |
+| Algorithm                              | Used In                | Source                           |
+| -------------------------------------- | ---------------------- | -------------------------------- |
+| Andrew's monotone chain (convex hull)  | `convex-hull.ts`       | A.M. Andrew, 1979                |
+| Shoelace formula (polygon area)        | `convex-hull.ts`       | Standard computational geometry  |
+| Minkowski difference (NFP)             | `vendor/fit/util.ts`   | Vendored from Fit packer         |
+| Greedy bottom-left placement           | `nfp-greedy-placer.ts` | Custom implementation            |
+| Coarse-to-fine rotation search         | `nfp-greedy-placer.ts` | Custom 3-pass strategy           |
+| Clipper boolean intersection (overlap) | `nfp-greedy-placer.ts` | Via clipper-lib                  |
+| O(RC) histogram + monotonic stack      | `free-space.ts`        | Standard max-rectangle algorithm |
+| Ray-casting PIP                        | `free-space.ts`        | Standard point-in-polygon test   |
+| Iterative inscribed rect extraction    | `free-space.ts`        | Custom Clipper-based iteration   |

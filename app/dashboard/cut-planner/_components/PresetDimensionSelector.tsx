@@ -45,8 +45,10 @@ export default function PresetDimensionSelector({
     customDraft,
     selectedPartLabel,
     savedCustomCount,
+    quantities,
     handlePartChange,
     handleToggle,
+    handleQuantityChange,
     handleSelectAll,
     handleClearAll,
     handleAddCustomSize,
@@ -116,8 +118,10 @@ export default function PresetDimensionSelector({
           <PresetTemplateGrid
             visible={visible}
             checked={checked}
+            quantities={quantities}
             editingCustomId={editingCustomId}
             onToggle={handleToggle}
+            onQuantityChange={handleQuantityChange}
             onEditCustom={editCustomTemplate}
             onRemoveCustom={removeCustomTemplate}
             tagMap={tagMap}

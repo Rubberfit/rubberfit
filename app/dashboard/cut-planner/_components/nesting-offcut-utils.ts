@@ -9,6 +9,8 @@ import {
   MIN_REUSABLE_STRIP_LENGTH,
 } from "./nesting-visualizer-types"
 
+const MIN_GAP_BAND_SIZE = 0.25
+
 export function buildRowCounts(placed: number, cols: number) {
   const rows = Math.ceil(placed / cols)
   return Array.from({ length: rows }, (_, rowIndex) => {
@@ -66,7 +68,7 @@ export function buildOriginRectOffcutBands(
 
   sortedRows.forEach((row) => {
     const width = rollW - row.maxX
-    if (width > 0.25) {
+    if (width > MIN_GAP_BAND_SIZE) {
       bands.push({
         x: row.maxX,
         y: row.y,
@@ -80,7 +82,7 @@ export function buildOriginRectOffcutBands(
   if (lastRow) {
     const bottomY = lastRow.y + lastRow.height
     const bottomHeight = rollL - bottomY
-    if (bottomHeight > 0.25) {
+    if (bottomHeight > MIN_GAP_BAND_SIZE) {
       bands.push({
         x: 0,
         y: bottomY,
@@ -124,20 +126,20 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
 
     sortedPlacements.forEach((placement, idx) => {
       // Leading gap (first placement doesn't start at x=0)
-      if (idx === 0 && placement.x > 0.25) {
+      if (idx === 0 && placement.x > MIN_GAP_BAND_SIZE) {
         bands.push({ x: 0, y: row.y, width: placement.x, height: row.height })
       }
       // Inter-placement gap (gap between consecutive placements)
       if (idx > 0) {
         const prevEnd = sortedPlacements[idx - 1].x + sortedPlacements[idx - 1].width
         const gapWidth = placement.x - prevEnd
-        if (gapWidth > 0.25) {
+        if (gapWidth > MIN_GAP_BAND_SIZE) {
           bands.push({ x: prevEnd, y: row.y, width: gapWidth, height: row.height })
         }
       }
       rowMaxX = Math.max(rowMaxX, placement.x + placement.width)
       const underfillHeight = row.height - placement.height
-      if (underfillHeight > 0.25) {
+      if (underfillHeight > MIN_GAP_BAND_SIZE) {
         bands.push({
           x: placement.x,
           y: placement.y + placement.height,
@@ -148,7 +150,7 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     })
 
     const trailingWidth = rollW - rowMaxX
-    if (trailingWidth > 0.25) {
+    if (trailingWidth > MIN_GAP_BAND_SIZE) {
       bands.push({
         x: rowMaxX,
         y: row.y,
@@ -162,7 +164,7 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
   if (lastRow) {
     const bottomY = lastRow.y + lastRow.height
     const bottomHeight = rollL - bottomY
-    if (bottomHeight > 0.25) {
+    if (bottomHeight > MIN_GAP_BAND_SIZE) {
       bands.push({
         x: 0,
         y: bottomY,
@@ -290,30 +292,30 @@ export function buildOffcutBands(
   const bottom = rollL - bounds.maxY
 
   if (placementMode === "origin") {
-    if (right > 0.25) {
+    if (right > MIN_GAP_BAND_SIZE) {
       bands.push({
         x: bounds.maxX,
         y: 0,
         width: right,
-        height: bottom > 0.25 ? bounds.maxY : rollL,
+        height: bottom > MIN_GAP_BAND_SIZE ? bounds.maxY : rollL,
       })
     }
-    if (bottom > 0.25) {
+    if (bottom > MIN_GAP_BAND_SIZE) {
       bands.push({ x: 0, y: bounds.maxY, width: rollW, height: bottom })
     }
     return bands
   }
 
-  if (top > 0.25) {
+  if (top > MIN_GAP_BAND_SIZE) {
     bands.push({ x: 0, y: 0, width: rollW, height: top })
   }
-  if (bottom > 0.25) {
+  if (bottom > MIN_GAP_BAND_SIZE) {
     bands.push({ x: 0, y: bounds.maxY, width: rollW, height: bottom })
   }
-  if (left > 0.25) {
+  if (left > MIN_GAP_BAND_SIZE) {
     bands.push({ x: 0, y: bounds.minY, width: left, height: bounds.occupiedHeight })
   }
-  if (right > 0.25) {
+  if (right > MIN_GAP_BAND_SIZE) {
     bands.push({ x: bounds.maxX, y: bounds.minY, width: right, height: bounds.occupiedHeight })
   }
 
