@@ -5,6 +5,7 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { emailService } from "./emailService"
+import { notificationRepository } from "@/src/infrastructure/repositories/notifications.repository"
 import { toast } from "sonner"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
@@ -204,6 +205,7 @@ export class NotificationService implements INotificationService {
     // Send in-app notification
     if (channels.inApp) {
       this.showInAppNotification(params)
+      await this.persistInAppNotification(params)
     }
 
     // Queue email/SMS notifications
@@ -213,6 +215,29 @@ export class NotificationService implements INotificationService {
         sendEmail: channels.email,
         sendSms: channels.sms,
       })
+    }
+  }
+
+  /**
+   * Persist in-app notification to the notifications table so it appears on the
+   * notifications page. The table's type CHECK restricts values, so non-low-stock
+   * events are stored as system_alert.
+   */
+  private async persistInAppNotification(params: NotificationParams): Promise<void> {
+    try {
+      const persistedType = params.type === "low_stock" ? "low_stock" : "system_alert"
+      const ctx = (params.contextData ?? {}) as Record<string, unknown>
+      await notificationRepository.create({
+        type: persistedType,
+        title: params.title,
+        description: params.message,
+        material_type: typeof ctx.materialName === "string" ? ctx.materialName : undefined,
+        current_value: typeof ctx.currentStock === "number" ? ctx.currentStock : undefined,
+        threshold_value: typeof ctx.reorderPoint === "number" ? ctx.reorderPoint : undefined,
+        is_read: false,
+      })
+    } catch (error) {
+      console.error("Failed to persist in-app notification:", error)
     }
   }
 
