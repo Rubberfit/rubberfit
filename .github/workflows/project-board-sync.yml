@@ -5,7 +5,18 @@ on:
   issues:
     types: [opened, reopened, closed]
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited, review_requested, review_request_removed, closed]
+    types:
+      [
+        opened,
+        reopened,
+        synchronize,
+        ready_for_review,
+        converted_to_draft,
+        edited,
+        review_requested,
+        review_request_removed,
+        closed,
+      ]
   schedule:
     - cron: "0 15 * * *"
   workflow_dispatch:
