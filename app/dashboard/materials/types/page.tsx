@@ -89,20 +89,27 @@ export default function MaterialTypesPage() {
 
     setSubmitting(true)
     try {
-      const materialData = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        default_cost: formData.default_cost ? parseFloat(formData.default_cost) : undefined,
-        min_stock_alert: formData.min_stock_alert
-          ? parseFloat(formData.min_stock_alert)
-          : undefined,
-      }
+      const trimmedDescription = formData.description.trim()
+      const parsedCost = formData.default_cost ? parseFloat(formData.default_cost) : undefined
+      const parsedStock = formData.min_stock_alert
+        ? parseFloat(formData.min_stock_alert)
+        : undefined
 
       if (editingType) {
-        await materialTypeService.update(editingType.id, materialData)
+        await materialTypeService.update(editingType.id, {
+          name: formData.name.trim(),
+          description: trimmedDescription || null,
+          default_cost: parsedCost ?? null,
+          min_stock_alert: parsedStock ?? null,
+        } as Partial<MaterialType>)
         toast.success("Material type updated successfully")
       } else {
-        await materialTypeService.create(materialData)
+        await materialTypeService.create({
+          name: formData.name.trim(),
+          description: trimmedDescription || undefined,
+          default_cost: parsedCost,
+          min_stock_alert: parsedStock,
+        })
         toast.success("Material type created successfully")
       }
 

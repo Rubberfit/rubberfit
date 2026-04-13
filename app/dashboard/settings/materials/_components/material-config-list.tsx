@@ -33,11 +33,16 @@ export function MaterialConfigList({
       {materials.map((material) => (
         <Card key={material.id}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">{material.name}</CardTitle>
+            <div className="flex items-center justify-between gap-4 overflow-hidden">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <CardTitle className="text-lg truncate">{material.name}</CardTitle>
                 {material.description && (
-                  <CardDescription className="mt-1">{material.description}</CardDescription>
+                  <CardDescription
+                    className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap"
+                    title={material.description}
+                  >
+                    {material.description}
+                  </CardDescription>
                 )}
               </div>
               <Button
