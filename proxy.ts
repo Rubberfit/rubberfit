@@ -61,7 +61,7 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    const loginUrl = new URL("/auth/v2/login", request.url)
+    const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("redirectTo", pathname)
     return redirectWithCookies(loginUrl, pendingCookies)
   }
