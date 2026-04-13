@@ -19,6 +19,7 @@ import {
   packPreviewItemsOnShelves,
   packRectItemsWithGuillotine,
   packIntoFreeRects,
+  recomputePlacedPolygon,
 } from "./nesting-packing-utils"
 import { buildPartPreviewItem, getPartTypeLabel } from "./nesting-preview-builders"
 import { generateRectanglePreview, generateCirclePreview } from "./nesting-shape-previews-basic"
@@ -132,11 +133,13 @@ function packInterleavedTrapezoids(
       continue
     }
 
+    const flipped = placedInRow % 2 === 1
     placedItems.push({
       ...item,
       x: currentX,
       y: currentY,
-      flipped: placedInRow % 2 === 1,
+      flipped,
+      placedPolygon: recomputePlacedPolygon(item, false, flipped, currentX, currentY),
     })
     totalUsedArea += item.usedArea
     rowHeight = Math.max(rowHeight, item.height)
@@ -167,11 +170,13 @@ function packInterleavedTrapezoids(
     }
     if (currentY + item.height > rollL + 0.001) continue
 
+    const retryFlipped = placedInRow % 2 === 1
     placedItems.push({
       ...item,
       x: currentX,
       y: currentY,
-      flipped: placedInRow % 2 === 1,
+      flipped: retryFlipped,
+      placedPolygon: recomputePlacedPolygon(item, false, retryFlipped, currentX, currentY),
     })
     totalUsedArea += item.usedArea
     rowHeight = Math.max(rowHeight, item.height)
@@ -409,7 +414,8 @@ function tryGapFillSheet(
     ...(sheetPreview.scrapBands ?? []),
   // 1" minimum is intentional: gap-fill only considers rects large enough to fit
   // another part, unlike MIN_GAP_BAND_SIZE (0.25") which controls band rendering.
-  ].filter((r) => r.width > 1 && r.height > 1)
+  // Skip bands with polygon geometry — only use verified axis-aligned rectangles.
+  ].filter((r) => r.width > 1 && r.height > 1 && !r.polygon)
 
   if (remainingSpecs.length === 0 || allFreeRects.length === 0) {
     return { preview: sheetPreview, remainingSpecs }

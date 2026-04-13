@@ -321,7 +321,7 @@ export function packRectItemsWithGuillotine(
  * Uses the item's intrinsic dimensions to regenerate the base polygon,
  * then applies the final rotated90 + flipped transforms at (tx, ty).
  */
-function recomputePlacedPolygon(
+export function recomputePlacedPolygon(
   item: PreviewItem,
   rotated90: boolean,
   flipped: boolean,
@@ -446,7 +446,7 @@ export function packIntoFreeRects(
     const chosen = best as RectChoice
     const host = freeRects[chosen.freeIndex]
     const finalRotated90 = chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false)
-    const finalFlipped = chosen.rotated ? !(item.flipped ?? false) : item.flipped
+    const finalFlipped = item.flipped ?? false
     placed.push({
       ...item,
       x: host.x,
