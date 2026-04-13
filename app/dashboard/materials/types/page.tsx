@@ -8,6 +8,16 @@ import { materialTypeService } from "@/src/infrastructure/services/materialTypeS
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog"
 import { toast } from "sonner"
 
 import { MaterialTypesTable } from "../_components/material-types-table"
@@ -32,6 +42,9 @@ export default function MaterialTypesPage() {
     min_stock_alert: "",
   })
   const [submitting, setSubmitting] = useState(false)
+  const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
+  const [materialToDelete, setMaterialToDelete] = useState<MaterialType | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchMaterialTypes = useCallback(async () => {
     setLoading(true)
@@ -103,17 +116,17 @@ export default function MaterialTypesPage() {
     }
   }
 
-  const handleDelete = async (materialType: MaterialType) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete ${materialType.name}? This action cannot be undone.`
-      )
-    ) {
-      return
-    }
+  const handleDeleteClick = (materialType: MaterialType) => {
+    setMaterialToDelete(materialType)
+    setDeleteAlertOpen(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!materialToDelete) return
+
+    setDeleting(true)
     try {
-      const hasRolls = await rollService.existsByMaterialType(materialType.name)
+      const hasRolls = await rollService.existsByMaterialType(materialToDelete.name)
       if (hasRolls) {
         toast.error("Cannot delete material type", {
           description: "This material is being used by existing rolls",
@@ -121,7 +134,7 @@ export default function MaterialTypesPage() {
         return
       }
 
-      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialType.id)
+      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialToDelete.id)
       if (hasPOItems) {
         toast.error("Cannot delete material type", {
           description: "This material is referenced by existing purchase orders",
@@ -129,11 +142,10 @@ export default function MaterialTypesPage() {
         return
       }
 
-      await materialTypeService.delete(materialType.id)
+      await materialTypeService.delete(materialToDelete.id)
       toast.success("Material type deleted successfully")
       fetchMaterialTypes()
     } catch (error) {
-      console.error("Error deleting material type:", error)
       const isFkError =
         typeof error === "object" &&
         error !== null &&
@@ -146,6 +158,10 @@ export default function MaterialTypesPage() {
             ? error.message
             : "Failed to delete material type"
       )
+    } finally {
+      setDeleting(false)
+      setDeleteAlertOpen(false)
+      setMaterialToDelete(null)
     }
   }
 
@@ -173,7 +189,7 @@ export default function MaterialTypesPage() {
         materialTypes={materialTypes}
         loading={loading}
         onEdit={openEditDialog}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
 
       <MaterialTypeDialog
@@ -185,6 +201,36 @@ export default function MaterialTypesPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
       />
+
+      <AlertDialog open={deleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete material type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {materialToDelete ? (
+                <>
+                  This will permanently delete{" "}
+                  <span className="font-semibold">{materialToDelete.name}</span>. This action
+                  cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteConfirm()
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
