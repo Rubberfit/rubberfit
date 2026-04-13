@@ -14,7 +14,7 @@ export function sanitizeRedirectPath(pathname?: string | null): string | null {
 
 export function resolvePostAuthRedirect(
   roles?: string[] | null,
-  requestedPath?: string | null,
+  requestedPath?: string | null
 ): string {
   const safePath = sanitizeRedirectPath(requestedPath)
 

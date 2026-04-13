@@ -62,6 +62,10 @@ export interface ICutService {
   getWasteTrendByWeek(weeks: number): Promise<WasteTrend[]>
   getWasteImprovementPercentage(): Promise<number>
   optimizeCut(requirements: OptimizeCutRequirements): Promise<OptimizeCutResult>
-  getCutsByDateRangeWithRolls(from: Date, to?: Date, options?: { ascending?: boolean }): Promise<CutWithRoll[]>
+  getCutsByDateRangeWithRolls(
+    from: Date,
+    to?: Date,
+    options?: { ascending?: boolean }
+  ): Promise<CutWithRoll[]>
   getRecentCutsWithRolls(limit: number): Promise<CutWithRoll[]>
 }

@@ -21,9 +21,11 @@ export interface INotificationRepository {
   getByType(type: string): Promise<NotificationByType[] | null>
   getUnreadCount(): Promise<number>
   exists(): Promise<boolean>
-  create(notification: Omit<Notification, "id" | "created_at" | "updated_at">): Promise<Notification>
+  create(
+    notification: Omit<Notification, "id" | "created_at" | "updated_at">
+  ): Promise<Notification>
   bulkCreate(
-    notifications: Omit<Notification, "id" | "created_at" | "updated_at">[],
+    notifications: Omit<Notification, "id" | "created_at" | "updated_at">[]
   ): Promise<Notification[]>
   update(id: string, updates: Partial<Notification>): Promise<Notification>
   markAsRead(id: string): Promise<Notification>

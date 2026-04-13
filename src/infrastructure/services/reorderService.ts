@@ -88,9 +88,7 @@ export class ReorderService implements IReorderService {
     }
   }
 
-  async getReorderRuleByMaterial(
-    materialTypeId: string
-  ): Promise<ReorderRuleWithDetails | null> {
+  async getReorderRuleByMaterial(materialTypeId: string): Promise<ReorderRuleWithDetails | null> {
     try {
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -136,10 +134,7 @@ export class ReorderService implements IReorderService {
     }
   }
 
-  async updateReorderRule(
-    id: string,
-    updates: UpdateReorderRule
-  ): Promise<ReorderRuleWithDetails> {
+  async updateReorderRule(id: string, updates: UpdateReorderRule): Promise<ReorderRuleWithDetails> {
     try {
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
@@ -274,13 +269,9 @@ export class ReorderService implements IReorderService {
     }
   }
 
-  async generateReorderSuggestions(
-    includeInactive: boolean = false
-  ): Promise<ReorderSuggestion[]> {
+  async generateReorderSuggestions(includeInactive: boolean = false): Promise<ReorderSuggestion[]> {
     try {
-      const { data: materials, error: matError } = await supabase
-        .from("material_types")
-        .select("*")
+      const { data: materials, error: matError } = await supabase.from("material_types").select("*")
 
       if (matError) throw matError
       if (!materials || materials.length === 0) return []

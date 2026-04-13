@@ -28,7 +28,8 @@ export type { POReceiptResult }
 export class PurchaseOrderService implements IPurchaseOrderService {
   constructor(
     @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
-    @inject(TOKENS.IPurchaseOrderAnalyticsService) private readonly analytics: IPurchaseOrderAnalyticsService
+    @inject(TOKENS.IPurchaseOrderAnalyticsService)
+    private readonly analytics: IPurchaseOrderAnalyticsService
   ) {}
   async getAllPurchaseOrders(): Promise<PurchaseOrderWithDetails[]> {
     try {
@@ -156,7 +157,10 @@ export class PurchaseOrderService implements IPurchaseOrderService {
         }
 
         if (supplierId) {
-          const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, updates.subtotal)
+          const taxCalc = await this.taxService.calculatePurchaseOrderTax(
+            supplierId,
+            updates.subtotal
+          )
           updates.tax_amount = taxCalc.taxAmount
           updates.total_amount = updates.subtotal + taxCalc.taxAmount + (updates.shipping_cost || 0)
         } else {
@@ -492,10 +496,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     }
   }
 
-  isValidStatusTransition(
-    from: PurchaseOrder["status"],
-    to: PurchaseOrder["status"]
-  ): boolean {
+  isValidStatusTransition(from: PurchaseOrder["status"], to: PurchaseOrder["status"]): boolean {
     const validTransitions: Record<PurchaseOrder["status"], PurchaseOrder["status"][]> = {
       draft: ["pending", "cancelled"],
       pending: ["approved", "draft", "cancelled"],

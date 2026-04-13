@@ -1,6 +1,9 @@
 import { format } from "date-fns"
 import { toast } from "sonner"
-import type { IExportService, ExportData } from "@/src/application/services/export.service.interface"
+import type {
+  IExportService,
+  ExportData,
+} from "@/src/application/services/export.service.interface"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
 import { exportPdfService } from "./exportPdfService"
 import "reflect-metadata"
@@ -14,9 +17,7 @@ export { exportPdfService } from "./exportPdfService"
 
 @injectable()
 export class ExportService implements IExportService {
-  constructor(
-    @inject(TOKENS.IExportPdfService) private readonly pdfService: IExportPdfService
-  ) {}
+  constructor(@inject(TOKENS.IExportPdfService) private readonly pdfService: IExportPdfService) {}
   exportToCSV(data: ExportData): void {
     try {
       const { headers, rows, filename = "export" } = data

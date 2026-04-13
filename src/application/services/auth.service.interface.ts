@@ -23,5 +23,7 @@ export interface IAuthService {
   updatePassword(password: string): Promise<AuthResponse>
   getCurrentUser(): Promise<AuthUser | null>
   getSession(): Promise<Session | null>
-  onAuthStateChange(callback: (user: AuthUser | null) => void): { data: { subscription: Subscription } }
+  onAuthStateChange(callback: (user: AuthUser | null) => void): {
+    data: { subscription: Subscription }
+  }
 }

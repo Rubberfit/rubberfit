@@ -1,6 +1,10 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { taxApiService } from "./taxApiService"
-import type { ITaxService, TaxCalculation, TaxRateDetails } from "@/src/application/services/tax.service.interface"
+import type {
+  ITaxService,
+  TaxCalculation,
+  TaxRateDetails,
+} from "@/src/application/services/tax.service.interface"
 import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
@@ -12,9 +16,7 @@ const API_CACHE_DAYS = 30
 
 @injectable()
 export class TaxService implements ITaxService {
-  constructor(
-    @inject(TOKENS.ITaxApiService) private readonly taxApi: ITaxApiService
-  ) {}
+  constructor(@inject(TOKENS.ITaxApiService) private readonly taxApi: ITaxApiService) {}
   private readonly DEFAULT_TAX: TaxRateDetails = {
     tax_rate: 0.08,
     tax_name: "Default Tax Rate (8%)",
@@ -127,7 +129,11 @@ export class TaxService implements ITaxService {
       }
 
       // Step 3: Fall back to whatever the DB had
-      const dbFallback = await this.resolveTaxFromDbFallback(stateCode, city ?? null, zipCode ?? null)
+      const dbFallback = await this.resolveTaxFromDbFallback(
+        stateCode,
+        city ?? null,
+        zipCode ?? null
+      )
       if (dbFallback) return dbFallback
 
       // Step 4: Ultimate fallback

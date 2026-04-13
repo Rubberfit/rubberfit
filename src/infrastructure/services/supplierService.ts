@@ -231,7 +231,12 @@ export class SupplierService implements ISupplierService {
 
       if (data && updates.cost_per_sqft !== undefined && oldPrice !== updates.cost_per_sqft) {
         try {
-          await priceHistoryService.trackPriceChange(id, oldPrice, updates.cost_per_sqft, "Price updated")
+          await priceHistoryService.trackPriceChange(
+            id,
+            oldPrice,
+            updates.cost_per_sqft,
+            "Price updated"
+          )
         } catch (e) {
           console.error("Failed to track price change:", e)
         }

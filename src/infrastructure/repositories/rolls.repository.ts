@@ -91,7 +91,7 @@ export class RollsRepository implements IRollsRepository {
       .from("rolls")
       .select("*")
       .or(
-        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`,
+        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`
       )
       .order("created_at", { ascending: false })
 
@@ -181,7 +181,7 @@ export class RollsRepository implements IRollsRepository {
 
   async bulkAddRolls(
     rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
-    batchSize = 50,
+    batchSize = 50
   ): Promise<{ imported: number; total: number }> {
     const user_id = await getCurrentUserId()
     let imported = 0

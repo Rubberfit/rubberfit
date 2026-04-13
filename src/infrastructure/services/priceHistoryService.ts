@@ -174,10 +174,7 @@ export class PriceHistoryService implements IPriceHistoryService {
     }
   }
 
-  async calculatePriceTrends(
-    materialTypeId: string,
-    daysBack: number = 30
-  ): Promise<PriceTrend[]> {
+  async calculatePriceTrends(materialTypeId: string, daysBack: number = 30): Promise<PriceTrend[]> {
     try {
       const startDate = new Date()
       startDate.setDate(startDate.getDate() - daysBack)

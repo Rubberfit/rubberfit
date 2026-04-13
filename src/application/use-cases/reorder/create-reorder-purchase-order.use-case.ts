@@ -46,9 +46,7 @@ export class CreateReorderPurchaseOrderUseCase {
     private readonly notificationService: INotificationService
   ) {}
 
-  async execute(
-    input: CreateReorderPurchaseOrderInput
-  ): Promise<CreateReorderPurchaseOrderResult> {
+  async execute(input: CreateReorderPurchaseOrderInput): Promise<CreateReorderPurchaseOrderResult> {
     const { suggestion, reorderRules } = input
 
     if (!suggestion.supplierId) {

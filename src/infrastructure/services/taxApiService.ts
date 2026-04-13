@@ -1,4 +1,8 @@
-import type { ITaxApiService, TaxApiResult, TaxRateBreakdown } from "@/src/application/services/tax-api.service.interface"
+import type {
+  ITaxApiService,
+  TaxApiResult,
+  TaxRateBreakdown,
+} from "@/src/application/services/tax-api.service.interface"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
 

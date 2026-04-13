@@ -32,12 +32,28 @@ export interface ITaxService {
   isSupplierTaxExempt(supplierId: string): Promise<boolean>
   getSupplierLocation(
     supplierId: string
-  ): Promise<{ state?: string | null; city?: string | null; zip_code?: string | null; tax_exempt?: boolean | null; tax_rate?: number | null } | null>
+  ): Promise<{
+    state?: string | null
+    city?: string | null
+    zip_code?: string | null
+    tax_exempt?: boolean | null
+    tax_rate?: number | null
+  } | null>
   calculatePurchaseOrderTax(supplierId: string, subtotal: number): Promise<TaxCalculation>
   batchCalculateTax(
     items: Array<{ id: string; amount: number }>,
     state?: string | null,
     city?: string | null,
     zipCode?: string | null
-  ): Promise<Array<{ id: string; amount: number; taxRate: number; taxAmount: number; total: number; taxName: string; taxLevel: string }>>
+  ): Promise<
+    Array<{
+      id: string
+      amount: number
+      taxRate: number
+      taxAmount: number
+      total: number
+      taxName: string
+      taxLevel: string
+    }>
+  >
 }

@@ -202,7 +202,14 @@ export class ExportPdfService implements IExportPdfService {
           yPosition += this.renderHeading(doc, element, margin, yPosition)
         } else if (element.tagName === "P" && !element.closest(".metric-card")) {
           checkNewPage(10)
-          yPosition += this.renderParagraph(doc, element, margin, contentWidth, yPosition, checkNewPage)
+          yPosition += this.renderParagraph(
+            doc,
+            element,
+            margin,
+            contentWidth,
+            yPosition,
+            checkNewPage
+          )
         } else if (element.tagName === "UL" || element.tagName === "OL") {
           yPosition += this.renderList(doc, element, margin, contentWidth, yPosition, checkNewPage)
         } else if (element.classList.contains("metric-card")) {

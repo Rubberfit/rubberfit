@@ -1,8 +1,5 @@
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
-import type {
-  MaterialType,
-  ReorderRuleWithDetails,
-} from "@/src/infrastructure/models/supabase"
+import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 
 export interface ReorderSuggestionOutput {
@@ -31,9 +28,7 @@ const DAILY_USAGE = 10
 const ORDERING_COST = 50
 const HOLDING_COST_RATE = 0.2
 
-function computeUrgency(
-  daysUntilStockout: number
-): ReorderSuggestionOutput["urgencyLevel"] {
+function computeUrgency(daysUntilStockout: number): ReorderSuggestionOutput["urgencyLevel"] {
   if (daysUntilStockout <= 2) return "critical"
   if (daysUntilStockout <= 5) return "high"
   if (daysUntilStockout <= 10) return "medium"
@@ -47,8 +42,7 @@ function sumPendingQuantities(
   for (const po of pendingPOs) {
     for (const item of po.items ?? []) {
       if (item.material_type_id) {
-        totals[item.material_type_id] =
-          (totals[item.material_type_id] || 0) + item.quantity_sqft
+        totals[item.material_type_id] = (totals[item.material_type_id] || 0) + item.quantity_sqft
       }
     }
   }

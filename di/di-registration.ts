@@ -57,14 +57,26 @@ container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, ma
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
-container.registerInstance<IPurchaseOrderService>(TOKENS.IPurchaseOrderService, purchaseOrderService)
-container.registerInstance<IPurchaseOrderAnalyticsService>(TOKENS.IPurchaseOrderAnalyticsService, purchaseOrderAnalytics)
+container.registerInstance<IPurchaseOrderService>(
+  TOKENS.IPurchaseOrderService,
+  purchaseOrderService
+)
+container.registerInstance<IPurchaseOrderAnalyticsService>(
+  TOKENS.IPurchaseOrderAnalyticsService,
+  purchaseOrderAnalytics
+)
 container.registerInstance<IReorderService>(TOKENS.IReorderService, reorderService)
-container.registerInstance<IReorderCalculationsService>(TOKENS.IReorderCalculationsService, reorderCalculations)
+container.registerInstance<IReorderCalculationsService>(
+  TOKENS.IReorderCalculationsService,
+  reorderCalculations
+)
 container.registerInstance<IRollService>(TOKENS.IRollService, rollService)
 container.registerInstance<ISupplierService>(TOKENS.ISupplierService, supplierService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)
 container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
-container.registerInstance<IVisionExtractionService>(TOKENS.IVisionExtractionService, visionExtractionService)
+container.registerInstance<IVisionExtractionService>(
+  TOKENS.IVisionExtractionService,
+  visionExtractionService
+)
 
 export { container }

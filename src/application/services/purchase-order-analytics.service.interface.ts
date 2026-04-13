@@ -1,4 +1,8 @@
-import type { PurchaseOrder, PurchaseOrderWithDetails, Roll } from "@/src/infrastructure/models/supabase"
+import type {
+  PurchaseOrder,
+  PurchaseOrderWithDetails,
+  Roll,
+} from "@/src/infrastructure/models/supabase"
 import type { POReceiptItem } from "@/src/application/services/purchase-order.service.interface"
 
 export interface POAnalyticsStats {
@@ -27,6 +31,9 @@ export interface IPurchaseOrderAnalyticsService {
     completedAt?: string
   }>
   getPurchaseOrderStats(): Promise<POAnalyticsStats>
-  getSupplierPurchaseHistory(supplierId: string, limit?: number): Promise<PurchaseOrderWithDetails[]>
+  getSupplierPurchaseHistory(
+    supplierId: string,
+    limit?: number
+  ): Promise<PurchaseOrderWithDetails[]>
   getPendingDeliveries(): Promise<PurchaseOrderWithDetails[]>
 }

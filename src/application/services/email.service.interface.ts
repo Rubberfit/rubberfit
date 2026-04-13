@@ -20,7 +20,9 @@ export interface QueuedEmail {
 }
 
 export interface IEmailService {
-  sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }>
+  sendEmail(
+    options: EmailOptions
+  ): Promise<{ success: boolean; messageId?: string; error?: string }>
   sendLowStockAlert(params: {
     to: string
     materialName: string

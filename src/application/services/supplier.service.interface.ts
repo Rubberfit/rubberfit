@@ -40,7 +40,9 @@ export interface ISupplierService {
     supplierId: string
   ): Promise<MaterialSupplier | null>
   bulkCreateSuppliers(suppliers: CreateSupplier[]): Promise<Supplier[]>
-  bulkLinkMaterialsToSupplier(materialSuppliers: CreateMaterialSupplier[]): Promise<MaterialSupplier[]>
+  bulkLinkMaterialsToSupplier(
+    materialSuppliers: CreateMaterialSupplier[]
+  ): Promise<MaterialSupplier[]>
   getAllSuppliersOrdered(): Promise<Supplier[]>
   getSuppliers(options?: { filterActive?: boolean; filterPreferred?: boolean }): Promise<Supplier[]>
 }
