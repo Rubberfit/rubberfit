@@ -1,8 +1,9 @@
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
-import { taxService } from "@/src/infrastructure/services/taxService"
+import { TOKENS } from "@/di/tokens"
 
 export interface CreatePurchaseOrderItemInput {
   materialTypeId: string
@@ -31,10 +32,15 @@ export interface CreatePurchaseOrderResult {
   taxCalculation: TaxCalculation
 }
 
-export class CreatePurchaseOrderUseCase {
+export interface ICreatePurchaseOrderUseCase {
+  execute(input: CreatePurchaseOrderInput): Promise<CreatePurchaseOrderResult>
+}
+
+@injectable()
+export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
   constructor(
-    private readonly poService: IPurchaseOrderService,
-    private readonly taxService: ITaxService
+    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
   ) {}
 
   async execute(input: CreatePurchaseOrderInput): Promise<CreatePurchaseOrderResult> {
@@ -77,8 +83,3 @@ export class CreatePurchaseOrderUseCase {
     return { purchaseOrder: po, taxCalculation: taxCalc }
   }
 }
-
-export const createPurchaseOrderUseCase = new CreatePurchaseOrderUseCase(
-  purchaseOrderService,
-  taxService
-)

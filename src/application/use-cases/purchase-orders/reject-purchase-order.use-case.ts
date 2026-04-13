@@ -1,19 +1,25 @@
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
+import { TOKENS } from "@/di/tokens"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { notificationService } from "@/src/infrastructure/services/notificationService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
 export interface RejectPurchaseOrderInput {
   purchaseOrderId: string
   reason?: string
 }
 
-export class RejectPurchaseOrderUseCase {
+export interface IRejectPurchaseOrderUseCase {
+  execute(input: RejectPurchaseOrderInput): Promise<PurchaseOrder>
+}
+
+@injectable()
+export class RejectPurchaseOrderUseCase implements IRejectPurchaseOrderUseCase {
   constructor(
-    private readonly poService: IPurchaseOrderService,
-    private readonly notificationService: INotificationService
+    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 
   async execute(input: RejectPurchaseOrderInput): Promise<PurchaseOrder> {
@@ -42,8 +48,3 @@ export class RejectPurchaseOrderUseCase {
     return rejected
   }
 }
-
-export const rejectPurchaseOrderUseCase = new RejectPurchaseOrderUseCase(
-  purchaseOrderService,
-  notificationService
-)

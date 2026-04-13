@@ -44,6 +44,7 @@
 - Simple (pure CRUD): `app/ hook → infrastructure service → Supabase`
 - Complex (rules/side effects): `app/ hook → src/application/use-cases/ → service(s) → Supabase`
 - Hooks own UI concerns (toast, router, loading). Use-cases own business logic (tax calc, cross-service coordination, notifications).
+- Use-cases are TSyringe-registered. Classes use `@injectable()` + `@inject(TOKEN)`; call sites resolve via `resolveUseCase<IFoo>(TOKENS.IFoo)` from `@/di/resolve`. No module-level singletons — class files are import-safe for unit tests.
 - Create a use-case when the op fires side effects, touches >1 service, or enforces rules. Skip for list/get/delete.
 - Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`.
 - Notifications: `notifications` table (in-app feed) and `notification_queue` (email/SMS) are separate. Always go through `notificationService.sendX()` — it writes both. Type CHECK limits `notifications.type` to `low_stock | roll_depleted | cut_completed | system_alert`; everything else persists as `system_alert`.

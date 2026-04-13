@@ -1,4 +1,5 @@
 export const TOKENS = {
+  // Services
   IAuthService: Symbol("IAuthService"),
   ICsvService: Symbol("ICsvService"),
   ICutService: Symbol("ICutService"),
@@ -18,4 +19,13 @@ export const TOKENS = {
   ITaxService: Symbol("ITaxService"),
   ITaxApiService: Symbol("ITaxApiService"),
   IVisionExtractionService: Symbol("IVisionExtractionService"),
+
+  // Use cases
+  ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
+  IUpdatePurchaseOrderUseCase: Symbol("IUpdatePurchaseOrderUseCase"),
+  IApprovePurchaseOrderUseCase: Symbol("IApprovePurchaseOrderUseCase"),
+  IRejectPurchaseOrderUseCase: Symbol("IRejectPurchaseOrderUseCase"),
+  IReceivePurchaseOrderUseCase: Symbol("IReceivePurchaseOrderUseCase"),
+  IGenerateReorderSuggestionsUseCase: Symbol("IGenerateReorderSuggestionsUseCase"),
+  ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
 } as const

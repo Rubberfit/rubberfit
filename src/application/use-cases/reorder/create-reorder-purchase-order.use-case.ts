@@ -1,3 +1,5 @@
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
@@ -6,11 +8,8 @@ import type {
   PurchaseOrderWithDetails,
   ReorderRuleWithDetails,
 } from "@/src/infrastructure/models/supabase"
+import { TOKENS } from "@/di/tokens"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { notificationService } from "@/src/infrastructure/services/notificationService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
 import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use-case"
 
 export interface CreateReorderPurchaseOrderInput {
@@ -20,6 +19,10 @@ export interface CreateReorderPurchaseOrderInput {
 
 export interface CreateReorderPurchaseOrderResult {
   purchaseOrder: PurchaseOrderWithDetails
+}
+
+export interface ICreateReorderPurchaseOrderUseCase {
+  execute(input: CreateReorderPurchaseOrderInput): Promise<CreateReorderPurchaseOrderResult>
 }
 
 const DELIVERY_WINDOW_DAYS = 7
@@ -38,12 +41,13 @@ function buildSupplierAddress(s: {
   return parts.join(", ")
 }
 
-export class CreateReorderPurchaseOrderUseCase {
+@injectable()
+export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchaseOrderUseCase {
   constructor(
-    private readonly poService: IPurchaseOrderService,
-    private readonly reorderService: IReorderService,
-    private readonly supplierService: ISupplierService,
-    private readonly notificationService: INotificationService
+    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.IReorderService) private readonly reorderService: IReorderService,
+    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 
   async execute(input: CreateReorderPurchaseOrderInput): Promise<CreateReorderPurchaseOrderResult> {
@@ -125,10 +129,3 @@ export class CreateReorderPurchaseOrderUseCase {
     return { purchaseOrder: po }
   }
 }
-
-export const createReorderPurchaseOrderUseCase = new CreateReorderPurchaseOrderUseCase(
-  purchaseOrderService,
-  reorderService,
-  supplierService,
-  notificationService
-)

@@ -1,12 +1,13 @@
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type {
   IPurchaseOrderService,
   POReceiptItem,
   POReceiptResult,
 } from "@/src/application/services/purchase-order.service.interface"
+import { TOKENS } from "@/di/tokens"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { notificationService } from "@/src/infrastructure/services/notificationService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
 export interface ReceivePurchaseOrderInput {
   purchaseOrderId: string
@@ -14,10 +15,15 @@ export interface ReceivePurchaseOrderInput {
   receivedBy?: string
 }
 
-export class ReceivePurchaseOrderUseCase {
+export interface IReceivePurchaseOrderUseCase {
+  execute(input: ReceivePurchaseOrderInput): Promise<POReceiptResult>
+}
+
+@injectable()
+export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase {
   constructor(
-    private readonly poService: IPurchaseOrderService,
-    private readonly notificationService: INotificationService
+    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 
   async execute(input: ReceivePurchaseOrderInput): Promise<POReceiptResult> {
@@ -48,8 +54,3 @@ export class ReceivePurchaseOrderUseCase {
     return result
   }
 }
-
-export const receivePurchaseOrderUseCase = new ReceivePurchaseOrderUseCase(
-  purchaseOrderService,
-  notificationService
-)

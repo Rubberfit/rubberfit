@@ -64,9 +64,13 @@ Used for list/get/delete and single-field updates. Example: `app/dashboard/inven
 ```
 app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
-The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` → `createPurchaseOrderUseCase.execute()` → `purchaseOrderService` + `taxService`.
+The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` resolves `ICreatePurchaseOrderUseCase` from the container and invokes `.execute(...)` → `purchaseOrderService` + `taxService`.
 
-Use-cases are **plain classes** with constructor injection, exported as module-level singletons (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`). They are not TSyringe-registered.
+**Use-case wiring:**
+- Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
+- Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
+- Resolved at call sites via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container.
+- No module-level singleton exports — use-case class files are import-safe in isolation. Unit tests register fakes with `container.registerInstance(TOKENS.IDependency, fake)` before resolving the use-case, without pulling Supabase at import time.
 
 ### When to create a use-case
 

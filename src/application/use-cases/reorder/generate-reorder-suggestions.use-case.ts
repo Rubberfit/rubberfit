@@ -1,6 +1,8 @@
+import "reflect-metadata"
+import { injectable, inject } from "tsyringe"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { TOKENS } from "@/di/tokens"
 
 export interface ReorderSuggestionOutput {
   materialTypeId: string
@@ -22,6 +24,10 @@ export interface GenerateReorderSuggestionsInput {
   pendingPOs?: Array<{
     items?: Array<{ material_type_id: string; quantity_sqft: number }>
   }>
+}
+
+export interface IGenerateReorderSuggestionsUseCase {
+  execute(input: GenerateReorderSuggestionsInput): Promise<ReorderSuggestionOutput[]>
 }
 
 const DAILY_USAGE = 10
@@ -49,8 +55,11 @@ function sumPendingQuantities(
   return totals
 }
 
-export class GenerateReorderSuggestionsUseCase {
-  constructor(private readonly supplierService: ISupplierService) {}
+@injectable()
+export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSuggestionsUseCase {
+  constructor(
+    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService
+  ) {}
 
   async execute(input: GenerateReorderSuggestionsInput): Promise<ReorderSuggestionOutput[]> {
     const pendingQuantities = sumPendingQuantities(input.pendingPOs ?? [])
@@ -121,7 +130,3 @@ export class GenerateReorderSuggestionsUseCase {
     return {}
   }
 }
-
-export const generateReorderSuggestionsUseCase = new GenerateReorderSuggestionsUseCase(
-  supplierService
-)

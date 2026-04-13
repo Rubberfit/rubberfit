@@ -79,4 +79,29 @@ container.registerInstance<IVisionExtractionService>(
   visionExtractionService
 )
 
+// Use cases — registered as class-based singletons so the container lazily
+// constructs them on first resolve, keeping use-case modules import-safe for
+// unit tests.
+import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
+import { UpdatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/update-purchase-order.use-case"
+import { ApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
+import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
+import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
+import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
+import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+
+container.registerSingleton(TOKENS.ICreatePurchaseOrderUseCase, CreatePurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IUpdatePurchaseOrderUseCase, UpdatePurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IApprovePurchaseOrderUseCase, ApprovePurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IRejectPurchaseOrderUseCase, RejectPurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IReceivePurchaseOrderUseCase, ReceivePurchaseOrderUseCase)
+container.registerSingleton(
+  TOKENS.IGenerateReorderSuggestionsUseCase,
+  GenerateReorderSuggestionsUseCase
+)
+container.registerSingleton(
+  TOKENS.ICreateReorderPurchaseOrderUseCase,
+  CreateReorderPurchaseOrderUseCase
+)
+
 export { container }

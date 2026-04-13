@@ -2,7 +2,9 @@ import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabas
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
-import { createReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+import type { ICreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+import { resolveUseCase } from "@/di/resolve"
+import { TOKENS } from "@/di/tokens"
 import { toast } from "sonner"
 import type { ReorderSuggestion } from "./reorder-suggestions"
 
@@ -56,7 +58,10 @@ export async function handleCreatePO(
       return
     }
 
-    const { purchaseOrder } = await createReorderPurchaseOrderUseCase.execute({
+    const useCase = resolveUseCase<ICreateReorderPurchaseOrderUseCase>(
+      TOKENS.ICreateReorderPurchaseOrderUseCase
+    )
+    const { purchaseOrder } = await useCase.execute({
       suggestion,
       reorderRules,
     })
@@ -126,7 +131,10 @@ export async function handleCreateIndividualPOs(callbacks: HandleCreateIndividua
       }
 
       try {
-        const { purchaseOrder } = await createReorderPurchaseOrderUseCase.execute({
+        const useCase = resolveUseCase<ICreateReorderPurchaseOrderUseCase>(
+      TOKENS.ICreateReorderPurchaseOrderUseCase
+    )
+    const { purchaseOrder } = await useCase.execute({
           suggestion,
           reorderRules,
         })
