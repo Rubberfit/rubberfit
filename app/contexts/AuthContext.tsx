@@ -1,5 +1,6 @@
 "use client"
 
+import "reflect-metadata"
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react"
 
 import { useRouter } from "next/navigation"
