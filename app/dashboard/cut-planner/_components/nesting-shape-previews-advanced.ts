@@ -31,11 +31,12 @@ import {
   buildTrapezoidSplitSections,
 } from "./nesting-preview-builders"
 import { greedyNfpPack } from "@/nesting/nfp-greedy-placer"
-import { sectorToPolygon } from "@/nesting/shape-to-polygon"
+import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Polygon2D } from "@/nesting/types"
 
 const NFP_DEFAULT_SPACING = 0.125
-const NFP_ROTATION_STEPS = 4
+/** Default coarse rotation steps for NFP packing (36 = every 10°, refined via coarse-to-fine) */
+const NFP_COARSE_STEPS = 36
 
 export function generateCylinderPreview(
   rollW: number,
@@ -271,33 +272,12 @@ export function generateConePreview(
     rollL
   )
 
-  const checkerGrid = withWaste(
-    buildPackedPreview(
-      calculatePackedShapeLayout(rollW, rollL, placedW, placedH, qty, {
-        stepX: Math.max(placedW * 0.7, 2),
-        stepY: Math.max(placedH * 0.88, 2),
-        rowOffset: placedW * 0.38,
-        alternateOffset: true,
-        flipPattern: "checker",
-        rotated90: useSectorRotated,
-      }),
-      {
-        ...sectorConfig,
-        strategyName: "Alternating cone spreads",
-        strategyNote:
-          "Full cone spreads alternate up/down to interlock arcs and reduce corner waste between pieces.",
-      }
-    ),
-    rollW,
-    rollL
-  )
-
   // NFP convex-hull packing candidate
   const conePolygon: Polygon2D = {
     id: "sector",
-    points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees),
+    points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees, 48),
   }
-  const coneNfpResult = greedyNfpPack(conePolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, NFP_ROTATION_STEPS)
+  const coneNfpResult = greedyNfpPack(conePolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, NFP_COARSE_STEPS)
   const coneNfpCandidate = coneNfpResult.placed > 0
     ? withWaste(
         buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
@@ -313,10 +293,6 @@ export function generateConePreview(
 
   const sectorCandidates = [
     { ...directGrid, adjustedWaste: rollArea > 0 ? (directGrid.scrapArea / rollArea) * 100 : 100 },
-    {
-      ...checkerGrid,
-      adjustedWaste: rollArea > 0 ? (checkerGrid.scrapArea / rollArea) * 100 : 100,
-    },
     ...(coneNfpCandidate
       ? [{ ...coneNfpCandidate, adjustedWaste: rollArea > 0 ? (coneNfpCandidate.scrapArea / rollArea) * 100 : 100 }]
       : []),
@@ -458,9 +434,45 @@ export function generateTrapezoidPreview(
     rollL
   )
 
+  // NFP convex-hull packing candidate
+  const trapPolygon: Polygon2D = {
+    id: "trapezoid",
+    points: trapezoidToPolygon(topWidth, bottomWidth, height),
+  }
+  const trapNfpResult = greedyNfpPack(
+    trapPolygon,
+    rollW,
+    rollL,
+    qty,
+    NFP_DEFAULT_SPACING,
+    NFP_COARSE_STEPS
+  )
+  const trapNfpCandidate =
+    trapNfpResult.placed > 0
+      ? withWaste(
+          buildNfpPackedPreview(trapNfpResult, rollW, rollL, {
+            ...trapConfig,
+            strategyName: "Convex-hull trapezoid nesting",
+            strategyNote:
+              "Trapezoids are packed using their actual outline via NFP placement for tighter interlocking.",
+          }),
+          rollW,
+          rollL
+        )
+      : null
+
   const trapCandidates = [
     { ...direct, adjustedWaste: rollArea > 0 ? (direct.scrapArea / rollArea) * 100 : 100 },
     { ...checker, adjustedWaste: rollArea > 0 ? (checker.scrapArea / rollArea) * 100 : 100 },
+    ...(trapNfpCandidate
+      ? [
+          {
+            ...trapNfpCandidate,
+            adjustedWaste:
+              rollArea > 0 ? (trapNfpCandidate.scrapArea / rollArea) * 100 : 100,
+          },
+        ]
+      : []),
   ]
   const bestTrap = chooseBestPreview(trapCandidates)
 

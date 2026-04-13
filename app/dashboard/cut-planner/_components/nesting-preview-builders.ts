@@ -1,11 +1,11 @@
 // Preview builder functions for NestingVisualizer
 
-import type { GreedyPackResult } from "@/nesting/nfp-greedy-placer"
+import { extractMaximalFreeRects, classifyFreeRegion } from "@/nesting/free-space"
+import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type {
   OffcutBand,
   PreviewItem,
   RectLikePreview,
-  ShapePlacement,
   SimplePartPreview,
   SimplePreviewBase,
   SimplePartSpec,
@@ -19,7 +19,6 @@ import {
   buildOffcutBands,
   buildShelfGapBands,
   isReusableOffcutBand,
-  computeIntraBlankWaste,
   getPlacementBounds,
   centerPlacements,
   buildRectangleSteps,
@@ -129,11 +128,60 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       }
     }
 
+    // Check if items have actual polygon outlines from NFP placement
+    const placedPolygons = preview.items
+      .map((item) => item.placedPolygon)
+      .filter((poly): poly is Array<{ x: number; y: number }> => poly != null && poly.length >= 3)
+
+    if (placedPolygons.length > 0) {
+      // Grid-based maximal rectangle extraction for accurate offcut labeling
+      const freeRects = extractMaximalFreeRects(rollW, rollL, placedPolygons)
+      const reusableBands: OffcutBand[] = []
+      const scrapBands: OffcutBand[] = []
+      let reusableArea = 0
+
+      // Small inset prevents offcut hatching from touching shape polygon boundaries.
+      // With 48-segment polygons, the chord-arc sagitta is ~0.005-0.007" for typical
+      // cones (R=10-30", 120° arc). 0.02" covers this with margin while keeping the
+      // gap between adjacent bands at 0.04" (~sub-pixel at normal zoom).
+      const OFFCUT_INSET = 0.02
+      for (const rect of freeRects) {
+        const band: OffcutBand = {
+          x: rect.x + OFFCUT_INSET,
+          y: rect.y + OFFCUT_INSET,
+          width: Math.max(0, rect.width - 2 * OFFCUT_INSET),
+          height: Math.max(0, rect.height - 2 * OFFCUT_INSET),
+        }
+        if (classifyFreeRegion(rect) === "reusable") {
+          reusableBands.push(band)
+          reusableArea += rect.area
+        } else {
+          scrapBands.push(band)
+        }
+      }
+
+      const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
+      const scrapArea = Math.max(0, totalWasteArea - reusableArea)
+
+      return {
+        ...preview,
+        placements: positioned.positions,
+        occupiedWidth: positioned.occupiedWidth,
+        occupiedHeight: positioned.occupiedHeight,
+        wasteArea: totalWasteArea,
+        wastePct: rollArea > 0 ? (totalWasteArea / rollArea) * 100 : 100,
+        reusableArea,
+        scrapArea,
+        offcutBands: reusableBands,
+        scrapBands,
+      }
+    }
+
+    // Fallback: AABB-based shelf gap bands for non-NFP layouts
     const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
     const reusableBands: OffcutBand[] = []
     const scrapBands: OffcutBand[] = []
     let reusableArea = 0
-    let bandScrapArea = 0
 
     allBands.forEach((band) => {
       const area = band.width * band.height
@@ -142,18 +190,11 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
         reusableArea += area
       } else {
         scrapBands.push(band)
-        bandScrapArea += area
       }
     })
 
-    const hasPlacedPolygons = preview.items.some(
-      (item) => item.placedPolygon && item.placedPolygon.length > 0
-    )
-    const intraBlankWaste = hasPlacedPolygons
-      ? Math.max(0, bounds.occupiedWidth * bounds.occupiedHeight - preview.usedArea)
-      : preview.items.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
-    const scrapArea = bandScrapArea + intraBlankWaste
-    const totalWasteArea = reusableArea + scrapArea
+    const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
+    const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
     return {
       ...preview,
@@ -271,7 +312,34 @@ export {
   buildOptimizedStockPreview,
   buildCustomPackedPreview,
   buildCustomPackedPreviewFromPackedResult,
+  buildNfpPackedPreview,
 } from "./nesting-stock-preview"
+
+/** Transform a base polygon for a specific placement (rotation, flip, translation). */
+function transformBasePolygon(
+  basePoints: ReadonlyArray<{ x: number; y: number }>,
+  rotated90: boolean,
+  flipped: boolean,
+  tx: number,
+  ty: number
+): Array<{ x: number; y: number }> {
+  let pts = basePoints.map((p) => ({ x: p.x, y: p.y }))
+
+  if (rotated90) {
+    pts = pts.map((p) => ({ x: p.y, y: -p.x }))
+  }
+  if (flipped) {
+    pts = pts.map((p) => ({ x: p.x, y: -p.y }))
+  }
+
+  let minX = Infinity
+  let minY = Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+  }
+  return pts.map((p) => ({ x: p.x - minX + tx, y: p.y - minY + ty }))
+}
 
 export function buildPackedPreview(
   layout: PackedShapeLayout,
@@ -294,6 +362,25 @@ export function buildPackedPreview(
 ): RectLikePreview {
   const unitsCompleted = Math.floor(layout.placed / config.piecesPerUnit)
   const usedArea = layout.placed * config.pieceArea
+
+  // Compute base polygon so withWaste() uses polygon-aware free-space extraction
+  // instead of AABB shelf gap bands (which overlap curved/tapered edges)
+  let basePolygon: Array<{ x: number; y: number }> | null = null
+  if (
+    config.renderShape === "sector" &&
+    config.innerRadius != null &&
+    config.outerRadius != null &&
+    config.arcDegrees != null
+  ) {
+    basePolygon = sectorToPolygon(config.innerRadius, config.outerRadius, config.arcDegrees, 48)
+  } else if (
+    config.renderShape === "trapezoid" &&
+    config.topWidth != null &&
+    config.bottomWidth != null &&
+    config.height != null
+  ) {
+    basePolygon = trapezoidToPolygon(config.topWidth, config.bottomWidth, config.height)
+  }
 
   return {
     renderShape: config.renderShape,
@@ -324,90 +411,19 @@ export function buildPackedPreview(
       innerRadius: config.innerRadius,
       outerRadius: config.outerRadius,
       arcDegrees: config.arcDegrees,
+      placedPolygon: basePolygon
+        ? transformBasePolygon(
+            basePolygon,
+            placement.rotated90 ?? false,
+            placement.flipped ?? false,
+            placement.x,
+            placement.y
+          )
+        : undefined,
     })),
     placements: layout.positions,
     occupiedWidth: layout.occupiedWidth,
     occupiedHeight: layout.occupiedHeight,
-    offcutBands: [],
-    scrapBands: [],
-    label: config.label,
-    topWidth: config.topWidth,
-    bottomWidth: config.bottomWidth,
-    height: config.height,
-    innerRadius: config.innerRadius,
-    outerRadius: config.outerRadius,
-    arcDegrees: config.arcDegrees,
-  }
-}
-
-export function buildNfpPackedPreview(
-  nfpResult: GreedyPackResult,
-  rollW: number,
-  rollL: number,
-  config: {
-    renderShape: "trapezoid" | "sector"
-    strategyName: string
-    strategyNote: string
-    requestedUnits: number
-    piecesPerUnit: number
-    pieceArea: number
-    label: string
-    topWidth?: number
-    bottomWidth?: number
-    height?: number
-    innerRadius?: number
-    outerRadius?: number
-    arcDegrees?: number
-  }
-): RectLikePreview {
-  const unitsCompleted = Math.floor(nfpResult.placed / config.piecesPerUnit)
-  const usedArea = nfpResult.placed * config.pieceArea
-
-  const items: PreviewItem[] = nfpResult.placements.map((p) => ({
-    x: p.x,
-    y: p.y,
-    width: p.width,
-    height: p.height,
-    renderShape: config.renderShape,
-    label: config.label,
-    rotation: p.rotation,
-    placedPolygon: p.placedPolygon,
-    topWidth: config.topWidth,
-    bottomWidth: config.bottomWidth,
-    innerRadius: config.innerRadius,
-    outerRadius: config.outerRadius,
-    arcDegrees: config.arcDegrees,
-  }))
-
-  const placements: ShapePlacement[] = nfpResult.placements.map((p) => ({
-    x: p.x,
-    y: p.y,
-    width: p.width,
-    height: p.height,
-  }))
-
-  return {
-    renderShape: config.renderShape,
-    strategyName: config.strategyName,
-    strategyNote: config.strategyNote,
-    placementMode: "origin",
-    wasteMode: "bands",
-    cutPlanTitle: "Cut sequence",
-    cutSteps: [],
-    requestedUnits: config.requestedUnits,
-    unitsCompleted,
-    overflowUnits: Math.max(0, config.requestedUnits - unitsCompleted),
-    piecesShown: nfpResult.placed,
-    piecesPerUnit: config.piecesPerUnit,
-    usedArea,
-    wasteArea: 0,
-    wastePct: 0,
-    reusableArea: 0,
-    scrapArea: 0,
-    items,
-    placements,
-    occupiedWidth: nfpResult.occupiedWidth,
-    occupiedHeight: nfpResult.occupiedHeight,
     offcutBands: [],
     scrapBands: [],
     label: config.label,

@@ -274,29 +274,57 @@ function SheetSvg({
               />
             )}
           {!layout.shapeFirstView &&
-            sheet.preview.scrapBands.map((band, index) => (
-              <rect
-                key={`scrap-band-${index + 1}`}
-                x={layout.surfaceX + band.x * layout.scale}
-                y={layout.surfaceY + band.y * layout.scale}
-                width={band.width * layout.scale}
-                height={band.height * layout.scale}
-                fill={`url(#${sWastePat})`}
-                opacity="0.95"
-              />
-            ))}
+            sheet.preview.scrapBands.map((band, index) =>
+              band.polygon ? (
+                <polygon
+                  key={`scrap-band-${index + 1}`}
+                  points={band.polygon
+                    .map(
+                      (pt) =>
+                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                    )
+                    .join(" ")}
+                  fill={`url(#${sWastePat})`}
+                  opacity="0.95"
+                />
+              ) : (
+                <rect
+                  key={`scrap-band-${index + 1}`}
+                  x={layout.surfaceX + band.x * layout.scale}
+                  y={layout.surfaceY + band.y * layout.scale}
+                  width={band.width * layout.scale}
+                  height={band.height * layout.scale}
+                  fill={`url(#${sWastePat})`}
+                  opacity="0.95"
+                />
+              )
+            )}
           {!layout.shapeFirstView &&
-            sheet.preview.offcutBands.map((band, index) => (
-              <rect
-                key={`band-${index + 1}`}
-                x={layout.surfaceX + band.x * layout.scale}
-                y={layout.surfaceY + band.y * layout.scale}
-                width={band.width * layout.scale}
-                height={band.height * layout.scale}
-                fill={`url(#${sOffcutPat})`}
-                opacity="0.95"
-              />
-            ))}
+            sheet.preview.offcutBands.map((band, index) =>
+              band.polygon ? (
+                <polygon
+                  key={`band-${index + 1}`}
+                  points={band.polygon
+                    .map(
+                      (pt) =>
+                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                    )
+                    .join(" ")}
+                  fill={`url(#${sOffcutPat})`}
+                  opacity="0.95"
+                />
+              ) : (
+                <rect
+                  key={`band-${index + 1}`}
+                  x={layout.surfaceX + band.x * layout.scale}
+                  y={layout.surfaceY + band.y * layout.scale}
+                  width={band.width * layout.scale}
+                  height={band.height * layout.scale}
+                  fill={`url(#${sOffcutPat})`}
+                  opacity="0.95"
+                />
+              )
+            )}
           {sheet.preview.items.map((item, index) => (
             <NestingShapeRenderer
               key={index + 1}

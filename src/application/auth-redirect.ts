@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/application/auth-redirect.ts
 import { canAccessPath, getDefaultAuthorizedPath } from "@/src/application/rbac"
-========
-import { canAccessPath, getDefaultAuthorizedPath } from "@/app/lib/rbac"
->>>>>>>> 5b86d9b (Restructured file structure to utilize the clean architecture, installed TSyringe and implemented an AGENTS.md file for Codex.):app/lib/auth-redirect.ts
 
 export function sanitizeRedirectPath(pathname?: string | null): string | null {
   if (!pathname) return null
