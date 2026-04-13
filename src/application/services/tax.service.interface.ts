@@ -30,9 +30,7 @@ export interface ITaxService {
   formatTaxRate(rate: number): string
   getTaxRateDisplay(rate: number, name?: string, level?: string): string
   isSupplierTaxExempt(supplierId: string): Promise<boolean>
-  getSupplierLocation(
-    supplierId: string
-  ): Promise<{
+  getSupplierLocation(supplierId: string): Promise<{
     state?: string | null
     city?: string | null
     zip_code?: string | null
