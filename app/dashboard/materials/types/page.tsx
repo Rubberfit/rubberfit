@@ -5,6 +5,8 @@ import { Plus } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
@@ -111,12 +113,39 @@ export default function MaterialTypesPage() {
     }
 
     try {
+      const hasRolls = await rollService.existsByMaterialType(materialType.name)
+      if (hasRolls) {
+        toast.error("Cannot delete material type", {
+          description: "This material is being used by existing rolls",
+        })
+        return
+      }
+
+      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialType.id)
+      if (hasPOItems) {
+        toast.error("Cannot delete material type", {
+          description: "This material is referenced by existing purchase orders",
+        })
+        return
+      }
+
       await materialTypeService.delete(materialType.id)
       toast.success("Material type deleted successfully")
       fetchMaterialTypes()
     } catch (error) {
       console.error("Error deleting material type:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to delete material type")
+      const isFkError =
+        typeof error === "object" &&
+        error !== null &&
+        (("code" in error && (error as { code?: string }).code === "23503") ||
+          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+      toast.error(
+        isFkError
+          ? "This material is referenced by other records and cannot be deleted"
+          : error instanceof Error
+            ? error.message
+            : "Failed to delete material type"
+      )
     }
   }
 
