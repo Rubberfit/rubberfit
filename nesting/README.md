@@ -11,7 +11,7 @@ shape-to-polygon.ts  nfp-greedy-placer.ts      free-space.ts
   rect / trapezoid     Greedy bottom-left        Clipper difference
   circle / sector      NFP placement             Inscribed rectangle
         │              Coarse-to-fine rotation    extraction
-        ▼              search (72→±5°→±1°)        Sheet-based offcut
+        ▼              search (36→±5°→±1°)        Sheet-based offcut
    convex-hull.ts          │                      classification
      Andrew's hull         ▼                          │
      Shoelace area    nfp-solver.ts                   ▼
