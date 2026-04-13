@@ -124,12 +124,13 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   }
 
   const handleQuantityChange = (templateId: string, qty: number) => {
+    const clamped = Math.max(1, Math.min(99, Math.round(qty)))
     setQuantities((previous) => {
       const next = new Map(previous)
-      if (qty <= 1) {
+      if (clamped <= 1) {
         next.delete(templateId)
       } else {
-        next.set(templateId, qty)
+        next.set(templateId, clamped)
       }
       return next
     })

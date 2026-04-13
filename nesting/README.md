@@ -4,7 +4,7 @@
 
 ## Architecture Overview
 
-```
+```text
 Shape Definition          Packing                    Post-Processing
 ─────────────────    ──────────────────────    ─────────────────────────
 shape-to-polygon.ts  nfp-greedy-placer.ts      free-space.ts
@@ -105,7 +105,7 @@ Computational geometry utilities. No external dependencies.
 - **Convex hull**: Andrew's monotone chain algorithm (1979). O(n log n). Returns vertices in CCW order.
 - **Polygon area**: Shoelace formula. Returns absolute area regardless of winding.
 
-```
+```text
 Reference: A.M. Andrew, "Another Efficient Algorithm for Convex Hulls in Two Dimensions", 1979
 ```
 
