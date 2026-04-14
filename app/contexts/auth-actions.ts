@@ -145,7 +145,7 @@ export function createUpdatePassword(setUser: SetUser, setLoading: SetLoading) {
 export function createSignInWithGoogle() {
   return async (redirectTo?: string | null): Promise<AuthResult> => {
     try {
-      const callbackUrl = new URL(getBrowserAppUrl("/auth/v2/callback"))
+      const callbackUrl = new URL(getBrowserAppUrl("/callback"))
       const safeRedirect = sanitizeRedirectPath(redirectTo)
 
       if (safeRedirect) {
