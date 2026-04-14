@@ -7,7 +7,7 @@ const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
 
 export async function GET(request: NextRequest) {
-  // ── Authenticate caller ────────────────────────────────────────────────────
+  //  Authenticate caller 
   const authClient = makeAuthClient(request)
   if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
@@ -21,13 +21,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ── DB client (service role — bypasses RLS) ────────────────────────────────
+  //  DB client (service role — bypasses RLS) 
   const db = makeAdminClient()
   if (!db) {
     return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
   }
 
-  // ── Resolve caller's role ──────────────────────────────────────────────────
+  //  Resolve caller's role 
   const { data: callerProfile } = await db
     .from("profiles")
     .select("roles")
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     callerRoles.includes("manager") ||
     callerRoles.includes("supervisor")
 
-  // ── Parse & validate query params ─────────────────────────────────────────
+  //  Parse & validate query params 
   const { searchParams } = new URL(request.url)
 
   const rawPage = searchParams.get("page") ?? "1"
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
   const offset = (page - 1) * limit
 
-  // ── Build query ────────────────────────────────────────────────────────────
+  //  Build query 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = db
     .from("cut_history")
@@ -139,7 +139,7 @@ interface RecordCutBody {
 }
 
 export async function POST(request: NextRequest) {
-  // ── Authenticate caller ────────────────────────────────────────────────────
+  //  Authenticate caller 
   const authClient = makeAuthClient(request)
   if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ── DB client (service role) ───────────────────────────────────────────────
+  //  DB client (service role) 
   const db = makeAdminClient()
   if (!db) {
     return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
@@ -225,6 +225,7 @@ export async function POST(request: NextRequest) {
     fab_score: r2(fab_score),
     part_custom_width: body.part_custom_width != null ? r2(body.part_custom_width) : null,
     part_custom_height: body.part_custom_height != null ? r2(body.part_custom_height) : null,
+    part_custom_dimensions: null,
     part_selected_size: body.part_selected_size ?? null,
     part_selected_size_text: body.part_selected_size_text ?? null,
     part_selected_label: body.part_selected_label ?? null,

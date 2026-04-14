@@ -7,7 +7,7 @@ import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
  *  Response: { data: number[] }
  */
 export async function GET(request: NextRequest) {
-  // ── Authenticate caller ────────────────────────────────────────────────────
+  //  Authenticate caller 
   const authClient = makeAuthClient(request)
   if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ── DB client (service role) ───────────────────────────────────────────────
+  //  DB client (service role)
   const db = makeAdminClient()
   if (!db) {
     return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
@@ -52,7 +52,7 @@ interface ToggleBody {
  *  Response: { isFavorite: boolean }
  */
 export async function POST(request: NextRequest) {
-  // ── Authenticate caller ────────────────────────────────────────────────────
+  //  Authenticate caller 
   const authClient = makeAuthClient(request)
   if (!authClient) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ── DB client (service role) ───────────────────────────────────────────────
+  //  DB client (service role) 
   const db = makeAdminClient()
   if (!db) {
     return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })

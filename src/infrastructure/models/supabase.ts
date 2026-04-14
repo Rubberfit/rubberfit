@@ -324,6 +324,18 @@ export type CreateNotificationQueue = Omit<
 >
 export type UpdateNotificationQueue = Partial<CreateNotificationQueue>
 
+export interface PartCustomDimensions {
+  width?: number
+  length?: number
+  diameter?: number
+  height?: number
+  topWidth?: number
+  bottomWidth?: number
+  innerRadius?: number
+  outerRadius?: number
+  arcDegrees?: number
+}
+
 export interface CutHistory {
   id: number
   user_id: string | null
@@ -337,6 +349,7 @@ export interface CutHistory {
   part_selected_size: number[] | null
   part_selected_size_text: string[] | null
   part_selected_label: string[] | null
+  part_custom_dimensions: PartCustomDimensions[] | null
   cut_amount: number
   parts_completed: number
   material_used_sqft: number

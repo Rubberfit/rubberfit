@@ -9,3 +9,9 @@ ALTER TABLE cut_history
   ADD COLUMN IF NOT EXISTS scrap_sqft          FLOAT NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS fab_score           FLOAT NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS cut_pieces          INT   NOT NULL DEFAULT 0;
+
+-- Stores per-template dimension data for all selected templates in a cut record.
+-- Replaces fragile label-regex reconstruction with explicit JSONB storage.
+-- Each element corresponds to the same index in part_selected_size_text[].
+ALTER TABLE cut_history
+  ADD COLUMN IF NOT EXISTS part_custom_dimensions JSONB DEFAULT NULL;

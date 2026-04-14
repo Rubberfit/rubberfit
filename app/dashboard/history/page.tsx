@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { format } from "date-fns"
-import { Download, History, Search, Star, Trash2 } from "lucide-react"
+import { Download, ExternalLink, History, Search, Star, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
@@ -31,7 +32,7 @@ import { CutHistoryStats } from "./_components/cut-history-stats"
 import { DateRangePicker } from "./_components/date-range-picker"
 import { UserSelect } from "./_components/user-select"
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// Types 
 
 interface CutHistoryRow extends CutHistory {
   isFavorite: boolean
@@ -43,7 +44,7 @@ interface User {
   email: string | null
 }
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+// Constants 
 
 const PART_LABELS: Record<number, string> = {
   1: "Rectangle",
@@ -52,7 +53,7 @@ const PART_LABELS: Record<number, string> = {
   4: "Hopper Panel",
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// Helpers 
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url)
@@ -66,15 +67,16 @@ function FabScoreBadge({ score }: { score: number }) {
   return <Badge variant={variant}>{pct}%</Badge>
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// Page 
 
 export default function CutHistoryPage() {
+  const router = useRouter()
   const { isAdmin, isManager, hasAnyRole, isLoading: roleLoading, userId } = useRole()
 
   const showDropdown = isAdmin || isManager || hasAnyRole(["supervisor"])
   const canDelete = isAdmin || isManager
 
-  // ── State ────────────────────────────────────────────────────────────────────
+  // State 
   const [cuts, setCuts] = useState<CutHistoryRow[]>([])
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
   const [users, setUsers] = useState<User[]>([])
@@ -94,14 +96,14 @@ export default function CutHistoryPage() {
 
   const initializedRef = useRef(false)
 
-  // ── Init selectedUserId once role loads ──────────────────────────────────────
+  // Init selectedUserId once role loads 
   useEffect(() => {
     if (roleLoading || initializedRef.current) return
     initializedRef.current = true
     setSelectedUserId(userId)
   }, [roleLoading, userId])
 
-  // ── Load history + favorites ─────────────────────────────────────────────────
+  // Load history + favorites 
   const loadHistory = useCallback(
     async (forUserId: string | null) => {
       setLoading(true)
@@ -141,7 +143,7 @@ export default function CutHistoryPage() {
     [dateRange]
   )
 
-  // ── Fetch users for dropdown ─────────────────────────────────────────────────
+  // Fetch users for dropdown 
   useEffect(() => {
     if (!showDropdown) return
     fetchJson<{ data: User[] }>("/api/users")
@@ -149,13 +151,13 @@ export default function CutHistoryPage() {
       .catch(() => {})
   }, [showDropdown])
 
-  // ── Reload when user selection or date range changes ─────────────────────────
+  //  Reload when user selection or date range changes 
   useEffect(() => {
     if (selectedUserId === undefined) return
     loadHistory(selectedUserId)
   }, [selectedUserId, loadHistory])
 
-  // ── Toggle favorite ──────────────────────────────────────────────────────────
+  // Toggle favorite 
   async function handleToggleFavorite(id: number) {
     const wasOn = favoriteIds.has(id)
 
@@ -201,7 +203,7 @@ export default function CutHistoryPage() {
     }
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────────
+  // Delete 
   async function handleConfirmDelete() {
     const { cutId } = deleteConfirm
     if (cutId === null) return
@@ -220,7 +222,7 @@ export default function CutHistoryPage() {
     }
   }
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
+  // Derived 
   const favCount = useMemo(() => cuts.filter((c) => c.isFavorite).length, [cuts])
 
   const displayedCuts = useMemo(() => {
@@ -237,10 +239,10 @@ export default function CutHistoryPage() {
     return result
   }, [cuts, showFavoritesOnly, searchTerm])
 
-  // Star + 9 data cols + optional delete
-  const totalColSpan = 1 + 9 + (canDelete ? 1 : 0)
+  // Star + 9 data cols + actions (reopen always + optional delete)
+  const totalColSpan = 1 + 9 + 1
 
-  // ── CSV export ───────────────────────────────────────────────────────────────
+  // CSV export 
   function exportToCsv() {
     const headers = [
       "Cut Date", "Part Type", "Stock (W×L×T)", "Qty",
@@ -269,7 +271,7 @@ export default function CutHistoryPage() {
     window.URL.revokeObjectURL(url)
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // Render 
   return (
     <TooltipProvider>
       <div className="flex flex-col gap-4 md:gap-6">
@@ -369,7 +371,7 @@ export default function CutHistoryPage() {
                     <TableHead className="text-right min-w-[64px]">Reuse</TableHead>
                     <TableHead className="text-right min-w-[64px]">Scrap</TableHead>
                     <TableHead className="text-right min-w-[72px] whitespace-nowrap">Fab Score</TableHead>
-                    {canDelete && <TableHead className="w-9" />}
+                    <TableHead className="w-16" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -447,25 +449,41 @@ export default function CutHistoryPage() {
                           <FabScoreBadge score={cut.fab_score} />
                         </TableCell>
 
-                        {/* Delete — admin/manager only */}
-                        {canDelete && (
-                          <TableCell>
+                        {/* Actions */}
+                        <TableCell>
+                          <div className="flex items-center gap-1">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => setDeleteConfirm({ open: true, cutId: cut.id })}
-                                  aria-label="Delete cut record"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                  onClick={() => router.push(`/dashboard/cut-planner?loadCut=${cut.id}`)}
+                                  aria-label="Reopen in Cut Planner"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <ExternalLink className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Delete cut record</TooltipContent>
+                              <TooltipContent>Reopen in Cut Planner</TooltipContent>
                             </Tooltip>
-                          </TableCell>
-                        )}
+                            {canDelete && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setDeleteConfirm({ open: true, cutId: cut.id })}
+                                    aria-label="Delete cut record"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete cut record</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}

@@ -1,12 +1,13 @@
 "use client"
 
-import { useMemo, useState, useCallback } from "react"
+import { useMemo, useState, useCallback, useEffect, useRef, Suspense } from "react"
 import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { FileUp, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import PresetDimensionSelector, {
   type PartTemplate,
@@ -29,9 +30,9 @@ import {
 } from "./_components/cut-planner-utils"
 import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
-import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { type CutHistory, type PartCustomDimensions } from "@/src/infrastructure/models/supabase"
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// Constants
 
 const DEMO_STOCK: StockConfig = {
   width: 96,
@@ -48,7 +49,7 @@ const PART_ID_TO_TYPE: Record<number, SupportedPartType> = {
   4: "trapezoid",
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// Helpers
 
 function LayoutLabel() {
   return <Ruler className="h-4 w-4 text-slate-500" />
@@ -101,6 +102,50 @@ function parseDimsFromLabel(
   return {}
 }
 
+//  CutLoader
+// Reads ?loadCut=<id> on mount, fetches the record, then clears the param.
+// Must be a separate component so useSearchParams() can be wrapped in Suspense.
+
+interface CutLoaderProps {
+  onLoad: (cut: CutHistory) => void
+}
+
+function CutLoaderInner({ onLoad }: CutLoaderProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const loadCutId = searchParams.get("loadCut")
+  const didFetch = useRef(false)
+
+  useEffect(() => {
+    if (!loadCutId || didFetch.current) return
+    didFetch.current = true
+
+    fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`${res.status}`)
+        const json = (await res.json()) as { data: CutHistory }
+        onLoad(json.data)
+      })
+      .catch(() => {
+        toast.error("Could not load cut record")
+      })
+      .finally(() => {
+        router.replace("/dashboard/cut-planner")
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadCutId])
+
+  return null
+}
+
+function CutLoader(props: CutLoaderProps) {
+  return (
+    <Suspense fallback={null}>
+      <CutLoaderInner {...props} />
+    </Suspense>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line max-lines-per-function
@@ -114,6 +159,7 @@ export default function CutPlannerPage() {
   const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
   const [isRecordingCut, setIsRecordingCut] = useState(false)
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
+  const [loadedFromHistory, setLoadedFromHistory] = useState(false)
 
   const selectedTemplates = useMemo(
     () => [...uploadedParts, ...presetParts],
@@ -159,6 +205,32 @@ export default function CutPlannerPage() {
     const partType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
     const sizeTexts = cut.part_selected_size_text ?? []
     const sizeLabels = cut.part_selected_label ?? []
+    const storedDims = cut.part_custom_dimensions
+
+    const resolveDims = (label: string, i: number): Partial<PartTemplate> => {
+      // Prefer explicit stored dimensions (new records); fall back to label
+      // regex for backward compatibility with old records.
+      if (storedDims && storedDims[i]) {
+        const d: PartCustomDimensions = storedDims[i]
+        return {
+          ...(d.width !== undefined && { width: d.width }),
+          ...(d.length !== undefined && { length: d.length }),
+          ...(d.diameter !== undefined && { diameter: d.diameter }),
+          ...(d.height !== undefined && { height: d.height }),
+          ...(d.topWidth !== undefined && { topWidth: d.topWidth }),
+          ...(d.bottomWidth !== undefined && { bottomWidth: d.bottomWidth }),
+          ...(d.innerRadius !== undefined && { innerRadius: d.innerRadius }),
+          ...(d.outerRadius !== undefined && { outerRadius: d.outerRadius }),
+          ...(d.arcDegrees !== undefined && { arcDegrees: d.arcDegrees }),
+        }
+      }
+      return parseDimsFromLabel(
+        partType,
+        label,
+        i === 0 ? cut.part_custom_width : null,
+        i === 0 ? cut.part_custom_height : null
+      )
+    }
 
     const templates: PartTemplate[] =
       sizeTexts.length > 0
@@ -170,13 +242,7 @@ export default function CutPlannerPage() {
             quantity: cut.cut_amount,
             category: "custom" as const,
             isCustom: true,
-            // Only the first template carries custom dimensions
-            ...parseDimsFromLabel(
-              partType,
-              label,
-              i === 0 ? cut.part_custom_width : null,
-              i === 0 ? cut.part_custom_height : null
-            ),
+            ...resolveDims(label, i),
           }))
         : [
             {
@@ -198,8 +264,16 @@ export default function CutPlannerPage() {
     setCutDirection(getDefaultCutDirection(partType))
     setCustomCutRatioInput("")
 
-    // 5. Signal PresetDimensionSelector to select matching checkboxes
-    setLoadedSelection({ partType, labels: sizeTexts, nonce: Date.now() })
+    // 5. Signal PresetDimensionSelector to select matching checkboxes.
+    //    Pass stored dimension data when available so the selector can
+    //    auto-create custom templates (index 0 fills the form, 1..n are
+    //    added to the list and checked).
+    setLoadedSelection({
+      partType,
+      labels: sizeTexts,
+      nonce: Date.now(),
+      customDimensions: storedDims ?? undefined,
+    })
 
     toast.success("Cut configuration loaded")
   }, [])
@@ -305,6 +379,18 @@ export default function CutPlannerPage() {
         t.partType === "rectangle" ? t.summary : `${t.summary} ${t.label}`
       )
 
+      const partCustomDimensions: PartCustomDimensions[] = selectedTemplates.map((t) => ({
+        ...(t.width !== undefined && { width: t.width }),
+        ...(t.length !== undefined && { length: t.length }),
+        ...(t.diameter !== undefined && { diameter: t.diameter }),
+        ...(t.height !== undefined && { height: t.height }),
+        ...(t.topWidth !== undefined && { topWidth: t.topWidth }),
+        ...(t.bottomWidth !== undefined && { bottomWidth: t.bottomWidth }),
+        ...(t.innerRadius !== undefined && { innerRadius: t.innerRadius }),
+        ...(t.outerRadius !== undefined && { outerRadius: t.outerRadius }),
+        ...(t.arcDegrees !== undefined && { arcDegrees: t.arcDegrees }),
+      }))
+
       const payload = {
         material_id: materialId,
         part_id: partId,
@@ -319,6 +405,7 @@ export default function CutPlannerPage() {
         part_selected_size: partSelectedSize,
         part_selected_size_text: partSelectedSizeText,
         part_selected_label: partSelectedLabel,
+        part_custom_dimensions: partCustomDimensions,
         parts_completed: cutMetrics?.partsCompleted ?? 0,
         cut_pieces: cutMetrics?.cutPieces ?? 0,
         material_used_sqft: cutMetrics?.materialUsedSqFt ?? 0,
@@ -348,9 +435,34 @@ export default function CutPlannerPage() {
     }
   }, [selectedTemplate, selectedTemplates, activeStockPreset, stock, safeQuantity, cutMetrics])
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Render
   return (
     <div className="space-y-6">
+      <CutLoader
+        onLoad={(cut) => {
+          handleLoadCut(cut)
+          setLoadedFromHistory(true)
+        }}
+      />
+
+      {loadedFromHistory && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            Cut loaded from history — all fields are editable. Adjust and click{" "}
+            <strong>Cut</strong> to record a new entry.
+          </span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setLoadedFromHistory(false)}
+            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <Badge variant="outline" className="w-fit">
