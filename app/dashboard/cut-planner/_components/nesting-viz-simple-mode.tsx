@@ -1,6 +1,4 @@
-// Simple mode render for NestingVisualizer
-// Extracted from NestingVisualizer.tsx
-// Sub-components live in nesting-viz-simple-parts.tsx
+// Simple mode render for NestingVisualizer — sub-components in nesting-viz-simple-parts.tsx
 
 import React from "react"
 import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
@@ -12,10 +10,10 @@ import {
   SimpleModeMetrics,
   SimpleModeFooter,
   SimpleModeCutPlan,
-  SimpleModeAdhesives,
   SimpleModeOffcutLabels,
   SimpleModeDimensionLabels,
 } from "./nesting-viz-simple-parts"
+import { SimpleModeAdhesives } from "./nesting-viz-adhesives"
 import { computeSimpleModeLayout, formatInches } from "./nesting-viz-simple-layout"
 import { computeFabricationScore } from "./nesting-preview-builders"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
@@ -158,10 +156,7 @@ function SheetSvg({
     dragRef.current = null
   }, [])
 
-  const resetZoom = React.useCallback(() => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-  }, [])
+  const resetZoom = React.useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
 
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
@@ -390,7 +385,6 @@ function SheetSvg({
   )
 }
 
-// Responsible for performing the calculations and rendering the SVG
 export default function NestingVizSimpleMode({
   preview,
   previewRollW,
