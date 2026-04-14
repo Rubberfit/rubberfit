@@ -37,7 +37,10 @@ export class ExportService implements IExportService {
         ),
       ].join("\n")
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      // Prepend UTF-8 BOM so Excel opens non-ASCII characters (em-dash,
+      // accents, etc.) correctly instead of interpreting the file as
+      // Windows-1252.
+      const blob = new Blob(["\uFEFF", csvContent], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url

@@ -137,14 +137,21 @@ function buildMultiSheet(
   cutH: number
 ): MultiSheetResult | null {
   if (!simpleMode || !basePreview) return null
+
+  const allTrapezoids =
+    specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
   const shouldUseGlobalPacker =
-    specs.length > 1 ||
+    (specs.length > 1 && !allTrapezoids) ||
     (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
 
-  // A single uploaded template can still represent many identical parts.
-  // Route overflowing rectangle jobs through the global packer as well.
   if (shouldUseGlobalPacker) {
     return globalMultiSheetPack(specs, rollW, rollL, 4, cutW, cutH)
+  }
+
+  if (allTrapezoids) {
+    const regenerate = (_qty: number, remainingSpecs?: typeof specs) =>
+      generateMultiPartPreview(rollW, rollL, remainingSpecs ?? specs, cutW, cutH)
+    return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate, specs)
   }
 
   // Single-part: use existing sequential overflow packing

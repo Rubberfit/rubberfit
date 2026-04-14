@@ -122,6 +122,8 @@ export interface OffcutBand {
   y: number
   width: number
   height: number
+  /** For NFP layouts: actual polygon outline of the free region */
+  polygon?: Array<{ x: number; y: number }>
 }
 
 export interface PackedShapeLayout {

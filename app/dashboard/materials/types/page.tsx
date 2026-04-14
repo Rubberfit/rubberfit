@@ -5,7 +5,19 @@ import { Plus } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { rollService } from "@/src/infrastructure/services/rollService"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog"
 import { toast } from "sonner"
 
 import { MaterialTypesTable } from "../_components/material-types-table"
@@ -30,6 +42,9 @@ export default function MaterialTypesPage() {
     min_stock_alert: "",
   })
   const [submitting, setSubmitting] = useState(false)
+  const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
+  const [materialToDelete, setMaterialToDelete] = useState<MaterialType | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchMaterialTypes = useCallback(async () => {
     setLoading(true)
@@ -74,20 +89,27 @@ export default function MaterialTypesPage() {
 
     setSubmitting(true)
     try {
-      const materialData = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        default_cost: formData.default_cost ? parseFloat(formData.default_cost) : undefined,
-        min_stock_alert: formData.min_stock_alert
-          ? parseFloat(formData.min_stock_alert)
-          : undefined,
-      }
+      const trimmedDescription = formData.description.trim()
+      const parsedCost = formData.default_cost ? parseFloat(formData.default_cost) : undefined
+      const parsedStock = formData.min_stock_alert
+        ? parseFloat(formData.min_stock_alert)
+        : undefined
 
       if (editingType) {
-        await materialTypeService.update(editingType.id, materialData)
+        await materialTypeService.update(editingType.id, {
+          name: formData.name.trim(),
+          description: trimmedDescription || null,
+          default_cost: parsedCost ?? null,
+          min_stock_alert: parsedStock ?? null,
+        } as Partial<MaterialType>)
         toast.success("Material type updated successfully")
       } else {
-        await materialTypeService.create(materialData)
+        await materialTypeService.create({
+          name: formData.name.trim(),
+          description: trimmedDescription || undefined,
+          default_cost: parsedCost,
+          min_stock_alert: parsedStock,
+        })
         toast.success("Material type created successfully")
       }
 
@@ -101,22 +123,52 @@ export default function MaterialTypesPage() {
     }
   }
 
-  const handleDelete = async (materialType: MaterialType) => {
-    if (
-      !confirm(
-        `Are you sure you want to delete ${materialType.name}? This action cannot be undone.`
-      )
-    ) {
-      return
-    }
+  const handleDeleteClick = (materialType: MaterialType) => {
+    setMaterialToDelete(materialType)
+    setDeleteAlertOpen(true)
+  }
 
+  const handleDeleteConfirm = async () => {
+    if (!materialToDelete) return
+
+    setDeleting(true)
     try {
-      await materialTypeService.delete(materialType.id)
+      const hasRolls = await rollService.existsByMaterialType(materialToDelete.name)
+      if (hasRolls) {
+        toast.error("Cannot delete material type", {
+          description: "This material is being used by existing rolls",
+        })
+        return
+      }
+
+      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialToDelete.id)
+      if (hasPOItems) {
+        toast.error("Cannot delete material type", {
+          description: "This material is referenced by existing purchase orders",
+        })
+        return
+      }
+
+      await materialTypeService.delete(materialToDelete.id)
       toast.success("Material type deleted successfully")
       fetchMaterialTypes()
     } catch (error) {
-      console.error("Error deleting material type:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to delete material type")
+      const isFkError =
+        typeof error === "object" &&
+        error !== null &&
+        (("code" in error && (error as { code?: string }).code === "23503") ||
+          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+      toast.error(
+        isFkError
+          ? "This material is referenced by other records and cannot be deleted"
+          : error instanceof Error
+            ? error.message
+            : "Failed to delete material type"
+      )
+    } finally {
+      setDeleting(false)
+      setDeleteAlertOpen(false)
+      setMaterialToDelete(null)
     }
   }
 
@@ -144,7 +196,7 @@ export default function MaterialTypesPage() {
         materialTypes={materialTypes}
         loading={loading}
         onEdit={openEditDialog}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
 
       <MaterialTypeDialog
@@ -156,6 +208,36 @@ export default function MaterialTypesPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
       />
+
+      <AlertDialog open={deleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete material type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {materialToDelete ? (
+                <>
+                  This will permanently delete{" "}
+                  <span className="font-semibold">{materialToDelete.name}</span>. This action
+                  cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteConfirm()
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

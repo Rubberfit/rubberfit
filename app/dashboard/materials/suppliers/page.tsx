@@ -102,8 +102,18 @@ export default function SuppliersPage() {
       toast.success(`${supplierToDelete.name} has been deleted`)
       fetchSuppliers()
     } catch (error) {
-      console.error("Error deleting supplier:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to delete supplier")
+      const isFkError =
+        typeof error === "object" &&
+        error !== null &&
+        (("code" in error && (error as { code?: string }).code === "23503") ||
+          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+      toast.error("Cannot delete supplier", {
+        description: isFkError
+          ? "This supplier is referenced by existing purchase orders or material records"
+          : error instanceof Error
+            ? error.message
+            : "Failed to delete supplier",
+      })
     } finally {
       setDeleteAlertOpen(false)
       setSupplierToDelete(null)

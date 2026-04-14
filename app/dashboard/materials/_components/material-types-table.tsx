@@ -64,8 +64,13 @@ export function MaterialTypesTable({
                 materialTypes.map((materialType) => (
                   <TableRow key={materialType.id}>
                     <TableCell className="font-medium">{materialType.name}</TableCell>
-                    <TableCell>
-                      <div className="max-w-xs">{materialType.description || "—"}</div>
+                    <TableCell className="max-w-xs">
+                      <div
+                        className="truncate text-sm text-muted-foreground"
+                        title={materialType.description ?? undefined}
+                      >
+                        {materialType.description || "—"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {materialType.default_cost ? (

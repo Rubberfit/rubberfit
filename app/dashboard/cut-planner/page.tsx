@@ -152,7 +152,6 @@ function CutLoader(props: CutLoaderProps) {
 export default function CutPlannerPage() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
-  const [quantity, setQuantity] = useState(1)
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
   const [customCutRatioInput, setCustomCutRatioInput] = useState("")
   const [stock, setStock] = useState(DEMO_STOCK)
@@ -168,8 +167,8 @@ export default function CutPlannerPage() {
   const selectedTemplate = selectedTemplates[0] ?? null
 
   const requestedSqFt = useMemo(
-    () => getRequestedSqFt(selectedTemplates, quantity),
-    [quantity, selectedTemplates]
+    () => getRequestedSqFt(selectedTemplates),
+    [selectedTemplates]
   )
 
   const tagMap = useMemo(() => {
@@ -281,7 +280,6 @@ export default function CutPlannerPage() {
   // ── Other handlers ────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
-    setQuantity((previous) => Math.max(1, previous))
     setCutDirection(getDefaultCutDirection(templates[0]?.partType ?? "rectangle"))
     setCustomCutRatioInput("")
   }, [])
@@ -312,7 +310,7 @@ export default function CutPlannerPage() {
     setUploadedParts([])
   }
 
-  const safeQuantity = Math.max(1, Number.isFinite(quantity) ? quantity : 1)
+  const safeQuantity = Math.max(1, selectedTemplate?.quantity ?? 1)
   const customCutRatios = useMemo(
     () => parseCutRatios(customCutRatioInput, safeQuantity),
     [customCutRatioInput, safeQuantity]
@@ -565,8 +563,6 @@ export default function CutPlannerPage() {
             selectedTemplate={selectedTemplate}
             selectedTemplates={selectedTemplates}
             safeQuantity={safeQuantity}
-            quantity={quantity}
-            setQuantity={setQuantity}
             cutDirection={cutDirection}
             setCutDirection={setCutDirection}
             customCutRatioInput={customCutRatioInput}
@@ -610,6 +606,36 @@ export default function CutPlannerPage() {
                 onMetricsChange={setCutMetrics}
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
+                simpleParts={selectedTemplates.map((template) => ({
+                  partType: template.partType,
+                  quantity: template.quantity,
+                  cutDirection,
+                  cutRatios: customCutRatios,
+                  width: template.width,
+                  length: template.length,
+                  diameter: template.diameter,
+                  height: template.height,
+                  topWidth: template.topWidth,
+                  bottomWidth: template.bottomWidth,
+                  innerRadius: template.innerRadius,
+                  outerRadius: template.outerRadius,
+                  arcDegrees: template.arcDegrees,
+                }))}
+                simplePart={{
+                  partType: selectedTemplate.partType,
+                  quantity: safeQuantity,
+                  cutDirection,
+                  cutRatios: customCutRatios,
+                  width: selectedTemplate.width,
+                  length: selectedTemplate.length,
+                  diameter: selectedTemplate.diameter,
+                  height: selectedTemplate.height,
+                  topWidth: selectedTemplate.topWidth,
+                  bottomWidth: selectedTemplate.bottomWidth,
+                  innerRadius: selectedTemplate.innerRadius,
+                  outerRadius: selectedTemplate.outerRadius,
+                  arcDegrees: selectedTemplate.arcDegrees,
+                }}
               />
             </CardContent>
           </Card>
