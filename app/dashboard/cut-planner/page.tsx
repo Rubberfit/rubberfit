@@ -425,7 +425,7 @@ export default function CutPlannerPage() {
         console.error("Failed to record cut:", text)
         toast.error("Failed to save cut to history")
       } else {
-        toast.success("Cut saved to history")
+        toast.success("Cut recorded!")
       }
     } catch (error) {
       console.error("Record cut error:", error)
