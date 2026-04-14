@@ -509,7 +509,7 @@ export default function NestingVizSimpleMode({
       />
 
       <SimpleModeAdhesives
-        usedSqFt={isMultiSheet ? multiSheet!.totalUsedArea / 144 : metricsUsedSqFt}
+        usedSqFt={isMultiSheet && multiSheet ? multiSheet.totalUsedArea / 144 : metricsUsedSqFt}
       />
 
       <SimpleModeFooter
