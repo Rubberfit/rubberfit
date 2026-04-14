@@ -12,6 +12,7 @@ import {
   SimpleModeMetrics,
   SimpleModeFooter,
   SimpleModeCutPlan,
+  SimpleModeAdhesives,
   SimpleModeOffcutLabels,
   SimpleModeDimensionLabels,
 } from "./nesting-viz-simple-parts"
@@ -512,6 +513,8 @@ export default function NestingVizSimpleMode({
         fabScore={metricsFabScore}
         multiSheet={multiSheet}
       />
+
+      <SimpleModeAdhesives usedSqFt={metricsUsedSqFt} />
 
       <SimpleModeFooter
         metricsAreEstimatedFromStock={layout.metricsAreEstimatedFromStock}
