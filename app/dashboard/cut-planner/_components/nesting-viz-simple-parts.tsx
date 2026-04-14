@@ -4,7 +4,7 @@
 import React from "react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
 import { formatInches } from "./nesting-layout-utils"
-import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
+// SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
 
 function computeHeaderMetrics(
   multiSheet: MultiSheetResult | null | undefined,
@@ -408,8 +408,22 @@ export function SimpleModeOffcutLabels({
   return (
     <>
       {offcutLabelBands.map((band, index) => {
-        const centerX = surfaceX + (band.x + band.width / 2) * scale
-        const centerY = surfaceY + (band.y + band.height / 2) * scale
+        // For polygon bands, use centroid; for rect bands, use bounding box center
+        let centerX: number
+        let centerY: number
+        if (band.polygon && band.polygon.length > 0) {
+          let cx = 0
+          let cy = 0
+          for (const pt of band.polygon) {
+            cx += pt.x
+            cy += pt.y
+          }
+          centerX = surfaceX + (cx / band.polygon.length) * scale
+          centerY = surfaceY + (cy / band.polygon.length) * scale
+        } else {
+          centerX = surfaceX + (band.x + band.width / 2) * scale
+          centerY = surfaceY + (band.y + band.height / 2) * scale
+        }
         const labelW = wasRotated ? band.height : band.width
         const labelH = wasRotated ? band.width : band.height
         const dims = `${formatInches(labelW)}" \u00D7 ${formatInches(labelH)}"`
@@ -440,74 +454,5 @@ export function SimpleModeOffcutLabels({
   )
 }
 
-export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
-  // wasRotated means the layout was rotated 90° CW, so the original length
-  // now runs horizontally and the original width runs vertically.
-  const horzValue = layout.previewRollW
-  const horzLabel = layout.wasRotated ? "length" : "width"
-  const vertValue = layout.previewRollL
-  const vertLabel = layout.wasRotated ? "width" : "length"
-
-  return (
-    <>
-      <line
-        x1={layout.shapeFirstView ? layout.localBlankX : layout.surfaceX}
-        y1={layout.rowLabelY}
-        x2={
-          layout.shapeFirstView
-            ? layout.localBlankX + layout.localBlankW
-            : layout.surfaceX + layout.surfacePxW
-        }
-        y2={layout.rowLabelY}
-        stroke="#d6d3d1"
-        strokeWidth="1.5"
-        markerStart={`url(#${layout.markerId})`}
-        markerEnd={`url(#${layout.markerId})`}
-      />
-      <text
-        x={
-          layout.shapeFirstView
-            ? layout.localBlankX + layout.localBlankW / 2
-            : layout.surfaceX + layout.surfacePxW / 2
-        }
-        y={layout.rowLabelY + 24}
-        textAnchor="middle"
-        fill="#e7e5e4"
-        fontSize="14"
-        fontWeight="600"
-      >
-        {`${formatInches(horzValue)}" ${horzLabel}`}
-      </text>
-
-      <line
-        x1={layout.colLabelX}
-        y1={layout.shapeFirstView ? layout.localBlankY : layout.surfaceY}
-        x2={layout.colLabelX}
-        y2={
-          layout.shapeFirstView
-            ? layout.localBlankY + layout.localBlankH
-            : layout.surfaceY + layout.surfacePxH
-        }
-        stroke="#d6d3d1"
-        strokeWidth="1.5"
-        markerStart={`url(#${layout.markerId})`}
-        markerEnd={`url(#${layout.markerId})`}
-      />
-      <text
-        x={layout.colLabelX + 26}
-        y={
-          layout.shapeFirstView
-            ? layout.localBlankY + layout.localBlankH / 2
-            : layout.surfaceY + layout.surfacePxH / 2
-        }
-        textAnchor="middle"
-        fill="#e7e5e4"
-        fontSize="14"
-        fontWeight="600"
-        transform={`rotate(90 ${layout.colLabelX + 26} ${layout.shapeFirstView ? layout.localBlankY + layout.localBlankH / 2 : layout.surfaceY + layout.surfacePxH / 2})`}
-      >
-        {`${formatInches(vertValue)}" ${vertLabel}`}
-      </text>
-    </>
-  )
-}
+// SimpleModeDimensionLabels extracted to nesting-viz-dimension-labels.tsx
+export { SimpleModeDimensionLabels } from "./nesting-viz-dimension-labels"

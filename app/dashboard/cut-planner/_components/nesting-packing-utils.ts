@@ -10,6 +10,7 @@ import type {
   ShapePlacement,
 } from "./nesting-visualizer-types"
 import { getPlacementBounds } from "./nesting-offcut-utils"
+import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 
 export function sortPreviewItems(
   items: Array<PreviewItem & { usedArea: number }>,
@@ -40,6 +41,43 @@ export function sortPreviewItems(
   })
 }
 
+function findBestShelf(
+  orientations: Array<{ w: number; h: number; rotated: boolean }>,
+  shelves: Array<{ y: number; height: number; x: number }>,
+  rollW: number,
+  rollL: number
+): { shelfIndex: number; shelfHeight: number; rotated: boolean; waste: number } {
+  let bestShelfIndex = -1
+  let bestShelfWaste = Number.POSITIVE_INFINITY
+  let bestShelfHeight = 0
+  let bestRotated = false
+
+  for (const orient of orientations) {
+    for (let index = 0; index < shelves.length; index += 1) {
+      const shelf = shelves[index]
+      const nextShelfY = shelves[index + 1]?.y ?? rollL
+      const availableHeight = nextShelfY - shelf.y
+      const nextHeight = Math.max(shelf.height, orient.h)
+      if (nextHeight > availableHeight + 0.001) continue
+      if (shelf.x + orient.w > rollW + 0.001) continue
+      if (shelf.y + nextHeight > rollL + 0.001) continue
+
+      const remainingWidth = rollW - (shelf.x + orient.w)
+      const heightPenalty = nextHeight - shelf.height
+      const shelfWaste = remainingWidth + heightPenalty * 0.75
+
+      if (shelfWaste < bestShelfWaste) {
+        bestShelfWaste = shelfWaste
+        bestShelfIndex = index
+        bestShelfHeight = nextHeight
+        bestRotated = orient.rotated
+      }
+    }
+  }
+
+  return { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated, waste: bestShelfWaste }
+}
+
 export function packPreviewItemsOnShelves(
   items: Array<PreviewItem & { usedArea: number }>,
   rollW: number,
@@ -60,39 +98,13 @@ export function packPreviewItemsOnShelves(
       ...(canRotate ? [{ w: item.height, h: item.width, rotated: true }] : []),
     ]
 
-    let bestShelfIndex = -1
-    let bestShelfWaste = Number.POSITIVE_INFINITY
-    let bestShelfHeight = item.height
-    let bestRotated = false
-
-    for (const orient of orientations) {
-      for (let index = 0; index < shelves.length; index += 1) {
-        const shelf = shelves[index]
-        const nextShelfY = shelves[index + 1]?.y ?? rollL
-        const availableHeight = nextShelfY - shelf.y
-        const nextHeight = Math.max(shelf.height, orient.h)
-        if (nextHeight > availableHeight + 0.001) continue
-        if (shelf.x + orient.w > rollW + 0.001) continue
-        if (shelf.y + nextHeight > rollL + 0.001) continue
-
-        const remainingWidth = rollW - (shelf.x + orient.w)
-        const heightPenalty = nextHeight - shelf.height
-        const shelfWaste = remainingWidth + heightPenalty * 0.75
-
-        if (shelfWaste < bestShelfWaste) {
-          bestShelfWaste = shelfWaste
-          bestShelfIndex = index
-          bestShelfHeight = nextHeight
-          bestRotated = orient.rotated
-        }
-      }
-    }
+    let { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated } =
+      findBestShelf(orientations, shelves, rollW, rollL)
 
     if (bestShelfIndex === -1) {
       const nextY =
         shelves.length === 0 ? 0 : Math.max(...shelves.map((shelf) => shelf.y + shelf.height))
 
-      // Try both orientations for a new shelf
       const orient = orientations.find((o) => nextY + o.h <= rollL + 0.001 && o.w <= rollW + 0.001)
       if (!orient) return
 
@@ -305,6 +317,53 @@ export function packRectItemsWithGuillotine(
 }
 
 /**
+ * Recompute placedPolygon for a shaped item after rotation/repositioning.
+ * Uses the item's intrinsic dimensions to regenerate the base polygon,
+ * then applies the final rotated90 + flipped transforms at (tx, ty).
+ */
+export function recomputePlacedPolygon(
+  item: PreviewItem,
+  rotated90: boolean,
+  flipped: boolean,
+  tx: number,
+  ty: number
+): Array<{ x: number; y: number }> | undefined {
+  let basePts: Array<{ x: number; y: number }> | null = null
+  if (
+    item.renderShape === "trapezoid" &&
+    item.topWidth != null &&
+    item.bottomWidth != null &&
+    item.height != null
+  ) {
+    basePts = trapezoidToPolygon(item.topWidth, item.bottomWidth, item.height)
+  } else if (
+    item.renderShape === "sector" &&
+    item.innerRadius != null &&
+    item.outerRadius != null &&
+    item.arcDegrees != null
+  ) {
+    basePts = sectorToPolygon(item.innerRadius, item.outerRadius, item.arcDegrees, 48)
+  }
+  if (!basePts) return undefined
+
+  // Mirror transformBasePolygon logic from nesting-preview-builders.ts
+  let pts = basePts.map((p) => ({ x: p.x, y: p.y }))
+  if (rotated90) {
+    pts = pts.map((p) => ({ x: p.y, y: -p.x }))
+  }
+  if (flipped) {
+    pts = pts.map((p) => ({ x: p.x, y: -p.y }))
+  }
+  let minX = Infinity
+  let minY = Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+  }
+  return pts.map((p) => ({ x: p.x - minX + tx, y: p.y - minY + ty }))
+}
+
+/**
  * Pack additional items into existing free rects (second-pass gap filling).
  * Uses the same best-short-side-fit heuristic as the guillotine packer.
  */
@@ -386,14 +445,23 @@ export function packIntoFreeRects(
     if (!best) return
     const chosen = best as RectChoice
     const host = freeRects[chosen.freeIndex]
+    const finalRotated90 = chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false)
+    const finalFlipped = item.flipped ?? false
     placed.push({
       ...item,
       x: host.x,
       y: host.y,
       width: chosen.width,
       height: chosen.height,
-      rotated90: chosen.rotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
-      flipped: chosen.rotated ? !(item.flipped ?? false) : item.flipped,
+      rotated90: finalRotated90,
+      flipped: finalFlipped,
+      placedPolygon: recomputePlacedPolygon(
+        item,
+        finalRotated90,
+        finalFlipped ?? false,
+        host.x,
+        host.y
+      ),
     })
     usedArea += item.usedArea
 

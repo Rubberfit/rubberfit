@@ -70,9 +70,6 @@ export default function PresetSelectionSummary({
               <th className="text-left py-1 pr-3 font-semibold text-slate-600 dark:text-slate-100">
                 Dimensions
               </th>
-              <th className="text-right py-1 pr-3 font-semibold text-slate-600 dark:text-slate-100">
-                Qty
-              </th>
               <th className="text-right py-1 font-semibold text-slate-600 dark:text-slate-100">
                 Sq ft each
               </th>
@@ -93,19 +90,13 @@ export default function PresetSelectionSummary({
                     )}
                   </span>
                 </td>
-                <td className="py-1 pr-3 text-right text-slate-600 dark:text-slate-100">
-                  {template.quantity}
-                </td>
                 <td className="py-1 text-right text-slate-600 dark:text-slate-100">
                   {getTemplateAreaSqFt(template).toFixed(2)}
                 </td>
               </tr>
             ))}
             <tr className="bg-slate-100 dark:bg-slate-950">
-              <td
-                colSpan={2}
-                className="py-1 pr-3 font-semibold text-slate-700 dark:text-slate-100"
-              >
+              <td className="py-1 pr-3 font-semibold text-slate-700 dark:text-slate-100">
                 Total
               </td>
               <td className="py-1 text-right font-semibold text-slate-700 dark:text-slate-100">

@@ -1,5 +1,5 @@
 import { Input } from "@/app/components/ui/input"
-import { Layers3, Scissors, Shapes, Ruler } from "lucide-react"
+import { Scissors, Shapes, Ruler } from "lucide-react"
 import { PartTemplate } from "./preset-template-data"
 import { SimpleCutDirection } from "./nesting-visualizer-types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -14,8 +14,6 @@ export function CutConfigCard({
   selectedTemplate,
   selectedTemplates,
   safeQuantity,
-  quantity: _quantity,
-  setQuantity,
   cutDirection,
   setCutDirection,
   customCutRatioInput,
@@ -26,8 +24,6 @@ export function CutConfigCard({
   selectedTemplate: PartTemplate
   selectedTemplates: PartTemplate[]
   safeQuantity: number
-  quantity: number
-  setQuantity: (v: number) => void
   cutDirection: SimpleCutDirection
   setCutDirection: (v: SimpleCutDirection) => void
   customCutRatioInput: string
@@ -40,12 +36,10 @@ export function CutConfigCard({
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <Scissors className="h-4 w-4" />
-          3. Amount of Cuts
+          3. Cut Configuration
         </CardTitle>
         <CardDescription>
-          {selectedTemplate.partType === "rectangle"
-            ? "The selected part template drives the profile. Adjust how many finished parts you want to cut from stock."
-            : "The selected part template drives the profile. Adjust how many cut sections should be used to build the finished shape."}
+          The selected part template drives the profile. Review the cut details and requested material below.
         </CardDescription>
       </CardHeader>
 
@@ -77,31 +71,6 @@ export function CutConfigCard({
               {selectedTemplates.length === 1
                 ? "Standard size from the template list."
                 : "The graph stacks every selected standard size in the preview."}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-4  dark:bg-card ">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
-              <Layers3 className="h-3.5 w-3.5" />
-              Amount of Cuts
-            </div>
-            <div className="mt-3">
-              <Input
-                min={1}
-                type="number"
-                value={safeQuantity}
-                onChange={(event) => {
-                  const nextValue = Number.parseInt(event.target.value, 10)
-                  setQuantity(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1)
-                }}
-              />
-            </div>
-            <div className="mt-2 text-xs dark:bg-card ">
-              {selectedTemplate.partType === "rectangle"
-                ? selectedTemplates.length > 1
-                  ? "Repeat count applied to each selected size."
-                  : "Total finished parts to nest on the sheet."
-                : "Total cut sections to generate from rectangular stock for the finished profile."}
             </div>
           </div>
 
