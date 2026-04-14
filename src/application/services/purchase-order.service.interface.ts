@@ -55,5 +55,6 @@ export interface IPurchaseOrderService {
     reason?: string
   ): Promise<PurchaseOrder>
   recalculatePOTotals(purchaseOrderId: string): Promise<void>
+  existsItemsByMaterialType(materialTypeId: string): Promise<boolean>
   getPurchaseOrderTaxDetails(supplierId: string, subtotal: number): Promise<unknown>
 }

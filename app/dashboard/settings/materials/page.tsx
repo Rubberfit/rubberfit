@@ -7,6 +7,7 @@ import { Plus } from "lucide-react"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { rollService } from "@/src/infrastructure/services/rollService"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
 import { MaterialConfigList } from "./_components/material-config-list"
 import { MaterialDialogs } from "./_components/material-dialogs"
@@ -125,13 +126,30 @@ export default function MaterialSettingsPage() {
         return
       }
 
+      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialId)
+      if (hasPOItems) {
+        toast.error("Cannot delete material", {
+          description: "This material is referenced by existing purchase orders",
+        })
+        return
+      }
+
       await materialTypeService.delete(materialId)
       toast.success("Material deleted successfully")
       setDeleteMaterialDialog(null)
       fetchMaterials()
     } catch (error) {
+      const isFkError =
+        typeof error === "object" &&
+        error !== null &&
+        (("code" in error && (error as { code?: string }).code === "23503") ||
+          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
       toast.error("Failed to delete material", {
-        description: error instanceof Error ? error.message : undefined,
+        description: isFkError
+          ? "This material is referenced by other records and cannot be deleted"
+          : error instanceof Error
+            ? error.message
+            : undefined,
       })
     }
   }

@@ -509,6 +509,16 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     return validTransitions[from]?.includes(to) || false
   }
 
+  async existsItemsByMaterialType(materialTypeId: string): Promise<boolean> {
+    const { count, error } = await supabase
+      .from("purchase_order_items")
+      .select("id", { count: "exact", head: true })
+      .eq("material_type_id", materialTypeId)
+
+    if (error) throw error
+    return (count ?? 0) > 0
+  }
+
   async getPurchaseOrderTaxDetails(supplierId: string, subtotal: number): Promise<unknown> {
     try {
       return await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)

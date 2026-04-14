@@ -113,15 +113,9 @@ export class SupplierService implements ISupplierService {
   }
 
   async deleteSupplier(id: string): Promise<boolean> {
-    try {
-      const { error } = await supabase.from("suppliers").delete().eq("id", id)
-
-      if (error) throw error
-      return true
-    } catch (error) {
-      console.error("Error deleting supplier:", error)
-      throw error
-    }
+    const { error } = await supabase.from("suppliers").delete().eq("id", id)
+    if (error) throw error
+    return true
   }
 
   async updateSupplierRating(id: string, rating: number): Promise<Supplier> {
