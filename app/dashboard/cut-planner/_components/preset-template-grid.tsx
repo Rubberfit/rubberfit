@@ -1,6 +1,6 @@
 "use client"
 
-import { Pencil } from "lucide-react"
+import { Minus, Pencil, Plus } from "lucide-react"
 import type { PartTemplate } from "./preset-template-data"
 import { CAT_BADGE } from "./preset-template-data"
 import { getTemplateAreaSqFt } from "./preset-utils"
@@ -8,8 +8,10 @@ import { getTemplateAreaSqFt } from "./preset-utils"
 interface PresetTemplateGridProps {
   visible: PartTemplate[]
   checked: Set<string>
+  quantities: Map<string, number>
   editingCustomId: string | null
   onToggle: (templateId: string) => void
+  onQuantityChange: (templateId: string, qty: number) => void
   onEditCustom: (template: PartTemplate) => void
   onRemoveCustom: (templateId: string) => void
   tagMap?: Map<string, string>
@@ -18,8 +20,10 @@ interface PresetTemplateGridProps {
 export function PresetTemplateGrid({
   visible,
   checked,
+  quantities,
   editingCustomId,
   onToggle,
+  onQuantityChange,
   onEditCustom,
   onRemoveCustom,
   tagMap,
@@ -89,34 +93,74 @@ export function PresetTemplateGrid({
                     <div className="mt-1 text-[10px] font-medium text-blue-700">Editing</div>
                   )}
                 </div>
-                {template.isCustom && (
-                  <div className="ml-auto flex flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      aria-label={`Edit ${template.label}`}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        onEditCustom(template)
-                      }}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${template.label}`}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        onRemoveCustom(template.id)
-                      }}
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                    >
-                      remove
-                    </button>
-                  </div>
-                )}
+                <div className="ml-auto flex flex-col items-end gap-1">
+                  {isChecked && (
+                    <div className="inline-flex items-center gap-1">
+                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                        Qty
+                      </span>
+                    <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-600">
+                      <button
+                        type="button"
+                        aria-label="Decrease quantity"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const current = quantities.get(template.id) ?? 1
+                          onQuantityChange(template.id, Math.max(1, current - 1))
+                        }}
+                        className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
+                        {quantities.get(template.id) ?? 1}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Increase quantity"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const current = quantities.get(template.id) ?? 1
+                          onQuantityChange(template.id, Math.min(99, current + 1))
+                        }}
+                        className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    </div>
+                  )}
+                  {template.isCustom && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={`Edit ${template.label}`}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          onEditCustom(template)
+                        }}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${template.label}`}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          onRemoveCustom(template.id)
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      >
+                        remove
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </label>

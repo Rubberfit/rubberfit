@@ -23,7 +23,7 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
     }
 
     if (!loading && user && !canAccessPath(user.roles, pathname)) {
-      router.replace("/status-pages/unauthorized")
+      router.replace("/unauthorized")
     }
   }, [user, loading, pathname, router])
 

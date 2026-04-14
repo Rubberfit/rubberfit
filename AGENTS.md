@@ -36,6 +36,7 @@
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
 
+- proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - nesting/ — 2D nesting engine
 - di/ — TSyringe DI registration
 

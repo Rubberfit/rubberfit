@@ -16,6 +16,7 @@ import {
   SimpleModeDimensionLabels,
 } from "./nesting-viz-simple-parts"
 import { computeSimpleModeLayout, formatInches } from "./nesting-viz-simple-layout"
+import { computeFabricationScore } from "./nesting-preview-builders"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 
@@ -261,50 +262,94 @@ function SheetSvg({
         />
         <g clipPath={`url(#${sClip})`}>
           {!layout.shapeFirstView &&
-            sheet.preview.scrapBands.map((band, index) => (
+            sheet.preview.items.some(
+              (item) => item.placedPolygon && item.placedPolygon.length > 0
+            ) && (
               <rect
-                key={`scrap-band-${index + 1}`}
-                x={layout.surfaceX + band.x * layout.scale}
-                y={layout.surfaceY + band.y * layout.scale}
-                width={band.width * layout.scale}
-                height={band.height * layout.scale}
+                x={layout.surfaceX}
+                y={layout.surfaceY}
+                width={layout.surfacePxW}
+                height={layout.surfacePxH}
                 fill={`url(#${sWastePat})`}
                 opacity="0.95"
               />
-            ))}
+            )}
           {!layout.shapeFirstView &&
-            sheet.preview.offcutBands.map((band, index) => (
-              <rect
-                key={`band-${index + 1}`}
-                x={layout.surfaceX + band.x * layout.scale}
-                y={layout.surfaceY + band.y * layout.scale}
-                width={band.width * layout.scale}
-                height={band.height * layout.scale}
-                fill={`url(#${sOffcutPat})`}
-                opacity="0.95"
+            sheet.preview.scrapBands.map((band, index) =>
+              band.polygon ? (
+                <polygon
+                  key={`scrap-band-${index + 1}`}
+                  points={band.polygon
+                    .map(
+                      (pt) =>
+                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                    )
+                    .join(" ")}
+                  fill={`url(#${sWastePat})`}
+                  opacity="0.95"
+                />
+              ) : (
+                <rect
+                  key={`scrap-band-${index + 1}`}
+                  x={layout.surfaceX + band.x * layout.scale}
+                  y={layout.surfaceY + band.y * layout.scale}
+                  width={band.width * layout.scale}
+                  height={band.height * layout.scale}
+                  fill={`url(#${sWastePat})`}
+                  opacity="0.95"
+                />
+              )
+            )}
+          {!layout.shapeFirstView &&
+            sheet.preview.offcutBands.map((band, index) =>
+              band.polygon ? (
+                <polygon
+                  key={`band-${index + 1}`}
+                  points={band.polygon
+                    .map(
+                      (pt) =>
+                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                    )
+                    .join(" ")}
+                  fill={`url(#${sOffcutPat})`}
+                  opacity="0.95"
+                />
+              ) : (
+                <rect
+                  key={`band-${index + 1}`}
+                  x={layout.surfaceX + band.x * layout.scale}
+                  y={layout.surfaceY + band.y * layout.scale}
+                  width={band.width * layout.scale}
+                  height={band.height * layout.scale}
+                  fill={`url(#${sOffcutPat})`}
+                  opacity="0.95"
+                />
+              )
+            )}
+          {(["background", "foreground"] as const).map((pass) =>
+            sheet.preview.items.map((item, index) => (
+              <NestingShapeRenderer
+                key={`${pass}-${index}`}
+                item={item}
+                index={index}
+                surfaceX={layout.surfaceX}
+                surfaceY={layout.surfaceY}
+                unitOriginX={layout.unitOriginX}
+                unitOriginY={layout.unitOriginY}
+                scale={layout.scale}
+                shapeFirstView={layout.shapeFirstView}
+                preview={preview}
+                displayPreview={sheet.preview}
+                usablePatternId={sUsablePat}
+                wastePatternId={sWastePat}
+                viewHeight={layout.viewHeight}
+                surfacePxW={layout.surfacePxW}
+                tagLetter={tagMap?.get(item.label)}
+                zoom={zoom}
+                renderPass={pass}
               />
-            ))}
-          {sheet.preview.items.map((item, index) => (
-            <NestingShapeRenderer
-              key={index + 1}
-              item={item}
-              index={index}
-              surfaceX={layout.surfaceX}
-              surfaceY={layout.surfaceY}
-              unitOriginX={layout.unitOriginX}
-              unitOriginY={layout.unitOriginY}
-              scale={layout.scale}
-              shapeFirstView={layout.shapeFirstView}
-              preview={preview}
-              displayPreview={sheet.preview}
-              usablePatternId={sUsablePat}
-              wastePatternId={sWastePat}
-              viewHeight={layout.viewHeight}
-              surfacePxW={layout.surfacePxW}
-              tagLetter={tagMap?.get(item.label)}
-              zoom={zoom}
-            />
-          ))}
+            ))
+          )}
         </g>
         <SimpleModeOffcutLabels
           offcutLabelBands={
@@ -321,6 +366,13 @@ function SheetSvg({
                       (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
                     )
                     if (overlaps) return kept
+                    const BAND_DIMENSION_TOLERANCE = 0.5
+                    const sameDims = kept.some(
+                      (k) =>
+                        Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
+                        Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
+                    )
+                    if (sameDims) return kept
                     kept.push(band)
                     return kept
                   }, [])
@@ -377,6 +429,19 @@ export default function NestingVizSimpleMode({
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
+  // When multiSheet exists with 1 sheet, use its gap-filled preview for metrics
+  // instead of the base layout.displayPreview (which lacks gap-filled items).
+  const metricsPreview =
+    multiSheet && multiSheet.sheets.length === 1
+      ? multiSheet.sheets[0].preview
+      : layout.displayPreview
+  const metricsUsedSqFt = metricsPreview.usedArea / 144
+  const metricsReusableSqFt = metricsPreview.reusableArea / 144
+  const metricsScrapSqFt = metricsPreview.scrapArea / 144
+  const metricsFabScore =
+    metricsPreview !== layout.displayPreview
+      ? computeFabricationScore(metricsPreview, previewRollW, previewRollL)
+      : layout.fabScore
   const uniqueLabels = tagMap ? [...tagMap.keys()] : []
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
@@ -387,16 +452,18 @@ export default function NestingVizSimpleMode({
       <SimpleModeHeader
         previewTitle={layout.previewTitle}
         layoutNote={layout.layoutNote}
-        displayPreview={layout.displayPreview}
+        displayPreview={metricsPreview}
         pieceCountLabel={layout.pieceCountLabel}
-        pieceCountValue={layout.pieceCountValue}
-        reusableOffcutSqFt={layout.reusableOffcutSqFt}
-        reusableOffcutPct={layout.reusableOffcutPct}
+        pieceCountValue={`${metricsPreview.piecesShown}`}
+        reusableOffcutSqFt={metricsReusableSqFt}
+        reusableOffcutPct={
+          layout.stockSqFt > 0 ? (metricsReusableSqFt / layout.stockSqFt) * 100 : 0
+        }
         reusableMetricLabel={layout.reusableMetricLabel}
         scrapMetricLabel={layout.scrapMetricLabel}
-        scrapPct={layout.scrapPct}
+        scrapPct={layout.stockSqFt > 0 ? (metricsScrapSqFt / layout.stockSqFt) * 100 : 0}
         isSplitStockPreview={layout.isSplitStockPreview}
-        missingCutPieceCount={layout.missingCutPieceCount}
+        missingCutPieceCount={Math.max(0, metricsPreview.requestedUnits - metricsPreview.piecesShown)}
         isOptimizedResult={layout.isOptimizedResult}
         isOptimizing={isOptimizing}
         nfpError={nfpError}
@@ -435,23 +502,23 @@ export default function NestingVizSimpleMode({
       </div>
 
       <SimpleModeMetrics
-        displayPreview={layout.displayPreview}
-        usedSqFt={layout.usedSqFt}
-        reusableOffcutSqFt={layout.reusableOffcutSqFt}
-        scrapSqFt={layout.scrapSqFt}
+        displayPreview={metricsPreview}
+        usedSqFt={metricsUsedSqFt}
+        reusableOffcutSqFt={metricsReusableSqFt}
+        scrapSqFt={metricsScrapSqFt}
         reusableMetricLabel={layout.reusableMetricLabel}
         pieceCountLabel={layout.pieceCountLabel}
-        pieceCountValue={layout.pieceCountValue}
-        fabScore={layout.fabScore}
+        pieceCountValue={`${metricsPreview.piecesShown}`}
+        fabScore={metricsFabScore}
         multiSheet={multiSheet}
       />
 
       <SimpleModeFooter
         metricsAreEstimatedFromStock={layout.metricsAreEstimatedFromStock}
         stockSqFt={layout.stockSqFt}
-        displayPreview={layout.displayPreview}
+        displayPreview={metricsPreview}
         isSplitStockPreview={layout.isSplitStockPreview}
-        missingCutPieceCount={layout.missingCutPieceCount}
+        missingCutPieceCount={Math.max(0, metricsPreview.requestedUnits - metricsPreview.piecesShown)}
         multiSheet={multiSheet}
       />
 

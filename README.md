@@ -5,16 +5,15 @@ A material optimization and inventory management system for USI Manufacturing, d
 ## ✨ Current Features
 
 - **Real-Time Inventory Tracking**: Automatic inventory updates as cuts are recorded. Rolls are automatically marked depleted when length hits zero.
-- **Material Cut Optimization**: Uses a **Greedy First-Fit-Decreasing** algorithm to recommend the best cuts with the lowest waste percentage.
+- **Material Cut Optimization**: 2D nesting engine with multiple packing strategies (MaxRects bin packing, NFP-based greedy placement, guillotine-fit, shelf packing) to minimize material waste across single and multi-sheet layouts. Supports rectangles, cylinders, cones, and trapezoids with per-template quantity selection.
 - **Waste Tracking**: Calculates and records waste metrics to analyze optimization performance over time.
 - **Low Stock Alerts**: Automatic system notifications when material stock falls below designated thresholds.
 - **Dashboard Analytics**: Visualize usage trends and current stock across different materials.
-- **Cross-Platform Access**: Usable as both a high-performance Web App and as a packaged desktop Electron App.
+- **Web-Based Access**: Accessible via any modern browser with responsive layout.
 
 ## 🛠 Tech Stack
 
 - **Framework**: Next.js 16 + React 19 + TypeScript
-- **Desktop Environment**: Electron 40.6
 - **UI & Styling**: Tailwind CSS v4 + shadcn/ui
 - **State Management**: Zustand
 - **Database**: Supabase (PostgreSQL) with Row-Level Security (RLS)
@@ -93,63 +92,42 @@ npm run dev
 # Opens at http://localhost:3000
 ```
 
-### Electron Desktop Development
-Starts Next.js and the Electron desktop application concurrently.
-```bash
-npm run electron:dev
-```
-
 ## 📦 Building for Production
 
 Make sure you are inside the `app/` directory.
 
-### Web Version
 ```bash
 npm run build
 npm start
-```
-
-### Desktop Application
-Built applications will be placed in `app/dist`.
-```bash
-npm run electron:dist:mac   # macOS (.dmg / .app)
-npm run electron:dist:win   # Windows (.exe)
-npm run electron:dist:linux # Linux (.AppImage / .deb)
-npm run electron:dist:all   # Build for all platforms
 ```
 
 ## 🗂 Project Structure
 
 ```
 rema-portal/
-├── app/
-│   ├── .next/               # Next.js build output
-│   ├── electron/            # Electron main process & IPC handlers
-│   ├── electron-dist/       # Compiled Electron output
-│   ├── public/              # Static web assets
-│   ├── src/                 # Next.js Main Application source
-│   │   ├── app/             # App router pages (dashboard, auth, api)
-│   │   ├── components/      # Reusable React components (UI, common)
-│   │   ├── config/          # Application configuration
-│   │   ├── contexts/        # React contexts
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── lib/             # Third-party library integrations
-│   │   ├── navigation/      # Navigation configurations
-│   │   ├── scripts/         # Builder & utility scripts
-│   │   ├── server/          # Server side logic and API
-│   │   ├── services/        # Business logic fetching and API wrappers
-│   │   ├── stores/          # Zustand state management
-│   │   ├── styles/          # Tailwind setup and globals
-│   │   ├── templates/       # Document templates (e.g. PDF generation)
-│   │   └── types/           # TypeScript definitions
-│   ├── .env.local           # Environment variables
-│   └── package.json         # Javascript dependencies and build scripts
+├── app/                       # Next.js App Router pages & components
+│   ├── dashboard/
+│   │   ├── cut-planner/       # Cut planner with 2D nesting engine
+│   │   ├── inventory/         # Inventory, POs, reorder management
+│   │   ├── materials/         # Material types & pricing
+│   │   └── ...
+│   ├── components/ui/         # shadcn/ui primitives
+│   ├── stores/                # Zustand state management
+│   └── lib/                   # Client utilities
+├── src/                       # Domain logic (Clean Architecture)
+│   ├── application/           # Service interfaces & use-cases
+│   ├── entities/              # Domain models
+│   └── infrastructure/        # Supabase-backed implementations
+├── nesting/                   # 2D NFP nesting engine (standalone)
+├── di/                        # TSyringe dependency injection
+├── config/                    # App-wide constants
 ├── supabase/
-│   ├── migrations/          # SQL migrations defining the schema
-│   ├── config.toml          # Supabase Local Server configuration
-│   └── README.md            # Database specific documentation
-├── README.md                # System documentation (This file)
-└── LICENSE                  # Proprietary software license
+│   ├── migrations/            # SQL migrations
+│   └── config.toml            # Supabase config
+├── .github/
+│   ├── scripts/               # Project board sync automation
+│   └── workflows/             # CI workflows
+└── README.md
 ```
 
 ## 📊 Database Schema
@@ -165,7 +143,6 @@ rema-portal/
 
 - OAuth authentication via Supabase (Google, GitHub, Microsoft)
 - Row-Level Security (RLS) policies on all tables
-- Secure IPC communication in Electron
 - Content Security Policy (CSP) headers configured
 
 ## 📈 Performance Targets

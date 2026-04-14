@@ -45,8 +45,11 @@ export default function PresetDimensionSelector({
     customDraft,
     selectedPartLabel,
     savedCustomCount,
+    quantities,
+    selectionCounts,
     handlePartChange,
     handleToggle,
+    handleQuantityChange,
     handleSelectAll,
     handleClearAll,
     handleAddCustomSize,
@@ -69,7 +72,11 @@ export default function PresetDimensionSelector({
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <PartTypeSelector selectedPart={selectedPart} onPartChange={handlePartChange} />
+        <PartTypeSelector
+          selectedPart={selectedPart}
+          onPartChange={handlePartChange}
+          selectionCounts={selectionCounts}
+        />
 
         <div className="space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -116,8 +123,10 @@ export default function PresetDimensionSelector({
           <PresetTemplateGrid
             visible={visible}
             checked={checked}
+            quantities={quantities}
             editingCustomId={editingCustomId}
             onToggle={handleToggle}
+            onQuantityChange={handleQuantityChange}
             onEditCustom={editCustomTemplate}
             onRemoveCustom={removeCustomTemplate}
             tagMap={tagMap}

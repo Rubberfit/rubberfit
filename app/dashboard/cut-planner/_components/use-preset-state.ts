@@ -21,6 +21,28 @@ import {
 } from "./preset-template-data"
 import { buildCustomTemplate, templateToDraft, getTemplateAreaSqFt } from "./preset-utils"
 
+function hydrateCustomTemplates(raw: string): { hydrated: CustomTemplateMap; maxId: number } | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<CustomTemplateMap>
+    const hydrated: CustomTemplateMap = {
+      rectangle: Array.isArray(parsed.rectangle) ? parsed.rectangle : [],
+      cylinder: Array.isArray(parsed.cylinder) ? parsed.cylinder : [],
+      cone: Array.isArray(parsed.cone) ? parsed.cone : [],
+      trapezoid: Array.isArray(parsed.trapezoid) ? parsed.trapezoid : [],
+    }
+    const maxId = Object.values(hydrated)
+      .flat()
+      .reduce((highest, template) => {
+        const match = template.id.match(/custom-[a-z-]+-(\d+)$/)
+        const numericId = match ? Number.parseInt(match[1] ?? "0", 10) : 0
+        return Number.isFinite(numericId) ? Math.max(highest, numericId) : highest
+      }, 0)
+    return { hydrated, maxId }
+  } catch (_error) {
+    return null
+  }
+}
+
 export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle")
   const [checked, setChecked] = useState<Set<string>>(new Set())
@@ -29,36 +51,21 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   const [customTemplates, setCustomTemplates] = useState<CustomTemplateMap>(EMPTY_CUSTOM_TEMPLATES)
   const [nextCustomId, setNextCustomId] = useState(1)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
+  const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
     const raw = getLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
     if (!raw) return
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<CustomTemplateMap>
-      const hydrated: CustomTemplateMap = {
-        rectangle: Array.isArray(parsed.rectangle) ? parsed.rectangle : [],
-        cylinder: Array.isArray(parsed.cylinder) ? parsed.cylinder : [],
-        cone: Array.isArray(parsed.cone) ? parsed.cone : [],
-        trapezoid: Array.isArray(parsed.trapezoid) ? parsed.trapezoid : [],
-      }
-
-      queueMicrotask(() => {
-        setCustomTemplates(hydrated)
-
-        const maxId = Object.values(hydrated)
-          .flat()
-          .reduce((highest, template) => {
-            const match = template.id.match(/custom-[a-z-]+-(\d+)$/)
-            const numericId = match ? Number.parseInt(match[1] ?? "0", 10) : 0
-            return Number.isFinite(numericId) ? Math.max(highest, numericId) : highest
-          }, 0)
-
-        setNextCustomId(maxId + 1)
-      })
-    } catch (_error) {
+    const result = hydrateCustomTemplates(raw)
+    if (!result) {
       removeLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
+      return
     }
+    // Defer to avoid React state updates during the initial render phase
+    queueMicrotask(() => {
+      setCustomTemplates(result.hydrated)
+      setNextCustomId(result.maxId + 1)
+    })
   }, [])
 
   useEffect(() => {
@@ -82,13 +89,38 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   const visible =
     filter === "all" ? sizeOptions : sizeOptions.filter((template) => template.category === filter)
 
+  const allTemplates = useMemo(
+    () => [
+      ...PART_TEMPLATES,
+      ...customTemplates.rectangle,
+      ...customTemplates.cylinder,
+      ...customTemplates.cone,
+      ...customTemplates.trapezoid,
+    ],
+    [customTemplates]
+  )
+
   const selectedTemplates = useMemo(
     () =>
       Array.from(checked)
-        .map((id) => sizeOptions.find((template) => template.id === id) ?? null)
-        .filter((template): template is PartTemplate => template !== null),
-    [checked, sizeOptions]
+        .map((id) => allTemplates.find((template) => template.id === id) ?? null)
+        .filter((template): template is PartTemplate => template !== null)
+        .map((template) => ({
+          ...template,
+          quantity: quantities.get(template.id) ?? template.quantity,
+        })),
+    [checked, allTemplates, quantities]
   )
+
+  const selectionCounts = useMemo(() => {
+    const idToType = new Map(allTemplates.map((t) => [t.id, t.partType]))
+    const counts = new Map<string, number>()
+    for (const id of checked) {
+      const partType = idToType.get(id)
+      if (partType) counts.set(partType, (counts.get(partType) ?? 0) + 1)
+    }
+    return counts
+  }, [checked, allTemplates])
 
   const pendingCustomTemplate = useMemo(
     () => buildCustomTemplate(selectedPart, customDrafts),
@@ -106,9 +138,21 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
 
   const handlePartChange = (partType: SupportedPartType) => {
     setSelectedPart(partType)
-    setChecked(new Set())
     setFilter("all")
     setEditingCustomId(null)
+  }
+
+  const handleQuantityChange = (templateId: string, qty: number) => {
+    const clamped = Number.isFinite(qty) ? Math.max(1, Math.min(99, Math.round(qty))) : 1
+    setQuantities((previous) => {
+      const next = new Map(previous)
+      if (clamped <= 1) {
+        next.delete(templateId)
+      } else {
+        next.set(templateId, clamped)
+      }
+      return next
+    })
   }
 
   const handleToggle = (templateId: string) => {
@@ -116,6 +160,11 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
       const next = new Set(previous)
       if (next.has(templateId)) {
         next.delete(templateId)
+        setQuantities((prev) => {
+          const nextQ = new Map(prev)
+          nextQ.delete(templateId)
+          return nextQ
+        })
       } else {
         next.add(templateId)
       }
@@ -124,11 +173,18 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
   }
 
   const handleSelectAll = () => {
-    setChecked(new Set(sizeOptions.map((template) => template.id)))
+    setChecked((previous) => {
+      const next = new Set(previous)
+      for (const template of sizeOptions) {
+        next.add(template.id)
+      }
+      return next
+    })
   }
 
   const handleClearAll = () => {
     setChecked(new Set())
+    setQuantities(new Map())
   }
 
   const customDraft = customDrafts[selectedPart]
@@ -223,8 +279,11 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
     customDraft,
     selectedPartLabel,
     savedCustomCount,
+    quantities,
+    selectionCounts,
     handlePartChange,
     handleToggle,
+    handleQuantityChange,
     handleSelectAll,
     handleClearAll,
     handleAddCustomSize,
