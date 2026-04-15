@@ -97,6 +97,13 @@ function getBounds(points: ReadonlyArray<Point2D>): {
  * Run greedy bottom-left NFP packing for a single rotation angle.
  * Returns placements or null if no items fit.
  */
+interface PartPartNfpCache {
+  /** Minkowski(A_0, A_0) with the angle-0 first-point offset stripped off */
+  corePolygons: Point2D[][]
+  /** First point of the angle-0 normalized (offset-applied) part */
+  basePartFirst: Point2D
+}
+
 // eslint-disable-next-line complexity -- NFP placement algorithm with nested Clipper operations
 function packWithRotation(
   originalPoints: ReadonlyArray<Point2D>,
@@ -105,7 +112,8 @@ function packWithRotation(
   binHeight: number,
   qty: number,
   spacing: number,
-  rotation: number
+  rotation: number,
+  partPartNfpCache: PartPartNfpCache
 ): GreedyPlacement[] | null {
   // Rotate and normalize the hull
   const rotated = rotatePoints(hullPoints, rotation)
@@ -133,13 +141,27 @@ function packWithRotation(
   }
 
   // Compute inner NFP: where the part can be placed inside the bin
+  // (bin is axis-aligned and fixed, but the part rotates — so this must stay per-angle)
   const binNfp = noFitRectanglePolygon(bin, part)
   if (!binNfp) return null
 
   const clipperBinNfp = [toClipperCoordinates(binNfp.points)]
 
-  // Compute part-part NFP: exclusion zone around each placed part
-  const partPartNfp = minkowskiDifference(part, part)
+  // Part-part NFP via rotation equivariance: Minkowski(R·A, R·A) = R · Minkowski(A, A)
+  // for identical shapes. Rotate the cached angle-0 core, then add the rotated part's
+  // first-point offset to match what minkowskiDifference() would have returned directly.
+  const cosR = Math.cos(rotation)
+  const sinR = Math.sin(rotation)
+  const partFirst = part.points[0]
+  const partPartNfp = partPartNfpCache.corePolygons.map((core) => ({
+    points: core.map(
+      (pt) =>
+        new Vector(
+          pt.x * cosR - pt.y * sinR + partFirst.x,
+          pt.x * sinR + pt.y * cosR + partFirst.y
+        )
+    ),
+  }))
   if (partPartNfp.length === 0) return null
 
   const placements: GreedyPlacement[] = []
@@ -353,9 +375,43 @@ export function greedyNfpPack(
   const hull = convexHull(polygon.points)
   const shapeArea = polygonArea(polygon.points)
 
+  // Precompute the part-part NFP at angle 0 ONCE; rotate per-angle inside packWithRotation.
+  // This is the single most expensive Clipper call in the hot loop.
+  const baseHullNorm = normalizeToOrigin(rotatePoints(hull, 0)).points
+  let basePart = new Part("shape", pointsToVectors(baseHullNorm))
+  if (spacing > 0) basePart = offsetPolygon(basePart, spacing) as Part
+  const baseNfp = minkowskiDifference(basePart, basePart)
+  if (baseNfp.length === 0) {
+    return {
+      placements: [],
+      placed: 0,
+      overflow: qty,
+      usedArea: 0,
+      occupiedWidth: 0,
+      occupiedHeight: 0,
+    }
+  }
+  const basePartFirst = basePart.points[0]
+  // Strip angle-0 first-point offset so we can re-apply the rotated per-angle offset later.
+  const partPartNfpCache: PartPartNfpCache = {
+    corePolygons: baseNfp.map((poly) =>
+      poly.points.map((pt) => ({ x: pt.x - basePartFirst.x, y: pt.y - basePartFirst.y }))
+    ),
+    basePartFirst,
+  }
+
   const startTime = Date.now()
   const tryAngle = (angle: number): GreedyPlacement[] | null =>
-    packWithRotation(polygon.points, hull, binWidth, binHeight, qty, spacing, angle)
+    packWithRotation(
+      polygon.points,
+      hull,
+      binWidth,
+      binHeight,
+      qty,
+      spacing,
+      angle,
+      partPartNfpCache
+    )
   // OPTIMIZATION: THIS IS WHERE THE LONGEST CALCULATIONS TAKE PLACE
   // --- Coarse pass ---
   const coarseResults: Array<{ angle: number; placements: GreedyPlacement[] }> = []
