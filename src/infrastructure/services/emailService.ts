@@ -15,8 +15,8 @@ import { injectable } from "tsyringe"
 
 // Company details for branding
 const COMPANY_NAME = "Arc & Anchor"
-const FROM_EMAIL = process.env.SENDER_EMAIL || "notifications@arcandanchor.com"
-const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "support@arcandanchor.com"
+const FROM_EMAIL = process.env.SENDER_EMAIL ?? "notifications@arcandanchor.com"
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL ?? "support@arcandanchor.com"
 
 interface EmailOptions {
   to: string | string[]

@@ -28,6 +28,7 @@ This repository is the **RubberFit Max** codebase.
 RubberFit is a purpose-built nesting engine and CRM for rubber manufacturing. It manages the full lifecycle — from material cut optimization and waste reduction through supplier relationships, procurement, people management, and invoicing.
 
 ### Smart Nesting Engine (RubberFit)
+
 - **Multi-Strategy Optimization**: NFP greedy placement, MaxRects bin packing (5 heuristics), guillotine cutting, shelf packing, and width-pair pairing
 - **Shape Support**: Rectangles, circles, trapezoids, and annular sectors (cone developments) with per-template quantity selection
 - **Genetic Algorithm**: Evolutionary rotation optimization across single and multi-sheet layouts — evaluates up to 80 candidate configurations
@@ -36,12 +37,14 @@ RubberFit is a purpose-built nesting engine and CRM for rubber manufacturing. It
 - **FAB Score**: Composite quality metric (waste, reusability, seam complexity, packing density) for layout evaluation
 
 ### Real-Time Analytics (RubberFit Pro)
+
 - **Waste Analytics**: Per-cut and aggregate waste metrics with trend analysis over time
 - **Cost Tracking**: Material utilization, cost breakdowns, and optimization recommendations
 - **Dashboard**: Usage trends, stock levels, waste comparison reports
 - **Notifications**: In-app alerts and queued email/SMS for low stock, roll depletion, and system events
 
 ### Full CRM & Operations (RubberFit Max)
+
 - **Supplier Management**: Full supplier profiles with contact details, addresses, shipping preferences, performance tracking, and linked materials
 - **Purchase Orders**: Create, track, and manage POs with tax calculation, status workflows, and approval chains
 - **Reorder Intelligence**: Automatic low-stock detection with configurable thresholds and reorder point calculations (EOQ)

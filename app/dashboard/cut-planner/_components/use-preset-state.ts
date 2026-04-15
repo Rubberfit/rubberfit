@@ -18,6 +18,7 @@ import {
   DEFAULT_CUSTOM_DRAFTS,
   EMPTY_CUSTOM_TEMPLATES,
   CUSTOM_TEMPLATE_STORAGE_KEY,
+  LEGACY_CUSTOM_TEMPLATE_STORAGE_KEY,
 } from "./preset-template-data"
 import { buildCustomTemplate, templateToDraft, getTemplateAreaSqFt } from "./preset-utils"
 
@@ -198,7 +199,14 @@ export function usePresetState(
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
-    const raw = getLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
+    let raw = getLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
+    if (!raw) {
+      raw = getLocalStorageValue(LEGACY_CUSTOM_TEMPLATE_STORAGE_KEY)
+      if (raw) {
+        setLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY, raw)
+        removeLocalStorageValue(LEGACY_CUSTOM_TEMPLATE_STORAGE_KEY)
+      }
+    }
     if (!raw) return
     const result = hydrateCustomTemplates(raw)
     if (!result) {
