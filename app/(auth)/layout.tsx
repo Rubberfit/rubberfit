@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 
-import { TrendingUp } from "lucide-react"
 
 import { Separator } from "@/app/components/ui/separator"
 
@@ -10,8 +9,8 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
       <div className="grid h-dvh justify-center p-2 lg:grid-cols-2">
         <div className="relative order-2 hidden h-full rounded-3xl bg-primary lg:flex">
           <div className="absolute top-10 space-y-1 px-10 text-primary-foreground">
-            <TrendingUp className="size-10" />
-            <h1 className="font-medium text-2xl">Rema Portal</h1>
+            <img src="/archanchorlogo.png" alt="Arc & Anchor" className="size-10" />
+            <h1 className="font-medium text-2xl">RubberFit</h1>
             <p className="text-sm">Optimize. Track. Save. Excel.</p>
           </div>
 

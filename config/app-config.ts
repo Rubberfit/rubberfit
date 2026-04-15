@@ -3,12 +3,12 @@ import packageJson from "../package.json"
 const currentYear = new Date().getFullYear()
 
 export const APP_CONFIG = {
-  name: "Rema Portal",
+  name: "RubberFit",
   version: packageJson.version,
-  copyright: `© ${currentYear}, USI Manufacturing.`,
+  copyright: `© ${currentYear}, Arc & Anchor.`,
   meta: {
-    title: "Rema Portal - Material Optimization & Inventory Management",
+    title: "RubberFit - CRM & 2D Nesting Engine for Rubber Manufacturing",
     description:
-      "Rema Portal is a material optimization and inventory management system for rubber manufacturing. Track inventory, optimize material cuts to minimize waste, and manage your rubber roll stock efficiently.",
+      "RubberFit is a CRM and 2D nesting engine for rubber manufacturing. Manage suppliers, procurement, inventory, and optimize material cuts to minimize waste.",
   },
 }
