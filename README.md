@@ -1,119 +1,135 @@
-# Rema Portal
+# RubberFit
 
-A material optimization and inventory management system for USI Manufacturing, designed to track rubber roll inventory and optimize material cuts to minimize waste.
+<p align="center">
+  <img src="app/public/archanchorlogo.png" alt="Arc & Anchor" width="120" />
+</p>
 
-## ✨ Current Features
+<p align="center">
+  <strong>Industrial Nesting Engine & Manufacturing CRM</strong><br/>
+  Cut optimization, supplier management, procurement, and real-time analytics — built for the shop floor.
+</p>
 
-- **Real-Time Inventory Tracking**: Automatic inventory updates as cuts are recorded. Rolls are automatically marked depleted when length hits zero.
-- **Material Cut Optimization**: 2D nesting engine with multiple packing strategies (MaxRects bin packing, NFP-based greedy placement, guillotine-fit, shelf packing) to minimize material waste across single and multi-sheet layouts. Supports rectangles, cylinders, cones, and trapezoids with per-template quantity selection.
-- **Waste Tracking**: Calculates and records waste metrics to analyze optimization performance over time.
-- **Low Stock Alerts**: Automatic system notifications when material stock falls below designated thresholds.
-- **Dashboard Analytics**: Visualize usage trends and current stock across different materials.
-- **Web-Based Access**: Accessible via any modern browser with responsive layout.
+---
 
-## 🛠 Tech Stack
+## Product Tiers
 
-- **Framework**: Next.js 16 + React 19 + TypeScript
-- **UI & Styling**: Tailwind CSS v4 + shadcn/ui
-- **State Management**: Zustand
-- **Database**: Supabase (PostgreSQL) with Row-Level Security (RLS)
-- **Charts**: Recharts
-- **Build Tools**: Vite / TypeScript Compiler
+| Tier | What You Get |
+|------|-------------|
+| **RubberFit** | 2D nesting engine — smart cut optimization for rubber sheet materials |
+| **RubberFit Pro** | Nesting + real-time analytics, waste tracking, and cost reporting |
+| **RubberFit Max** | Full platform — nesting, analytics, CRM, procurement, people management, payments & invoicing |
 
-## 📋 Prerequisites
+This repository is the **RubberFit Max** codebase.
+
+---
+
+## What It Does
+
+RubberFit is a purpose-built nesting engine and CRM for rubber manufacturing. It manages the full lifecycle — from material cut optimization and waste reduction through supplier relationships, procurement, people management, and invoicing.
+
+### Smart Nesting Engine (RubberFit)
+
+- **Multi-Strategy Optimization**: NFP greedy placement, MaxRects bin packing (5 heuristics), guillotine cutting, shelf packing, and width-pair pairing
+- **Shape Support**: Rectangles, circles, trapezoids, and annular sectors (cone developments) with per-template quantity selection
+- **Genetic Algorithm**: Evolutionary rotation optimization across single and multi-sheet layouts — evaluates up to 80 candidate configurations
+- **Coarse-to-Fine Rotation Search**: Three-pass hierarchical strategy reducing rotation evaluations by 21.5x vs brute force
+- **Free-Space Extraction**: Polygon-aware offcut identification via Clipper boolean operations for reusable material recovery
+- **FAB Score**: Composite quality metric (waste, reusability, seam complexity, packing density) for layout evaluation
+
+### Real-Time Analytics (RubberFit Pro)
+
+- **Waste Analytics**: Per-cut and aggregate waste metrics with trend analysis over time
+- **Cost Tracking**: Material utilization, cost breakdowns, and optimization recommendations
+- **Dashboard**: Usage trends, stock levels, waste comparison reports
+- **Notifications**: In-app alerts and queued email/SMS for low stock, roll depletion, and system events
+
+### Full CRM & Operations (RubberFit Max)
+
+- **Supplier Management**: Full supplier profiles with contact details, addresses, shipping preferences, performance tracking, and linked materials
+- **Purchase Orders**: Create, track, and manage POs with tax calculation, status workflows, and approval chains
+- **Reorder Intelligence**: Automatic low-stock detection with configurable thresholds and reorder point calculations (EOQ)
+- **People Management**: Employee information, pay rates, positions, time-off tracking, benefits
+- **Payments & Invoicing**: Invoice generation, order management, automatic tax calculation, Stripe integration
+- **Real-Time Inventory**: Automatic updates as cuts are recorded, with auto-depletion at zero length
+- **RBAC**: Six roles (admin, manager, supervisor, cutter, member, viewer) with route-level access control
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 + React 19 + TypeScript |
+| UI | Tailwind CSS v4 + shadcn/ui |
+| State | Zustand |
+| Database | Supabase (PostgreSQL) with RLS |
+| Charts | Recharts |
+| Architecture | Clean Architecture + TSyringe DI |
+
+## Prerequisites
 
 - Node.js 18+ (v22.14.0+ recommended)
 - npm 9+
-- Docker (Required for running a local Supabase instance)
-- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) installed globally
+- Docker (for local Supabase)
+- [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
 
-## 🔧 Setup Instructions
+## Setup
 
-### 1. Clone & Install Dependencies
+### 1. Clone & Install
 
 ```bash
 git clone <repository-url>
-cd rema-portal
-
-# Navigate to app directory and install all dependencies
-cd app
+cd rema-portal/app
 npm install
 ```
 
-### 2. Local Database Setup (Supabase)
-
-A local Supabase instance using Docker is highly recommended for development.
+### 2. Database
 
 ```bash
-# Go back to project root
-cd ..
-
-# Start local Supabase instance
-cd supabase
-
-# Start local Supabase instance (Docker must be running)
+cd ../supabase
 supabase start
-
-# Apply all database migrations to setup the schema
-supabase db reset
-
-# (Optional) Seed the database with realistic test materials, rolls, and cuts
-supabase db reset --with-seed
+supabase db reset            # Apply migrations
+supabase db reset --with-seed # Optional: load sample data
 ```
 
-### 3. Configure Environment Variables
+### 3. Environment
 
 ```bash
-cd app
+cd ../app
 cp .env.example .env.local
 ```
 
-Update your `.env.local` to match your local Supabase credentials outputted during `supabase start`:
+Update `.env.local` with the credentials from `supabase start`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-local-anon-key
 ```
-### Step 4: Load Sample Data (Optional)
+
+### 4. Run
 
 ```bash
-# From the supabase directory
-cd ../supabase
-supabase db seed
+npm run dev     # http://localhost:3000
 ```
 
-## 🚀 Development Mode
-
-We provide multiple ways to run the application depending on your focus. In your terminal, make sure you are inside the `app/` directory:
-
-### Web Development
-Starts the Next.js frontend with hot-module reloading.
-```bash
-npm run dev
-# Opens at http://localhost:3000
-```
-
-## 📦 Building for Production
-
-Make sure you are inside the `app/` directory.
+## Production Build
 
 ```bash
-npm run build
-npm start
+cd app
+npm run build && npm start
 ```
 
-## 🗂 Project Structure
+## Project Structure
 
-```
+```text
 rema-portal/
-├── app/                       # Next.js App Router pages & components
+├── app/                       # Next.js App Router
 │   ├── dashboard/
-│   │   ├── cut-planner/       # Cut planner with 2D nesting engine
-│   │   ├── inventory/         # Inventory, POs, reorder management
-│   │   ├── materials/         # Material types & pricing
+│   │   ├── cut-planner/       # 2D nesting engine UI
+│   │   ├── inventory/         # Inventory & reorder management
+│   │   ├── materials/         # Material types, pricing, suppliers
+│   │   ├── procurement/       # Purchase orders
+│   │   ├── reports/           # Waste & usage reports
 │   │   └── ...
-│   ├── components/ui/         # shadcn/ui primitives
 │   ├── stores/                # Zustand state management
-│   └── lib/                   # Client utilities
+│   └── lib/                   # Client utilities & RBAC
 ├── src/                       # Domain logic (Clean Architecture)
 │   ├── application/           # Service interfaces & use-cases
 │   ├── entities/              # Domain models
@@ -121,37 +137,28 @@ rema-portal/
 ├── nesting/                   # 2D NFP nesting engine (standalone)
 ├── di/                        # TSyringe dependency injection
 ├── config/                    # App-wide constants
-├── supabase/
-│   ├── migrations/            # SQL migrations
-│   └── config.toml            # Supabase config
-├── .github/
-│   ├── scripts/               # Project board sync automation
-│   └── workflows/             # CI workflows
-└── README.md
+└── supabase/                  # Migrations & config
 ```
 
-## 📊 Database Schema
+## Database Schema
 
-### Core Tables
+| Table | Purpose |
+|-------|---------|
+| `material_types` | Rubber material definitions and properties |
+| `rolls` | Physical inventory with dimensions and costs |
+| `cuts` | Cut history with waste calculations |
+| `suppliers` | Supplier profiles and preferences |
+| `purchase_orders` | PO records with line items and status |
+| `notifications` | In-app alerts (low stock, depletion, system) |
+| `notification_queue` | Async email/SMS dispatch |
 
-- **material_types**: Master list of rubber material definitions and properties.
-- **rolls**: Physical inventory of rubber rolls with dimensions and costs.
-- **cuts**: Historical records of all cuts made, with waste calculations.
-- **notifications**: System alerts, primarily for low-stock warnings.
-
-## 🔒 Security
+## Security
 
 - OAuth authentication via Supabase (Google, GitHub, Microsoft)
-- Row-Level Security (RLS) policies on all tables
-- Content Security Policy (CSP) headers configured
+- Row-Level Security (RLS) on all tables
+- Content Security Policy (CSP) headers
+- Role-based access control (6 roles)
 
-## 📈 Performance Targets
+## License
 
-- Startup time: < 2.5 seconds
-- Memory usage: < 180MB idle
-- Cut optimization: < 100ms for 1000 rolls
-- Dashboard refresh: < 500ms
-
-## 📄 License
-
-This project is proprietary software for USI Manufacturing.
+Proprietary software — Arc & Anchor.

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useMemo } from "react"
 
-import { CircleHelp, ClipboardList, Command, Database, File, Search, Settings } from "lucide-react"
+import { CircleHelp, ClipboardList, Database, File, Search, Settings } from "lucide-react"
 import { useShallow } from "zustand/react/shallow"
 
 import { filterNavGroupsForRoles, getDefaultAuthorizedPath } from "@/app/lib/rbac"
@@ -85,7 +85,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <Link prefetch={false} href={homeHref}>
-                <Command />
+                <img src="/archanchorlogo.png" alt="Arc & Anchor" className="size-5 shrink-0" />
                 <span className="font-semibold text-base">{APP_CONFIG.name}</span>
               </Link>
             </SidebarMenuButton>

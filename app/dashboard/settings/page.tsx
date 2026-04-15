@@ -11,7 +11,7 @@ import { SystemSettingsCards } from "./_components/system-settings-cards"
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     // General Settings
-    companyName: "USI Manufacturing",
+    companyName: "Arc & Anchor",
     defaultCurrency: "USD",
     timeZone: "America/Chicago",
     dateFormat: "MM/dd/yyyy",
