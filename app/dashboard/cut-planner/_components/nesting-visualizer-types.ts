@@ -27,6 +27,7 @@ export interface SimplePartSpec {
   innerRadius?: number
   outerRadius?: number
   arcDegrees?: number
+  partNumber?: string
 }
 
 export interface Strategy {
@@ -56,6 +57,15 @@ export interface ScoredStrategy extends Strategy {
   reasons: { p: "p" | "w" | "f"; t: string }[]
 }
 
+export interface SimpleCutMetrics {
+  partsCompleted: number
+  cutPieces: number
+  materialUsedSqFt: number
+  reusableOffsetSqFt: number
+  scrapSqFt: number
+  fabScore: number
+}
+
 export interface NestingVisualizerProps {
   defaultRollWidth?: number
   defaultRollLength?: number
@@ -65,6 +75,8 @@ export interface NestingVisualizerProps {
   simpleMode?: boolean
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
+  onMetricsChange?: (metrics: SimpleCutMetrics) => void
+  onTagMapChange?: (tagMap: Map<string, string>) => void
 }
 
 export interface SimpleRectLayout {
@@ -141,6 +153,10 @@ export interface CutPlanStep {
 export interface PreviewItem extends ShapePlacement {
   renderShape: SimplePreviewShape
   label: string
+  /** Index of the originating spec in the simpleParts array (used for unique tag assignment) */
+  specIndex?: number
+  /** Part number from uploaded cut list (e.g. "G2"); used as tag when available */
+  partNumber?: string
   cutDirection?: SimpleCutDirection
   diameter?: number
   topWidth?: number

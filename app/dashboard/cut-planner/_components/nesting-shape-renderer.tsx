@@ -128,13 +128,7 @@ function CircleShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect
-            x={coords.px}
-            y={coords.py}
-            width={coords.pw}
-            height={coords.ph}
-            fill="#1c1917"
-          />
+          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
           <rect
             x={coords.px}
             y={coords.py}
@@ -221,13 +215,7 @@ function SectorShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect
-            x={coords.px}
-            y={coords.py}
-            width={coords.pw}
-            height={coords.ph}
-            fill="#1c1917"
-          />
+          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
           <rect
             x={coords.px}
             y={coords.py}
@@ -301,13 +289,7 @@ function TrapezoidShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect
-            x={coords.px}
-            y={coords.py}
-            width={coords.pw}
-            height={coords.ph}
-            fill="#1c1917"
-          />
+          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
           <rect
             x={coords.px}
             y={coords.py}

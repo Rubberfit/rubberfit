@@ -2,23 +2,20 @@
 
 import { Scissors, Zap, TrendingDown, Package } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type Cut } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/supabase"
 
 interface CutHistoryStatsProps {
-  cuts: (Cut & { roll?: { material_type: string; location: string } })[]
+  cuts: CutHistory[]
 }
 
 export function CutHistoryStats({ cuts }: CutHistoryStatsProps) {
   const totalCuts = cuts.length
-  const totalQuantity = cuts.reduce((sum, cut) => sum + cut.quantity, 0)
-  const totalSqftUsed = cuts.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
-  const averageWaste =
-    cuts.length > 0
-      ? cuts
-          .filter((cut) => cut.waste_percentage !== null)
-          .reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
-        cuts.filter((cut) => cut.waste_percentage !== null).length
-      : 0
+  const totalPieces = cuts.reduce((sum, cut) => sum + cut.cut_amount, 0)
+  const totalMatUsed = cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0)
+  const avgFabScore =
+    cuts.length > 0 ? cuts.reduce((sum, cut) => sum + cut.fab_score, 0) / cuts.length : 0
+  // Waste is the complement of the fab score (scrap / total material)
+  const avgWastePct = (1 - avgFabScore) * 100
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -39,7 +36,7 @@ export function CutHistoryStats({ cuts }: CutHistoryStatsProps) {
           <Package className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalQuantity}</div>
+          <div className="text-2xl font-bold">{totalPieces}</div>
           <p className="text-xs text-muted-foreground">Individual pieces cut</p>
         </CardContent>
       </Card>
@@ -50,7 +47,7 @@ export function CutHistoryStats({ cuts }: CutHistoryStatsProps) {
           <Zap className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalSqftUsed.toFixed(1)}</div>
+          <div className="text-2xl font-bold">{totalMatUsed.toFixed(1)}</div>
           <p className="text-xs text-muted-foreground">Square feet consumed</p>
         </CardContent>
       </Card>
@@ -61,13 +58,17 @@ export function CutHistoryStats({ cuts }: CutHistoryStatsProps) {
           <TrendingDown className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{averageWaste.toFixed(1)}%</div>
+          <div className="text-2xl font-bold">
+            {cuts.length > 0 ? `${avgWastePct.toFixed(1)}%` : "—"}
+          </div>
           <p className="text-xs text-muted-foreground">
-            {averageWaste <= 10
-              ? "Excellent efficiency"
-              : averageWaste <= 20
-                ? "Good efficiency"
-                : "Review efficiency"}
+            {cuts.length === 0
+              ? "No data"
+              : avgWastePct <= 10
+                ? "Excellent efficiency"
+                : avgWastePct <= 20
+                  ? "Good efficiency"
+                  : "Review efficiency"}
           </p>
         </CardContent>
       </Card>

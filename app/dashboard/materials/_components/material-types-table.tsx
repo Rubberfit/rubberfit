@@ -32,7 +32,9 @@ export function MaterialTypesTable({
     <Card>
       <CardHeader>
         <CardTitle>Material Types</CardTitle>
-        <CardDescription>Configure material properties, pricing, and stock alerts</CardDescription>
+        <CardDescription>
+          Configure material properties and stock alerts. Manage costs from the Pricing Dashboard.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -41,7 +43,7 @@ export function MaterialTypesTable({
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Default Cost</TableHead>
+                <TableHead>Cost ($/sq ft)</TableHead>
                 <TableHead>Stock Alert</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -73,16 +75,16 @@ export function MaterialTypesTable({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {materialType.default_cost ? (
-                        <Badge variant="outline">
-                          ${materialType.default_cost.toFixed(2)}/sq ft
+                      {materialType.default_cost != null ? (
+                        <Badge variant="outline" className="font-mono">
+                          ${materialType.default_cost.toFixed(2)}
                         </Badge>
                       ) : (
-                        "—"
+                        <span className="text-sm text-muted-foreground italic">Not set</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {materialType.min_stock_alert ? (
+                      {materialType.min_stock_alert != null ? (
                         <Badge variant="secondary">{materialType.min_stock_alert} sq ft</Badge>
                       ) : (
                         "—"

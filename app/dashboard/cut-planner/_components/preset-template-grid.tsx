@@ -72,9 +72,9 @@ export function PresetTemplateGrid({
               <div className="flex items-start gap-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {isChecked && tagMap?.has(template.label) && (
+                    {isChecked && tagMap?.has(template.id) && (
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
-                        {tagMap.get(template.label)}
+                        {tagMap.get(template.id)}
                       </span>
                     )}
                     <span className="font-mono text-sm font-semibold leading-tight">
@@ -99,37 +99,37 @@ export function PresetTemplateGrid({
                       <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
                         Qty
                       </span>
-                    <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-600">
-                      <button
-                        type="button"
-                        aria-label="Decrease quantity"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          const current = quantities.get(template.id) ?? 1
-                          onQuantityChange(template.id, Math.max(1, current - 1))
-                        }}
-                        className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
-                        {quantities.get(template.id) ?? 1}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Increase quantity"
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          const current = quantities.get(template.id) ?? 1
-                          onQuantityChange(template.id, Math.min(99, current + 1))
-                        }}
-                        className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                    </div>
+                      <div className="inline-flex items-center rounded border border-slate-200 dark:border-slate-600">
+                        <button
+                          type="button"
+                          aria-label="Decrease quantity"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            const current = quantities.get(template.id) ?? 1
+                            onQuantityChange(template.id, Math.max(1, current - 1))
+                          }}
+                          className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
+                          {quantities.get(template.id) ?? 1}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Increase quantity"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            const current = quantities.get(template.id) ?? 1
+                            onQuantityChange(template.id, Math.min(99, current + 1))
+                          }}
+                          className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                   )}
                   {template.isCustom && (
