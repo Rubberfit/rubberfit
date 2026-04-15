@@ -263,11 +263,7 @@ function addCutLegend(doc: jsPDF, tagMap: Map<string, string>, y: number): numbe
   return y
 }
 
-async function addDiagrams(
-  doc: jsPDF,
-  svgElements: SVGSVGElement[],
-  y: number
-): Promise<number> {
+async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number): Promise<number> {
   for (let i = 0; i < svgElements.length; i++) {
     const svg = svgElements[i]
     const vw = svg.viewBox.baseVal.width || svg.clientWidth || 980
@@ -427,16 +423,13 @@ export async function buildAndUploadCutPdf(
   selectedTemplates: PartTemplate[],
   tags: Map<string, string>
 ) {
-  const svgElements = Array.from(
-    document.querySelectorAll<SVGSVGElement>("[data-sheet-svg]")
-  )
+  const svgElements = Array.from(document.querySelectorAll<SVGSVGElement>("[data-sheet-svg]"))
   if (svgElements.length === 0) return
 
-  const totalStockSqFt = (stock.width * stock.length / 144) * svgElements.length
-  const reusablePct = totalStockSqFt > 0
-    ? ((cutMetrics?.reusableOffsetSqFt ?? 0) / totalStockSqFt) * 100 : 0
-  const scrapPct = totalStockSqFt > 0
-    ? ((cutMetrics?.scrapSqFt ?? 0) / totalStockSqFt) * 100 : 0
+  const totalStockSqFt = ((stock.width * stock.length) / 144) * svgElements.length
+  const reusablePct =
+    totalStockSqFt > 0 ? ((cutMetrics?.reusableOffsetSqFt ?? 0) / totalStockSqFt) * 100 : 0
+  const scrapPct = totalStockSqFt > 0 ? ((cutMetrics?.scrapSqFt ?? 0) / totalStockSqFt) * 100 : 0
   const partLabel =
     PART_OPTIONS.find((p) => p.partType === selectedTemplate?.partType)?.label ?? "Custom"
 

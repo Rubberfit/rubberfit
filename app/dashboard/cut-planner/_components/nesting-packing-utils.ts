@@ -75,7 +75,12 @@ function findBestShelf(
     }
   }
 
-  return { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated, waste: bestShelfWaste }
+  return {
+    shelfIndex: bestShelfIndex,
+    shelfHeight: bestShelfHeight,
+    rotated: bestRotated,
+    waste: bestShelfWaste,
+  }
 }
 
 export function packPreviewItemsOnShelves(
@@ -98,8 +103,11 @@ export function packPreviewItemsOnShelves(
       ...(canRotate ? [{ w: item.height, h: item.width, rotated: true }] : []),
     ]
 
-    let { shelfIndex: bestShelfIndex, shelfHeight: bestShelfHeight, rotated: bestRotated } =
-      findBestShelf(orientations, shelves, rollW, rollL)
+    let {
+      shelfIndex: bestShelfIndex,
+      shelfHeight: bestShelfHeight,
+      rotated: bestRotated,
+    } = findBestShelf(orientations, shelves, rollW, rollL)
 
     if (bestShelfIndex === -1) {
       const nextY =

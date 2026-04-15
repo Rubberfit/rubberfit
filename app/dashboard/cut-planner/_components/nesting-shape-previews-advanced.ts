@@ -281,24 +281,37 @@ export function generateConePreview(
     id: "sector",
     points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees, 48),
   }
-  const coneNfpResult = greedyNfpPack(conePolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, NFP_COARSE_STEPS)
-  const coneNfpCandidate = coneNfpResult.placed > 0
-    ? withWaste(
-        buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
-          ...sectorConfig,
-          strategyName: "Convex-hull cone nesting",
-          strategyNote:
-            "Cone sectors are packed using their actual convex outline via NFP placement for tighter interlocking.",
-        }),
-        rollW,
-        rollL
-      )
-    : null
+  const coneNfpResult = greedyNfpPack(
+    conePolygon,
+    rollW,
+    rollL,
+    qty,
+    NFP_DEFAULT_SPACING,
+    NFP_COARSE_STEPS
+  )
+  const coneNfpCandidate =
+    coneNfpResult.placed > 0
+      ? withWaste(
+          buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
+            ...sectorConfig,
+            strategyName: "Convex-hull cone nesting",
+            strategyNote:
+              "Cone sectors are packed using their actual convex outline via NFP placement for tighter interlocking.",
+          }),
+          rollW,
+          rollL
+        )
+      : null
 
   const sectorCandidates = [
     { ...directGrid, adjustedWaste: rollArea > 0 ? (directGrid.scrapArea / rollArea) * 100 : 100 },
     ...(coneNfpCandidate
-      ? [{ ...coneNfpCandidate, adjustedWaste: rollArea > 0 ? (coneNfpCandidate.scrapArea / rollArea) * 100 : 100 }]
+      ? [
+          {
+            ...coneNfpCandidate,
+            adjustedWaste: rollArea > 0 ? (coneNfpCandidate.scrapArea / rollArea) * 100 : 100,
+          },
+        ]
       : []),
   ]
   const bestSector = chooseBestPreview(sectorCandidates)
@@ -472,8 +485,7 @@ export function generateTrapezoidPreview(
       ? [
           {
             ...trapNfpCandidate,
-            adjustedWaste:
-              rollArea > 0 ? (trapNfpCandidate.scrapArea / rollArea) * 100 : 100,
+            adjustedWaste: rollArea > 0 ? (trapNfpCandidate.scrapArea / rollArea) * 100 : 100,
           },
         ]
       : []),

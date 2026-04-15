@@ -163,12 +163,18 @@ function parseDimsFromLabel(
 
   if (partType === "cone") {
     const m = label.match(new RegExp(`${n}°.*R${n}["\u2033]?\\s+to\\s+R${n}`))
-    if (m) return { arcDegrees: parseFloat(m[1]), innerRadius: parseFloat(m[2]), outerRadius: parseFloat(m[3]) }
+    if (m)
+      return {
+        arcDegrees: parseFloat(m[1]),
+        innerRadius: parseFloat(m[2]),
+        outerRadius: parseFloat(m[3]),
+      }
   }
 
   if (partType === "trapezoid") {
     const m = label.match(new RegExp(`${n}["\u2033]?\\s*/\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
-    if (m) return { topWidth: parseFloat(m[1]), bottomWidth: parseFloat(m[2]), height: parseFloat(m[3]) }
+    if (m)
+      return { topWidth: parseFloat(m[1]), bottomWidth: parseFloat(m[2]), height: parseFloat(m[3]) }
   }
 
   return {}

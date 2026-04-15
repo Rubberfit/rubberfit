@@ -2,7 +2,10 @@
 
 import { DollarSign, Layers, Building2, AlertTriangle } from "lucide-react"
 
-import type { MaterialType, MaterialSupplierWithDetails } from "@/src/infrastructure/models/supabase"
+import type {
+  MaterialType,
+  MaterialSupplierWithDetails,
+} from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { PriceAlert } from "./pricing-types"
 
@@ -34,9 +37,7 @@ export function PricingStatsCards({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{materialTypes.length}</div>
-          <p className="text-xs text-muted-foreground">
-            {withCost.length} with costs set
-          </p>
+          <p className="text-xs text-muted-foreground">{withCost.length} with costs set</p>
         </CardContent>
       </Card>
 
@@ -46,9 +47,7 @@ export function PricingStatsCards({
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            ${avgCost > 0 ? avgCost.toFixed(2) : "0.00"}
-          </div>
+          <div className="text-2xl font-bold">${avgCost > 0 ? avgCost.toFixed(2) : "0.00"}</div>
           <p className="text-xs text-muted-foreground">Per square foot</p>
         </CardContent>
       </Card>

@@ -1,11 +1,11 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
- 
+
 // Get current user's cut history
 export const getCutHistory = async () => {
   const { data, error } = await supabase
-    .from('cut_history')
-    .select('*')
-    .order('cut_date', { ascending: false })
+    .from("cut_history")
+    .select("*")
+    .order("cut_date", { ascending: false })
 
   if (error) throw error
   return data
@@ -25,11 +25,7 @@ export const addCutHistory = async (cut: {
   part_selected_size_text?: string[]
   part_selected_label?: string[]
 }) => {
-  const { data, error } = await supabase
-    .from('cut_history')
-    .insert(cut)
-    .select()
-    .single()
+  const { data, error } = await supabase.from("cut_history").insert(cut).select().single()
 
   if (error) throw error
   return data
@@ -37,10 +33,7 @@ export const addCutHistory = async (cut: {
 
 // Delete a cut history entry
 export const deleteCutHistory = async (id: number) => {
-  const { error } = await supabase
-    .from('cut_history')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from("cut_history").delete().eq("id", id)
 
   if (error) throw error
 }
@@ -64,9 +57,7 @@ export async function uploadCutPdf(
     return null
   }
 
-  const { data: urlData } = supabase.storage
-    .from("cut-history-pdfs")
-    .getPublicUrl(fileName)
+  const { data: urlData } = supabase.storage.from("cut-history-pdfs").getPublicUrl(fileName)
 
   const { error: updateError } = await supabase
     .from("cut_history")
@@ -84,9 +75,9 @@ export async function uploadCutPdf(
 // Get all cut history (admin/manager/supervisor only)
 export const getAllCutHistory = async () => {
   const { data, error } = await supabase
-    .from('cut_history')
-    .select('*, profiles(full_name, roles)')
-    .order('cut_date', { ascending: false })
+    .from("cut_history")
+    .select("*, profiles(full_name, roles)")
+    .order("cut_date", { ascending: false })
 
   if (error) throw error
   return data

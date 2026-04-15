@@ -156,7 +156,10 @@ function SheetSvg({
     dragRef.current = null
   }, [])
 
-  const resetZoom = React.useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
+  const resetZoom = React.useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [])
 
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
@@ -477,7 +480,10 @@ export default function NestingVizSimpleMode({
         scrapMetricLabel={layout.scrapMetricLabel}
         scrapPct={layout.stockSqFt > 0 ? (metricsScrapSqFt / layout.stockSqFt) * 100 : 0}
         isSplitStockPreview={layout.isSplitStockPreview}
-        missingCutPieceCount={Math.max(0, metricsPreview.requestedUnits - metricsPreview.piecesShown)}
+        missingCutPieceCount={Math.max(
+          0,
+          metricsPreview.requestedUnits - metricsPreview.piecesShown
+        )}
         isOptimizedResult={layout.isOptimizedResult}
         isOptimizing={isOptimizing}
         nfpError={nfpError}
@@ -536,7 +542,10 @@ export default function NestingVizSimpleMode({
         stockSqFt={layout.stockSqFt}
         displayPreview={metricsPreview}
         isSplitStockPreview={layout.isSplitStockPreview}
-        missingCutPieceCount={Math.max(0, metricsPreview.requestedUnits - metricsPreview.piecesShown)}
+        missingCutPieceCount={Math.max(
+          0,
+          metricsPreview.requestedUnits - metricsPreview.piecesShown
+        )}
         multiSheet={multiSheet}
       />
 

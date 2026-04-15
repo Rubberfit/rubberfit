@@ -144,52 +144,55 @@ export function useCutHistory() {
   }, [selectedUserId, loadHistory])
 
   // Toggle favorite
-  const handleToggleFavorite = useCallback(async (id: number) => {
-    const wasOn = favoriteIds.has(id)
+  const handleToggleFavorite = useCallback(
+    async (id: number) => {
+      const wasOn = favoriteIds.has(id)
 
-    // Optimistic update
-    setFavoriteIds((prev) => {
-      const next = new Set(prev)
-      wasOn ? next.delete(id) : next.add(id)
-      return next
-    })
-    setCuts((prev) =>
-      prev
-        .map((c) => (c.id === id ? { ...c, isFavorite: !wasOn } : c))
-        .sort((a, b) => {
-          const aFav = a.id === id ? !wasOn : a.isFavorite
-          const bFav = b.id === id ? !wasOn : b.isFavorite
-          if (aFav !== bFav) return aFav ? -1 : 1
-          return new Date(b.cut_date).getTime() - new Date(a.cut_date).getTime()
-        })
-    )
-
-    try {
-      const res = await fetch("/api/cuts/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cut_history_id: id }),
-      })
-
-      if (!res.ok) throw new Error("not ok")
-    } catch (_error) {
-      // Roll back on network error or non-2xx response
+      // Optimistic update
       setFavoriteIds((prev) => {
         const next = new Set(prev)
-        wasOn ? next.add(id) : next.delete(id)
+        wasOn ? next.delete(id) : next.add(id)
         return next
       })
       setCuts((prev) =>
         prev
-          .map((c) => (c.id === id ? { ...c, isFavorite: wasOn } : c))
+          .map((c) => (c.id === id ? { ...c, isFavorite: !wasOn } : c))
           .sort((a, b) => {
-            if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+            const aFav = a.id === id ? !wasOn : a.isFavorite
+            const bFav = b.id === id ? !wasOn : b.isFavorite
+            if (aFav !== bFav) return aFav ? -1 : 1
             return new Date(b.cut_date).getTime() - new Date(a.cut_date).getTime()
           })
       )
-      toast.error("Failed to update favorite")
-    }
-  }, [favoriteIds])
+
+      try {
+        const res = await fetch("/api/cuts/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cut_history_id: id }),
+        })
+
+        if (!res.ok) throw new Error("not ok")
+      } catch (_error) {
+        // Roll back on network error or non-2xx response
+        setFavoriteIds((prev) => {
+          const next = new Set(prev)
+          wasOn ? next.add(id) : next.delete(id)
+          return next
+        })
+        setCuts((prev) =>
+          prev
+            .map((c) => (c.id === id ? { ...c, isFavorite: wasOn } : c))
+            .sort((a, b) => {
+              if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+              return new Date(b.cut_date).getTime() - new Date(a.cut_date).getTime()
+            })
+        )
+        toast.error("Failed to update favorite")
+      }
+    },
+    [favoriteIds]
+  )
 
   // Delete
   const handleConfirmDelete = useCallback(async () => {
@@ -241,8 +244,15 @@ export function useCutHistory() {
   // CSV export
   const exportToCsv = useCallback(() => {
     const headers = [
-      "Cut Date", "Part Type", "Stock (W×L×T)", "Qty",
-      "Parts Done", "Mat Used (ft²)", "Reuse (ft²)", "Scrap (ft²)", "Fab Score",
+      "Cut Date",
+      "Part Type",
+      "Stock (W×L×T)",
+      "Qty",
+      "Parts Done",
+      "Mat Used (ft²)",
+      "Reuse (ft²)",
+      "Scrap (ft²)",
+      "Fab Score",
     ]
     const csvData = displayedCuts.map((cut) => [
       format(new Date(cut.cut_date), "yyyy-MM-dd HH:mm:ss"),

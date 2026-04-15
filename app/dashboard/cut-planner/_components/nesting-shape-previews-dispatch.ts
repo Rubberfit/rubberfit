@@ -383,10 +383,7 @@ export function generateSimplePartPreview(
 
 // Matches placed items back to specs by formatted dimension label. This couples
 // to the label format in buildPartPreviewItem — keep them in sync.
-function reduceSpecsByPlacedItems(
-  specs: SimplePartSpec[],
-  items: PreviewItem[]
-): SimplePartSpec[] {
+function reduceSpecsByPlacedItems(specs: SimplePartSpec[], items: PreviewItem[]): SimplePartSpec[] {
   const labels = new Map<string, number>()
   items.forEach((item) => {
     labels.set(item.label, (labels.get(item.label) ?? 0) + 1)
@@ -415,9 +412,9 @@ function tryGapFillSheet(
   const allFreeRects = [
     ...(sheetPreview.offcutBands ?? []),
     ...(sheetPreview.scrapBands ?? []),
-  // 1" minimum is intentional: gap-fill only considers rects large enough to fit
-  // another part, unlike MIN_GAP_BAND_SIZE (0.25") which controls band rendering.
-  // Skip bands with polygon geometry — only use verified axis-aligned rectangles.
+    // 1" minimum is intentional: gap-fill only considers rects large enough to fit
+    // another part, unlike MIN_GAP_BAND_SIZE (0.25") which controls band rendering.
+    // Skip bands with polygon geometry — only use verified axis-aligned rectangles.
   ].filter((r) => r.width > 1 && r.height > 1 && !r.polygon)
 
   if (remainingSpecs.length === 0 || allFreeRects.length === 0) {

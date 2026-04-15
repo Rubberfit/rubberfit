@@ -237,7 +237,8 @@ function buildSheetFromPlacements(
 
   const preview: RectLikePreview = {
     // Circles are packed as bounding rectangles in global layout, so map to "rect"
-    renderShape: placedItems[0]?.renderShape === "circle" ? "rect" : (placedItems[0]?.renderShape ?? "rect"),
+    renderShape:
+      placedItems[0]?.renderShape === "circle" ? "rect" : (placedItems[0]?.renderShape ?? "rect"),
     strategyName: "Global-optimized layout",
     strategyNote:
       "Items globally assigned across sheets using MaxRects with all 5 heuristics (BSSF/BLSF/BAF/BL/CP) and batch insertion for minimal waste.",

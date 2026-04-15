@@ -52,10 +52,7 @@ export default function MaterialTypesPage() {
   const [deleting, setDeleting] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
 
-  const existingNameSet = useMemo(
-    () => new Set(materialTypes.map((m) => m.name)),
-    [materialTypes]
-  )
+  const existingNameSet = useMemo(() => new Set(materialTypes.map((m) => m.name)), [materialTypes])
 
   const fetchMaterialTypes = useCallback(async () => {
     setLoading(true)
@@ -238,8 +235,8 @@ export default function MaterialTypesPage() {
               {materialToDelete ? (
                 <>
                   This will permanently delete{" "}
-                  <span className="font-semibold">{materialToDelete.name}</span>. This action
-                  cannot be undone.
+                  <span className="font-semibold">{materialToDelete.name}</span>. This action cannot
+                  be undone.
                 </>
               ) : null}
             </AlertDialogDescription>

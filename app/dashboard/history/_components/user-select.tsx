@@ -49,15 +49,13 @@ export function UserSelect({
             const isMe = u.id === currentUserId
             const shortEmail = u.email ? truncateEmail(u.email) : null
             const displayName = u.full_name ?? shortEmail ?? u.id.slice(0, 8)
-            
+
             return (
               <SelectItem key={u.id} value={u.id}>
                 <div className="flex flex-col leading-tight">
                   <span>
                     {displayName}
-                    {isMe && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
-                    )}
+                    {isMe && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
                   </span>
                   {shortEmail && shortEmail !== displayName && (
                     <span className="text-xs text-muted-foreground">{shortEmail}</span>

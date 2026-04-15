@@ -51,9 +51,7 @@ export function RecentUsageTable({ data }: RecentUsageTableProps) {
                   <TableCell className="font-mono">
                     {cut.material_used_sqft.toFixed(2)} sq ft
                   </TableCell>
-                  <TableCell className="font-mono">
-                    {Math.round(cut.fab_score * 100)}%
-                  </TableCell>
+                  <TableCell className="font-mono">{Math.round(cut.fab_score * 100)}%</TableCell>
                 </TableRow>
               ))}
             </TableBody>

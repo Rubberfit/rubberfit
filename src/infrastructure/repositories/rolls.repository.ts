@@ -181,7 +181,7 @@ export class RollsRepository implements IRollsRepository {
 
   async bulkAddRolls(
     rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
-    batchSize = 50,
+    batchSize = 50
   ): Promise<{ imported: number; total: number }> {
     const user_id = await getCurrentUserId()
     let imported = 0

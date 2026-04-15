@@ -10,7 +10,10 @@ import { makeAuthClient } from "@/app/api/_lib/supabase-server"
 export async function GET(request: NextRequest) {
   const supabase = makeAuthClient(request)
   if (!supabase) {
-    return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Supabase environment variables are missing" },
+      { status: 503 }
+    )
   }
 
   const {

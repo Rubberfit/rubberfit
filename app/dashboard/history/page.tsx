@@ -45,7 +45,6 @@ export default function CutHistoryPage() {
   return (
     <TooltipProvider>
       <div className="flex flex-col gap-4 md:gap-6">
-
         {/* Header */}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -120,9 +119,7 @@ export default function CutHistoryPage() {
                 strokeWidth={1.5}
               />
               Favorites
-              {favCount > 0 && (
-                <span className="ml-0.5 text-xs opacity-70">({favCount})</span>
-              )}
+              {favCount > 0 && <span className="ml-0.5 text-xs opacity-70">({favCount})</span>}
             </Button>
           </CardHeader>
 

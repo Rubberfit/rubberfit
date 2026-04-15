@@ -32,7 +32,9 @@ export function MaterialTypesTable({
     <Card>
       <CardHeader>
         <CardTitle>Material Types</CardTitle>
-        <CardDescription>Configure material properties and stock alerts. Manage costs from the Pricing Dashboard.</CardDescription>
+        <CardDescription>
+          Configure material properties and stock alerts. Manage costs from the Pricing Dashboard.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">

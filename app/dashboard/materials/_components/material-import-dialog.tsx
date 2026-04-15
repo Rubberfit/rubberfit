@@ -340,14 +340,16 @@ export function MaterialImportDialog({
           {parsedRows.length > 0 && (
             <>
               <div className="flex items-center gap-2 text-sm">
-                <span>
-                  {importableRows.length} ready to import
-                </span>
+                <span>{importableRows.length} ready to import</span>
                 {duplicateCount > 0 && (
-                  <Badge variant="secondary">{duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""}</Badge>
+                  <Badge variant="secondary">
+                    {duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""}
+                  </Badge>
                 )}
                 {errorCount > 0 && (
-                  <Badge variant="destructive">{errorCount} error{errorCount !== 1 ? "s" : ""}</Badge>
+                  <Badge variant="destructive">
+                    {errorCount} error{errorCount !== 1 ? "s" : ""}
+                  </Badge>
                 )}
               </div>
 
@@ -364,7 +366,10 @@ export function MaterialImportDialog({
                   </TableHeader>
                   <TableBody>
                     {parsedRows.slice(0, 20).map((row, i) => (
-                      <TableRow key={i} className={row.error || row.isDuplicate ? "opacity-50" : ""}>
+                      <TableRow
+                        key={i}
+                        className={row.error || row.isDuplicate ? "opacity-50" : ""}
+                      >
                         <TableCell className="font-medium">{row.name}</TableCell>
                         <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
                           {row.description || "—"}

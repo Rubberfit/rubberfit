@@ -138,8 +138,7 @@ function buildMultiSheet(
 ): MultiSheetResult | null {
   if (!simpleMode || !basePreview) return null
 
-  const allTrapezoids =
-    specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
+  const allTrapezoids = specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
   const shouldUseGlobalPacker =
     (specs.length > 1 && !allTrapezoids) ||
     (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
@@ -176,10 +175,7 @@ function indexToTag(i: number): string {
  * Build a tag map keyed by `specIndex` (string) → tag value.
  * Uses part numbers (e.g. "G2") when available, falls back to generated letters (A, B, C…).
  */
-function buildTagMap(
-  basePreview: SimplePartPreview | null,
-  multiSheet: MultiSheetResult | null
-) {
+function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
   if (!basePreview) return new Map<string, string>()
 
   // Collect unique specIndex values and their associated partNumbers.
@@ -204,11 +200,13 @@ function buildTagMap(
 
   // Assign tags: use partNumber when available, otherwise generate A/B/C letters
   let fallbackCounter = 0
-  return new Map(seenIndices.map((idx) => {
-    const partNumber = specPartNumbers.get(idx)
-    const tag = partNumber ?? indexToTag(fallbackCounter++)
-    return [String(idx), tag]
-  }))
+  return new Map(
+    seenIndices.map((idx) => {
+      const partNumber = specPartNumbers.get(idx)
+      const tag = partNumber ?? indexToTag(fallbackCounter++)
+      return [String(idx), tag]
+    })
+  )
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -383,10 +381,7 @@ export default function NestingVisualizer({
     try {
       let metrics: SimpleCutMetrics
       if (multiSheet && multiSheet.sheets.length > 1) {
-        const totalPieces = multiSheet.sheets.reduce(
-          (sum, s) => sum + s.preview.piecesShown,
-          0
-        )
+        const totalPieces = multiSheet.sheets.reduce((sum, s) => sum + s.preview.piecesShown, 0)
         metrics = {
           partsCompleted: multiSheet.totalUnitsCompleted,
           cutPieces: totalPieces,
@@ -412,7 +407,14 @@ export default function NestingVisualizer({
     } catch (_error) {
       // metrics computation failure must not break the visualizer
     }
-  }, [simpleMode, baseSimplePreview, multiSheet, onMetricsChange, defaultRollWidth, defaultRollLength])
+  }, [
+    simpleMode,
+    baseSimplePreview,
+    multiSheet,
+    onMetricsChange,
+    defaultRollWidth,
+    defaultRollLength,
+  ])
 
   useEffect(() => {
     if (simpleMode && onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)

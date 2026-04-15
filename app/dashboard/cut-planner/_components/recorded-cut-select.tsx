@@ -57,11 +57,8 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
           fetchJson<{ data: number[] }>("/api/cuts/favorites"),
         ])
 
-        const history =
-          histResult.status === "fulfilled" ? (histResult.value.data ?? []) : []
-        const favIds = new Set<number>(
-          favResult.status === "fulfilled" ? favResult.value.data : []
-        )
+        const history = histResult.status === "fulfilled" ? (histResult.value.data ?? []) : []
+        const favIds = new Set<number>(favResult.status === "fulfilled" ? favResult.value.data : [])
 
         const merged = history
           .map((c) => ({ ...c, isFavorite: favIds.has(c.id) }))
@@ -95,11 +92,7 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
       <SelectTrigger className="w-72">
         <SelectValue
           placeholder={
-            isLoading
-              ? "Loading cuts…"
-              : isEmpty
-                ? "No recorded cuts yet"
-                : "Load previous cut…"
+            isLoading ? "Loading cuts…" : isEmpty ? "No recorded cuts yet" : "Load previous cut…"
           }
         />
       </SelectTrigger>

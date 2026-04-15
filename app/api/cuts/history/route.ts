@@ -7,10 +7,13 @@ const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
 
 export async function GET(request: NextRequest) {
-  //  Authenticate caller 
+  //  Authenticate caller
   const authClient = makeAuthClient(request)
   if (!authClient) {
-    return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Supabase environment variables are missing" },
+      { status: 503 }
+    )
   }
 
   const {
@@ -21,13 +24,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  //  DB client (service role — bypasses RLS) 
+  //  DB client (service role — bypasses RLS)
   const db = makeAdminClient()
   if (!db) {
-    return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" },
+      { status: 503 }
+    )
   }
 
-  //  Resolve caller's role 
+  //  Resolve caller's role
   const { data: callerProfile } = await db
     .from("profiles")
     .select("roles")
@@ -40,7 +46,7 @@ export async function GET(request: NextRequest) {
     callerRoles.includes("manager") ||
     callerRoles.includes("supervisor")
 
-  //  Parse & validate query params 
+  //  Parse & validate query params
   const { searchParams } = new URL(request.url)
 
   const rawPage = searchParams.get("page") ?? "1"
@@ -64,11 +70,17 @@ export async function GET(request: NextRequest) {
   }
 
   if (from !== null && isNaN(Date.parse(from))) {
-    return NextResponse.json({ error: "Invalid from: must be a valid ISO date string" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid from: must be a valid ISO date string" },
+      { status: 400 }
+    )
   }
 
   if (to !== null && isNaN(Date.parse(to))) {
-    return NextResponse.json({ error: "Invalid to: must be a valid ISO date string" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid to: must be a valid ISO date string" },
+      { status: 400 }
+    )
   }
 
   const offset = (page - 1) * limit
@@ -141,10 +153,13 @@ interface RecordCutBody {
 }
 
 export async function POST(request: NextRequest) {
-  //  Authenticate caller 
+  //  Authenticate caller
   const authClient = makeAuthClient(request)
   if (!authClient) {
-    return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Supabase environment variables are missing" },
+      { status: 503 }
+    )
   }
 
   const {
@@ -155,10 +170,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  //  DB client (service role) 
+  //  DB client (service role)
   const db = makeAdminClient()
   if (!db) {
-    return NextResponse.json({ error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" },
+      { status: 503 }
+    )
   }
 
   let body: RecordCutBody
@@ -185,13 +203,22 @@ export async function POST(request: NextRequest) {
 
   // Non-negative floats (>= 0, finite)
   const nonNegativeFields: Record<string, unknown> = {
-    cut_length, cut_width, cut_thickness,
-    material_used_sqft, reusable_offset_sqft, scrap_sqft, fab_score,
+    cut_length,
+    cut_width,
+    cut_thickness,
+    material_used_sqft,
+    reusable_offset_sqft,
+    scrap_sqft,
+    fab_score,
   }
 
   // Positive integers (>= 1, whole number)
   const positiveIntFields: Record<string, unknown> = {
-    material_id, part_id, cut_amount, parts_completed, cut_pieces,
+    material_id,
+    part_id,
+    cut_amount,
+    parts_completed,
+    cut_pieces,
   }
 
   for (const [key, val] of Object.entries(nonNegativeFields)) {

@@ -8,7 +8,10 @@ const MAX_ROWS = 10000
 export async function GET(request: NextRequest) {
   const authClient = makeAuthClient(request)
   if (!authClient) {
-    return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
+    return NextResponse.json(
+      { error: "Supabase environment variables are missing" },
+      { status: 503 }
+    )
   }
 
   const {
@@ -54,7 +57,10 @@ export async function GET(request: NextRequest) {
   }
 
   if (to !== null && isNaN(Date.parse(to))) {
-    return NextResponse.json({ error: "Invalid to: must be a valid ISO date string" }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid to: must be a valid ISO date string" },
+      { status: 400 }
+    )
   }
 
   // Build query — return all rows in range for analytics (capped at MAX_ROWS)

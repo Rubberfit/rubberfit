@@ -14,10 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/app
 
 export interface TrendPoint {
   period: string
-  wasteRatio: number   // (1 − avg_fab_score) × 100
-  scrapRatio: number   // scrap_sqft / total_sqft × 100
+  wasteRatio: number // (1 − avg_fab_score) × 100
+  scrapRatio: number // scrap_sqft / total_sqft × 100
   cuts: number
-  totalScrap: number   // ft²
+  totalScrap: number // ft²
   totalMaterial: number // ft²
 }
 
@@ -43,12 +43,10 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
           <span className="font-medium text-foreground">{d.scrapRatio.toFixed(1)}%</span>
         </p>
         <p>
-          Cuts:{" "}
-          <span className="font-medium text-foreground">{d.cuts}</span>
+          Cuts: <span className="font-medium text-foreground">{d.cuts}</span>
         </p>
         <p>
-          Scrap:{" "}
-          <span className="font-medium text-foreground">{d.totalScrap.toFixed(1)} ft²</span>
+          Scrap: <span className="font-medium text-foreground">{d.totalScrap.toFixed(1)} ft²</span>
         </p>
         <p>
           Material used:{" "}
@@ -89,7 +87,12 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart
               data={data}
-              margin={{ top: 4, right: isSinglePoint ? 40 : 4, bottom: 0, left: isSinglePoint ? 40 : 0 }}
+              margin={{
+                top: 4,
+                right: isSinglePoint ? 40 : 4,
+                bottom: 0,
+                left: isSinglePoint ? 40 : 0,
+              }}
             >
               <defs>
                 <linearGradient id="wasteGrad" x1="0" y1="0" x2="0" y2="1">
@@ -115,12 +118,7 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
                 className="fill-muted-foreground"
               />
               <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine
-                y={20}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                strokeOpacity={0.6}
-              />
+              <ReferenceLine y={20} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.6} />
               <Area
                 type="monotone"
                 dataKey="wasteRatio"

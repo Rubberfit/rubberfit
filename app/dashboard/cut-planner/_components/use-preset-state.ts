@@ -92,10 +92,7 @@ function findMatchingTemplate(
 
 /** Build a PartTemplate directly from stored dimensions — same ID/label
  *  format as buildCustomTemplate() so identical templates deduplicate. */
-function templateFromDims(
-  partType: SupportedPartType,
-  dims: DimensionSet
-): PartTemplate | null {
+function templateFromDims(partType: SupportedPartType, dims: DimensionSet): PartTemplate | null {
   switch (partType) {
     case "rectangle": {
       if (dims.width == null || dims.length == null) return null
@@ -126,7 +123,8 @@ function templateFromDims(
       }
     }
     case "cone": {
-      if (dims.arcDegrees == null || dims.innerRadius == null || dims.outerRadius == null) return null
+      if (dims.arcDegrees == null || dims.innerRadius == null || dims.outerRadius == null)
+        return null
       return {
         id: `custom-cone-${dims.innerRadius}-${dims.outerRadius}-${dims.arcDegrees}`,
         partType,
@@ -160,7 +158,9 @@ function templateFromDims(
   }
 }
 
-function hydrateCustomTemplates(raw: string): { hydrated: CustomTemplateMap; maxId: number } | null {
+function hydrateCustomTemplates(
+  raw: string
+): { hydrated: CustomTemplateMap; maxId: number } | null {
   try {
     const parsed = JSON.parse(raw) as Partial<CustomTemplateMap>
     const hydrated: CustomTemplateMap = {
@@ -333,13 +333,36 @@ export function usePresetState(
             setCustomDrafts((prev) => {
               switch (partType) {
                 case "rectangle":
-                  return { ...prev, rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") } }
+                  return {
+                    ...prev,
+                    rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") },
+                  }
                 case "cylinder":
-                  return { ...prev, cylinder: { diameter: String(d.diameter ?? ""), height: String(d.height ?? "") } }
+                  return {
+                    ...prev,
+                    cylinder: {
+                      diameter: String(d.diameter ?? ""),
+                      height: String(d.height ?? ""),
+                    },
+                  }
                 case "cone":
-                  return { ...prev, cone: { innerRadius: String(d.innerRadius ?? ""), outerRadius: String(d.outerRadius ?? ""), arcDegrees: String(d.arcDegrees ?? "") } }
+                  return {
+                    ...prev,
+                    cone: {
+                      innerRadius: String(d.innerRadius ?? ""),
+                      outerRadius: String(d.outerRadius ?? ""),
+                      arcDegrees: String(d.arcDegrees ?? ""),
+                    },
+                  }
                 case "trapezoid":
-                  return { ...prev, trapezoid: { topWidth: String(d.topWidth ?? ""), bottomWidth: String(d.bottomWidth ?? ""), height: String(d.height ?? "") } }
+                  return {
+                    ...prev,
+                    trapezoid: {
+                      topWidth: String(d.topWidth ?? ""),
+                      bottomWidth: String(d.bottomWidth ?? ""),
+                      height: String(d.height ?? ""),
+                    },
+                  }
                 default:
                   return prev
               }

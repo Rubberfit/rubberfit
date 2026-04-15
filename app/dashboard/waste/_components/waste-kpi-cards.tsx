@@ -60,11 +60,7 @@ function KpiCard({ title, value, sub, icon, trendPct, invertTrend }: KpiCardProp
               isGood ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400",
             ].join(" ")}
           >
-            {isUp ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
+            {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {Math.abs(trendPct).toFixed(1)}% vs prior half
           </p>
         )}
@@ -77,15 +73,15 @@ export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+        {[0, 1, 2, 3].map((i) => (
+          <SkeletonCard key={i} />
+        ))}
       </div>
     )
   }
 
   const avgWaste =
-    cuts.length > 0
-      ? cuts.reduce((s, c) => s + (1 - c.fab_score) * 100, 0) / cuts.length
-      : 0
+    cuts.length > 0 ? cuts.reduce((s, c) => s + (1 - c.fab_score) * 100, 0) / cuts.length : 0
 
   const totalScrap = cuts.reduce((s, c) => s + c.scrap_sqft, 0)
   const totalReusable = cuts.reduce((s, c) => s + c.reusable_offset_sqft, 0)
@@ -95,10 +91,7 @@ export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
   const scrapTrend = trend(cuts, (c) => c.scrap_sqft)
 
   const wasteLabel =
-    avgWaste <= 10 ? "Excellent" :
-    avgWaste <= 20 ? "Good" :
-    avgWaste <= 35 ? "Moderate" :
-    "High"
+    avgWaste <= 10 ? "Excellent" : avgWaste <= 20 ? "Good" : avgWaste <= 35 ? "Moderate" : "High"
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

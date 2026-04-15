@@ -80,8 +80,7 @@ export default function MaterialUsagePage() {
         materialType: stat.materialType,
         totalSqftUsed: stat.totalSqftUsed,
         totalCuts: stat.totalCuts,
-        averageUtilization:
-          stat.totalCuts > 0 ? (stat.totalFabScore / stat.totalCuts) * 100 : 0,
+        averageUtilization: stat.totalCuts > 0 ? (stat.totalFabScore / stat.totalCuts) * 100 : 0,
         totalValue: stat.totalValue,
         rollsUsed: 0,
       }))

@@ -13,11 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/app/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/app/components/ui/tooltip"
 
 import { type CutHistoryRow, PART_LABELS } from "./use-cut-history"
 
@@ -108,9 +104,7 @@ export function CutHistoryTable({
 
                 {/* Date */}
                 <TableCell className="pl-2 whitespace-nowrap">
-                  <div className="font-medium">
-                    {format(new Date(cut.cut_date), "MMM d, yyyy")}
-                  </div>
+                  <div className="font-medium">{format(new Date(cut.cut_date), "MMM d, yyyy")}</div>
                   <div className="text-xs text-muted-foreground">
                     {format(new Date(cut.cut_date), "HH:mm:ss")}
                   </div>

@@ -39,7 +39,8 @@ export function CutConfigCard({
           3. Cut Configuration
         </CardTitle>
         <CardDescription>
-          The selected part template drives the profile. Review the cut details and requested material below.
+          The selected part template drives the profile. Review the cut details and requested
+          material below.
         </CardDescription>
       </CardHeader>
 

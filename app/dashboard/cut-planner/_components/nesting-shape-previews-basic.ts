@@ -58,8 +58,7 @@ export function generateRectanglePreview(
           buildNfpPackedPreview(rectNfpResult, rollW, rollL, {
             renderShape: "rect",
             strategyName: "Convex-hull rectangle nesting",
-            strategyNote:
-              "Rectangles are packed using their outline via NFP placement.",
+            strategyNote: "Rectangles are packed using their outline via NFP placement.",
             requestedUnits: qty,
             piecesPerUnit: 1,
             pieceArea: width * length,
@@ -76,8 +75,7 @@ export function generateRectanglePreview(
       ? [
           {
             ...rectNfpCandidate,
-            adjustedWaste:
-              rollArea > 0 ? (rectNfpCandidate.scrapArea / rollArea) * 100 : 100,
+            adjustedWaste: rollArea > 0 ? (rectNfpCandidate.scrapArea / rollArea) * 100 : 100,
           },
         ]
       : []),
@@ -271,15 +269,18 @@ export function generateCirclePreview(
   const circlePolygon: Polygon2D = { id: "circle", points: circleToPolygon(diameter) }
   const circleNfpResult = greedyNfpPack(circlePolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, 1)
   const circleNfpCandidates: Array<
-    ReturnType<typeof withWaste> & { adjustedWaste: number; layout: typeof heroLayout; diameter: number }
+    ReturnType<typeof withWaste> & {
+      adjustedWaste: number
+      layout: typeof heroLayout
+      diameter: number
+    }
   > = (() => {
     if (circleNfpResult.placed <= 0) return []
     const packed = withWaste(
       buildNfpPackedPreview(circleNfpResult, rollW, rollL, {
         renderShape: "sector" as const,
         strategyName: "Convex-hull circle nesting",
-        strategyNote:
-          "Full circles are packed using their polygon outline via NFP placement.",
+        strategyNote: "Full circles are packed using their polygon outline via NFP placement.",
         requestedUnits: qty,
         piecesPerUnit: 1,
         pieceArea: circleArea,
@@ -296,8 +297,7 @@ export function generateCirclePreview(
         ...packed,
         layout: heroLayout,
         diameter,
-        adjustedWaste:
-          rollW * rollL > 0 ? (packed.scrapArea / (rollW * rollL)) * 100 : 100,
+        adjustedWaste: rollW * rollL > 0 ? (packed.scrapArea / (rollW * rollL)) * 100 : 100,
       },
     ]
   })()

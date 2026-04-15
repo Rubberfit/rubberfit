@@ -110,7 +110,8 @@ export default function TrendsPage() {
 
     const trends: TrendData[] = Object.entries(groupedData)
       .map(([date, data]) => {
-        const averageWaste = data.validWasteCuts > 0 ? data.totalWastePercent / data.validWasteCuts : 0
+        const averageWaste =
+          data.validWasteCuts > 0 ? data.totalWastePercent / data.validWasteCuts : 0
         return {
           date: groupBy === "month" ? `${date}-01` : date,
           cuts: data.cuts,

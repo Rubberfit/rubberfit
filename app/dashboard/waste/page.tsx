@@ -41,10 +41,14 @@ async function fetchJson<T>(url: string): Promise<T> {
 function getRange(tf: Timeframe): { from: Date; to: Date; groupBy: GroupBy } {
   const to = new Date()
   switch (tf) {
-    case "7d":  return { from: subDays(to, 7),    to, groupBy: "day" }
-    case "30d": return { from: subDays(to, 30),   to, groupBy: "day" }
-    case "12w": return { from: subWeeks(to, 12),  to, groupBy: "week" }
-    case "12m": return { from: subMonths(to, 12), to, groupBy: "month" }
+    case "7d":
+      return { from: subDays(to, 7), to, groupBy: "day" }
+    case "30d":
+      return { from: subDays(to, 30), to, groupBy: "day" }
+    case "12w":
+      return { from: subWeeks(to, 12), to, groupBy: "week" }
+    case "12m":
+      return { from: subMonths(to, 12), to, groupBy: "month" }
   }
 }
 
@@ -56,9 +60,11 @@ function groupCuts(cuts: CutHistory[], groupBy: GroupBy): TrendPoint[] {
   )) {
     const d = new Date(cut.cut_date)
     const key =
-      groupBy === "day"   ? format(d, "MMM d") :
-      groupBy === "week"  ? format(startOfWeek(d), "MMM d") :
-                            format(startOfMonth(d), "MMM yyyy")
+      groupBy === "day"
+        ? format(d, "MMM d")
+        : groupBy === "week"
+          ? format(startOfWeek(d), "MMM d")
+          : format(startOfMonth(d), "MMM yyyy")
     const arr = buckets.get(key) ?? []
     arr.push(cut)
     buckets.set(key, arr)
@@ -96,7 +102,16 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
 
   const rawRows = [
     [],
-    ["Cut Date", "Part Type", "Qty", "Waste %", "Scrap ft²", "Reusable ft²", "Material ft²", "Fab Score"],
+    [
+      "Cut Date",
+      "Part Type",
+      "Qty",
+      "Waste %",
+      "Scrap ft²",
+      "Reusable ft²",
+      "Material ft²",
+      "Fab Score",
+    ],
     ...cuts.map((c) => [
       format(new Date(c.cut_date), "yyyy-MM-dd HH:mm"),
       String(c.part_id),
@@ -124,7 +139,7 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const TIMEFRAME_LABELS: Record<Timeframe, string> = {
-  "7d":  "Last 7 Days",
+  "7d": "Last 7 Days",
   "30d": "Last 30 Days",
   "12w": "Last 12 Weeks",
   "12m": "Last 12 Months",
@@ -161,7 +176,7 @@ export default function WasteAnalysisPage() {
       setLoading(true)
       try {
         const { from, to } = getRange(timeframe)
-        const fromStr = from.toISOString() 
+        const fromStr = from.toISOString()
         const endOfDay = new Date(to)
         endOfDay.setHours(23, 59, 59, 999)
         const userParam = forUserId ? `&userId=${encodeURIComponent(forUserId)}` : ""
@@ -191,7 +206,6 @@ export default function WasteAnalysisPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
@@ -226,16 +240,15 @@ export default function WasteAnalysisPage() {
             </Select>
           )}
 
-          <Select
-            value={timeframe}
-            onValueChange={(v) => setTimeframe(v as Timeframe)}
-          >
+          <Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {(Object.entries(TIMEFRAME_LABELS) as [Timeframe, string][]).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -257,7 +270,6 @@ export default function WasteAnalysisPage() {
 
       {/* Trend Chart */}
       <WasteRatioTrendChart data={trendData} isLoading={loading} />
-
     </div>
   )
 }

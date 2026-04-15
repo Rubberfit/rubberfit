@@ -21,7 +21,7 @@ function canSeePermission(roles: string[] | null | undefined, requiredPermission
 function filterSubItems(subItems: NavSubItem[] | undefined, roles: string[] | null | undefined) {
   return (subItems ?? []).filter(
     (subItem) =>
-      canSeePermission(roles, subItem.requiredPermission) && canAccessPath(roles, subItem.url),
+      canSeePermission(roles, subItem.requiredPermission) && canAccessPath(roles, subItem.url)
   )
 }
 
@@ -42,7 +42,7 @@ function filterMainItem(item: NavMainItem, roles: string[] | null | undefined): 
 
 export function filterNavGroupsForRoles(
   groups: NavGroup[],
-  roles: string[] | null | undefined,
+  roles: string[] | null | undefined
 ): NavGroup[] {
   return groups
     .map((group) => ({

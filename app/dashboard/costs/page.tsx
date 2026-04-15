@@ -54,9 +54,12 @@ export default function CostReportsPage() {
   // Fetch current material prices so reports always reflect the latest cost
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   useEffect(() => {
-    materialTypeService.getAll().then(setMaterialTypes).catch((_err) => {
-      console.error("Failed to load material types:", _err)
-    })
+    materialTypeService
+      .getAll()
+      .then(setMaterialTypes)
+      .catch((_err) => {
+        console.error("Failed to load material types:", _err)
+      })
   }, [])
 
   // Build a lookup: material name → current default_cost
@@ -115,7 +118,10 @@ export default function CostReportsPage() {
 
         return acc
       },
-      {} as Record<string, { materialType: string; totalCost: number; wasteCost: number; cuts: number }>
+      {} as Record<
+        string,
+        { materialType: string; totalCost: number; wasteCost: number; cuts: number }
+      >
     )
 
     const materialCostData: MaterialCost[] = Object.values(materialStats)

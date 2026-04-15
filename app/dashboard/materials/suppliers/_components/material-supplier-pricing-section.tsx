@@ -62,7 +62,9 @@ export function MaterialSupplierPricingSection({
                     placeholder="2.50"
                     {...field}
                     value={field.value ?? ""}
-                    onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    onChange={(e) =>
+                      field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)
+                    }
                     className="min-h-[44px]"
                   />
                 </FormControl>
