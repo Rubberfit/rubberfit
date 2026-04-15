@@ -16,7 +16,6 @@ import {
 interface MaterialTypeForm {
   name: string
   description: string
-  default_cost: string
   min_stock_alert: string
 }
 
@@ -68,18 +67,6 @@ export function MaterialTypeDialog({
               onChange={(e) => onFormDataChange({ ...formData, description: e.target.value })}
               placeholder="Material properties and characteristics"
               rows={3}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="default_cost">Default Cost (per sq ft)</Label>
-            <Input
-              id="default_cost"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.default_cost}
-              onChange={(e) => onFormDataChange({ ...formData, default_cost: e.target.value })}
-              placeholder="2.50"
             />
           </div>
           <div className="grid gap-2">

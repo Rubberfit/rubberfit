@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { Activity } from "lucide-react"
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
 import {
   Select,
   SelectContent,
@@ -37,164 +37,121 @@ interface TrendMetrics {
 }
 
 export default function TrendsPage() {
-  const [trendData, setTrendData] = useState<TrendData[]>([])
-  const [trendMetrics, setTrendMetrics] = useState<TrendMetrics | null>(null)
   const [timeframe, setTimeframe] = useState("30days")
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const fetchTrendData = async () => {
-      setLoading(true)
-      try {
-        let startDate: Date
-        let groupBy: "day" | "week" | "month"
+  const { startDate, groupBy } = useMemo(() => {
+    switch (timeframe) {
+      case "7days":
+        return { startDate: subDays(new Date(), 7), groupBy: "day" as const }
+      case "30days":
+        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+      case "12weeks":
+        return { startDate: subWeeks(new Date(), 12), groupBy: "week" as const }
+      case "12months":
+        return { startDate: subMonths(new Date(), 12), groupBy: "month" as const }
+      default:
+        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+    }
+  }, [timeframe])
 
-        switch (timeframe) {
-          case "7days":
-            startDate = subDays(new Date(), 7)
-            groupBy = "day"
-            break
-          case "30days":
-            startDate = subDays(new Date(), 30)
-            groupBy = "day"
-            break
-          case "12weeks":
-            startDate = subWeeks(new Date(), 12)
-            groupBy = "week"
-            break
-          case "12months":
-            startDate = subMonths(new Date(), 12)
-            groupBy = "month"
-            break
-          default:
-            startDate = subDays(new Date(), 30)
-            groupBy = "day"
+  const now = useMemo(() => new Date(), [])
+  const { data: cutsData, isLoading: loading } = useCutHistoryAnalytics({
+    from: startDate,
+    to: now,
+  })
+
+  const { trendData, trendMetrics } = useMemo(() => {
+    const groupedData: Record<
+      string,
+      {
+        cuts: number
+        totalMaterialUsed: number
+        totalWastePercent: number
+        totalCost: number
+        validWasteCuts: number
+      }
+    > = {}
+
+    cutsData.forEach((cut) => {
+      const cutDate = new Date(cut.cut_date)
+      let periodKey: string
+
+      if (groupBy === "day") {
+        periodKey = format(cutDate, "yyyy-MM-dd")
+      } else if (groupBy === "week") {
+        const weekStart = new Date(cutDate)
+        weekStart.setDate(cutDate.getDate() - cutDate.getDay())
+        periodKey = format(weekStart, "yyyy-MM-dd")
+      } else {
+        periodKey = format(cutDate, "yyyy-MM")
+      }
+
+      if (!groupedData[periodKey]) {
+        groupedData[periodKey] = {
+          cuts: 0,
+          totalMaterialUsed: 0,
+          totalWastePercent: 0,
+          totalCost: 0,
+          validWasteCuts: 0,
         }
+      }
 
-        const cuts = await cutService.getCutsByDateRangeWithRolls(startDate, undefined, {
-          ascending: true,
-        })
+      const g = groupedData[periodKey]
+      g.cuts += 1
+      g.totalMaterialUsed += cut.material_used_sqft
 
-        const cutsData = cuts || []
+      const wastePercent = (1 - cut.fab_score) * 100
+      g.totalWastePercent += wastePercent
+      g.validWasteCuts += 1
 
-        // Group data by time period
-        const groupedData: Record<
-          string,
-          {
-            cuts: number
-            totalMaterialUsed: number
-            totalWaste: number
-            totalCost: number
-            validWasteCuts: number
-          }
-        > = {}
+      const costPerSqft = cut.cost_per_sqft ?? 0
+      g.totalCost += cut.material_used_sqft * costPerSqft
+    })
 
-        cutsData.forEach((cut) => {
-          const cutDate = new Date(cut.created_at)
-          let periodKey: string
-
-          if (groupBy === "day") {
-            periodKey = format(cutDate, "yyyy-MM-dd")
-          } else if (groupBy === "week") {
-            const weekStart = new Date(cutDate)
-            weekStart.setDate(cutDate.getDate() - cutDate.getDay())
-            periodKey = format(weekStart, "yyyy-MM-dd")
-          } else {
-            periodKey = format(cutDate, "yyyy-MM")
-          }
-
-          if (!groupedData[periodKey]) {
-            groupedData[periodKey] = {
-              cuts: 0,
-              totalMaterialUsed: 0,
-              totalWaste: 0,
-              totalCost: 0,
-              validWasteCuts: 0,
-            }
-          }
-
-          groupedData[periodKey].cuts += 1
-          groupedData[periodKey].totalMaterialUsed += cut.total_sqft_used || 0
-
-          if (cut.waste_percentage !== null) {
-            groupedData[periodKey].totalWaste += cut.waste_percentage || 0
-            groupedData[periodKey].validWasteCuts += 1
-          }
-
-          const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-          groupedData[periodKey].totalCost += (cut.total_sqft_used || 0) * costPerSqft
-        })
-
-        // Convert to trend data
-        const trends: TrendData[] = Object.entries(groupedData)
-          .map(([date, data]) => {
-            const averageWaste = data.validWasteCuts > 0 ? data.totalWaste / data.validWasteCuts : 0
-            const efficiency = 100 - averageWaste
-
-            return {
-              date: groupBy === "month" ? `${date}-01` : date,
-              cuts: data.cuts,
-              materialUsed: data.totalMaterialUsed,
-              wastePercentage: averageWaste,
-              efficiency,
-              cost: data.totalCost,
-            }
-          })
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-        setTrendData(trends)
-
-        // Calculate period-over-period changes
-        if (trends.length >= 2) {
-          const recent = trends.slice(-7) // Last 7 periods
-          const previous = trends.slice(-14, -7) // Previous 7 periods
-
-          if (previous.length > 0) {
-            const recentAvg = {
-              cuts: recent.reduce((sum, item) => sum + item.cuts, 0) / recent.length,
-              materialUsed:
-                recent.reduce((sum, item) => sum + item.materialUsed, 0) / recent.length,
-              wastePercentage:
-                recent.reduce((sum, item) => sum + item.wastePercentage, 0) / recent.length,
-              efficiency: recent.reduce((sum, item) => sum + item.efficiency, 0) / recent.length,
-              cost: recent.reduce((sum, item) => sum + item.cost, 0) / recent.length,
-            }
-
-            const previousAvg = {
-              cuts: previous.reduce((sum, item) => sum + item.cuts, 0) / previous.length,
-              materialUsed:
-                previous.reduce((sum, item) => sum + item.materialUsed, 0) / previous.length,
-              wastePercentage:
-                previous.reduce((sum, item) => sum + item.wastePercentage, 0) / previous.length,
-              efficiency:
-                previous.reduce((sum, item) => sum + item.efficiency, 0) / previous.length,
-              cost: previous.reduce((sum, item) => sum + item.cost, 0) / previous.length,
-            }
-
-            const calculateChange = (current: number, previous: number) =>
-              previous !== 0 ? ((current - previous) / previous) * 100 : 0
-
-            setTrendMetrics({
-              cutsChange: calculateChange(recentAvg.cuts, previousAvg.cuts),
-              materialUsageChange: calculateChange(
-                recentAvg.materialUsed,
-                previousAvg.materialUsed
-              ),
-              wasteChange: calculateChange(recentAvg.wastePercentage, previousAvg.wastePercentage),
-              efficiencyChange: calculateChange(recentAvg.efficiency, previousAvg.efficiency),
-              costChange: calculateChange(recentAvg.cost, previousAvg.cost),
-            })
-          }
+    const trends: TrendData[] = Object.entries(groupedData)
+      .map(([date, data]) => {
+        const averageWaste = data.validWasteCuts > 0 ? data.totalWastePercent / data.validWasteCuts : 0
+        return {
+          date: groupBy === "month" ? `${date}-01` : date,
+          cuts: data.cuts,
+          materialUsed: data.totalMaterialUsed,
+          wastePercentage: averageWaste,
+          efficiency: 100 - averageWaste,
+          cost: data.totalCost,
         }
-      } catch (error) {
-        console.error("Error fetching trend data:", error)
-      } finally {
-        setLoading(false)
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    let metrics: TrendMetrics | null = null
+    if (trends.length >= 2) {
+      const recent = trends.slice(-7)
+      const previous = trends.slice(-14, -7)
+
+      if (previous.length > 0) {
+        const avg = (arr: TrendData[], key: keyof Omit<TrendData, "date">) =>
+          arr.reduce((sum, item) => sum + item[key], 0) / arr.length
+
+        const calculateChange = (current: number, prev: number) =>
+          prev !== 0 ? ((current - prev) / prev) * 100 : 0
+
+        metrics = {
+          cutsChange: calculateChange(avg(recent, "cuts"), avg(previous, "cuts")),
+          materialUsageChange: calculateChange(
+            avg(recent, "materialUsed"),
+            avg(previous, "materialUsed")
+          ),
+          wasteChange: calculateChange(
+            avg(recent, "wastePercentage"),
+            avg(previous, "wastePercentage")
+          ),
+          efficiencyChange: calculateChange(avg(recent, "efficiency"), avg(previous, "efficiency")),
+          costChange: calculateChange(avg(recent, "cost"), avg(previous, "cost")),
+        }
       }
     }
 
-    fetchTrendData()
-  }, [timeframe])
+    return { trendData: trends, trendMetrics: metrics }
+  }, [cutsData, groupBy])
 
   const formatTrendValue = (value: number, showSign = true) => {
     const sign = showSign && value > 0 ? "+" : ""

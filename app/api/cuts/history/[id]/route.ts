@@ -42,6 +42,7 @@ export async function GET(
     .single()
 
   if (error || !cut) {
+    if (error) console.error("cut_history GET error:", error)
     return NextResponse.json({ error: "Cut record not found" }, { status: 404 })
   }
 

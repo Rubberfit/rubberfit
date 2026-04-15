@@ -47,8 +47,9 @@ export function UserSelect({
           <SelectItem value="all">All Cutters</SelectItem>
           {users.map((u) => {
             const isMe = u.id === currentUserId
-            const displayName = u.full_name ?? truncateEmail(u.email) ?? u.id.slice(0, 8)
-            const shortEmail = truncateEmail(u.email)
+            const shortEmail = u.email ? truncateEmail(u.email) : null
+            const displayName = u.full_name ?? shortEmail ?? u.id.slice(0, 8)
+            
             return (
               <SelectItem key={u.id} value={u.id}>
                 <div className="flex flex-col leading-tight">

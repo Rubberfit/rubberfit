@@ -42,7 +42,7 @@ export function CostSummaryCards({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">${totalCost.toFixed(0)}</div>
-          <p className="text-xs text-muted-foreground">Material + waste costs</p>
+          <p className="text-xs text-muted-foreground">Total stock consumed</p>
         </CardContent>
       </Card>
 

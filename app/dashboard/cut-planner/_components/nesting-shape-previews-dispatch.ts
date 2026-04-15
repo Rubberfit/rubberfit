@@ -232,10 +232,13 @@ export function generateMultiPartPreview(
   fallbackWidth: number,
   fallbackHeight: number
 ): SimplePartPreview {
-  const requestedItems = simpleParts.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const requestedItems = simpleParts.flatMap((spec, specIdx) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = specIdx
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const allRectangles = requestedItems.every((item) => item.renderShape === "rect")
   const allTrapezoids = requestedItems.every((item) => item.renderShape === "trapezoid")
@@ -421,10 +424,23 @@ function tryGapFillSheet(
     return { preview: sheetPreview, remainingSpecs }
   }
 
+  // Build label → specIndex/partNumber lookup from already-placed items on this sheet
+  const labelToSpecIndex = new Map<string, number>()
+  const labelToPartNumber = new Map<string, string>()
+  for (const item of sheetPreview.items) {
+    if (item.specIndex != null && !labelToSpecIndex.has(item.label)) {
+      labelToSpecIndex.set(item.label, item.specIndex)
+      if (item.partNumber) labelToPartNumber.set(item.label, item.partNumber)
+    }
+  }
+
   const overflowItems = remainingSpecs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, rollW, rollL)
-    )
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, rollW, rollL)
+      item.specIndex = labelToSpecIndex.get(item.label)
+      item.partNumber = spec.partNumber ?? labelToPartNumber.get(item.label)
+      return item
+    })
   )
   const gapFill = packIntoFreeRects(overflowItems, allFreeRects)
   if (gapFill.placed.length === 0) {

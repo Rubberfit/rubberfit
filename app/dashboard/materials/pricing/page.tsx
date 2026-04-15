@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { Download } from "lucide-react"
 import { format } from "date-fns"
 
@@ -32,6 +32,7 @@ import { PricingStatsCards } from "./_components/pricing-stats-cards"
 import { PricingComparisonTable } from "./_components/pricing-comparison-table"
 import { PricingAlertsCard } from "./_components/pricing-alerts-card"
 import { PricingHistoryChart } from "./_components/pricing-history-chart"
+import { MaterialCostsTable } from "./_components/material-costs-table"
 
 export default function PricingPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
@@ -150,26 +151,39 @@ export default function PricingPage() {
     })
   }, [priceComparisonData, searchQuery, selectedMaterial])
 
+  const handleCostUpdated = useCallback((id: string, updatedMaterial: MaterialType) => {
+    setMaterialTypes((prev) => prev.map((m) => (m.id === id ? updatedMaterial : m)))
+  }, [])
+
   return (
     <div className="flex flex-col gap-4 md:gap-6">
       <div>
         <h1 className="text-2xl font-bold">Pricing Dashboard</h1>
         <p className="text-muted-foreground">
-          Compare prices across suppliers and track historical trends
+          Manage material costs, compare supplier prices, and track trends
         </p>
       </div>
       <PricingStatsCards
+        materialTypes={materialTypes}
         suppliers={suppliers}
         materialSuppliers={materialSuppliers}
         priceAlerts={priceAlerts}
-        priceComparisonData={priceComparisonData}
       />
       <PricingAlertsCard priceAlerts={priceAlerts} dateRange={dateRange} />
-      <Tabs defaultValue="comparison" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="costs" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="costs">Material Costs</TabsTrigger>
           <TabsTrigger value="comparison">Price Comparison</TabsTrigger>
           <TabsTrigger value="history">Price History</TabsTrigger>
         </TabsList>
+        <TabsContent value="costs">
+          <MaterialCostsTable
+            loading={loading}
+            materialTypes={materialTypes}
+            materialSuppliers={materialSuppliers}
+            onCostUpdated={handleCostUpdated}
+          />
+        </TabsContent>
         <TabsContent value="comparison">
           <PricingComparisonTable
             loading={loading}

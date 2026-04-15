@@ -21,6 +21,7 @@ interface CutHistoryRow extends CutHistory {
 
 interface RecordedCutSelectProps {
   onLoad: (cut: CutHistory) => void
+  refreshKey?: number
 }
 
 const PART_LABELS: Record<number, string> = {
@@ -43,12 +44,13 @@ function buildOptionLabel(cut: CutHistory): string {
   return `${part} — ${stock} ×${cut.cut_amount} — ${date}`
 }
 
-export function RecordedCutSelect({ onLoad }: RecordedCutSelectProps) {
+export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectProps) {
   const [cuts, setCuts] = useState<CutHistoryRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
+      setIsLoading(true)
       try {
         const [histResult, favResult] = await Promise.allSettled([
           fetchJson<{ data: CutHistory[] }>("/api/cuts/history?limit=50"),
@@ -77,7 +79,7 @@ export function RecordedCutSelect({ onLoad }: RecordedCutSelectProps) {
     }
 
     load()
-  }, [])
+  }, [refreshKey])
 
   const favorites = cuts.filter((c) => c.isFavorite)
   const recent = cuts.filter((c) => !c.isFavorite)

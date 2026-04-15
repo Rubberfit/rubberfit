@@ -376,6 +376,9 @@ export interface CutHistory {
   scrap_sqft: number
   fab_score: number
   cut_pieces: number
+  stock_label: string | null
+  cost_per_sqft: number | null
+  pdf_url: string | null
   cut_date: string
   created_at: string
   updated_at: string

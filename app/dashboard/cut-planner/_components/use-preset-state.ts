@@ -57,6 +57,39 @@ export interface LoadedSelection {
   prebuiltTemplates?: PartTemplate[]
 }
 
+/** Returns the first template whose dimensions exactly match the stored dimension set. */
+function findMatchingTemplate(
+  templates: PartTemplate[],
+  dims: DimensionSet,
+  partType: SupportedPartType
+): PartTemplate | null {
+  return (
+    templates.find((t) => {
+      if (t.partType !== partType) return false
+      switch (partType) {
+        case "rectangle":
+          return t.width === dims.width && t.length === dims.length
+        case "cylinder":
+          return t.diameter === dims.diameter && t.height === dims.height
+        case "cone":
+          return (
+            t.innerRadius === dims.innerRadius &&
+            t.outerRadius === dims.outerRadius &&
+            t.arcDegrees === dims.arcDegrees
+          )
+        case "trapezoid":
+          return (
+            t.topWidth === dims.topWidth &&
+            t.bottomWidth === dims.bottomWidth &&
+            t.height === dims.height
+          )
+        default:
+          return false
+      }
+    }) ?? null
+  )
+}
+
 /** Build a PartTemplate directly from stored dimensions — same ID/label
  *  format as buildCustomTemplate() so identical templates deduplicate. */
 function templateFromDims(
@@ -127,10 +160,6 @@ function templateFromDims(
   }
 }
 
-export function usePresetState(
-  onApply?: (templates: PartTemplate[]) => void,
-  loadedSelection?: LoadedSelection | null
-) {
 function hydrateCustomTemplates(raw: string): { hydrated: CustomTemplateMap; maxId: number } | null {
   try {
     const parsed = JSON.parse(raw) as Partial<CustomTemplateMap>
@@ -153,7 +182,10 @@ function hydrateCustomTemplates(raw: string): { hydrated: CustomTemplateMap; max
   }
 }
 
-export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
+export function usePresetState(
+  onApply?: (templates: PartTemplate[]) => void,
+  loadedSelection?: LoadedSelection | null
+) {
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle")
   const [checked, setChecked] = useState<Set<string>>(new Set())
   /** When true the next onApply call is skipped (used when no preset match exists). */
@@ -255,58 +287,90 @@ export function usePresetState(onApply?: (templates: PartTemplate[]) => void) {
 
     if (customDimensions && customDimensions.length > 0) {
       // ── Path A: explicit dimension data is available ───────────────────────
-      // Build a PartTemplate for every stored dimension entry.
-      const newTemplates = customDimensions
-        .map((dims) => templateFromDims(partType, dims))
-        .filter((t): t is PartTemplate => t !== null)
+      // For each stored dimension set, first try to match an existing preset or
+      // saved custom template.  Only create a new custom button when there is
+      // truly no match.
+      const builtinForType = PART_TEMPLATES.filter((t) => t.partType === partType)
 
-      if (newTemplates.length === 0) {
-        suppressNextApplyRef.current = true
-        setChecked(new Set())
-        return
-      }
-
-      // Merge into customTemplates, skipping IDs that already exist so the
-      // user's own saved templates are never duplicated.
       setCustomTemplates((prev) => {
-        const existing = prev[partType]
-        const existingIds = new Set(existing.map((t) => t.id))
-        const toAdd = newTemplates.filter((t) => !existingIds.has(t.id))
-        if (toAdd.length === 0) return prev
-        return { ...prev, [partType]: [...existing, ...toAdd] }
-      })
+        const existingCustom = prev[partType]
+        const allForType = [...builtinForType, ...existingCustom]
 
-      // Check every template that was built from the stored dimensions.
-      setChecked(new Set(newTemplates.map((t) => t.id)))
+        const idsToCheck: string[] = []
+        const toAdd: PartTemplate[] = []
+        const seenIds = new Set(allForType.map((t) => t.id))
 
-      // Pre-fill the custom-size form with index 0's values so the user can
-      // inspect / tweak the primary size and optionally save it as a preset.
-      const d = customDimensions[0]
-      setCustomDrafts((prev) => {
-        switch (partType) {
-          case "rectangle":
-            return { ...prev, rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") } }
-          case "cylinder":
-            return { ...prev, cylinder: { diameter: String(d.diameter ?? ""), height: String(d.height ?? "") } }
-          case "cone":
-            return { ...prev, cone: { innerRadius: String(d.innerRadius ?? ""), outerRadius: String(d.outerRadius ?? ""), arcDegrees: String(d.arcDegrees ?? "") } }
-          case "trapezoid":
-            return { ...prev, trapezoid: { topWidth: String(d.topWidth ?? ""), bottomWidth: String(d.bottomWidth ?? ""), height: String(d.height ?? "") } }
-          default:
-            return prev
+        for (const dims of customDimensions) {
+          const match = findMatchingTemplate(allForType, dims, partType)
+          if (match) {
+            // Existing preset or custom template — just check it.
+            idsToCheck.push(match.id)
+          } else {
+            // No match — build a new custom template.
+            const newTemplate = templateFromDims(partType, dims)
+            if (newTemplate && !seenIds.has(newTemplate.id)) {
+              toAdd.push(newTemplate)
+              seenIds.add(newTemplate.id)
+              allForType.push(newTemplate) // visible to subsequent loop iterations
+            }
+            if (newTemplate) idsToCheck.push(newTemplate.id)
+          }
         }
+
+        // Schedule downstream state updates after this batch lands.
+        queueMicrotask(() => {
+          if (idsToCheck.length === 0) {
+            suppressNextApplyRef.current = true
+            setChecked(new Set())
+            return
+          }
+          setChecked(new Set(idsToCheck))
+
+          // Pre-fill the custom-size form with index 0's values so the user can
+          // inspect / tweak the primary size and optionally save it as a preset.
+          const d = customDimensions[0]
+          if (d) {
+            setCustomDrafts((prev) => {
+              switch (partType) {
+                case "rectangle":
+                  return { ...prev, rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") } }
+                case "cylinder":
+                  return { ...prev, cylinder: { diameter: String(d.diameter ?? ""), height: String(d.height ?? "") } }
+                case "cone":
+                  return { ...prev, cone: { innerRadius: String(d.innerRadius ?? ""), outerRadius: String(d.outerRadius ?? ""), arcDegrees: String(d.arcDegrees ?? "") } }
+                case "trapezoid":
+                  return { ...prev, trapezoid: { topWidth: String(d.topWidth ?? ""), bottomWidth: String(d.bottomWidth ?? ""), height: String(d.height ?? "") } }
+                default:
+                  return prev
+              }
+            })
+          }
+        })
+
+        if (toAdd.length === 0) return prev
+        return { ...prev, [partType]: [...existingCustom, ...toAdd] }
       })
     } else {
       // ── Path B: no stored dimensions — fall back to label matching ─────────
-      const allForType = PART_TEMPLATES.filter((t) => t.partType === partType)
-      const matchedIds = new Set(
-        allForType.filter((t) => labels.includes(t.label)).map((t) => t.id)
-      )
-      if (matchedIds.size === 0) {
-        // No preset match — suppress the next onApply so we don't wipe caller state
-        suppressNextApplyRef.current = true
-      }
-      setChecked(matchedIds)
+      // Match against both built-in presets AND the user's saved custom templates.
+      setCustomTemplates((prev) => {
+        const existingCustom = prev[partType]
+        const allForType = [
+          ...PART_TEMPLATES.filter((t) => t.partType === partType),
+          ...existingCustom,
+        ]
+        const matchedIds = new Set(
+          allForType.filter((t) => labels.includes(t.label)).map((t) => t.id)
+        )
+        queueMicrotask(() => {
+          if (matchedIds.size === 0) {
+            // No preset match — suppress the next onApply so we don't wipe caller state
+            suppressNextApplyRef.current = true
+          }
+          setChecked(matchedIds)
+        })
+        return prev
+      })
     }
   }, [loadedSelection])
 

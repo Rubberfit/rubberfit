@@ -72,9 +72,9 @@ export function PresetTemplateGrid({
               <div className="flex items-start gap-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {isChecked && tagMap?.has(template.label) && (
+                    {isChecked && tagMap?.has(template.id) && (
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
-                        {tagMap.get(template.label)}
+                        {tagMap.get(template.id)}
                       </span>
                     )}
                     <span className="font-mono text-sm font-semibold leading-tight">

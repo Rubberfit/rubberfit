@@ -66,6 +66,7 @@ interface WasteRatioTrendChartProps {
 
 export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartProps) {
   const isEmpty = !isLoading && data.length === 0
+  const isSinglePoint = data.length === 1
 
   return (
     <Card>
@@ -86,7 +87,10 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+            <AreaChart
+              data={data}
+              margin={{ top: 4, right: isSinglePoint ? 40 : 4, bottom: 0, left: isSinglePoint ? 40 : 0 }}
+            >
               <defs>
                 <linearGradient id="wasteGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#ef4444" stopOpacity={0.25} />
@@ -102,6 +106,7 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
                 dataKey="period"
                 tick={{ fontSize: 11 }}
                 className="fill-muted-foreground"
+                padding={isSinglePoint ? { left: 60, right: 60 } : undefined}
               />
               <YAxis
                 tickFormatter={(v: number) => `${v}%`}
@@ -123,8 +128,8 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
                 stroke="#ef4444"
                 strokeWidth={2}
                 fill="url(#wasteGrad)"
-                dot={{ fill: "#ef4444", r: 3, strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
+                dot={{ fill: "#ef4444", r: isSinglePoint ? 5 : 3, strokeWidth: 0 }}
+                activeDot={{ r: isSinglePoint ? 7 : 5 }}
               />
               <Area
                 type="monotone"
@@ -133,7 +138,8 @@ export function WasteRatioTrendChart({ data, isLoading }: WasteRatioTrendChartPr
                 stroke="#f59e0b"
                 strokeWidth={1.5}
                 fill="url(#scrapGrad)"
-                dot={false}
+                dot={{ fill: "#f59e0b", r: isSinglePoint ? 5 : 3, strokeWidth: 0 }}
+                activeDot={{ r: isSinglePoint ? 7 : 5 }}
                 strokeDasharray="4 2"
               />
             </AreaChart>

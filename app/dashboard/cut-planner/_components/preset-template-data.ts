@@ -27,6 +27,7 @@ export interface PartTemplate {
   outerRadius?: number
   arcDegrees?: number
   isCustom?: boolean
+  partNumber?: string
 }
 
 export type RectangleDraft = { width: string; length: string }

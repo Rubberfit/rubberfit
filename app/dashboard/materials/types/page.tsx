@@ -1,13 +1,19 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Plus } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Plus, Upload, ChevronDown } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +28,11 @@ import { toast } from "sonner"
 
 import { MaterialTypesTable } from "../_components/material-types-table"
 import { MaterialTypeDialog } from "../_components/material-type-dialog"
+import { MaterialImportDialog } from "../_components/material-import-dialog"
 
 interface MaterialTypeForm {
   name: string
   description: string
-  default_cost: string
   min_stock_alert: string
 }
 
@@ -38,13 +44,18 @@ export default function MaterialTypesPage() {
   const [formData, setFormData] = useState<MaterialTypeForm>({
     name: "",
     description: "",
-    default_cost: "",
     min_stock_alert: "",
   })
   const [submitting, setSubmitting] = useState(false)
   const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
   const [materialToDelete, setMaterialToDelete] = useState<MaterialType | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+
+  const existingNameSet = useMemo(
+    () => new Set(materialTypes.map((m) => m.name)),
+    [materialTypes]
+  )
 
   const fetchMaterialTypes = useCallback(async () => {
     setLoading(true)
@@ -64,7 +75,6 @@ export default function MaterialTypesPage() {
     setFormData({
       name: "",
       description: "",
-      default_cost: "",
       min_stock_alert: "",
     })
     setDialogOpen(true)
@@ -75,7 +85,6 @@ export default function MaterialTypesPage() {
     setFormData({
       name: materialType.name,
       description: materialType.description || "",
-      default_cost: materialType.default_cost?.toString() || "",
       min_stock_alert: materialType.min_stock_alert?.toString() || "",
     })
     setDialogOpen(true)
@@ -90,7 +99,6 @@ export default function MaterialTypesPage() {
     setSubmitting(true)
     try {
       const trimmedDescription = formData.description.trim()
-      const parsedCost = formData.default_cost ? parseFloat(formData.default_cost) : undefined
       const parsedStock = formData.min_stock_alert
         ? parseFloat(formData.min_stock_alert)
         : undefined
@@ -99,7 +107,6 @@ export default function MaterialTypesPage() {
         await materialTypeService.update(editingType.id, {
           name: formData.name.trim(),
           description: trimmedDescription || null,
-          default_cost: parsedCost ?? null,
           min_stock_alert: parsedStock ?? null,
         } as Partial<MaterialType>)
         toast.success("Material type updated successfully")
@@ -107,7 +114,6 @@ export default function MaterialTypesPage() {
         await materialTypeService.create({
           name: formData.name.trim(),
           description: trimmedDescription || undefined,
-          default_cost: parsedCost,
           min_stock_alert: parsedStock,
         })
         toast.success("Material type created successfully")
@@ -186,10 +192,25 @@ export default function MaterialTypesPage() {
             Manage rubber material categories and their properties
           </p>
         </div>
-        <Button onClick={openAddDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Material Type
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              Add Material Type
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={openAddDialog}>
+              <Plus className="h-4 w-4" />
+              Add Manually
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <MaterialTypesTable
@@ -238,6 +259,13 @@ export default function MaterialTypesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <MaterialImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        existingNames={existingNameSet}
+        onImportComplete={fetchMaterialTypes}
+      />
     </div>
   )
 }

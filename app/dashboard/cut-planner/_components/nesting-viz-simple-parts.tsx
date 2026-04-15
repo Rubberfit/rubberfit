@@ -454,5 +454,8 @@ export function SimpleModeOffcutLabels({
   )
 }
 
+// SimpleModeAdhesives extracted to nesting-viz-adhesives.tsx
+export { SimpleModeAdhesives } from "./nesting-viz-adhesives"
+
 // SimpleModeDimensionLabels extracted to nesting-viz-dimension-labels.tsx
 export { SimpleModeDimensionLabels } from "./nesting-viz-dimension-labels"

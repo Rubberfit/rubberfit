@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 
-import { type Cut } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Table,
@@ -14,7 +14,7 @@ import {
 } from "@/app/components/ui/table"
 
 interface RecentUsageTableProps {
-  data: (Cut & { roll?: { material_type: string; location: string } })[]
+  data: CutHistory[]
 }
 
 export function RecentUsageTable({ data }: RecentUsageTableProps) {
@@ -34,24 +34,26 @@ export function RecentUsageTable({ data }: RecentUsageTableProps) {
                 <TableHead>Dimensions</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Material Used</TableHead>
-                <TableHead>Location</TableHead>
+                <TableHead>Fab Score</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.map((cut) => (
                 <TableRow key={cut.id}>
                   <TableCell className="font-mono text-sm">
-                    {format(new Date(cut.created_at), "MMM d, HH:mm")}
+                    {format(new Date(cut.cut_date), "MMM d, HH:mm")}
                   </TableCell>
-                  <TableCell>{cut.roll?.material_type || "Unknown"}</TableCell>
+                  <TableCell>{cut.stock_label || "Unknown"}</TableCell>
                   <TableCell className="font-mono">
-                    {cut.cut_width}" × {cut.cut_length}"
+                    {cut.cut_width}&quot; × {cut.cut_length}&quot;
                   </TableCell>
-                  <TableCell className="text-center">{cut.quantity}</TableCell>
+                  <TableCell className="text-center">{cut.cut_amount}</TableCell>
                   <TableCell className="font-mono">
-                    {cut.total_sqft_used?.toFixed(2) || "N/A"} sq ft
+                    {cut.material_used_sqft.toFixed(2)} sq ft
                   </TableCell>
-                  <TableCell>{cut.roll?.location || "—"}</TableCell>
+                  <TableCell className="font-mono">
+                    {Math.round(cut.fab_score * 100)}%
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

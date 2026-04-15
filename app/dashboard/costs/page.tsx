@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { Button } from "@/app/components/ui/button"
 import {
@@ -38,112 +40,97 @@ interface MaterialCost {
 }
 
 export default function CostReportsPage() {
-  const [monthlyCosts, setMonthlyCosts] = useState<MonthlyCosts[]>([])
-  const [materialCosts, setMaterialCosts] = useState<MaterialCost[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState("6months")
-  const [_loading, setLoading] = useState(true)
 
+  const monthsBack = selectedPeriod === "12months" ? 12 : 6
+  const startDate = useMemo(() => subMonths(new Date(), monthsBack), [monthsBack])
+  const now = useMemo(() => new Date(), [])
+
+  const { data: cutsData, isLoading: _loading } = useCutHistoryAnalytics({
+    from: startDate,
+    to: now,
+  })
+
+  // Fetch current material prices so reports always reflect the latest cost
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   useEffect(() => {
-    const fetchCostData = async () => {
-      setLoading(true)
-      try {
-        const monthsBack = selectedPeriod === "12months" ? 12 : 6
-        const startDate = subMonths(new Date(), monthsBack)
+    materialTypeService.getAll().then(setMaterialTypes).catch((_err) => {
+      console.error("Failed to load material types:", _err)
+    })
+  }, [])
 
-        const cuts = await cutService.getCutsByDateRangeWithRolls(startDate)
-
-        const cutsData = cuts || []
-
-        const monthlyData: MonthlyCosts[] = []
-        for (let i = monthsBack - 1; i >= 0; i--) {
-          const monthStart = startOfMonth(subMonths(new Date(), i))
-          const monthEnd = endOfMonth(subMonths(new Date(), i))
-
-          const monthCuts = cutsData.filter((cut) => {
-            const cutDate = new Date(cut.created_at)
-            return cutDate >= monthStart && cutDate <= monthEnd
-          })
-
-          const materialCost = monthCuts.reduce((sum, cut) => {
-            const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-            return sum + (cut.total_sqft_used || 0) * costPerSqft
-          }, 0)
-
-          const wasteCost = monthCuts.reduce((sum, cut) => {
-            const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-            return sum + (cut.waste_sqft || 0) * costPerSqft
-          }, 0)
-
-          monthlyData.push({
-            period: format(monthStart, "MMM yyyy"),
-            materialCost,
-            wasteCost,
-            totalCost: materialCost + wasteCost,
-            cuts: monthCuts.length,
-          })
-        }
-
-        setMonthlyCosts(monthlyData)
-
-        const materialStats = cutsData.reduce(
-          (acc, cut) => {
-            const material = cut.roll?.material_type || "Unknown"
-            const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-
-            if (!acc[material]) {
-              acc[material] = {
-                materialType: material,
-                totalCost: 0,
-                wasteCost: 0,
-                cuts: 0,
-              }
-            }
-
-            acc[material].totalCost += (cut.total_sqft_used || 0) * costPerSqft
-            acc[material].wasteCost += (cut.waste_sqft || 0) * costPerSqft
-            acc[material].cuts += 1
-
-            return acc
-          },
-          {} as Record<
-            string,
-            {
-              materialType: string
-              totalCost: number
-              wasteCost: number
-              cuts: number
-            }
-          >
-        )
-
-        const materialCostData: MaterialCost[] = (
-          Object.values(materialStats) as {
-            materialType: string
-            totalCost: number
-            wasteCost: number
-            cuts: number
-          }[]
-        )
-          .map((stat) => ({
-            materialType: stat.materialType,
-            totalCost: stat.totalCost,
-            wasteCost: stat.wasteCost,
-            cuts: stat.cuts,
-            utilizationCost: stat.totalCost - stat.wasteCost,
-            avgCostPerCut: stat.cuts > 0 ? stat.totalCost / stat.cuts : 0,
-          }))
-          .sort((a, b) => b.totalCost - a.totalCost)
-
-        setMaterialCosts(materialCostData)
-      } catch (error) {
-        console.error("Error fetching cost data:", error)
-      } finally {
-        setLoading(false)
+  // Build a lookup: material name → current default_cost
+  const costByMaterial = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const mt of materialTypes) {
+      if (mt.default_cost != null && !map.has(mt.name)) {
+        map.set(mt.name, mt.default_cost)
       }
     }
+    return map
+  }, [materialTypes])
 
-    fetchCostData()
-  }, [selectedPeriod])
+  const { monthlyCosts, materialCosts } = useMemo(() => {
+    const monthlyData: MonthlyCosts[] = []
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const monthStart = startOfMonth(subMonths(new Date(), i))
+      const monthEnd = endOfMonth(subMonths(new Date(), i))
+
+      const monthCuts = cutsData.filter((cut) => {
+        const cutDate = new Date(cut.cut_date)
+        return cutDate >= monthStart && cutDate <= monthEnd
+      })
+
+      let wasteCost = 0
+      let totalCost = 0
+      for (const cut of monthCuts) {
+        const costPerSqft = costByMaterial.get(cut.stock_label ?? "") ?? cut.cost_per_sqft ?? 0
+        const stockSqft = cut.material_used_sqft + cut.reusable_offset_sqft + cut.scrap_sqft
+        totalCost += stockSqft * costPerSqft
+        wasteCost += cut.scrap_sqft * costPerSqft
+      }
+
+      monthlyData.push({
+        period: format(monthStart, "MMM yyyy"),
+        materialCost: totalCost - wasteCost,
+        wasteCost,
+        totalCost,
+        cuts: monthCuts.length,
+      })
+    }
+
+    const materialStats = cutsData.reduce(
+      (acc, cut) => {
+        const material = cut.stock_label || "Unknown"
+        const costPerSqft = costByMaterial.get(material) ?? cut.cost_per_sqft ?? 0
+        const stockSqft = cut.material_used_sqft + cut.reusable_offset_sqft + cut.scrap_sqft
+
+        if (!acc[material]) {
+          acc[material] = { materialType: material, totalCost: 0, wasteCost: 0, cuts: 0 }
+        }
+
+        acc[material].totalCost += stockSqft * costPerSqft
+        acc[material].wasteCost += cut.scrap_sqft * costPerSqft
+        acc[material].cuts += 1
+
+        return acc
+      },
+      {} as Record<string, { materialType: string; totalCost: number; wasteCost: number; cuts: number }>
+    )
+
+    const materialCostData: MaterialCost[] = Object.values(materialStats)
+      .map((stat) => ({
+        materialType: stat.materialType,
+        totalCost: stat.totalCost,
+        wasteCost: stat.wasteCost,
+        cuts: stat.cuts,
+        utilizationCost: stat.totalCost - stat.wasteCost,
+        avgCostPerCut: stat.cuts > 0 ? stat.totalCost / stat.cuts : 0,
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost)
+
+    return { monthlyCosts: monthlyData, materialCosts: materialCostData }
+  }, [cutsData, monthsBack, costByMaterial])
 
   const totalCost = monthlyCosts.reduce((sum, month) => sum + month.totalCost, 0)
   const totalWasteCost = monthlyCosts.reduce((sum, month) => sum + month.wasteCost, 0)

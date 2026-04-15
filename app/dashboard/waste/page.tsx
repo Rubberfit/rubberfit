@@ -161,9 +161,11 @@ export default function WasteAnalysisPage() {
       setLoading(true)
       try {
         const { from, to } = getRange(timeframe)
-        const fromStr = from.toISOString()
-        const toStr = new Date(to.setHours(23, 59, 59, 999)).toISOString()
+        const fromStr = from.toISOString() 
+        const endOfDay = new Date(to)
+        endOfDay.setHours(23, 59, 59, 999)
         const userParam = forUserId ? `&userId=${encodeURIComponent(forUserId)}` : ""
+        const toStr = endOfDay.toISOString()
         const res = await fetchJson<{ data: CutHistory[] }>(
           `/api/cuts/history?limit=100&from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}${userParam}`
         )

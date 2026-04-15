@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
     if (error) {
       // Degrade gracefully — table may not be migrated yet
       console.warn("favorites DELETE error (table may not exist):", error.message)
+      // Return current state if delete failed
+      return NextResponse.json({ isFavorite: true, error: "Failed to remove favorite" }, { status: 500 })
     }
     return NextResponse.json({ isFavorite: false })
   }
@@ -116,6 +118,8 @@ export async function POST(request: NextRequest) {
   if (error) {
     // Degrade gracefully — table may not be migrated yet
     console.warn("favorites INSERT error (table may not exist):", error.message)
+    // Return current state if delete failed
+    return NextResponse.json({ isFavorite: true, error: "Failed to remove favorite" }, { status: 500 })
   }
   return NextResponse.json({ isFavorite: true })
 }

@@ -1,8 +1,7 @@
 "use client"
 
-import { useMemo, useState, useCallback, useEffect, useRef, Suspense } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
-import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
@@ -15,7 +14,7 @@ import PresetDimensionSelector, {
 } from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "./_components/upload-types"
-import type { SimpleCutDirection, SimplePartType } from "./_components/NestingVisualizer"
+import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
   StockPreviewConfigurator,
@@ -27,17 +26,21 @@ import {
   getRequestedSqFt,
   getDefaultCutDirection,
   parseCutRatios,
+  parseDimsFromLabel,
 } from "./_components/cut-planner-utils"
 import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
-import { type CutHistory, type PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import { type CutHistory, type MaterialType, type PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
+import { CutLoader } from "./_components/cut-loader"
 
 // Constants
 
 const DEMO_STOCK: StockConfig = {
   width: 96,
   length: 48,
-  material: "Natural Rubber",
+  material: "",
   thickness: 0.5,
 }
 
@@ -55,97 +58,6 @@ function LayoutLabel() {
   return <Ruler className="h-4 w-4 text-slate-500" />
 }
 
-/**
- * Best-effort reconstruction of geometric parameters from a stored size label.
- * Falls back to empty object if the label can't be parsed (nesting engine will
- * use its own defaults in that case).
- */
-function parseDimsFromLabel(
-  partType: SimplePartType,
-  label: string,
-  customWidth: number | null,
-  customHeight: number | null
-): Partial<PartTemplate> {
-  // Custom templates stored explicit dimensions — use them directly
-  if (customWidth != null && customHeight != null) {
-    if (partType === "rectangle") return { width: customWidth, length: customHeight }
-    if (partType === "cylinder") return { diameter: customWidth, height: customHeight }
-    return { width: customWidth, height: customHeight }
-  }
-
-  const n = "(\\d+(?:\\.\\d+)?)"
-
-  if (partType === "rectangle") {
-    // e.g. `18" × 14"`
-    const m = label.match(new RegExp(`${n}["\u2033]?\\s*[×x]\\s*${n}`))
-    if (m) return { width: parseFloat(m[1]), length: parseFloat(m[2]) }
-  }
-
-  if (partType === "cylinder") {
-    // e.g. `Ø18" × 24"`
-    const m = label.match(new RegExp(`[Øø]?\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
-    if (m) return { diameter: parseFloat(m[1]), height: parseFloat(m[2]) }
-  }
-
-  if (partType === "cone") {
-    // e.g. `120° • R10" to R28"`
-    const m = label.match(new RegExp(`${n}°.*R${n}["\u2033]?\\s+to\\s+R${n}`))
-    if (m) return { arcDegrees: parseFloat(m[1]), innerRadius: parseFloat(m[2]), outerRadius: parseFloat(m[3]) }
-  }
-
-  if (partType === "trapezoid") {
-    // e.g. `18" / 24" × 42"`
-    const m = label.match(new RegExp(`${n}["\u2033]?\\s*/\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
-    if (m) return { topWidth: parseFloat(m[1]), bottomWidth: parseFloat(m[2]), height: parseFloat(m[3]) }
-  }
-
-  return {}
-}
-
-//  CutLoader
-// Reads ?loadCut=<id> on mount, fetches the record, then clears the param.
-// Must be a separate component so useSearchParams() can be wrapped in Suspense.
-
-interface CutLoaderProps {
-  onLoad: (cut: CutHistory) => void
-}
-
-function CutLoaderInner({ onLoad }: CutLoaderProps) {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const loadCutId = searchParams.get("loadCut")
-  const didFetch = useRef(false)
-
-  useEffect(() => {
-    if (!loadCutId || didFetch.current) return
-    didFetch.current = true
-
-    fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`${res.status}`)
-        const json = (await res.json()) as { data: CutHistory }
-        onLoad(json.data)
-      })
-      .catch(() => {
-        toast.error("Could not load cut record")
-      })
-      .finally(() => {
-        router.replace("/dashboard/cut-planner")
-      })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadCutId])
-
-  return null
-}
-
-function CutLoader(props: CutLoaderProps) {
-  return (
-    <Suspense fallback={null}>
-      <CutLoaderInner {...props} />
-    </Suspense>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line max-lines-per-function
@@ -157,8 +69,16 @@ export default function CutPlannerPage() {
   const [stock, setStock] = useState(DEMO_STOCK)
   const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
   const [isRecordingCut, setIsRecordingCut] = useState(false)
+  const [cutListRefreshKey, setCutListRefreshKey] = useState(0)
+  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+
+  useEffect(() => {
+    materialTypeService.getAll().then(setMaterialTypes).catch((_err) => {
+      console.error("Failed to load material types:", _err)
+    })
+  }, [])
 
   const selectedTemplates = useMemo(
     () => [...uploadedParts, ...presetParts],
@@ -171,34 +91,45 @@ export default function CutPlannerPage() {
     [selectedTemplates]
   )
 
+  // Tag map: keyed by String(index) → tag value.
+  // Uses part numbers (e.g. "G2") when available, falls back to generated letters (A, B, C…).
   const tagMap = useMemo(() => {
-    const labels = [...new Set(selectedTemplates.map((t) => t.label))]
+    let fallbackIdx = 0
     return new Map(
-      labels.map((label, i) => {
+      selectedTemplates.map((t, i) => {
+        if (t.partNumber) return [String(i), t.partNumber]
         let tag = ""
-        let n = i
+        let n = fallbackIdx++
         do {
           tag = String.fromCharCode(65 + (n % 26)) + tag
           n = Math.floor(n / 26) - 1
         } while (n >= 0)
-        return [label, tag]
+        return [String(i), tag]
       })
     )
   }, [selectedTemplates])
+
+  // Lookup by template ID → tag letter (for preset grid badges + uploaded parts)
+  const tagByTemplateId = useMemo(() => {
+    return new Map(
+      selectedTemplates.map((t, i) => [t.id, tagMap.get(String(i)) ?? ""])
+    )
+  }, [selectedTemplates, tagMap])
 
   // ── Load a previously recorded cut ────────────────────────────────────────
   const handleLoadCut = useCallback((cut: CutHistory) => {
     // 1. Restore stock dimensions
     const stockPreset = cut.material_id >= 1 ? STOCK_PRESETS[cut.material_id - 1] : null
+    const materialName = cut.stock_label ?? stockPreset?.label ?? `${cut.cut_width}" × ${cut.cut_length}"`
+    const matchedMt = materialTypes.find((mt) => mt.name === materialName)
     setStock({
       width: cut.cut_width,
       length: cut.cut_length,
       thickness: cut.cut_thickness,
-      material: stockPreset?.label ?? `${cut.cut_width}" × ${cut.cut_length}"`,
+      material: materialName,
+      costPerSqft: cut.cost_per_sqft ?? undefined,
+      materialTypeId: matchedMt?.id,
     })
-
-    // 2. Restore quantity
-    setQuantity(cut.cut_amount)
 
     // 3. Reconstruct part templates from stored labels + dimensions
     const partType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
@@ -275,7 +206,7 @@ export default function CutPlannerPage() {
     })
 
     toast.success("Cut configuration loaded")
-  }, [])
+  }, [materialTypes])
 
   // ── Other handlers ────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
@@ -295,6 +226,7 @@ export default function CutPlannerPage() {
       width: p.width,
       length: p.length,
       isCustom: true,
+      partNumber: p.partNumber ?? undefined,
     }))
     setUploadedParts((prev) => [...prev, ...uploaded])
     if (stockWidth && stockWidth > 0) {
@@ -335,6 +267,7 @@ export default function CutPlannerPage() {
         innerRadius: template.innerRadius,
         outerRadius: template.outerRadius,
         arcDegrees: template.arcDegrees,
+        partNumber: template.partNumber,
       })),
     [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
   )
@@ -361,6 +294,7 @@ export default function CutPlannerPage() {
     [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
   )
 
+  // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
     if (!selectedTemplate) return
     setIsRecordingCut(true)
@@ -389,6 +323,12 @@ export default function CutPlannerPage() {
         ...(t.arcDegrees !== undefined && { arcDegrees: t.arcDegrees }),
       }))
 
+      const stockLabel = stock.material
+        || (activeStockPreset
+          ? STOCK_PRESETS.find((p) => p.id === activeStockPreset)?.label
+          : `${stock.width}" × ${stock.length}"`)
+        || "Unknown"
+
       const payload = {
         material_id: materialId,
         part_id: partId,
@@ -410,6 +350,8 @@ export default function CutPlannerPage() {
         reusable_offset_sqft: cutMetrics?.reusableOffsetSqFt ?? 0,
         scrap_sqft: cutMetrics?.scrapSqFt ?? 0,
         fab_score: cutMetrics?.fabScore ?? 0,
+        stock_label: stockLabel,
+        cost_per_sqft: stock.costPerSqft ?? null,
       }
 
       const response = await fetch("/api/cuts/history", {
@@ -423,7 +365,22 @@ export default function CutPlannerPage() {
         console.error("Failed to record cut:", text)
         toast.error("Failed to save cut to history")
       } else {
+        const { data: savedCut } = (await response.json()) as { data: CutHistory }
         toast.success("Cut recorded!")
+        setCutListRefreshKey((k) => k + 1)
+
+        // Build tag→label map for PDF legend (keyed by tag letter, value is dimension label)
+        const pdfTagMap = new Map<string, string>()
+        for (const [idxStr, tag] of tagMap.entries()) {
+          const t = selectedTemplates[Number(idxStr)]
+          if (t) pdfTagMap.set(tag, t.label)
+        }
+        // Generate and upload PDF (awaited so pdf_url is available in history)
+        try {
+          await buildAndUploadCutPdf(savedCut.id, stock, cutMetrics, selectedTemplate, selectedTemplates, pdfTagMap)
+        } catch (err) {
+          console.error("PDF generation failed:", err)
+        }
       }
     } catch (error) {
       console.error("Record cut error:", error)
@@ -431,7 +388,7 @@ export default function CutPlannerPage() {
     } finally {
       setIsRecordingCut(false)
     }
-  }, [selectedTemplate, selectedTemplates, activeStockPreset, stock, safeQuantity, cutMetrics])
+  }, [selectedTemplate, selectedTemplates, activeStockPreset, stock, safeQuantity, cutMetrics, tagMap])
 
   // Render
   return (
@@ -478,7 +435,7 @@ export default function CutPlannerPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 md:shrink-0">
-          <RecordedCutSelect onLoad={handleLoadCut} />
+          <RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />
           <Button asChild variant="outline">
             <Link href="/dashboard/cut-planner/batch">Batch Mode</Link>
           </Button>
@@ -512,7 +469,7 @@ export default function CutPlannerPage() {
           <CardContent>
             <div className="flex flex-wrap gap-1.5">
               {uploadedParts.map((part) => {
-                const tag = tagMap.get(part.label)
+                const tag = tagByTemplateId.get(part.id)
                 return (
                   <div
                     key={part.id}
@@ -547,13 +504,14 @@ export default function CutPlannerPage() {
         activeStockPreset={activeStockPreset}
         stock={stock}
         onStockChange={setStock}
+        materialTypes={materialTypes}
       />
 
       <PresetDimensionSelector
         onApply={handleTemplateApply}
         rollWidth={stock.width}
         rollLength={stock.length}
-        tagMap={tagMap}
+        tagMap={tagByTemplateId}
         loadedSelection={loadedSelection}
       />
 
@@ -606,36 +564,6 @@ export default function CutPlannerPage() {
                 onMetricsChange={setCutMetrics}
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
-                simpleParts={selectedTemplates.map((template) => ({
-                  partType: template.partType,
-                  quantity: template.quantity,
-                  cutDirection,
-                  cutRatios: customCutRatios,
-                  width: template.width,
-                  length: template.length,
-                  diameter: template.diameter,
-                  height: template.height,
-                  topWidth: template.topWidth,
-                  bottomWidth: template.bottomWidth,
-                  innerRadius: template.innerRadius,
-                  outerRadius: template.outerRadius,
-                  arcDegrees: template.arcDegrees,
-                }))}
-                simplePart={{
-                  partType: selectedTemplate.partType,
-                  quantity: safeQuantity,
-                  cutDirection,
-                  cutRatios: customCutRatios,
-                  width: selectedTemplate.width,
-                  length: selectedTemplate.length,
-                  diameter: selectedTemplate.diameter,
-                  height: selectedTemplate.height,
-                  topWidth: selectedTemplate.topWidth,
-                  bottomWidth: selectedTemplate.bottomWidth,
-                  innerRadius: selectedTemplate.innerRadius,
-                  outerRadius: selectedTemplate.outerRadius,
-                  arcDegrees: selectedTemplate.arcDegrees,
-                }}
               />
             </CardContent>
           </Card>

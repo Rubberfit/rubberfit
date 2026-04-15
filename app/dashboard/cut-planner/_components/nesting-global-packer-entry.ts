@@ -293,10 +293,13 @@ export function globalMultiSheetPack(
   const stockArea = rollW * rollL
 
   // Build all items from specs (expand quantities)
-  const allItems = specs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const allItems = specs.flatMap((spec, specIdx) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = specIdx
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
 
   if (allItems.length === 0) {

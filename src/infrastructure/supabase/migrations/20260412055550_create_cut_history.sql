@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS cut_history (
   part_selected_size_text      TEXT[],
   part_selected_label          TEXT[],
 
-  --Amount of matierial cut
+  --Amount of material cut
   cut_amount                   INT NOT NULL,
 
   --Miscellaneous details
@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS cut_history (
   CONSTRAINT positive_cut_width CHECK (cut_width > 0),
   CONSTRAINT positive_cut_thickness CHECK (cut_thickness > 0),
   CONSTRAINT non_negative_custom_width  CHECK (part_custom_width IS NULL OR part_custom_width >= 0),
-  CONSTRAINT non_negative_custom_height CHECK (part_custom_height IS NULL OR part_custom_height >= 0)
+  CONSTRAINT non_negative_custom_height CHECK (part_custom_height IS NULL OR part_custom_height >= 0),
+  CONSTRAINT valid_fab_score CHECK (fab_score >= 0 AND fab_score <= 1)
 
  
 );

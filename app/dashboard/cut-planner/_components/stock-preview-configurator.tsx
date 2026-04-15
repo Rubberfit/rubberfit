@@ -4,12 +4,22 @@ import React, { useState } from "react"
 import { Package } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Input } from "@/app/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
 
 export interface StockConfig {
   width: number
   length: number
   material: string
   thickness: number
+  materialTypeId?: string
+  costPerSqft?: number
 }
 
 export const STOCK_PRESETS = [
@@ -64,6 +74,7 @@ interface StockPreviewConfiguratorProps {
   activeStockPreset?: string
   stock: StockConfig
   onStockChange: React.Dispatch<React.SetStateAction<StockConfig>>
+  materialTypes?: MaterialType[]
 }
 
 type StockField = "width" | "length" | "thickness"
@@ -76,6 +87,7 @@ export function StockPreviewConfigurator({
   activeStockPreset,
   stock,
   onStockChange,
+  materialTypes = [],
 }: StockPreviewConfiguratorProps) {
   const [activeDraftField, setActiveDraftField] = useState<StockField | null>(null)
   const [drafts, setDrafts] = useState(() => ({
@@ -157,6 +169,43 @@ export function StockPreviewConfigurator({
             )
           })}
         </div>
+
+        {materialTypes.length > 0 && (
+          <div>
+            <label
+              htmlFor="material-type"
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+            >
+              Material Type
+            </label>
+            <Select
+              value={stock.materialTypeId ?? ""}
+              onValueChange={(id) => {
+                const mt = materialTypes.find((t) => t.id === id)
+                if (mt) {
+                  onStockChange((prev) => ({
+                    ...prev,
+                    material: mt.name,
+                    materialTypeId: mt.id,
+                    costPerSqft: mt.default_cost ?? undefined,
+                  }))
+                }
+              }}
+            >
+              <SelectTrigger id="material-type" className="w-full sm:w-64">
+                <SelectValue placeholder="Select material…" />
+              </SelectTrigger>
+              <SelectContent>
+                {materialTypes.map((mt) => (
+                  <SelectItem key={mt.id} value={mt.id}>
+                    {mt.name}
+                    {mt.default_cost != null ? ` — $${mt.default_cost.toFixed(2)}/sq ft` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
@@ -261,8 +310,10 @@ export function StockPreviewConfigurator({
         </div>
 
         <div className="text-xs text-slate-600">
-          {stock.material} · {formatInches(stock.width)}" × {formatInches(stock.length)}" preview
-          sheet
+          {stock.material ? `${stock.material}` : "No material selected"}
+          {stock.costPerSqft != null ? ` · $${stock.costPerSqft.toFixed(2)}/sq ft` : ""}
+          {" · "}
+          {formatInches(stock.width)}" × {formatInches(stock.length)}" preview sheet
         </div>
       </CardContent>
     </Card>

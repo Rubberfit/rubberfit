@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
+import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/supabase"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 const MAX_LIMIT = 100
@@ -73,9 +73,8 @@ export async function GET(request: NextRequest) {
 
   const offset = (page - 1) * limit
 
-  //  Build query 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query: any = db
+  //  Build query
+  let query = db
     .from("cut_history")
     .select("*", { count: "exact" })
     .order("cut_date", { ascending: false })
@@ -127,6 +126,7 @@ interface RecordCutBody {
   cut_amount: number
   part_custom_width?: number | null
   part_custom_height?: number | null
+  part_custom_dimensions?: PartCustomDimensions[] | null
   part_selected_size?: number[]
   part_selected_size_text?: string[]
   part_selected_label?: string[]
@@ -136,6 +136,8 @@ interface RecordCutBody {
   reusable_offset_sqft: number
   scrap_sqft: number
   fab_score: number
+  stock_label?: string | null
+  cost_per_sqft?: number | null
 }
 
 export async function POST(request: NextRequest) {
@@ -181,23 +183,28 @@ export async function POST(request: NextRequest) {
     fab_score,
   } = body
 
-  const requiredNumbers: Record<string, unknown> = {
-    material_id,
-    part_id,
-    cut_length,
-    cut_width,
-    cut_thickness,
-    cut_amount,
-    parts_completed,
-    cut_pieces,
-    material_used_sqft,
-    reusable_offset_sqft,
-    scrap_sqft,
-    fab_score,
+  // Non-negative floats (>= 0, finite)
+  const nonNegativeFields: Record<string, unknown> = {
+    cut_length, cut_width, cut_thickness,
+    material_used_sqft, reusable_offset_sqft, scrap_sqft, fab_score,
   }
 
-  for (const [key, val] of Object.entries(requiredNumbers)) {
-    if (typeof val !== "number") {
+  // Positive integers (>= 1, whole number)
+  const positiveIntFields: Record<string, unknown> = {
+    material_id, part_id, cut_amount, parts_completed, cut_pieces,
+  }
+
+  for (const [key, val] of Object.entries(nonNegativeFields)) {
+    if (typeof val !== "number" || !isFinite(val) || val < 0) {
+      return NextResponse.json(
+        { error: `Missing or invalid required field: ${key}` },
+        { status: 400 }
+      )
+    }
+  }
+
+  for (const [key, val] of Object.entries(positiveIntFields)) {
+    if (typeof val !== "number" || !Number.isInteger(val) || val < 1) {
       return NextResponse.json(
         { error: `Missing or invalid required field: ${key}` },
         { status: 400 }
@@ -225,24 +232,23 @@ export async function POST(request: NextRequest) {
     fab_score: r2(fab_score),
     part_custom_width: body.part_custom_width != null ? r2(body.part_custom_width) : null,
     part_custom_height: body.part_custom_height != null ? r2(body.part_custom_height) : null,
-    part_custom_dimensions: null,
+    part_custom_dimensions: body.part_custom_dimensions ?? null,
     part_selected_size: body.part_selected_size ?? null,
     part_selected_size_text: body.part_selected_size_text ?? null,
     part_selected_label: body.part_selected_label ?? null,
+    stock_label: body.stock_label?.trim() || null,
+    cost_per_sqft:
+      body.cost_per_sqft != null && isFinite(body.cost_per_sqft) && body.cost_per_sqft >= 0
+        ? r2(body.cost_per_sqft)
+        : null,
+    pdf_url: null,
   }
 
   const { data, error } = await db.from("cut_history").insert(insert).select().single()
 
   if (error) {
     console.error("cut_history insert error:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to record cut",
-        detail: error.message,
-        code: error.code,
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to record cut" }, { status: 500 })
   }
 
   return NextResponse.json({ data: data as CutHistory }, { status: 201 })

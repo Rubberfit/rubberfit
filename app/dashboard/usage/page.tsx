@@ -1,12 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
 import { BarChart3, Package, TrendingUp, Activity } from "lucide-react"
-import { subMonths } from "date-fns"
+import { format, subMonths } from "date-fns"
 
-import { type Cut } from "@/src/infrastructure/models/supabase"
-import { cutService } from "@/src/infrastructure/services/cutService"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 import { UsageTrendChart } from "./_components/usage-trend-chart"
@@ -30,129 +28,87 @@ interface UsageData {
 }
 
 export default function MaterialUsagePage() {
-  const [materialUsage, setMaterialUsage] = useState<MaterialUsage[]>([])
-  const [usageTrend, setUsageTrend] = useState<UsageData[]>([])
-  const [recentActivity, setRecentActivity] = useState<
-    (Cut & { roll?: { material_type: string; location: string } })[]
-  >([])
-  const [loading, setLoading] = useState(true)
+  const startDate = useMemo(() => subMonths(new Date(), 6), [])
+  const now = useMemo(() => new Date(), [])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        // Fetch cuts from last 6 months
-        const sixMonthsAgo = subMonths(new Date(), 6)
+  const { data: cutsData, isLoading: loading } = useCutHistoryAnalytics({
+    from: startDate,
+    to: now,
+  })
 
-        const cuts = await cutService.getCutsByDateRangeWithRolls(sixMonthsAgo)
+  const { materialUsage, usageTrend, recentActivity } = useMemo(() => {
+    // Recent activity (last 20 cuts, most recent first)
+    const recent = [...cutsData].reverse().slice(0, 20)
 
-        const cutsData = cuts || []
-
-        // Get recent activity (last 20 cuts)
-        setRecentActivity(cutsData.slice(0, 20))
-
-        // Calculate material usage
-        const materialStats = cutsData.reduce(
-          (acc, cut) => {
-            const material = cut.roll?.material_type || "Unknown"
-            if (!acc[material]) {
-              acc[material] = {
-                materialType: material,
-                totalSqftUsed: 0,
-                totalCuts: 0,
-                rollsUsed: new Set(),
-                totalValue: 0,
-              }
-            }
-
-            acc[material].totalSqftUsed += cut.total_sqft_used || 0
-            acc[material].totalCuts += 1
-            if (cut.roll_id) {
-              acc[material].rollsUsed.add(cut.roll_id)
-            }
-
-            const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-            acc[material].totalValue += (cut.total_sqft_used || 0) * costPerSqft
-
-            return acc
-          },
-          {} as Record<
-            string,
-            {
-              materialType: string
-              totalSqftUsed: number
-              totalCuts: number
-              rollsUsed: Set<string>
-              totalValue: number
-            }
-          >
-        )
-
-        // Fetch all rolls to calculate utilization
-        const rolls = await rollService.getAllRolls()
-
-        const rollsData = rolls || []
-
-        const materialUsageData: MaterialUsage[] = (
-          Object.values(materialStats) as {
-            materialType: string
-            totalSqftUsed: number
-            totalCuts: number
-            rollsUsed: Set<string>
-            totalValue: number
-          }[]
-        )
-          .map((stat) => {
-            const materialRolls = rollsData.filter(
-              (roll) => roll.material_type === stat.materialType
-            )
-            const totalOriginalSqft = materialRolls.reduce(
-              (sum, roll) => sum + (roll.width * roll.length) / 144,
-              0
-            )
-
-            return {
-              ...stat,
-              rollsUsed: stat.rollsUsed.size,
-              averageUtilization:
-                totalOriginalSqft > 0 ? (stat.totalSqftUsed / totalOriginalSqft) * 100 : 0,
-            }
-          })
-          .sort((a, b) => b.totalSqftUsed - a.totalSqftUsed)
-
-        setMaterialUsage(materialUsageData)
-
-        // Generate monthly usage trend
-        const { format: formatDate } = await import("date-fns")
-        const trendData: UsageData[] = []
-        for (let i = 5; i >= 0; i--) {
-          const monthStart = subMonths(new Date(), i + 1)
-          const monthEnd = subMonths(new Date(), i)
-
-          const monthCuts = cutsData.filter((cut) => {
-            const cutDate = new Date(cut.created_at)
-            return cutDate >= monthStart && cutDate < monthEnd
-          })
-
-          const totalUsage = monthCuts.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
-
-          trendData.push({
-            period: formatDate(monthStart, "MMM yyyy"),
-            totalUsage,
-            cuts: monthCuts.length,
-          })
+    // Material usage grouped by stock_label
+    const materialStats = cutsData.reduce(
+      (acc, cut) => {
+        const material = cut.stock_label || "Unknown"
+        if (!acc[material]) {
+          acc[material] = {
+            materialType: material,
+            totalSqftUsed: 0,
+            totalCuts: 0,
+            totalValue: 0,
+            totalFabScore: 0,
+          }
         }
 
-        setUsageTrend(trendData)
-      } catch (error) {
-        console.error("Error fetching usage data:", error)
-      } finally {
-        setLoading(false)
-      }
+        acc[material].totalSqftUsed += cut.material_used_sqft
+        acc[material].totalCuts += 1
+        acc[material].totalFabScore += cut.fab_score
+
+        const costPerSqft = cut.cost_per_sqft ?? 0
+        acc[material].totalValue += cut.material_used_sqft * costPerSqft
+
+        return acc
+      },
+      {} as Record<
+        string,
+        {
+          materialType: string
+          totalSqftUsed: number
+          totalCuts: number
+          totalValue: number
+          totalFabScore: number
+        }
+      >
+    )
+
+    const materialUsageData: MaterialUsage[] = Object.values(materialStats)
+      .map((stat) => ({
+        materialType: stat.materialType,
+        totalSqftUsed: stat.totalSqftUsed,
+        totalCuts: stat.totalCuts,
+        averageUtilization:
+          stat.totalCuts > 0 ? (stat.totalFabScore / stat.totalCuts) * 100 : 0,
+        totalValue: stat.totalValue,
+        rollsUsed: 0,
+      }))
+      .sort((a, b) => b.totalSqftUsed - a.totalSqftUsed)
+
+    // Monthly usage trend
+    const trendData: UsageData[] = []
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = subMonths(new Date(), i + 1)
+      const monthEnd = subMonths(new Date(), i)
+
+      const monthCuts = cutsData.filter((cut) => {
+        const cutDate = new Date(cut.cut_date)
+        return cutDate >= monthStart && cutDate < monthEnd
+      })
+
+      const totalUsage = monthCuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0)
+
+      trendData.push({
+        period: format(monthStart, "MMM yyyy"),
+        totalUsage,
+        cuts: monthCuts.length,
+      })
     }
 
-    fetchData()
-  }, [])
+    return { materialUsage: materialUsageData, usageTrend: trendData, recentActivity: recent }
+  }, [cutsData])
 
   const totalSqftUsed = materialUsage.reduce((sum, m) => sum + m.totalSqftUsed, 0)
   const totalValue = materialUsage.reduce((sum, m) => sum + m.totalValue, 0)

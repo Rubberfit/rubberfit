@@ -36,7 +36,7 @@ export function MonthlyCostTable({ data }: MonthlyCostTableProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Month</TableHead>
-                <TableHead>Material Cost</TableHead>
+                <TableHead>Utilization Cost</TableHead>
                 <TableHead>Waste Cost</TableHead>
                 <TableHead>Total Cost</TableHead>
                 <TableHead>Cuts</TableHead>

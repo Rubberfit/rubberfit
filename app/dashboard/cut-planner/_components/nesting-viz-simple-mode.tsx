@@ -1,8 +1,6 @@
-// Simple mode render for NestingVisualizer
-// Extracted from NestingVisualizer.tsx
-// Sub-components live in nesting-viz-simple-parts.tsx
+// Simple mode render for NestingVisualizer — sub-components in nesting-viz-simple-parts.tsx
 
-import React from "react"
+import React, { useMemo } from "react"
 import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
 import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
@@ -15,6 +13,7 @@ import {
   SimpleModeOffcutLabels,
   SimpleModeDimensionLabels,
 } from "./nesting-viz-simple-parts"
+import { SimpleModeAdhesives } from "./nesting-viz-adhesives"
 import { computeSimpleModeLayout, formatInches } from "./nesting-viz-simple-layout"
 import { computeFabricationScore } from "./nesting-preview-builders"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
@@ -157,10 +156,7 @@ function SheetSvg({
     dragRef.current = null
   }, [])
 
-  const resetZoom = React.useCallback(() => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-  }, [])
+  const resetZoom = React.useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
 
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
@@ -214,6 +210,7 @@ function SheetSvg({
 
       <svg
         ref={svgRef}
+        data-sheet-svg={sheet.sheetIndex}
         viewBox={`${pan.x} ${pan.y} ${vbW} ${vbH}`}
         className="mx-auto block w-full max-w-6xl rounded-xl"
         style={{ cursor: zoom > 1 ? "grab" : undefined }}
@@ -344,7 +341,7 @@ function SheetSvg({
                 wastePatternId={sWastePat}
                 viewHeight={layout.viewHeight}
                 surfacePxW={layout.surfacePxW}
-                tagLetter={tagMap?.get(item.label)}
+                tagLetter={tagMap?.get(String(item.specIndex ?? -1))}
                 zoom={zoom}
                 renderPass={pass}
               />
@@ -389,7 +386,6 @@ function SheetSvg({
   )
 }
 
-// Responsible for performing the calculations and rendering the SVG
 export default function NestingVizSimpleMode({
   preview,
   previewRollW,
@@ -442,7 +438,25 @@ export default function NestingVizSimpleMode({
     metricsPreview !== layout.displayPreview
       ? computeFabricationScore(metricsPreview, previewRollW, previewRollL)
       : layout.fabScore
-  const uniqueLabels = tagMap ? [...tagMap.keys()] : []
+  // Build legend entries: resolve specIndex → human-readable label from placed items
+  const legendEntries = useMemo(() => {
+    if (!tagMap || tagMap.size === 0) return []
+    // Collect the first item label seen for each specIndex
+    const indexToLabel = new Map<string, string>()
+    const allItems = multiSheet
+      ? multiSheet.sheets.flatMap((s) => s.preview.items)
+      : layout.displayPreview.items
+    for (const item of allItems) {
+      const key = String(item.specIndex ?? -1)
+      if (tagMap.has(key) && !indexToLabel.has(key)) {
+        indexToLabel.set(key, item.label)
+      }
+    }
+    // Return sorted by tag letter
+    return [...tagMap.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([key, tag]) => ({ tag, label: indexToLabel.get(key) ?? key }))
+  }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
   ]
@@ -470,14 +484,14 @@ export default function NestingVizSimpleMode({
         multiSheet={multiSheet}
       />
 
-      {uniqueLabels.length > 0 && (
+      {legendEntries.length > 0 && (
         <div className="flex flex-wrap gap-3 border-b border-border bg-[#1b1b19] px-4 py-2.5 text-xs text-stone-300">
-          {uniqueLabels.map((label) => (
-            <span key={label} className="flex items-center gap-1.5">
+          {legendEntries.map((entry) => (
+            <span key={entry.tag} className="flex items-center gap-1.5">
               <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
-                {tagMap?.get(label)}
+                {entry.tag}
               </span>
-              <span>{label}</span>
+              <span>{entry.label}</span>
             </span>
           ))}
         </div>
@@ -511,6 +525,10 @@ export default function NestingVizSimpleMode({
         pieceCountValue={`${metricsPreview.piecesShown}`}
         fabScore={metricsFabScore}
         multiSheet={multiSheet}
+      />
+
+      <SimpleModeAdhesives
+        usedSqFt={isMultiSheet && multiSheet ? multiSheet.totalUsedArea / 144 : metricsUsedSqFt}
       />
 
       <SimpleModeFooter

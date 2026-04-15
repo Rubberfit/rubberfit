@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+
+import { makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 /** GET /api/users
  *  Returns a list of users (id + full_name) for the admin / manager / supervisor dropdown.
@@ -7,19 +8,10 @@ import { createServerClient } from "@supabase/ssr"
  *  Response: { data: { id: string; full_name: string | null }[] }
  */
 export async function GET(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
+  const supabase = makeAuthClient(request)
+  if (!supabase) {
     return NextResponse.json({ error: "Supabase environment variables are missing" }, { status: 503 })
   }
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: () => {},
-    },
-  })
 
   const {
     data: { user },
@@ -29,12 +21,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("roles")
     .eq("id", user.id)
     .single()
-
+  if (profileError) {
+    console.error("users GET profile fetch error:", profileError)
+    return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
+  }
   const roles: string[] = (profile?.roles as string[] | null) ?? []
   const isPrivileged =
     roles.includes("admin") || roles.includes("manager") || roles.includes("supervisor")

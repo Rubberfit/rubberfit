@@ -45,6 +45,42 @@ export const deleteCutHistory = async (id: number) => {
   if (error) throw error
 }
 
+// Upload a PDF blob for a cut history entry to Supabase Storage
+export async function uploadCutPdf(
+  cutId: number,
+  userId: string,
+  pdfBlob: Blob
+): Promise<string | null> {
+  const fileName = `${userId}/${cutId}-${Date.now()}.pdf`
+  const { error: uploadError } = await supabase.storage
+    .from("cut-history-pdfs")
+    .upload(fileName, pdfBlob, {
+      cacheControl: "3600",
+      contentType: "application/pdf",
+      upsert: true,
+    })
+  if (uploadError) {
+    console.error("PDF upload failed:", uploadError)
+    return null
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("cut-history-pdfs")
+    .getPublicUrl(fileName)
+
+  const { error: updateError } = await supabase
+    .from("cut_history")
+    .update({ pdf_url: urlData.publicUrl })
+    .eq("id", cutId)
+
+  if (updateError) {
+    console.error("Failed to save PDF URL:", updateError)
+    return null
+  }
+
+  return urlData.publicUrl
+}
+
 // Get all cut history (admin/manager/supervisor only)
 export const getAllCutHistory = async () => {
   const { data, error } = await supabase

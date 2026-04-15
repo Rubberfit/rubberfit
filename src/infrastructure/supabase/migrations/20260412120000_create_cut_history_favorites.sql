@@ -29,4 +29,4 @@ CREATE POLICY favorites_delete_own
   USING (user_id = auth.uid());
 
 COMMENT ON TABLE cut_history_favorites IS
-  'Tracks which clut_history rows each user has starred/favorited. One row per (user, cut) pair.';
+  'Tracks which cut_history rows each user has starred/favorited. One row per (user, cut) pair.';
