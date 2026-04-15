@@ -156,10 +156,7 @@ function SheetSvg({
     dragRef.current = null
   }, [])
 
-  const resetZoom = React.useCallback(() => {
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-  }, [])
+  const resetZoom = React.useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
 
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
