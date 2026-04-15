@@ -27,6 +27,7 @@ import {
   getDefaultCutDirection,
   parseCutRatios,
   parseDimsFromLabel,
+  inferPartTypeFromDims,
 } from "./_components/cut-planner-utils"
 import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
@@ -135,17 +136,24 @@ export default function CutPlannerPage() {
         materialTypeId: matchedMt?.id,
       })
 
-      // 3. Reconstruct part templates from stored labels + dimensions
-      const partType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
+      // 2. Reconstruct part templates from stored labels + dimensions
+      const fallbackPartType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
       const sizeTexts = cut.part_selected_size_text ?? []
       const sizeLabels = cut.part_selected_label ?? []
       const storedDims = cut.part_custom_dimensions
+      const cleanDims = storedDims?.filter((d): d is PartCustomDimensions => d != null) ?? []
+
+      // Infer per-template part types from stored dimensions.
+      // When all templates share one type (legacy records), inferred === fallback.
+      const inferredTypes = cleanDims.map(inferPartTypeFromDims)
+
+      // Determine if this is a multi-type record (dims available + >1 unique type)
+      const uniqueTypes = new Set(inferredTypes)
+      const isMultiType = cleanDims.length > 0 && uniqueTypes.size > 1
 
       const resolveDims = (label: string, i: number): Partial<PartTemplate> => {
-        // Prefer explicit stored dimensions (new records); fall back to label
-        // regex for backward compatibility with old records.
-        if (storedDims && storedDims[i]) {
-          const d: PartCustomDimensions = storedDims[i]
+        if (cleanDims[i]) {
+          const d: PartCustomDimensions = cleanDims[i]
           return {
             ...(d.width !== undefined && { width: d.width }),
             ...(d.length !== undefined && { length: d.length }),
@@ -159,7 +167,7 @@ export default function CutPlannerPage() {
           }
         }
         return parseDimsFromLabel(
-          partType,
+          fallbackPartType,
           label,
           i === 0 ? cut.part_custom_width : null,
           i === 0 ? cut.part_custom_height : null
@@ -168,20 +176,23 @@ export default function CutPlannerPage() {
 
       const templates: PartTemplate[] =
         sizeTexts.length > 0
-          ? sizeTexts.map((label, i) => ({
-              id: `loaded-${cut.id}-${i}`,
-              partType,
-              label,
-              summary: sizeLabels[i] ?? label,
-              quantity: cut.cut_amount,
-              category: "custom" as const,
-              isCustom: true,
-              ...resolveDims(label, i),
-            }))
+          ? sizeTexts.map((label, i) => {
+              const partType = inferredTypes[i] ?? fallbackPartType
+              return {
+                id: `loaded-${cut.id}-${i}`,
+                partType,
+                label,
+                summary: sizeLabels[i] ?? label,
+                quantity: cut.cut_amount,
+                category: "custom" as const,
+                isCustom: true,
+                ...resolveDims(label, i),
+              }
+            })
           : [
               {
                 id: `loaded-${cut.id}-0`,
-                partType,
+                partType: fallbackPartType,
                 label: `${cut.cut_width}" × ${cut.cut_length}"`,
                 summary: "Loaded cut",
                 quantity: cut.cut_amount,
@@ -192,22 +203,49 @@ export default function CutPlannerPage() {
               },
             ]
 
-      // 4. Apply — clear uploaded parts so loaded config is the only source
+      // 3. Apply — clear uploaded parts so loaded config is the only source
       setUploadedParts([])
       setPresetParts(templates)
-      setCutDirection(getDefaultCutDirection(partType))
+      setCutDirection(getDefaultCutDirection(fallbackPartType))
       setCustomCutRatioInput("")
 
-      // 5. Signal PresetDimensionSelector to select matching checkboxes.
-      //    Pass stored dimension data when available so the selector can
-      //    auto-create custom templates (index 0 fills the form, 1..n are
-      //    added to the list and checked).
-      setLoadedSelection({
-        partType,
-        labels: sizeTexts,
-        nonce: Date.now(),
-        customDimensions: storedDims ?? undefined,
-      })
+      // 4. Signal PresetDimensionSelector to check matching templates.
+      //    For multi-type records, build one entry per type so all types load.
+      //    Single-type records use the legacy path.
+      if (isMultiType) {
+        // Group by inferred type, preserving order
+        const byType = new Map<SupportedPartType, { labels: string[]; dims: PartCustomDimensions[]; qtys: number[] }>()
+        sizeTexts.forEach((label, i) => {
+          const pt = inferredTypes[i] ?? fallbackPartType
+          const group = byType.get(pt) ?? { labels: [], dims: [], qtys: [] }
+          group.labels.push(label)
+          if (cleanDims[i]) group.dims.push(cleanDims[i])
+          group.qtys.push(cut.cut_amount)
+          byType.set(pt, group)
+        })
+
+        const multiTypeEntries = Array.from(byType.entries()).map(([partType, group]) => ({
+          partType,
+          labels: group.labels,
+          customDimensions: group.dims.length > 0 ? group.dims : undefined,
+          quantityPerIndex: group.qtys,
+        }))
+
+        setLoadedSelection({
+          partType: fallbackPartType,
+          labels: sizeTexts,
+          nonce: Date.now(),
+          multiTypeEntries,
+        })
+      } else {
+        setLoadedSelection({
+          partType: fallbackPartType,
+          labels: sizeTexts,
+          nonce: Date.now(),
+          customDimensions: cleanDims.length > 0 ? cleanDims : undefined,
+          quantityPerIndex: sizeTexts.map(() => cut.cut_amount),
+        })
+      }
 
       toast.success("Cut configuration loaded")
     },
@@ -261,7 +299,9 @@ export default function CutPlannerPage() {
     () =>
       selectedTemplates.map((template) => ({
         partType: template.partType,
-        quantity: template.isCustom ? template.quantity : safeQuantity,
+        // Use the per-template quantity (already reflects the quantities-map override).
+        // Fall back to safeQuantity only when the template has no quantity set.
+        quantity: template.quantity > 1 ? template.quantity : safeQuantity,
         cutDirection,
         cutRatios: customCutRatios,
         width: template.width,

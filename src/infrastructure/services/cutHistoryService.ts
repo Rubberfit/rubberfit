@@ -45,13 +45,19 @@ export async function uploadCutPdf(
   pdfBlob: Blob
 ): Promise<string | null> {
   const fileName = `${userId}/${cutId}-${Date.now()}.pdf`
-  const { error: uploadError } = await supabase.storage
-    .from("cut-history-pdfs")
-    .upload(fileName, pdfBlob, {
-      cacheControl: "3600",
-      contentType: "application/pdf",
-      upsert: true,
-    })
+  let uploadError: { message: string } | null = null
+  try {
+    const result = await supabase.storage
+      .from("cut-history-pdfs")
+      .upload(fileName, pdfBlob, {
+        cacheControl: "3600",
+        contentType: "application/pdf",
+        upsert: true,
+      })
+    uploadError = result.error
+  } catch (err) {
+    uploadError = err instanceof Error ? err : { message: String(err) }
+  }
   if (uploadError) {
     console.error("PDF upload failed:", uploadError)
     return null

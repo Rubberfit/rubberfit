@@ -19,6 +19,7 @@ export const TOKENS = {
   ITaxService: Symbol("ITaxService"),
   ITaxApiService: Symbol("ITaxApiService"),
   IVisionExtractionService: Symbol("IVisionExtractionService"),
+  IUserManagementService: Symbol("IUserManagementService"),
 
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),

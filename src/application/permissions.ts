@@ -64,4 +64,5 @@ export const ROUTE_PERMISSIONS = {
 
   // Settings & Users
   "/dashboard/settings": "manageUsers",
+  "/dashboard/users": "manageUsers",
 } as const satisfies Record<string, Permission>

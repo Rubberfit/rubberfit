@@ -22,6 +22,7 @@ import type { ISupplierService } from "@/src/application/services/supplier.servi
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
+import type { IUserManagementService } from "@/src/application/services/user-management.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -43,6 +44,7 @@ import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
+import { userManagementService } from "@/src/infrastructure/services/userManagementService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -86,6 +88,10 @@ container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
 container.registerInstance<IVisionExtractionService>(
   TOKENS.IVisionExtractionService,
   visionExtractionService
+)
+container.registerInstance<IUserManagementService>(
+  TOKENS.IUserManagementService,
+  userManagementService
 )
 
 // Use cases — registered as class-based singletons so the container lazily

@@ -11,6 +11,7 @@ const CUTTER_ALLOWED_EXACT_PATHS = new Set([
   "/dashboard/cut-planner/batch",
   "/dashboard/cut-planner/manual",
   "/dashboard/inventory",
+  "/dashboard/history",
   "/dashboard/account",
   "/dashboard/notifications",
 ])
