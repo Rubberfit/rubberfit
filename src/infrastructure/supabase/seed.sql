@@ -13,56 +13,104 @@
 -- ─────────────────────────────────────────────────────────────
 
 INSERT INTO auth.users (
+  instance_id,
   id,
   email,
   encrypted_password,
   email_confirmed_at,
+  raw_app_meta_data,
   raw_user_meta_data,
   created_at,
   updated_at,
   aud,
-  role
+  role,
+  confirmation_token,
+  recovery_token,
+  email_change,
+  email_change_token_new
 ) VALUES
   (
+    '00000000-0000-0000-0000-000000000000',
     'aaaaaaaa-0000-0000-0000-000000000001',
     'admin@rema.dev',
     crypt('Password123!', gen_salt('bf')),
     NOW(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
     '{"full_name": "Admin User"}'::jsonb,
-    NOW(), NOW(), 'authenticated', 'authenticated'
+    NOW(), NOW(), 'authenticated', 'authenticated',
+    '', '', '', ''
   ),
   (
+    '00000000-0000-0000-0000-000000000000',
     'aaaaaaaa-0000-0000-0000-000000000002',
     'manager@rema.dev',
     crypt('Password123!', gen_salt('bf')),
     NOW(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
     '{"full_name": "Manager User"}'::jsonb,
-    NOW(), NOW(), 'authenticated', 'authenticated'
+    NOW(), NOW(), 'authenticated', 'authenticated',
+    '', '', '', ''
   ),
   (
+    '00000000-0000-0000-0000-000000000000',
     'aaaaaaaa-0000-0000-0000-000000000003',
     'cutter@rema.dev',
     crypt('Password123!', gen_salt('bf')),
     NOW(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
     '{"full_name": "Cutter User"}'::jsonb,
-    NOW(), NOW(), 'authenticated', 'authenticated'
+    NOW(), NOW(), 'authenticated', 'authenticated',
+    '', '', '', ''
   ),
   (
+    '00000000-0000-0000-0000-000000000000',
     'aaaaaaaa-0000-0000-0000-000000000004',
     'viewer@rema.dev',
     crypt('Password123!', gen_salt('bf')),
     NOW(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
     '{"full_name": "Viewer User"}'::jsonb,
-    NOW(), NOW(), 'authenticated', 'authenticated'
+    NOW(), NOW(), 'authenticated', 'authenticated',
+    '', '', '', ''
   )
 ON CONFLICT (id) DO NOTHING;
+
+-- auth.identities — required for email/password login in modern GoTrue.
+-- provider_id must match the user's id for the email provider.
+INSERT INTO auth.identities (
+  id,
+  user_id,
+  provider_id,
+  identity_data,
+  provider,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+SELECT
+  gen_random_uuid(),
+  u.id,
+  u.id::text,
+  jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+  'email',
+  NOW(),
+  NOW(),
+  NOW()
+FROM auth.users u
+WHERE u.id IN (
+  'aaaaaaaa-0000-0000-0000-000000000001',
+  'aaaaaaaa-0000-0000-0000-000000000002',
+  'aaaaaaaa-0000-0000-0000-000000000003',
+  'aaaaaaaa-0000-0000-0000-000000000004'
+)
+ON CONFLICT (provider, provider_id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
 -- 2. Profiles — handle_new_user trigger runs on auth.users
 --    INSERT, so profiles are already created. Just set roles.
 -- ─────────────────────────────────────────────────────────────
 
-UPDATE profiles SET roles = ARRAY['admin']      WHERE id = 'aaaaaaaa-0000-0000-0000-000000000001';
+UPDATE profiles SET roles = ARRAY['admin', 'manager', 'member'] WHERE id = 'aaaaaaaa-0000-0000-0000-000000000001';
 UPDATE profiles SET roles = ARRAY['manager']    WHERE id = 'aaaaaaaa-0000-0000-0000-000000000002';
 UPDATE profiles SET roles = ARRAY['cutter']     WHERE id = 'aaaaaaaa-0000-0000-0000-000000000003';
 UPDATE profiles SET roles = ARRAY['viewer']     WHERE id = 'aaaaaaaa-0000-0000-0000-000000000004';
