@@ -1,8 +1,8 @@
+# RubberFit
+
 <p align="center">
   <img src="app/public/archanchorlogo.png" alt="Arc & Anchor" width="120" />
 </p>
-
-<h1 align="center">RubberFit</h1>
 
 <p align="center">
   <strong>Industrial Nesting Engine & Manufacturing CRM</strong><br/>
@@ -115,7 +115,7 @@ npm run build && npm start
 
 ## Project Structure
 
-```
+```text
 rema-portal/
 ├── app/                       # Next.js App Router
 │   ├── dashboard/

@@ -279,4 +279,4 @@ export const EMPTY_CUSTOM_TEMPLATES: CustomTemplateMap = {
   trapezoid: [],
 }
 
-export const CUSTOM_TEMPLATE_STORAGE_KEY = "rema-portal.cut-planner.custom-templates.v1"
+export const CUSTOM_TEMPLATE_STORAGE_KEY = "rubberfit.cut-planner.custom-templates.v1"
