@@ -21,6 +21,7 @@ import { getStrategies, scoreStrat } from "./nesting-layout-utils"
 
 import {
   generateSimplePartPreview,
+  generateSimplePartPreviewAsync,
   generateMultiPartPreview,
   computeMultiSheetPreviews,
   globalMultiSheetPack,
@@ -252,7 +253,10 @@ export default function NestingVisualizer({
     ]
   }, [simpleParts, simplePart, defaultQty, defaultCutWidth, defaultCutHeight])
 
-  const baseSimplePreview = useMemo<SimplePartPreview | null>(() => {
+  // First paint runs the sync generator so the UI is never empty while workers warm up.
+  // For cone/trapezoid specs an async refinement runs on the worker pool and replaces
+  // this value when ready (effect below).
+  const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
     if (!simpleMode) return null
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
@@ -279,6 +283,75 @@ export default function NestingVisualizer({
     defaultCutHeight,
     defaultQty,
   ])
+
+  // Key-based invalidation so a stale async preview from a previous spec
+  // doesn't leak through when the user switches shapes or sizes.
+  const asyncPreviewKey = useMemo(
+    () =>
+      JSON.stringify({
+        simpleMode,
+        specs: activeSimpleSpecs,
+        rw: defaultRollWidth,
+        rl: defaultRollLength,
+        cw: defaultCutWidth,
+        ch: defaultCutHeight,
+        q: defaultQty,
+      }),
+    [
+      simpleMode,
+      activeSimpleSpecs,
+      defaultRollWidth,
+      defaultRollLength,
+      defaultCutWidth,
+      defaultCutHeight,
+      defaultQty,
+    ]
+  )
+  const [asyncBasePreview, setAsyncBasePreview] = useState<{
+    key: string
+    preview: SimplePartPreview
+  } | null>(null)
+
+  useEffect(() => {
+    if (!simpleMode) return
+    if (activeSimpleSpecs.length !== 1) return
+    const spec = activeSimpleSpecs[0]
+    if (spec.partType !== "cone" && spec.partType !== "trapezoid") return
+
+    const key = asyncPreviewKey
+    let cancelled = false
+    generateSimplePartPreviewAsync(
+      defaultRollWidth,
+      defaultRollLength,
+      spec,
+      defaultCutWidth,
+      defaultCutHeight,
+      defaultQty
+    )
+      .then((preview) => {
+        if (!cancelled) setAsyncBasePreview({ key, preview })
+      })
+      .catch((err) => {
+        console.error("[NestingVisualizer] async preview failed", err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    asyncPreviewKey,
+    simpleMode,
+    activeSimpleSpecs,
+    defaultRollWidth,
+    defaultRollLength,
+    defaultCutWidth,
+    defaultCutHeight,
+    defaultQty,
+  ])
+
+  const baseSimplePreview =
+    asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
+      ? asyncBasePreview.preview
+      : syncBasePreview
 
   useEffect(() => {
     if (!simpleMode) return
@@ -392,6 +465,7 @@ export default function NestingVisualizer({
   )
 
   if (simpleMode) {
+    const _renderStart = performance.now()
     const rawPreview =
       baseSimplePreview ??
       generateSimplePartPreview(
@@ -406,6 +480,16 @@ export default function NestingVisualizer({
     const preview = shouldRotate
       ? rotateSimplePartPreview(rawPreview, defaultRollLength)
       : rawPreview
+    if (typeof window !== "undefined") {
+      // Logs after the browser has drawn the frame — captures paint/layout cost
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          console.log(
+            `[viz] render→paint=${(performance.now() - _renderStart).toFixed(1)}ms  items=${preview.items.length}`
+          )
+        })
+      })
+    }
 
     return (
       <NestingVizSimpleMode

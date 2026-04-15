@@ -27,7 +27,9 @@ import { computeFabricationScore } from "./nesting-preview-builders"
 import {
   generateCylinderPreview,
   generateConePreview,
+  generateConePreviewAsync,
   generateTrapezoidPreview,
+  generateTrapezoidPreviewAsync,
 } from "./nesting-shape-previews-advanced"
 import type { PreviewItem } from "./nesting-visualizer-types"
 
@@ -374,6 +376,55 @@ export function generateSimplePartPreview(
         simplePart.width ?? fallbackWidth,
         simplePart.length ?? fallbackHeight,
         qty
+      )
+  }
+}
+
+/**
+ * Async variant of generateSimplePartPreview. Routes cone/trapezoid through
+ * the worker-backed NFP path (parallel coarse-angle sweep); everything else
+ * falls through to the sync generators.
+ */
+export async function generateSimplePartPreviewAsync(
+  rollW: number,
+  rollL: number,
+  simplePart: NonNullable<NestingVisualizerProps["simplePart"]>,
+  fallbackWidth: number,
+  fallbackHeight: number,
+  fallbackQty: number
+): Promise<SimplePartPreview> {
+  const qty = Math.max(1, simplePart.quantity || fallbackQty)
+  switch (simplePart.partType) {
+    case "cone":
+      return generateConePreviewAsync(
+        rollW,
+        rollL,
+        simplePart.innerRadius ?? Math.max(1, fallbackWidth / 2),
+        simplePart.outerRadius ?? Math.max(2, fallbackHeight),
+        simplePart.arcDegrees ?? 120,
+        qty,
+        simplePart.cutDirection,
+        simplePart.cutRatios
+      )
+    case "trapezoid":
+      return generateTrapezoidPreviewAsync(
+        rollW,
+        rollL,
+        simplePart.topWidth ?? fallbackWidth,
+        simplePart.bottomWidth ?? fallbackWidth,
+        simplePart.height ?? fallbackHeight,
+        qty,
+        simplePart.cutDirection,
+        simplePart.cutRatios
+      )
+    default:
+      return generateSimplePartPreview(
+        rollW,
+        rollL,
+        simplePart,
+        fallbackWidth,
+        fallbackHeight,
+        fallbackQty
       )
   }
 }
