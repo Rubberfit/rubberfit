@@ -353,9 +353,10 @@ export function greedyNfpPack(
   const hull = convexHull(polygon.points)
   const shapeArea = polygonArea(polygon.points)
 
+  const startTime = Date.now()
   const tryAngle = (angle: number): GreedyPlacement[] | null =>
     packWithRotation(polygon.points, hull, binWidth, binHeight, qty, spacing, angle)
-
+  // OPTIMIZATION: THIS IS WHERE THE LONGEST CALCULATIONS TAKE PLACE
   // --- Coarse pass ---
   const coarseResults: Array<{ angle: number; placements: GreedyPlacement[] }> = []
   for (let step = 0; step < rotationSteps; step++) {
@@ -365,7 +366,8 @@ export function greedyNfpPack(
       coarseResults.push({ angle, placements: result })
     }
   }
-
+  const endTime = Date.now()
+  console.log(`Time take: ${endTime - startTime} ms`)
   if (coarseResults.length === 0) {
     return {
       placements: [],
