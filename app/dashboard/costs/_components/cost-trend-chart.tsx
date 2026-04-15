@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 
 interface MonthlyCosts {
   period: string
-  materialCost: number
+  cutCost: number
+  reusableCost: number
   wasteCost: number
   totalCost: number
   cuts: number
@@ -16,11 +17,6 @@ interface CostTrendChartProps {
 }
 
 export function CostTrendChart({ data }: CostTrendChartProps) {
-  const chartData = data.map((item) => ({
-    ...item,
-    utilizationCost: item.totalCost - item.wasteCost,
-  }))
-
   return (
     <Card>
       <CardHeader>
@@ -28,13 +24,13 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={chartData}>
+          <AreaChart data={data}>
             <XAxis dataKey="period" />
             <YAxis />
             <Tooltip
               content={({ active, payload, label }) => {
                 if (active && payload && payload.length) {
-                  const data = payload[0].payload as MonthlyCosts & { utilizationCost: number }
+                  const data = payload[0].payload as MonthlyCosts
                   return (
                     <div className="rounded-lg border bg-background p-2 shadow-md">
                       <p className="font-medium">{label}</p>
@@ -44,8 +40,12 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
                           <span className="font-medium">${data.totalCost.toFixed(2)}</span>
                         </p>
                         <p className="text-sm">
-                          <span className="text-muted-foreground">Utilization:</span>{" "}
-                          <span className="font-medium">${data.utilizationCost.toFixed(2)}</span>
+                          <span className="text-muted-foreground">Cut Value:</span>{" "}
+                          <span className="font-medium">${data.cutCost.toFixed(2)}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Reusable:</span>{" "}
+                          <span className="font-medium">${data.reusableCost.toFixed(2)}</span>
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Waste:</span>{" "}
@@ -64,10 +64,18 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
             />
             <Area
               type="monotone"
-              dataKey="utilizationCost"
+              dataKey="cutCost"
               stackId="1"
               stroke="#3b82f6"
               fill="#3b82f6"
+              fillOpacity={0.6}
+            />
+            <Area
+              type="monotone"
+              dataKey="reusableCost"
+              stackId="1"
+              stroke="#22c55e"
+              fill="#22c55e"
               fillOpacity={0.6}
             />
             <Area
@@ -83,7 +91,11 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
         <div className="mt-4 flex justify-center gap-6">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
-            <span className="text-sm">Utilization Cost</span>
+            <span className="text-sm">Cut Value</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#22c55e" }} />
+            <span className="text-sm">Reusable Value</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#ef4444" }} />
