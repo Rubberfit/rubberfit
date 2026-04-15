@@ -342,7 +342,6 @@ export function generateConePreview(
   )
 
   // NFP convex-hull packing candidate — reuse precomputed (async path) or compute sync now
-  const t0 = performance.now()
   const coneNfpResult =
     precomputedNfpResult ??
     greedyNfpPack(
@@ -353,8 +352,6 @@ export function generateConePreview(
       NFP_DEFAULT_SPACING,
       NFP_COARSE_STEPS
     )
-  const t1 = performance.now()
-
   const coneNfpCandidate = coneNfpResult.placed > 0
     ? withWaste(
         buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
@@ -367,7 +364,6 @@ export function generateConePreview(
         rollL
       )
     : null
-  const t2 = performance.now()
 
   const sectorCandidates = [
     { ...directGrid, adjustedWaste: rollArea > 0 ? (directGrid.scrapArea / rollArea) * 100 : 100 },
@@ -376,11 +372,6 @@ export function generateConePreview(
       : []),
   ]
   const bestSector = chooseBestPreview(sectorCandidates)
-  const t3 = performance.now()
-
-  console.log(
-    `[cone-preview] pack=${(t1 - t0).toFixed(1)}ms  buildNfp+withWaste=${(t2 - t1).toFixed(1)}ms  chooseBest=${(t3 - t2).toFixed(1)}ms  placed=${coneNfpResult.placed}`
-  )
 
   const singleCutPlan = buildConeSteps(safeInnerRadius, safeOuterRadius, safeArcDegrees, 1)
 

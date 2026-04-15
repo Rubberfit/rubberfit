@@ -465,7 +465,6 @@ export default function NestingVisualizer({
   )
 
   if (simpleMode) {
-    const _renderStart = performance.now()
     const rawPreview =
       baseSimplePreview ??
       generateSimplePartPreview(
@@ -480,16 +479,6 @@ export default function NestingVisualizer({
     const preview = shouldRotate
       ? rotateSimplePartPreview(rawPreview, defaultRollLength)
       : rawPreview
-    if (typeof window !== "undefined") {
-      // Logs after the browser has drawn the frame — captures paint/layout cost
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          console.log(
-            `[viz] render→paint=${(performance.now() - _renderStart).toFixed(1)}ms  items=${preview.items.length}`
-          )
-        })
-      })
-    }
 
     return (
       <NestingVizSimpleMode
