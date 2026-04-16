@@ -355,7 +355,9 @@ export function generateSimplePartPreview(
         simplePart.arcDegrees ?? 120,
         qty,
         simplePart.cutDirection,
-        simplePart.cutRatios
+        simplePart.cutRatios,
+        undefined,
+        true
       )
     case "trapezoid":
       return generateTrapezoidPreview(
@@ -366,7 +368,9 @@ export function generateSimplePartPreview(
         simplePart.height ?? fallbackHeight,
         qty,
         simplePart.cutDirection,
-        simplePart.cutRatios
+        simplePart.cutRatios,
+        undefined,
+        true
       )
     case "rectangle":
     default:
