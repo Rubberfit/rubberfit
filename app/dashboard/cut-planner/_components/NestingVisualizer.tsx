@@ -141,25 +141,35 @@ function buildMultiSheet(
 
   const allTrapezoids =
     specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
-  // Mixed cone/trapezoid (with at least one cone) uses the new mixed-NFP path
+  // Mixed cone/trapezoid (with at least one cone) uses the mixed-NFP path
   // via generateMultiPartPreview — overflow sheets regenerate through the same
   // function so each sheet's layout uses NFP rotation, not AABB shelf packing.
   const isMixedConeOrTrapezoid =
     specs.length > 1 &&
     specs.every((s) => s.partType === "cone" || s.partType === "trapezoid") &&
     specs.some((s) => s.partType === "cone")
+  // Trapezoid + any non-trapezoid spec uses the trapezoid hybrid path so
+  // trapezoids keep their interlocked layout; overflow sheets regenerate
+  // through the same path. Includes trapezoid+cone (which would otherwise be
+  // isMixedConeOrTrapezoid) — the hybrid takes precedence in that case.
+  const isTrapezoidPlusOther =
+    specs.length > 1 &&
+    specs.some((s) => s.partType === "trapezoid") &&
+    specs.some((s) => s.partType !== "trapezoid")
+  const needsNfpRegenerate = isMixedConeOrTrapezoid || isTrapezoidPlusOther
   const shouldUseGlobalPacker =
-    (specs.length > 1 && !allTrapezoids && !isMixedConeOrTrapezoid) ||
+    (specs.length > 1 && !allTrapezoids && !needsNfpRegenerate) ||
     (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
 
   if (shouldUseGlobalPacker) {
     return globalMultiSheetPack(specs, rollW, rollL, 4, cutW, cutH)
   }
 
-  if (allTrapezoids || isMixedConeOrTrapezoid) {
-    // For mixed cone/trapezoid, overflow sheets need NFP rotation (sync) so
-    // they match the first sheet's async-NFP layout. Pure-trapezoid path
-    // doesn't use mixed-NFP regardless (it goes through packInterleavedTrapezoids).
+  if (allTrapezoids || needsNfpRegenerate) {
+    // For mixed cone/trapezoid and trapezoid+other, overflow sheets need to
+    // run NFP / hybrid layout (sync) so they match the first sheet's
+    // async-optimized layout. Pure-trapezoid path doesn't use NFP regardless
+    // (it goes through packInterleavedTrapezoids).
     const regenerate = (_qty: number, remainingSpecs?: typeof specs) =>
       generateMultiPartPreview(
         rollW,
@@ -167,7 +177,7 @@ function buildMultiSheet(
         remainingSpecs ?? specs,
         cutW,
         cutH,
-        !isMixedConeOrTrapezoid
+        !needsNfpRegenerate
       )
     return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate, specs)
   }
@@ -361,14 +371,21 @@ export default function NestingVisualizer({
       }
     }
 
-    // Multi-spec cone/trapezoid mix (with at least one cone): refine via
-    // mixed-NFP on workers so the first-paint AABB layout is replaced by the
-    // NFP-rotated layout without freezing the main thread.
+    // Multi-spec layouts that can benefit from worker-pool refinement:
+    //   • all-cone-or-trapezoid with at least one cone → mixed-NFP path
+    //   • any trapezoid + any non-trapezoid → trapezoid hybrid path
+    // Both run inside generateMultiPartPreviewAsync; the routing there picks
+    // the right algorithm. Anything else (rect/circle mixes) doesn't benefit
+    // from the async refinement and is handled by the global packer.
     const allConeOrTrapezoid = activeSimpleSpecs.every(
       (s) => s.partType === "cone" || s.partType === "trapezoid"
     )
     const hasCone = activeSimpleSpecs.some((s) => s.partType === "cone")
-    if (!allConeOrTrapezoid || !hasCone) return
+    const hasTrapezoid = activeSimpleSpecs.some((s) => s.partType === "trapezoid")
+    const hasNonTrapezoid = activeSimpleSpecs.some((s) => s.partType !== "trapezoid")
+    const isTrapezoidPlusOther = hasTrapezoid && hasNonTrapezoid
+    const eligibleForAsync = (allConeOrTrapezoid && hasCone) || isTrapezoidPlusOther
+    if (!eligibleForAsync) return
 
     generateMultiPartPreviewAsync(
       defaultRollWidth,
