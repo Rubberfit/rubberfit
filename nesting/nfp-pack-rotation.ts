@@ -149,6 +149,10 @@ export function packWithRotation(
   if (partPartNfp.length === 0) return null
 
   const placements: GreedyPlacement[] = []
+  // Incremental NFP union: instead of rebuilding from all j < i placements
+  // each iteration (O(qty²) Clipper paths), keep a running union and add
+  // only the most-recently-placed shape's NFPs each time (O(qty)).
+  let runningNfpUnion = new ClipperLib.Paths()
 
   for (let i = 0; i < qty; i++) {
     if (i === 0) {
@@ -177,20 +181,22 @@ export function packWithRotation(
       continue
     }
 
+    // Incrementally union only the latest placement's NFPs onto the running result
     const clipper = new ClipperLib.Clipper()
-
-    for (let j = 0; j < placements.length; j++) {
-      for (const nfp of partPartNfp) {
-        let clone = toClipperCoordinates(nfp.points)
-        for (let m = 0; m < clone.length; m++) {
-          clone[m].X += Math.round(placements[j].x * clipperScale)
-          clone[m].Y += Math.round(placements[j].y * clipperScale)
-        }
-        clone = ClipperLib.Clipper.CleanPolygon(clone, clipperThreshold)
-        const area = Math.abs(ClipperLib.Clipper.Area(clone))
-        if (clone.length > 2 && area > 0.1 * clipperScale * clipperScale) {
-          clipper.AddPath(clone, ClipperLib.PolyType.ptSubject, true)
-        }
+    if (runningNfpUnion.length > 0) {
+      clipper.AddPaths(runningNfpUnion, ClipperLib.PolyType.ptSubject, true)
+    }
+    const lastPlaced = placements[i - 1]
+    for (const nfp of partPartNfp) {
+      let clone = toClipperCoordinates(nfp.points)
+      for (let m = 0; m < clone.length; m++) {
+        clone[m].X += Math.round(lastPlaced.x * clipperScale)
+        clone[m].Y += Math.round(lastPlaced.y * clipperScale)
+      }
+      clone = ClipperLib.Clipper.CleanPolygon(clone, clipperThreshold)
+      const area = Math.abs(ClipperLib.Clipper.Area(clone))
+      if (clone.length > 2 && area > 0.1 * clipperScale * clipperScale) {
+        clipper.AddPath(clone, ClipperLib.PolyType.ptSubject, true)
       }
     }
 
@@ -205,6 +211,7 @@ export function packWithRotation(
     ) {
       break
     }
+    runningNfpUnion = combinedNfp
 
     const finalNfp = new ClipperLib.Paths()
     const clipper2 = new ClipperLib.Clipper()
