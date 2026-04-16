@@ -50,6 +50,7 @@ interface PresetCustomTemplateFormProps {
   editingCustomId: string | null
   setEditingCustomId: React.Dispatch<React.SetStateAction<string | null>>
   pendingCustomTemplate: PartTemplate | null
+  customTemplateError: string | null
   onAddCustomSize: () => void
 }
 
@@ -63,6 +64,7 @@ export default function PresetCustomTemplateForm({
   editingCustomId,
   setEditingCustomId,
   pendingCustomTemplate,
+  customTemplateError,
   onAddCustomSize,
 }: PresetCustomTemplateFormProps) {
   const customFields = getCustomFields(selectedPart)
@@ -118,7 +120,7 @@ export default function PresetCustomTemplateForm({
           <button
             type="button"
             onClick={onAddCustomSize}
-            disabled={!pendingCustomTemplate}
+            disabled={!pendingCustomTemplate || customTemplateError !== null}
             className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors border-slate-200 bg-white text-slate-600 enabled:hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300"
           >
             {editingCustomId ? "Save Changes" : "Add Custom Size"}
@@ -150,13 +152,19 @@ export default function PresetCustomTemplateForm({
         ))}
       </div>
 
-      <div className="text-xs text-slate-500 dark:text-slate-300">
-        {pendingCustomTemplate
-          ? `${editingCustomId ? "Ready to save" : "Custom size ready to add"}: ${pendingCustomTemplate.label}`
-          : selectedPart === "cone"
-            ? "Enter inner radius, outer radius, and sweep in degrees. Outer radius must be larger than inner radius."
-            : "Enter the part dimensions to add a custom size to the graph."}
-      </div>
+      {customTemplateError ? (
+        <div className="text-xs font-medium text-red-600 dark:text-red-400">
+          {customTemplateError}
+        </div>
+      ) : (
+        <div className="text-xs text-slate-500 dark:text-slate-300">
+          {pendingCustomTemplate
+            ? `${editingCustomId ? "Ready to save" : "Custom size ready to add"}: ${pendingCustomTemplate.label}`
+            : selectedPart === "cone"
+              ? "Enter inner radius, outer radius, and sweep in degrees. Outer radius must be larger than inner radius."
+              : "Enter the part dimensions to add a custom size to the graph."}
+        </div>
+      )}
     </div>
   )
 }
