@@ -154,10 +154,12 @@ function buildMultiSheet(
     return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate, specs)
   }
 
-  // Single-part: use existing sequential overflow packing
+  // Single-part: use existing sequential overflow packing.
+  // skipNfpPacking=false so overflow sheets run NFP and match sheet 1's layout
+  // (the first sheet uses the async NFP-optimized basePreview).
   const regenerate = (qty: number) => {
     const partWithQty = { ...specs[0], quantity: qty }
-    return generateSimplePartPreview(rollW, rollL, partWithQty, cutW, cutH, qty)
+    return generateSimplePartPreview(rollW, rollL, partWithQty, cutW, cutH, qty, false)
   }
   return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate)
 }

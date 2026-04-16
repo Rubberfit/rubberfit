@@ -329,7 +329,12 @@ export function generateSimplePartPreview(
   simplePart: NonNullable<NestingVisualizerProps["simplePart"]>,
   fallbackWidth: number,
   fallbackHeight: number,
-  fallbackQty: number
+  fallbackQty: number,
+  // Skip the expensive sync NFP packing for cone/trapezoid first-paint;
+  // the async worker result replaces the directGrid output shortly.
+  // Overflow-sheet regeneration must pass `false` so subsequent sheets
+  // match the first sheet's NFP-optimized layout.
+  skipNfpPacking = true
 ): SimplePartPreview {
   const qty = Math.max(1, simplePart.quantity || fallbackQty)
 
@@ -357,7 +362,7 @@ export function generateSimplePartPreview(
         simplePart.cutDirection,
         simplePart.cutRatios,
         undefined,
-        true
+        skipNfpPacking
       )
     case "trapezoid":
       return generateTrapezoidPreview(
@@ -370,7 +375,7 @@ export function generateSimplePartPreview(
         simplePart.cutDirection,
         simplePart.cutRatios,
         undefined,
-        true
+        skipNfpPacking
       )
     case "rectangle":
     default:

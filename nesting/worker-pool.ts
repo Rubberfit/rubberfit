@@ -30,8 +30,7 @@ class AngleWorkerPool {
   private initAttempted = false
 
   constructor() {
-    this.available =
-      typeof window !== "undefined" && typeof Worker !== "undefined"
+    this.available = typeof window !== "undefined" && typeof Worker !== "undefined"
   }
 
   isAvailable(): boolean {
@@ -42,16 +41,12 @@ class AngleWorkerPool {
 
   private init(): void {
     this.initAttempted = true
-    const size = Math.min(
-      8,
-      Math.max(1, (navigator.hardwareConcurrency ?? 4) - 1)
-    )
+    const size = Math.min(8, Math.max(1, (navigator.hardwareConcurrency ?? 4) - 1))
     try {
       for (let i = 0; i < size; i++) {
-        const worker = new Worker(
-          new URL("./nfp-angle-worker.ts", import.meta.url),
-          { type: "module" }
-        )
+        const worker = new Worker(new URL("./nfp-angle-worker.ts", import.meta.url), {
+          type: "module",
+        })
         worker.addEventListener("message", (event: MessageEvent<AngleTaskResponse>) => {
           const { taskId, placements, error } = event.data
           const pending = this.pending.get(taskId)

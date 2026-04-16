@@ -140,10 +140,7 @@ export function packWithRotation(
   const partPartNfp = partPartNfpCache.corePolygons.map((core) => ({
     points: core.map(
       (pt) =>
-        new Vector(
-          pt.x * cosR - pt.y * sinR + partFirst.x,
-          pt.x * sinR + pt.y * cosR + partFirst.y
-        )
+        new Vector(pt.x * cosR - pt.y * sinR + partFirst.x, pt.x * sinR + pt.y * cosR + partFirst.y)
     ),
   }))
   if (partPartNfp.length === 0) return null
