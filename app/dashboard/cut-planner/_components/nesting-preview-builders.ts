@@ -18,6 +18,7 @@ import {
   buildOffcutBands,
   buildShelfGapBands,
   isReusableOffcutBand,
+  computeIntraBlankWaste,
   getPlacementBounds,
   centerPlacements,
   buildRectangleSteps,
@@ -137,7 +138,7 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       // Use shelf gap bands over placement AABBs for visual offcut/scrap classification.
       // Band areas under-report total waste (they miss the concave area inside each
       // placement's AABB), so compute totalWasteArea from rollArea - usedArea directly
-      // and split reusable/scrap proportionally by band area.
+      // and split reusable/scrap proportionally by band+intra area.
       const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
       const reusableBands: OffcutBand[] = []
       const scrapBands: OffcutBand[] = []
@@ -154,10 +155,18 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
         }
       })
 
+      // Intra-blank waste (area inside each placement's AABB but outside the actual
+      // shape — e.g. the corners around a sector) is always scrap. Without this,
+      // single-cone layouts where every shelf-gap band is reusable report scrap=0.
+      const intraBlankWaste = preview.items.reduce(
+        (sum, item) => sum + computeIntraBlankWaste(item),
+        0
+      )
+
       const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
-      const bandTotal = reusableBandArea + scrapBandArea
+      const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
       const reusableArea =
-        bandTotal > 0 ? (totalWasteArea * reusableBandArea) / bandTotal : 0
+        rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
       const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
       return {
@@ -174,23 +183,33 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       }
     }
 
-    // Fallback: AABB-based shelf gap bands for non-NFP layouts
+    // Fallback: AABB-based shelf gap bands for non-NFP layouts (non-rect shapes
+    // missing polygon outlines). Same intra-blank accounting as the polygon branch.
     const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
     const reusableBands: OffcutBand[] = []
     const scrapBands: OffcutBand[] = []
-    let reusableArea = 0
+    let reusableBandArea = 0
+    let scrapBandArea = 0
 
     allBands.forEach((band) => {
       const area = band.width * band.height
       if (isReusableOffcutBand(band, pieceW, pieceH)) {
         reusableBands.push(band)
-        reusableArea += area
+        reusableBandArea += area
       } else {
         scrapBands.push(band)
+        scrapBandArea += area
       }
     })
 
+    const intraBlankWaste = preview.items.reduce(
+      (sum, item) => sum + computeIntraBlankWaste(item),
+      0
+    )
     const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
+    const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
+    const reusableArea =
+      rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
     const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
     return {
