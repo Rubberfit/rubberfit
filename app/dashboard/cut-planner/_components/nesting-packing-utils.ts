@@ -116,14 +116,28 @@ export function packPreviewItemsOnShelves(
 
     const shelf = shelves[bestShelfIndex]
     const placedW = bestRotated ? item.height : item.width
+    const finalRotated90 = bestRotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false)
+    const finalFlipped =
+      flipPattern === "checker" ? placedIndex % 2 === 1 : (item.flipped ?? false)
+    // Set placedPolygon for trapezoid/sector items so the renderer takes the
+    // PolygonShape path. Without it, TrapezoidShape/SectorShape draw the shape
+    // in its original orientation inside a rotated AABB — visual mismatch.
+    const placedPolygon = recomputePlacedPolygon(
+      item,
+      finalRotated90,
+      finalFlipped,
+      shelf.x,
+      shelf.y
+    )
     placedItems.push({
       ...item,
       x: shelf.x,
       y: shelf.y,
       width: bestRotated ? item.height : item.width,
       height: bestRotated ? item.width : item.height,
-      rotated90: bestRotated ? !(item.rotated90 ?? false) : (item.rotated90 ?? false),
-      flipped: flipPattern === "checker" ? placedIndex % 2 === 1 : (item.flipped ?? false),
+      rotated90: finalRotated90,
+      flipped: finalFlipped,
+      ...(placedPolygon ? { placedPolygon } : {}),
     })
     placedIndex += 1
     shelf.x += placedW

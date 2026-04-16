@@ -826,6 +826,10 @@ export function computeMultiSheetPreviews(
       sheetPreview = preview
     } else if (regenerate) {
       sheetPreview = regenerate(unitsOnSheet, overflowSpecs)
+      // If the remaining spec(s) don't fit on a fresh sheet (e.g. async NFP
+      // rotation produced an AABB larger than the stock), there's no point
+      // adding empty sheets — leftover items end up in remainingOverflow.
+      if (sheetPreview.unitsCompleted === 0) break
     } else {
       sheetPreview = preview
     }
