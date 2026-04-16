@@ -122,18 +122,20 @@ function subtractPlacementFromBand(
     return [band]
   }
 
+  // Propagate flags (e.g. forceReusable) onto each sub-band via spread so
+  // bottom-of-sheet bands keep their reusable classification after clipping.
   const result: OffcutBand[] = []
   if (ox1 - bx1 > MIN_GAP_BAND_SIZE) {
-    result.push({ x: bx1, y: by1, width: ox1 - bx1, height: band.height })
+    result.push({ ...band, x: bx1, y: by1, width: ox1 - bx1, height: band.height })
   }
   if (bx2 - ox2 > MIN_GAP_BAND_SIZE) {
-    result.push({ x: ox2, y: by1, width: bx2 - ox2, height: band.height })
+    result.push({ ...band, x: ox2, y: by1, width: bx2 - ox2, height: band.height })
   }
   if (oy1 - by1 > MIN_GAP_BAND_SIZE) {
-    result.push({ x: ox1, y: by1, width: ox2 - ox1, height: oy1 - by1 })
+    result.push({ ...band, x: ox1, y: by1, width: ox2 - ox1, height: oy1 - by1 })
   }
   if (by2 - oy2 > MIN_GAP_BAND_SIZE) {
-    result.push({ x: ox1, y: oy2, width: ox2 - ox1, height: by2 - oy2 })
+    result.push({ ...band, x: ox1, y: oy2, width: ox2 - ox1, height: by2 - oy2 })
   }
   return result
 }
@@ -183,12 +185,19 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
       rowMaxX = Math.max(rowMaxX, placement.x + placement.width)
       const underfillHeight = row.height - placement.height
       if (underfillHeight > MIN_GAP_BAND_SIZE) {
-        candidateBands.push({
+        const underfillBand: OffcutBand = {
           x: placement.x,
           y: placement.y + placement.height,
           width: placement.width,
           height: underfillHeight,
-        })
+        }
+        // Only emit when the strip is large enough to be reusable. Otherwise
+        // a row of short cones next to a tall one produces thin scrap bands
+        // below each short cone, which paint a horizontal waste stripe and
+        // also shift withWaste's proportional split toward scrap.
+        if (isReusableOffcutBand(underfillBand)) {
+          candidateBands.push(underfillBand)
+        }
       }
     })
 
@@ -208,11 +217,17 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     const bottomY = lastRow.y + lastRow.height
     const bottomHeight = rollL - bottomY
     if (bottomHeight > MIN_GAP_BAND_SIZE) {
+      // Always emit the bottom-of-sheet strip as forceReusable so the offcut
+      // overlay paints over the full-stock waste pattern. Without this, a
+      // bottom strip that's too thin to pass the standard reusable thresholds
+      // would either be classified as scrap (red overlay) or dropped entirely
+      // — in both cases the user sees the bottom of the sheet as red.
       candidateBands.push({
         x: 0,
         y: bottomY,
         width: rollW,
         height: bottomHeight,
+        forceReusable: true,
       })
     }
   }
@@ -241,6 +256,7 @@ export function countPieceFitsInBand(band: OffcutBand, pieceW: number, pieceH: n
 }
 
 export function isReusableOffcutBand(band: OffcutBand, pieceW?: number, pieceH?: number) {
+  if (band.forceReusable) return true
   const matchesCurrentPiece =
     pieceW && pieceH ? countPieceFitsInBand(band, pieceW, pieceH) > 0 : false
   const matchesStandardOffcut =
@@ -252,6 +268,7 @@ export function isReusableOffcutBand(band: OffcutBand, pieceW?: number, pieceH?:
 }
 
 export function bandFitsAnyPreviewItem(band: OffcutBand, items: PreviewItem[]) {
+  if (band.forceReusable) return true
   return (
     items.some((item) => countPieceFitsInBand(band, item.width, item.height) > 0) ||
     isReusableOffcutBand(band)

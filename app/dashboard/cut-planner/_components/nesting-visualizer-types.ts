@@ -114,6 +114,14 @@ export interface OffcutBand {
   height: number
   /** For NFP layouts: actual polygon outline of the free region */
   polygon?: Array<{ x: number; y: number }>
+  /**
+   * When true, classifiers (`bandFitsAnyPreviewItem`, `isReusableOffcutBand`)
+   * always treat this band as reusable, regardless of size thresholds. Used
+   * for the bottom-of-sheet strip so it always paints the offcut overlay
+   * (green) on top of the full-stock waste pattern, instead of leaving the
+   * underlying red background to show through.
+   */
+  forceReusable?: boolean
 }
 
 export interface PackedShapeLayout {
