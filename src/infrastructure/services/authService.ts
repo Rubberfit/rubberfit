@@ -54,6 +54,16 @@ async function getProfileRoles(userId: string): Promise<string[]> {
   }
 }
 
+async function isProfileDeleted(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_deleted")
+    .eq("id", userId)
+    .maybeSingle()
+
+  return data?.is_deleted === true
+}
+
 async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
   return {
     id: user.id,
@@ -86,6 +96,18 @@ export class AuthService implements IAuthService {
             message: "No user returned from sign in",
             name: "AuthError",
             status: 400,
+          } as AuthError,
+        }
+      }
+
+      if (await isProfileDeleted(data.user.id)) {
+        await supabase.auth.signOut()
+        return {
+          user: null,
+          error: {
+            message: "This account has been deactivated. Please contact your administrator.",
+            name: "AuthError",
+            status: 403,
           } as AuthError,
         }
       }

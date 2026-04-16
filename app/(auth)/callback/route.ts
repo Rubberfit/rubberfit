@@ -100,9 +100,17 @@ export async function GET(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("roles")
+      .select("roles, is_deleted")
       .eq("id", user.id)
       .maybeSingle()
+
+    if (profile?.is_deleted) {
+      await supabase.auth.signOut()
+      const loginParams = new URLSearchParams()
+      loginParams.set("error", "This account has been deactivated. Please contact your administrator.")
+      return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    }
+
     roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
   }
 
