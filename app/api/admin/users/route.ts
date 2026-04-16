@@ -2,11 +2,10 @@ import { createClient } from "@supabase/supabase-js"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+import { ALL_ROLES } from "@/src/application/permissions"
 
-const VALID_ROLES = ["admin", "cutter", "manager", "member", "supervisor", "viewer"] as const
-
-function isValidRole(role: unknown): role is (typeof VALID_ROLES)[number] {
-  return typeof role === "string" && (VALID_ROLES as readonly string[]).includes(role)
+function isValidRole(role: unknown): role is (typeof ALL_ROLES)[number] {
+  return typeof role === "string" && (ALL_ROLES as readonly string[]).includes(role)
 }
 
 /** Verify the caller is an authenticated admin. Returns null on success, or an error response. */
@@ -65,7 +64,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const body: unknown = await request.json()
+ 
+  let body: unknown
+  try{
+    body = await request.json();
+  }catch (error) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
   if (typeof body !== "object" || body === null) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
