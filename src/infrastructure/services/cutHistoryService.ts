@@ -47,13 +47,11 @@ export async function uploadCutPdf(
   const fileName = `${userId}/${cutId}-${Date.now()}.pdf`
   let uploadError: { message: string } | null = null
   try {
-    const result = await supabase.storage
-      .from("cut-history-pdfs")
-      .upload(fileName, pdfBlob, {
-        cacheControl: "3600",
-        contentType: "application/pdf",
-        upsert: true,
-      })
+    const result = await supabase.storage.from("cut-history-pdfs").upload(fileName, pdfBlob, {
+      cacheControl: "3600",
+      contentType: "application/pdf",
+      upsert: true,
+    })
     uploadError = result.error
   } catch (err) {
     uploadError = err instanceof Error ? err : { message: String(err) }

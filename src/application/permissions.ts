@@ -2,7 +2,14 @@ export type AppRole = "admin" | "cutter" | "manager" | "member" | "supervisor" |
 
 export const DEFAULT_ROLES = ["member"] as const satisfies readonly AppRole[]
 
-export const ALL_ROLES = ["admin", "cutter", "manager", "member", "supervisor", "viewer"] as const satisfies readonly AppRole[]
+export const ALL_ROLES = [
+  "admin",
+  "cutter",
+  "manager",
+  "member",
+  "supervisor",
+  "viewer",
+] as const satisfies readonly AppRole[]
 
 export const PERMISSIONS = {
   // Inventory
