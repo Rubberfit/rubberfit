@@ -6,9 +6,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE cut_history
-  ADD COLUMN IF NOT EXISTS stock_label   TEXT    NULL,
-  ADD COLUMN IF NOT EXISTS cost_per_sqft FLOAT   NULL,
-  ADD COLUMN IF NOT EXISTS pdf_url       TEXT    NULL;
+  ADD COLUMN IF NOT EXISTS stock_label   TEXT            NULL,
+  ADD COLUMN IF NOT EXISTS cost_per_sqft NUMERIC(12,4)   NULL,
+  ADD COLUMN IF NOT EXISTS pdf_url       TEXT            NULL;
 
 COMMENT ON COLUMN cut_history.stock_label   IS 'Human-readable label for the stock sheet used (e.g. "48\" × 96\" EPDM").';
 COMMENT ON COLUMN cut_history.cost_per_sqft IS 'Cost per square foot of the material at the time of cut.';

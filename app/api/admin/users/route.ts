@@ -11,11 +11,19 @@ function isValidRole(role: unknown): role is (typeof VALID_ROLES)[number] {
 
 /** Verify the caller is an authenticated admin. Returns null on success, or an error response. */
 async function requireAdmin(): Promise<{ userId: string } | NextResponse> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      { error: "Supabase configuration is incomplete" },
+      { status: 500 }
+    )
+  }
   const cookieStore = await cookies()
 
   const caller = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     { cookies: { getAll: () => cookieStore.getAll() } }
   )
 
@@ -98,6 +106,10 @@ export async function POST(request: NextRequest) {
   if (profileError) {
     // User was created — log the error but don't fail the request
     console.error("Failed to update profile after user creation:", profileError)
+    return NextResponse.json(
+      { success: true, userId: created.user.id, warning: "User created but profile update failed" },
+      { status: 201 }
+    )
   }
 
   return NextResponse.json({ success: true, userId: created.user.id }, { status: 201 })
