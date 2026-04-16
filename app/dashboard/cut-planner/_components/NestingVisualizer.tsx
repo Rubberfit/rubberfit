@@ -23,6 +23,7 @@ import {
   generateSimplePartPreview,
   generateSimplePartPreviewAsync,
   generateMultiPartPreview,
+  generateMultiPartPreviewAsync,
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
@@ -140,17 +141,34 @@ function buildMultiSheet(
 
   const allTrapezoids =
     specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
+  // Mixed cone/trapezoid (with at least one cone) uses the new mixed-NFP path
+  // via generateMultiPartPreview — overflow sheets regenerate through the same
+  // function so each sheet's layout uses NFP rotation, not AABB shelf packing.
+  const isMixedConeOrTrapezoid =
+    specs.length > 1 &&
+    specs.every((s) => s.partType === "cone" || s.partType === "trapezoid") &&
+    specs.some((s) => s.partType === "cone")
   const shouldUseGlobalPacker =
-    (specs.length > 1 && !allTrapezoids) ||
+    (specs.length > 1 && !allTrapezoids && !isMixedConeOrTrapezoid) ||
     (specs.length === 1 && specs[0]?.partType === "rectangle" && basePreview.overflowUnits > 0)
 
   if (shouldUseGlobalPacker) {
     return globalMultiSheetPack(specs, rollW, rollL, 4, cutW, cutH)
   }
 
-  if (allTrapezoids) {
+  if (allTrapezoids || isMixedConeOrTrapezoid) {
+    // For mixed cone/trapezoid, overflow sheets need NFP rotation (sync) so
+    // they match the first sheet's async-NFP layout. Pure-trapezoid path
+    // doesn't use mixed-NFP regardless (it goes through packInterleavedTrapezoids).
     const regenerate = (_qty: number, remainingSpecs?: typeof specs) =>
-      generateMultiPartPreview(rollW, rollL, remainingSpecs ?? specs, cutW, cutH)
+      generateMultiPartPreview(
+        rollW,
+        rollL,
+        remainingSpecs ?? specs,
+        cutW,
+        cutH,
+        !isMixedConeOrTrapezoid
+      )
     return computeMultiSheetPreviews(basePreview, rollW, rollL, 4, regenerate, specs)
   }
 
@@ -316,25 +334,54 @@ export default function NestingVisualizer({
 
   useEffect(() => {
     if (!simpleMode) return
-    if (activeSimpleSpecs.length !== 1) return
-    const spec = activeSimpleSpecs[0]
-    if (spec.partType !== "cone" && spec.partType !== "trapezoid") return
 
     const key = asyncPreviewKey
     let cancelled = false
-    generateSimplePartPreviewAsync(
+
+    // Single-spec cone/trapezoid: refine via greedyNfpPackAsync (worker pool)
+    if (activeSimpleSpecs.length === 1) {
+      const spec = activeSimpleSpecs[0]
+      if (spec.partType !== "cone" && spec.partType !== "trapezoid") return
+      generateSimplePartPreviewAsync(
+        defaultRollWidth,
+        defaultRollLength,
+        spec,
+        defaultCutWidth,
+        defaultCutHeight,
+        defaultQty
+      )
+        .then((preview) => {
+          if (!cancelled) setAsyncBasePreview({ key, preview })
+        })
+        .catch((err) => {
+          console.error("[NestingVisualizer] async preview failed", err)
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+
+    // Multi-spec cone/trapezoid mix (with at least one cone): refine via
+    // mixed-NFP on workers so the first-paint AABB layout is replaced by the
+    // NFP-rotated layout without freezing the main thread.
+    const allConeOrTrapezoid = activeSimpleSpecs.every(
+      (s) => s.partType === "cone" || s.partType === "trapezoid"
+    )
+    const hasCone = activeSimpleSpecs.some((s) => s.partType === "cone")
+    if (!allConeOrTrapezoid || !hasCone) return
+
+    generateMultiPartPreviewAsync(
       defaultRollWidth,
       defaultRollLength,
-      spec,
+      [...activeSimpleSpecs],
       defaultCutWidth,
-      defaultCutHeight,
-      defaultQty
+      defaultCutHeight
     )
       .then((preview) => {
         if (!cancelled) setAsyncBasePreview({ key, preview })
       })
       .catch((err) => {
-        console.error("[NestingVisualizer] async preview failed", err)
+        console.error("[NestingVisualizer] async multi-part preview failed", err)
       })
     return () => {
       cancelled = true

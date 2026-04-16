@@ -11,6 +11,7 @@ export {
 
 export {
   generateMultiPartPreview,
+  generateMultiPartPreviewAsync,
   generateSimplePartPreview,
   generateSimplePartPreviewAsync,
   computeMultiSheetPreviews,
