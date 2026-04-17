@@ -18,6 +18,10 @@ CREATE INDEX IF NOT EXISTS idx_profiles_last_sign_in  ON profiles(last_sign_in_a
 
 
 -- 4. Trigger: keep profiles.last_sign_in_at in sync with auth.users
+-- Drop first so ownership conflicts don't block CREATE OR REPLACE on db reset
+DROP TRIGGER IF EXISTS on_auth_user_sign_in ON auth.users;
+DROP FUNCTION IF EXISTS sync_last_sign_in_to_profile();
+
 CREATE OR REPLACE FUNCTION sync_last_sign_in_to_profile()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -29,9 +33,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
--- Drop first so re-running the migration is idempotent
-DROP TRIGGER IF EXISTS on_auth_user_sign_in ON auth.users;
 
 CREATE TRIGGER on_auth_user_sign_in
   AFTER UPDATE OF last_sign_in_at ON auth.users
