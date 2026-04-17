@@ -129,13 +129,20 @@ type MixedSpecMeta = PreviewItem & { usedArea: number }
 function buildMixedNfpInputs(
   simpleParts: SimplePartSpec[],
   fallbackWidth: number,
-  fallbackHeight: number
+  fallbackHeight: number,
+  // Original index of each spec in the parent simpleParts array. Needed when
+  // the caller has split simpleParts (e.g. trapezoid hybrid) so per-item
+  // specIndex tags still match the parent's tag map.
+  originalIndices?: number[]
 ): MixedSpec<MixedSpecMeta>[] | null {
   const inputs: MixedSpec<MixedSpecMeta>[] = []
-  for (const spec of simpleParts) {
+  for (let i = 0; i < simpleParts.length; i++) {
+    const spec = simpleParts[i]
     const basePolygon = basePolygonForSpec(spec, fallbackWidth, fallbackHeight)
     if (!basePolygon) return null
     const template = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+    template.specIndex = originalIndices?.[i] ?? i
+    template.partNumber = spec.partNumber
     inputs.push({
       meta: template,
       basePolygon,
@@ -259,19 +266,30 @@ function packOtherSpecsForHybrid(
   rollW: number,
   remainingHeight: number,
   fallbackWidth: number,
-  fallbackHeight: number
+  fallbackHeight: number,
+  // Original index of each otherSpec in the parent simpleParts array, so
+  // tag-map keys (specIndex) survive the trapezoid/other split.
+  originalIndices?: number[]
 ): { items: PreviewItem[]; usedArea: number } {
   if (otherSpecs.length === 0 || remainingHeight <= 0) {
     return { items: [], usedArea: 0 }
   }
-  const otherRequestedItems = otherSpecs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const otherRequestedItems = otherSpecs.flatMap((spec, i) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = originalIndices?.[i] ?? i
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight)
+    const inputs = buildMixedNfpInputs(
+      otherSpecs,
+      fallbackWidth,
+      fallbackHeight,
+      originalIndices
+    )
     if (inputs) {
       const result = packMixedNfp(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -296,19 +314,30 @@ async function packOtherSpecsForHybridAsync(
   rollW: number,
   remainingHeight: number,
   fallbackWidth: number,
-  fallbackHeight: number
+  fallbackHeight: number,
+  // Original index of each otherSpec in the parent simpleParts array, so
+  // tag-map keys (specIndex) survive the trapezoid/other split.
+  originalIndices?: number[]
 ): Promise<{ items: PreviewItem[]; usedArea: number }> {
   if (otherSpecs.length === 0 || remainingHeight <= 0) {
     return { items: [], usedArea: 0 }
   }
-  const otherRequestedItems = otherSpecs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const otherRequestedItems = otherSpecs.flatMap((spec, i) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = originalIndices?.[i] ?? i
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight)
+    const inputs = buildMixedNfpInputs(
+      otherSpecs,
+      fallbackWidth,
+      fallbackHeight,
+      originalIndices
+    )
     if (inputs) {
       const result = await packMixedNfpAsync(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -392,14 +421,23 @@ function tryTrapezoidHybridCandidate(
   fallbackWidth: number,
   fallbackHeight: number
 ): PackingCandidate | null {
-  const trapSpecs = simpleParts.filter((s) => s.partType === "trapezoid")
-  const otherSpecs = simpleParts.filter((s) => s.partType !== "trapezoid")
-  if (trapSpecs.length === 0 || otherSpecs.length === 0) return null
+  // Track each spec's original index so the trapezoid/other split doesn't
+  // collide tag-map keys (specIndex) downstream.
+  const trapWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType === "trapezoid")
+  const otherWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType !== "trapezoid")
+  if (trapWithIdx.length === 0 || otherWithIdx.length === 0) return null
 
-  const trapItems = trapSpecs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const trapItems = trapWithIdx.flatMap(({ spec, idx }) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = idx
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
@@ -411,11 +449,12 @@ function tryTrapezoidHybridCandidate(
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = packOtherSpecsForHybrid(
-    otherSpecs,
+    otherWithIdx.map(({ spec }) => spec),
     rollW,
     remainingHeight,
     fallbackWidth,
-    fallbackHeight
+    fallbackHeight,
+    otherWithIdx.map(({ idx }) => idx)
   )
   const translatedOthers = translateItemsY(otherPacked.items, trapMaxY)
 
@@ -435,14 +474,23 @@ async function tryTrapezoidHybridCandidateAsync(
   fallbackWidth: number,
   fallbackHeight: number
 ): Promise<PackingCandidate | null> {
-  const trapSpecs = simpleParts.filter((s) => s.partType === "trapezoid")
-  const otherSpecs = simpleParts.filter((s) => s.partType !== "trapezoid")
-  if (trapSpecs.length === 0 || otherSpecs.length === 0) return null
+  // Track each spec's original index so the trapezoid/other split doesn't
+  // collide tag-map keys (specIndex) downstream.
+  const trapWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType === "trapezoid")
+  const otherWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType !== "trapezoid")
+  if (trapWithIdx.length === 0 || otherWithIdx.length === 0) return null
 
-  const trapItems = trapSpecs.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const trapItems = trapWithIdx.flatMap(({ spec, idx }) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = idx
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
@@ -454,11 +502,12 @@ async function tryTrapezoidHybridCandidateAsync(
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = await packOtherSpecsForHybridAsync(
-    otherSpecs,
+    otherWithIdx.map(({ spec }) => spec),
     rollW,
     remainingHeight,
     fallbackWidth,
-    fallbackHeight
+    fallbackHeight,
+    otherWithIdx.map(({ idx }) => idx)
   )
   const translatedOthers = translateItemsY(otherPacked.items, trapMaxY)
 
@@ -713,10 +762,13 @@ export async function generateMultiPartPreviewAsync(
   fallbackWidth: number,
   fallbackHeight: number
 ): Promise<SimplePartPreview> {
-  const requestedItems = simpleParts.flatMap((spec) =>
-    Array.from({ length: Math.max(1, spec.quantity || 1) }, () =>
-      buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    )
+  const requestedItems = simpleParts.flatMap((spec, specIdx) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = specIdx
+      item.partNumber = spec.partNumber
+      return item
+    })
   )
   const allConeOrTrapezoid = simpleParts.every(
     (s) => s.partType === "cone" || s.partType === "trapezoid"
@@ -832,6 +884,21 @@ function buildMultiPartPreviewFromCandidate(
   } as SimplePartPreview
 }
 
+// Single-spec previews come back from the per-shape generators without
+// specIndex/partNumber set (those generators don't know about the spec list).
+// Stamp them so buildTagMap (in NestingVisualizer) returns a non-empty map
+// even when only one spec is selected.
+function tagSingleSpecPreview(
+  preview: SimplePartPreview,
+  simplePart: SimplePartSpec
+): SimplePartPreview {
+  preview.items.forEach((item) => {
+    item.specIndex = 0
+    if (simplePart.partNumber !== undefined) item.partNumber = simplePart.partNumber
+  })
+  return preview
+}
+
 export function generateSimplePartPreview(
   rollW: number,
   rollL: number,
@@ -847,55 +914,59 @@ export function generateSimplePartPreview(
 ): SimplePartPreview {
   const qty = Math.max(1, simplePart.quantity || fallbackQty)
 
-  switch (simplePart.partType) {
-    case "circle":
-      return generateCirclePreview(rollW, rollL, simplePart.diameter ?? fallbackWidth, qty)
-    case "cylinder":
-      return generateCylinderPreview(
-        rollW,
-        rollL,
-        simplePart.diameter ?? fallbackWidth,
-        simplePart.height ?? fallbackHeight,
-        qty,
-        simplePart.cutDirection,
-        simplePart.cutRatios
-      )
-    case "cone":
-      return generateConePreview(
-        rollW,
-        rollL,
-        simplePart.innerRadius ?? Math.max(1, fallbackWidth / 2),
-        simplePart.outerRadius ?? Math.max(2, fallbackHeight),
-        simplePart.arcDegrees ?? 120,
-        qty,
-        simplePart.cutDirection,
-        simplePart.cutRatios,
-        undefined,
-        skipNfpPacking
-      )
-    case "trapezoid":
-      return generateTrapezoidPreview(
-        rollW,
-        rollL,
-        simplePart.topWidth ?? fallbackWidth,
-        simplePart.bottomWidth ?? fallbackWidth,
-        simplePart.height ?? fallbackHeight,
-        qty,
-        simplePart.cutDirection,
-        simplePart.cutRatios,
-        undefined,
-        skipNfpPacking
-      )
-    case "rectangle":
-    default:
-      return generateRectanglePreview(
-        rollW,
-        rollL,
-        simplePart.width ?? fallbackWidth,
-        simplePart.length ?? fallbackHeight,
-        qty
-      )
-  }
+  const preview = ((): SimplePartPreview => {
+    switch (simplePart.partType) {
+      case "circle":
+        return generateCirclePreview(rollW, rollL, simplePart.diameter ?? fallbackWidth, qty)
+      case "cylinder":
+        return generateCylinderPreview(
+          rollW,
+          rollL,
+          simplePart.diameter ?? fallbackWidth,
+          simplePart.height ?? fallbackHeight,
+          qty,
+          simplePart.cutDirection,
+          simplePart.cutRatios
+        )
+      case "cone":
+        return generateConePreview(
+          rollW,
+          rollL,
+          simplePart.innerRadius ?? Math.max(1, fallbackWidth / 2),
+          simplePart.outerRadius ?? Math.max(2, fallbackHeight),
+          simplePart.arcDegrees ?? 120,
+          qty,
+          simplePart.cutDirection,
+          simplePart.cutRatios,
+          undefined,
+          skipNfpPacking
+        )
+      case "trapezoid":
+        return generateTrapezoidPreview(
+          rollW,
+          rollL,
+          simplePart.topWidth ?? fallbackWidth,
+          simplePart.bottomWidth ?? fallbackWidth,
+          simplePart.height ?? fallbackHeight,
+          qty,
+          simplePart.cutDirection,
+          simplePart.cutRatios,
+          undefined,
+          skipNfpPacking
+        )
+      case "rectangle":
+      default:
+        return generateRectanglePreview(
+          rollW,
+          rollL,
+          simplePart.width ?? fallbackWidth,
+          simplePart.length ?? fallbackHeight,
+          qty
+        )
+    }
+  })()
+
+  return tagSingleSpecPreview(preview, simplePart)
 }
 
 /**
@@ -912,39 +983,45 @@ export async function generateSimplePartPreviewAsync(
   fallbackQty: number
 ): Promise<SimplePartPreview> {
   const qty = Math.max(1, simplePart.quantity || fallbackQty)
-  switch (simplePart.partType) {
-    case "cone":
-      return generateConePreviewAsync(
-        rollW,
-        rollL,
-        simplePart.innerRadius ?? Math.max(1, fallbackWidth / 2),
-        simplePart.outerRadius ?? Math.max(2, fallbackHeight),
-        simplePart.arcDegrees ?? 120,
-        qty,
-        simplePart.cutDirection,
-        simplePart.cutRatios
-      )
-    case "trapezoid":
-      return generateTrapezoidPreviewAsync(
-        rollW,
-        rollL,
-        simplePart.topWidth ?? fallbackWidth,
-        simplePart.bottomWidth ?? fallbackWidth,
-        simplePart.height ?? fallbackHeight,
-        qty,
-        simplePart.cutDirection,
-        simplePart.cutRatios
-      )
-    default:
-      return generateSimplePartPreview(
-        rollW,
-        rollL,
-        simplePart,
-        fallbackWidth,
-        fallbackHeight,
-        fallbackQty
-      )
-  }
+  const preview = await (async (): Promise<SimplePartPreview> => {
+    switch (simplePart.partType) {
+      case "cone":
+        return generateConePreviewAsync(
+          rollW,
+          rollL,
+          simplePart.innerRadius ?? Math.max(1, fallbackWidth / 2),
+          simplePart.outerRadius ?? Math.max(2, fallbackHeight),
+          simplePart.arcDegrees ?? 120,
+          qty,
+          simplePart.cutDirection,
+          simplePart.cutRatios
+        )
+      case "trapezoid":
+        return generateTrapezoidPreviewAsync(
+          rollW,
+          rollL,
+          simplePart.topWidth ?? fallbackWidth,
+          simplePart.bottomWidth ?? fallbackWidth,
+          simplePart.height ?? fallbackHeight,
+          qty,
+          simplePart.cutDirection,
+          simplePart.cutRatios
+        )
+      default:
+        // generateSimplePartPreview already tags items via tagSingleSpecPreview,
+        // so calling it here is sufficient on its own — no extra tagging needed
+        // for the rectangle/cylinder/circle path.
+        return generateSimplePartPreview(
+          rollW,
+          rollL,
+          simplePart,
+          fallbackWidth,
+          fallbackHeight,
+          fallbackQty
+        )
+    }
+  })()
+  return tagSingleSpecPreview(preview, simplePart)
 }
 
 // Matches placed items back to specs by formatted dimension label. This couples
