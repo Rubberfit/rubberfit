@@ -673,14 +673,16 @@ export function generateMultiPartPreview(
   let best: PackingCandidate | undefined
 
   if (useTrapezoidHybrid) {
-    best =
-      tryTrapezoidHybridCandidate(
-        simpleParts,
-        rollW,
-        rollL,
-        fallbackWidth,
-        fallbackHeight
-      ) ?? undefined
+    const hybrid = tryTrapezoidHybridCandidate(
+      simpleParts,
+      rollW,
+      rollL,
+      fallbackWidth,
+      fallbackHeight
+    )
+    if (hybrid && hybrid.packed.items.length >= requestedItems.length) {
+      best = hybrid
+    }
   }
 
   if (!best && useMixedNfp) {
@@ -731,7 +733,9 @@ export async function generateMultiPartPreviewAsync(
       fallbackWidth,
       fallbackHeight
     )
-    best = hybrid ?? undefined
+    if (hybrid && hybrid.packed.items.length >= requestedItems.length) {
+      best = hybrid
+    }
   }
   if (!best && useMixedNfp) {
     const mixed = await tryMixedNfpCandidateAsync(
