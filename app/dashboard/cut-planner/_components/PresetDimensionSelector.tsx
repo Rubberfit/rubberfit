@@ -45,6 +45,8 @@ export default function PresetDimensionSelector({
     visible,
     selectedTemplates,
     pendingCustomTemplate,
+    customTemplateError,
+    fitsStock,
     totalArea,
     customDraft,
     selectedPartLabel,
@@ -59,7 +61,7 @@ export default function PresetDimensionSelector({
     handleAddCustomSize,
     editCustomTemplate,
     removeCustomTemplate,
-  } = usePresetState(onApply, loadedSelection)
+  } = usePresetState(onApply, rollWidth, rollLength, loadedSelection)
 
   return (
     <Card className="w-full shadow-sm">
@@ -134,6 +136,7 @@ export default function PresetDimensionSelector({
             onEditCustom={editCustomTemplate}
             onRemoveCustom={removeCustomTemplate}
             tagMap={tagMap}
+            fitsStock={fitsStock}
           />
 
           <PresetCustomTemplateForm
@@ -146,6 +149,7 @@ export default function PresetDimensionSelector({
             editingCustomId={editingCustomId}
             setEditingCustomId={setEditingCustomId}
             pendingCustomTemplate={pendingCustomTemplate}
+            customTemplateError={customTemplateError}
             onAddCustomSize={handleAddCustomSize}
           />
         </div>

@@ -1,6 +1,5 @@
 // Preview builder functions for NestingVisualizer
 
-import { extractMaximalFreeRects, classifyFreeRegion } from "@/nesting/free-space"
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type {
   OffcutBand,
@@ -19,6 +18,7 @@ import {
   buildOffcutBands,
   buildShelfGapBands,
   isReusableOffcutBand,
+  computeIntraBlankWaste,
   getPlacementBounds,
   centerPlacements,
   buildRectangleSteps,
@@ -134,33 +134,38 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       .filter((poly): poly is Array<{ x: number; y: number }> => poly != null && poly.length >= 3)
 
     if (placedPolygons.length > 0) {
-      // Grid-based maximal rectangle extraction for accurate offcut labeling
-      const freeRects = extractMaximalFreeRects(rollW, rollL, placedPolygons)
+      // Only concave NFP shapes (cones, trapezoids) reach here — rect returns early above.
+      // Use shelf gap bands over placement AABBs for visual offcut/scrap classification.
+      // Band areas under-report total waste (they miss the concave area inside each
+      // placement's AABB), so compute totalWasteArea from rollArea - usedArea directly
+      // and split reusable/scrap proportionally by band+intra area.
+      const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
       const reusableBands: OffcutBand[] = []
       const scrapBands: OffcutBand[] = []
-      let reusableArea = 0
-
-      // Small inset prevents offcut hatching from touching shape polygon boundaries.
-      // With 48-segment polygons, the chord-arc sagitta is ~0.005-0.007" for typical
-      // cones (R=10-30", 120° arc). 0.02" covers this with margin while keeping the
-      // gap between adjacent bands at 0.04" (~sub-pixel at normal zoom).
-      const OFFCUT_INSET = 0.02
-      for (const rect of freeRects) {
-        const band: OffcutBand = {
-          x: rect.x + OFFCUT_INSET,
-          y: rect.y + OFFCUT_INSET,
-          width: Math.max(0, rect.width - 2 * OFFCUT_INSET),
-          height: Math.max(0, rect.height - 2 * OFFCUT_INSET),
-        }
-        if (classifyFreeRegion(rect) === "reusable") {
+      let reusableBandArea = 0
+      let scrapBandArea = 0
+      allBands.forEach((band) => {
+        const area = band.width * band.height
+        if (isReusableOffcutBand(band, pieceW, pieceH)) {
           reusableBands.push(band)
-          reusableArea += rect.area
+          reusableBandArea += area
         } else {
           scrapBands.push(band)
+          scrapBandArea += area
         }
-      }
+      })
+
+      // Intra-blank waste (area inside each placement's AABB but outside the actual
+      // shape — e.g. the corners around a sector) is always scrap. Without this,
+      // single-cone layouts where every shelf-gap band is reusable report scrap=0.
+      const intraBlankWaste = preview.items.reduce(
+        (sum, item) => sum + computeIntraBlankWaste(item),
+        0
+      )
 
       const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
+      const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
+      const reusableArea = rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
       const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
       return {
@@ -177,23 +182,32 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
       }
     }
 
-    // Fallback: AABB-based shelf gap bands for non-NFP layouts
+    // Fallback: AABB-based shelf gap bands for non-NFP layouts (non-rect shapes
+    // missing polygon outlines). Same intra-blank accounting as the polygon branch.
     const allBands = buildShelfGapBands(positioned.positions, rollW, rollL)
     const reusableBands: OffcutBand[] = []
     const scrapBands: OffcutBand[] = []
-    let reusableArea = 0
+    let reusableBandArea = 0
+    let scrapBandArea = 0
 
     allBands.forEach((band) => {
       const area = band.width * band.height
       if (isReusableOffcutBand(band, pieceW, pieceH)) {
         reusableBands.push(band)
-        reusableArea += area
+        reusableBandArea += area
       } else {
         scrapBands.push(band)
+        scrapBandArea += area
       }
     })
 
+    const intraBlankWaste = preview.items.reduce(
+      (sum, item) => sum + computeIntraBlankWaste(item),
+      0
+    )
     const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
+    const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
+    const reusableArea = rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
     const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
     return {

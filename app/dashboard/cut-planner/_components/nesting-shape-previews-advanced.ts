@@ -30,7 +30,11 @@ import {
   buildConeSplitSections,
   buildTrapezoidSplitSections,
 } from "./nesting-preview-builders"
-import { greedyNfpPack } from "@/nesting/nfp-greedy-placer"
+import {
+  greedyNfpPack,
+  greedyNfpPackAsync,
+  type GreedyPackResult,
+} from "@/nesting/nfp-greedy-placer"
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Polygon2D } from "@/nesting/types"
 
@@ -146,7 +150,18 @@ export function generateCylinderPreview(
   }
 }
 
-export function generateConePreview(
+function coneNfpPolygon(
+  safeInnerRadius: number,
+  safeOuterRadius: number,
+  safeArcDegrees: number
+): Polygon2D {
+  return {
+    id: "sector",
+    points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees, 48),
+  }
+}
+
+export async function generateConePreviewAsync(
   rollW: number,
   rollL: number,
   innerRadius: number,
@@ -155,6 +170,57 @@ export function generateConePreview(
   qty: number,
   cutDirection: SimpleCutDirection = "radial_split",
   cutRatios?: number[]
+): Promise<SimplePartPreview> {
+  const safeInnerRadius = Math.max(0, innerRadius)
+  const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
+  const safeArcDegrees = Math.min(320, Math.max(20, arcDegrees))
+  const requestedCutSections = Math.max(1, qty)
+  const hasCutRatios = hasNonEmptyCutRatios(cutRatios)
+  // Split-path doesn't use NFP at all, so skip the worker call.
+  if (requestedCutSections > 1 && hasCutRatios) {
+    return generateConePreview(
+      rollW,
+      rollL,
+      innerRadius,
+      outerRadius,
+      arcDegrees,
+      qty,
+      cutDirection,
+      cutRatios
+    )
+  }
+  const nfpResult = await greedyNfpPackAsync(
+    coneNfpPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees),
+    rollW,
+    rollL,
+    qty,
+    NFP_DEFAULT_SPACING,
+    NFP_COARSE_STEPS
+  )
+  return generateConePreview(
+    rollW,
+    rollL,
+    innerRadius,
+    outerRadius,
+    arcDegrees,
+    qty,
+    cutDirection,
+    cutRatios,
+    nfpResult
+  )
+}
+
+export function generateConePreview(
+  rollW: number,
+  rollL: number,
+  innerRadius: number,
+  outerRadius: number,
+  arcDegrees: number,
+  qty: number,
+  cutDirection: SimpleCutDirection = "radial_split",
+  cutRatios?: number[],
+  precomputedNfpResult?: GreedyPackResult,
+  skipNfpPacking = false
 ): SimplePartPreview {
   const safeInnerRadius = Math.max(0, innerRadius)
   const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
@@ -276,32 +342,33 @@ export function generateConePreview(
     rollL
   )
 
-  // NFP convex-hull packing candidate
-  const conePolygon: Polygon2D = {
-    id: "sector",
-    points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees, 48),
-  }
-  const coneNfpResult = greedyNfpPack(
-    conePolygon,
-    rollW,
-    rollL,
-    qty,
-    NFP_DEFAULT_SPACING,
-    NFP_COARSE_STEPS
-  )
-  const coneNfpCandidate =
-    coneNfpResult.placed > 0
-      ? withWaste(
-          buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
-            ...sectorConfig,
-            strategyName: "Convex-hull cone nesting",
-            strategyNote:
-              "Cone sectors are packed using their actual convex outline via NFP placement for tighter interlocking.",
-          }),
+  // NFP convex-hull packing candidate — reuse precomputed (async path) or compute sync now.
+  // When skipNfpPacking is true (sync first-paint path), skip the expensive sync NFP call
+  // and rely on the directGrid candidate; the async worker result will replace it shortly.
+  const coneNfpResult =
+    precomputedNfpResult ??
+    (skipNfpPacking
+      ? null
+      : greedyNfpPack(
+          coneNfpPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees),
           rollW,
-          rollL
-        )
-      : null
+          rollL,
+          qty,
+          NFP_DEFAULT_SPACING,
+          NFP_COARSE_STEPS
+        ))
+  const coneNfpCandidate = coneNfpResult && coneNfpResult.placed > 0
+    ? withWaste(
+        buildNfpPackedPreview(coneNfpResult, rollW, rollL, {
+          ...sectorConfig,
+          strategyName: "Convex-hull cone nesting",
+          strategyNote:
+            "Cone sectors are packed using their actual convex outline via NFP placement for tighter interlocking.",
+        }),
+        rollW,
+        rollL
+      )
+    : null
 
   const sectorCandidates = [
     { ...directGrid, adjustedWaste: rollArea > 0 ? (directGrid.scrapArea / rollArea) * 100 : 100 },
@@ -339,7 +406,14 @@ export function generateConePreview(
   }
 }
 
-export function generateTrapezoidPreview(
+function trapNfpPolygon(topWidth: number, bottomWidth: number, height: number): Polygon2D {
+  return {
+    id: "trapezoid",
+    points: trapezoidToPolygon(topWidth, bottomWidth, height),
+  }
+}
+
+export async function generateTrapezoidPreviewAsync(
   rollW: number,
   rollL: number,
   topWidth: number,
@@ -348,6 +422,54 @@ export function generateTrapezoidPreview(
   qty: number,
   cutDirection: SimpleCutDirection = "vertical_split",
   cutRatios?: number[]
+): Promise<SimplePartPreview> {
+  const requestedCutSections = Math.max(1, qty)
+  const hasCutRatios = hasNonEmptyCutRatios(cutRatios)
+  // Split-path doesn't use NFP, skip the worker call.
+  if (requestedCutSections > 1 && hasCutRatios) {
+    return generateTrapezoidPreview(
+      rollW,
+      rollL,
+      topWidth,
+      bottomWidth,
+      height,
+      qty,
+      cutDirection,
+      cutRatios
+    )
+  }
+  const nfpResult = await greedyNfpPackAsync(
+    trapNfpPolygon(topWidth, bottomWidth, height),
+    rollW,
+    rollL,
+    qty,
+    NFP_DEFAULT_SPACING,
+    NFP_COARSE_STEPS
+  )
+  return generateTrapezoidPreview(
+    rollW,
+    rollL,
+    topWidth,
+    bottomWidth,
+    height,
+    qty,
+    cutDirection,
+    cutRatios,
+    nfpResult
+  )
+}
+
+export function generateTrapezoidPreview(
+  rollW: number,
+  rollL: number,
+  topWidth: number,
+  bottomWidth: number,
+  height: number,
+  qty: number,
+  cutDirection: SimpleCutDirection = "vertical_split",
+  cutRatios?: number[],
+  precomputedNfpResult?: GreedyPackResult,
+  skipNfpPacking = false
 ): SimplePartPreview {
   const boxWidth = Math.max(topWidth, bottomWidth)
   const pieceArea = ((topWidth + bottomWidth) / 2) * height
@@ -451,21 +573,23 @@ export function generateTrapezoidPreview(
     rollL
   )
 
-  // NFP convex-hull packing candidate
-  const trapPolygon: Polygon2D = {
-    id: "trapezoid",
-    points: trapezoidToPolygon(topWidth, bottomWidth, height),
-  }
-  const trapNfpResult = greedyNfpPack(
-    trapPolygon,
-    rollW,
-    rollL,
-    qty,
-    NFP_DEFAULT_SPACING,
-    NFP_COARSE_STEPS
-  )
+  // NFP convex-hull packing candidate — reuse precomputed (async path) or compute sync.
+  // When skipNfpPacking is true (sync first-paint path), skip the expensive sync NFP call
+  // and rely on the direct/checker candidates; the async worker result will replace it shortly.
+  const trapNfpResult =
+    precomputedNfpResult ??
+    (skipNfpPacking
+      ? null
+      : greedyNfpPack(
+          trapNfpPolygon(topWidth, bottomWidth, height),
+          rollW,
+          rollL,
+          qty,
+          NFP_DEFAULT_SPACING,
+          NFP_COARSE_STEPS
+        ))
   const trapNfpCandidate =
-    trapNfpResult.placed > 0
+    trapNfpResult && trapNfpResult.placed > 0
       ? withWaste(
           buildNfpPackedPreview(trapNfpResult, rollW, rollL, {
             ...trapConfig,

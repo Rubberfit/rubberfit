@@ -261,7 +261,7 @@ export default function CutPlannerPage() {
     () =>
       selectedTemplates.map((template) => ({
         partType: template.partType,
-        quantity: template.isCustom ? template.quantity : safeQuantity,
+        quantity: template.quantity,
         cutDirection,
         cutRatios: customCutRatios,
         width: template.width,
