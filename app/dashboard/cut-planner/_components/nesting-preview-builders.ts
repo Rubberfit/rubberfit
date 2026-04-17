@@ -165,8 +165,7 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
 
       const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
       const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
-      const reusableArea =
-        rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
+      const reusableArea = rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
       const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
       return {
@@ -208,8 +207,7 @@ export function withWaste(preview: RectLikePreview, rollW: number, rollL: number
     )
     const totalWasteArea = Math.max(0, rollArea - preview.usedArea)
     const rawTotal = reusableBandArea + scrapBandArea + intraBlankWaste
-    const reusableArea =
-      rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
+    const reusableArea = rawTotal > 0 ? (totalWasteArea * reusableBandArea) / rawTotal : 0
     const scrapArea = Math.max(0, totalWasteArea - reusableArea)
 
     return {

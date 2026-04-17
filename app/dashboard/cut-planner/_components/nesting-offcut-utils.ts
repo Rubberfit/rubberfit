@@ -101,10 +101,7 @@ export function buildOriginRectOffcutBands(
  * paint over placements from other rows (NFP rotation gives each placement
  * a unique y, so the per-row bands otherwise span across other placements).
  */
-function subtractPlacementFromBand(
-  band: OffcutBand,
-  placement: ShapePlacement
-): OffcutBand[] {
+function subtractPlacementFromBand(band: OffcutBand, placement: ShapePlacement): OffcutBand[] {
   const bx1 = band.x
   const bx2 = band.x + band.width
   const by1 = band.y
@@ -145,6 +142,12 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     return [] as OffcutBand[]
   }
 
+  /**
+   * Stage 1: Group placements into rows (lines 149-163)
+   * Items are grouped by their exact y-coordinate.
+   * Each row tracks its y position, the maximum height of any item in the row, and the list of placements.
+   */
+
   const rows = new Map<number, { y: number; height: number; placements: ShapePlacement[] }>()
 
   placements.forEach((placement) => {
@@ -162,6 +165,10 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     existing.placements.push(placement)
   })
 
+  /**
+   * Stage 2: Walk each row and find gaps. (lines 172-220)
+   * For each row, sort placements left-to-right by x, then scan across
+   */
   const candidateBands: OffcutBand[] = []
   const sortedRows = Array.from(rows.values()).sort((a, b) => a.y - b.y)
 
@@ -195,6 +202,8 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
         // a row of short cones next to a tall one produces thin scrap bands
         // below each short cone, which paint a horizontal waste stripe and
         // also shift withWaste's proportional split toward scrap.
+        // TODO: Validate this (AI Generated)
+        // It is possible that this is not reusable
         if (isReusableOffcutBand(underfillBand)) {
           candidateBands.push(underfillBand)
         }
@@ -222,6 +231,8 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
       // bottom strip that's too thin to pass the standard reusable thresholds
       // would either be classified as scrap (red overlay) or dropped entirely
       // — in both cases the user sees the bottom of the sheet as red.
+      // TODO: Validate this (AI Generated)
+      // It is possible that this may not be reusable
       candidateBands.push({
         x: 0,
         y: bottomY,
@@ -231,6 +242,13 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
       })
     }
   }
+
+  /**
+   * Stage 3: Clip against all placements
+   * Every candidate band is run through subtractPlacementFromBand against every placement.
+   * This splits bands that would overlap a shape's AABB into sub bands around it.
+   * This matters for NFP-rotated layouts where items in different rows might have overlapping x-ranges.
+   */
 
   // Clip every candidate against every placement so no band overlaps a
   // placement's AABB. Without this, rows of NFP-rotated placements emit
