@@ -722,25 +722,22 @@ export function generateMultiPartPreview(
     !skipNfpPacking && simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
   const useMixedNfp = !skipNfpPacking && simpleParts.length > 1 && allConeOrTrapezoid && hasCone
 
+  // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
+  // both and pick whichever places more items so a partial hybrid (e.g. cone
+  // doesn't fit under the trapezoid row) doesn't lose to a complete mixed-NFP
+  // result. Tie-break to hybrid since interleaved trapezoids beat generic NFP.
+  const hybrid = useTrapezoidHybrid
+    ? tryTrapezoidHybridCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
+    : null
+  const mixed = useMixedNfp
+    ? tryMixedNfpCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
+    : null
+
   let best: PackingCandidate | undefined
-
-  if (useTrapezoidHybrid) {
-    const hybrid = tryTrapezoidHybridCandidate(
-      simpleParts,
-      rollW,
-      rollL,
-      fallbackWidth,
-      fallbackHeight
-    )
-    if (hybrid && hybrid.packed.items.length >= requestedItems.length) {
-      best = hybrid
-    }
-  }
-
-  if (!best && useMixedNfp) {
-    best =
-      tryMixedNfpCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight) ??
-      undefined
+  if (hybrid && mixed) {
+    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
+  } else {
+    best = hybrid ?? mixed ?? undefined
   }
 
   if (!best) {
@@ -779,29 +776,25 @@ export async function generateMultiPartPreviewAsync(
   const useTrapezoidHybrid = simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
   const useMixedNfp = simpleParts.length > 1 && allConeOrTrapezoid && hasCone
 
+  // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
+  // both in parallel and pick whichever places more items. Tie-break to
+  // hybrid since interleaved trapezoids beat generic NFP placement.
+  const [hybrid, mixed] = await Promise.all([
+    useTrapezoidHybrid
+      ? tryTrapezoidHybridCandidateAsync(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
+      : Promise.resolve(null),
+    useMixedNfp
+      ? tryMixedNfpCandidateAsync(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
+      : Promise.resolve(null),
+  ])
+
   let best: PackingCandidate | undefined
-  if (useTrapezoidHybrid) {
-    const hybrid = await tryTrapezoidHybridCandidateAsync(
-      simpleParts,
-      rollW,
-      rollL,
-      fallbackWidth,
-      fallbackHeight
-    )
-    if (hybrid && hybrid.packed.items.length >= requestedItems.length) {
-      best = hybrid
-    }
+  if (hybrid && mixed) {
+    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
+  } else {
+    best = hybrid ?? mixed ?? undefined
   }
-  if (!best && useMixedNfp) {
-    const mixed = await tryMixedNfpCandidateAsync(
-      simpleParts,
-      rollW,
-      rollL,
-      fallbackWidth,
-      fallbackHeight
-    )
-    best = mixed ?? undefined
-  }
+
   if (!best) {
     best = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
   }
