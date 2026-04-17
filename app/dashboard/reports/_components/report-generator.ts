@@ -223,12 +223,7 @@ export async function generateReport(
 
   // Generate PDF report
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
-  const htmlContent = buildHtmlContent(
-    reportData,
-    periodLabel,
-    startDate,
-    endDate
-  )
+  const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
 
   await exportService.generatePDFReport(report.name, htmlContent)
 

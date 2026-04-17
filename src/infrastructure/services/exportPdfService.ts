@@ -159,10 +159,10 @@ export class ExportPdfService implements IExportPdfService {
 
       doc.setProperties({
         title: title,
-        subject: "Rema Portal Report",
-        author: "Rema Portal",
+        subject: "RubberFit Report",
+        author: "RubberFit",
         keywords: "inventory, materials, rubber, optimization",
-        creator: "Rema Portal",
+        creator: "RubberFit",
       })
 
       let yPosition = 20
@@ -223,7 +223,7 @@ export class ExportPdfService implements IExportPdfService {
 
       doc.setFontSize(8)
       doc.setTextColor(107, 114, 128)
-      doc.text("Rema Portal - Material Optimization System", margin, pageHeight - 10)
+      doc.text("RubberFit - Material Optimization System", margin, pageHeight - 10)
       const totalPages = Math.max(doc.internal.pages.length - 1, 1)
       doc.text(`Page ${totalPages}`, pageWidth - margin - 10, pageHeight - 10)
 
@@ -242,7 +242,7 @@ export class ExportPdfService implements IExportPdfService {
       const textContent = `${title}\n${"=".repeat(50)}\n\nGenerated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}\n\n${htmlContent
         .replace(/<[^>]*>/g, "")
         .replace(/\s+/g, " ")
-        .trim()}\n\n---\nRema Portal - Material Optimization System`
+        .trim()}\n\n---\nRubberFit - Material Optimization System`
 
       const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" })
       const url = URL.createObjectURL(blob)

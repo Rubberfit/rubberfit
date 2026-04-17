@@ -132,9 +132,9 @@ export async function handleCreateIndividualPOs(callbacks: HandleCreateIndividua
 
       try {
         const useCase = resolveUseCase<ICreateReorderPurchaseOrderUseCase>(
-      TOKENS.ICreateReorderPurchaseOrderUseCase
-    )
-    const { purchaseOrder } = await useCase.execute({
+          TOKENS.ICreateReorderPurchaseOrderUseCase
+        )
+        const { purchaseOrder } = await useCase.execute({
           suggestion,
           reorderRules,
         })

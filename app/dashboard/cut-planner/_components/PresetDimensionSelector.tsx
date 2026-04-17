@@ -9,17 +9,20 @@ import PresetSelectionSummary from "./preset-selection-summary"
 import { PresetTemplateGrid } from "./preset-template-grid"
 import { PartTypeSelector } from "./preset-part-type-selector"
 import { usePresetState } from "./use-preset-state"
+import type { LoadedSelection } from "./use-preset-state"
 
 import type { PartTemplate } from "./preset-template-data"
 
 export type { PartTemplate } from "./preset-template-data"
 export { PART_TEMPLATES } from "./preset-template-data"
+export type { LoadedSelection } from "./use-preset-state"
 
 interface PresetDimensionSelectorProps {
   onApply?: (templates: PartTemplate[]) => void
   rollWidth?: number
   rollLength?: number
   tagMap?: Map<string, string>
+  loadedSelection?: LoadedSelection | null
 }
 
 export default function PresetDimensionSelector({
@@ -27,6 +30,7 @@ export default function PresetDimensionSelector({
   rollWidth = 96,
   rollLength = 48,
   tagMap,
+  loadedSelection,
 }: PresetDimensionSelectorProps) {
   const {
     selectedPart,
@@ -57,7 +61,7 @@ export default function PresetDimensionSelector({
     handleAddCustomSize,
     editCustomTemplate,
     removeCustomTemplate,
-  } = usePresetState(onApply, rollWidth, rollLength)
+  } = usePresetState(onApply, rollWidth, rollLength, loadedSelection)
 
   return (
     <Card className="w-full shadow-sm">

@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 interface MaterialCost {
   materialType: string
   totalCost: number
+  cutCost: number
+  reusableCost: number
   wasteCost: number
-  utilizationCost: number
   cuts: number
   avgCostPerCut: number
 }
@@ -40,8 +41,12 @@ export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
                           <span className="font-medium">${data.totalCost.toFixed(2)}</span>
                         </p>
                         <p className="text-sm">
-                          <span className="text-muted-foreground">Utilization:</span>{" "}
-                          <span className="font-medium">${data.utilizationCost.toFixed(2)}</span>
+                          <span className="text-muted-foreground">Cut Value:</span>{" "}
+                          <span className="font-medium">${data.cutCost.toFixed(2)}</span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Reusable:</span>{" "}
+                          <span className="font-medium">${data.reusableCost.toFixed(2)}</span>
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Waste:</span>{" "}
@@ -58,14 +63,19 @@ export function CostBreakdownChart({ data }: CostBreakdownChartProps) {
                 return null
               }}
             />
-            <Bar dataKey="utilizationCost" stackId="cost" fill="#3b82f6" />
+            <Bar dataKey="cutCost" stackId="cost" fill="#3b82f6" />
+            <Bar dataKey="reusableCost" stackId="cost" fill="#22c55e" />
             <Bar dataKey="wasteCost" stackId="cost" fill="#ef4444" />
           </BarChart>
         </ResponsiveContainer>
         <div className="mt-4 flex justify-center gap-6">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
-            <span className="text-sm">Utilization Cost</span>
+            <span className="text-sm">Cut Value</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#22c55e" }} />
+            <span className="text-sm">Reusable Value</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: "#ef4444" }} />

@@ -57,20 +57,20 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### Math & Algorithms
 
-| File                                 | Purpose                                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                              |
+| File                                 | Purpose                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                                |
 | `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing (with findBestShelf), guillotine cutting, centered column |
-| `nesting-global-packer.ts`           | MaxRects bin class + 5 heuristics — ported from open-source repos (see attribution below)      |
-| `nesting-global-packer-entry.ts`     | Multi-sheet entry point — exhaustive rotation search, sheet builder, greedy/batch/pair dispatch |
-| `nesting-width-pair-packer.ts`       | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects         |
-| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters                       |
-| `nesting-offcut-utils.ts`            | Offcut band classification, intra-blank waste, placement bounds helpers                        |
-| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison         |
-| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                        |
-| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                               |
-| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout         |
-| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                                     |
+| `nesting-global-packer.ts`           | MaxRects bin class + 5 heuristics — ported from open-source repos (see attribution below)        |
+| `nesting-global-packer-entry.ts`     | Multi-sheet entry point — exhaustive rotation search, sheet builder, greedy/batch/pair dispatch  |
+| `nesting-width-pair-packer.ts`       | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects           |
+| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters                         |
+| `nesting-offcut-utils.ts`            | Offcut band classification, intra-blank waste, placement bounds helpers                          |
+| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison           |
+| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                          |
+| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                                 |
+| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout           |
+| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                                       |
 
 ### SVG Rendering
 
@@ -83,13 +83,13 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### State & Hooks
 
-| File                     | Purpose                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `use-nesting-compute.ts` | Main hook — manages all nesting state (dimensions, strategies, scoring, view mode) |
-| `use-nfp-optimizer.ts`   | NFP optimization hook — manages solver lifecycle, results, cancellation            |
-| `use-preset-state.ts`    | State management for preset selector — templates, custom sizes, per-card quantities |
-| `preset-template-data.ts`| Template definitions, part type options, category badges, custom draft types        |
-| `preset-utils.ts`        | Template builder helpers — custom template creation, area calculation, draft conversion |
+| File                      | Purpose                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `use-nesting-compute.ts`  | Main hook — manages all nesting state (dimensions, strategies, scoring, view mode)      |
+| `use-nfp-optimizer.ts`    | NFP optimization hook — manages solver lifecycle, results, cancellation                 |
+| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities     |
+| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types            |
+| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion |
 
 ### Types
 

@@ -373,7 +373,12 @@ export function generateConePreview(
   const sectorCandidates = [
     { ...directGrid, adjustedWaste: rollArea > 0 ? (directGrid.scrapArea / rollArea) * 100 : 100 },
     ...(coneNfpCandidate
-      ? [{ ...coneNfpCandidate, adjustedWaste: rollArea > 0 ? (coneNfpCandidate.scrapArea / rollArea) * 100 : 100 }]
+      ? [
+          {
+            ...coneNfpCandidate,
+            adjustedWaste: rollArea > 0 ? (coneNfpCandidate.scrapArea / rollArea) * 100 : 100,
+          },
+        ]
       : []),
   ]
   const bestSector = chooseBestPreview(sectorCandidates)
@@ -604,8 +609,7 @@ export function generateTrapezoidPreview(
       ? [
           {
             ...trapNfpCandidate,
-            adjustedWaste:
-              rollArea > 0 ? (trapNfpCandidate.scrapArea / rollArea) * 100 : 100,
+            adjustedWaste: rollArea > 0 ? (trapNfpCandidate.scrapArea / rollArea) * 100 : 100,
           },
         ]
       : []),

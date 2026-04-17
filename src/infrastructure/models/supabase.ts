@@ -342,3 +342,48 @@ export type CreateNotificationQueue = Omit<
   "id" | "user_id" | "created_at" | "updated_at" | "retry_count" | "next_retry_at"
 >
 export type UpdateNotificationQueue = Partial<CreateNotificationQueue>
+
+export interface PartCustomDimensions {
+  width?: number
+  length?: number
+  diameter?: number
+  height?: number
+  topWidth?: number
+  bottomWidth?: number
+  innerRadius?: number
+  outerRadius?: number
+  arcDegrees?: number
+}
+
+export interface CutHistory {
+  id: number
+  user_id: string | null
+  material_id: number
+  part_id: number
+  cut_length: number
+  cut_width: number
+  cut_thickness: number
+  part_custom_width: number | null
+  part_custom_height: number | null
+  part_selected_size: number[] | null
+  part_selected_size_text: string[] | null
+  part_selected_label: string[] | null
+  part_custom_dimensions: PartCustomDimensions[] | null
+  cut_amount: number
+  parts_completed: number
+  material_used_sqft: number
+  reusable_offset_sqft: number
+  scrap_sqft: number
+  fab_score: number
+  cut_pieces: number
+  stock_label: string | null
+  cost_per_sqft: number | null
+  pdf_url: string | null
+  cut_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CutHistoryWithProfile extends CutHistory {
+  profiles: { full_name: string | null; roles: string[] | null } | null
+}

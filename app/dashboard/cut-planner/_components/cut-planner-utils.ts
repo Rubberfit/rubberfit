@@ -1,4 +1,4 @@
-import { SimpleCutDirection } from "./nesting-visualizer-types"
+import { SimpleCutDirection, SimplePartType } from "./nesting-visualizer-types"
 import { PartTemplate } from "./preset-template-data"
 
 function getPartLabel(partType: PartTemplate["partType"]) {
@@ -137,10 +137,54 @@ function parseCutRatios(input: string, count: number) {
   return values
 }
 
+function parseDimsFromLabel(
+  partType: SimplePartType,
+  label: string,
+  customWidth: number | null,
+  customHeight: number | null
+): Partial<PartTemplate> {
+  if (customWidth != null && customHeight != null) {
+    if (partType === "rectangle") return { width: customWidth, length: customHeight }
+    if (partType === "cylinder") return { diameter: customWidth, height: customHeight }
+    return { width: customWidth, height: customHeight }
+  }
+
+  const n = "(\\d+(?:\\.\\d+)?)"
+
+  if (partType === "rectangle") {
+    const m = label.match(new RegExp(`${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m) return { width: parseFloat(m[1]), length: parseFloat(m[2]) }
+  }
+
+  if (partType === "cylinder") {
+    const m = label.match(new RegExp(`[Øø]?\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m) return { diameter: parseFloat(m[1]), height: parseFloat(m[2]) }
+  }
+
+  if (partType === "cone") {
+    const m = label.match(new RegExp(`${n}°.*R${n}["\u2033]?\\s+to\\s+R${n}`))
+    if (m)
+      return {
+        arcDegrees: parseFloat(m[1]),
+        innerRadius: parseFloat(m[2]),
+        outerRadius: parseFloat(m[3]),
+      }
+  }
+
+  if (partType === "trapezoid") {
+    const m = label.match(new RegExp(`${n}["\u2033]?\\s*/\\s*${n}["\u2033]?\\s*[×x]\\s*${n}`))
+    if (m)
+      return { topWidth: parseFloat(m[1]), bottomWidth: parseFloat(m[2]), height: parseFloat(m[3]) }
+  }
+
+  return {}
+}
+
 export {
   getRequestedSqFt,
   getDefaultCutDirection,
   parseCutRatios,
+  parseDimsFromLabel,
   getPartLabel,
   getCutDirectionOptions,
   getCutModeTitle,

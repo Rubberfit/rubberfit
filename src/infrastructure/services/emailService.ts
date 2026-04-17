@@ -14,9 +14,9 @@ import { injectable } from "tsyringe"
 // import WelcomeEmail from '@/templates/email/welcome';
 
 // Company details for branding
-const COMPANY_NAME = "USI Manufacturing"
-const FROM_EMAIL = process.env.SENDER_EMAIL || "notifications@usimanufacturing.com"
-const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "support@usimanufacturing.com"
+const COMPANY_NAME = "Arc & Anchor"
+const FROM_EMAIL = process.env.SENDER_EMAIL ?? "notifications@arcandanchor.com"
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL ?? "support@arcandanchor.com"
 
 interface EmailOptions {
   to: string | string[]
@@ -278,7 +278,7 @@ export class EmailService implements IEmailService {
 
     return this.sendEmail({
       to: params.to,
-      subject: `Welcome to ${COMPANY_NAME} Rema Portal`,
+      subject: `Welcome to ${COMPANY_NAME} RubberFit`,
       html,
       tags: [{ name: "notification_type", value: "welcome" }],
     })
@@ -421,7 +421,7 @@ export class EmailService implements IEmailService {
                 <p>${notification.message}</p>
                 <hr style="margin: 20px 0; border: none; border-top: 1px solid #e5e5e5;">
                 <p style="color: #666; font-size: 12px;">
-                  This is an automated message from ${COMPANY_NAME} Rema Portal
+                  This is an automated message from ${COMPANY_NAME} RubberFit
                 </p>
               </div>
             `,

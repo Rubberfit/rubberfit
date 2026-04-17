@@ -61,7 +61,10 @@ export function MaterialSupplierPricingSection({
                     min="0.01"
                     placeholder="2.50"
                     {...field}
-                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)
+                    }
                     className="min-h-[44px]"
                   />
                 </FormControl>
@@ -91,6 +94,7 @@ export function MaterialSupplierPricingSection({
                     min="0"
                     placeholder="500"
                     {...field}
+                    value={field.value ?? ""}
                     onChange={(e) =>
                       field.onChange(e.target.value ? parseInt(e.target.value) : undefined)
                     }
@@ -119,6 +123,7 @@ export function MaterialSupplierPricingSection({
                   min="0"
                   placeholder="14"
                   {...field}
+                  value={field.value ?? ""}
                   onChange={(e) =>
                     field.onChange(e.target.value ? parseInt(e.target.value) : undefined)
                   }

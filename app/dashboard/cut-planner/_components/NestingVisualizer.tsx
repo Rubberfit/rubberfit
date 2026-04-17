@@ -15,6 +15,7 @@ import type {
   SimplePartPreview,
   MultiSheetResult,
   PreviewItem,
+  SimpleCutMetrics,
 } from "./nesting-visualizer-types"
 
 import { getStrategies, scoreStrat } from "./nesting-layout-utils"
@@ -27,7 +28,7 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
-import { buildPartPreviewItem } from "./nesting-preview-builders"
+import { buildPartPreviewItem, computeFabricationScore } from "./nesting-preview-builders"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -202,38 +203,42 @@ function indexToTag(i: number): string {
   return tag
 }
 
-function buildTagMap(
-  basePreview: SimplePartPreview | null,
-  multiSheet: MultiSheetResult | null,
-  specOrderedLabels?: string[]
-) {
+/**
+ * Build a tag map keyed by `specIndex` (string) → tag value.
+ * Uses part numbers (e.g. "G2") when available, falls back to generated letters (A, B, C…).
+ */
+function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiSheetResult | null) {
   if (!basePreview) return new Map<string, string>()
-  // Collect all unique item labels that actually appear in the layout.
-  const itemLabels: string[] = []
-  const addItem = (label: string) => {
-    if (!itemLabels.includes(label)) itemLabels.push(label)
-  }
-  if (multiSheet) {
-    multiSheet.sheets.forEach((sheet) => sheet.preview.items.forEach((item) => addItem(item.label)))
-  } else {
-    basePreview.items.forEach((item) => addItem(item.label))
-  }
-  // Order by spec selection so tags match the user's A/B/C… checkboxes.
-  // Only include spec labels that actually appear in items — spec labels that
-  // don't match any item (e.g. full-circumference label for a split cylinder)
-  // are skipped so no phantom legend entry is created.
-  const allLabels: string[] = []
-  if (specOrderedLabels) {
-    for (const specLabel of specOrderedLabels) {
-      if (itemLabels.includes(specLabel) && !allLabels.includes(specLabel)) {
-        allLabels.push(specLabel)
-      }
+
+  // Collect unique specIndex values and their associated partNumbers.
+  const seenIndices: number[] = []
+  const specPartNumbers = new Map<number, string>()
+  const collectItem = (item: PreviewItem) => {
+    const idx = item.specIndex
+    if (idx != null && !seenIndices.includes(idx)) {
+      seenIndices.push(idx)
+      if (item.partNumber) specPartNumbers.set(idx, item.partNumber)
     }
   }
-  for (const label of itemLabels) {
-    if (!allLabels.includes(label)) allLabels.push(label)
+
+  if (multiSheet) {
+    multiSheet.sheets.forEach((sheet) => sheet.preview.items.forEach(collectItem))
+  } else {
+    basePreview.items.forEach(collectItem)
   }
-  return new Map(allLabels.map((label, i) => [label, indexToTag(i)]))
+
+  // Sort by specIndex so tag order matches the user's selection order
+  seenIndices.sort((a, b) => a - b)
+
+  // Assign tags: use partNumber when available, otherwise generate A/B/C letters
+  let fallbackCounter = 0
+  return new Map(
+    seenIndices.map((idx) => {
+      const partNumber = specPartNumbers.get(idx)
+      const tag = partNumber ?? indexToTag(fallbackCounter++)
+      return [String(idx), tag]
+    })
+  )
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -246,6 +251,8 @@ export default function NestingVisualizer({
   simpleMode = false,
   simplePart,
   simpleParts,
+  onMetricsChange,
+  onTagMapChange,
 }: NestingVisualizerProps) {
   const patternSeed = useId().replace(/:/g, "")
 
@@ -504,12 +511,54 @@ export default function NestingVisualizer({
     ]
   )
 
-  const tagMap = useMemo(() => {
-    const specLabels = activeSimpleSpecs.map(
-      (spec) => buildPartPreviewItem(spec, defaultCutWidth, defaultCutHeight).label
-    )
-    return buildTagMap(baseSimplePreview, multiSheet, specLabels)
-  }, [baseSimplePreview, multiSheet, activeSimpleSpecs, defaultCutWidth, defaultCutHeight])
+  const tagMap = useMemo(
+    () => buildTagMap(baseSimplePreview, multiSheet),
+    [baseSimplePreview, multiSheet]
+  )
+
+  useEffect(() => {
+    if (!simpleMode || !onMetricsChange || !baseSimplePreview) return
+    try {
+      let metrics: SimpleCutMetrics
+      if (multiSheet && multiSheet.sheets.length > 1) {
+        const totalPieces = multiSheet.sheets.reduce((sum, s) => sum + s.preview.piecesShown, 0)
+        metrics = {
+          partsCompleted: multiSheet.totalUnitsCompleted,
+          cutPieces: totalPieces,
+          materialUsedSqFt: multiSheet.totalUsedArea / 144,
+          reusableOffsetSqFt: multiSheet.totalReusableArea / 144,
+          scrapSqFt: multiSheet.totalScrapArea / 144,
+          fabScore: multiSheet.avgFabScore / 100,
+        }
+      } else {
+        const rawScore =
+          baseSimplePreview.fabricationScore ??
+          computeFabricationScore(baseSimplePreview, defaultRollWidth, defaultRollLength).score
+        metrics = {
+          partsCompleted: baseSimplePreview.unitsCompleted,
+          cutPieces: baseSimplePreview.piecesShown,
+          materialUsedSqFt: baseSimplePreview.usedArea / 144,
+          reusableOffsetSqFt: baseSimplePreview.reusableArea / 144,
+          scrapSqFt: baseSimplePreview.scrapArea / 144,
+          fabScore: rawScore / 100,
+        }
+      }
+      onMetricsChange(metrics)
+    } catch (_error) {
+      // metrics computation failure must not break the visualizer
+    }
+  }, [
+    simpleMode,
+    baseSimplePreview,
+    multiSheet,
+    onMetricsChange,
+    defaultRollWidth,
+    defaultRollLength,
+  ])
+
+  useEffect(() => {
+    if (simpleMode && onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)
+  }, [simpleMode, tagMap, onTagMapChange])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
   const shouldRotate = defaultRollLength > defaultRollWidth

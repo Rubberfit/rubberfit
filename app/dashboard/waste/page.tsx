@@ -1,244 +1,275 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { AlertTriangle, Activity } from "lucide-react"
-import { format, subDays, subMonths } from "date-fns"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { format, subDays, subWeeks, subMonths, startOfWeek, startOfMonth } from "date-fns"
+import { Download, TrendingDown } from "lucide-react"
+import { toast } from "sonner"
 
-import { type Cut } from "@/src/infrastructure/models/supabase"
-import { cutService } from "@/src/infrastructure/services/cutService"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Badge } from "@/app/components/ui/badge"
+import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { useRole } from "@/src/infrastructure/services/useRole"
+import { Button } from "@/app/components/ui/button"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select"
 
-import { WasteTrendChart } from "./_components/waste-trend-chart"
-import { MaterialWasteChart } from "./_components/material-waste-chart"
-import { WasteMetrics } from "./_components/waste-metrics"
+import { WasteKpiCards } from "./_components/waste-kpi-cards"
+import { WasteRatioTrendChart, type TrendPoint } from "./_components/waste-ratio-trend-chart"
 
-interface CutWithRoll extends Cut {
-  roll?: {
-    material_type: string
-    location: string
-    cost_per_sqft?: number
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type Timeframe = "7d" | "30d" | "12w" | "12m"
+type GroupBy = "day" | "week" | "month"
+
+interface User {
+  id: string
+  full_name: string | null
+  email: string | null
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
+function getRange(tf: Timeframe): { from: Date; to: Date; groupBy: GroupBy } {
+  const to = new Date()
+  switch (tf) {
+    case "7d":
+      return { from: subDays(to, 7), to, groupBy: "day" }
+    case "30d":
+      return { from: subDays(to, 30), to, groupBy: "day" }
+    case "12w":
+      return { from: subWeeks(to, 12), to, groupBy: "week" }
+    case "12m":
+      return { from: subMonths(to, 12), to, groupBy: "month" }
   }
 }
 
-interface WasteAnalysis {
-  period: string
-  totalWaste: number
-  wasteValue: number
-  averageWaste: number
-  cuts: number
+function groupCuts(cuts: CutHistory[], groupBy: GroupBy): TrendPoint[] {
+  const buckets = new Map<string, CutHistory[]>()
+
+  for (const cut of [...cuts].sort(
+    (a, b) => new Date(a.cut_date).getTime() - new Date(b.cut_date).getTime()
+  )) {
+    const d = new Date(cut.cut_date)
+    const key =
+      groupBy === "day"
+        ? format(d, "MMM d")
+        : groupBy === "week"
+          ? format(startOfWeek(d), "MMM d")
+          : format(startOfMonth(d), "MMM yyyy")
+    const arr = buckets.get(key) ?? []
+    arr.push(cut)
+    buckets.set(key, arr)
+  }
+
+  return Array.from(buckets.entries()).map(([period, items]) => {
+    const avgFab = items.reduce((s, c) => s + c.fab_score, 0) / items.length
+    const scrap = items.reduce((s, c) => s + c.scrap_sqft, 0)
+    const reusable = items.reduce((s, c) => s + c.reusable_offset_sqft, 0)
+    const material = items.reduce((s, c) => s + c.material_used_sqft, 0)
+    const total = scrap + reusable + material
+    return {
+      period,
+      wasteRatio: parseFloat(((1 - avgFab) * 100).toFixed(1)),
+      scrapRatio: total > 0 ? parseFloat(((scrap / total) * 100).toFixed(1)) : 0,
+      cuts: items.length,
+      totalScrap: parseFloat(scrap.toFixed(2)),
+      totalMaterial: parseFloat(material.toFixed(2)),
+    }
+  })
+}
+
+function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe) {
+  const trendRows = [
+    ["Period", "Cuts", "Avg Waste %", "Pure Scrap %", "Total Scrap ft²", "Total Material ft²"],
+    ...trend.map((t) => [
+      t.period,
+      String(t.cuts),
+      t.wasteRatio.toFixed(1),
+      t.scrapRatio.toFixed(1),
+      t.totalScrap.toFixed(2),
+      t.totalMaterial.toFixed(2),
+    ]),
+  ]
+
+  const rawRows = [
+    [],
+    [
+      "Cut Date",
+      "Part Type",
+      "Qty",
+      "Waste %",
+      "Scrap ft²",
+      "Reusable ft²",
+      "Material ft²",
+      "Fab Score",
+    ],
+    ...cuts.map((c) => [
+      format(new Date(c.cut_date), "yyyy-MM-dd HH:mm"),
+      String(c.part_id),
+      String(c.cut_amount),
+      ((1 - c.fab_score) * 100).toFixed(1),
+      c.scrap_sqft.toFixed(2),
+      c.reusable_offset_sqft.toFixed(2),
+      c.material_used_sqft.toFixed(2),
+      c.fab_score.toFixed(3),
+    ]),
+  ]
+
+  const csv = [...trendRows, ...rawRows].map((r) => r.join(",")).join("\n")
+  const blob = new Blob([csv], { type: "text/csv" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `waste-analysis-${timeframe}-${format(new Date(), "yyyy-MM-dd")}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+const TIMEFRAME_LABELS: Record<Timeframe, string> = {
+  "7d": "Last 7 Days",
+  "30d": "Last 30 Days",
+  "12w": "Last 12 Weeks",
+  "12m": "Last 12 Months",
 }
 
 export default function WasteAnalysisPage() {
-  const [cuts, setCuts] = useState<CutWithRoll[]>([])
-  const [wasteAnalysis, setWasteAnalysis] = useState<WasteAnalysis[]>([])
-  const [highWasteCuts, setHighWasteCuts] = useState<CutWithRoll[]>([])
+  const { isAdmin, isManager, hasAnyRole, isLoading: roleLoading, userId } = useRole()
+  const showUserSelect = isAdmin || isManager || hasAnyRole(["supervisor"])
+
+  const [cuts, setCuts] = useState<CutHistory[]>([])
   const [loading, setLoading] = useState(true)
+  const [timeframe, setTimeframe] = useState<Timeframe>("30d")
+  const [users, setUsers] = useState<User[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string | null | undefined>(undefined)
+
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    const fetchData = async () => {
+    if (roleLoading || initializedRef.current) return
+    initializedRef.current = true
+    setSelectedUserId(userId)
+  }, [roleLoading, userId])
+
+  // Load users for privileged dropdown
+  useEffect(() => {
+    if (!showUserSelect) return
+    fetchJson<{ data: User[] }>("/api/users")
+      .then((r) => setUsers(r.data))
+      .catch(() => {})
+  }, [showUserSelect])
+
+  const loadCuts = useCallback(
+    async (forUserId: string | null) => {
       setLoading(true)
       try {
-        // Fetch cuts from last 3 months with roll data
-        const threeMonthsAgo = subMonths(new Date(), 3)
-
-        const cutsData = await cutService.getCutsByDateRangeWithRolls(threeMonthsAgo)
-
-        const cutsWithRoll = cutsData || []
-        setCuts(cutsWithRoll)
-
-        // Find high waste cuts (>20% waste)
-        const highWaste = cutsWithRoll.filter((cut) => (cut.waste_percentage || 0) > 20)
-        setHighWasteCuts(highWaste)
-
-        // Generate weekly waste analysis
-        const analysis: WasteAnalysis[] = []
-        for (let i = 0; i < 12; i++) {
-          const weekStart = subDays(new Date(), i * 7)
-          const weekEnd = subDays(new Date(), (i - 1) * 7)
-
-          const weekCuts = cutsWithRoll.filter((cut) => {
-            const cutDate = new Date(cut.created_at)
-            return cutDate >= weekStart && cutDate <= weekEnd
-          })
-
-          if (weekCuts.length > 0) {
-            const totalWaste = weekCuts.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0)
-            const averageWaste =
-              weekCuts.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / weekCuts.length
-            const wasteValue = weekCuts.reduce((sum, cut) => {
-              const costPerSqft = cut.roll?.cost_per_sqft || 2.5
-              return sum + (cut.waste_sqft || 0) * costPerSqft
-            }, 0)
-
-            analysis.push({
-              period: format(weekStart, "MMM d"),
-              totalWaste,
-              wasteValue,
-              averageWaste,
-              cuts: weekCuts.length,
-            })
-          }
-        }
-
-        setWasteAnalysis(analysis.reverse())
-      } catch (error) {
-        console.error("Error fetching waste data:", error)
+        const { from, to } = getRange(timeframe)
+        const fromStr = from.toISOString()
+        const endOfDay = new Date(to)
+        endOfDay.setHours(23, 59, 59, 999)
+        const userParam = forUserId ? `&userId=${encodeURIComponent(forUserId)}` : ""
+        const toStr = endOfDay.toISOString()
+        const res = await fetchJson<{ data: CutHistory[] }>(
+          `/api/cuts/history?limit=100&from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}${userParam}`
+        )
+        setCuts(res.data ?? [])
+      } catch (_err) {
+        toast.error("Failed to load waste data")
+        setCuts([])
       } finally {
         setLoading(false)
       }
-    }
+    },
+    [timeframe]
+  )
 
-    fetchData()
-  }, [])
+  useEffect(() => {
+    if (selectedUserId === undefined) return
+    loadCuts(selectedUserId)
+  }, [selectedUserId, loadCuts])
 
-  const getWasteSeverity = (percentage: number) => {
-    if (percentage <= 5) return { label: "Excellent", color: "default" as const }
-    if (percentage <= 15) return { label: "Good", color: "secondary" as const }
-    if (percentage <= 25) return { label: "Moderate", color: "outline" as const }
-    return { label: "High", color: "destructive" as const }
-  }
+  const { groupBy } = getRange(timeframe)
+  const trendData = useMemo(() => groupCuts(cuts, groupBy), [cuts, groupBy])
 
-  const calculateWasteValue = (wasteSqft: number, costPerSqft?: number) => {
-    return wasteSqft * (costPerSqft || 2.5)
-  }
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <Activity className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Loading waste analysis...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Waste Analysis</h1>
-        <p className="text-muted-foreground">
-          Monitor material waste patterns and identify optimization opportunities
-        </p>
+      {/* Header */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <TrendingDown className="h-6 w-6" />
+            Waste Analysis
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Waste ratio trends derived from recorded cut history
+          </p>
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          {showUserSelect && !roleLoading && (
+            <Select
+              value={selectedUserId ?? "all"}
+              onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="All cutters" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cutters</SelectItem>
+                {users.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.full_name ?? u.email ?? u.id}
+                    {u.id === userId ? " (you)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(TIMEFRAME_LABELS) as [Timeframe, string][]).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading || cuts.length === 0}
+            onClick={() => exportCsv(trendData, cuts, timeframe)}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
-      {/* Waste Metrics */}
-      <WasteMetrics cuts={cuts} />
+      {/* KPI Cards */}
+      <WasteKpiCards cuts={cuts} isLoading={loading} />
 
-      {/* Charts */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <WasteTrendChart data={wasteAnalysis} />
-        <MaterialWasteChart cuts={cuts} />
-      </div>
-
-      {/* High Waste Alert */}
-      {highWasteCuts.length > 0 && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <CardTitle className="text-destructive">High Waste Alert</CardTitle>
-            </div>
-            <CardDescription>
-              {highWasteCuts.length} cuts in the last 3 months have exceeded 20% waste
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Material</TableHead>
-                    <TableHead>Dimensions</TableHead>
-                    <TableHead>Waste %</TableHead>
-                    <TableHead>Waste Value</TableHead>
-                    <TableHead>Job Reference</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {highWasteCuts.slice(0, 10).map((cut) => {
-                    const severity = getWasteSeverity(cut.waste_percentage || 0)
-                    const wasteValue = calculateWasteValue(
-                      cut.waste_sqft || 0,
-                      cut.roll?.cost_per_sqft
-                    )
-
-                    return (
-                      <TableRow key={cut.id}>
-                        <TableCell className="font-mono text-sm">
-                          {format(new Date(cut.created_at), "MMM d, yyyy")}
-                        </TableCell>
-                        <TableCell>{cut.roll?.material_type || "Unknown"}</TableCell>
-                        <TableCell className="font-mono">
-                          {cut.cut_width}" × {cut.cut_length}"
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={severity.color}>
-                            {(cut.waste_percentage || 0).toFixed(1)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono">${wasteValue.toFixed(2)}</TableCell>
-                        <TableCell>{cut.job_reference || "—"}</TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            {highWasteCuts.length > 10 && (
-              <p className="mt-4 text-sm text-muted-foreground">
-                Showing 10 of {highWasteCuts.length} high-waste cuts
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Waste Reduction Opportunities */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Waste Reduction Opportunities</CardTitle>
-          <CardDescription>Recommendations based on your cutting patterns</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border bg-green-50 p-4 text-green-800 dark:bg-green-950 dark:text-green-300">
-            <h4 className="font-medium">Consider Roll Selection Optimization</h4>
-            <p className="text-sm mt-1">
-              High waste cuts often result from suboptimal roll selection. Review the Cut Planner
-              recommendations more carefully.
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-blue-50 p-4 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
-            <h4 className="font-medium">Batch Similar Cuts</h4>
-            <p className="text-sm mt-1">
-              Grouping similar-sized cuts can reduce setup waste and improve material utilization
-              efficiency.
-            </p>
-          </div>
-
-          <div className="rounded-lg border bg-amber-50 p-4 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            <h4 className="font-medium">Review Cutting Methods</h4>
-            <p className="text-sm mt-1">
-              For cuts with consistently high waste, consider alternative cutting approaches or
-              tooling adjustments.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Trend Chart */}
+      <WasteRatioTrendChart data={trendData} isLoading={loading} />
     </div>
   )
 }

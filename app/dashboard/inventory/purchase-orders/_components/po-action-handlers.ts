@@ -1,4 +1,5 @@
 import {
+  supabase,
   type PurchaseOrderWithDetails,
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
