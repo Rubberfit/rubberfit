@@ -20,7 +20,14 @@ import {
   CUSTOM_TEMPLATE_STORAGE_KEY,
   LEGACY_CUSTOM_TEMPLATE_STORAGE_KEY,
 } from "./preset-template-data"
-import { buildCustomTemplate, templateToDraft, getTemplateAreaSqFt } from "./preset-utils"
+import {
+  buildCustomTemplate,
+  templateToDraft,
+  getTemplateAreaSqFt,
+  getTemplateBoundingBox,
+  templateFitsStock,
+  formatInches,
+} from "./preset-utils"
 
 /** Mirrors PartCustomDimensions from the infrastructure layer — kept local to
  *  avoid coupling this component file to the database model. */
@@ -185,6 +192,8 @@ function hydrateCustomTemplates(
 
 export function usePresetState(
   onApply?: (templates: PartTemplate[]) => void,
+  rollWidth?: number,
+  rollLength?: number,
   loadedSelection?: LoadedSelection | null
 ) {
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle")
@@ -278,6 +287,25 @@ export function usePresetState(
     () => buildCustomTemplate(selectedPart, customDrafts),
     [customDrafts, selectedPart]
   )
+
+  // If stock dimensions are provided and the pending template's bounding box
+  // exceeds the stock in both orientations, surface a clear error so the user
+  // can't add a part that would render as a blank sheet.
+  const customTemplateError = useMemo<string | null>(() => {
+    if (!pendingCustomTemplate || rollWidth == null || rollLength == null) return null
+    if (templateFitsStock(pendingCustomTemplate, rollWidth, rollLength)) return null
+    const { width, height } = getTemplateBoundingBox(pendingCustomTemplate)
+    return `Bounding box ${formatInches(width)}\u2033 \u00d7 ${formatInches(height)}\u2033 is larger than the ${formatInches(rollWidth)}\u2033 \u00d7 ${formatInches(rollLength)}\u2033 stock — won't fit on the sheet.`
+  }, [pendingCustomTemplate, rollWidth, rollLength])
+
+  // Per-template stock-fit check for the grid. When stock dims are unknown
+  // we treat everything as fitting (back-compat — no callers without dims yet).
+  const fitsStock = useMemo(() => {
+    return (template: PartTemplate): boolean => {
+      if (rollWidth == null || rollLength == null) return true
+      return templateFitsStock(template, rollWidth, rollLength)
+    }
+  }, [rollWidth, rollLength])
 
   const totalArea = selectedTemplates.reduce(
     (acc, template) => acc + getTemplateAreaSqFt(template),
@@ -443,6 +471,10 @@ export function usePresetState(
           return nextQ
         })
       } else {
+        // Block adding a preset whose bounding box exceeds the stock — it
+        // would render as a blank sheet.
+        const template = allTemplates.find((t) => t.id === templateId)
+        if (template && !fitsStock(template)) return previous
         next.add(templateId)
       }
       return next
@@ -453,11 +485,28 @@ export function usePresetState(
     setChecked((previous) => {
       const next = new Set(previous)
       for (const template of sizeOptions) {
-        next.add(template.id)
+        if (fitsStock(template)) next.add(template.id)
       }
       return next
     })
   }
+
+  // If the stock shrinks below an already-selected preset, drop it from the
+  // selection so the layout doesn't silently break.
+  useEffect(() => {
+    setChecked((previous) => {
+      let mutated = false
+      const next = new Set(previous)
+      for (const id of previous) {
+        const template = allTemplates.find((t) => t.id === id)
+        if (template && !fitsStock(template)) {
+          next.delete(id)
+          mutated = true
+        }
+      }
+      return mutated ? next : previous
+    })
+  }, [allTemplates, fitsStock])
 
   const handleClearAll = () => {
     setChecked(new Set())
@@ -470,7 +519,7 @@ export function usePresetState(
   const savedCustomCount = customTemplates[selectedPart].length
 
   const handleAddCustomSize = () => {
-    if (!pendingCustomTemplate) return
+    if (!pendingCustomTemplate || customTemplateError) return
 
     if (editingCustomId) {
       const customTemplate: PartTemplate = {
@@ -552,6 +601,8 @@ export function usePresetState(
     visible,
     selectedTemplates,
     pendingCustomTemplate,
+    customTemplateError,
+    fitsStock,
     totalArea,
     customDraft,
     selectedPartLabel,
