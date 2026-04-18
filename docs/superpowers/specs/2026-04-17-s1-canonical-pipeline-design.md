@@ -329,6 +329,11 @@ At the end of S1:
 
 S2 introduces `RustPackingService` (a thin Tauri command wrapper around the `rema-layout` crate), registers it in DI, and deletes `LegacyPackingService` + `nesting/`. The UI doesn't change.
 
+### What S1 did NOT accomplish (deferred to S2)
+
+- Preview/viz helpers under `app/dashboard/cut-planner/_components/` (e.g., `nesting-shape-previews-*`, `nesting-preview-builders`, `nesting-packing-utils`) still import `@/nesting/types`, `@/nesting/shape-to-polygon`, `@/nesting/free-space`, `@/nesting/nfp-greedy-placer`, `@/nesting/mixed-nfp-placer`. These are 19 type and helper imports across 10 files. They're not part of the interactive Pack call path — they're separate preview/visualization computations.
+- S2 will either (a) move these helpers into `rema-geom`/`rema-layout` Rust crates with TypeScript bindings, or (b) keep them as TypeScript preview helpers independent of the engine. Decision at S2 design time.
+
 ## 10. Open questions (resolved)
 
 | Question | Resolution |

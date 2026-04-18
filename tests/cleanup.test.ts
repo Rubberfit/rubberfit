@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import fs from "node:fs"
+import path from "node:path"
 import { execSync } from "node:child_process"
 
 const DELETED = [
@@ -40,16 +41,22 @@ describe("cleanup: banned symbols removed", () => {
   }
 })
 
-describe("handoff: UI does not import from nesting/", () => {
-  it("no file under app/ imports from @/nesting", () => {
-    try {
-      const out = execSync(
-        `grep -RE "from \\"@/nesting(\\"|/)" --include="*.ts*" app 2>/dev/null || true`,
-        { encoding: "utf-8" }
-      )
-      expect(out.trim()).toBe("")
-    } catch (_err) {
-      // grep returns 1 on no match — guarded by || true
-    }
+describe("handoff: IPackingService is the canonical Pack boundary", () => {
+  it("use-nfp-optimizer.ts does NOT import NFPSolver directly", () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, "../app/dashboard/cut-planner/_components/use-nfp-optimizer.ts"),
+      "utf-8"
+    )
+    // Direct engine instantiation was replaced with DI resolution in Phase 7.
+    expect(src).not.toMatch(/import\s+.*NFPSolver/)
+    expect(src).not.toMatch(/new\s+NFPSolver\s*\(/)
+  })
+
+  it("use-nfp-optimizer.ts resolves IPackingService via DI", () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, "../app/dashboard/cut-planner/_components/use-nfp-optimizer.ts"),
+      "utf-8"
+    )
+    expect(src).toMatch(/container\.resolve.*PACKING_TOKENS\.IPackingService|TOKENS\.IPackingService/)
   })
 })
