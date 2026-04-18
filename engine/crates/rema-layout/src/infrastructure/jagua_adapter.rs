@@ -11,6 +11,23 @@ use jagua_rs::probs::bpp::entities::BPInstance;
 use jagua_rs::probs::bpp::io::ext_repr::{ExtBPInstance, ExtBin, ExtItem as BpExtItem};
 use jagua_rs::probs::bpp::io::import_instance;
 
+/// Guard an f64 -> f32 narrowing conversion against NaN, infinity, and values
+/// outside f32's representable range. jagua-rs operates in f32, so we reject
+/// upstream rather than silently producing NaN/inf geometry.
+fn finite_f32(x: f64, context: &str) -> Result<f32, PackError> {
+    if !x.is_finite() {
+        return Err(PackError::EngineFailed(
+            format!("non-finite coordinate in {}: {}", context, x)
+        ));
+    }
+    if x.abs() > f32::MAX as f64 {
+        return Err(PackError::EngineFailed(
+            format!("coordinate out of f32 range in {}: {}", context, x)
+        ));
+    }
+    Ok(x as f32)
+}
+
 /// Convert a rema domain Part + Bin into a jagua-rs [`BPInstance`].
 ///
 /// This is the seam between domain and vendor; no jagua types leak past this
@@ -32,6 +49,11 @@ pub fn to_jagua_instance(
     if items.is_empty() {
         return Err(PackError::NoItems);
     }
+    if clearance < 0.0 {
+        return Err(PackError::EngineFailed(
+            format!("negative clearance: {}", clearance)
+        ));
+    }
 
     // Sensible defaults taken from lbf (the reference binary in jagua-rs 0.7.1).
     // These govern the Collision Detection Engine's quadtree resolution and the
@@ -47,7 +69,7 @@ pub fn to_jagua_instance(
     };
 
     let min_item_separation = if clearance > 0.0 {
-        Some(clearance as f32)
+        Some(finite_f32(clearance, "clearance")?)
     } else {
         None
     };
@@ -71,7 +93,7 @@ pub fn to_jagua_instance(
         .iter()
         .enumerate()
         .map(|(idx, b)| build_ext_bin(idx as u64, b))
-        .collect();
+        .collect::<Result<_, _>>()?;
 
     let ext_instance = ExtBPInstance {
         name: "rema-pack".to_string(),
@@ -100,8 +122,8 @@ fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
     let points: Vec<(f32, f32)> = part
         .polygon
         .iter()
-        .map(|p| (p.x as f32, p.y as f32))
-        .collect();
+        .map(|p| Ok((finite_f32(p.x, "polygon.x")?, finite_f32(p.y, "polygon.y")?)))
+        .collect::<Result<_, PackError>>()?;
 
     // `allow_rotation = true`  -> continuous rotation (omit allowed_orientations).
     // `allow_rotation = false` -> fixed at 0 degrees (single-angle list).
@@ -122,15 +144,15 @@ fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
     })
 }
 
-fn build_ext_bin(id: u64, bin: &Bin) -> ExtBin {
-    ExtBin {
+fn build_ext_bin(id: u64, bin: &Bin) -> Result<ExtBin, PackError> {
+    Ok(ExtBin {
         base: ExtContainer {
             id,
             shape: ExtShape::Rectangle {
                 x_min: 0.0,
                 y_min: 0.0,
-                width: bin.width as f32,
-                height: bin.height as f32,
+                width: finite_f32(bin.width, "bin.width")?,
+                height: finite_f32(bin.height, "bin.height")?,
             },
             zones: vec![],
         },
@@ -138,39 +160,107 @@ fn build_ext_bin(id: u64, bin: &Bin) -> ExtBin {
         stock: 1,
         // Uniform cost: BPP cost affects bin-selection heuristics only.
         cost: 1,
-    }
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::BinKind;
-    use rema_geom::domain::Point2D;
 
-    #[test]
-    fn converts_simple_rect_instance() {
-        let bins = vec![Bin {
+    fn test_bin() -> Bin {
+        Bin {
             bin_id: "b1".into(),
             width: 48.0,
             height: 96.0,
             kind: BinKind::Fresh,
             priority: None,
-        }];
-        let items = vec![Part {
+        }
+    }
+
+    fn test_rect_part() -> Part {
+        Part {
             shape_id: "rect-a".into(),
             quantity: 1,
             polygon: vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(24.0, 0.0),
-                Point2D::new(24.0, 12.0),
-                Point2D::new(0.0, 12.0),
+                rema_geom::domain::Point2D::new(0.0, 0.0),
+                rema_geom::domain::Point2D::new(24.0, 0.0),
+                rema_geom::domain::Point2D::new(24.0, 12.0),
+                rema_geom::domain::Point2D::new(0.0, 12.0),
             ],
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
             difficulty: None,
-        }];
+        }
+    }
+
+    #[test]
+    fn converts_simple_rect_instance() {
+        let bins = vec![test_bin()];
+        let items = vec![test_rect_part()];
         let r = to_jagua_instance(&bins, &items, 0.125);
         assert!(r.is_ok(), "conversion should succeed for a valid simple rect");
+    }
+
+    #[test]
+    fn rejects_empty_bins() {
+        let items = vec![test_rect_part()];
+        let r = to_jagua_instance(&[], &items, 0.125);
+        assert!(matches!(r, Err(PackError::NoBins)));
+    }
+
+    #[test]
+    fn rejects_empty_items() {
+        let bins = vec![test_bin()];
+        let r = to_jagua_instance(&bins, &[], 0.125);
+        assert!(matches!(r, Err(PackError::NoItems)));
+    }
+
+    #[test]
+    fn rejects_zero_quantity_part() {
+        let bins = vec![test_bin()];
+        let mut part = test_rect_part();
+        part.quantity = 0;
+        let r = to_jagua_instance(&bins, &[part], 0.125);
+        assert!(r.is_err(), "zero quantity should be rejected");
+    }
+
+    #[test]
+    fn rejects_degenerate_polygon() {
+        let bins = vec![test_bin()];
+        let mut part = test_rect_part();
+        part.polygon = vec![
+            rema_geom::domain::Point2D::new(0.0, 0.0),
+            rema_geom::domain::Point2D::new(1.0, 0.0),
+        ]; // only 2 vertices
+        let r = to_jagua_instance(&bins, &[part], 0.125);
+        assert!(r.is_err(), "polygon with <3 vertices should be rejected");
+    }
+
+    #[test]
+    fn rejects_negative_clearance() {
+        let bins = vec![test_bin()];
+        let items = vec![test_rect_part()];
+        let r = to_jagua_instance(&bins, &items, -0.5);
+        assert!(r.is_err(), "negative clearance should be rejected");
+    }
+
+    #[test]
+    fn rejects_nan_coordinate() {
+        let bins = vec![test_bin()];
+        let mut part = test_rect_part();
+        part.polygon[0].x = f64::NAN;
+        let r = to_jagua_instance(&bins, &[part], 0.125);
+        assert!(r.is_err(), "NaN coordinate should be rejected");
+    }
+
+    #[test]
+    fn fixed_rotation_path_converts_successfully() {
+        let bins = vec![test_bin()];
+        let mut part = test_rect_part();
+        part.allow_rotation = false;
+        let r = to_jagua_instance(&bins, &[part], 0.125);
+        assert!(r.is_ok(), "allow_rotation=false should convert cleanly (single fixed angle)");
     }
 }
