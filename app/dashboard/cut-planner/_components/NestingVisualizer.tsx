@@ -1,24 +1,17 @@
 "use client"
 
 import React, { useState, useRef, useEffect, useCallback, useId, useMemo } from "react"
-import { Scissors } from "lucide-react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
 
 import type {
-  ShapeType,
-  GrainDir,
-  DiagDir,
-  ScoredStrategy,
   NestingVisualizerProps,
   SimplePartPreview,
   MultiSheetResult,
   PreviewItem,
   SimpleCutMetrics,
 } from "./nesting-visualizer-types"
-
-import { getStrategies, scoreStrat } from "./nesting-layout-utils"
 
 import {
   generateSimplePartPreview,
@@ -28,15 +21,10 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
-import { buildPartPreviewItem, computeFabricationScore } from "./nesting-preview-builders"
+import { computeFabricationScore } from "./nesting-preview-builders"
 
-import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
-
-import { renderNonRectBg } from "./nesting-viz-nonrect-render"
 import { useNfpOptimizer } from "./use-nfp-optimizer"
 import NestingVizSimpleMode from "./nesting-viz-simple-mode"
-import NestingVizRectPanel from "./nesting-viz-rect-panel"
-import NestingVizControls from "./nesting-viz-controls"
 
 // ── 90° CW rotation utilities ───────────────────────────────────────────────
 
@@ -248,7 +236,6 @@ export default function NestingVisualizer({
   defaultCutWidth = 24,
   defaultCutHeight = 12,
   defaultQty = 6,
-  simpleMode = false,
   simplePart,
   simpleParts,
   onMetricsChange,
@@ -256,25 +243,6 @@ export default function NestingVisualizer({
 }: NestingVisualizerProps) {
   const patternSeed = useId().replace(/:/g, "")
 
-  // shared
-  const [shape, setShape] = useState<ShapeType>("rect")
-  const [rollW, setRollW] = useState(defaultRollWidth)
-  const [rollL, setRollL] = useState(defaultRollLength)
-  // rect mode
-  const [cutW, setCutW] = useState(defaultCutWidth)
-  const [cutH, setCutH] = useState(defaultCutHeight)
-  const [qty, setQty] = useState(defaultQty)
-  const [diagAng, setDiagAng] = useState(45)
-  const [ddir, setDdir] = useState<DiagDir>("ltr")
-  const [grain, setGrain] = useState<GrainDir>("none")
-  const [activeId, setActiveId] = useState<string>("")
-  const [activeStep, setActiveStep] = useState(0)
-  const [scored, setScored] = useState<ScoredStrategy[]>([])
-  const [diam, setDiam] = useState(12)
-  const [innerR, setInnerR] = useState(10)
-  const [outerR, setOuterR] = useState(24)
-  const [arcDeg, setArcDeg] = useState(120)
-  const [bgStats, setBgStats] = useState({ count: 0, used: 0, waste: 100 })
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
 
   const activeSimpleSpecs = useMemo(() => {
@@ -294,7 +262,6 @@ export default function NestingVisualizer({
   // For cone/trapezoid specs an async refinement runs on the worker pool and replaces
   // this value when ready (effect below).
   const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
-    if (!simpleMode) return null
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
           defaultRollWidth,
@@ -312,7 +279,6 @@ export default function NestingVisualizer({
           defaultQty
         )
   }, [
-    simpleMode,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -326,7 +292,6 @@ export default function NestingVisualizer({
   const asyncPreviewKey = useMemo(
     () =>
       JSON.stringify({
-        simpleMode,
         specs: activeSimpleSpecs,
         rw: defaultRollWidth,
         rl: defaultRollLength,
@@ -335,7 +300,6 @@ export default function NestingVisualizer({
         q: defaultQty,
       }),
     [
-      simpleMode,
       activeSimpleSpecs,
       defaultRollWidth,
       defaultRollLength,
@@ -350,8 +314,6 @@ export default function NestingVisualizer({
   } | null>(null)
 
   useEffect(() => {
-    if (!simpleMode) return
-
     const key = asyncPreviewKey
     let cancelled = false
 
@@ -412,7 +374,6 @@ export default function NestingVisualizer({
     }
   }, [
     asyncPreviewKey,
-    simpleMode,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -427,60 +388,13 @@ export default function NestingVisualizer({
       : syncBasePreview
 
   useEffect(() => {
-    if (!simpleMode) return
     if (activeSimpleSpecs.some((spec) => spec.partType !== "rectangle"))
       queueMicrotask(() => setViewMode("stock"))
-  }, [simpleMode, activeSimpleSpecs])
-
-  const bgSvgRef = useRef<SVGSVGElement>(null)
-  const detailRef = useRef<SVGSVGElement>(null)
-  const miniRefs = useRef<Record<string, SVGSVGElement>>({})
-
-  useEffect(() => {
-    if (simpleMode || shape !== "rect") return
-    const strats = getStrategies(cutW, cutH, diagAng, ddir)
-    const results = strats.map((s) => scoreStrat(s, rollW, rollL, qty, grain))
-    results.sort((a, b) => b.score - a.score)
-    queueMicrotask(() => {
-      setScored(results)
-      if (!activeId || !results.find((r) => r.id === activeId)) {
-        setActiveId(results[0]?.id ?? "")
-        setActiveStep(0)
-      }
-    })
-  }, [simpleMode, shape, rollW, rollL, cutW, cutH, qty, diagAng, ddir, grain, activeId])
-
-  useEffect(() => {
-    if (simpleMode || shape !== "rect") return
-    scored.forEach((s) => {
-      const svg = miniRefs.current[s.id]
-      if (svg) drawMiniRoll(svg, s, rollW, rollL, grain)
-    })
-  }, [simpleMode, scored, shape, grain, rollW, rollL])
-
-  useEffect(() => {
-    if (simpleMode || shape !== "rect") return
-    const active = scored.find((s) => s.id === activeId)
-    if (!active || !detailRef.current) return
-    drawDetailStep(detailRef.current, active, rollW, rollL, activeStep)
-  }, [simpleMode, scored, activeId, activeStep, shape, rollW, rollL])
-
-  const renderBg = useCallback(() => {
-    const svg = bgSvgRef.current
-    if (simpleMode || !svg || shape === "rect") return
-    setBgStats(renderNonRectBg(svg, shape, rollW, rollL, diam, innerR, outerR, arcDeg))
-  }, [arcDeg, diam, innerR, outerR, rollL, rollW, shape, simpleMode])
-
-  useEffect(() => {
-    renderBg()
-  }, [renderBg])
-
-  const activeStrat = scored.find((s) => s.id === activeId)
-  const stepNote = computeStepNote(activeStrat, activeStep, rollW, rollL, qty)
+  }, [activeSimpleSpecs])
 
   // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
   const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
-    simpleMode,
+    true,
     activeSimpleSpecs,
     defaultCutWidth,
     defaultCutHeight,
@@ -492,7 +406,7 @@ export default function NestingVisualizer({
   const multiSheet = useMemo(
     () =>
       buildMultiSheet(
-        simpleMode,
+        true,
         baseSimplePreview,
         activeSimpleSpecs,
         defaultRollWidth,
@@ -501,7 +415,6 @@ export default function NestingVisualizer({
         defaultCutHeight
       ),
     [
-      simpleMode,
       baseSimplePreview,
       activeSimpleSpecs,
       defaultRollWidth,
@@ -517,7 +430,7 @@ export default function NestingVisualizer({
   )
 
   useEffect(() => {
-    if (!simpleMode || !onMetricsChange || !baseSimplePreview) return
+    if (!onMetricsChange || !baseSimplePreview) return
     try {
       let metrics: SimpleCutMetrics
       if (multiSheet && multiSheet.sheets.length > 1) {
@@ -548,7 +461,6 @@ export default function NestingVisualizer({
       // metrics computation failure must not break the visualizer
     }
   }, [
-    simpleMode,
     baseSimplePreview,
     multiSheet,
     onMetricsChange,
@@ -557,8 +469,8 @@ export default function NestingVisualizer({
   ])
 
   useEffect(() => {
-    if (simpleMode && onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)
-  }, [simpleMode, tagMap, onTagMapChange])
+    if (onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)
+  }, [tagMap, onTagMapChange])
 
   // Rotate the entire result once after nesting so the display layer never needs to transform.
   const shouldRotate = defaultRollLength > defaultRollWidth
@@ -579,194 +491,35 @@ export default function NestingVisualizer({
     [shouldRotate, optimizedItems, defaultRollLength]
   )
 
-  if (simpleMode) {
-    const rawPreview =
-      baseSimplePreview ??
-      generateSimplePartPreview(
-        defaultRollWidth,
-        defaultRollLength,
-        activeSimpleSpecs[0],
-        defaultCutWidth,
-        defaultCutHeight,
-        defaultQty
-      )
-
-    const preview = shouldRotate
-      ? rotateSimplePartPreview(rawPreview, defaultRollLength)
-      : rawPreview
-
-    return (
-      <NestingVizSimpleMode
-        preview={preview}
-        previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
-        previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
-        wasRotated={shouldRotate}
-        patternSeed={patternSeed}
-        viewMode={viewMode}
-        optimizedResult={optimizedResult}
-        optimizedItems={rotatedOptimizedItems}
-        isOptimizing={isOptimizing}
-        nfpError={nfpError}
-        multiSheet={rotatedMultiSheet}
-        tagMap={tagMap}
-      />
+  const rawPreview =
+    baseSimplePreview ??
+    generateSimplePartPreview(
+      defaultRollWidth,
+      defaultRollLength,
+      activeSimpleSpecs[0],
+      defaultCutWidth,
+      defaultCutHeight,
+      defaultQty
     )
-  }
 
-  /* 
-    This return will never be executed because simpleMode evaluates to true always.
-    Claude:
-      simpleMode is always true when the component is rendered from the cut planner page. 
-      The false default only applies if someone renders <NestingVisualizer /> without the prop — 
-      which never happens anywhere in the current codebase.
-  */
+  const preview = shouldRotate
+    ? rotateSimplePartPreview(rawPreview, defaultRollLength)
+    : rawPreview
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <NestingVizHeader />
-      <NestingVizControls
-        shape={shape}
-        rollW={rollW}
-        rollL={rollL}
-        cutW={cutW}
-        cutH={cutH}
-        qty={qty}
-        diagAng={diagAng}
-        grain={grain}
-        ddir={ddir}
-        diam={diam}
-        innerR={innerR}
-        outerR={outerR}
-        arcDeg={arcDeg}
-        setShape={setShape}
-        setRollW={setRollW}
-        setRollL={setRollL}
-        setCutW={setCutW}
-        setCutH={setCutH}
-        setQty={setQty}
-        setDiagAng={setDiagAng}
-        setGrain={setGrain}
-        setDdir={setDdir}
-        setDiam={setDiam}
-        setInnerR={setInnerR}
-        setOuterR={setOuterR}
-        setArcDeg={setArcDeg}
-        setActiveStep={setActiveStep}
-      />
-      {shape === "rect" && (
-        <NestingVizRectPanel
-          scored={scored}
-          activeId={activeId}
-          activeStep={activeStep}
-          activeStrat={activeStrat}
-          stepNote={stepNote}
-          qty={qty}
-          detailRef={detailRef}
-          miniRefs={miniRefs}
-          setActiveId={setActiveId}
-          setActiveStep={setActiveStep}
-        />
-      )}
-      {shape !== "rect" && <NonRectStatsPanel bgSvgRef={bgSvgRef} bgStats={bgStats} />}
-    </div>
+    <NestingVizSimpleMode
+      preview={preview}
+      previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
+      previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
+      wasRotated={shouldRotate}
+      patternSeed={patternSeed}
+      viewMode={viewMode}
+      optimizedResult={optimizedResult}
+      optimizedItems={rotatedOptimizedItems}
+      isOptimizing={isOptimizing}
+      nfpError={nfpError}
+      multiSheet={rotatedMultiSheet}
+      tagMap={tagMap}
+    />
   )
-}
-
-function NestingVizHeader() {
-  return (
-    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40">
-      <div className="flex items-center gap-2">
-        <Scissors className="h-4 w-4 text-muted-foreground" />
-        <span className="text-xs font-semibold text-foreground tracking-wide">
-          Nesting Layout &amp; Cut Strategy
-        </span>
-      </div>
-      <div className="flex gap-3 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-500/30 border border-green-500" />
-          usable
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-400/20 border border-blue-400" />
-          tri-B
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-400/20 border border-dashed border-red-400" />
-          scrap
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function NonRectStatsPanel({
-  bgSvgRef,
-  bgStats,
-}: {
-  bgSvgRef: React.RefObject<SVGSVGElement | null>
-  bgStats: { count: number; used: number; waste: number }
-}) {
-  return (
-    <>
-      <div className="px-3 pt-2 pb-1">
-        <svg
-          ref={bgSvgRef}
-          width="100%"
-          viewBox="0 0 680 310"
-          style={{ display: "block", borderRadius: "6px", background: "#0f172a" }}
-        />
-      </div>
-      <div className="grid grid-cols-3 gap-2 px-4 py-3">
-        {[
-          { label: "Pieces", val: String(bgStats.count), good: true },
-          { label: "Material Used", val: `${bgStats.used.toFixed(1)}%`, good: true },
-          { label: "Scrap / Waste", val: `${bgStats.waste.toFixed(1)}%`, good: false },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg bg-muted/40 border border-border text-center px-3 py-2.5"
-          >
-            <div className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground mb-1">
-              {s.label}
-            </div>
-            <div
-              className="text-xl font-bold"
-              style={{
-                color: s.good ? "var(--color-text-success)" : "var(--color-text-danger)",
-              }}
-            >
-              {s.val}
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
-/* eslint-disable max-lines */
-function computeStepNote(
-  activeStrat: ScoredStrategy | undefined,
-  activeStep: number,
-  rollW: number,
-  rollL: number,
-  qty: number
-): string {
-  if (!activeStrat) return ""
-  const cur = activeStrat.steps[activeStep]
-  const diagAn =
-    activeStrat.diagType === "corner"
-      ? (Math.atan2(activeStrat.cutH, activeStrat.cutW) * 180) / Math.PI
-      : (activeStrat.diagAngle ?? 45)
-  const map: Record<string, string> = {
-    "Full roll": `Roll is ${rollW}"\u00D7${rollL}". ${activeStrat.cols} cols \u00D7 ${activeStrat.rows} rows = ${activeStrat.method === "diag" ? activeStrat.rects * 2 + " triangles" : activeStrat.rects + " rectangles"} of ${activeStrat.cutW}"\u00D7${activeStrat.cutH}".`,
-    "H-cuts first": `Make ${activeStrat.hCuts} horizontal cut${activeStrat.hCuts !== 1 ? "s" : ""} every ${activeStrat.cutH}" \u2014 runs \u2190\u2192 across roll width. This is the primary cut direction.`,
-    "V-cuts next": `Make ${activeStrat.vCuts} vertical cut${activeStrat.vCuts !== 1 ? "s" : ""} every ${activeStrat.cutW}" \u2014 runs \u2195 down the roll.`,
-    "V-cuts first": `Make ${activeStrat.vCuts} vertical cut${activeStrat.vCuts !== 1 ? "s" : ""} every ${activeStrat.cutW}" \u2014 runs \u2195 down roll length. This is the primary cut direction.`,
-    "H-cuts next": `Make ${activeStrat.hCuts} horizontal cut${activeStrat.hCuts !== 1 ? "s" : ""} every ${activeStrat.cutH}" \u2014 runs \u2190\u2192 across the roll width.`,
-    "Straight cuts": `${activeStrat.hCuts} horizontal + ${activeStrat.vCuts} vertical cuts to create ${activeStrat.rects} rectangles before the diagonal.`,
-    "Diagonal cuts": `Diagonal cut each rectangle ${activeStrat.ddir === "ltr" ? "\u2571 left-to-right" : "\u2572 right-to-left"} at ${diagAn.toFixed(1)}\u00B0. Yields triangle A (green) + B (blue) \u2014 both kept.`,
-    Done: `All cuts done. ${activeStrat.pieces} pieces ready.${activeStrat.pieces < qty ? " Note: second roll needed." : ""}`,
-  }
-  return map[cur] ?? ""
 }
