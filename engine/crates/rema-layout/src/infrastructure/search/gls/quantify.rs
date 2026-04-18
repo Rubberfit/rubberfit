@@ -20,7 +20,10 @@ pub fn quantify_collision_poly_poly(s1: &SPolygon, s2: &SPolygon) -> f32 {
     let overlap_proxy =
         overlap_area_proxy(s1.surrogate(), s2.surrogate(), epsilon) + epsilon.powi(2);
 
-    debug_assert!(overlap_proxy.is_normal());
+    // Deviation from upstream: `is_normal()` rejects legitimate subnormals
+    // from tiny-shape / tiny-epsilon inputs. Only NaN / infinity / negative
+    // values indicate a real bug.
+    debug_assert!(overlap_proxy.is_finite() && overlap_proxy > 0.0);
 
     let penalty = calc_shape_penalty(s1, s2);
 
@@ -50,7 +53,9 @@ pub fn quantify_collision_poly_container(s: &SPolygon, c_bbox: Rect) -> f32 {
             s_bbox.area() + s_bbox.centroid().distance_to(&c_bbox.centroid())
         }
     };
-    debug_assert!(overlap.is_normal());
+    // Deviation from upstream: `is_normal()` rejects legitimate subnormals
+    // from tiny-shape inputs. Only NaN / infinity / negative indicates a bug.
+    debug_assert!(overlap.is_finite() && overlap > 0.0);
 
     let penalty = calc_shape_penalty(s, s);
 

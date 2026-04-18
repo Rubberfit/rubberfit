@@ -37,7 +37,12 @@ pub struct OptimizerConfig {
 ///
 /// Task 1: passthrough. The warm-start seed is returned verbatim so the
 /// orchestrator in `application::pack` keeps behaving like S2.
-/// Task 8: the body becomes the real GLS explore + compress pipeline.
+/// Task 8: the body becomes the real GLS explore + compress pipeline
+/// (still single-bin).
+/// Task 12: this single-bin entry point becomes a thin wrapper around a
+/// new multi-bin `optimize_multi(request, seeds, cfg)` that owns the
+/// cross-bin swap loop. Call sites in `application::pack` will move to
+/// the multi-bin API then.
 pub fn optimize(
     seed: SeedResult,
     _config: OptimizerConfig,

@@ -115,4 +115,10 @@ mod tests {
     fn out_of_bounds_row_panics() {
         let _ = PairMatrix::new(3)[(3, 0)].loss;
     }
+
+    #[test]
+    #[should_panic]
+    fn out_of_bounds_col_panics() {
+        let _ = PairMatrix::new(3)[(0, 3)].loss;
+    }
 }

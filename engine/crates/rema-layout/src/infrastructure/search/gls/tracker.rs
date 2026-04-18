@@ -115,6 +115,21 @@ impl CollisionTracker {
     }
 
     pub fn restore_but_keep_weights(&mut self, cts: &CTSnapshot, layout: &Layout) {
+        // Precondition: the snapshot must match this tracker's size. Upstream
+        // sparrow relies on this invariant implicitly (the `.zip()` pairs
+        // silently truncate on mismatch and `self.size` / `PairMatrix` stay
+        // stale). We assert it explicitly so a regression is caught in debug
+        // builds instead of silently producing corrupt losses.
+        debug_assert_eq!(
+            self.size, cts.size,
+            "restore_but_keep_weights requires a same-size snapshot"
+        );
+        debug_assert_eq!(
+            self.pair_collisions.data.len(),
+            cts.pair_collisions.data.len(),
+            "pair_collisions size mismatch"
+        );
+
         // Copy the loss and keys, but keep the weights.
         self.pk_idx_map = cts.pk_idx_map.clone();
         self.pair_collisions
