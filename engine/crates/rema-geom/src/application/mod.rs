@@ -6,5 +6,5 @@ pub mod sat;
 
 pub use convex_hull::convex_hull;
 pub use inscribed::largest_inscribed_rect;
-pub use normalize::normalize_polygon;
+pub use normalize::{bbox_of, normalize_polygon};
 pub use sat::sat_overlap;

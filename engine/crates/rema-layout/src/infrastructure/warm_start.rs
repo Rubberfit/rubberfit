@@ -18,17 +18,36 @@ pub struct SeedPlacement {
     pub height: f64,
 }
 
+/// Result of greedy bottom-left seeding.
+///
+/// Carries the per-instance placements and the count of requested item
+/// instances that did not fit on the bin. Overflow handling is Task 18's
+/// responsibility (placing leftover instances on subsequent bins).
+#[derive(Clone, Debug)]
+pub struct SeedResult {
+    pub placements: Vec<SeedPlacement>,
+    /// Number of requested item instances that did not fit on this bin.
+    pub overflow: u32,
+}
+
 pub fn greedy_bottom_left(
     bin: &Bin,
     items: &[Part],
     _clearance: f64,
-) -> Result<Vec<SeedPlacement>, PackError> {
+) -> Result<SeedResult, PackError> {
     let mut placements = Vec::new();
     let mut cursor_y = 0.0f64;
+    let mut overflow: u32 = 0;
     for part in items {
-        let bbox = polygon_bbox(&part.polygon);
+        let bbox = rema_geom::application::bbox_of(&part.polygon).map_err(|source| {
+            PackError::InvalidPolygon {
+                shape_id: part.shape_id.clone(),
+                source,
+            }
+        })?;
         let w = bbox.1.x - bbox.0.x;
         let h = bbox.1.y - bbox.0.y;
+        let mut placed_this_part: u32 = 0;
         for inst in 0..part.quantity {
             if cursor_y + h > bin.height {
                 break;
@@ -43,27 +62,17 @@ pub fn greedy_bottom_left(
                 polygon: part
                     .polygon
                     .iter()
-                    .map(|p| Point2D::new(p.x, cursor_y + p.y))
+                    .map(|p| Point2D::new(p.x - bbox.0.x, cursor_y + (p.y - bbox.0.y)))
                     .collect(),
                 width: w,
                 height: h,
             });
             cursor_y += h;
+            placed_this_part += 1;
         }
+        overflow += part.quantity - placed_this_part;
     }
-    Ok(placements)
-}
-
-fn polygon_bbox(pts: &[Point2D]) -> (Point2D, Point2D) {
-    let mut min = pts[0];
-    let mut max = pts[0];
-    for p in &pts[1..] {
-        if p.x < min.x { min.x = p.x; }
-        if p.y < min.y { min.y = p.y; }
-        if p.x > max.x { max.x = p.x; }
-        if p.y > max.y { max.y = p.y; }
-    }
-    (min, max)
+    Ok(SeedResult { placements, overflow })
 }
 
 #[cfg(test)]
@@ -96,7 +105,8 @@ mod tests {
     fn stacks_items_bottom_to_top() {
         let b = bin(48.0, 96.0);
         let items = vec![rect_part("r", 3, 10.0, 5.0)];
-        let seeds = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        let result = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        let seeds = result.placements;
         assert_eq!(seeds.len(), 3);
         assert_eq!(seeds[0].y, 0.0);
         assert_eq!(seeds[1].y, 5.0);
@@ -107,16 +117,54 @@ mod tests {
     fn stops_when_bin_full() {
         let b = bin(10.0, 10.0);
         let items = vec![rect_part("r", 5, 10.0, 5.0)];
-        let seeds = greedy_bottom_left(&b, &items, 0.125).unwrap();
-        assert_eq!(seeds.len(), 2); // only 2 of 5 fit
+        let result = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        assert_eq!(result.placements.len(), 2); // only 2 of 5 fit
+        assert_eq!(result.overflow, 3);
     }
 
     #[test]
     fn instance_index_starts_at_zero() {
         let b = bin(48.0, 96.0);
         let items = vec![rect_part("r", 2, 10.0, 5.0)];
-        let seeds = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        let result = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        let seeds = result.placements;
         assert_eq!(seeds[0].instance_index, 0);
         assert_eq!(seeds[1].instance_index, 1);
+    }
+
+    #[test]
+    fn non_origin_polygon_translates_both_axes() {
+        let b = bin(100.0, 100.0);
+        let offset_part = Part {
+            shape_id: "offset".into(),
+            quantity: 1,
+            polygon: vec![
+                Point2D::new(5.0, 3.0),
+                Point2D::new(15.0, 3.0),
+                Point2D::new(15.0, 8.0),
+                Point2D::new(5.0, 8.0),
+            ], // bbox min = (5,3), max = (15,8), size 10x5
+            shape_spec: None,
+            allow_rotation: true,
+            grain_axis: None,
+            difficulty: None,
+        };
+        let result = greedy_bottom_left(&b, &[offset_part], 0.125).unwrap();
+        assert_eq!(result.placements.len(), 1);
+        // After translation, polygon bbox min should be at (0, cursor_y=0)
+        let p = &result.placements[0];
+        let min_x = p.polygon.iter().map(|pt| pt.x).fold(f64::INFINITY, f64::min);
+        let min_y = p.polygon.iter().map(|pt| pt.y).fold(f64::INFINITY, f64::min);
+        assert!((min_x - 0.0).abs() < 1e-9, "polygon should be translated so min_x = 0");
+        assert!((min_y - 0.0).abs() < 1e-9, "polygon should be translated so min_y = 0");
+    }
+
+    #[test]
+    fn overflow_counts_unplaced_instances() {
+        let b = bin(10.0, 10.0);
+        let items = vec![rect_part("r", 5, 10.0, 5.0)];
+        let result = greedy_bottom_left(&b, &items, 0.125).unwrap();
+        assert_eq!(result.placements.len(), 2);
+        assert_eq!(result.overflow, 3);
     }
 }
