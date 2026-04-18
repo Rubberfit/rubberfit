@@ -49,6 +49,18 @@ describe("buildPackRequest", () => {
     expect(req.bins.map((b) => b.binId)).toEqual(["b2", "b1"])
   })
 
+  it("preserves insertion order when priority and kind are equal (stable sort)", () => {
+    const bin1: Bin = { binId: "first", width: 48, height: 96, kind: "fresh", priority: 5 }
+    const bin2: Bin = { binId: "second", width: 48, height: 96, kind: "fresh", priority: 5 }
+    const bin3: Bin = { binId: "third", width: 48, height: 96, kind: "fresh", priority: 5 }
+    const req = buildPackRequest({
+      bins: [bin1, bin2, bin3],
+      items: [PART_A],
+      clearance: 0.125,
+    })
+    expect(req.bins.map((b) => b.binId)).toEqual(["first", "second", "third"])
+  })
+
   it("defaults mode to balanced when absent", () => {
     const req = buildPackRequest({
       bins: [BIN_FRESH],

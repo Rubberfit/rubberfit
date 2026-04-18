@@ -27,6 +27,7 @@ export function buildPackRequest(input: BuildPackRequestInput): PackRequest {
   const mode = input.mode ?? "balanced"
   const timeBudgetMs = input.timeBudgetMs ?? PACK_MODE_BUDGETS_MS[mode]
 
+  // Stable sort (ES2019+): equal-comparator entries preserve insertion order.
   const sortedBins = [...input.bins].sort((a, b) => {
     const pa = a.priority ?? 0
     const pb = b.priority ?? 0
