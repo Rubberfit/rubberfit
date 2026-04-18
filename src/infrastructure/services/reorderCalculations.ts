@@ -1,13 +1,18 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
+import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import type {
+  MaterialSupplierWithDetails,
+  PurchaseOrder,
+} from "@/src/infrastructure/models/supabase"
 import type {
   ReorderSuggestion,
   OptimalOrderQuantity,
 } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
 import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
@@ -15,7 +20,9 @@ import { injectable, inject } from "tsyringe"
 @injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
   constructor(
-    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
+    @inject(TOKENS.IPriceHistoryService)
+    private readonly priceHistoryService: IPriceHistoryService
   ) {}
 
   private generateOptimalQuantityReasoning(
@@ -237,15 +244,25 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
       } else {
         const { data } = await supabase
           .from("material_suppliers")
-          .select("cost_per_sqft")
+          .select(
+            `
+            *,
+            supplier:suppliers(id, name, rating, preferred)
+          `
+          )
           .eq("material_type_id", materialTypeId)
           .eq("active", true)
-          .order("cost_per_sqft", { ascending: true })
-          .limit(1)
-          .single()
 
-        if (data) {
-          costPerSqft = data.cost_per_sqft
+        const suppliers = (data ?? []) as MaterialSupplierWithDetails[]
+        if (suppliers.length > 0) {
+          const bestValue = suppliers
+            .slice()
+            .sort(
+              (a, b) =>
+                this.priceHistoryService.calculateValueScore(b) -
+                this.priceHistoryService.calculateValueScore(a)
+            )[0]
+          costPerSqft = bestValue.cost_per_sqft
         }
       }
 
@@ -326,4 +343,4 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   }
 }
 
-export const reorderCalculations = new ReorderCalculationsService(taxService)
+export const reorderCalculations = new ReorderCalculationsService(taxService, priceHistoryService)
