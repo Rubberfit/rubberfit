@@ -30,7 +30,7 @@ describe("LegacyPackingService skeleton", () => {
     await expect(svc.pack(req)).rejects.toThrow(/items required/i)
   })
 
-  it("pack() throws on mixed-part input (Task 14)", async () => {
+  it("pack() resolves on mixed-part input (routed to GA solver)", async () => {
     const svc = new LegacyPackingService()
     const partA = buildPart({
       shapeId: "rect-a",
@@ -49,6 +49,6 @@ describe("LegacyPackingService skeleton", () => {
       clearance: 0,
       items: [partA, partB],
     }
-    await expect(svc.pack(req)).rejects.toThrow(/mixed-part routing lands in Task 14/i)
+    await expect(svc.pack(req)).resolves.toBeDefined()
   })
 })

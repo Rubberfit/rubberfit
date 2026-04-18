@@ -505,7 +505,7 @@ export const profileService = {
 }
 ```
 
-- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer` (wrapped in a contextualized try/catch) and are mapped back to canonical `Placement`/`BinResult` shapes, reusing `legacy.usedArea` directly; mixed-part input still throws pending Task 14 wiring. `cancel()` is an intentional no-op — legacy sync engines can't be cancelled cooperatively; Task 14/15 add real cancellation when multi-bin + mixed-GA lands. `onProgress` emits a single `polishing` event with real `elapsedMs = Date.now() - startedAtMs`.
+- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer`; mixed-item requests (2+ `Part` entries) route through `NFPSolver` from `@/nesting/nfp-solver` (GA-based). Both paths are wrapped in contextualized try/catch and mapped back to canonical `Placement`/`BinResult` shapes, reusing `legacy.usedArea`, `legacy.occupiedWidth`, and `legacy.occupiedHeight` directly. `cancel()` is an intentional no-op — legacy sync engines can't be cancelled cooperatively; Task 15 adds real cancellation when multi-bin lands. `onProgress` emits a single `polishing` event with real `elapsedMs = Date.now() - startedAtMs`.
 
 ```typescript
 @injectable()
@@ -513,9 +513,9 @@ export class LegacyPackingService implements IPackingService {
   async pack(request: PackRequest, onProgress?: (p: PackProgress) => void): Promise<PackResult> {
     validateRequest(request) // throws "pack: bins required" / "pack: items required"
     if (isHomogeneous(request.items)) return this.packHomogeneous(request, jobId, onProgress)
-    throw new Error("LegacyPackingService.pack: mixed-part routing lands in Task 14")
+    return this.packMixedWithGA(request, jobId, onProgress)
   }
-  async cancel(_jobId: string): Promise<void> { /* no-op until Task 14/15 */ }
+  async cancel(_jobId: string): Promise<void> { /* no-op until Task 15 */ }
 }
 ```
 

@@ -10,7 +10,8 @@ import type {
   Part,
 } from "@/src/application/packing/types"
 import { greedyNfpPack } from "@/nesting/nfp-greedy-placer"
-import type { Polygon2D } from "@/nesting/types"
+import { NFPSolver } from "@/nesting/nfp-solver"
+import type { NestingInput, NestingResult, NestingPart, Polygon2D } from "@/nesting/types"
 
 @injectable()
 export class LegacyPackingService implements IPackingService {
@@ -25,7 +26,7 @@ export class LegacyPackingService implements IPackingService {
       return this.packHomogeneous(request, jobId, onProgress)
     }
 
-    throw new Error(`LegacyPackingService.pack: mixed-part routing lands in Task 14`)
+    return this.packMixedWithGA(request, jobId, onProgress)
   }
 
   async cancel(_jobId: string): Promise<void> {
@@ -87,6 +88,92 @@ export class LegacyPackingService implements IPackingService {
       placements,
       placedCount: placements.length,
       overflowCount: part.quantity - placements.length,
+      perBin,
+      totalUsedArea: usedArea,
+      totalWasteArea: stockArea - usedArea,
+    }
+
+    onProgress?.({
+      jobId,
+      phase: "polishing",
+      iteration: 1,
+      elapsedMs: Date.now() - startedAtMs,
+      canFinalize: true,
+      bestLayoutSoFar: result,
+    })
+
+    return result
+  }
+
+  private async packMixedWithGA(
+    request: PackRequest,
+    jobId: string,
+    onProgress?: (p: PackProgress) => void
+  ): Promise<PackResult> {
+    const startedAtMs = Date.now()
+    const bin = request.bins[0]
+    const parts: NestingPart[] = request.items.map((p) => ({
+      id: p.shapeId,
+      polygon: { id: p.shapeId, points: p.polygon },
+      quantity: p.quantity,
+      renderShape: "rect",
+      originalSpec: {},
+    }))
+    const input: NestingInput = {
+      binWidth: bin.width,
+      binHeight: bin.height,
+      parts,
+      spacing: request.clearance,
+      rotationSteps: 4,
+      generations: 12,
+      populationSize: 6,
+      mutationRate: 0.2,
+      seed: request.seed,
+    }
+    const solver = new NFPSolver()
+    let legacy: NestingResult
+    try {
+      legacy = await new Promise<NestingResult>((resolve, reject) => {
+        solver.solve(input, {
+          onComplete: resolve,
+          onError: (msg) => reject(new Error(msg)),
+        })
+      })
+    } catch (e) {
+      throw new Error(
+        `LegacyPackingService.packMixedWithGA: NFPSolver failed on binId=${bin.binId}: ${(e as Error).message}`
+      )
+    }
+
+    const placements: Placement[] = legacy.placements.map((p, i) => ({
+      shapeId: p.partId,
+      instanceIndex: i,
+      binId: bin.binId,
+      x: p.x,
+      y: p.y,
+      rotationRad: p.rotation,
+      polygon: p.placedPolygon,
+      width: p.width,
+      height: p.height,
+    }))
+
+    const usedArea = legacy.usedArea
+    const stockArea = bin.width * bin.height
+    const perBin: BinResult[] = [
+      {
+        binId: bin.binId,
+        usedArea,
+        wasteArea: stockArea - usedArea,
+        occupiedWidth: legacy.occupiedWidth,
+        occupiedHeight: legacy.occupiedHeight,
+        efficiency: stockArea > 0 ? usedArea / stockArea : 0,
+      },
+    ]
+
+    const result: PackResult = {
+      placements,
+      placedCount: legacy.placed,
+      overflowCount: legacy.overflow,
       perBin,
       totalUsedArea: usedArea,
       totalWasteArea: stockArea - usedArea,
