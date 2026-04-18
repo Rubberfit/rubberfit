@@ -505,7 +505,7 @@ export const profileService = {
 }
 ```
 
-- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer` and are mapped back to canonical `Placement`/`BinResult` shapes; mixed-part input still throws pending Task 14 wiring. `cancel()` records the jobId in a local set (cooperative cancellation hook for later work) and resolves.
+- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer` (wrapped in a contextualized try/catch) and are mapped back to canonical `Placement`/`BinResult` shapes, reusing `legacy.usedArea` directly; mixed-part input still throws pending Task 14 wiring. `cancel()` is an intentional no-op — legacy sync engines can't be cancelled cooperatively; Task 14/15 add real cancellation when multi-bin + mixed-GA lands. `onProgress` emits a single `polishing` event with real `elapsedMs = Date.now() - startedAtMs`.
 
 ```typescript
 @injectable()
@@ -515,7 +515,7 @@ export class LegacyPackingService implements IPackingService {
     if (isHomogeneous(request.items)) return this.packHomogeneous(request, jobId, onProgress)
     throw new Error("LegacyPackingService.pack: mixed-part routing lands in Task 14")
   }
-  async cancel(jobId: string): Promise<void> { this.cancelled.add(jobId) }
+  async cancel(_jobId: string): Promise<void> { /* no-op until Task 14/15 */ }
 }
 ```
 

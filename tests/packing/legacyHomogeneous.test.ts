@@ -25,5 +25,7 @@ describe("LegacyPackingService — homogeneous rect pack", () => {
     expect(result.overflowCount).toBe(0)
     expect(result.perBin[0].binId).toBe("b1")
     expect(result.placements.every((p) => p.binId === "b1")).toBe(true)
+    expect(result.totalUsedArea).toBeGreaterThan(0)
+    expect(result.perBin[0].efficiency).toBeGreaterThan(0)
   })
 })

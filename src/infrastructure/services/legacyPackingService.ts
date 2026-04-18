@@ -8,15 +8,12 @@ import type {
   Placement,
   BinResult,
   Part,
-  Point2D,
 } from "@/src/application/packing/types"
 import { greedyNfpPack } from "@/nesting/nfp-greedy-placer"
 import type { Polygon2D } from "@/nesting/types"
 
 @injectable()
 export class LegacyPackingService implements IPackingService {
-  private cancelled = new Set<string>()
-
   async pack(
     request: PackRequest,
     onProgress?: (progress: PackProgress) => void
@@ -31,8 +28,9 @@ export class LegacyPackingService implements IPackingService {
     throw new Error(`LegacyPackingService.pack: mixed-part routing lands in Task 14`)
   }
 
-  async cancel(jobId: string): Promise<void> {
-    this.cancelled.add(jobId)
+  async cancel(_jobId: string): Promise<void> {
+    // No-op: legacy sync engines (greedy NFP, GA) cannot be cancelled cooperatively.
+    // Task 14/15 add real cooperative cancellation when multi-bin + mixed-GA lands.
   }
 
   private async packHomogeneous(
@@ -43,14 +41,22 @@ export class LegacyPackingService implements IPackingService {
     const [part] = request.items
     const bin = request.bins[0]
     const poly: Polygon2D = { id: part.shapeId, points: part.polygon }
-    const legacy = greedyNfpPack(
-      poly,
-      bin.width,
-      bin.height,
-      part.quantity,
-      request.clearance,
-      part.allowRotation ? 4 : 1
-    )
+    const startedAtMs = Date.now()
+    let legacy
+    try {
+      legacy = greedyNfpPack(
+        poly,
+        bin.width,
+        bin.height,
+        part.quantity,
+        request.clearance,
+        part.allowRotation ? 4 : 1
+      )
+    } catch (e) {
+      throw new Error(
+        `LegacyPackingService.packHomogeneous: greedyNfpPack failed for shapeId=${part.shapeId} on binId=${bin.binId}: ${(e as Error).message}`
+      )
+    }
 
     const placements: Placement[] = legacy.placements.map((p, i) => ({
       shapeId: part.shapeId,
@@ -64,10 +70,7 @@ export class LegacyPackingService implements IPackingService {
       height: p.height,
     }))
 
-    const usedArea = placements.reduce(
-      (sum, p) => sum + polygonArea(p.polygon),
-      0
-    )
+    const usedArea = legacy.usedArea
     const stockArea = bin.width * bin.height
     const perBin: BinResult[] = [
       {
@@ -93,7 +96,7 @@ export class LegacyPackingService implements IPackingService {
       jobId,
       phase: "polishing",
       iteration: 1,
-      elapsedMs: 0,
+      elapsedMs: Date.now() - startedAtMs,
       canFinalize: true,
       bestLayoutSoFar: result,
     })
@@ -107,18 +110,10 @@ function validateRequest(req: PackRequest): void {
   if (req.items.length === 0) throw new Error("pack: items required")
 }
 
+// TODO(S2): Recognize true homogeneity by (shapeId, allowRotation, grainAxis) identity —
+// today items.length === 1 under-routes truly identical parts split across entries.
 function isHomogeneous(items: Part[]): boolean {
   return items.length === 1
-}
-
-function polygonArea(poly: Point2D[]): number {
-  let s = 0
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i]
-    const b = poly[(i + 1) % poly.length]
-    s += a.x * b.y - b.x * a.y
-  }
-  return Math.abs(s) / 2
 }
 
 function cryptoRandomId(): string {
