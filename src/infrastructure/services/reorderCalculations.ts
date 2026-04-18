@@ -1,16 +1,23 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import { taxService } from "@/src/infrastructure/services/taxService"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 import type {
   ReorderSuggestion,
   OptimalOrderQuantity,
 } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"
-import { injectable } from "tsyringe"
+import { injectable, inject } from "tsyringe"
 
 @injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
+  constructor(
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
+  ) {}
+
   private generateOptimalQuantityReasoning(
     avgDailyUsage: number,
     optimalQuantity: number,
@@ -133,8 +140,11 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       const unitCost = suggestion.estimatedCost / suggestion.suggestedQuantity
       const subtotal = suggestion.estimatedCost
-      const taxRate = 0.08
-      const taxAmount = subtotal * taxRate
+      const taxCalc = await this.taxService.calculatePurchaseOrderTax(
+        suggestion.supplierId,
+        subtotal
+      )
+      const taxAmount = taxCalc.taxAmount
       const totalAmount = subtotal + taxAmount
 
       const user_id = await getCurrentUserId()
@@ -307,4 +317,4 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   }
 }
 
-export const reorderCalculations = new ReorderCalculationsService()
+export const reorderCalculations = new ReorderCalculationsService(taxService)

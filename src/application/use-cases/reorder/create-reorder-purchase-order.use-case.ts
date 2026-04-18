@@ -4,6 +4,7 @@ import type { INotificationService } from "@/src/application/services/notificati
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
+import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type {
   PurchaseOrderWithDetails,
   ReorderRuleWithDetails,
@@ -26,7 +27,6 @@ export interface ICreateReorderPurchaseOrderUseCase {
 }
 
 const DELIVERY_WINDOW_DAYS = 7
-const DEFAULT_TAX_RATE = 0.08
 const DEFAULT_ROLL_WIDTH = 60
 const DEFAULT_ROLL_THICKNESS = 0.125
 
@@ -47,7 +47,8 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
     @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
     @inject(TOKENS.IReorderService) private readonly reorderService: IReorderService,
     @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
-    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService,
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
   ) {}
 
   async execute(input: CreateReorderPurchaseOrderInput): Promise<CreateReorderPurchaseOrderResult> {
@@ -76,7 +77,8 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
     }
 
     const subtotal = suggestion.estimatedCost
-    const taxAmount = subtotal * DEFAULT_TAX_RATE
+    const taxCalc = await this.taxService.calculatePurchaseOrderTax(suggestion.supplierId, subtotal)
+    const taxAmount = taxCalc.taxAmount
     const deliveryDate = new Date(
       Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
     ).toISOString()
