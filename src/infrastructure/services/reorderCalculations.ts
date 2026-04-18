@@ -35,10 +35,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
     return reasoning
   }
 
-  async calculateOptimalOrderQuantity(
-    materialTypeId: string,
-    supplierId?: string
-  ): Promise<OptimalOrderQuantity> {
+  async getAverageDailyUsage(): Promise<number> {
     try {
       const { data: cuts, error: cutsError } = await supabase
         .from("cuts")
@@ -48,7 +45,19 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
       if (cutsError) throw cutsError
 
       const totalUsage = cuts?.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0) || 0
-      const avgDailyUsage = totalUsage / 90
+      return totalUsage / 90
+    } catch (error) {
+      console.error("Error calculating average daily usage:", error)
+      return 0
+    }
+  }
+
+  async calculateOptimalOrderQuantity(
+    materialTypeId: string,
+    supplierId?: string
+  ): Promise<OptimalOrderQuantity> {
+    try {
+      const avgDailyUsage = await this.getAverageDailyUsage()
 
       const orderingCost = 50
       const holdingCostRate = 0.25

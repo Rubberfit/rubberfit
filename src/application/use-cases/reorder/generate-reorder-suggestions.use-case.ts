@@ -1,5 +1,6 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
+import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
@@ -29,15 +30,11 @@ export interface IGenerateReorderSuggestionsUseCase {
   execute(input: GenerateReorderSuggestionsInput): Promise<ReorderSuggestionOutput[]>
 }
 
-const DAILY_USAGE = 10
-const ORDERING_COST = 50
-const HOLDING_COST_RATE = 0.2
-
-function computeUrgency(daysUntilStockout: number): ReorderSuggestionOutput["urgencyLevel"] {
-  if (daysUntilStockout <= 2) return "critical"
-  if (daysUntilStockout <= 5) return "high"
-  if (daysUntilStockout <= 10) return "medium"
-  return "low"
+function mapUrgency(
+  urgency: "critical" | "high" | "normal" | "low"
+): ReorderSuggestionOutput["urgencyLevel"] {
+  // The service uses "normal"; the UI layer expects "medium" for the mid tier.
+  return urgency === "normal" ? "medium" : urgency
 }
 
 function sumPendingQuantities(
@@ -57,15 +54,18 @@ function sumPendingQuantities(
 @injectable()
 export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSuggestionsUseCase {
   constructor(
-    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService
+    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
+    @inject(TOKENS.IReorderCalculationsService)
+    private readonly reorderCalculations: IReorderCalculationsService
   ) {}
 
   async execute(input: GenerateReorderSuggestionsInput): Promise<ReorderSuggestionOutput[]> {
     const pendingQuantities = sumPendingQuantities(input.pendingPOs ?? [])
+    const avgDailyUsage = await this.reorderCalculations.getAverageDailyUsage()
     const suggestions: ReorderSuggestionOutput[] = []
 
     for (const rule of input.rules) {
-      const suggestion = await this.evaluateRule(rule, pendingQuantities)
+      const suggestion = await this.evaluateRule(rule, pendingQuantities, avgDailyUsage)
       if (suggestion) suggestions.push(suggestion)
     }
 
@@ -74,7 +74,8 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
 
   private async evaluateRule(
     rule: ReorderRuleWithDetails,
-    pendingQuantities: Record<string, number>
+    pendingQuantities: Record<string, number>,
+    avgDailyUsage: number
   ): Promise<ReorderSuggestionOutput | null> {
     if (rule.current_stock == null || !rule.material_type) return null
 
@@ -84,16 +85,33 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
 
     if (currentStock + pendingQty > reorderPoint) return null
 
-    const daysUntilStockout = Math.max(0, Math.floor(currentStock / DAILY_USAGE))
-    const annualDemand = DAILY_USAGE * 365
-    const holdingCost = (rule.material_type.default_cost || 5) * HOLDING_COST_RATE
-    const eoq = Math.sqrt((2 * annualDemand * ORDERING_COST) / holdingCost)
-    const baseQuantity = Math.max(rule.reorder_quantity, Math.round(eoq))
-    const suggestedQuantity = Math.max(0, baseQuantity - pendingQty)
+    const daysUntilStockout =
+      avgDailyUsage > 0 ? Math.max(0, Math.floor(currentStock / avgDailyUsage)) : 0
+
+    const optimal = await this.reorderCalculations.calculateOptimalOrderQuantity(
+      rule.material_type_id,
+      rule.supplier_id ?? undefined
+    )
+    const baseQuantity = Math.max(rule.reorder_quantity, optimal.quantity)
+    const suggestedWithSafetyStock = this.reorderCalculations.calculateSuggestedQuantity(
+      currentStock,
+      reorderPoint,
+      baseQuantity,
+      rule.max_stock_level
+    )
+    const suggestedQuantity = Math.max(0, suggestedWithSafetyStock - pendingQty)
 
     if (suggestedQuantity <= 0) return null
 
     const { supplierId, supplierName } = await this.resolveSupplier(rule)
+
+    const urgencyLevel = mapUrgency(
+      this.reorderCalculations.determineUrgency(
+        currentStock,
+        reorderPoint,
+        rule.safety_stock_days
+      )
+    )
 
     return {
       materialTypeId: rule.material_type_id,
@@ -101,7 +119,7 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
       currentStock,
       reorderPoint,
       suggestedQuantity,
-      urgencyLevel: computeUrgency(daysUntilStockout),
+      urgencyLevel,
       daysUntilStockout,
       supplierId,
       supplierName,
