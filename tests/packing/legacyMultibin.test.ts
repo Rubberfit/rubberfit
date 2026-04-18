@@ -26,5 +26,24 @@ describe("LegacyPackingService — multi-bin", () => {
     const result = await svc.pack(req)
     const binsUsed = new Set(result.placements.map((p) => p.binId))
     expect(binsUsed.size).toBeGreaterThan(1)
+
+    // Quantity accounting: every requested piece accounted for
+    expect(result.placedCount + result.overflowCount).toBe(40)
+
+    // BinResult exists for each visited bin
+    expect(result.perBin.length).toBeGreaterThanOrEqual(1)
+    expect(result.perBin.length).toBeLessThanOrEqual(2)
+
+    // All placements reference a requested bin
+    expect(result.placements.every((p) => p.binId === "b1" || p.binId === "b2")).toBe(true)
+
+    // Fix 1: globally unique per-shape instanceIndex across bins
+    const indices = result.placements.map((p) => p.instanceIndex).sort((a, b) => a - b)
+    // No duplicates
+    expect(new Set(indices).size).toBe(indices.length)
+    // Zero-indexed contiguous
+    for (let i = 0; i < indices.length; i++) {
+      expect(indices[i]).toBe(i)
+    }
   })
 })

@@ -25,6 +25,7 @@ export class LegacyPackingService implements IPackingService {
 
     const accumulatedPlacements: Placement[] = []
     const perBin: BinResult[] = []
+    const indexCounters = new Map<string, number>()
     // Deep-copy items for overflow bookkeeping (decrement quantity per bin pass)
     let remaining: Part[] = request.items.map((i) => ({ ...i }))
 
@@ -40,7 +41,11 @@ export class LegacyPackingService implements IPackingService {
         ? await this.packHomogeneous(singleBinReq, jobId, undefined)
         : await this.packMixedWithGA(singleBinReq, jobId, undefined)
 
-      accumulatedPlacements.push(...sub.placements)
+      for (const p of sub.placements) {
+        const idx = indexCounters.get(p.shapeId) ?? 0
+        indexCounters.set(p.shapeId, idx + 1)
+        accumulatedPlacements.push({ ...p, instanceIndex: idx })
+      }
       perBin.push(sub.perBin[0])
 
       // Subtract placed count per shape from remaining
