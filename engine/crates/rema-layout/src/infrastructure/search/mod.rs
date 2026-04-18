@@ -13,6 +13,7 @@
 // for `state` and `objective` modules is in place so subsequent tasks can
 // slot into a stable public contract.
 
+pub mod gls;
 pub mod objective;
 pub mod rng;
 pub mod state;

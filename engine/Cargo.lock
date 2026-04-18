@@ -610,6 +610,7 @@ dependencies = [
  "rema-geom",
  "serde",
  "serde_json",
+ "slotmap",
  "thiserror",
 ]
 
