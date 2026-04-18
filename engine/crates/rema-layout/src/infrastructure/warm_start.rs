@@ -5,7 +5,7 @@ use rema_geom::domain::Point2D;
 /// Greedy bottom-left seeding: for each item, stack vertically starting at y=0.
 /// Simple but produces a valid starting layout for sparrow's LNS.
 /// This is the S2 MVP packer — sparrow integration lands in S2.5.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SeedPlacement {
     pub shape_id: String,
     pub instance_index: u32,
@@ -23,7 +23,7 @@ pub struct SeedPlacement {
 /// Carries the per-instance placements and the count of requested item
 /// instances that did not fit on the bin. Overflow handling is Task 18's
 /// responsibility (placing leftover instances on subsequent bins).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SeedResult {
     pub placements: Vec<SeedPlacement>,
     /// Number of requested item instances that did not fit on this bin.

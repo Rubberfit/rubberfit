@@ -4,9 +4,8 @@
 
 use crate::domain::PackError;
 use crate::infrastructure::warm_start::SeedResult;
-use std::time::{Duration, Instant};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OptimizerConfig {
     /// Total wall-clock budget for the search.
     pub time_budget_ms: u64,
@@ -16,20 +15,16 @@ pub struct OptimizerConfig {
     pub seed: Option<u64>,
 }
 
+/// Run LNS+SA search over `seed` within `config`'s budgets.
+/// S2 MVP: passthrough. The warm-start seed is the final result.
 pub fn optimize(
     seed: SeedResult,
-    config: OptimizerConfig,
+    _config: OptimizerConfig,
 ) -> Result<SeedResult, PackError> {
-    // S2 MVP: passthrough. The warm-start seed is the final result.
-    // S2.5 replaces this body with sparrow's LNS+SA iterating within config.time_budget_ms.
-    let _started = Instant::now();
-    let _budget = Duration::from_millis(config.time_budget_ms);
-    let _ = config.improvement_budget_ms;
-    let _ = config.seed;
-
-    // TODO(S2.5): invoke sparrow's LNS loop here, mutating jagua-rs Layout
-    // and stopping at time_budget_ms or improvement_budget_ms.
-
+    // TODO(S2.5): replace body with sparrow's LNS+SA loop.
+    //   Wire: _config.time_budget_ms         -> total wall-clock deadline
+    //         _config.improvement_budget_ms  -> no-improvement early stop
+    //         _config.seed                   -> sparrow RNG seed (None = entropy)
     Ok(seed)
 }
 
@@ -84,9 +79,8 @@ mod tests {
     fn passthrough_returns_seed_unchanged_single() {
         let seed = single_placement_seed();
         let out = optimize(seed.clone(), cfg(100)).unwrap();
-        assert_eq!(out.placements.len(), 1);
-        assert_eq!(out.placements[0].shape_id, "a");
-        assert_eq!(out.overflow, 0);
+        assert_eq!(out.placements, seed.placements);
+        assert_eq!(out.overflow, seed.overflow);
     }
 
     #[test]
