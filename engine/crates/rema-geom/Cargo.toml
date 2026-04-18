@@ -1,0 +1,15 @@
+# engine/crates/rema-geom/Cargo.toml
+[package]
+name = "rema-geom"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "2D geometry primitives for REMA nesting engine"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
