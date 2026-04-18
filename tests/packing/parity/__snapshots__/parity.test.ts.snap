@@ -1,5 +1,100 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`parity fixtures > snapshot: circle-grid.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.1456,
+    },
+  ],
+  "placedCount": 12,
+}
+`;
+
+exports[`parity fixtures > snapshot: cone-array.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0408,
+    },
+  ],
+  "placedCount": 4,
+}
+`;
+
+exports[`parity fixtures > snapshot: mixed-rect-circle.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0649,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures > snapshot: multi-rect-same-size.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0651,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures > snapshot: multi-sheet-remnant.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.4167,
+    },
+    {
+      "binId": "b2",
+      "efficiency": 0.2387,
+    },
+  ],
+  "placedCount": 15,
+}
+`;
+
+exports[`parity fixtures > snapshot: overflow.json 1`] = `
+{
+  "overflowCount": 2,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.6944,
+    },
+  ],
+  "placedCount": 4,
+}
+`;
+
+exports[`parity fixtures > snapshot: rect-grid.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.1563,
+    },
+  ],
+  "placedCount": 20,
+}
+`;
+
 exports[`parity fixtures > snapshot: single-rect.json 1`] = `
 {
   "overflowCount": 0,
@@ -10,5 +105,18 @@ exports[`parity fixtures > snapshot: single-rect.json 1`] = `
     },
   ],
   "placedCount": 1,
+}
+`;
+
+exports[`parity fixtures > snapshot: trapezoid-mix.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0373,
+    },
+  ],
+  "placedCount": 6,
 }
 `;

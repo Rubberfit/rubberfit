@@ -23,6 +23,8 @@ Runs under Vitest once installed (S1 Plan Task 3). Type-level assertions use `ex
 
 Locks in the observable behavior of `LegacyPackingService.pack()` against a curated set of `PackRequest` fixtures. Each `fixtures/*.json` is a serialized `PackRequest`; the `parity.test.ts` runner iterates every `.json` in `fixtures/`, runs `LegacyPackingService.pack()`, and compares a stable subset of the result (`placedCount`, `overflowCount`, and `perBin[].efficiency` rounded to 4 decimals) to a Vitest snapshot stored in `parity/__snapshots__/parity.test.ts.snap`.
 
+Current fixtures (9 total): `single-rect.json` (baseline), `multi-rect-same-size.json`, `rect-grid.json`, `circle-grid.json`, `cone-array.json`, `trapezoid-mix.json`, `mixed-rect-circle.json`, `multi-sheet-remnant.json`, and `overflow.json`. Together they exercise homogeneous vs. mixed-item routing, rotation on/off, curved polygons (circles + annular sectors), trapezoid non-rectangular geometry, multi-bin spill (remnant-then-fresh), and the overflow path. The plan-listed `zero-items-error.json` is intentionally omitted — the runner does not support expect-error fixtures, and the error path is already covered by `legacyService.test.ts`.
+
 Purpose: detect behavioral regressions during the S1 pipeline refactor before they reach the UI. The S2 canonical solver (when it lands) must reproduce the same snapshots byte-for-byte unless an intentional engine change is documented.
 
-See `tests/packing/parity/README.md` for fixture authoring guidelines and the snapshot-regeneration workflow.
+See `tests/packing/parity/README.md` for the full fixture index, fixture authoring guidelines, and the snapshot-regeneration workflow.
