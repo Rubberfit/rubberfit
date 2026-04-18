@@ -144,6 +144,51 @@ describe("buildPart — sector (annular)", () => {
     expect(Math.min(...xs)).toBeCloseTo(0, 3)
     expect(Math.min(...ys)).toBeCloseTo(0, 3)
   })
+
+  it("has exactly 2*(segments+1) vertices at default 24 segments", () => {
+    const part = buildPart({
+      shapeId: "s2",
+      quantity: 1,
+      shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 } },
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(50)
+  })
+
+  it("90-degree sector with outerR=5 has bounding box max ≈ 5 on both axes", () => {
+    const part = buildPart({
+      shapeId: "s3",
+      quantity: 1,
+      shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 } },
+      allowRotation: true,
+    })
+    const xs = part.polygon.map((p) => p.x)
+    const ys = part.polygon.map((p) => p.y)
+    expect(Math.max(...xs)).toBeCloseTo(5, 3)
+    expect(Math.max(...ys)).toBeCloseTo(5, 3)
+  })
+
+  it("throws when outerRadius <= innerRadius", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "s4",
+        quantity: 1,
+        shapeSpec: { kind: "sector", params: { innerRadius: 5, outerRadius: 5, arcDegrees: 90 } },
+        allowRotation: true,
+      })
+    ).toThrow(/outerRadius must exceed innerRadius/i)
+  })
+
+  it("throws when arcDegrees is 360 (full annulus not supported)", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "s5",
+        quantity: 1,
+        shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 360 } },
+        allowRotation: true,
+      })
+    ).toThrow(/arcDegrees/i)
+  })
 })
 
 describe("buildPart — ngon (regular polygon)", () => {
@@ -166,5 +211,22 @@ describe("buildPart — ngon (regular polygon)", () => {
         allowRotation: true,
       })
     ).toThrow(/sides must be at least 3/i)
+  })
+
+  it("vertex 0 is at the top (smallest y)", () => {
+    const part = buildPart({
+      shapeId: "n2",
+      quantity: 1,
+      shapeSpec: { kind: "ngon", params: { sides: 6, radius: 5 } },
+      allowRotation: true,
+    })
+    const minY = Math.min(...part.polygon.map((p) => p.y))
+    // After normalization the top vertex lands at y=0
+    expect(minY).toBeCloseTo(0, 6)
+    // And x should be at the horizontal center of the bounding box
+    const xs = part.polygon.map((p) => p.x)
+    const centerX = (Math.max(...xs) + Math.min(...xs)) / 2
+    const topVertex = part.polygon.find((p) => Math.abs(p.y - minY) < 1e-6)!
+    expect(topVertex.x).toBeCloseTo(centerX, 6)
   })
 })

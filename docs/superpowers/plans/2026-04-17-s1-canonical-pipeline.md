@@ -1005,7 +1005,7 @@ function buildSector(
   segments: number
 ): Point2D[] {
   if (!(outerR > innerR)) throw new Error("sector: outerRadius must exceed innerRadius")
-  if (!(arcDeg > 0 && arcDeg <= 360)) throw new Error("sector: arcDegrees must be in (0, 360]")
+  if (!(arcDeg > 0 && arcDeg < 360)) throw new Error("sector: arcDegrees must be in (0, 360)")
   const arcRad = (arcDeg * Math.PI) / 180
   const step = arcRad / segments
   const outer: Point2D[] = []
