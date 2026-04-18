@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-17-s1-canonical-pipeline-design.md`
 
+## Standing rule — directory READMEs
+
+Every task that adds or modifies code in a directory must update that directory's `README.md` in the same commit. If the directory is new, create a new README listing each file with a one-line purpose (match `app/hooks/README.md` style). If it exists, add a row for the new file. This rule applies to EVERY task below; implementer subagents must include the README update before their final commit.
+
 ---
 
 ## File Structure

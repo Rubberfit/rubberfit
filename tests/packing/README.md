@@ -1,0 +1,10 @@
+# tests/packing/
+
+Tests for the canonical packing pipeline (`src/application/packing/`) and the packing service boundary (`src/application/services/packing.service.interface.ts`).
+
+Runs under Vitest once installed (S1 Plan Task 3). Type-level assertions use `expectTypeOf`; runtime assertions use standard `expect`.
+
+## Files
+
+- **types.test.ts** -- `expectTypeOf` assertions verifying the canonical type shapes: `Point2D` numeric, `Part` required fields, `PackRequest.bins`/`items` collections, `Placement.binId`/`polygon`.
+- **interface.test.ts** -- Verifies `IPackingService.pack(request, onProgress?)` and `cancel(jobId)` signatures and that `PACKING_TOKENS.IPackingService` is a `Symbol`.
