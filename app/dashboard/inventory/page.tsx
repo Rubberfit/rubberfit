@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Button } from "@/app/components/ui/button"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { toast } from "sonner"
 import {
   DropdownMenu,
@@ -73,7 +74,7 @@ export default function InventoryPage() {
           rolls?.reduce((sum, roll) => sum + (roll.remaining_length * roll.width) / 144, 0) || 0,
       }
       if (rolls && rolls.length > 0) {
-        await exportService.generateInventoryReport(
+        await exportPdfService.generateInventoryReport(
           rolls as unknown as Record<string, unknown>[],
           summary as Record<string, unknown>
         )

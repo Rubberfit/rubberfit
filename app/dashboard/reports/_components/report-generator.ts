@@ -5,7 +5,7 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { exportService } from "@/src/infrastructure/services/exportService"
+import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import type { ReportTemplate } from "./report-templates"
 
 function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"): {
@@ -225,7 +225,7 @@ export async function generateReport(
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
   const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
 
-  await exportService.generatePDFReport(report.name, htmlContent)
+  await exportPdfService.generatePDFReport(report.name, htmlContent)
 
   toast.success(`${periodLabel} ${report.name} generated successfully`)
 }
