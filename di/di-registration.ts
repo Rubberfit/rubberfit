@@ -1,5 +1,7 @@
 import "reflect-metadata"
-import { container } from "tsyringe"
+import fs from "node:fs"
+import path from "node:path"
+import { container, instanceCachingFactory } from "tsyringe"
 import { TOKENS } from "./tokens"
 
 // Application service interfaces
@@ -31,6 +33,7 @@ import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { LegacyPackingService } from "@/src/infrastructure/services/legacyPackingService"
+import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -65,7 +68,32 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
-container.registerSingleton(TOKENS.IPackingService, LegacyPackingService)
+// IPackingService: prefer the native Rust engine (pack-cli binary); fall back
+// to the TypeScript LegacyPackingService when the binary is missing or
+// USE_RUST_ENGINE=false is set. Legacy falls out of the tree in S2 Task 26.
+export const RUST_PACK_BINARY = path.resolve(
+  process.cwd(),
+  "engine/target/release/pack-cli"
+)
+const rustEngineDisabled =
+  (process.env.USE_RUST_ENGINE ?? "").trim().toLowerCase() === "false"
+const rustBinaryPresent = fs.existsSync(RUST_PACK_BINARY)
+const useRustEngine = !rustEngineDisabled && rustBinaryPresent
+// Use a cached factory so the implementation decision stays out of TSyringe's
+// constructor reflection (RustPackingService accepts an optional binaryPath
+// string which tsyringe cannot reflect via reflect-metadata).
+container.register(TOKENS.IPackingService, {
+  useFactory: instanceCachingFactory(() =>
+    useRustEngine ? new RustPackingService() : new LegacyPackingService()
+  ),
+})
+if (useRustEngine) {
+  console.info(`[packing] Using RustPackingService (binary: ${RUST_PACK_BINARY})`)
+} else {
+  console.warn(
+    `[packing] Using LegacyPackingService (USE_RUST_ENGINE=${process.env.USE_RUST_ENGINE ?? "unset"}, binary ${rustBinaryPresent ? "present" : "missing"} at ${RUST_PACK_BINARY})`
+  )
+}
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(
