@@ -10,6 +10,7 @@ description = "2D geometry primitives for REMA nesting engine"
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
+clipper2 = "0.5"
 
 [dev-dependencies]
 serde_json = { workspace = true }
