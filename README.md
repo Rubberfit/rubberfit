@@ -116,6 +116,28 @@ cd app
 npm run build && npm start
 ```
 
+## Commands
+
+```bash
+# Development
+npm run dev              # Next.js dev server
+npm run build            # Production build
+npm run start            # Production server
+
+# Testing
+npm run test             # Run Vitest suite once
+npm run test:watch       # Vitest in watch mode
+npm run test:ui          # Vitest browser UI
+npm run test:parity      # Run packing parity tests only
+
+# Code quality
+npm run typecheck        # tsc --noEmit
+npm run lint             # ESLint
+npm run lint:fix         # Auto-fix lint issues
+npm run format           # Prettier format
+npm run format:check     # Check formatting without writing
+```
+
 ## Project Structure
 
 ```text
