@@ -1,13 +1,20 @@
 import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextRequest } from "next/server"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
 import {
   getRequiredPermission,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
+import type { Session } from "@supabase/supabase-js"
 
+const ADMIN_EMAIL_DOMAIN = "@archandanchor.com"
+
+interface ProfileRow {
+  super_admin: boolean | null
+}
+ 
 function redirectWithCookies(
   url: URL,
   pendingCookies: Array<{ name: string; value: string; options?: CookieOptions }>
@@ -65,7 +72,7 @@ export async function proxy(request: NextRequest) {
     loginUrl.searchParams.set("redirectTo", pathname)
     return redirectWithCookies(loginUrl, pendingCookies)
   }
-
+ 
   const requiredPermission = getRequiredPermission(pathname)
 
   if (requiredPermission) {
@@ -81,11 +88,14 @@ export async function proxy(request: NextRequest) {
       return redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
     }
   }
+  if(pathname.startsWith("/admin") && !user.email?.endsWith(ADMIN_EMAIL_DOMAIN)) {
+    return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
+  }
 
   response.headers.set("Cache-Control", "private, no-store")
   return response
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*"],
 }
