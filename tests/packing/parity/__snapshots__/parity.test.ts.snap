@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`parity fixtures > snapshot: circle-grid.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: circle-grid.json > legacy_circle-grid.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -13,7 +13,7 @@ exports[`parity fixtures > snapshot: circle-grid.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: cone-array.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: cone-array.json > legacy_cone-array.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -26,7 +26,7 @@ exports[`parity fixtures > snapshot: cone-array.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: mixed-rect-circle.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: mixed-rect-circle.json > legacy_mixed-rect-circle.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -39,7 +39,7 @@ exports[`parity fixtures > snapshot: mixed-rect-circle.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: multi-rect-same-size.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: multi-rect-same-size.json > legacy_multi-rect-same-size.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -52,7 +52,7 @@ exports[`parity fixtures > snapshot: multi-rect-same-size.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: multi-sheet-remnant.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: multi-sheet-remnant.json > legacy_multi-sheet-remnant.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -69,7 +69,7 @@ exports[`parity fixtures > snapshot: multi-sheet-remnant.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: overflow.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: overflow.json > legacy_overflow.json 1`] = `
 {
   "overflowCount": 2,
   "perBin": [
@@ -82,7 +82,7 @@ exports[`parity fixtures > snapshot: overflow.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: rect-grid.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: rect-grid.json > legacy_rect-grid.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -95,7 +95,7 @@ exports[`parity fixtures > snapshot: rect-grid.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: single-rect.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: single-rect.json > legacy_single-rect.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [
@@ -108,7 +108,128 @@ exports[`parity fixtures > snapshot: single-rect.json 1`] = `
 }
 `;
 
-exports[`parity fixtures > snapshot: trapezoid-mix.json 1`] = `
+exports[`parity fixtures — legacy baseline > legacy: trapezoid-mix.json > legacy_trapezoid-mix.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0373,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: circle-grid.json > rust_circle-grid.json 1`] = `
+{
+  "overflowCount": 4,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0971,
+    },
+  ],
+  "placedCount": 8,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: cone-array.json > rust_cone-array.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0408,
+    },
+  ],
+  "placedCount": 4,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: mixed-rect-circle.json > rust_mixed-rect-circle.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0649,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: multi-rect-same-size.json > rust_multi-rect-same-size.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0651,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: multi-sheet-remnant.json > rust_multi-sheet-remnant.json 1`] = `
+{
+  "overflowCount": 4,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.2083,
+    },
+    {
+      "binId": "b2",
+      "efficiency": 0.1953,
+    },
+  ],
+  "placedCount": 11,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: overflow.json > rust_overflow.json 1`] = `
+{
+  "overflowCount": 4,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.3472,
+    },
+  ],
+  "placedCount": 2,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: rect-grid.json > rust_rect-grid.json 1`] = `
+{
+  "overflowCount": 4,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.125,
+    },
+  ],
+  "placedCount": 16,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: single-rect.json > rust_single-rect.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0625,
+    },
+  ],
+  "placedCount": 1,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: trapezoid-mix.json > rust_trapezoid-mix.json 1`] = `
 {
   "overflowCount": 0,
   "perBin": [

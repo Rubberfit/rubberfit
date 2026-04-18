@@ -4,23 +4,26 @@ Golden-file parity tests for the canonical packing pipeline.
 
 ## What is a fixture?
 
-A fixture is a JSON file in `fixtures/` that serializes a single `PackRequest` (see `src/application/packing/types.ts`). The `parity.test.ts` runner:
+A fixture is a JSON file in `fixtures/` that serializes a single `PackRequest` (see `src/application/packing/types.ts`). The `parity.test.ts` runner evaluates each fixture against **both** engines in three describe blocks:
 
-1. Reads every `.json` file in `fixtures/` via `fs.readdirSync`.
-2. Deserializes each one as a `PackRequest`.
-3. Runs `LegacyPackingService.pack(request)`.
-4. Snapshots a stable subset of the result:
-   - `placedCount`
-   - `overflowCount`
-   - `perBin[].{binId, efficiency}` — efficiency rounded to 4 decimals to absorb floating-point drift across platforms.
+1. **Legacy baseline** — `LegacyPackingService.pack(request)` is snapshotted under the `legacy_<fixture>` key. Always runs.
+2. **Rust baseline** — `RustPackingService.pack(request)` is snapshotted under the `rust_<fixture>` key. Skipped when `engine/target/release/pack-cli` is not built.
+3. **Rust regression guard** — cross-engine conservation check (items accounted for, non-trivial output). Skipped when the binary is missing.
+
+Both baselines snapshot the same stable subset to absorb floating-point drift:
+- `placedCount`
+- `overflowCount`
+- `perBin[].{binId, efficiency}` — efficiency rounded to 4 decimals.
 
 Snapshots live in `__snapshots__/parity.test.ts.snap` and are committed to the repo.
 
 ## Why these tests exist
 
-The S1 refactor replaces ad-hoc `greedyNfpPack` / `NFPSolver` call sites with `LegacyPackingService` as the single adapter. Parity snapshots lock in the current engine's observable behavior so that when the S2 canonical solver lands, any divergence from the legacy adapter is surfaced as a failing snapshot rather than a UI regression.
+Parity snapshots lock in each engine's observable behavior so that any divergence — within a single engine or across engines — surfaces as a failing snapshot rather than a UI regression.
 
 Only the stable subset above is snapshotted — exact coordinates, rotations, and `placements[]` order are intentionally excluded because they may differ across engines while still producing an equivalent pack.
+
+**S2 scope note:** the Rust engine uses warm-start greedy bottom-left only; sparrow LNS+SA lands in S2.5. Expect the Rust baseline to trail legacy on complex fixtures until S2.5 ships. The regression guard deliberately does not assert `rust.placedCount >= legacy.placedCount` for this reason — that tightening is tracked as a TODO inside the test file and belongs to the S2.5 benchmark harness.
 
 ## Current fixtures
 
