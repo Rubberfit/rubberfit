@@ -69,7 +69,6 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
   if (rulesWithStock.length > 0) {
     suggestions = await generateReorderSuggestions(
       rulesWithStock as ReorderRuleWithDetails[],
-      materials || [],
       pendingPOs || []
     )
   }

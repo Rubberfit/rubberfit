@@ -67,7 +67,6 @@ export interface ReorderSuggestion {
 
 export async function generateReorderSuggestions(
   rules: ReorderRuleWithDetails[],
-  _materials: MaterialType[],
   pendingPOs: Array<{ items?: Array<{ material_type_id: string; quantity_sqft: number }> }>
 ): Promise<ReorderSuggestion[]> {
   // 1. Calculate effective stock = current stock + pending PO quantities

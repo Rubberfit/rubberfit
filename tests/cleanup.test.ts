@@ -13,6 +13,7 @@ const DELETED = [
 const BANNED_SYMBOLS = [
   "applyTrapezoidFields",
   "emailQueue",
+  "QueuedEmail",
 ]
 
 describe("cleanup: deleted files stay deleted", () => {

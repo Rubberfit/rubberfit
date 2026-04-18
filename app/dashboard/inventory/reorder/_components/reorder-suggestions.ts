@@ -1,4 +1,4 @@
-import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import type {
   IGenerateReorderSuggestionsUseCase,
   ReorderSuggestionOutput,
@@ -10,7 +10,6 @@ export type ReorderSuggestion = ReorderSuggestionOutput
 
 export async function generateReorderSuggestions(
   rules: ReorderRuleWithDetails[],
-  _materials: MaterialType[],
   pendingPOs: Array<{ items?: Array<{ material_type_id: string; quantity_sqft: number }> }> = []
 ): Promise<ReorderSuggestion[]> {
   const useCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
@@ -18,7 +17,6 @@ export async function generateReorderSuggestions(
   )
   return useCase.execute({
     rules,
-    materials: _materials,
     pendingPOs,
   })
 }
