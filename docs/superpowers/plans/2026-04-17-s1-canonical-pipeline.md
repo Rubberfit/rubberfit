@@ -3119,6 +3119,120 @@ git commit -m "chore(config): document NEXT_PUBLIC_SUPABASE_* vars; register vis
 
 ---
 
+## Phase 9.5 — Supabase lazy-init (prerequisite for S2)
+
+Must complete before Phase 10 handoff and before S2 begins. Root-cause fix for the `tests/setup.ts` env-stub workaround landed in Task 5.
+
+### Task 34.5: Lazy-init the Supabase client
+
+**Files:**
+- Modify: `src/infrastructure/models/supabase.ts` (or wherever the client is constructed — verify by grep before editing)
+- Modify: `tests/setup.ts` — remove the env stubs once lazy-init lands (they're no longer needed)
+
+- [ ] **Step 1: Identify the module-load throw**
+
+Run: `grep -n "Missing Supabase" src/infrastructure/models/supabase.ts`
+Expected: one line that throws if env vars are absent.
+
+- [ ] **Step 2: Write a failing test**
+
+```typescript
+// tests/supabase/lazyInit.test.ts
+import { describe, it, expect, beforeEach, afterEach } from "vitest"
+
+describe("Supabase client lazy-init", () => {
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const originalKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  beforeEach(() => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL
+    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  })
+
+  afterEach(() => {
+    if (originalUrl !== undefined) process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl
+    if (originalKey !== undefined) process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalKey
+  })
+
+  it("module imports successfully with env absent", async () => {
+    // Must not throw during evaluation
+    await expect(import("@/src/infrastructure/models/supabase")).resolves.toBeDefined()
+  })
+
+  it("getSupabaseClient() throws only when called without env", async () => {
+    const mod = await import("@/src/infrastructure/models/supabase")
+    expect(() => mod.getSupabaseClient()).toThrow(/supabase env/i)
+  })
+})
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `npm run test -- tests/supabase/lazyInit.test.ts`
+Expected: FAIL — module throws at import time.
+
+- [ ] **Step 4: Refactor `supabase.ts` to lazy-init**
+
+Replace module-level `createClient` with a lazy getter:
+
+```typescript
+// src/infrastructure/models/supabase.ts
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "./database.types"
+
+let cachedClient: SupabaseClient<Database> | null = null
+
+export function getSupabaseClient(): SupabaseClient<Database> {
+  if (cachedClient) return cachedClient
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) {
+    throw new Error("Supabase env vars missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  }
+  cachedClient = createClient<Database>(url, key)
+  return cachedClient
+}
+
+// Back-compat: preserve the named export that existing callers use.
+// Replace with a getter so reading it triggers lazy-init.
+export const supabase = new Proxy({} as SupabaseClient<Database>, {
+  get(_target, prop) {
+    const client = getSupabaseClient()
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop as string | symbol]
+    return typeof value === "function" ? (value as Function).bind(client) : value
+  },
+})
+```
+
+Verify: `grep -R "from \"@/src/infrastructure/models/supabase\"" src app` to confirm no call site breaks. Existing `supabase.from(...)` calls will go through the Proxy and still work.
+
+- [ ] **Step 5: Run lazy-init tests**
+
+Run: `npm run test -- tests/supabase/lazyInit.test.ts`
+Expected: PASS — both tests green.
+
+- [ ] **Step 6: Remove env stubs from `tests/setup.ts`**
+
+Edit `tests/setup.ts` to delete the two `process.env.X ??= "..."` lines. Leave the file empty of stubs (keep the comment block explaining what `setupFiles` is for).
+
+- [ ] **Step 7: Run full suite without env**
+
+Run (from a fresh shell with NO env loaded): `npm run test`
+Expected: ALL tests pass. No module-load throws anywhere.
+
+- [ ] **Step 8: Update READMEs**
+
+- `src/infrastructure/models/README.md` — if exists, update; if not, skip.
+- `tests/supabase/README.md` — create with row for `lazyInit.test.ts`.
+- `tests/packing/README.md` — no change needed.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/infrastructure/models/supabase.ts tests/setup.ts tests/supabase/lazyInit.test.ts tests/supabase/README.md
+git commit -m "refactor(supabase): lazy-init client so module import doesn't require env"
+```
+
 ## Phase 10 — Handoff verification
 
 ### Task 35: Fail the build if `app/` imports from `nesting/` directly
