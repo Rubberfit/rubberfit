@@ -12,7 +12,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
-jagua-rs = { git = "https://github.com/JeroenGar/jagua-rs", tag = "v0.2.0" }
+jagua-rs = { git = "https://github.com/JeroenGar/jagua-rs", tag = "0.7.1" }
 
 [dev-dependencies]
 serde_json = { workspace = true }
