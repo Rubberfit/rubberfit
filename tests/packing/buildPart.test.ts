@@ -230,3 +230,63 @@ describe("buildPart — ngon (regular polygon)", () => {
     expect(topVertex.x).toBeCloseTo(centerX, 6)
   })
 })
+
+describe("buildPart — custom / DXF passthrough", () => {
+  it("accepts a polygon directly (for imported shapes)", () => {
+    const part = buildPart({
+      shapeId: "dxf1",
+      quantity: 1,
+      polygon: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 4, y: 3 },
+        { x: 0, y: 3 },
+      ],
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(4)
+    expect(part.shapeSpec).toBeUndefined()
+  })
+
+  it("normalizes an offset polygon to min-corner (0,0)", () => {
+    const part = buildPart({
+      shapeId: "dxf1",
+      quantity: 1,
+      polygon: [
+        { x: 10, y: 20 },
+        { x: 14, y: 20 },
+        { x: 14, y: 23 },
+        { x: 10, y: 23 },
+      ],
+      allowRotation: true,
+    })
+    const xs = part.polygon.map((p) => p.x)
+    const ys = part.polygon.map((p) => p.y)
+    expect(Math.min(...xs)).toBe(0)
+    expect(Math.min(...ys)).toBe(0)
+  })
+
+  it("throws when polygon has fewer than 3 vertices", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "dxf1",
+        quantity: 1,
+        polygon: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+        allowRotation: true,
+      })
+    ).toThrow(/at least 3 vertices/i)
+  })
+
+  it("throws when neither shapeSpec nor polygon is provided", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "dxf1",
+        quantity: 1,
+        allowRotation: true,
+      })
+    ).toThrow(/shapeSpec or polygon/i)
+  })
+})
