@@ -24,6 +24,6 @@ Field names are camelCase. Industry-common synonyms accepted as aliases:
 
 - `quantity` ↔ `demand` (jagua-rs BPP)
 - `clearance` ↔ `kerf` ↔ `spacing` (CAM / Deepnest / libnest2d)
-- `efficiency` ↔ `density` (jagua-rs output) — *added in Task 12 on `BinResult`*
+- `efficiency` ↔ `density` on `BinResult` (jagua-rs output)
 
 Units default to inches; pass `units: "mm"` to override.
