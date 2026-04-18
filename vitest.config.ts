@@ -8,6 +8,7 @@ export default defineConfig({
     globals: true,
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/**/*.skip.ts"],
+    setupFiles: ["tests/setup.ts"],
   },
   resolve: {
     alias: {

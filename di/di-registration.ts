@@ -30,6 +30,7 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { LegacyPackingService } from "@/src/infrastructure/services/legacyPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -64,6 +65,7 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
+container.registerSingleton(TOKENS.IPackingService, LegacyPackingService)
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(

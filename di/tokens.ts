@@ -1,3 +1,5 @@
+import { PACKING_TOKENS } from "@/src/application/services/packing.service.interface"
+
 export const TOKENS = {
   // Services
   IAuthService: Symbol("IAuthService"),
@@ -8,6 +10,7 @@ export const TOKENS = {
   IExportService: Symbol("IExportService"),
   IMaterialTypeService: Symbol("IMaterialTypeService"),
   INotificationService: Symbol("INotificationService"),
+  IPackingService: PACKING_TOKENS.IPackingService,
   IPriceHistoryService: Symbol("IPriceHistoryService"),
   IProfileService: Symbol("IProfileService"),
   IPurchaseOrderService: Symbol("IPurchaseOrderService"),
