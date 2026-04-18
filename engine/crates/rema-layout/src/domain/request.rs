@@ -137,9 +137,21 @@ mod tests {
     }
 
     #[test]
-    fn default_mode_resolves_to_balanced_budget() {
+    fn fast_mode_resolves_to_fast_budget() {
         let req: PackRequest = serde_json::from_str(FIXTURE).unwrap();
         assert_eq!(req.resolved_time_budget_ms(), FAST_MS);
+    }
+
+    #[test]
+    fn default_mode_falls_back_to_balanced_budget() {
+        let json = r#"{
+            "bins":[{"binId":"b","width":1,"height":1,"kind":"fresh"}],
+            "clearance":0,
+            "items":[{"shapeId":"a","quantity":1,"polygon":[{"x":0,"y":0},{"x":1,"y":0},{"x":1,"y":1}],"allowRotation":true}]
+        }"#;
+        let req: PackRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.mode, None);
+        assert_eq!(req.resolved_time_budget_ms(), BALANCED_MS);
     }
 
     #[test]
