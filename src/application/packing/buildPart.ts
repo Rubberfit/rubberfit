@@ -41,6 +41,12 @@ function buildPolygonFromSpec(spec: ShapeSpec): Point2D[] {
         Number(spec.params.diameter),
         Number(spec.params.segments ?? 24)
       )
+    case "trapezoid":
+      return buildTrapezoid(
+        Number(spec.params.topWidth),
+        Number(spec.params.bottomWidth),
+        Number(spec.params.height)
+      )
     default:
       throw new Error(`buildPart: unsupported shape kind: ${spec.kind}`)
   }
@@ -55,6 +61,21 @@ function buildRect(width: number, height: number): Point2D[] {
     { x: width, y: height },
     { x: 0, y: height },
   ]
+}
+
+function buildTrapezoid(topW: number, bottomW: number, height: number): Point2D[] {
+  if (!(topW > 0)) throw new Error("trapezoid: topWidth must be positive")
+  if (!(bottomW > 0)) throw new Error("trapezoid: bottomWidth must be positive")
+  if (!(height > 0)) throw new Error("trapezoid: height must be positive")
+  const maxW = Math.max(topW, bottomW)
+  const topOffset = (maxW - topW) / 2
+  const bottomOffset = (maxW - bottomW) / 2
+  return normalizePolygon([
+    { x: bottomOffset, y: 0 },
+    { x: bottomOffset + bottomW, y: 0 },
+    { x: topOffset + topW, y: height },
+    { x: topOffset, y: height },
+  ])
 }
 
 function buildCircle(diameter: number, segments: number): Point2D[] {
