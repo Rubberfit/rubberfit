@@ -505,6 +505,20 @@ export const profileService = {
 }
 ```
 
+- **legacyPackingService.ts** -- `IPackingService` implementation that will route to the legacy TS nesting engines. Currently a skeleton: `pack()` and `cancel()` throw "not implemented" until Phase 3 wiring (Tasks 13-15).
+
+```typescript
+@injectable()
+export class LegacyPackingService implements IPackingService {
+  async pack(_request: PackRequest, _onProgress?: (p: PackProgress) => void): Promise<PackResult> {
+    throw new Error("LegacyPackingService.pack: not implemented (Phase 3 wiring pending)")
+  }
+  async cancel(_jobId: string): Promise<void> {
+    throw new Error("LegacyPackingService.cancel: not implemented (Phase 3 wiring pending)")
+  }
+}
+```
+
 - **useRole.ts** -- React hook for fetching and checking user roles/permissions from Supabase profiles
 
 ```typescript
