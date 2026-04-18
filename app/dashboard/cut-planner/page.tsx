@@ -13,7 +13,7 @@ import PresetDimensionSelector, {
   type LoadedSelection,
 } from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
-import type { ExtractedPart } from "./_components/upload-types"
+import type { ExtractedPart } from "@/src/application/vision/types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {

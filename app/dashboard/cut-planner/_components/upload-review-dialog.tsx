@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
-import type { ExtractedPart } from "./upload-types"
+import type { ExtractedPart } from "@/src/application/vision/types"
 
 interface UploadReviewDialogProps {
   open: boolean

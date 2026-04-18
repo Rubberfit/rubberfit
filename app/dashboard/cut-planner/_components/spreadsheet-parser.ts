@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx"
-import type { ExtractedPart } from "./upload-types"
+import type { ExtractedPart } from "@/src/application/vision/types"
 
 const WIDTH_ALIASES = ["width", "w", "wid", "wide"]
 const LENGTH_ALIASES = ["length", "len", "l", "height", "h", "long"]
