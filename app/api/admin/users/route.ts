@@ -88,12 +88,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "full_name is required" }, { status: 400 })
   }
 
+  const normalizedEmail = email.trim().toLowerCase()
+
+  if (normalizedEmail.endsWith("@archandanchor.com")) {
+    return NextResponse.json(
+      { error: "@archandanchor.com accounts cannot be created here" },
+      { status: 400 }
+    )
+  }
+
   const resolvedRoles: string[] = Array.isArray(roles) && roles.every(isValidRole) ? roles : ["member"]
 
   const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
 
+  const { data: existing } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("email", normalizedEmail)
+    .maybeSingle()
+
+  if (existing) {
+    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 })
+  }
+
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
-    email: email.trim(),
+    email: normalizedEmail,
     password,
     email_confirm: true,
     user_metadata: { full_name: full_name.trim() },

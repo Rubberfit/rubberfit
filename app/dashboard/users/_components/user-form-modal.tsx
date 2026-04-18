@@ -68,7 +68,12 @@ const editSchema = z.object({
 
 const createSchema = z.object({
   full_name: z.string().min(1, "Name is required"),
-  email: z.string().email("Enter a valid email"),
+  email: z
+    .string()
+    .email("Enter a valid email")
+    .refine((e) => !e.toLowerCase().endsWith("@archandanchor.com"), {
+      message: "@archandanchor.com accounts cannot be created here",
+    }),
   password: z.string().min(6, "Password must be at least 6 characters"),
   roles: z.array(z.string()).min(1, "At least one role is required"),
 })

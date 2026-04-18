@@ -11,6 +11,10 @@ import "reflect-metadata"
 import { injectable } from "tsyringe"
 
 export type { AuthUser, AuthResponse }
+interface ProfileData {
+  roles: string[]
+  isSuperAdmin: boolean
+}
 
 function generateRandomAvatar(seed: string): string {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=2563eb&textColor=ffffff`
@@ -34,23 +38,23 @@ function getUserAuthProvider(user: SupabaseUser): string | undefined {
   return typeof provider === "string" ? provider : undefined
 }
 
-async function getProfileRoles(userId: string): Promise<string[]> {
+async function getProfileRoles(userId: string): Promise<ProfileData> {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("roles")
+      .select("roles, super_admin")
       .eq("id", userId)
       .maybeSingle()
 
     if (error) {
       console.error("Error loading profile roles:", error)
-      return normalizeRoles()
+      return {roles: normalizeRoles(), isSuperAdmin: false}
     }
 
-    return normalizeRoles(data?.roles)
+    return {roles: normalizeRoles(data?.roles), isSuperAdmin: data?.super_admin === true}
   } catch (error) {
     console.error("Error loading profile roles:", error)
-    return normalizeRoles()
+    return {roles: normalizeRoles(), isSuperAdmin: false}
   }
 }
 
@@ -65,12 +69,13 @@ async function isProfileDeleted(userId: string): Promise<boolean> {
 }
 
 async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
+  const { roles, isSuperAdmin } = await getProfileRoles(user.id)
   return {
     id: user.id,
     email: user.email!,
     name: getUserName(user),
     avatar: getUserAvatar(user),
-    roles: await getProfileRoles(user.id),
+    roles: roles, isSuperAdmin,
     authProvider: getUserAuthProvider(user),
     createdAt: user.created_at,
   }
