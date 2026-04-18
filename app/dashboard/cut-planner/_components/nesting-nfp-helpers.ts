@@ -291,18 +291,14 @@ function applyTrapezoidFields(
   base: PreviewItem,
   np: NestingPart,
   fallbackW: number,
-  fallbackH: number
+  _fallbackH: number
 ) {
+  // Polygon is canonical (Task 6/18): preserve placedPolygon/rotation/flipped
+  // from the placement so the renderer uses PolygonShape with the true packed
+  // outline. We only attach trapezoid metadata (topWidth/bottomWidth/cutDirection/label)
+  // for downstream UI that references them; we do NOT clear placement fields.
   base.topWidth = (np.originalSpec.topWidth as number) ?? fallbackW
   base.bottomWidth = (np.originalSpec.bottomWidth as number) ?? fallbackW
-  // Always render trapezoids in their original upright orientation regardless of how the
-  // NFP solver rotated them for packing. Override width/height with the original spec
-  // dimensions and clear placedPolygon so TrapezoidShape (not PolygonShape) is used.
-  base.width = Math.max(base.topWidth, base.bottomWidth)
-  base.height = (np.originalSpec.height as number) ?? fallbackH
-  base.placedPolygon = undefined
-  base.rotation = 0
-  base.flipped = false
   base.cutDirection = np.originalSpec.cutDirection as SimpleCutDirection | undefined
   base.label =
     (np.originalSpec.label as string) ??
