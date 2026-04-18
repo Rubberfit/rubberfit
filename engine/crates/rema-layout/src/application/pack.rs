@@ -1,6 +1,6 @@
 // engine/crates/rema-layout/src/application/pack.rs
 use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
-use crate::infrastructure::{jagua_adapter, search, warm_start};
+use crate::infrastructure::{search, warm_start};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -26,17 +26,20 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
             break;
         }
 
-        // Validate geometry via jagua adapter (result not used in MVP passthrough).
-        jagua_adapter::to_jagua_instance(std::slice::from_ref(bin), &remaining, request.clearance)?;
-
-        // Warm start.
+        // Warm start. Geometry-validation errors surface here instead of
+        // via the S2-era throwaway `to_jagua_instance` call (which has
+        // been removed — `search::optimize` rebuilds via the same adapter
+        // internally, so the error path is preserved, one frame deeper).
         let seed = warm_start::greedy_bottom_left(bin, &remaining, request.clearance)?;
 
-        // Passthrough optimize.
+        // Real GLS optimize (Task 8).
         let config = search::OptimizerConfig {
             time_budget_ms: per_bin_budget_ms,
             improvement_budget_ms: request.improvement_budget_ms,
             seed: request.seed,
+            bin: bin.clone(),
+            items: remaining.clone(),
+            clearance: request.clearance,
         };
         let result = search::optimize(seed, config)?;
 

@@ -5,8 +5,9 @@
 //
 // `Terminator` is the abstract kill-switch for the GLS loop; Task 5's
 // Separator already takes `&impl Terminator`. This file adds the
-// `BasicTerminator` deadline impl that Task 8's `search::optimize` will
-// arm per phase (80/20 explore/compress split).
+// `BasicTerminator` deadline impl that Task 8's `search::optimize`
+// arms for the exploration phase (compression is identity per Task 7,
+// so 100% of the budget goes to exploration).
 //
 // Task 14 will introduce an `AtomicBool`-backed cancel token that
 // implements the same trait, so consumers (Separator, ExplorationPhase,
@@ -31,8 +32,8 @@ use std::time::{Duration, Instant};
 
 /// A deadline-backed `Terminator`. Constructed with a timeout; `kill()`
 /// returns true once the timeout elapses. Used by the Task 8
-/// orchestrator to cap the explore / compress phases at a fraction of
-/// the per-bin budget.
+/// orchestrator to cap the exploration phase at the full per-bin
+/// budget (compression is identity per Task 7).
 #[derive(Debug, Clone, Default)]
 pub struct BasicTerminator {
     pub deadline: Option<Instant>,

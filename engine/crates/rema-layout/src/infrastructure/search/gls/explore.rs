@@ -22,8 +22,9 @@
 //      SolutionListener trait methods report_feasible /
 //      report_infeasible (default noops added in Task 6 to the trait
 //      in separator.rs).
-//   5. Budget: Terminator passed in pre-armed. Task 8 splits
-//      time_budget_ms 80/20 between explore and compress.
+//   5. Budget: Terminator passed in pre-armed. Task 8 allocates 100%
+//      of time_budget_ms to exploration; compression is identity in
+//      BPP (Task 7) so the sparrow 80/20 split doesn't apply.
 //   6. Pool tuple: Vec<(LayoutSnapshot, f32)> matching upstream's
 //      semantic: pool restart uses rollback(snap, None) -> fresh
 //      tracker. Carrying CTSnapshot would be a semantic deviation
