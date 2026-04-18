@@ -25,16 +25,6 @@ function redirectWithCookies(
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  if (
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/auth")
-  ) {
-    const response = NextResponse.next()
-    response.headers.set("Cache-Control", "private, no-store")
-    return response
-  }
-
   const response = NextResponse.next({ request })
   const pendingCookies: Array<{ name: string; value: string; options?: CookieOptions }> = []
 

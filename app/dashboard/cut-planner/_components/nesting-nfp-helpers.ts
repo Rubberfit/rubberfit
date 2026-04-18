@@ -287,24 +287,6 @@ function applySectorFields(base: PreviewItem, np: NestingPart) {
   base.label = (np.originalSpec.label as string) ?? `${base.arcDegrees}\u00B0 sector`
 }
 
-function applyTrapezoidFields(
-  base: PreviewItem,
-  np: NestingPart,
-  fallbackW: number,
-  _fallbackH: number
-) {
-  // Polygon is canonical (Task 6/18): preserve placedPolygon/rotation/flipped
-  // from the placement so the renderer uses PolygonShape with the true packed
-  // outline. We only attach trapezoid metadata (topWidth/bottomWidth/cutDirection/label)
-  // for downstream UI that references them; we do NOT clear placement fields.
-  base.topWidth = (np.originalSpec.topWidth as number) ?? fallbackW
-  base.bottomWidth = (np.originalSpec.bottomWidth as number) ?? fallbackW
-  base.cutDirection = np.originalSpec.cutDirection as SimpleCutDirection | undefined
-  base.label =
-    (np.originalSpec.label as string) ??
-    `${formatInches(base.topWidth)}"/${formatInches(base.bottomWidth)}"`
-}
-
 function applyRectFields(base: PreviewItem, np: NestingPart, p: Placement2D) {
   base.cutDirection = np.originalSpec.cutDirection as SimpleCutDirection | undefined
   base.label =
@@ -316,7 +298,7 @@ export function nestingResultToPreviewItems(
   parts: NestingPart[],
   specs: SimplePartSpec[],
   fallbackW: number,
-  fallbackH: number
+  _fallbackH: number
 ): PreviewItem[] {
   const partsById = new Map(parts.map((part) => [part.id, part]))
   return result.placements.map((p) => {
@@ -349,9 +331,7 @@ export function nestingResultToPreviewItems(
       applyCircleFields(base, np, spec, fallbackW)
     } else if (rs === "sector") {
       applySectorFields(base, np)
-    } else if (rs === "trapezoid") {
-      applyTrapezoidFields(base, np, fallbackW, fallbackH)
-    } else {
+    } else if (rs !== "trapezoid") {
       applyRectFields(base, np, p)
     }
 
