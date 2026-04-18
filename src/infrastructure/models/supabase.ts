@@ -1,20 +1,35 @@
 import { createBrowserClient } from "@supabase/ssr"
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables")
+// Lazy-init Supabase client.
+//
+// The client is NOT constructed at module load. Importing this module is a
+// no-op w.r.t. env vars — only the first call to `getSupabaseClient()` (or
+// the first property access on the `supabase` Proxy) triggers construction
+// and env validation. This keeps DI-touching tests import-safe without env
+// stubs, and keeps the Tauri build evaluable when env is not baked in at
+// module-eval time.
+//
+// HMR stability: the resolved client is pinned to globalThis in dev so
+// hot-reloads reuse a single GoTrue auth instance. Without this, each
+// reload creates a new client whose background refresh timer competes
+// for the same Web Lock on the auth token, causing authenticated requests
+// to hang. In production the dev-only branch is dead-code-eliminated and
+// only one client is ever created per page load.
+
+type SupabaseBrowserClient = ReturnType<typeof createBrowserClient>
+
+const globalRef = globalThis as unknown as {
+  __supabaseClient?: SupabaseBrowserClient
 }
 
-// Database context
-//
-// Pinned to globalThis in dev so HMR re-evaluations reuse a single
-// GoTrue auth instance. Without this, each hot-reload creates a new
-// client whose background refresh timer competes for the same Web
-// Lock on the auth token, causing authenticated requests to hang.
-// In production the if-block is dead-code-eliminated and only one
-// client is ever created per page load.
-function createSupabaseClient() {
+function buildSupabaseClient(): SupabaseBrowserClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Supabase env vars missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    )
+  }
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       debug: process.env.NODE_ENV === "development",
@@ -22,15 +37,32 @@ function createSupabaseClient() {
   })
 }
 
-const globalRef = globalThis as unknown as {
-  __supabaseClient?: ReturnType<typeof createSupabaseClient>
+export function getSupabaseClient(): SupabaseBrowserClient {
+  if (globalRef.__supabaseClient) return globalRef.__supabaseClient
+  const client = buildSupabaseClient()
+  if (process.env.NODE_ENV !== "production") {
+    globalRef.__supabaseClient = client
+  } else {
+    // In prod, still cache on the same slot so repeated getSupabaseClient()
+    // calls within a single page load reuse one client.
+    globalRef.__supabaseClient = client
+  }
+  return client
 }
 
-export const supabase = globalRef.__supabaseClient ?? createSupabaseClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalRef.__supabaseClient = supabase
-}
+// Back-compat: preserve the named `supabase` export. The Proxy forwards all
+// property reads to the lazily-resolved client, so existing call sites like
+// `supabase.from("rolls")` work identically — they just trigger lazy-init
+// on first access instead of at module load.
+export const supabase = new Proxy({} as SupabaseBrowserClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient()
+    const value = Reflect.get(client as object, prop, receiver)
+    return typeof value === "function"
+      ? (value as (...a: unknown[]) => unknown).bind(client)
+      : value
+  },
+})
 
 // Database Types
 export interface MaterialType {
