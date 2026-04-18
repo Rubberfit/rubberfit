@@ -25,24 +25,8 @@ export class CutService implements ICutService {
 
     if (error) throw error
 
-    if (cut.roll_id) {
-      const { data: roll } = await supabase
-        .from("rolls")
-        .select("remaining_length")
-        .eq("id", cut.roll_id)
-        .single()
-
-      if (roll) {
-        const newLength = roll.remaining_length - cut.cut_length * cut.quantity
-        await supabase
-          .from("rolls")
-          .update({
-            remaining_length: Math.max(0, newLength),
-            status: newLength <= 0 ? "depleted" : "active",
-          })
-          .eq("id", cut.roll_id)
-      }
-    }
+    // Roll remaining_length/status is maintained by the DB trigger
+    // `cuts_update_roll` (see migration 20240217000006). Do not decrement here.
 
     return data as Cut
   }
