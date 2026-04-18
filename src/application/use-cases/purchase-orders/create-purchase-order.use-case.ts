@@ -4,6 +4,7 @@ import type { IPurchaseOrderService } from "@/src/application/services/purchase-
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
+import { computePoSubtotal } from "@/src/application/computePoSubtotal"
 
 export interface CreatePurchaseOrderItemInput {
   materialTypeId: string
@@ -44,7 +45,7 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
   ) {}
 
   async execute(input: CreatePurchaseOrderInput): Promise<CreatePurchaseOrderResult> {
-    const subtotal = input.items.reduce((sum, i) => sum + i.quantitySqft * i.unitCost, 0)
+    const subtotal = computePoSubtotal(input.items)
     const taxCalc = await this.taxService.calculatePurchaseOrderTax(input.supplierId, subtotal)
     const shipping = input.shippingCost ?? 50
 
