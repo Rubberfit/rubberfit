@@ -1,4 +1,9 @@
-import type { PackResult, Part } from "@/src/application/packing/types"
+import type {
+  Bin,
+  PackRequest,
+  PackResult,
+  ShapeSpec,
+} from "@/src/application/packing/types"
 import type {
   PlacementView,
   PlacementViewItem,
@@ -8,14 +13,17 @@ import type {
 
 export function buildPlacementView(
   result: PackResult,
-  parts: Part[],
-  binsIndex?: Record<string, { width: number; height: number }>
+  request: PackRequest
 ): PlacementView {
-  const partsById = new Map(parts.map((p) => [p.shapeId, p]))
+  const partsById = new Map(request.items.map((p) => [p.shapeId, p]))
+  const binsFromRequest = new Map<string, Bin>(
+    request.bins.map((b) => [b.binId, b])
+  )
   const binsById = new Map<string, PlacementViewBin>()
 
   for (const br of result.perBin) {
-    const dims = binsIndex?.[br.binId] ?? { width: 0, height: 0 }
+    const src = binsFromRequest.get(br.binId)
+    const dims = src ?? { width: 0, height: 0 }
     binsById.set(br.binId, {
       binId: br.binId,
       width: dims.width,
@@ -61,7 +69,7 @@ export function buildPlacementView(
   }
 }
 
-function renderShapeFor(kind: string | undefined): RenderShape {
+function renderShapeFor(kind: ShapeSpec["kind"] | undefined): RenderShape {
   switch (kind) {
     case "rect":
       return "rect"
