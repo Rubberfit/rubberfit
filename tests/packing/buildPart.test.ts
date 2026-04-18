@@ -126,3 +126,45 @@ describe("buildPart — trapezoid", () => {
     ).toThrow(/height must be positive/i)
   })
 })
+
+describe("buildPart — sector (annular)", () => {
+  it("produces polygon spanning outer diameter at y=0 through arc", () => {
+    const part = buildPart({
+      shapeId: "s1",
+      quantity: 1,
+      shapeSpec: {
+        kind: "sector",
+        params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 },
+      },
+      allowRotation: true,
+    })
+    expect(part.polygon.length).toBeGreaterThan(8)
+    const xs = part.polygon.map((p) => p.x)
+    const ys = part.polygon.map((p) => p.y)
+    expect(Math.min(...xs)).toBeCloseTo(0, 3)
+    expect(Math.min(...ys)).toBeCloseTo(0, 3)
+  })
+})
+
+describe("buildPart — ngon (regular polygon)", () => {
+  it("produces polygon with exactly N sides", () => {
+    const part = buildPart({
+      shapeId: "n1",
+      quantity: 1,
+      shapeSpec: { kind: "ngon", params: { sides: 6, radius: 5 } },
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(6)
+  })
+
+  it("throws for sides < 3", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "n1",
+        quantity: 1,
+        shapeSpec: { kind: "ngon", params: { sides: 2, radius: 5 } },
+        allowRotation: true,
+      })
+    ).toThrow(/sides must be at least 3/i)
+  })
+})

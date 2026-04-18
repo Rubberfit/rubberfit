@@ -47,6 +47,15 @@ function buildPolygonFromSpec(spec: ShapeSpec): Point2D[] {
         Number(spec.params.bottomWidth),
         Number(spec.params.height)
       )
+    case "sector":
+      return buildSector(
+        Number(spec.params.innerRadius),
+        Number(spec.params.outerRadius),
+        Number(spec.params.arcDegrees),
+        Number(spec.params.segments ?? 24)
+      )
+    case "ngon":
+      return buildNGon(Number(spec.params.sides), Number(spec.params.radius))
     default:
       throw new Error(`buildPart: unsupported shape kind: ${spec.kind}`)
   }
@@ -86,6 +95,39 @@ function buildCircle(diameter: number, segments: number): Point2D[] {
   for (let i = 0; i < segments; i++) {
     const theta = (2 * Math.PI * i) / segments
     pts.push({ x: r + r * Math.cos(theta), y: r + r * Math.sin(theta) })
+  }
+  return normalizePolygon(pts)
+}
+
+function buildSector(
+  innerR: number,
+  outerR: number,
+  arcDeg: number,
+  segments: number
+): Point2D[] {
+  if (!(outerR > innerR))
+    throw new Error("sector: outerRadius must exceed innerRadius")
+  if (!(arcDeg > 0 && arcDeg <= 360))
+    throw new Error("sector: arcDegrees must be in (0, 360]")
+  const arcRad = (arcDeg * Math.PI) / 180
+  const step = arcRad / segments
+  const outer: Point2D[] = []
+  const inner: Point2D[] = []
+  for (let i = 0; i <= segments; i++) {
+    const a = i * step
+    outer.push({ x: outerR * Math.cos(a), y: outerR * Math.sin(a) })
+    inner.push({ x: innerR * Math.cos(a), y: innerR * Math.sin(a) })
+  }
+  return normalizePolygon([...outer, ...inner.reverse()])
+}
+
+function buildNGon(sides: number, radius: number): Point2D[] {
+  if (!(sides >= 3)) throw new Error("ngon: sides must be at least 3")
+  if (!(radius > 0)) throw new Error("ngon: radius must be positive")
+  const pts: Point2D[] = []
+  for (let i = 0; i < sides; i++) {
+    const a = (2 * Math.PI * i) / sides - Math.PI / 2
+    pts.push({ x: radius * Math.cos(a), y: radius * Math.sin(a) })
   }
   return normalizePolygon(pts)
 }
