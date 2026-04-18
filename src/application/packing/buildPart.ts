@@ -1,0 +1,72 @@
+import type { Part, ShapeSpec, Point2D } from "@/src/application/packing/types"
+
+export interface BuildPartInput {
+  shapeId: string
+  quantity: number
+  shapeSpec?: ShapeSpec
+  allowRotation: boolean
+  grainAxis?: "width" | "length" | "none"
+  difficulty?: number
+  polygon?: Point2D[]
+}
+
+export function buildPart(input: BuildPartInput): Part {
+  let polygon: Point2D[]
+
+  if (input.polygon) {
+    polygon = normalizePolygon(input.polygon)
+  } else if (input.shapeSpec) {
+    polygon = buildPolygonFromSpec(input.shapeSpec)
+  } else {
+    throw new Error("buildPart: must provide shapeSpec or polygon")
+  }
+
+  return {
+    shapeId: input.shapeId,
+    quantity: input.quantity,
+    polygon,
+    shapeSpec: input.shapeSpec,
+    allowRotation: input.allowRotation,
+    grainAxis: input.grainAxis,
+    difficulty: input.difficulty,
+  }
+}
+
+function buildPolygonFromSpec(spec: ShapeSpec): Point2D[] {
+  switch (spec.kind) {
+    case "rect":
+      return buildRect(Number(spec.params.width), Number(spec.params.height))
+    default:
+      throw new Error(`buildPart: unsupported shape kind: ${spec.kind}`)
+  }
+}
+
+function buildRect(width: number, height: number): Point2D[] {
+  if (!(width > 0)) throw new Error("rect: width must be positive")
+  if (!(height > 0)) throw new Error("rect: height must be positive")
+  return [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ]
+}
+
+function normalizePolygon(points: Point2D[]): Point2D[] {
+  if (points.length < 3) throw new Error("polygon: must have at least 3 vertices")
+  const minX = Math.min(...points.map((p) => p.x))
+  const minY = Math.min(...points.map((p) => p.y))
+  const translated = points.map((p) => ({ x: p.x - minX, y: p.y - minY }))
+  return ensureCCW(translated)
+}
+
+function ensureCCW(points: Point2D[]): Point2D[] {
+  // Signed area on screen coords: positive == CW. Reverse to get CCW in math coords.
+  let signed = 0
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]
+    const b = points[(i + 1) % points.length]
+    signed += (b.x - a.x) * (b.y + a.y)
+  }
+  return signed > 0 ? [...points].reverse() : points
+}
