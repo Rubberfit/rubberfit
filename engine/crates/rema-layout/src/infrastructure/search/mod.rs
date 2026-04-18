@@ -1,10 +1,26 @@
-// engine/crates/rema-layout/src/infrastructure/sparrow_driver.rs
+// engine/crates/rema-layout/src/infrastructure/search/mod.rs
 //
-// Sparrow LNS+SA driver. S2 MVP ships a passthrough; S2.5 wires the real search.
+// Search module — the replacement for the S2 sparrow_driver passthrough.
+//
+// S2.5 scaffolding: the GLS (Guided Local Search) inner loop is ported from
+// sparrow's ejor-snapshot (MIT, Gardeyn et al. KU Leuven 2025) across
+// subsequent tasks 3-7. The multi-bin FFD + cross-bin swap assignment layer
+// is written fresh in tasks 10-12. Progress streaming and cooperative
+// cancellation land in task 14.
+//
+// Current state (task 1): this module is a passthrough, identical in
+// observable behavior to the old `sparrow_driver::optimize`. The scaffold
+// for `state` and `objective` modules is in place so subsequent tasks can
+// slot into a stable public contract.
+
+pub mod objective;
+pub mod state;
 
 use crate::domain::PackError;
 use crate::infrastructure::warm_start::SeedResult;
 
+/// Configuration surface for the search. Grows fields across S2.5c
+/// (progress callback + cancel token) without breaking task-1 callers.
 #[derive(Clone, Debug, Default)]
 pub struct OptimizerConfig {
     /// Total wall-clock budget for the search.
@@ -15,16 +31,17 @@ pub struct OptimizerConfig {
     pub seed: Option<u64>,
 }
 
-/// Run LNS+SA search over `seed` within `config`'s budgets.
-/// S2 MVP: passthrough. The warm-start seed is the final result.
+/// Run the search over `seed` within `config`'s budgets.
+///
+/// Task 1: passthrough. The warm-start seed is returned verbatim so the
+/// orchestrator in `application::pack` keeps behaving like S2.
+/// Task 8: the body becomes the real GLS explore + compress pipeline.
 pub fn optimize(
     seed: SeedResult,
     _config: OptimizerConfig,
 ) -> Result<SeedResult, PackError> {
-    // TODO(S2.5): replace body with sparrow's LNS+SA loop.
-    //   Wire: _config.time_budget_ms         -> total wall-clock deadline
-    //         _config.improvement_budget_ms  -> no-improvement early stop
-    //         _config.seed                   -> sparrow RNG seed (None = entropy)
+    // TODO(S2.5a): replace with exploration-then-compression GLS pipeline
+    // once `gls` submodule lands (see plan tasks 3-8).
     Ok(seed)
 }
 
@@ -35,7 +52,10 @@ mod tests {
     use rema_geom::domain::Point2D;
 
     fn empty_seed() -> SeedResult {
-        SeedResult { placements: vec![], overflow: 0 }
+        SeedResult {
+            placements: vec![],
+            overflow: 0,
+        }
     }
 
     fn single_placement_seed() -> SeedResult {

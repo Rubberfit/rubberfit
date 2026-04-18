@@ -1,6 +1,6 @@
 // engine/crates/rema-layout/src/application/pack.rs
 use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
-use crate::infrastructure::{jagua_adapter, sparrow_driver, warm_start};
+use crate::infrastructure::{jagua_adapter, search, warm_start};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -33,12 +33,12 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
         let seed = warm_start::greedy_bottom_left(bin, &remaining, request.clearance)?;
 
         // Passthrough optimize.
-        let config = sparrow_driver::OptimizerConfig {
+        let config = search::OptimizerConfig {
             time_budget_ms: per_bin_budget_ms,
             improvement_budget_ms: request.improvement_budget_ms,
             seed: request.seed,
         };
-        let result = sparrow_driver::optimize(seed, config)?;
+        let result = search::optimize(seed, config)?;
 
         // Map placements with globally-unique instance_index and decrement remaining.
         let mut placed_by_shape: HashMap<String, u32> = HashMap::new();
