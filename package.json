@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run build:engine",
     "build": "next build",
     "vercel-build": "next build",
+    "pretest": "npm run build:engine",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
