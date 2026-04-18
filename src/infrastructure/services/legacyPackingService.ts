@@ -59,17 +59,22 @@ export class LegacyPackingService implements IPackingService {
       )
     }
 
-    const placements: Placement[] = legacy.placements.map((p, i) => ({
-      shapeId: part.shapeId,
-      instanceIndex: i,
-      binId: bin.binId,
-      x: p.x,
-      y: p.y,
-      rotationRad: p.rotation,
-      polygon: p.placedPolygon,
-      width: p.width,
-      height: p.height,
-    }))
+    const counters = new Map<string, number>()
+    const placements: Placement[] = legacy.placements.map((p) => {
+      const idx = counters.get(part.shapeId) ?? 0
+      counters.set(part.shapeId, idx + 1)
+      return {
+        shapeId: part.shapeId,
+        instanceIndex: idx,
+        binId: bin.binId,
+        x: p.x,
+        y: p.y,
+        rotationRad: p.rotation,
+        polygon: p.placedPolygon,
+        width: p.width,
+        height: p.height,
+      }
+    })
 
     const usedArea = legacy.usedArea
     const stockArea = bin.width * bin.height
@@ -78,8 +83,8 @@ export class LegacyPackingService implements IPackingService {
         binId: bin.binId,
         usedArea,
         wasteArea: stockArea - usedArea,
-        occupiedWidth: legacy.occupiedWidth ?? bin.width,
-        occupiedHeight: legacy.occupiedHeight ?? bin.height,
+        occupiedWidth: legacy.occupiedWidth > 0 ? legacy.occupiedWidth : bin.width,
+        occupiedHeight: legacy.occupiedHeight > 0 ? legacy.occupiedHeight : bin.height,
         efficiency: stockArea > 0 ? usedArea / stockArea : 0,
       },
     ]
@@ -119,12 +124,13 @@ export class LegacyPackingService implements IPackingService {
       renderShape: "rect",
       originalSpec: {},
     }))
+    const rotationSteps = request.items.every((p) => p.allowRotation) ? 4 : 1
     const input: NestingInput = {
       binWidth: bin.width,
       binHeight: bin.height,
       parts,
       spacing: request.clearance,
-      rotationSteps: 4,
+      rotationSteps,
       generations: 12,
       populationSize: 6,
       mutationRate: 0.2,
@@ -145,17 +151,23 @@ export class LegacyPackingService implements IPackingService {
       )
     }
 
-    const placements: Placement[] = legacy.placements.map((p, i) => ({
-      shapeId: p.partId,
-      instanceIndex: i,
-      binId: bin.binId,
-      x: p.x,
-      y: p.y,
-      rotationRad: p.rotation,
-      polygon: p.placedPolygon,
-      width: p.width,
-      height: p.height,
-    }))
+    const counters = new Map<string, number>()
+    const placements: Placement[] = legacy.placements.map((p) => {
+      const shapeId = p.partId.replace(/-\d+$/, "")
+      const idx = counters.get(shapeId) ?? 0
+      counters.set(shapeId, idx + 1)
+      return {
+        shapeId,
+        instanceIndex: idx,
+        binId: bin.binId,
+        x: p.x,
+        y: p.y,
+        rotationRad: p.rotation,
+        polygon: p.placedPolygon,
+        width: p.width,
+        height: p.height,
+      }
+    })
 
     const usedArea = legacy.usedArea
     const stockArea = bin.width * bin.height
@@ -164,8 +176,8 @@ export class LegacyPackingService implements IPackingService {
         binId: bin.binId,
         usedArea,
         wasteArea: stockArea - usedArea,
-        occupiedWidth: legacy.occupiedWidth,
-        occupiedHeight: legacy.occupiedHeight,
+        occupiedWidth: legacy.occupiedWidth > 0 ? legacy.occupiedWidth : bin.width,
+        occupiedHeight: legacy.occupiedHeight > 0 ? legacy.occupiedHeight : bin.height,
         efficiency: stockArea > 0 ? usedArea / stockArea : 0,
       },
     ]

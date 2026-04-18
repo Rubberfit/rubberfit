@@ -29,5 +29,15 @@ describe("LegacyPackingService — mixed items", () => {
     const result = await svc.pack(req)
     expect(result.placedCount).toBe(4)
     expect(result.overflowCount).toBe(0)
+
+    // Fix 1: shapeId is canonical ("a" or "b"), no -N suffix
+    const shapeIds = result.placements.map((p) => p.shapeId)
+    expect(shapeIds.every((id) => id === "a" || id === "b")).toBe(true)
+
+    // Fix 2: instanceIndex is per-shape (each shape gets 0..quantity-1)
+    const aPlacements = result.placements.filter((p) => p.shapeId === "a")
+    const bPlacements = result.placements.filter((p) => p.shapeId === "b")
+    expect(aPlacements.map((p) => p.instanceIndex).sort()).toEqual([0, 1])
+    expect(bPlacements.map((p) => p.instanceIndex).sort()).toEqual([0, 1])
   })
 })
