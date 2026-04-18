@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`parity fixtures > snapshot: single-rect.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.0625,
+    },
+  ],
+  "placedCount": 1,
+}
+`;
