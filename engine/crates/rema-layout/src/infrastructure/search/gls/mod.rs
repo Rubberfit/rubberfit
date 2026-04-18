@@ -12,9 +12,10 @@
 //     matches_layout stub), sample_eval, specialized_pipeline,
 //     sep_evaluator, best_samples, uniform_sampler, coord_descent,
 //     sampling.
-//   Task 5 (this commit): separator (the inner loop workhorse).
+//   Task 5: separator (the inner loop workhorse).
 //   Task 6: explore (penalty-weight phase).
-//   Task 7: compress (polish phase).
+//   Task 7 (this commit): compress — BPP adaptation is identity
+//     pass-through; sparrow's strip-shrink has no fixed-bin analogue.
 //
 // Flattened directory layout: everything sparrow-derived lives under
 // `search/gls/` regardless of whether upstream organised it under
@@ -25,6 +26,7 @@
 pub mod assertions;
 pub mod best_samples;
 pub mod bit_reversal_iterator;
+pub mod compress;
 pub mod consts;
 pub mod coord_descent;
 pub mod explore;
