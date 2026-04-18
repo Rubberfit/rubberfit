@@ -10,6 +10,9 @@ export const TOKENS = {
   IExportService: Symbol("IExportService"),
   IMaterialTypeService: Symbol("IMaterialTypeService"),
   INotificationService: Symbol("INotificationService"),
+  // Re-exported from PACKING_TOKENS (src/application/services/packing.service.interface.ts).
+  // Both surfaces must resolve to the same Symbol — do not replace with Symbol("IPackingService")
+  // or PACKING_TOKENS consumers break.
   IPackingService: PACKING_TOKENS.IPackingService,
   IPriceHistoryService: Symbol("IPriceHistoryService"),
   IProfileService: Symbol("IProfileService"),
