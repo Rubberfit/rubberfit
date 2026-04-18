@@ -14,6 +14,7 @@
 // slot into a stable public contract.
 
 pub mod objective;
+pub mod rng;
 pub mod state;
 
 use crate::domain::PackError;
