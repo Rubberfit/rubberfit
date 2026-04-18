@@ -24,12 +24,13 @@ Migrate REMA Portal from a Next.js web app to a native desktop application with 
 | # | Sub-project | Scope |
 |---|---|---|
 | **S1** | Canonical pipeline refactor (TS) | Collapse 7 shape→polygon paths + 2 NFP engines into one; introduce `IPackingService`; clean up duplication and dead code |
-| **S2** | Rust nesting engine | Standalone crate set (see §5); replace TS engine behind `IPackingService` via Tauri command |
+| **S2** | Rust nesting engine (MVP) | Cargo workspace; `rema-geom` + `rema-layout` crates; `pack-cli` binary; `RustPackingService` replaces `LegacyPackingService`. Warm-start greedy quality (≈ legacy). |
+| **S2.5** | Sparrow LNS+SA + time budgets + progress streaming | Real metaheuristic search using sparrow; time-budget-driven Fast/Balanced/Thorough modes; per-iteration progress streaming; benchmark harness targeting ≥5% efficiency lift over legacy |
 | **S3** | Rust backend service + Supabase | Port service/use-case layer; introduce entity layer; define the frontend-facing API |
 | **S4** | Tauri shell | Wrap React app, wire Rust backend + engine, build + sign + release pipeline |
 | **S5** | Interactive editor + vector export | Konva + Maker.js canvas, operator-aware scoring, vector PDF with programmatic close-ups, DXF import/export |
 
-S3 and S4 can run in parallel once S2 is stable.
+S3 and S4 can run in parallel once S2.5 is stable. S2.5 is a scope cut from S2 (too much work to bundle); it's not optional long-term — sparrow is the reason we picked jagua-rs over a custom port.
 
 ## 4. Design decisions locked in
 
