@@ -36,8 +36,10 @@ import {
   packMixedNfp,
   packMixedNfpAsync,
   type MixedPackResult,
+  type MixedPlacement,
   type MixedSpec,
 } from "@/nesting/mixed-nfp-placer"
+import { convexHull } from "@/nesting/convex-hull"
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
 
@@ -519,6 +521,140 @@ async function tryTrapezoidHybridCandidateAsync(
   )
 }
 
+/**
+ * Convert items placed by `packInterleavedTrapezoids` into mixed-NFP seed
+ * placements so the mixed-NFP placer can treat them as obstacles when packing
+ * the remaining (cone) specs around them.
+ */
+function trapezoidPlacementsToSeed(
+  trapItems: PreviewItem[]
+): { placements: MixedPlacement<MixedSpecMeta>[]; usedArea: number } {
+  const placements: MixedPlacement<MixedSpecMeta>[] = []
+  let usedArea = 0
+  for (const item of trapItems) {
+    const polygon = item.placedPolygon ?? []
+    if (polygon.length === 0) continue
+    const itemUsedArea = (item as PreviewItem & { usedArea?: number }).usedArea ?? 0
+    placements.push({
+      meta: { ...item, usedArea: itemUsedArea },
+      x: item.x,
+      y: item.y,
+      // packInterleavedTrapezoids doesn't rotate; the flip flag is encoded
+      // into placedPolygon directly, so a 0 rotation here is correct.
+      rotation: 0,
+      width: item.width,
+      height: item.height,
+      placedPolygon: polygon,
+      hull: convexHull(polygon),
+    })
+    usedArea += itemUsedArea
+  }
+  return { placements, usedArea }
+}
+
+/**
+ * Unified placer for trapezoid + cone (and any other NFP-eligible non-trap
+ * shape mix). Interleaves trapezoids via `packInterleavedTrapezoids` to
+ * preserve the flip pattern, then runs `packMixedNfp` for the remaining specs
+ * with the trapezoids passed in as seed obstacles. Cones can fit anywhere the
+ * collision-checked NFP placer finds room — not just below the trap row.
+ *
+ * Returns null when trapezoids fail to place (caller falls back to plain
+ * mixed-NFP without seeds).
+ */
+function tryUnifiedConeAndTrapezoidCandidate(
+  simpleParts: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): PackingCandidate | null {
+  const trapWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType === "trapezoid")
+  const otherWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType !== "trapezoid")
+  if (trapWithIdx.length === 0) return null
+
+  const trapItems = trapWithIdx.flatMap(({ spec, idx }) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = idx
+      item.partNumber = spec.partNumber
+      return item
+    })
+  )
+  const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
+  if (!trapPacked) return null
+
+  const seed = trapezoidPlacementsToSeed(trapPacked.packed.items)
+
+  if (otherWithIdx.length === 0) {
+    // Only trapezoids — wrap their placement in a MixedPackResult so the
+    // unified waste pipeline (`mixedResultToCandidate`) handles it.
+    return mixedResultToCandidate(
+      { placements: seed.placements, overflow: 0, usedArea: seed.usedArea },
+      rollW,
+      rollL
+    )
+  }
+
+  const otherSpecs = otherWithIdx.map(({ spec }) => spec)
+  const otherIndices = otherWithIdx.map(({ idx }) => idx)
+  const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, otherIndices)
+  if (!inputs) return null
+
+  const result = packMixedNfp(inputs, rollW, rollL, seed)
+  return mixedResultToCandidate(result, rollW, rollL)
+}
+
+/** Async sibling — runs the cone subset's NFP angle search on the worker pool. */
+async function tryUnifiedConeAndTrapezoidCandidateAsync(
+  simpleParts: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): Promise<PackingCandidate | null> {
+  const trapWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType === "trapezoid")
+  const otherWithIdx = simpleParts
+    .map((spec, idx) => ({ spec, idx }))
+    .filter(({ spec }) => spec.partType !== "trapezoid")
+  if (trapWithIdx.length === 0) return null
+
+  const trapItems = trapWithIdx.flatMap(({ spec, idx }) =>
+    Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
+      const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
+      item.specIndex = idx
+      item.partNumber = spec.partNumber
+      return item
+    })
+  )
+  const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
+  if (!trapPacked) return null
+
+  const seed = trapezoidPlacementsToSeed(trapPacked.packed.items)
+
+  if (otherWithIdx.length === 0) {
+    return mixedResultToCandidate(
+      { placements: seed.placements, overflow: 0, usedArea: seed.usedArea },
+      rollW,
+      rollL
+    )
+  }
+
+  const otherSpecs = otherWithIdx.map(({ spec }) => spec)
+  const otherIndices = otherWithIdx.map(({ idx }) => idx)
+  const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, otherIndices)
+  if (!inputs) return null
+
+  const result = await packMixedNfpAsync(inputs, rollW, rollL, seed)
+  return mixedResultToCandidate(result, rollW, rollL)
+}
+
 function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): number {
   if (a.packed.items.length !== b.packed.items.length)
     return b.packed.items.length - a.packed.items.length
@@ -722,22 +858,37 @@ export function generateMultiPartPreview(
     !skipNfpPacking && simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
   const useMixedNfp = !skipNfpPacking && simpleParts.length > 1 && allConeOrTrapezoid && hasCone
 
-  // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
-  // both and pick whichever places more items so a partial hybrid (e.g. cone
-  // doesn't fit under the trapezoid row) doesn't lose to a complete mixed-NFP
-  // result. Tie-break to hybrid since interleaved trapezoids beat generic NFP.
-  const hybrid = useTrapezoidHybrid
-    ? tryTrapezoidHybridCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
-    : null
-  const mixed = useMixedNfp
-    ? tryMixedNfpCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
-    : null
+  // Trap + cone (or trap + trap-only-cone-mix) goes through the unified path:
+  // trapezoids interleaved as seed obstacles, cones placed by mixed-NFP around
+  // them. This avoids the legacy hybrid's "cone in lower strip only" constraint
+  // and its bespoke waste math (which produced trailing waste regions and lost
+  // specIndex on overflow cones via tryGapFillSheet's label lookup).
+  const useUnified = useTrapezoidHybrid && useMixedNfp
 
   let best: PackingCandidate | undefined
-  if (hybrid && mixed) {
-    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
-  } else {
-    best = hybrid ?? mixed ?? undefined
+  if (useUnified) {
+    best =
+      tryUnifiedConeAndTrapezoidCandidate(
+        simpleParts,
+        rollW,
+        rollL,
+        fallbackWidth,
+        fallbackHeight
+      ) ?? undefined
+  } else if (useTrapezoidHybrid) {
+    // Trap + non-NFP shapes (rectangle, cylinder) — mixed-NFP can't place
+    // those, so the legacy shelf-packing hybrid still applies.
+    best =
+      tryTrapezoidHybridCandidate(
+        simpleParts,
+        rollW,
+        rollL,
+        fallbackWidth,
+        fallbackHeight
+      ) ?? undefined
+  } else if (useMixedNfp) {
+    best =
+      tryMixedNfpCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight) ?? undefined
   }
 
   if (!best) {
@@ -776,23 +927,37 @@ export async function generateMultiPartPreviewAsync(
   const useTrapezoidHybrid = simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
   const useMixedNfp = simpleParts.length > 1 && allConeOrTrapezoid && hasCone
 
-  // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
-  // both in parallel and pick whichever places more items. Tie-break to
-  // hybrid since interleaved trapezoids beat generic NFP placement.
-  const [hybrid, mixed] = await Promise.all([
-    useTrapezoidHybrid
-      ? tryTrapezoidHybridCandidateAsync(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
-      : Promise.resolve(null),
-    useMixedNfp
-      ? tryMixedNfpCandidateAsync(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
-      : Promise.resolve(null),
-  ])
+  // See sync sibling for the routing rationale.
+  const useUnified = useTrapezoidHybrid && useMixedNfp
 
   let best: PackingCandidate | undefined
-  if (hybrid && mixed) {
-    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
-  } else {
-    best = hybrid ?? mixed ?? undefined
+  if (useUnified) {
+    best =
+      (await tryUnifiedConeAndTrapezoidCandidateAsync(
+        simpleParts,
+        rollW,
+        rollL,
+        fallbackWidth,
+        fallbackHeight
+      )) ?? undefined
+  } else if (useTrapezoidHybrid) {
+    best =
+      (await tryTrapezoidHybridCandidateAsync(
+        simpleParts,
+        rollW,
+        rollL,
+        fallbackWidth,
+        fallbackHeight
+      )) ?? undefined
+  } else if (useMixedNfp) {
+    best =
+      (await tryMixedNfpCandidateAsync(
+        simpleParts,
+        rollW,
+        rollL,
+        fallbackWidth,
+        fallbackHeight
+      )) ?? undefined
   }
 
   if (!best) {

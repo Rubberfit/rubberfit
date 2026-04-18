@@ -141,12 +141,17 @@ async function findBestRotationsPerSpecAsync<TMeta>(
  * Shared placement loop — given per-spec rotations, build all rotated items
  * and run bottom-left collision-checked placement. Used by both sync and
  * async entry points.
+ *
+ * `seed` lets a caller pre-place obstacles (e.g. interleaved trapezoids from
+ * `packInterleavedTrapezoids`) so subsequent items are placed around them.
+ * Seed placements are included in `placements` and `usedArea` of the result.
  */
 function placeMixedItemsWithRotations<TMeta>(
   specs: MixedSpec<TMeta>[],
   rotations: number[],
   rollW: number,
-  rollH: number
+  rollH: number,
+  seed?: { placements: MixedPlacement<TMeta>[]; usedArea: number }
 ): MixedPackResult<TMeta> {
   const items: RotatedItem<TMeta>[] = []
   for (let i = 0; i < specs.length; i++) {
@@ -163,8 +168,8 @@ function placeMixedItemsWithRotations<TMeta>(
 
   items.sort((a, b) => b.width * b.height - a.width * a.height)
 
-  const placements: MixedPlacement<TMeta>[] = []
-  let usedArea = 0
+  const placements: MixedPlacement<TMeta>[] = [...(seed?.placements ?? [])]
+  let usedArea = seed?.usedArea ?? 0
   for (const item of items) {
     const pos = findBottomLeftPosition(item, placements, rollW, rollH)
     if (!pos) continue
@@ -185,7 +190,7 @@ function placeMixedItemsWithRotations<TMeta>(
 
   return {
     placements,
-    overflow: items.length - placements.length,
+    overflow: items.length - (placements.length - (seed?.placements.length ?? 0)),
     usedArea,
   }
 }
@@ -235,13 +240,21 @@ function findBottomLeftPosition<TMeta>(
 export function packMixedNfp<TMeta>(
   specs: MixedSpec<TMeta>[],
   rollW: number,
-  rollH: number
+  rollH: number,
+  seed?: { placements: MixedPlacement<TMeta>[]; usedArea: number }
 ): MixedPackResult<TMeta> {
-  if (specs.length === 0 || rollW <= 0 || rollH <= 0) {
+  if (rollW <= 0 || rollH <= 0) {
     return { placements: [], overflow: 0, usedArea: 0 }
   }
+  if (specs.length === 0) {
+    return {
+      placements: [...(seed?.placements ?? [])],
+      overflow: 0,
+      usedArea: seed?.usedArea ?? 0,
+    }
+  }
   const rotations = findBestRotationsPerSpec(specs, rollW, rollH)
-  return placeMixedItemsWithRotations(specs, rotations, rollW, rollH)
+  return placeMixedItemsWithRotations(specs, rotations, rollW, rollH, seed)
 }
 
 /**
@@ -252,11 +265,19 @@ export function packMixedNfp<TMeta>(
 export async function packMixedNfpAsync<TMeta>(
   specs: MixedSpec<TMeta>[],
   rollW: number,
-  rollH: number
+  rollH: number,
+  seed?: { placements: MixedPlacement<TMeta>[]; usedArea: number }
 ): Promise<MixedPackResult<TMeta>> {
-  if (specs.length === 0 || rollW <= 0 || rollH <= 0) {
+  if (rollW <= 0 || rollH <= 0) {
     return { placements: [], overflow: 0, usedArea: 0 }
   }
+  if (specs.length === 0) {
+    return {
+      placements: [...(seed?.placements ?? [])],
+      overflow: 0,
+      usedArea: seed?.usedArea ?? 0,
+    }
+  }
   const rotations = await findBestRotationsPerSpecAsync(specs, rollW, rollH)
-  return placeMixedItemsWithRotations(specs, rotations, rollW, rollH)
+  return placeMixedItemsWithRotations(specs, rotations, rollW, rollH, seed)
 }
