@@ -450,6 +450,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pack-cli"
+version = "0.1.0"
+dependencies = [
+ "rema-layout",
+ "serde_json",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
