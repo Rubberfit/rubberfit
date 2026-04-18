@@ -505,17 +505,25 @@ export const profileService = {
 }
 ```
 
-- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer`; mixed-item requests (2+ `Part` entries) route through `NFPSolver` from `@/nesting/nfp-solver` (GA-based). Both paths are wrapped in contextualized try/catch and mapped back to canonical `Placement`/`BinResult` shapes: mapped `Placement.shapeId` is always the canonical input id (the mixed path strips NFPSolver's `${shapeId}-${i}` suffix), `instanceIndex` is a per-shape counter (each shape gets `0..quantity-1`), and `legacy.usedArea` / `legacy.occupiedWidth` / `legacy.occupiedHeight` are reused with a `> 0 ? legacy.* : bin.*` fallback so empty-placement results surface bin dimensions rather than 0. On the mixed path, `NestingInput.rotationSteps` is the conservative AND of per-Part `allowRotation` (4 if all parts allow rotation, else 1). `cancel()` is an intentional no-op — legacy sync engines can't be cancelled cooperatively; Task 15 adds real cancellation when multi-bin lands. `onProgress` emits a single `polishing` event with real `elapsedMs = Date.now() - startedAtMs`.
+- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer`; mixed-item requests (2+ `Part` entries) route through `NFPSolver` from `@/nesting/nfp-solver` (GA-based). Both paths are wrapped in contextualized try/catch and mapped back to canonical `Placement`/`BinResult` shapes: mapped `Placement.shapeId` is always the canonical input id (the mixed path strips NFPSolver's `${shapeId}-${i}` suffix), `instanceIndex` is a per-shape counter (each shape gets `0..quantity-1`), and `legacy.usedArea` / `legacy.occupiedWidth` / `legacy.occupiedHeight` are reused with a `> 0 ? legacy.* : bin.*` fallback so empty-placement results surface bin dimensions rather than 0. On the mixed path, `NestingInput.rotationSteps` is the conservative AND of per-Part `allowRotation` (4 if all parts allow rotation, else 1). `cancel()` is an intentional no-op — legacy sync engines can't be cancelled cooperatively. `pack()` wraps `packHomogeneous` / `packMixedWithGA` (each operating on a single bin) in a multi-bin overflow loop: for each bin in `request.bins`, it issues a sub-pack against the `remaining` Parts (deep-copied `quantity` bookkeeping), appends `sub.placements` + `sub.perBin[0]`, subtracts placed counts per `shapeId` from `remaining`, filters out zero-quantity entries, and short-circuits once everything is placed. The sub-methods receive `undefined` as their `onProgress` so `pack()` emits a single loop-level `polishing` event with real `elapsedMs = Date.now() - startedAtMs`, `placedCount = accumulatedPlacements.length`, and `overflowCount` equal to the sum of leftover `remaining[*].quantity`.
 
 ```typescript
 @injectable()
 export class LegacyPackingService implements IPackingService {
   async pack(request: PackRequest, onProgress?: (p: PackProgress) => void): Promise<PackResult> {
     validateRequest(request) // throws "pack: bins required" / "pack: items required"
-    if (isHomogeneous(request.items)) return this.packHomogeneous(request, jobId, onProgress)
-    return this.packMixedWithGA(request, jobId, onProgress)
+    let remaining = request.items.map((i) => ({ ...i }))
+    for (const bin of request.bins) {
+      if (remaining.every((r) => r.quantity === 0)) break
+      const singleBinReq = { ...request, bins: [bin], items: remaining }
+      const sub = isHomogeneous(remaining)
+        ? await this.packHomogeneous(singleBinReq, jobId, undefined)
+        : await this.packMixedWithGA(singleBinReq, jobId, undefined)
+      // accumulate placements + perBin, decrement remaining quantities per shapeId
+    }
+    // emit single polishing event with loop-level elapsedMs, return aggregated result
   }
-  async cancel(_jobId: string): Promise<void> { /* no-op until Task 15 */ }
+  async cancel(_jobId: string): Promise<void> { /* no-op — legacy sync engines */ }
 }
 ```
 

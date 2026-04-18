@@ -21,12 +21,64 @@ export class LegacyPackingService implements IPackingService {
   ): Promise<PackResult> {
     validateRequest(request)
     const jobId = cryptoRandomId()
+    const startedAtMs = Date.now()
 
-    if (isHomogeneous(request.items)) {
-      return this.packHomogeneous(request, jobId, onProgress)
+    const accumulatedPlacements: Placement[] = []
+    const perBin: BinResult[] = []
+    // Deep-copy items for overflow bookkeeping (decrement quantity per bin pass)
+    let remaining: Part[] = request.items.map((i) => ({ ...i }))
+
+    for (const bin of request.bins) {
+      if (remaining.every((r) => r.quantity === 0)) break
+
+      const singleBinReq: PackRequest = {
+        ...request,
+        bins: [bin],
+        items: remaining,
+      }
+      const sub = isHomogeneous(remaining)
+        ? await this.packHomogeneous(singleBinReq, jobId, undefined)
+        : await this.packMixedWithGA(singleBinReq, jobId, undefined)
+
+      accumulatedPlacements.push(...sub.placements)
+      perBin.push(sub.perBin[0])
+
+      // Subtract placed count per shape from remaining
+      const placedByShape = new Map<string, number>()
+      for (const p of sub.placements) {
+        placedByShape.set(p.shapeId, (placedByShape.get(p.shapeId) ?? 0) + 1)
+      }
+      remaining = remaining
+        .map((r) => ({
+          ...r,
+          quantity: r.quantity - (placedByShape.get(r.shapeId) ?? 0),
+        }))
+        .filter((r) => r.quantity > 0)
     }
 
-    return this.packMixedWithGA(request, jobId, onProgress)
+    const totalUsedArea = perBin.reduce((s, b) => s + b.usedArea, 0)
+    const totalWasteArea = perBin.reduce((s, b) => s + b.wasteArea, 0)
+    const overflowCount = remaining.reduce((s, r) => s + r.quantity, 0)
+
+    const result: PackResult = {
+      placements: accumulatedPlacements,
+      placedCount: accumulatedPlacements.length,
+      overflowCount,
+      perBin,
+      totalUsedArea,
+      totalWasteArea,
+    }
+
+    onProgress?.({
+      jobId,
+      phase: "polishing",
+      iteration: 1,
+      elapsedMs: Date.now() - startedAtMs,
+      canFinalize: true,
+      bestLayoutSoFar: result,
+    })
+
+    return result
   }
 
   async cancel(_jobId: string): Promise<void> {
