@@ -72,7 +72,6 @@ export interface NestingVisualizerProps {
   defaultCutWidth?: number
   defaultCutHeight?: number
   defaultQty?: number
-  simpleMode?: boolean
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
   onMetricsChange?: (metrics: SimpleCutMetrics) => void

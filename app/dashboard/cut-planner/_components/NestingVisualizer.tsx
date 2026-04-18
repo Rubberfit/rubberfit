@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useEffect, useCallback, useId, useMemo } from "react"
+import { useState, useEffect, useId, useMemo } from "react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
@@ -118,7 +118,6 @@ function rotateMultiSheetResult(result: MultiSheetResult, rollL: number): MultiS
 // ────────────────────────────────────────────────────────────────────────────
 
 function buildMultiSheet(
-  simpleMode: boolean,
   basePreview: SimplePartPreview | null,
   specs: NestingVisualizerProps["simpleParts"] & object,
   rollW: number,
@@ -126,7 +125,7 @@ function buildMultiSheet(
   cutW: number,
   cutH: number
 ): MultiSheetResult | null {
-  if (!simpleMode || !basePreview) return null
+  if (!basePreview) return null
 
   const allTrapezoids =
     specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
@@ -406,7 +405,6 @@ export default function NestingVisualizer({
   const multiSheet = useMemo(
     () =>
       buildMultiSheet(
-        true,
         baseSimplePreview,
         activeSimpleSpecs,
         defaultRollWidth,

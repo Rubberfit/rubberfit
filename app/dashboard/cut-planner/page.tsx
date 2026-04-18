@@ -577,7 +577,6 @@ export default function CutPlannerPage() {
                 defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
                 defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
                 defaultQty={safeQuantity}
-                simpleMode
                 onMetricsChange={setCutMetrics}
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
