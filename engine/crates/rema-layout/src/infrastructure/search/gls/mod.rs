@@ -7,16 +7,32 @@
 // the MIT license text reproduced in every ported file header below.
 //
 // Port scope:
-//   Task 3 (this commit): consts, overlap_proxy, pair_matrix, quantify,
-//     tracker. Keeps the tracker BPP-friendly — `Layout` is jagua-rs
-//     feature-flag-free so none of the SPP-coupled coupling leaks in.
-//   Task 4: sampling.
+//   Task 3: consts, overlap_proxy, pair_matrix, quantify, tracker.
+//   Task 4 (this commit): bit_reversal_iterator, assertions (replacing the
+//     task-3 matches_layout stub), sample_eval, specialized_pipeline,
+//     sep_evaluator, best_samples, uniform_sampler, coord_descent,
+//     sampling.
 //   Task 5: separator (the inner loop workhorse).
 //   Task 6: explore (penalty-weight phase).
 //   Task 7: compress (polish phase).
+//
+// Flattened directory layout: everything sparrow-derived lives under
+// `search/gls/` regardless of whether upstream organised it under
+// `src/util/`, `src/quantify/`, `src/eval/`, or `src/sample/`. This keeps
+// MIT attribution headers in one place and makes cross-module refactors
+// (expected during tasks 5-8) contained.
 
+pub mod assertions;
+pub mod best_samples;
+pub mod bit_reversal_iterator;
 pub mod consts;
+pub mod coord_descent;
 pub mod overlap_proxy;
 pub mod pair_matrix;
 pub mod quantify;
+pub mod sample_eval;
+pub mod sampling;
+pub mod sep_evaluator;
+pub mod specialized_pipeline;
 pub mod tracker;
+pub mod uniform_sampler;

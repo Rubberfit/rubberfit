@@ -604,7 +604,11 @@ name = "rema-layout"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "float-cmp",
+ "itertools",
  "jagua-rs",
+ "log",
+ "ordered-float",
  "rand",
  "rand_xoshiro",
  "rema-geom",

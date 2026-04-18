@@ -9,11 +9,9 @@
 //
 // Deviations from upstream (all behaviorally equivalent — port is
 // semantically faithful):
-//   - `crate::util::assertions::tracker_matches_layout` is not yet ported;
-//     the `debug_assert!` calls are retained but gated behind a local
-//     `matches_layout` helper that returns `true` for now (stubbed in
-//     task 3, wired up in task 5 when the Separator actually mutates the
-//     tracker and those invariants become load-bearing).
+//   - Task 4 replaced the task-3 `matches_layout() -> true` stub with
+//     calls into the real `super::assertions::tracker_matches_layout`
+//     port. The debug_asserts now actually check tracker/layout parity.
 //   - Unused `ordered_float::Float` import dropped (f32::max is in core).
 //   - `l.placed_items.keys().for_each(|pk| ot.recompute_loss_for_item(pk, l))`
 //     rewritten to collect-then-iterate for clearer borrow semantics.
@@ -71,7 +69,7 @@ impl CollisionTracker {
             ct.recompute_loss_for_item(pk, l);
         }
 
-        debug_assert!(matches_layout(&ct, l));
+        debug_assert!(super::assertions::tracker_matches_layout(&ct, l));
 
         ct
     }
@@ -141,7 +139,7 @@ impl CollisionTracker {
             .iter_mut()
             .zip(cts.container_collisions.iter())
             .for_each(|(a, b)| a.loss = b.loss);
-        debug_assert!(matches_layout(self, layout));
+        debug_assert!(super::assertions::tracker_matches_layout(self, layout));
     }
 
     pub fn save(&self) -> CTSnapshot {
@@ -155,7 +153,7 @@ impl CollisionTracker {
 
         self.recompute_loss_for_item(new_pk, l);
 
-        debug_assert!(matches_layout(self, l));
+        debug_assert!(super::assertions::tracker_matches_layout(self, l));
     }
 
     /// Algorithm 8 from <https://doi.org/10.48550/arXiv.2509.13329>.
@@ -278,15 +276,3 @@ impl CTEntry {
     }
 }
 
-/// Stub for sparrow's `util::assertions::tracker_matches_layout`.
-///
-/// Task 5 (Separator port) ports the full assertion that re-runs the
-/// collision pass and diffs it against the tracker cache. Until then we
-/// return `true` so `debug_assert!(matches_layout(...))` is a harmless
-/// invariant marker rather than a false alarm — the tracker is
-/// freshly-built-from-layout in Task 3, so the invariant holds by
-/// construction.
-#[inline]
-fn matches_layout(_ct: &CollisionTracker, _l: &Layout) -> bool {
-    true
-}
