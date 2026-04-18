@@ -30,7 +30,10 @@ pub struct BinResult {
     /// Industry alias: `density` (jagua-rs convention).
     #[serde(alias = "density")]
     pub efficiency: f64,
-    /// 1.0 - efficiency. Feeds downstream UI waste reporting (S5).
+    /// Ratio of waste to total stock, 0..1.
+    /// Invariant: `scrap_ratio == 1.0 - efficiency` (within f64 epsilon).
+    /// Set by the pack() orchestrator in Task 18; not validated at the type level.
+    /// Feeds downstream UI waste reporting (S5).
     #[serde(default)]
     pub scrap_ratio: f64,
 }
@@ -44,12 +47,17 @@ pub struct PackResult {
     pub per_bin: Vec<BinResult>,
     pub total_used_area: f64,
     pub total_waste_area: f64,
-    /// total_used_area / (total_used_area + total_waste_area); mirrors jagua-rs `BPSolution::density()`.
+    /// Workspace-wide utilization, 0..1.
+    /// Invariant: `overall_density == total_used_area / (total_used_area + total_waste_area)` when non-empty;
+    /// 0.0 for empty results.
+    /// Set by the pack() orchestrator in Task 18; mirrors jagua-rs `BPSolution::density()`.
     #[serde(default)]
     pub overall_density: f64,
-    /// Wall-clock time spent packing, in milliseconds. Populated by pack() orchestrator (Task 18).
-    #[serde(default)]
-    pub run_time_ms: u64,
+    /// Wall-clock time spent packing, in milliseconds.
+    /// None until populated by the pack() orchestrator in Task 18.
+    /// A `Some(0)` is a valid result for trivial inputs.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub run_time_ms: Option<u64>,
 }
 
 #[cfg(test)]
@@ -128,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn packresult_default_overall_density_and_run_time_ms_are_zero() {
+    fn packresult_default_overall_density_is_zero_and_run_time_is_none() {
         let json = r#"{
             "placements":[],
             "placedCount":0,
@@ -139,7 +147,7 @@ mod tests {
         }"#;
         let pr: PackResult = serde_json::from_str(json).unwrap();
         assert_eq!(pr.overall_density, 0.0);
-        assert_eq!(pr.run_time_ms, 0);
+        assert_eq!(pr.run_time_ms, None);
     }
 
     #[test]
@@ -152,7 +160,7 @@ mod tests {
             total_used_area: 100.0,
             total_waste_area: 25.0,
             overall_density: 0.8,
-            run_time_ms: 1234,
+            run_time_ms: Some(1234),
         };
         let json = serde_json::to_string(&pr).unwrap();
         assert!(json.contains("\"overallDensity\":0.8"));
