@@ -27,6 +27,7 @@ pub mod best_samples;
 pub mod bit_reversal_iterator;
 pub mod consts;
 pub mod coord_descent;
+pub mod explore;
 pub mod overlap_proxy;
 pub mod pair_matrix;
 pub mod quantify;

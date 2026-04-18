@@ -17,9 +17,11 @@
 //   2. `change_strip_width` deleted. BPP bins are fixed-size. The
 //      `strip_width()` debug_assert inside upstream `rollback` is
 //      likewise dropped.
-//   3. `Separator::move_item` (upstream's public move) dropped; only
-//      `SeparatorWorker::move_item` exists here. Task 6 can reintroduce
-//      a public mover on `Separator` when disrupt moves need it.
+//   3. `Separator::move_item` (upstream's public move) was dropped in
+//      Task 5 and restored in Task 6 as a pub method -- `explore.rs`
+//      disrupt_solution needs it at 4 call sites, so inlining became
+//      messier than one method. `SeparatorWorker::move_item` remains
+//      its own method used inside the worker move loop.
 //   4. SeparatorWorker inlined in this file (matches tracker.rs /
 //      specialized_pipeline.rs convention). Worker vector kept to
 //      preserve Algorithm 10 semantics; iterated sequentially (rayon
@@ -138,8 +140,15 @@ pub trait Terminator {
 
 /// Minimal progress hook. Task 14 will introduce a real impl emitting
 /// NDJSON `PackProgress` frames.
+///
+/// `report_feasible` and `report_infeasible` carry default-noop impls
+/// so Task 5's `NoopListener` compiles unedited. Task 6's explore.rs
+/// calls them on pool transitions; Task 14's real listener will route
+/// them to NDJSON events.
 pub trait SolutionListener {
     fn report_improving(&mut self, snapshot: &LayoutSnapshot);
+    fn report_feasible(&mut self, _snapshot: &LayoutSnapshot) {}
+    fn report_infeasible(&mut self, _snapshot: &LayoutSnapshot) {}
 }
 
 pub struct NoopTerminator;
@@ -376,6 +385,21 @@ impl Separator {
             Some(ots) => self.ct.restore_but_keep_weights(ots, &self.layout),
             None => self.ct = CollisionTracker::new(&self.layout),
         }
+    }
+
+    /// Move a placed item to a new transformation. Returns the new
+    /// `PItemKey` — `Layout::place_item` issues a fresh key on every
+    /// placement. Task 5 initially dropped this method; Task 6 restored
+    /// it because `explore.rs::disrupt_solution` calls it from 4 sites
+    /// (two swap moves + per-swap relocations of practically-contained
+    /// items). Inlining everywhere was worse than one method.
+    pub fn move_item(&mut self, pk: PItemKey, d_transf: DTransformation) -> PItemKey {
+        let item_id = self.layout.placed_items[pk].item_id;
+        let item = self.instance.item(item_id);
+        self.layout.remove_item(pk);
+        let new_pk = self.layout.place_item(item, d_transf);
+        self.ct.register_item_move(&self.layout, pk, new_pk);
+        new_pk
     }
 }
 

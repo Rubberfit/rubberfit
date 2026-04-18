@@ -17,6 +17,7 @@ pub mod gls;
 pub mod objective;
 pub mod rng;
 pub mod state;
+pub mod terminator;
 
 use crate::domain::PackError;
 use crate::infrastructure::warm_start::SeedResult;

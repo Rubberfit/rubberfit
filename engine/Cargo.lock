@@ -610,6 +610,7 @@ dependencies = [
  "log",
  "ordered-float",
  "rand",
+ "rand_distr",
  "rand_xoshiro",
  "rema-geom",
  "serde",
