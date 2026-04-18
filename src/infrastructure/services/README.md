@@ -505,17 +505,17 @@ export const profileService = {
 }
 ```
 
-- **legacyPackingService.ts** -- `IPackingService` implementation that will route to the legacy TS nesting engines. Currently a skeleton: `pack()` and `cancel()` throw "not implemented" until Phase 3 wiring (Tasks 13-15).
+- **legacyPackingService.ts** -- `IPackingService` implementation that routes to the legacy TS nesting engines. Homogeneous items (single `Part` entry) run through `greedyNfpPack` from `@/nesting/nfp-greedy-placer` and are mapped back to canonical `Placement`/`BinResult` shapes; mixed-part input still throws pending Task 14 wiring. `cancel()` records the jobId in a local set (cooperative cancellation hook for later work) and resolves.
 
 ```typescript
 @injectable()
 export class LegacyPackingService implements IPackingService {
-  async pack(_request: PackRequest, _onProgress?: (p: PackProgress) => void): Promise<PackResult> {
-    throw new Error("LegacyPackingService.pack: not implemented (Phase 3 wiring pending)")
+  async pack(request: PackRequest, onProgress?: (p: PackProgress) => void): Promise<PackResult> {
+    validateRequest(request) // throws "pack: bins required" / "pack: items required"
+    if (isHomogeneous(request.items)) return this.packHomogeneous(request, jobId, onProgress)
+    throw new Error("LegacyPackingService.pack: mixed-part routing lands in Task 14")
   }
-  async cancel(_jobId: string): Promise<void> {
-    throw new Error("LegacyPackingService.cancel: not implemented (Phase 3 wiring pending)")
-  }
+  async cancel(jobId: string): Promise<void> { this.cancelled.add(jobId) }
 }
 ```
 
