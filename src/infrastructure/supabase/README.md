@@ -65,9 +65,11 @@ service_role key: your-service-role-key
 Create a `.env.local` file in your app directory with:
 
 ```env
-SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=your-anon-key-from-above
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-from-above
 ```
+
+> Note: S4 (Tauri migration) will remove the `NEXT_PUBLIC_` prefix. Code and README will be updated together at that time.
 
 ## Database Schema Overview
 
