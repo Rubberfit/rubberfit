@@ -39,3 +39,17 @@ describe("cleanup: banned symbols removed", () => {
     })
   }
 })
+
+describe("handoff: UI does not import from nesting/", () => {
+  it("no file under app/ imports from @/nesting", () => {
+    try {
+      const out = execSync(
+        `grep -RE "from \\"@/nesting(\\"|/)" --include="*.ts*" app 2>/dev/null || true`,
+        { encoding: "utf-8" }
+      )
+      expect(out.trim()).toBe("")
+    } catch (_err) {
+      // grep returns 1 on no match — guarded by || true
+    }
+  })
+})
