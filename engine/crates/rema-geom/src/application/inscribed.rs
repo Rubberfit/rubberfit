@@ -15,8 +15,11 @@ pub fn largest_inscribed_rect(
     let cols = ((max.x - min.x) / grid_step).ceil() as usize;
     let rows = ((max.y - min.y) / grid_step).ceil() as usize;
 
-    // Mark cells as inside (true) or outside (false)
+    // Mark cells as inside (true) or outside (false). Both loops need the
+    // r/c indices for coordinate reconstruction (center-of-cell sampling),
+    // so iterator-based scanning would only obscure the arithmetic.
     let mut grid = vec![vec![false; cols]; rows];
+    #[allow(clippy::needless_range_loop)]
     for r in 0..rows {
         for c in 0..cols {
             let cx = min.x + (c as f64 + 0.5) * grid_step;
@@ -30,6 +33,7 @@ pub fn largest_inscribed_rect(
     // Histogram heights
     let mut heights = vec![0usize; cols];
     let mut best: Option<(usize, usize, usize, usize)> = None; // (area, r_end, c_lo, c_hi)
+    #[allow(clippy::needless_range_loop)]
     for r in 0..rows {
         for c in 0..cols {
             heights[c] = if grid[r][c] { heights[c] + 1 } else { 0 };

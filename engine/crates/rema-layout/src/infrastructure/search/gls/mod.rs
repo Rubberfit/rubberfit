@@ -8,11 +8,11 @@
 //
 // Port scope:
 //   Task 3: consts, overlap_proxy, pair_matrix, quantify, tracker.
-//   Task 4 (this commit): bit_reversal_iterator, assertions (replacing the
-//     task-3 matches_layout stub), sample_eval, specialized_pipeline,
+//   Task 4: bit_reversal_iterator, assertions (replacing the task-3
+//     matches_layout stub), sample_eval, specialized_pipeline,
 //     sep_evaluator, best_samples, uniform_sampler, coord_descent,
 //     sampling.
-//   Task 5: separator (the inner loop workhorse).
+//   Task 5 (this commit): separator (the inner loop workhorse).
 //   Task 6: explore (penalty-weight phase).
 //   Task 7: compress (polish phase).
 //
@@ -33,6 +33,7 @@ pub mod quantify;
 pub mod sample_eval;
 pub mod sampling;
 pub mod sep_evaluator;
+pub mod separator;
 pub mod specialized_pipeline;
 pub mod tracker;
 pub mod uniform_sampler;
