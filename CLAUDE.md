@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm run dev              # Next.js dev server
-npm run build            # Production build
+npm run build            # Production build (prebuild hook rebuilds the Rust engine)
 npm run start            # Production server
 
 # Code quality (run both before committing)
@@ -16,9 +16,19 @@ npm run lint             # ESLint — must be zero errors, zero warnings
 npm run lint:fix         # Auto-fix lint issues
 npm run format           # Prettier format
 npm run format:check     # Check formatting without writing
+
+# Tests (pretest hook auto-rebuilds the Rust engine)
+npm run test             # Vitest — runs TS unit + integration tests
+npm run test:parity      # Parity snapshots (legacy + rust baselines)
+npm run test:rust        # cargo test for the Rust workspace
+
+# Rust engine (standalone)
+npm run build:engine     # cargo build --release — produces engine/target/release/pack-cli
+npm run fmt:rust         # cargo fmt --all
+npm run clippy:rust      # cargo clippy (-D warnings)
 ```
 
-There are no automated tests in this project. Verification is done via `typecheck` and `lint`.
+Tests live in `tests/` (Vitest) and `engine/crates/*/tests/` (cargo). Pre-commit verification runs `typecheck` + `lint` + `test`.
 
 ## Architecture
 
@@ -29,19 +39,36 @@ src/                        # Domain logic (framework-agnostic)
 ├── application/
 │   ├── services/           # Service interfaces (IPurchaseOrderService, etc.)
 │   ├── repositories/       # Repository interfaces
+│   ├── packing/            # Canonical packing types + IPackingService pipeline
 │   └── use-cases/          # Business-logic orchestrators (complex ops only)
 ├── entities/               # Domain models and custom errors
 ├── infrastructure/
-│   ├── services/           # Supabase-backed service implementations
+│   ├── services/           # Supabase-backed service implementations (+ RustPackingService, LegacyPackingService)
 │   ├── repositories/       # Supabase-backed repository implementations
 │   └── supabase/           # Generated types + SQL migrations
 └── interface-adapters/     # Reserved for controllers — currently empty, no server actions yet
 
 app/                        # Frameworks & Drivers (Next.js)
-nesting/                    # 2D NFP nesting engine (standalone)
+engine/                     # Rust nesting engine (Cargo workspace)
+├── crates/rema-geom/       # Geometry primitives (MIT, future open-source crate)
+├── crates/rema-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
+└── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
+nesting/                    # Legacy TS 2D NFP engine — fallback when pack-cli is missing (slated for deletion post-S2)
 di/                         # TSyringe dependency injection registration
 config/                     # App-wide constants (APP_CONFIG)
+tests/                      # Vitest TS tests (packing, parity, service boundaries)
 ```
+
+### Packing engine
+
+`IPackingService` is the canonical packing interface (`src/application/services/packing.service.interface.ts`). Two implementations are registered through `di/di-registration.ts`, selected at startup:
+
+| Engine | When | Invocation |
+|---|---|---|
+| `RustPackingService` | Default — `engine/target/release/pack-cli` exists and `USE_RUST_ENGINE` is not `"false"` | `child_process.spawn` with JSON stdin/stdout |
+| `LegacyPackingService` | Fallback — binary missing or `USE_RUST_ENGINE=false` | Calls the in-tree TS `nesting/` engine (greedy NFP + GA) |
+
+The Rust path uses warm-start greedy bottom-left in S2; Sparrow LNS+SA lands in S2.5. The legacy engine is kept for emergency rollback and will be deleted once S2.5 ships.
 
 **Layer rules:**
 
@@ -168,7 +195,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cut Planner** (`app/dashboard/cut-planner/`): Greedy First-Fit-Decreasing algorithm + 2D NFP nesting engine in `nesting/` using a genetic algorithm to minimize material waste
+- **Cut Planner** (`app/dashboard/cut-planner/`): Greedy First-Fit-Decreasing algorithm + 2D nesting engine resolved via `IPackingService`. Defaults to the native Rust `pack-cli` binary (warm-start greedy bottom-left in S2, Sparrow LNS+SA in S2.5); falls back to the legacy TS genetic algorithm in `nesting/` when the binary is missing
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 
