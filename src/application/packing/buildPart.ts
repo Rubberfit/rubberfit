@@ -36,6 +36,11 @@ function buildPolygonFromSpec(spec: ShapeSpec): Point2D[] {
   switch (spec.kind) {
     case "rect":
       return buildRect(Number(spec.params.width), Number(spec.params.height))
+    case "circle":
+      return buildCircle(
+        Number(spec.params.diameter),
+        Number(spec.params.segments ?? 24)
+      )
     default:
       throw new Error(`buildPart: unsupported shape kind: ${spec.kind}`)
   }
@@ -50,6 +55,18 @@ function buildRect(width: number, height: number): Point2D[] {
     { x: width, y: height },
     { x: 0, y: height },
   ]
+}
+
+function buildCircle(diameter: number, segments: number): Point2D[] {
+  if (!(diameter > 0)) throw new Error("circle: diameter must be positive")
+  if (!(segments >= 8)) throw new Error("circle: segments must be at least 8")
+  const r = diameter / 2
+  const pts: Point2D[] = []
+  for (let i = 0; i < segments; i++) {
+    const theta = (2 * Math.PI * i) / segments
+    pts.push({ x: r + r * Math.cos(theta), y: r + r * Math.sin(theta) })
+  }
+  return normalizePolygon(pts)
 }
 
 function normalizePolygon(points: Point2D[]): Point2D[] {

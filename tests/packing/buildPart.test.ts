@@ -43,3 +43,51 @@ describe("buildPart — rect", () => {
     ).toThrow(/width must be positive/i)
   })
 })
+
+describe("buildPart — circle", () => {
+  it("produces a 24-vertex polygon by default", () => {
+    const part = buildPart({
+      shapeId: "c1",
+      quantity: 1,
+      shapeSpec: { kind: "circle", params: { diameter: 10 } },
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(24)
+  })
+
+  it("polygon spans diameter with min-corner at (0,0)", () => {
+    const part = buildPart({
+      shapeId: "c1",
+      quantity: 1,
+      shapeSpec: { kind: "circle", params: { diameter: 10 } },
+      allowRotation: true,
+    })
+    const xs = part.polygon.map((p) => p.x)
+    const ys = part.polygon.map((p) => p.y)
+    expect(Math.min(...xs)).toBeCloseTo(0, 3)
+    expect(Math.min(...ys)).toBeCloseTo(0, 3)
+    expect(Math.max(...xs)).toBeCloseTo(10, 3)
+    expect(Math.max(...ys)).toBeCloseTo(10, 3)
+  })
+
+  it("honors segments parameter", () => {
+    const part = buildPart({
+      shapeId: "c1",
+      quantity: 1,
+      shapeSpec: { kind: "circle", params: { diameter: 10, segments: 48 } },
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(48)
+  })
+
+  it("throws on zero diameter", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "c1",
+        quantity: 1,
+        shapeSpec: { kind: "circle", params: { diameter: 0 } },
+        allowRotation: true,
+      })
+    ).toThrow(/diameter must be positive/i)
+  })
+})
