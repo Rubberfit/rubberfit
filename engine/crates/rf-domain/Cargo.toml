@@ -9,3 +9,6 @@ description = "Pure domain types for RF backend (S3)"
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

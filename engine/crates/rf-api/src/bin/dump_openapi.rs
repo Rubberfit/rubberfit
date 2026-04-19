@@ -10,11 +10,10 @@
 //!
 //! Kept deliberately tiny so it stays fast in CI. No tokio, no tracing.
 
-use rf_api::ApiDoc;
-use utoipa::OpenApi;
+use rf_api::openapi::build_doc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let doc = ApiDoc::openapi();
+    let doc = build_doc();
     let json = serde_json::to_string_pretty(&doc)?;
     println!("{json}");
     Ok(())

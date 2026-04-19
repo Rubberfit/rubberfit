@@ -10,9 +10,16 @@
 //! depends on nothing in the workspace.
 //!
 //! Aggregates land here one at a time as each vertical slice ships.
-//! Task 5 adds the Cut aggregate (cut_history row + favorites);
-//! Roll, PurchaseOrder, and others arrive in later S3 phases.
+//! Task 5 added the Cut aggregate (cut_history row + favorites).
+//! S3b adds the inventory aggregates (rolls, material types,
+//! suppliers, and the material↔supplier junction). PurchaseOrder
+//! and the reorder aggregate arrive in S3c.
 
 pub mod cut;
+pub mod inventory;
 
 pub use cut::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};
+pub use inventory::{
+    MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Roll, RollFilters,
+    RollId, RollStatus, Supplier, SupplierFilters, SupplierId,
+};

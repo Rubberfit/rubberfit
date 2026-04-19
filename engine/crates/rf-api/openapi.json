@@ -373,6 +373,10 @@
     {
       "name": "cuts",
       "description": "Cut-history + favorites"
+    },
+    {
+      "name": "inventory",
+      "description": "Rolls, material types, suppliers"
     }
   ]
 }
