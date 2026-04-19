@@ -4,7 +4,7 @@
 
 **Goal:** Replace `LegacyPackingService` with a native Rust engine (jagua-rs + sparrow) behind `IPackingService`, with zero UI code changes.
 
-**Architecture:** Cargo workspace at `engine/` with three crates. `rema-geom` owns geometry primitives. `rema-layout` owns packing orchestration. `pack-cli` is the JSON stdin/stdout delivery layer. Each crate has clean-architecture layering (`domain/`, `application/`, `infrastructure/`). TypeScript calls Rust via `child_process.spawn`.
+**Architecture:** Cargo workspace at `engine/` with three crates. `rf-geom` owns geometry primitives. `rf-layout` owns packing orchestration. `pack-cli` is the JSON stdin/stdout delivery layer. Each crate has clean-architecture layering (`domain/`, `application/`, `infrastructure/`). TypeScript calls Rust via `child_process.spawn`.
 
 **Tech Stack:** Rust 1.93 stable, jagua-rs (MPL-2.0), sparrow (MIT), clipper2 crate (Boost license), serde + serde_json for the wire format.
 
@@ -24,8 +24,8 @@ Every task that adds/modifies code in a directory updates that directory's `READ
 - `engine/rust-toolchain.toml` — stable 1.93
 - `engine/.gitignore` — `target/`
 - `engine/README.md` — workspace overview
-- `engine/crates/rema-geom/` — geometry crate (see §2 of spec for layout)
-- `engine/crates/rema-layout/` — packing crate
+- `engine/crates/rf-geom/` — geometry crate (see §2 of spec for layout)
+- `engine/crates/rf-layout/` — packing crate
 - `engine/crates/pack-cli/` — CLI delivery binary
 
 ### New under `src/`
@@ -65,8 +65,8 @@ Every task that adds/modifies code in a directory updates that directory's `READ
 [workspace]
 resolver = "2"
 members = [
-    "crates/rema-geom",
-    "crates/rema-layout",
+    "crates/rf-geom",
+    "crates/rf-layout",
     "crates/pack-cli",
 ]
 
@@ -117,12 +117,12 @@ engine/target/
 ```markdown
 # engine/
 
-Native Rust nesting engine for REMA Portal. Replaces the TypeScript `LegacyPackingService` behind `IPackingService` via a JSON stdin/stdout CLI binary.
+Native Rust nesting engine for RF Portal. Replaces the TypeScript `LegacyPackingService` behind `IPackingService` via a JSON stdin/stdout CLI binary.
 
 ## Layout
 
-- `crates/rema-geom/` — geometry primitives (future open-source crate, MIT)
-- `crates/rema-layout/` — packing engine (future open-source crate, MIT); depends on `jagua-rs` + `sparrow`
+- `crates/rf-geom/` — geometry primitives (future open-source crate, MIT)
+- `crates/rf-layout/` — packing engine (future open-source crate, MIT); depends on `jagua-rs` + `sparrow`
 - `crates/pack-cli/` — stdin/stdout delivery binary (stays private)
 
 ## Build
@@ -199,28 +199,28 @@ git commit -m "chore(engine): add npm scripts for Rust build + test + lint"
 
 ---
 
-## Phase 2 — rema-geom domain layer
+## Phase 2 — rf-geom domain layer
 
-### Task 3: rema-geom crate + Point2D
+### Task 3: rf-geom crate + Point2D
 
 **Files:**
-- Create: `engine/crates/rema-geom/Cargo.toml`
-- Create: `engine/crates/rema-geom/README.md`
-- Create: `engine/crates/rema-geom/src/lib.rs`
-- Create: `engine/crates/rema-geom/src/domain/mod.rs`
-- Create: `engine/crates/rema-geom/src/domain/point.rs`
+- Create: `engine/crates/rf-geom/Cargo.toml`
+- Create: `engine/crates/rf-geom/README.md`
+- Create: `engine/crates/rf-geom/src/lib.rs`
+- Create: `engine/crates/rf-geom/src/domain/mod.rs`
+- Create: `engine/crates/rf-geom/src/domain/point.rs`
 
 - [ ] **Step 1: Write the Cargo.toml**
 
 ```toml
-# engine/crates/rema-geom/Cargo.toml
+# engine/crates/rf-geom/Cargo.toml
 [package]
-name = "rema-geom"
+name = "rf-geom"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "2D geometry primitives for REMA nesting engine"
+description = "2D geometry primitives for RF nesting engine"
 
 [dependencies]
 serde = { workspace = true }
@@ -230,9 +230,9 @@ thiserror = { workspace = true }
 - [ ] **Step 2: Write the crate README**
 
 ```markdown
-# rema-geom
+# rf-geom
 
-2D geometry primitives for the REMA nesting engine.
+2D geometry primitives for the RF nesting engine.
 
 ## Layout
 
@@ -243,18 +243,18 @@ thiserror = { workspace = true }
 ## Public API (v0.1)
 
 ```rust
-use rema_geom::domain::{Point2D, Polygon, Rect};
-use rema_geom::application::{normalize_polygon, convex_hull, sat_overlap, maximal_inscribed_rects};
-use rema_geom::infrastructure::clipper;
+use rf_geom::domain::{Point2D, Polygon, Rect};
+use rf_geom::application::{normalize_polygon, convex_hull, sat_overlap, maximal_inscribed_rects};
+use rf_geom::infrastructure::clipper;
 ```
 
-Polygons are CCW with min-corner at (0, 0). All linear dimensions are unitless — callers supply consistent units (REMA uses inches).
+Polygons are CCW with min-corner at (0, 0). All linear dimensions are unitless — callers supply consistent units (RF uses inches).
 ```
 
 - [ ] **Step 3: Write domain/mod.rs**
 
 ```rust
-// engine/crates/rema-geom/src/domain/mod.rs
+// engine/crates/rf-geom/src/domain/mod.rs
 pub mod point;
 
 pub use point::Point2D;
@@ -263,7 +263,7 @@ pub use point::Point2D;
 - [ ] **Step 4: Write the failing point test**
 
 ```rust
-// engine/crates/rema-geom/src/domain/point.rs
+// engine/crates/rf-geom/src/domain/point.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -304,7 +304,7 @@ mod tests {
 }
 ```
 
-Note: the test imports `serde_json` — add `serde_json = { workspace = true }` to `[dev-dependencies]` in `rema-geom/Cargo.toml`:
+Note: the test imports `serde_json` — add `serde_json = { workspace = true }` to `[dev-dependencies]` in `rf-geom/Cargo.toml`:
 
 ```toml
 [dev-dependencies]
@@ -314,20 +314,20 @@ serde_json = { workspace = true }
 - [ ] **Step 5: Write lib.rs**
 
 ```rust
-// engine/crates/rema-geom/src/lib.rs
+// engine/crates/rf-geom/src/lib.rs
 pub mod domain;
 ```
 
 - [ ] **Step 6: Run the test**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 3 tests pass.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): crate scaffold + Point2D domain type"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): crate scaffold + Point2D domain type"
 ```
 
 ---
@@ -335,14 +335,14 @@ git commit -m "feat(rema-geom): crate scaffold + Point2D domain type"
 ### Task 4: Polygon domain type with invariants
 
 **Files:**
-- Modify: `engine/crates/rema-geom/src/domain/mod.rs` — re-export Polygon
-- Create: `engine/crates/rema-geom/src/domain/polygon.rs`
-- Create: `engine/crates/rema-geom/src/domain/errors.rs`
+- Modify: `engine/crates/rf-geom/src/domain/mod.rs` — re-export Polygon
+- Create: `engine/crates/rf-geom/src/domain/polygon.rs`
+- Create: `engine/crates/rf-geom/src/domain/errors.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
 ```rust
-// engine/crates/rema-geom/src/domain/polygon.rs
+// engine/crates/rf-geom/src/domain/polygon.rs
 use crate::domain::errors::GeomError;
 use crate::domain::point::Point2D;
 use serde::{Deserialize, Serialize};
@@ -458,7 +458,7 @@ mod tests {
 - [ ] **Step 2: Write errors.rs**
 
 ```rust
-// engine/crates/rema-geom/src/domain/errors.rs
+// engine/crates/rf-geom/src/domain/errors.rs
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -475,7 +475,7 @@ pub enum GeomError {
 - [ ] **Step 3: Update domain/mod.rs**
 
 ```rust
-// engine/crates/rema-geom/src/domain/mod.rs
+// engine/crates/rf-geom/src/domain/mod.rs
 pub mod errors;
 pub mod point;
 pub mod polygon;
@@ -487,18 +487,18 @@ pub use polygon::Polygon;
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 9 tests pass (3 point + 6 polygon).
 
-- [ ] **Step 5: Update rema-geom README**
+- [ ] **Step 5: Update rf-geom README**
 
 Append a "Domain types" section listing Point2D + Polygon with one-line descriptions.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): Polygon domain type with invariants + area/bbox"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): Polygon domain type with invariants + area/bbox"
 ```
 
 ---
@@ -506,13 +506,13 @@ git commit -m "feat(rema-geom): Polygon domain type with invariants + area/bbox"
 ### Task 5: Rect domain type
 
 **Files:**
-- Modify: `engine/crates/rema-geom/src/domain/mod.rs`
-- Create: `engine/crates/rema-geom/src/domain/rect.rs`
+- Modify: `engine/crates/rf-geom/src/domain/mod.rs`
+- Create: `engine/crates/rf-geom/src/domain/rect.rs`
 
 - [ ] **Step 1: Write test + Rect**
 
 ```rust
-// engine/crates/rema-geom/src/domain/rect.rs
+// engine/crates/rf-geom/src/domain/rect.rs
 use crate::domain::point::Point2D;
 use serde::{Deserialize, Serialize};
 
@@ -589,31 +589,31 @@ pub use rect::Rect;
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 12 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): Rect domain type"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): Rect domain type"
 ```
 
 ---
 
-## Phase 3 — rema-geom application layer
+## Phase 3 — rf-geom application layer
 
 ### Task 6: Polygon normalization (CCW + origin)
 
 **Files:**
-- Create: `engine/crates/rema-geom/src/application/mod.rs`
-- Create: `engine/crates/rema-geom/src/application/normalize.rs`
-- Modify: `engine/crates/rema-geom/src/lib.rs`
+- Create: `engine/crates/rf-geom/src/application/mod.rs`
+- Create: `engine/crates/rf-geom/src/application/normalize.rs`
+- Modify: `engine/crates/rf-geom/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
 ```rust
-// engine/crates/rema-geom/src/application/normalize.rs
+// engine/crates/rf-geom/src/application/normalize.rs
 use crate::domain::{GeomError, Point2D, Polygon};
 
 /// Normalize a polygon to CCW winding with min-corner at (0, 0).
@@ -679,28 +679,28 @@ mod tests {
 - [ ] **Step 2: Wire the application module**
 
 ```rust
-// engine/crates/rema-geom/src/application/mod.rs
+// engine/crates/rf-geom/src/application/mod.rs
 pub mod normalize;
 
 pub use normalize::normalize_polygon;
 ```
 
 ```rust
-// engine/crates/rema-geom/src/lib.rs
+// engine/crates/rf-geom/src/lib.rs
 pub mod application;
 pub mod domain;
 ```
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 15 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): normalize_polygon (CCW + origin)"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): normalize_polygon (CCW + origin)"
 ```
 
 ---
@@ -708,13 +708,13 @@ git commit -m "feat(rema-geom): normalize_polygon (CCW + origin)"
 ### Task 7: Convex hull (Andrew's monotone chain)
 
 **Files:**
-- Create: `engine/crates/rema-geom/src/application/convex_hull.rs`
-- Modify: `engine/crates/rema-geom/src/application/mod.rs`
+- Create: `engine/crates/rf-geom/src/application/convex_hull.rs`
+- Modify: `engine/crates/rf-geom/src/application/mod.rs`
 
 - [ ] **Step 1: Write the failing tests + implementation**
 
 ```rust
-// engine/crates/rema-geom/src/application/convex_hull.rs
+// engine/crates/rf-geom/src/application/convex_hull.rs
 use crate::domain::{GeomError, Point2D, Polygon};
 
 /// Andrew's monotone chain convex hull. Returns points in CCW order.
@@ -800,7 +800,7 @@ mod tests {
 - [ ] **Step 2: Update application/mod.rs**
 
 ```rust
-// engine/crates/rema-geom/src/application/mod.rs
+// engine/crates/rf-geom/src/application/mod.rs
 pub mod convex_hull;
 pub mod normalize;
 
@@ -810,14 +810,14 @@ pub use normalize::normalize_polygon;
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 18 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): Andrew's monotone chain convex hull"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): Andrew's monotone chain convex hull"
 ```
 
 ---
@@ -825,13 +825,13 @@ git commit -m "feat(rema-geom): Andrew's monotone chain convex hull"
 ### Task 8: SAT overlap
 
 **Files:**
-- Create: `engine/crates/rema-geom/src/application/sat.rs`
-- Modify: `engine/crates/rema-geom/src/application/mod.rs`
+- Create: `engine/crates/rf-geom/src/application/sat.rs`
+- Modify: `engine/crates/rf-geom/src/application/mod.rs`
 
 - [ ] **Step 1: Write SAT test + implementation**
 
 ```rust
-// engine/crates/rema-geom/src/application/sat.rs
+// engine/crates/rf-geom/src/application/sat.rs
 use crate::domain::{Point2D, Polygon};
 
 /// Test whether two convex polygons overlap using the Separating Axis Theorem.
@@ -911,14 +911,14 @@ pub use sat::sat_overlap;
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 21 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): SAT overlap for convex polygons"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): SAT overlap for convex polygons"
 ```
 
 ---
@@ -926,9 +926,9 @@ git commit -m "feat(rema-geom): SAT overlap for convex polygons"
 ### Task 9: Maximal inscribed rectangles (port from TS)
 
 **Files:**
-- Create: `engine/crates/rema-geom/src/application/inscribed.rs`
-- Modify: `engine/crates/rema-geom/src/application/mod.rs`
-- Modify: `engine/crates/rema-geom/Cargo.toml` — add `clipper2` dependency (used only for this + infrastructure)
+- Create: `engine/crates/rf-geom/src/application/inscribed.rs`
+- Modify: `engine/crates/rf-geom/src/application/mod.rs`
+- Modify: `engine/crates/rf-geom/Cargo.toml` — add `clipper2` dependency (used only for this + infrastructure)
 
 For S2 we port only the core histogram + monotonic-stack algorithm over a known free-space polygon. Full clipper-backed iterative extraction lives in the `infrastructure/` layer in Task 10.
 
@@ -944,7 +944,7 @@ clipper2 = "0.5"
 - [ ] **Step 2: Write test + inscribed-rectangle finder**
 
 ```rust
-// engine/crates/rema-geom/src/application/inscribed.rs
+// engine/crates/rf-geom/src/application/inscribed.rs
 use crate::domain::{Point2D, Polygon, Rect};
 
 /// Find the largest axis-aligned inscribed rectangle inside a polygon.
@@ -1082,31 +1082,31 @@ pub use sat::sat_overlap;
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 23 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): largest inscribed rectangle (histogram + monotonic stack)"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): largest inscribed rectangle (histogram + monotonic stack)"
 ```
 
 ---
 
-## Phase 4 — rema-geom infrastructure layer
+## Phase 4 — rf-geom infrastructure layer
 
 ### Task 10: Clipper2 wrapper
 
 **Files:**
-- Create: `engine/crates/rema-geom/src/infrastructure/mod.rs`
-- Create: `engine/crates/rema-geom/src/infrastructure/clipper.rs`
-- Modify: `engine/crates/rema-geom/src/lib.rs`
+- Create: `engine/crates/rf-geom/src/infrastructure/mod.rs`
+- Create: `engine/crates/rf-geom/src/infrastructure/clipper.rs`
+- Modify: `engine/crates/rf-geom/src/lib.rs`
 
 - [ ] **Step 1: Write clipper wrapper + tests**
 
 ```rust
-// engine/crates/rema-geom/src/infrastructure/clipper.rs
+// engine/crates/rf-geom/src/infrastructure/clipper.rs
 use crate::domain::{Point2D, Polygon};
 use clipper2::*;
 
@@ -1204,14 +1204,14 @@ Note: the exact `clipper2` crate API may differ slightly from this snippet. If c
 - [ ] **Step 2: Write infrastructure/mod.rs**
 
 ```rust
-// engine/crates/rema-geom/src/infrastructure/mod.rs
+// engine/crates/rf-geom/src/infrastructure/mod.rs
 pub mod clipper;
 ```
 
 - [ ] **Step 3: Update lib.rs**
 
 ```rust
-// engine/crates/rema-geom/src/lib.rs
+// engine/crates/rf-geom/src/lib.rs
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
@@ -1219,43 +1219,43 @@ pub mod infrastructure;
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-geom`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-geom`
 Expected: 26 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add engine/crates/rema-geom/
-git commit -m "feat(rema-geom): clipper2 wrapper (union / difference / offset)"
+git add engine/crates/rf-geom/
+git commit -m "feat(rf-geom): clipper2 wrapper (union / difference / offset)"
 ```
 
 ---
 
-## Phase 5 — rema-layout domain layer
+## Phase 5 — rf-layout domain layer
 
-### Task 11: rema-layout crate + PackRequest types
+### Task 11: rf-layout crate + PackRequest types
 
 **Files:**
-- Create: `engine/crates/rema-layout/Cargo.toml`
-- Create: `engine/crates/rema-layout/README.md`
-- Create: `engine/crates/rema-layout/src/lib.rs`
-- Create: `engine/crates/rema-layout/src/domain/mod.rs`
-- Create: `engine/crates/rema-layout/src/domain/request.rs`
+- Create: `engine/crates/rf-layout/Cargo.toml`
+- Create: `engine/crates/rf-layout/README.md`
+- Create: `engine/crates/rf-layout/src/lib.rs`
+- Create: `engine/crates/rf-layout/src/domain/mod.rs`
+- Create: `engine/crates/rf-layout/src/domain/request.rs`
 
 - [ ] **Step 1: Cargo.toml**
 
 ```toml
-# engine/crates/rema-layout/Cargo.toml
+# engine/crates/rf-layout/Cargo.toml
 [package]
-name = "rema-layout"
+name = "rf-layout"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "2D nesting engine for REMA Portal"
+description = "2D nesting engine for RF Portal"
 
 [dependencies]
-rema-geom = { path = "../rema-geom" }
+rf-geom = { path = "../rf-geom" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -1268,15 +1268,15 @@ serde_json = { workspace = true }
 - [ ] **Step 2: README**
 
 ```markdown
-# rema-layout
+# rf-layout
 
 2D nesting engine built on jagua-rs (collision engine) and sparrow (LNS+SA optimizer).
 
 ## Public API
 
 ```rust
-use rema_layout::application::pack;
-use rema_layout::domain::{PackRequest, PackResult};
+use rf_layout::application::pack;
+use rf_layout::domain::{PackRequest, PackResult};
 
 let request: PackRequest = serde_json::from_str(&json)?;
 let result: PackResult = pack(request)?;
@@ -1292,8 +1292,8 @@ let result: PackResult = pack(request)?;
 - [ ] **Step 3: domain/request.rs (TDD — write test with a real PackRequest JSON)**
 
 ```rust
-// engine/crates/rema-layout/src/domain/request.rs
-use rema_geom::domain::Point2D;
+// engine/crates/rf-layout/src/domain/request.rs
+use rf_geom::domain::Point2D;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -1447,27 +1447,27 @@ mod tests {
 - [ ] **Step 4: domain/mod.rs + lib.rs**
 
 ```rust
-// engine/crates/rema-layout/src/domain/mod.rs
+// engine/crates/rf-layout/src/domain/mod.rs
 pub mod request;
 
 pub use request::{Bin, BinKind, GrainAxis, OperatorProfile, PackMode, PackRequest, Part, ShapeSpec};
 ```
 
 ```rust
-// engine/crates/rema-layout/src/lib.rs
+// engine/crates/rf-layout/src/lib.rs
 pub mod domain;
 ```
 
 - [ ] **Step 5: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 4 tests pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): crate scaffold + PackRequest domain types"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): crate scaffold + PackRequest domain types"
 ```
 
 ---
@@ -1475,14 +1475,14 @@ git commit -m "feat(rema-layout): crate scaffold + PackRequest domain types"
 ### Task 12: PackResult domain types
 
 **Files:**
-- Create: `engine/crates/rema-layout/src/domain/result.rs`
-- Modify: `engine/crates/rema-layout/src/domain/mod.rs`
+- Create: `engine/crates/rf-layout/src/domain/result.rs`
+- Modify: `engine/crates/rf-layout/src/domain/mod.rs`
 
 - [ ] **Step 1: Write result types + test**
 
 ```rust
-// engine/crates/rema-layout/src/domain/result.rs
-use rema_geom::domain::Point2D;
+// engine/crates/rf-layout/src/domain/result.rs
+use rf_geom::domain::Point2D;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -1579,14 +1579,14 @@ pub use result::{BinResult, PackResult, Placement};
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 6 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): PackResult domain types"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): PackResult domain types"
 ```
 
 ---
@@ -1594,13 +1594,13 @@ git commit -m "feat(rema-layout): PackResult domain types"
 ### Task 13: PackError
 
 **Files:**
-- Create: `engine/crates/rema-layout/src/domain/errors.rs`
-- Modify: `engine/crates/rema-layout/src/domain/mod.rs`
+- Create: `engine/crates/rf-layout/src/domain/errors.rs`
+- Modify: `engine/crates/rf-layout/src/domain/mod.rs`
 
 - [ ] **Step 1: Write errors.rs**
 
 ```rust
-// engine/crates/rema-layout/src/domain/errors.rs
+// engine/crates/rf-layout/src/domain/errors.rs
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -1613,7 +1613,7 @@ pub enum PackError {
     InvalidPolygon {
         shape_id: String,
         #[source]
-        source: rema_geom::domain::GeomError,
+        source: rf_geom::domain::GeomError,
     },
     #[error("pack: engine failed: {0}")]
     EngineFailed(String),
@@ -1636,26 +1636,26 @@ pub use result::{BinResult, PackResult, Placement};
 
 - [ ] **Step 3: Build**
 
-Run: `cargo build --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo build --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: compiles clean.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): PackError domain type"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): PackError domain type"
 ```
 
 ---
 
-## Phase 6 — rema-layout infrastructure
+## Phase 6 — rf-layout infrastructure
 
 ### Task 14: jagua-rs dependency + adapter skeleton
 
 **Files:**
-- Modify: `engine/crates/rema-layout/Cargo.toml` — add jagua-rs
-- Create: `engine/crates/rema-layout/src/infrastructure/mod.rs`
-- Create: `engine/crates/rema-layout/src/infrastructure/jagua_adapter.rs`
+- Modify: `engine/crates/rf-layout/Cargo.toml` — add jagua-rs
+- Create: `engine/crates/rf-layout/src/infrastructure/mod.rs`
+- Create: `engine/crates/rf-layout/src/infrastructure/jagua_adapter.rs`
 
 - [ ] **Step 1: Add jagua-rs to Cargo.toml**
 
@@ -1669,7 +1669,7 @@ jagua-rs = { git = "https://github.com/JeroenGar/jagua-rs", tag = "v0.2.0" }
 - [ ] **Step 2: Write the skeleton adapter**
 
 ```rust
-// engine/crates/rema-layout/src/infrastructure/jagua_adapter.rs
+// engine/crates/rf-layout/src/infrastructure/jagua_adapter.rs
 use crate::domain::{Bin, Part, PackError};
 use jagua_rs::entities::general::InstanceGeneric;
 
@@ -1709,33 +1709,33 @@ mod tests {
 - [ ] **Step 3: Write infrastructure/mod.rs**
 
 ```rust
-// engine/crates/rema-layout/src/infrastructure/mod.rs
+// engine/crates/rf-layout/src/infrastructure/mod.rs
 pub mod jagua_adapter;
 ```
 
 - [ ] **Step 4: Update lib.rs**
 
 ```rust
-// engine/crates/rema-layout/src/lib.rs
+// engine/crates/rf-layout/src/lib.rs
 pub mod domain;
 pub mod infrastructure;
 ```
 
 - [ ] **Step 5: Build to verify jagua-rs compiles**
 
-Run: `cargo build --manifest-path engine/Cargo.toml -p rema-layout 2>&1 | tail -20`
+Run: `cargo build --manifest-path engine/Cargo.toml -p rf-layout 2>&1 | tail -20`
 Expected: SUCCESS. If jagua-rs version mismatch errors appear, update the `InstanceGeneric` import path to match the pinned jagua-rs tag. The adapter is still a stub, so minor API churn here is OK.
 
 - [ ] **Step 6: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 7 tests pass (6 prior + 1 stub).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): add jagua-rs dep + adapter skeleton"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): add jagua-rs dep + adapter skeleton"
 ```
 
 ---
@@ -1743,19 +1743,19 @@ git commit -m "feat(rema-layout): add jagua-rs dep + adapter skeleton"
 ### Task 15: Full jagua-rs adapter (domain ↔ jagua Instance)
 
 **Files:**
-- Modify: `engine/crates/rema-layout/src/infrastructure/jagua_adapter.rs`
+- Modify: `engine/crates/rf-layout/src/infrastructure/jagua_adapter.rs`
 
 This task replaces the stub from Task 14 with a real conversion. Read jagua-rs docs for the `Instance` + `Item` + `Bin` types.
 
 - [ ] **Step 1: Replace stub with real conversion**
 
 ```rust
-// engine/crates/rema-layout/src/infrastructure/jagua_adapter.rs
+// engine/crates/rf-layout/src/infrastructure/jagua_adapter.rs
 use crate::domain::{Bin, BinKind, Part, PackError};
 use jagua_rs::entities::general::{Bin as JBin, Instance, InstanceGeneric, Item};
 use jagua_rs::geometry::geo_enums::RotationRange;
 use jagua_rs::geometry::primitives::SPolygon;
-use rema_geom::domain::Point2D;
+use rf_geom::domain::Point2D;
 
 pub fn to_jagua_instance(
     bins: &[Bin],
@@ -1844,14 +1844,14 @@ mod tests {
 
 - [ ] **Step 2: Build + test**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 8 tests pass (7 prior + new adapter test).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): real jagua-rs adapter (domain → Instance)"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): real jagua-rs adapter (domain → Instance)"
 ```
 
 ---
@@ -1859,15 +1859,15 @@ git commit -m "feat(rema-layout): real jagua-rs adapter (domain → Instance)"
 ### Task 16: Warm-start greedy bottom-left placer
 
 **Files:**
-- Create: `engine/crates/rema-layout/src/infrastructure/warm_start.rs`
-- Modify: `engine/crates/rema-layout/src/infrastructure/mod.rs`
+- Create: `engine/crates/rf-layout/src/infrastructure/warm_start.rs`
+- Modify: `engine/crates/rf-layout/src/infrastructure/mod.rs`
 
 - [ ] **Step 1: Write the warm-start module**
 
 ```rust
-// engine/crates/rema-layout/src/infrastructure/warm_start.rs
+// engine/crates/rf-layout/src/infrastructure/warm_start.rs
 use crate::domain::{Bin, Part, PackError};
-use rema_geom::domain::Point2D;
+use rf_geom::domain::Point2D;
 
 /// Greedy bottom-left seeding: for each item, try positions along the bottom edge,
 /// then increment y. Simple but produces a valid starting layout for sparrow's LNS.
@@ -1985,14 +1985,14 @@ pub mod warm_start;
 
 - [ ] **Step 3: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 10 tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): warm-start greedy bottom-left seeder"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): warm-start greedy bottom-left seeder"
 ```
 
 ---
@@ -2000,9 +2000,9 @@ git commit -m "feat(rema-layout): warm-start greedy bottom-left seeder"
 ### Task 17: sparrow driver (LNS + SA with time budget)
 
 **Files:**
-- Modify: `engine/crates/rema-layout/Cargo.toml` — add sparrow dep
-- Create: `engine/crates/rema-layout/src/infrastructure/sparrow_driver.rs`
-- Modify: `engine/crates/rema-layout/src/infrastructure/mod.rs`
+- Modify: `engine/crates/rf-layout/Cargo.toml` — add sparrow dep
+- Create: `engine/crates/rf-layout/src/infrastructure/sparrow_driver.rs`
+- Modify: `engine/crates/rf-layout/src/infrastructure/mod.rs`
 
 - [ ] **Step 1: Add sparrow to Cargo.toml**
 
@@ -2016,7 +2016,7 @@ sparrow = { git = "https://github.com/JeroenGar/sparrow", tag = "v0.2.0" }
 - [ ] **Step 2: Write the sparrow driver**
 
 ```rust
-// engine/crates/rema-layout/src/infrastructure/sparrow_driver.rs
+// engine/crates/rf-layout/src/infrastructure/sparrow_driver.rs
 use crate::domain::PackError;
 use crate::infrastructure::warm_start::SeedPlacement;
 use std::time::{Duration, Instant};
@@ -2047,7 +2047,7 @@ pub fn optimize(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rema_geom::domain::Point2D;
+    use rf_geom::domain::Point2D;
 
     #[test]
     fn passthrough_returns_seeds_unchanged() {
@@ -2084,34 +2084,34 @@ pub mod warm_start;
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 11 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): sparrow driver (warm-start passthrough for MVP; LNS+SA deferred to post-S2)"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): sparrow driver (warm-start passthrough for MVP; LNS+SA deferred to post-S2)"
 ```
 
 ---
 
-## Phase 7 — rema-layout application (pack)
+## Phase 7 — rf-layout application (pack)
 
 ### Task 18: `pack()` orchestrator
 
 **Files:**
-- Create: `engine/crates/rema-layout/src/application/mod.rs`
-- Create: `engine/crates/rema-layout/src/application/pack.rs`
-- Modify: `engine/crates/rema-layout/src/lib.rs`
+- Create: `engine/crates/rf-layout/src/application/mod.rs`
+- Create: `engine/crates/rf-layout/src/application/pack.rs`
+- Modify: `engine/crates/rf-layout/src/lib.rs`
 
 - [ ] **Step 1: Write pack.rs**
 
 ```rust
-// engine/crates/rema-layout/src/application/pack.rs
+// engine/crates/rf-layout/src/application/pack.rs
 use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
 use crate::infrastructure::{jagua_adapter, sparrow_driver, warm_start};
-use rema_geom::domain::Point2D;
+use rf_geom::domain::Point2D;
 
 pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
     if request.bins.is_empty() { return Err(PackError::NoBins); }
@@ -2298,7 +2298,7 @@ mod tests {
 - [ ] **Step 2: Write application/mod.rs**
 
 ```rust
-// engine/crates/rema-layout/src/application/mod.rs
+// engine/crates/rf-layout/src/application/mod.rs
 pub mod pack;
 
 pub use pack::pack;
@@ -2307,7 +2307,7 @@ pub use pack::pack;
 - [ ] **Step 3: Update lib.rs**
 
 ```rust
-// engine/crates/rema-layout/src/lib.rs
+// engine/crates/rf-layout/src/lib.rs
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
@@ -2315,14 +2315,14 @@ pub mod infrastructure;
 
 - [ ] **Step 4: Run tests**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout`
 Expected: 15 tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add engine/crates/rema-layout/
-git commit -m "feat(rema-layout): pack() orchestrator (warm-start + passthrough + multi-bin overflow)"
+git add engine/crates/rf-layout/
+git commit -m "feat(rf-layout): pack() orchestrator (warm-start + passthrough + multi-bin overflow)"
 ```
 
 ---
@@ -2346,10 +2346,10 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "stdin/stdout JSON delivery for rema-layout"
+description = "stdin/stdout JSON delivery for rf-layout"
 
 [dependencies]
-rema-layout = { path = "../rema-layout" }
+rf-layout = { path = "../rf-layout" }
 serde_json = { workspace = true }
 
 [[bin]]
@@ -2362,7 +2362,7 @@ path = "src/main.rs"
 ```markdown
 # pack-cli
 
-Stdin/stdout CLI for the REMA nesting engine.
+Stdin/stdout CLI for the RF nesting engine.
 
 ## Usage
 
@@ -2375,15 +2375,15 @@ echo '<PackRequest JSON>' | pack-cli > result.json
 - Writes error message to stderr on failure
 - Exit code: 0 on success, 1 on error
 
-This is a delivery-layer binary. The actual packing logic lives in `rema-layout::application::pack`.
+This is a delivery-layer binary. The actual packing logic lives in `rf-layout::application::pack`.
 ```
 
 - [ ] **Step 3: main.rs**
 
 ```rust
 // engine/crates/pack-cli/src/main.rs
-use rema_layout::application::pack;
-use rema_layout::domain::PackRequest;
+use rf_layout::application::pack;
+use rf_layout::domain::PackRequest;
 use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
@@ -2435,7 +2435,7 @@ Expected: a JSON `PackResult` on stdout with `placedCount: 1`.
 
 ```bash
 git add engine/crates/pack-cli/
-git commit -m "feat(pack-cli): stdin/stdout JSON delivery for rema-layout"
+git commit -m "feat(pack-cli): stdin/stdout JSON delivery for rf-layout"
 ```
 
 ---
@@ -2445,22 +2445,22 @@ git commit -m "feat(pack-cli): stdin/stdout JSON delivery for rema-layout"
 ### Task 20: Copy fixtures into the Rust test suite
 
 **Files:**
-- Create: `engine/crates/rema-layout/tests/fixtures/` (copy 9 files from `tests/packing/parity/fixtures/`)
-- Create: `engine/crates/rema-layout/tests/parity.rs`
+- Create: `engine/crates/rf-layout/tests/fixtures/` (copy 9 files from `tests/packing/parity/fixtures/`)
+- Create: `engine/crates/rf-layout/tests/parity.rs`
 
 - [ ] **Step 1: Copy fixtures**
 
 ```bash
-mkdir -p engine/crates/rema-layout/tests/fixtures
-cp tests/packing/parity/fixtures/*.json engine/crates/rema-layout/tests/fixtures/
+mkdir -p engine/crates/rf-layout/tests/fixtures
+cp tests/packing/parity/fixtures/*.json engine/crates/rf-layout/tests/fixtures/
 ```
 
 - [ ] **Step 2: Write parity.rs**
 
 ```rust
-// engine/crates/rema-layout/tests/parity.rs
-use rema_layout::application::pack;
-use rema_layout::domain::PackRequest;
+// engine/crates/rf-layout/tests/parity.rs
+use rf_layout::application::pack;
+use rf_layout::domain::PackRequest;
 use std::fs;
 use std::path::PathBuf;
 
@@ -2493,14 +2493,14 @@ fn every_fixture_packs_without_error() {
 
 - [ ] **Step 3: Run**
 
-Run: `cargo test --manifest-path engine/Cargo.toml -p rema-layout --test parity`
+Run: `cargo test --manifest-path engine/Cargo.toml -p rf-layout --test parity`
 Expected: 1 test passes, runs all fixtures.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add engine/crates/rema-layout/tests/
-git commit -m "test(rema-layout): parity fixtures + round-trip sanity test"
+git add engine/crates/rf-layout/tests/
+git commit -m "test(rf-layout): parity fixtures + round-trip sanity test"
 ```
 
 ---

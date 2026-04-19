@@ -1,0 +1,16 @@
+[package]
+name = "rf-application"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Application ports + use cases for RF backend (S3)"
+
+[dependencies]
+rf-domain = { path = "../rf-domain" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

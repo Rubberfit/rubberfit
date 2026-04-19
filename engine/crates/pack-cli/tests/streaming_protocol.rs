@@ -31,7 +31,7 @@ fn fixture(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
-        .join("rema-layout/tests/fixtures")
+        .join("rf-layout/tests/fixtures")
         .join(name);
     std::fs::read_to_string(&path).unwrap_or_else(|e| {
         panic!("failed to read {}: {e}", path.display());

@@ -1,5 +1,5 @@
 /**
- * Cookie → Bearer bridge for the Rust backend at `REMA_API_URL`.
+ * Cookie → Bearer bridge for the Rust backend at `RF_API_URL`.
  *
  * Frontend callers talk to Next.js using Supabase session cookies.
  * The Rust backend validates RS256 bearer JWTs. This module handles
@@ -31,7 +31,7 @@ const STRIPPED_RESPONSE_HEADERS = new Set([
 ])
 
 function apiBaseUrl(): string | null {
-  const url = process.env.REMA_API_URL?.trim()
+  const url = process.env.RF_API_URL?.trim()
   if (!url) return null
   return url.replace(/\/+$/, "")
 }
@@ -87,7 +87,7 @@ export interface BridgeOptions {
  * token as a bearer credential, then stream the response back.
  *
  * Fails closed:
- * - No `REMA_API_URL` → 503 (deployment misconfigured).
+ * - No `RF_API_URL` → 503 (deployment misconfigured).
  * - No Supabase env → 503 (same bucket).
  * - No session cookie → 401 (client triggers Supabase refresh flow).
  * - Upstream transport error → 502 (Rust unreachable).
@@ -103,7 +103,7 @@ export async function forwardToRust(
   const base = apiBaseUrl()
   if (!base) {
     return NextResponse.json(
-      { error: "REMA_API_URL is not configured on the server" },
+      { error: "RF_API_URL is not configured on the server" },
       { status: 503 }
     )
   }

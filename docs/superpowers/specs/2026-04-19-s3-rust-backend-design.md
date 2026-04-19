@@ -10,7 +10,7 @@ Move REMA's business-layer compute from TypeScript into Rust. Keep Supabase as t
 
 - **Desktop app (S4 Tauri)** — bundles the Rust backend (business logic + nesting engine). Full product.
 - **Web CRM (Next.js on Vercel)** — MAX-tier web access. Job tracking, engineer orders, payroll, inventory views. No pack engine.
-- **Cloud Rust backend (Fly.io)** — serves the web CRM. Same `rema-application` crate as desktop; pack endpoint not compiled in.
+- **Cloud Rust backend (Fly.io)** — serves the web CRM. Same `rf-application` crate as desktop; pack endpoint not compiled in.
 
 The product split mirrors a QuickBooks-style desktop-primary / web-premium model.
 
@@ -91,27 +91,27 @@ Reads: browser can still read directly from Supabase where RLS makes it safe (e.
 ```
 engine/
 ├── crates/
-│   ├── rema-geom/        (existing — geometry primitives)
-│   ├── rema-layout/      (existing — nesting engine)
+│   ├── rf-geom/        (existing — geometry primitives)
+│   ├── rf-layout/      (existing — nesting engine)
 │   ├── pack-cli/         (existing — stdin/stdout adapter; retained through S3, retired in S4)
-│   ├── rema-domain/      (NEW — entities + enums + business rules)
-│   ├── rema-application/ (NEW — use-cases + port traits; transport-agnostic)
-│   ├── rema-supabase/    (NEW — PostgREST client + JWKS + adapters IMPLEMENTING rema-application ports)
-│   └── rema-api/         (NEW — Axum HTTP adapter; composes rema-application + rema-supabase)
+│   ├── rf-domain/      (NEW — entities + enums + business rules)
+│   ├── rf-application/ (NEW — use-cases + port traits; transport-agnostic)
+│   ├── rf-supabase/    (NEW — PostgREST client + JWKS + adapters IMPLEMENTING rf-application ports)
+│   └── rf-api/         (NEW — Axum HTTP adapter; composes rf-application + rf-supabase)
 ```
 
 **Dependency direction (Codex-locked, strict):**
 
-- `rema-domain` has no dependencies beyond `serde` + `thiserror`. Pure business logic.
-- `rema-application` depends ONLY on `rema-domain` + `serde` + `async-trait` + `thiserror`. **Forbidden**: `axum`, `tower`, `http`, `reqwest`, `jsonwebtoken`, `rema-supabase`, or any HTTP/JWT types. Ports are defined as traits here; implementations live elsewhere.
-- `rema-supabase` depends on `rema-application` (so it can implement the port traits) + `rema-domain` + `reqwest` + `jsonwebtoken`.
-- `rema-api` depends on `rema-application` + `rema-supabase` + `axum` + `utoipa`. This is the only crate that composes ports with implementations.
+- `rf-domain` has no dependencies beyond `serde` + `thiserror`. Pure business logic.
+- `rf-application` depends ONLY on `rf-domain` + `serde` + `async-trait` + `thiserror`. **Forbidden**: `axum`, `tower`, `http`, `reqwest`, `jsonwebtoken`, `rf-supabase`, or any HTTP/JWT types. Ports are defined as traits here; implementations live elsewhere.
+- `rf-supabase` depends on `rf-application` (so it can implement the port traits) + `rf-domain` + `reqwest` + `jsonwebtoken`.
+- `rf-api` depends on `rf-application` + `rf-supabase` + `axum` + `utoipa`. This is the only crate that composes ports with implementations.
 
-**Why this direction matters for S4 Tauri:** `rema-application` stays HTTP-free, so S4's Tauri command adapter can call use-cases directly without wrapping them in an HTTP client. Zero-hop for desktop users.
+**Why this direction matters for S4 Tauri:** `rf-application` stays HTTP-free, so S4's Tauri command adapter can call use-cases directly without wrapping them in an HTTP client. Zero-hop for desktop users.
 
 **Port wiring:** prefer `Arc<dyn Port + Send + Sync>` over compile-time generics on use-cases. These are I/O boundaries — `dyn` dispatch cost is irrelevant, compile times stay reasonable, and Axum/Tauri state wiring is simpler.
 
-**JWKS placement:** JWKS fetching + JWT verification lives in `rema-supabase` under an auth-adapter module. Raw JWT strings / `jsonwebtoken::Claims` values never cross into `rema-application` — port APIs take domain-shaped actor identifiers (e.g., `UserId`, `TenantId`), not JWTs.
+**JWKS placement:** JWKS fetching + JWT verification lives in `rf-supabase` under an auth-adapter module. Raw JWT strings / `jsonwebtoken::Claims` values never cross into `rf-application` — port APIs take domain-shaped actor identifiers (e.g., `UserId`, `TenantId`), not JWTs.
 
 ## 4. Deployment topology
 
@@ -119,7 +119,7 @@ engine/
 
 ```
 ┌────────────────┐    ┌────────────────┐    ┌────────────────┐    ┌──────────────┐
-│ Browser        │───→│ Next.js on     │───→│ rema-api on    │───→│ Supabase     │
+│ Browser        │───→│ Next.js on     │───→│ rf-api on    │───→│ Supabase     │
 │ (Vercel URL)   │    │ Vercel         │    │ Fly.io         │    │ PostgreSQL   │
 │ job tracking   │    │ wrapper routes │    │ no engine      │    │              │
 │ orders payroll │    │ /api/v2/*      │    │ ~$5-10/mo idle │    │              │
@@ -128,26 +128,26 @@ engine/
 
 - Fly.io Docker deployment.
 - Rust binary compiled without the `engine` feature — `/pack` endpoint is 404, not disabled.
-- Vercel Next.js unchanged; adds `next.config.mjs` rewrite rules for `/api/v2/*` → `https://rema-api.fly.dev/*`.
+- Vercel Next.js unchanged; adds `next.config.mjs` rewrite rules for `/api/v2/*` → `https://rf-api.fly.dev/*`.
 - Single Supabase tenant shared with desktop.
 
 ### 4.2 Desktop app (S4 Tauri — out of S3 scope, but architecture anticipates it)
 
 ```
 ┌────────────────┐    ┌────────────────────────────────┐    ┌──────────────┐
-│ Tauri UI       │───→│ Tauri sidecar: rema-api        │───→│ Supabase     │
+│ Tauri UI       │───→│ Tauri sidecar: rf-api        │───→│ Supabase     │
 │ (React/Vue)    │    │ WITH engine feature            │    │ PostgreSQL   │
 │ full product   │    │ /pack endpoint compiled in     │    │              │
-│ + nesting      │    │ embedded rema-layout           │    │              │
+│ + nesting      │    │ embedded rf-layout           │    │              │
 └────────────────┘    └────────────────────────────────┘    └──────────────┘
 ```
 
-Same `rema-api` binary, compiled with `--features engine`. S4 task.
+Same `rf-api` binary, compiled with `--features engine`. S4 task.
 
 ### 4.3 Pack endpoint conditional compilation
 
 ```rust
-// rema-api/src/main.rs
+// rf-api/src/main.rs
 let mut router = Router::new()
     .nest("/api/v2/jobs", jobs::routes())
     .nest("/api/v2/orders", orders::routes())
@@ -165,13 +165,13 @@ Web CRM deployment compiles without `--features engine`. No runtime decision; ro
 
 **Scope gating — TWO REVIEWER POSITIONS, resolve before S3a Task 1:**
 
-Codex sign-off argues: gate ALL pack-related code behind `#[cfg(feature = "engine")]` — module imports, DTO structs (`PackRequest`, `PackResult`), `rema-application` use-cases, AND `utoipa::path` annotations. The committed `openapi.json` reflects the web build (no `/pack`); desktop emits a separate spec or merges at build time. Keeps the frontend TS client clean and removes accidental scope creep from web users discovering `/pack`.
+Codex sign-off argues: gate ALL pack-related code behind `#[cfg(feature = "engine")]` — module imports, DTO structs (`PackRequest`, `PackResult`), `rf-application` use-cases, AND `utoipa::path` annotations. The committed `openapi.json` reflects the web build (no `/pack`); desktop emits a separate spec or merges at build time. Keeps the frontend TS client clean and removes accidental scope creep from web users discovering `/pack`.
 
 Gemini sign-off argues the opposite: keep DTOs and `utoipa::path` compiled unconditionally, only feature-flag the `axum::Router::nest` route registration. This keeps ONE unified OpenAPI spec across web + desktop; cloud binary returns 404 for `/pack` instead of having the type absent from the schema. Shared frontend code that references `PackRequest`/`PackResult` types doesn't break.
 
 **Decision needed before S3a Task 1.** Default pick if user doesn't override: Gemini's approach (unified spec + route-only gating) — simpler frontend type story, and the 404-vs-missing-type difference rarely matters in practice for internal tools. Record the decision in a task comment and proceed.
 
-**Package-level check:** `rema-api`'s `Cargo.toml` declares `[features] engine = ["rema-layout"]`. Without the feature, `rema-layout` isn't compiled, ensuring no binary bloat on the cloud deploy.
+**Package-level check:** `rf-api`'s `Cargo.toml` declares `[features] engine = ["rf-layout"]`. Without the feature, `rf-layout` isn't compiled, ensuring no binary bloat on the cloud deploy.
 
 ## 5. Migration phasing
 
@@ -180,7 +180,7 @@ Five sub-phases (S3a through S3e). All use **Next.js wrapper routes** that forwa
 ### S3a — Foundation + cut-history slice (~2 weeks)
 
 Deliver:
-- `rema-domain` + `rema-application` + `rema-supabase` + `rema-api` crate scaffolding.
+- `rf-domain` + `rf-application` + `rf-supabase` + `rf-api` crate scaffolding.
 - Axum app with tracing, health, typed error envelope, CORS.
 - JWT/JWKS middleware (RS256).
 - Request-scoped PostgREST adapter (per-request client, JWT forwarded).
@@ -238,12 +238,12 @@ Deliver:
 - Remove remaining direct browser Supabase data access except auth/session.
 - Deprecate service-role Next API routes.
 - Deprecate `app/api` Next routes that got ported.
-- `rema-application` proven transport-agnostic (internal test harness bypasses `rema-api` HTTP layer, calls use-cases directly).
+- `rf-application` proven transport-agnostic (internal test harness bypasses `rf-api` HTTP layer, calls use-cases directly).
 - Document the Tauri-embedding path for S4.
 
 Exit criteria:
 - Web CRM uses Rust backend for all domain operations.
-- `rema-application` has a Tauri command adapter proof-of-concept (no UI, just "Tauri calls pack directly and gets a response").
+- `rf-application` has a Tauri command adapter proof-of-concept (no UI, just "Tauri calls pack directly and gets a response").
 
 **Total S3 scope estimate: 10-12 weeks for one engineer, 7-9 weeks for two with a clean domain split.**
 
@@ -265,10 +265,10 @@ Exit criteria:
 
 **Codex sign-off correction:** vanilla Postgres via testcontainers-rs can't validate the real S3 request path because our migrations depend on Supabase-specific schema (`auth.users`, `auth.identities`, `auth.uid()`, role/profile helpers). Bare Postgres is only useful for isolated SQL/RPC unit tests.
 
-- **Unit tests** in `rema-domain` (pure Rust, no DB, no containers).
-- **`rema-application` use-case tests** with fake port implementations (in-memory `CutHistoryPort` etc.). No container needed.
-- **`rema-supabase` adapter tests** run against the **Supabase local development stack** (`supabase start` CLI spins up the full stack: Postgres + Auth + PostgREST + Storage). Seed `auth.users` + `profiles` rows, then exercise the adapters. Adds ~60s startup but validates actual RLS + auth semantics.
-- **`rema-api` E2E tests** run against the same Supabase local stack. Exercise full request path: bearer token → middleware → port → PostgREST → response.
+- **Unit tests** in `rf-domain` (pure Rust, no DB, no containers).
+- **`rf-application` use-case tests** with fake port implementations (in-memory `CutHistoryPort` etc.). No container needed.
+- **`rf-supabase` adapter tests** run against the **Supabase local development stack** (`supabase start` CLI spins up the full stack: Postgres + Auth + PostgREST + Storage). Seed `auth.users` + `profiles` rows, then exercise the adapters. Adds ~60s startup but validates actual RLS + auth semantics.
+- **`rf-api` E2E tests** run against the same Supabase local stack. Exercise full request path: bearer token → middleware → port → PostgREST → response.
 - **SQL/RPC unit tests** may use bare Postgres via testcontainers-rs where the feature under test doesn't touch Supabase-specific schema (e.g., pure PL/pgSQL math functions).
 - **Parity tests** — for each S3 phase, a Rust vs TS output-equivalence test on the same input ensures no regression.
 
@@ -276,7 +276,7 @@ CI budget: local-Supabase integration tests run on push to `refactor/rf-engine`.
 
 ## 8. Out of scope for S3
 
-- Tauri desktop app integration — that's S4. S3 proves `rema-application` is Tauri-ready via a standalone POC test.
+- Tauri desktop app integration — that's S4. S3 proves `rf-application` is Tauri-ready via a standalone POC test.
 - Interactive editor / vector export — that's S5.
 - New business features — S3 is a port, not an expansion.
 - Schema redesign — if current Supabase schema has bad decisions, we call them out but don't fix in S3.

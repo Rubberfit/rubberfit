@@ -4,10 +4,10 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "stdin/stdout JSON delivery for rema-layout"
+description = "stdin/stdout JSON delivery for rf-layout"
 
 [dependencies]
-rema-layout = { path = "../rema-layout" }
+rf-layout = { path = "../rf-layout" }
 serde_json = { workspace = true }
 
 [[bin]]

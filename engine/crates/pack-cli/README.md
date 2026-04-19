@@ -1,6 +1,6 @@
 # pack-cli
 
-Stdin/stdout CLI for the REMA nesting engine.
+Stdin/stdout CLI for the RF nesting engine.
 
 ## Batch mode (default)
 
@@ -48,7 +48,7 @@ After sending the initial `PackRequest`, the caller can send any number of JSON 
 ) | pack-cli --stream
 ```
 
-Cancel latency: ~100ms product SLA, ≤500ms CI cap. Latency is bounded by the depth of cancel polling inside the GLS inner loop (see `rema-layout/src/infrastructure/search/cancel.rs` + `progress.rs`).
+Cancel latency: ~100ms product SLA, ≤500ms CI cap. Latency is bounded by the depth of cancel polling inside the GLS inner loop (see `rf-layout/src/infrastructure/search/cancel.rs` + `progress.rs`).
 
 ## Build
 
@@ -61,6 +61,6 @@ cargo build --release -p pack-cli
 
 ## Architecture
 
-This crate is the **delivery layer** in the clean-architecture split of the Rust engine. It owns zero packing logic — it only reads stdin, parses JSON into `rema_layout::domain::PackRequest`, calls `rema_layout::application::pack` (or `pack_with_options` for `--stream`), and serializes the result to stdout. All behavior changes happen in `rema-layout`, not here.
+This crate is the **delivery layer** in the clean-architecture split of the Rust engine. It owns zero packing logic — it only reads stdin, parses JSON into `rf_layout::domain::PackRequest`, calls `rf_layout::application::pack` (or `pack_with_options` for `--stream`), and serializes the result to stdout. All behavior changes happen in `rf-layout`, not here.
 
 TypeScript callers invoke this binary via `child_process.spawn`. The adapter lives in the `src/infrastructure/services/` layer and is added in S2 Phase 10.

@@ -1425,7 +1425,7 @@ dependencies = [
 name = "pack-cli"
 version = "0.1.0"
 dependencies = [
- "rema-layout",
+ "rf-layout",
  "serde_json",
 ]
 
@@ -1768,103 +1768,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
-name = "rema-api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "base64",
- "http",
- "http-body-util",
- "jsonwebtoken",
- "rand 0.8.6",
- "rema-application",
- "rema-domain",
- "rema-supabase",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "rema-application"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "rema-domain",
- "serde",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rema-domain"
-version = "0.1.0"
-dependencies = [
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "rema-geom"
-version = "0.1.0"
-dependencies = [
- "clipper2",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "rema-layout"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bin-packing",
- "criterion",
- "float-cmp",
- "itertools 0.14.0",
- "jagua-rs",
- "lbf",
- "log",
- "ordered-float",
- "rand 0.10.1",
- "rand_distr",
- "rand_xoshiro",
- "rema-geom",
- "serde",
- "serde_json",
- "slotmap",
- "thiserror",
-]
-
-[[package]]
-name = "rema-supabase"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "http",
- "rema-application",
- "rema-domain",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "reqwest"
 version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1900,6 +1803,103 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots",
+]
+
+[[package]]
+name = "rf-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64",
+ "http",
+ "http-body-util",
+ "jsonwebtoken",
+ "rand 0.8.6",
+ "reqwest",
+ "rf-application",
+ "rf-domain",
+ "rf-supabase",
+ "rsa",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "rf-application"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "rf-domain",
+ "serde",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "rf-domain"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "rf-geom"
+version = "0.1.0"
+dependencies = [
+ "clipper2",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "rf-layout"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bin-packing",
+ "criterion",
+ "float-cmp",
+ "itertools 0.14.0",
+ "jagua-rs",
+ "lbf",
+ "log",
+ "ordered-float",
+ "rand 0.10.1",
+ "rand_distr",
+ "rand_xoshiro",
+ "rf-geom",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "thiserror",
+]
+
+[[package]]
+name = "rf-supabase"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "http",
+ "reqwest",
+ "rf-application",
+ "rf-domain",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "url",
 ]
 
 [[package]]

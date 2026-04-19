@@ -1,7 +1,7 @@
 # api-client
 
 TypeScript types generated from the Rust backend's OpenAPI document
-at `engine/crates/rema-api/openapi.json`.
+at `engine/crates/rf-api/openapi.json`.
 
 ## Regeneration
 
@@ -14,7 +14,7 @@ npm run openapi:types
 ```
 
 Run both when any `#[utoipa::path]` or `ToSchema`-derived DTO in
-`engine/crates/rema-api/` changes. The committed `openapi.json` is
+`engine/crates/rf-api/` changes. The committed `openapi.json` is
 the source of truth for the shape of the HTTP contract.
 
 ## Drift check

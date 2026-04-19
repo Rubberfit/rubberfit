@@ -16,7 +16,7 @@
 | **S3b** | Read-model migration out of browser | One full dashboard slice has zero browser-to-Supabase data calls | ~2 weeks |
 | **S3c** | Procurement aggregate (POs + reorder) | All PO + reorder writes run through Rust, transaction-safe | ~3 weeks |
 | **S3d** | Side effects + background jobs | Notifications + email server-side, no browser-resolved jobs | ~2 weeks |
-| **S3e** | Final cutover + Tauri prep | Web CRM 100% through Rust backend; `rema-application` has Tauri command POC | ~2 weeks |
+| **S3e** | Final cutover + Tauri prep | Web CRM 100% through Rust backend; `rf-application` has Tauri command POC | ~2 weeks |
 
 Each phase ships a git tag on completion: `s3a-foundation`, `s3b-read-model`, `s3c-procurement`, `s3d-side-effects`, `s3e-complete`.
 
@@ -37,10 +37,10 @@ Every task follows the established cadence from S2.5:
 ### S3a Task 1: Crate scaffolding
 
 Create the four new crates in `engine/Cargo.toml`:
-- `rema-domain` — pure Rust, no deps beyond `serde` + `thiserror`.
-- `rema-application` — depends on `rema-domain` + defines `Ports` traits (what Supabase looks like from the app's view).
-- `rema-supabase` — depends on `rema-domain` + `rema-application` + `reqwest`; implements the `Ports` traits.
-- `rema-api` — depends on all three + `axum` + `utoipa` + `jsonwebtoken`.
+- `rf-domain` — pure Rust, no deps beyond `serde` + `thiserror`.
+- `rf-application` — depends on `rf-domain` + defines `Ports` traits (what Supabase looks like from the app's view).
+- `rf-supabase` — depends on `rf-domain` + `rf-application` + `reqwest`; implements the `Ports` traits.
+- `rf-api` — depends on all three + `axum` + `utoipa` + `jsonwebtoken`.
 
 Starter content: crate-level `lib.rs` with rustdoc header explaining purpose, and a `README.md` per crate (per user preference: every new directory gets a README in the same commit).
 
@@ -48,12 +48,12 @@ No business logic yet. Just the skeleton.
 
 **Tests:** `cargo check --workspace` green. Empty crates compile.
 
-**Commit:** `feat(workspace): scaffold rema-domain/application/supabase/api crates (S3a Task 1)`
+**Commit:** `feat(workspace): scaffold rf-domain/application/supabase/api crates (S3a Task 1)`
 
 ### S3a Task 2: Axum server boot + health endpoint
 
-In `rema-api`:
-- `main.rs` — boots Axum on `127.0.0.1:8080` (configurable via `REMA_API_BIND`).
+In `rf-api`:
+- `main.rs` — boots Axum on `127.0.0.1:8080` (configurable via `RF_API_BIND`).
 - `/health` endpoint returns `{ "status": "ok", "version": env!("CARGO_PKG_VERSION") }`.
 - `tracing_subscriber` wired with env filter.
 - `tower::timeout` middleware (30s default).
@@ -62,7 +62,7 @@ In `rema-api`:
 
 **Tests:** integration test hits `/health`, asserts 200 + JSON body.
 
-**Commit:** `feat(rema-api): axum server boot + health endpoint (S3a Task 2)`
+**Commit:** `feat(rf-api): axum server boot + health endpoint (S3a Task 2)`
 
 ### S3a Task 3: JWKS + JWT middleware
 
@@ -77,37 +77,37 @@ In `rema-api`:
 
 **Tests:** middleware integration test with (a) valid JWT (mocked JWKS), (b) expired JWT → 401, (c) wrong issuer → 401, (d) missing header → 401.
 
-**Commit:** `feat(rema-api): JWKS + RS256 JWT verification middleware (S3a Task 3)`
+**Commit:** `feat(rf-api): JWKS + RS256 JWT verification middleware (S3a Task 3)`
 
 ### S3a Task 4: Request-scoped PostgREST adapter
 
-In `rema-supabase`:
+In `rf-supabase`:
 - `PostgrestClient` constructor takes `(base_url, publishable_key, user_jwt)` and builds a fresh `reqwest::Client` with headers pre-set.
 - **Explicitly disallow global/service-role clients.** Document the security invariant.
 - Helper `fn user_postgrest(state: &AppState, auth: &AuthContext) -> PostgrestClient`.
 
 **Tests:** unit tests verify header assembly (apikey + Authorization) from auth context.
 
-**Commit:** `feat(rema-supabase): request-scoped PostgREST client (S3a Task 4)`
+**Commit:** `feat(rf-supabase): request-scoped PostgREST client (S3a Task 4)`
 
-### S3a Task 5: `rema-application` ports for cut-history
+### S3a Task 5: `rf-application` ports for cut-history
 
-In `rema-application`:
+In `rf-application`:
 - Trait `CutHistoryPort` with methods mirroring the TS `cutService` interface — `list_history(user_id, filters)`, `get_history_item(user_id, id)`, `list_favorites(user_id)`, etc.
 - Use-case orchestrators `ListCutHistoryUseCase`, `GetCutHistoryItemUseCase`, `ListFavoritesUseCase`.
 - Each use-case is `#[async_trait]`-able, takes the port trait as an `Arc<dyn CutHistoryPort + Send + Sync>` (Codex sign-off: dyn over generics at I/O boundaries — simpler state wiring, same performance).
 
 **Scope (Codex-locked):** keep the port minimal for S3a. One or two capability-specific traits, NOT a generalized hexagonal framework. Expand as needed in later phases.
 
-`rema-supabase` implements `CutHistoryPort` via PostgREST calls to the `cut_history` + `cut_history_favorites` tables. (Codex sign-off: table is `cut_history_favorites`, not `cut_favorites` — match `src/infrastructure/supabase/migrations/20260412120000_create_cut_history_favorites.sql`.)
+`rf-supabase` implements `CutHistoryPort` via PostgREST calls to the `cut_history` + `cut_history_favorites` tables. (Codex sign-off: table is `cut_history_favorites`, not `cut_favorites` — match `src/infrastructure/supabase/migrations/20260412120000_create_cut_history_favorites.sql`.)
 
 **Tests:** unit tests on use-cases with a fake port implementation.
 
-**Commit:** `feat(rema-application,rema-supabase): cut-history ports + use-cases (S3a Task 5)`
+**Commit:** `feat(rf-application,rf-supabase): cut-history ports + use-cases (S3a Task 5)`
 
 ### S3a Task 6: Cut-history HTTP routes
 
-In `rema-api`:
+In `rf-api`:
 - `GET /api/v2/cuts/history` — pagination params, filter query.
 - `GET /api/v2/cuts/history/:id`
 - `GET /api/v2/cuts/favorites`
@@ -121,7 +121,7 @@ Each route:
 
 **Tests:** integration tests with testcontainers-rs (Postgres + Supabase schema applied) — spin up the real DB, seed test data, hit the routes, assert responses.
 
-**Commit:** `feat(rema-api): cut-history HTTP routes + DTOs (S3a Task 6)`
+**Commit:** `feat(rf-api): cut-history HTTP routes + DTOs (S3a Task 6)`
 
 ### S3a Task 7: OpenAPI spec + TS type generation
 
@@ -133,7 +133,7 @@ Each route:
 
 **Tests:** CI check — regen spec, diff against committed, fail if drift.
 
-**Commit:** `feat(rema-api): openapi spec + TS type generation pipeline (S3a Task 7)`
+**Commit:** `feat(rf-api): openapi spec + TS type generation pipeline (S3a Task 7)`
 
 ### S3a Task 8: Next.js route handlers (cookie → bearer bridge)
 
@@ -157,7 +157,7 @@ export async function GET(req: Request) {
   if (!session) return new Response("Unauthorized", { status: 401 })
 
   const upstream = await fetch(
-    `${process.env.REMA_API_URL}/api/v2/cuts/history${new URL(req.url).search}`,
+    `${process.env.RF_API_URL}/api/v2/cuts/history${new URL(req.url).search}`,
     {
       headers: {
         "Authorization": `Bearer ${session.access_token}`,
@@ -192,30 +192,30 @@ Key properties:
 
 ### S3a Task 9: Fly.io deployment
 
-- `Dockerfile` in `engine/crates/rema-api/` — multistage build, `FROM scratch` final image.
+- `Dockerfile` in `engine/crates/rf-api/` — multistage build, `FROM scratch` final image.
 - `fly.toml` — single region (e.g., `sjc` or user's pick), autoscaling 0-1, health check on `/health`.
 - Secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL` (for migrations), etc.
-- `fly deploy` documented in `engine/crates/rema-api/README.md`.
+- `fly deploy` documented in `engine/crates/rf-api/README.md`.
 
 **Tests:** smoke test against deployed instance — auth + cut-history roundtrip.
 
-**Commit:** `chore(rema-api): fly.io deployment config + docs (S3a Task 9)`
+**Commit:** `chore(rf-api): fly.io deployment config + docs (S3a Task 9)`
 
 ### S3a Task 9.5: Fly staging + Vercel preview smoke (Codex sign-off)
 
 Before pointing production Vercel at a Fly instance, validate end-to-end on a staging pair:
 
-- Deploy `rema-api` to `rema-api-staging.fly.dev` with staging Supabase credentials.
-- Create a Vercel preview deployment pointing `REMA_API_URL` at the staging Fly host.
+- Deploy `rf-api` to `rf-api-staging.fly.dev` with staging Supabase credentials.
+- Create a Vercel preview deployment pointing `RF_API_URL` at the staging Fly host.
 - Run an authenticated smoke test: log in as a test user → hit cut-history → verify response matches staging Supabase data.
 - Load-test with ~100 concurrent requests to check cold-start behavior on Fly autoscale-to-zero.
 - Document the outcome in the S3a retro notes.
 
 Only after green: proceed to Task 10 production cutover.
 
-**Tests:** manual smoke script documented at `engine/crates/rema-api/README.md`.
+**Tests:** manual smoke script documented at `engine/crates/rf-api/README.md`.
 
-**Commit:** `chore(rema-api): fly staging + vercel preview validation (S3a Task 9.5)`
+**Commit:** `chore(rf-api): fly staging + vercel preview validation (S3a Task 9.5)`
 
 ### S3a Task 10: Frontend cutover + parity validation
 
@@ -287,7 +287,7 @@ Est. 8-10 tasks, ~3 weeks. Heaviest phase — lots of business logic.
 
 **Detailed plan doc written at start of S3d.** Top-level scope:
 
-- Notification queue producer (Rust) + consumer (Rust, separate binary or background task in `rema-api`).
+- Notification queue producer (Rust) + consumer (Rust, separate binary or background task in `rf-api`).
 - Token-bucket rate limiter (`governor` crate or custom).
 - Content-hash dedup window.
 - Email sending — retained Supabase Edge Function via `reqwest`, OR direct SMTP via `lettre`.
@@ -305,7 +305,7 @@ Est. 5-7 tasks, ~2 weeks.
 - Audit: every remaining `supabase.from(...)` call in `src/`/`app/` — port to Rust API OR justify keeping (reads-only).
 - Delete ported TS services (`cutService.ts`, `purchaseOrderService.ts`, etc.).
 - Delete ported TS `src/application/use-cases/*` — Rust owns them now.
-- Build `rema-tauri-adapter` proof-of-concept: a standalone Tauri command (no UI) that calls `rema-application::ListCutHistoryUseCase` directly (bypassing HTTP).
+- Build `rema-tauri-adapter` proof-of-concept: a standalone Tauri command (no UI) that calls `rf-application::ListCutHistoryUseCase` directly (bypassing HTTP).
 - Document the S4 handoff.
 
 Est. 5-7 tasks, ~2 weeks.

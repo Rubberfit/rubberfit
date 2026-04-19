@@ -59,7 +59,7 @@ function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
     part_selected_size_text: dto.part_selected_size_text ?? null,
     part_selected_label: dto.part_selected_label ?? null,
     // The Rust DTO doesn't carry these yet — they live on the v1
-    // Supabase table but haven't been promoted to `rema-domain` /
+    // Supabase table but haven't been promoted to `rf-domain` /
     // `CutHistoryEntry`. Callers already tolerate nulls (legacy rows
     // can be null too), so widening the DTO is a follow-up, not a
     // blocker for the cutover.

@@ -1,11 +1,11 @@
 # engine/
 
-Native Rust nesting engine for REMA Portal. Replaces the TypeScript `LegacyPackingService` behind `IPackingService` via a JSON stdin/stdout CLI binary.
+Native Rust nesting engine for RF Portal. Replaces the TypeScript `LegacyPackingService` behind `IPackingService` via a JSON stdin/stdout CLI binary.
 
 ## Layout
 
-- `crates/rema-geom/` — geometry primitives (future open-source crate, MIT)
-- `crates/rema-layout/` — packing engine (future open-source crate, MIT); depends on `jagua-rs` + `sparrow`
+- `crates/rf-geom/` — geometry primitives (future open-source crate, MIT)
+- `crates/rf-layout/` — packing engine (future open-source crate, MIT); depends on `jagua-rs` + `sparrow`
 - `crates/pack-cli/` — stdin/stdout delivery binary (stays private)
 
 ## Build

@@ -2,7 +2,7 @@
 
 Next.js route handlers that bridge Supabase **session cookies**
 (used by the rest of the app) to **bearer JWTs** (required by the
-Rust backend at `REMA_API_URL`).
+Rust backend at `RF_API_URL`).
 
 ## Why route handlers, not rewrites
 
@@ -40,8 +40,8 @@ validation, and error mapping lives in `_lib/bridge.ts`.
 
 ## Env
 
-- `REMA_API_URL` — origin of the Rust backend, e.g.
-  `https://rema-api.fly.dev`. No trailing slash required; the
+- `RF_API_URL` — origin of the Rust backend, e.g.
+  `https://rf-api.fly.dev`. No trailing slash required; the
   bridge strips it.
 - `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` —
   used to construct the SSR client that reads the session cookie.
@@ -54,7 +54,7 @@ operators can pinpoint the misconfiguration quickly.
 
 | Situation                            | Status | Body                                         |
 | ------------------------------------ | ------ | -------------------------------------------- |
-| `REMA_API_URL` missing               | 503    | `REMA_API_URL is not configured on the server` |
+| `RF_API_URL` missing               | 503    | `RF_API_URL is not configured on the server` |
 | Supabase env missing                 | 503    | `Supabase environment variables are missing`   |
 | No session cookie                    | 401    | `Unauthorized`                                |
 | Rust upstream unreachable            | 502    | `upstream service unavailable`                |

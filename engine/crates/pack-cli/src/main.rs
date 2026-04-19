@@ -13,11 +13,11 @@
 //
 // See docs/superpowers/plans/2026-04-18-s2.5-rust-engine.md Task 15.
 
-use rema_layout::application::pack::{pack, pack_with_options};
-use rema_layout::application::pack_lbf::pack_lbf;
-use rema_layout::application::pack_lbf_lns::pack_lbf_lns;
-use rema_layout::domain::{PackRequest, PackResult, SearchOptions};
-use rema_layout::infrastructure::search::progress::ProgressCallback;
+use rf_layout::application::pack::{pack, pack_with_options};
+use rf_layout::application::pack_lbf::pack_lbf;
+use rf_layout::application::pack_lbf_lns::pack_lbf_lns;
+use rf_layout::domain::{PackRequest, PackResult, SearchOptions};
+use rf_layout::infrastructure::search::progress::ProgressCallback;
 use serde_json::Deserializer;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::ExitCode;
@@ -52,9 +52,9 @@ fn run_batch() -> ExitCode {
     // Engine selection. Default is pack_lbf_lns + polish (the Phase 3
     // pipeline): polygon-aware LBF constructive → density-changing LNS
     // → score-aware polish. The legacy pack() path is retained behind
-    // `REMA_ENGINE=legacy` as an escape hatch; `REMA_ENGINE=lbf` skips
+    // `RF_ENGINE=legacy` as an escape hatch; `RF_ENGINE=lbf` skips
     // LNS. Both are primarily for benches and debugging.
-    let result = match std::env::var("REMA_ENGINE").as_deref() {
+    let result = match std::env::var("RF_ENGINE").as_deref() {
         Ok("legacy") => pack(request),
         Ok("lbf") => pack_lbf(request),
         _ => pack_lbf_lns(request),

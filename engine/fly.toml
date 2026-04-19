@@ -1,20 +1,20 @@
-# fly.toml for the REMA Rust API.
+# fly.toml for the RF Rust API.
 #
 # Deploy from the repo root with:
 #   fly deploy --config engine/fly.toml
 #
 # The build context is engine/ (Fly uses the directory containing
 # this toml by default). That matches Dockerfile COPY paths like
-# `crates/rema-api/Cargo.toml`.
+# `crates/rf-api/Cargo.toml`.
 #
 # App name intentionally parameterised per environment — create
 # a sibling `fly.staging.toml` / `fly.prod.toml` if we want to
 # pin app names, or override with `--app` at the CLI.
 
-app = "rema-api-archanchor"
+app = "rf-api-archanchor"
 primary_region = "sjc"
 # Kill a hung migration or frozen request hard rather than let it
-# accumulate a backlog. 60s > the Axum `REMA_API_REQUEST_TIMEOUT`
+# accumulate a backlog. 60s > the Axum `RF_API_REQUEST_TIMEOUT`
 # default, so the app itself times out first on slow upstreams.
 kill_timeout = "60s"
 
@@ -25,7 +25,7 @@ dockerfile = "Dockerfile"
 # Binds to the Fly loadbalancer's expected internal port. The
 # Dockerfile also sets this, but an explicit env makes the wire
 # contract obvious in the manifest.
-REMA_API_BIND = "0.0.0.0:8080"
+RF_API_BIND = "0.0.0.0:8080"
 RUST_LOG = "info"
 
 [http_service]
@@ -60,5 +60,5 @@ memory = "256mb"
 #   fly secrets set SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 #
 # Optional:
-#   REMA_API_CORS=off | permissive | comma-separated-origin-list
-#   REMA_API_REQUEST_TIMEOUT=30s
+#   RF_API_CORS=off | permissive | comma-separated-origin-list
+#   RF_API_REQUEST_TIMEOUT=30s

@@ -1,4 +1,4 @@
-# REMA Portal Migration — Overview
+# RF Portal Migration — Overview
 
 **Status:** Approved scope and sequencing. Sub-project specs follow this document.
 **Date:** 2026-04-17
@@ -6,7 +6,7 @@
 
 ## 1. Goal
 
-Migrate REMA Portal from a Next.js web app to a native desktop application with an industry-standard, open-source-extractable algorithm layer. Priority #1 is nesting-engine efficiency.
+Migrate RF Portal from a Next.js web app to a native desktop application with an industry-standard, open-source-extractable algorithm layer. Priority #1 is nesting-engine efficiency.
 
 ## 2. Stack
 
@@ -24,7 +24,7 @@ Migrate REMA Portal from a Next.js web app to a native desktop application with 
 | # | Sub-project | Scope |
 |---|---|---|
 | **S1** | Canonical pipeline refactor (TS) | Collapse 7 shape→polygon paths + 2 NFP engines into one; introduce `IPackingService`; clean up duplication and dead code |
-| **S2** | Rust nesting engine (MVP) | Cargo workspace; `rema-geom` + `rema-layout` crates; `pack-cli` binary; `RustPackingService` replaces `LegacyPackingService`. Warm-start greedy quality (≈ legacy). |
+| **S2** | Rust nesting engine (MVP) | Cargo workspace; `rf-geom` + `rf-layout` crates; `pack-cli` binary; `RustPackingService` replaces `LegacyPackingService`. Warm-start greedy quality (≈ legacy). |
 | **S2.5** | Sparrow LNS+SA + time budgets + progress streaming | Real metaheuristic search using sparrow; time-budget-driven Fast/Balanced/Thorough modes; per-iteration progress streaming; benchmark harness targeting ≥5% efficiency lift over legacy |
 | **S3** | Rust backend service + Supabase | Port service/use-case layer; introduce entity layer; define the frontend-facing API |
 | **S4** | Tauri shell | Wrap React app, wire Rust backend + engine, build + sign + release pipeline |
@@ -47,10 +47,10 @@ S3 and S4 can run in parallel once S2.5 is stable. S2.5 is a scope cut from S2 (
 
 All MIT or Apache-2.0. Extracted during or after S2.
 
-### `rema-layout`
+### `rf-layout`
 2D bin packing with MaxRects (all 5 Jylänki heuristics) + globally-best batch insertion + novel width-pair pre-pass + exhaustive last-sheet rotation search + metaheuristic (LNS + SA via sparrow). Ports of Jylänki (C++), rectpack (Python), maxrects-packer (TS), plus REMA's novel width-pair contribution.
 
-### `rema-geom`
+### `rf-geom`
 Computational geometry: bindings to Clipper2 (Boost license) for boolean ops + Minkowski; Andrew's convex hull; SAT overlap; primitive tessellation (rect, circle, trapezoid, annular sector); and the headline feature — **maximal inscribed rectangle extraction** (histogram + monotonic stack + plane-sweep optimization). No Rust crate currently offers the inscribed-rectangle solver.
 
 ### `rema-reorder`

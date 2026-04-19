@@ -134,7 +134,7 @@ One function per edge. New files under `src/application/packing/`:
 | `buildPackRequest.ts` | Assembles `PackRequest` from UI state (parts queue, available bins, mode, operator). | `NestingInput` and `MixedSpec` construction spread across `use-nfp-optimizer.ts`, `use-nesting-compute.ts`, shape-preview-advanced/basic/dispatch |
 | `buildPlacementView.ts` | `PackResult → PlacementView`. PlacementView is the UI-shaped type consumed by `NestingVisualizer` and the renderer. | `nestingResultToPreviewItems`, `buildNfpPackedPreview`, `mixedResultToCandidate`, `applyTrapezoidFields` (deleted), `buildMultiPartPreviewFromCandidate` |
 
-Primitive tessellation (rect, circle, N-gon, trapezoid, annular sector) stays in `nesting/shape-to-polygon.ts` during S1. It is deleted in S2 when `rema-geom` takes over.
+Primitive tessellation (rect, circle, N-gon, trapezoid, annular sector) stays in `nesting/shape-to-polygon.ts` during S1. It is deleted in S2 when `rf-geom` takes over.
 
 ## 4. Packing service boundary
 
@@ -327,12 +327,12 @@ At the end of S1:
 - Parity fixtures prove Rust output matches TS output (within acceptable tolerance)
 - The UI is completely unaware of S2 happening — `use-nfp-optimizer.ts` keeps working
 
-S2 introduces `RustPackingService` (a thin Tauri command wrapper around the `rema-layout` crate), registers it in DI, and deletes `LegacyPackingService` + `nesting/`. The UI doesn't change.
+S2 introduces `RustPackingService` (a thin Tauri command wrapper around the `rf-layout` crate), registers it in DI, and deletes `LegacyPackingService` + `nesting/`. The UI doesn't change.
 
 ### What S1 did NOT accomplish (deferred to S2)
 
 - Preview/viz helpers under `app/dashboard/cut-planner/_components/` (e.g., `nesting-shape-previews-*`, `nesting-preview-builders`, `nesting-packing-utils`) still import `@/nesting/types`, `@/nesting/shape-to-polygon`, `@/nesting/free-space`, `@/nesting/nfp-greedy-placer`, `@/nesting/mixed-nfp-placer`. These are 19 type and helper imports across 10 files. They're not part of the interactive Pack call path — they're separate preview/visualization computations.
-- S2 will either (a) move these helpers into `rema-geom`/`rema-layout` Rust crates with TypeScript bindings, or (b) keep them as TypeScript preview helpers independent of the engine. Decision at S2 design time.
+- S2 will either (a) move these helpers into `rf-geom`/`rf-layout` Rust crates with TypeScript bindings, or (b) keep them as TypeScript preview helpers independent of the engine. Decision at S2 design time.
 
 ## 10. Open questions (resolved)
 
@@ -341,7 +341,7 @@ S2 introduces `RustPackingService` (a thin Tauri command wrapper around the `rem
 | Canonical polygons normalized to origin? | Yes, (0,0) min-corner, CCW winding |
 | Rotation policy granularity? | `allowRotation: boolean` + optional `grainAxis` for grain-sensitive materials |
 | Multi-sheet / gap-fill: engine or app? | Engine. Accepts `bins: Bin[]` with mixed sizes. |
-| Offcut extraction shares engine precision rules? | Yes, via `rema-geom` crate in S2; non-issue in S1 (offcuts still in `free-space.ts`) |
+| Offcut extraction shares engine precision rules? | Yes, via `rf-geom` crate in S2; non-issue in S1 (offcuts still in `free-space.ts`) |
 | Concave collision? | Forbid interlocking (matches physical cutting) |
 | Polygons everywhere? | Yes, with optional `shapeSpec` UI hint for crisp primitive rendering |
 

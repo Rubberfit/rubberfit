@@ -30,7 +30,7 @@ The Rust crates follow the same layering as the TypeScript codebase:
 - `infrastructure` modules depend on `domain` + `application` + vendor crates
 - `pack-cli` depends on `application` entry points only, never on `infrastructure` directly
 
-This keeps jagua-rs and sparrow types sealed inside `infrastructure/`. The public surface of `rema-layout::application::pack` accepts `domain::PackRequest` and returns `domain::PackResult` — nothing else.
+This keeps jagua-rs and sparrow types sealed inside `infrastructure/`. The public surface of `rf-layout::application::pack` accepts `domain::PackRequest` and returns `domain::PackResult` — nothing else.
 
 ## 3. Cargo workspace layout
 
@@ -42,7 +42,7 @@ rema-portal/
     ├── .gitignore                   # target/
     ├── README.md
     ├── crates/
-    │   ├── rema-geom/               # future OSS (MIT)
+    │   ├── rf-geom/               # future OSS (MIT)
     │   │   ├── Cargo.toml
     │   │   ├── README.md
     │   │   ├── src/
@@ -63,7 +63,7 @@ rema-portal/
     │   │   │       ├── mod.rs
     │   │   │       └── clipper.rs   # clipper2 wrapper (union/diff/offset)
     │   │   └── tests/
-    │   ├── rema-layout/             # future OSS (MIT)
+    │   ├── rf-layout/             # future OSS (MIT)
     │   │   ├── Cargo.toml
     │   │   ├── README.md
     │   │   ├── src/
@@ -94,11 +94,11 @@ rema-portal/
 Each `domain` type serde-serializes with camelCase to match the TS contract. Fields preserved exactly.
 
 ```rust
-// rema-geom/src/domain/point.rs
+// rf-geom/src/domain/point.rs
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct Point2D { pub x: f64, pub y: f64 }
 
-// rema-layout/src/domain/request.rs
+// rf-layout/src/domain/request.rs
 #[serde(rename_all = "camelCase")]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ShapeSpec {
@@ -133,7 +133,7 @@ pub struct PackRequest {
     pub seed: Option<u64>,
 }
 
-// rema-layout/src/domain/result.rs
+// rf-layout/src/domain/result.rs
 pub struct PackResult {
     pub placements: Vec<Placement>,
     pub placed_count: u32,
@@ -169,7 +169,7 @@ pub struct Placement {
 ## 5. Public `pack` entry (application layer)
 
 ```rust
-// rema-layout/src/application/pack.rs
+// rf-layout/src/application/pack.rs
 use crate::domain::{PackRequest, PackResult, PackError};
 use crate::infrastructure::{jagua_adapter, sparrow_driver, warm_start};
 
@@ -207,8 +207,8 @@ The signature is pure — no vendor types. Callers never see jagua-rs or sparrow
 ```rust
 // pack-cli/src/main.rs
 use std::io::{self, Read, Write};
-use rema_layout::application::pack;
-use rema_layout::domain::PackRequest;
+use rf_layout::application::pack;
+use rf_layout::domain::PackRequest;
 
 fn main() -> std::process::ExitCode {
     let mut input = String::new();
@@ -349,8 +349,8 @@ CI pipeline:
 ## 10. Test strategy
 
 **Rust unit tests (per crate):**
-- `rema-geom`: every `domain` constructor invariant, every `application` operation round-trip, clipper wrappers against hand-computed golden values
-- `rema-layout`: `domain::PackRequest` deserialization from TS JSON, `application::pack` against the 9 fixtures with tolerance assertions
+- `rf-geom`: every `domain` constructor invariant, every `application` operation round-trip, clipper wrappers against hand-computed golden values
+- `rf-layout`: `domain::PackRequest` deserialization from TS JSON, `application::pack` against the 9 fixtures with tolerance assertions
 
 **TS integration tests:**
 - `tests/packing/rust-e2e.test.ts` — spawns `pack-cli`, feeds fixture JSON, asserts parity tolerances
@@ -361,7 +361,7 @@ CI pipeline:
 ## 11. Out of scope
 
 - Tauri integration — S4
-- Public GitHub repo for rema-layout/rema-geom — deferred until after S4 ships
+- Public GitHub repo for rf-layout/rf-geom — deferred until after S4 ships
 - `rema-reorder` extraction — independent of the engine
 - `operatorProfile` scoring — accepted but ignored by engine in S2; UI wiring in S5
 - Streaming per-generation progress events — S4 adds via Tauri events
@@ -373,7 +373,7 @@ CI pipeline:
 | Risk | Mitigation |
 |---|---|
 | jagua-rs API or sparrow API changes mid-project | Pin exact versions in `Cargo.toml`; `cargo vendor` if stability demands |
-| serde field mapping drift between TS types.ts and Rust domain | Dedicated tests in `rema-layout/tests/` that deserialize a snapshot of every fixture JSON and assert round-trip |
+| serde field mapping drift between TS types.ts and Rust domain | Dedicated tests in `rf-layout/tests/` that deserialize a snapshot of every fixture JSON and assert round-trip |
 | Clipper2 Rust bindings unstable / unmaintained | Start with `clipper2` crate; fallback to pure-Rust ports (`geo_clipper`, `i_overlay`). Polygon difference + offset are the only hot paths. |
 | Parity tolerance too loose → Rust quietly regresses | Independent `rust_baseline.snap` locks Rust's own output byte-for-byte; only cross-engine comparison is tolerance-based |
 | Developer without Rust installed blows up `npm run build` | `prebuild` script checks `command -v cargo` first; fails with "Install Rust toolchain" message if absent |
@@ -387,12 +387,12 @@ After S2:
 - The 9 parity fixtures have two baselines (legacy + rust) and assert tolerance vs each other
 
 S3 (Rust backend + Supabase):
-- Adds a new workspace member `crates/rema-backend/` that depends on `rema-layout::application`
+- Adds a new workspace member `crates/rema-backend/` that depends on `rf-layout::application`
 - Reuses the same Cargo workspace, tooling, CI surface
 
 S4 (Tauri):
 - Replaces `child_process.spawn` in `RustPackingService` with Tauri command invocation
-- `pack-cli` binary retired; `rema-layout::application::pack` becomes a Tauri command handler directly
+- `pack-cli` binary retired; `rf-layout::application::pack` becomes a Tauri command handler directly
 - Adds per-job cancellation via `tauri::State` with abort handles
 
 ## 14. References

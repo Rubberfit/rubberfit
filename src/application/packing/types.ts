@@ -85,7 +85,7 @@ export interface PackResult {
  * only when the global incumbent strictly improves in either
  * `bestPlacedCount` or `bestActiveStockDensity`.
  *
- * Shape mirrors `rema_layout::infrastructure::search::progress::PackProgress`
+ * Shape mirrors `rf_layout::infrastructure::search::progress::PackProgress`
  * exactly (camelCase serde). Fields are stable across Tasks 14-20.
  *
  * - `iteration`: emission-sequence counter (0 = baseline; increments per

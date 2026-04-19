@@ -50,8 +50,8 @@ src/                        # Domain logic (framework-agnostic)
 
 app/                        # Frameworks & Drivers (Next.js)
 engine/                     # Rust nesting engine (Cargo workspace)
-├── crates/rema-geom/       # Geometry primitives (MIT, future open-source crate)
-├── crates/rema-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
+├── crates/rf-geom/       # Geometry primitives (MIT, future open-source crate)
+├── crates/rf-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
 └── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
 nesting/                    # Legacy TS 2D NFP engine — fallback when pack-cli is missing (slated for deletion post-S2)
 di/                         # TSyringe dependency injection registration

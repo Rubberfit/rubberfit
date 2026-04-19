@@ -56,7 +56,7 @@ describe("cookie→bearer bridge", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co"
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon"
-    process.env.REMA_API_URL = "https://rema-api.example.com"
+    process.env.RF_API_URL = "https://rf-api.example.com"
   })
 
   afterEach(() => {
@@ -64,17 +64,17 @@ describe("cookie→bearer bridge", () => {
     __setAccessTokenResolverForTests(null)
     delete process.env.NEXT_PUBLIC_SUPABASE_URL
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    delete process.env.REMA_API_URL
+    delete process.env.RF_API_URL
   })
 
-  it("returns 503 when REMA_API_URL is not configured", async () => {
-    delete process.env.REMA_API_URL
+  it("returns 503 when RF_API_URL is not configured", async () => {
+    delete process.env.RF_API_URL
 
     const response = await forward("/api/v2/cuts/history")
     expect(response.status).toBe(503)
     const body = await response.json()
     expect(body).toEqual({
-      error: "REMA_API_URL is not configured on the server",
+      error: "RF_API_URL is not configured on the server",
     })
   })
 
@@ -124,7 +124,7 @@ describe("cookie→bearer bridge", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe(
-      "https://rema-api.example.com/api/v2/cuts/history?limit=5"
+      "https://rf-api.example.com/api/v2/cuts/history?limit=5"
     )
     expect(init?.method).toBe("GET")
     expect((init?.headers as Record<string, string>).authorization).toBe(
@@ -138,8 +138,8 @@ describe("cookie→bearer bridge", () => {
     expect(body).toEqual([{ id: 1 }])
   })
 
-  it("strips trailing slash from REMA_API_URL to avoid double slashes", async () => {
-    process.env.REMA_API_URL = "https://rema-api.example.com/"
+  it("strips trailing slash from RF_API_URL to avoid double slashes", async () => {
+    process.env.RF_API_URL = "https://rf-api.example.com/"
     __setAccessTokenResolverForTests(async () => "jwt-xyz")
     const fetchSpy: FetchMock = vi.fn(async () => new Response("[]", { status: 200 }))
     global.fetch = fetchSpy as unknown as typeof fetch
@@ -147,7 +147,7 @@ describe("cookie→bearer bridge", () => {
     await forward("/api/v2/cuts/history")
 
     expect(fetchSpy.mock.calls[0][0]).toBe(
-      "https://rema-api.example.com/api/v2/cuts/history?limit=10"
+      "https://rf-api.example.com/api/v2/cuts/history?limit=10"
     )
   })
 

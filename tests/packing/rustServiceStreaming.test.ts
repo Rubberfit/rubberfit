@@ -16,7 +16,7 @@ import {
 
 const FIXTURE_DIR = path.resolve(
   __dirname,
-  "../../engine/crates/rema-layout/tests/fixtures"
+  "../../engine/crates/rf-layout/tests/fixtures"
 )
 const RUST_BINARY = path.resolve(__dirname, "../../engine/target/release/pack-cli")
 

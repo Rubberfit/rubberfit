@@ -64,7 +64,7 @@ temp/
 *.sh
 # …except operator scripts that only read secrets from env vars —
 # these are explicitly audited and safe to commit.
-!engine/crates/rema-api/scripts/smoke.sh
+!engine/crates/rf-api/scripts/smoke.sh
 
 # TypeScript
 *.tsbuildinfo
