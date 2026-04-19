@@ -31,6 +31,12 @@ interface DbCheckRow {
   is_transition: boolean
 }
 
+interface DbTimeseriesRow {
+  service_name: string
+  response_ms:  number | null
+  checked_at:   string
+}
+
 export interface DashboardService {
   serviceName:   string
   checkType:     string
@@ -40,6 +46,7 @@ export interface DashboardService {
   uptime30d:     number | null
   avgResponseMs: number | null
   lastCheckedAt: string | null
+  timeseries:    number[]
 }
 
 export interface DashboardIncident {
@@ -77,18 +84,27 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const [endpointsResult, uptimeResult, checksResult] = await Promise.all([
+  const [endpointsResult, uptimeResult, checksResult, timeseriesResult] = await Promise.all([
     adminClient.rpc("get_health_endpoints_with_status"),
     adminClient.rpc("get_all_endpoint_uptime"),
     adminClient.rpc("get_recent_health_checks", { p_limit: 100 }),
+    adminClient.rpc("get_all_health_timeseries", { p_points: 24 }),
   ])
 
-  if (endpointsResult.error) return NextResponse.json({ error: endpointsResult.error.message }, { status: 500 })
-  if (uptimeResult.error)    return NextResponse.json({ error: uptimeResult.error.message    }, { status: 500 })
-  if (checksResult.error)    return NextResponse.json({ error: checksResult.error.message    }, { status: 500 })
+  if (endpointsResult.error)  return NextResponse.json({ error: endpointsResult.error.message  }, { status: 500 })
+  if (uptimeResult.error)     return NextResponse.json({ error: uptimeResult.error.message     }, { status: 500 })
+  if (checksResult.error)     return NextResponse.json({ error: checksResult.error.message     }, { status: 500 })
+  if (timeseriesResult.error) return NextResponse.json({ error: timeseriesResult.error.message }, { status: 500 })
 
   const endpointRows = (endpointsResult.data as DbEndpointStatus[]) ?? []
   const uptimeMap    = new Map(((uptimeResult.data as DbUptimeRow[]) ?? []).map(r => [r.service_name, r]))
+
+  const timeseriesMap = new Map<string, number[]>()
+  for (const row of (timeseriesResult.data as DbTimeseriesRow[]) ?? []) {
+    const arr = timeseriesMap.get(row.service_name) ?? []
+    arr.push(row.response_ms ?? 0)
+    timeseriesMap.set(row.service_name, arr)
+  }
 
   const services: DashboardService[] = endpointRows.map(ep => {
     const uptime = uptimeMap.get(ep.service_name)
@@ -105,6 +121,7 @@ export async function GET(
           ? Math.round(uptime.avg_response_ms_24h)
           : null,
       lastCheckedAt: ep.last_checked_at ?? uptime?.last_checked_at ?? null,
+      timeseries:    timeseriesMap.get(ep.service_name) ?? [],
     }
   })
 

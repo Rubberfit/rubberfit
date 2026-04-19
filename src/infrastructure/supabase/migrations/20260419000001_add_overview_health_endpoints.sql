@@ -54,7 +54,7 @@ COMMENT ON FUNCTION public.get_health_endpoint_ids IS
 GRANT EXECUTE ON FUNCTION public.get_health_endpoint_ids(TEXT[]) TO authenticated, service_role;
 
 
--- ── 3. RPC: insert a batch of health check results ────────────────────────────
+-- 3. RPC: insert a batch of health check results
 
 CREATE OR REPLACE FUNCTION public.record_health_checks(p_checks JSONB)
 RETURNS VOID
@@ -86,7 +86,7 @@ COMMENT ON FUNCTION public.record_health_checks IS
 GRANT EXECUTE ON FUNCTION public.record_health_checks(JSONB) TO authenticated, service_role;
 
 
--- ── 4. RPC: uptime summary for a list of service names ───────────────────────
+-- 4. RPC: uptime summary for a list of service names
 
 CREATE OR REPLACE FUNCTION public.get_health_status(p_names TEXT[])
 RETURNS TABLE (
@@ -123,7 +123,7 @@ COMMENT ON FUNCTION public.get_health_status IS
 GRANT EXECUTE ON FUNCTION public.get_health_status(TEXT[]) TO authenticated, service_role;
 
 
--- ── 5. RPC: recent incident (transition) events ───────────────────────────────
+-- 5. RPC: recent incident (transition) events
 
 CREATE OR REPLACE FUNCTION public.get_health_incidents(p_names TEXT[], p_limit INT DEFAULT 20)
 RETURNS TABLE (

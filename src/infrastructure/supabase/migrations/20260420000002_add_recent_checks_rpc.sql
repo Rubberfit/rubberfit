@@ -28,6 +28,8 @@ AS $$
   LIMIT p_limit;
 $$;
 
+
+
 GRANT EXECUTE ON FUNCTION public.get_recent_health_checks(INT) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.get_all_endpoint_uptime()
@@ -50,3 +52,4 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_all_endpoint_uptime() TO authenticated, service_role;
+ 
