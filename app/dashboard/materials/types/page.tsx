@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Plus, Upload, ChevronDown } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { materialTypes as materialTypesSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
@@ -57,7 +57,7 @@ export default function MaterialTypesPage() {
   const fetchMaterialTypes = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await materialTypeService.getAll()
+      const data = await materialTypesSdk.list()
       setMaterialTypes(data)
     } catch (error) {
       console.error("Error fetching material types:", error)
@@ -101,14 +101,14 @@ export default function MaterialTypesPage() {
         : undefined
 
       if (editingType) {
-        await materialTypeService.update(editingType.id, {
+        await materialTypesSdk.update(editingType.id, {
           name: formData.name.trim(),
           description: trimmedDescription || null,
           min_stock_alert: parsedStock ?? null,
-        } as Partial<MaterialType>)
+        })
         toast.success("Material type updated successfully")
       } else {
-        await materialTypeService.create({
+        await materialTypesSdk.create({
           name: formData.name.trim(),
           description: trimmedDescription || undefined,
           min_stock_alert: parsedStock,
@@ -152,15 +152,18 @@ export default function MaterialTypesPage() {
         return
       }
 
-      await materialTypeService.delete(materialToDelete.id)
+      await materialTypesSdk.delete(materialToDelete.id)
       toast.success("Material type deleted successfully")
       fetchMaterialTypes()
     } catch (error) {
+      const errCode =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { code?: string }).code
+          : undefined
       const isFkError =
-        typeof error === "object" &&
-        error !== null &&
-        (("code" in error && (error as { code?: string }).code === "23503") ||
-          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+        errCode === "23503" ||
+        errCode === "FK_VIOLATION_ROLLS_EXIST" ||
+        ((error as { message?: string }).message?.includes("foreign key constraint") ?? false)
       toast.error(
         isFkError
           ? "This material is referenced by other records and cannot be deleted"
