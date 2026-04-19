@@ -75,12 +75,14 @@ export class LegacyPackingService implements IPackingService {
     }
 
     onProgress?.({
-      jobId,
-      phase: "polishing",
       iteration: 1,
       elapsedMs: Date.now() - startedAtMs,
-      canFinalize: true,
-      bestLayoutSoFar: result,
+      bestPlacedCount: result.placedCount,
+      bestActiveStockDensity:
+        result.totalUsedArea + result.totalWasteArea > 0
+          ? result.totalUsedArea / (result.totalUsedArea + result.totalWasteArea)
+          : 0,
+      phase: "explore",
     })
 
     return result
@@ -156,12 +158,14 @@ export class LegacyPackingService implements IPackingService {
     }
 
     onProgress?.({
-      jobId,
-      phase: "polishing",
       iteration: 1,
       elapsedMs: Date.now() - startedAtMs,
-      canFinalize: true,
-      bestLayoutSoFar: result,
+      bestPlacedCount: result.placedCount,
+      bestActiveStockDensity:
+        result.totalUsedArea + result.totalWasteArea > 0
+          ? result.totalUsedArea / (result.totalUsedArea + result.totalWasteArea)
+          : 0,
+      phase: "explore",
     })
 
     return result
@@ -249,12 +253,14 @@ export class LegacyPackingService implements IPackingService {
     }
 
     onProgress?.({
-      jobId,
-      phase: "polishing",
       iteration: 1,
       elapsedMs: Date.now() - startedAtMs,
-      canFinalize: true,
-      bestLayoutSoFar: result,
+      bestPlacedCount: result.placedCount,
+      bestActiveStockDensity:
+        result.totalUsedArea + result.totalWasteArea > 0
+          ? result.totalUsedArea / (result.totalUsedArea + result.totalWasteArea)
+          : 0,
+      phase: "explore",
     })
 
     return result

@@ -69,16 +69,50 @@ export interface PackResult {
   perBin: BinResult[]
   totalUsedArea: number
   totalWasteArea: number
+  /** Task 14: true when a caller-provided AbortSignal fired mid-search.
+   *  Omitted on the wire (serde skip_serializing_if) when false. */
+  wasCancelled?: boolean
+  /** Task 14: total workspace utilization (0..1). */
+  overallDensity?: number
+  /** Task 14: wall-clock time in ms. */
+  runTimeMs?: number
 }
 
+/**
+ * Progress frame emitted by the Rust engine during `--stream` mode.
+ *
+ * Wire format: one JSON object per line on pack-cli stdout, emitted
+ * only when the global incumbent strictly improves in either
+ * `bestPlacedCount` or `bestActiveStockDensity`.
+ *
+ * Shape mirrors `rema_layout::infrastructure::search::progress::PackProgress`
+ * exactly (camelCase serde). Fields are stable across Tasks 14-20.
+ *
+ * - `iteration`: emission-sequence counter (0 = baseline; increments per
+ *   emitted frame). Not tied to raw GLS iteration count.
+ * - `elapsedMs`: wall-clock ms since `pack()` started.
+ * - `bestPlacedCount`: total items placed across all bins at this point.
+ * - `bestActiveStockDensity`: sum of placed polygon area / sum of stock
+ *   area of NON-EMPTY bins. Rises when operators close bins.
+ * - `phase`: currently "explore" only (compression is identity in Task 7;
+ *   Task 14 may emit "compress" later).
+ */
 export interface PackProgress {
-  jobId: string
-  phase: "warmup" | "metaheuristic" | "polishing"
   iteration: number
   elapsedMs: number
-  estimatedRemainingMs?: number
-  canFinalize: boolean
-  bestLayoutSoFar: PackResult
+  bestPlacedCount: number
+  bestActiveStockDensity: number
+  phase: "explore" | "compress"
+}
+
+/**
+ * Thrown when the caller aborts a pack via `AbortSignal`.
+ */
+export class PackingAbortedError extends Error {
+  constructor(message = "Packing operation was aborted") {
+    super(message)
+    this.name = "PackingAbortedError"
+  }
 }
 
 export const PACK_MODE_BUDGETS_MS = {
