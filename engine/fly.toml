@@ -1,0 +1,64 @@
+# fly.toml for the REMA Rust API.
+#
+# Deploy from the repo root with:
+#   fly deploy --config engine/fly.toml
+#
+# The build context is engine/ (Fly uses the directory containing
+# this toml by default). That matches Dockerfile COPY paths like
+# `crates/rema-api/Cargo.toml`.
+#
+# App name intentionally parameterised per environment — create
+# a sibling `fly.staging.toml` / `fly.prod.toml` if we want to
+# pin app names, or override with `--app` at the CLI.
+
+app = "rema-api"
+primary_region = "sjc"
+# Kill a hung migration or frozen request hard rather than let it
+# accumulate a backlog. 60s > the Axum `REMA_API_REQUEST_TIMEOUT`
+# default, so the app itself times out first on slow upstreams.
+kill_timeout = "60s"
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+# Binds to the Fly loadbalancer's expected internal port. The
+# Dockerfile also sets this, but an explicit env makes the wire
+# contract obvious in the manifest.
+REMA_API_BIND = "0.0.0.0:8080"
+RUST_LOG = "info"
+
+[http_service]
+internal_port = 8080
+force_https = true
+# Autoscale-to-zero is fine for S3a traffic — a cold Rust boot is
+# under 100ms and Supabase calls dominate round-trip anyway. If we
+# need warm pods later, bump `min_machines_running` to 1.
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 0
+processes = ["app"]
+
+[[http_service.checks]]
+# Lightweight liveness — the /health handler deliberately does NOT
+# touch Supabase so a DB blip can't trigger needless restarts.
+grace_period = "10s"
+interval = "15s"
+method = "get"
+timeout = "2s"
+path = "/health"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"
+
+# Required secrets (set via `fly secrets set ...` before the first
+# deploy; Fly blocks the deploy until they're present since these
+# are read at boot and the process will panic without them):
+#
+#   fly secrets set SUPABASE_URL=https://PROJECT_REF.supabase.co
+#   fly secrets set SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+#
+# Optional:
+#   REMA_API_CORS=off | permissive | comma-separated-origin-list
+#   REMA_API_REQUEST_TIMEOUT=30s

@@ -1,0 +1,16 @@
+# Build artifacts — regenerated inside the cache mount.
+target/
+**/target/
+
+# Local editor + IDE junk.
+.vscode/
+.idea/
+*.swp
+
+# CI + docs aren't needed to build the binary.
+.github/
+docs/
+README.md
+
+# Never send local scratch into the image.
+.claude/

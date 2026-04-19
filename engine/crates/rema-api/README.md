@@ -33,7 +33,7 @@ resolving concrete repositories (`rema-supabase`) per request.
 
 ## Current state
 
-S3a Tasks 2, 3, 4, 5, 6, 7 landed.
+S3a Tasks 2, 3, 4, 5, 6, 7, 9 landed (Task 8 is frontend-side).
 
 - **Task 2**: Axum server boot + `/health`.
 - **Task 3**: JWKS + RS256 JWT middleware for `/api/v2/*`.
@@ -78,3 +78,52 @@ npm run openapi:types   # → src/infrastructure/api-client/types.ts
 
 CI runs `npm run openapi:check` to diff the committed spec against a
 freshly generated one and fails on drift.
+
+## Deploying to Fly.io (Task 9)
+
+Manifests live in `engine/`:
+
+- `engine/Dockerfile` — multistage Rust build → distroless runtime.
+- `engine/fly.toml` — app config: single region (`sjc`), autoscale
+  0-1, `/health` probe.
+- `engine/.dockerignore` — excludes `target/`, `.claude/`, docs.
+
+Before the first deploy:
+
+```bash
+# Launch without deploying so Fly can read fly.toml and provision
+# resources without pulling a build.
+fly apps create rema-api            # one-time, from repo root
+
+fly secrets set \
+  SUPABASE_URL=https://PROJECT_REF.supabase.co \
+  SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
+  --app rema-api --config engine/fly.toml
+```
+
+Deploy:
+
+```bash
+fly deploy --config engine/fly.toml
+# Fly treats `engine/` as the build context — matches the
+# Dockerfile's `COPY crates/...` paths.
+```
+
+Health check after deploy:
+
+```bash
+curl -fsS https://rema-api.fly.dev/health
+# → { "status": "ok", "version": "0.1.0" }
+```
+
+The Dockerfile is proven to build + run locally via:
+
+```bash
+docker build -f engine/Dockerfile -t rema-api:local engine/
+docker run --rm -p 8080:8080 rema-api:local
+curl -fsS http://localhost:8080/health   # → { "status": "ok", ... }
+```
+
+Final image is ~39 MB (distroless/cc + stripped Rust binary). The
+actual staging + production deploys happen in Task 9.5 once
+secrets are provisioned.
