@@ -1,15 +1,21 @@
 //! REMA backend binary entrypoint. Boots Axum, binds the configured
-//! socket, and serves the router produced by `build_router`.
+//! socket, and serves the router.
 //!
-//! All runtime knobs live in `ServerConfig` (`config.rs`) — this
-//! file is just the async runtime + graceful-shutdown wiring.
+//! If `SUPABASE_URL` is set, mounts the auth-gated `/api/v2/**`
+//! subtree backed by a JWKS cache; otherwise falls back to the
+//! public-only router (just `/health`) so `cargo run` works for
+//! smoke tests before Supabase is wired.
 
 use std::process::ExitCode;
+use std::sync::Arc;
 
-use rema_api::{build_router, config::ServerConfig};
+use rema_api::{
+    build_router, build_router_with_state, config::ServerConfig, AppState, HttpJwksFetcher,
+    JwksCache, JwksFetcher,
+};
 use tokio::net::TcpListener;
 use tokio::signal;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -47,7 +53,19 @@ async fn main() -> ExitCode {
     };
     info!(local_addr = ?listener.local_addr().ok(), "listening");
 
-    let router = build_router(&cfg);
+    let router = match std::env::var("SUPABASE_URL") {
+        Ok(url) if !url.trim().is_empty() => {
+            info!(supabase_url = %url, "SUPABASE_URL set — mounting /api/v2 behind JWT middleware");
+            let fetcher: Arc<dyn JwksFetcher> = Arc::new(HttpJwksFetcher::new(&url));
+            let cache = JwksCache::new(fetcher);
+            let state = Arc::new(AppState::new(cache, url));
+            build_router_with_state(&cfg, state)
+        }
+        _ => {
+            warn!("SUPABASE_URL not set — serving public-only router (just /health)");
+            build_router(&cfg)
+        }
+    };
 
     // `axum::serve` accepts graceful-shutdown via future. Trigger on
     // SIGTERM (container orchestrator friendly) OR Ctrl-C (dev).

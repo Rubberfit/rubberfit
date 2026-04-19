@@ -4,7 +4,9 @@
 //! Split out from `main.rs` so integration tests can exercise the
 //! router directly without binding a TCP socket.
 
-use axum::{routing::get, Router};
+use std::sync::Arc;
+
+use axum::{middleware, routing::get, Router};
 use http::HeaderValue;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -15,6 +17,7 @@ use tower_http::{
 };
 use uuid::Uuid;
 
+use crate::auth::{jwt_middleware, AppState};
 use crate::config::{CorsMode, ServerConfig};
 use crate::health;
 
@@ -32,11 +35,58 @@ impl MakeRequestId for UuidRequestId {
     }
 }
 
-/// Build the full router with every middleware layer applied.
-/// Top-to-bottom the stack is: tracing → request-id → CORS → timeout
-/// → routes. Errors from inner layers bubble up as 500 via Axum's
-/// default handling.
+/// Build the router without auth — just public routes like `/health`.
+/// Kept as a separate constructor so integration tests can exercise
+/// the middleware stack without an `AppState`.
+///
+/// Top-to-bottom the middleware stack is: tracing → request-id → CORS
+/// → timeout → routes. Errors from inner layers bubble up as 500 via
+/// Axum's default handling.
 pub fn build_router(cfg: &ServerConfig) -> Router {
+    apply_middleware(build_public_router(), cfg)
+}
+
+/// Build the router with auth middleware applied to the `/api/v2`
+/// subtree. `/health` remains public. This is what `main.rs` wires
+/// at startup; tests can also call it with a fake `AppState`.
+pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Router {
+    // Protected subtree — everything under /api/v2 requires a valid
+    // Supabase JWT. Routes mount onto this router in later S3a tasks.
+    let protected = Router::new()
+        // Placeholder — replaced by cut-history handlers in Task 6.
+        // Kept here so integration tests for auth have a target to hit.
+        .route("/whoami", get(whoami_placeholder))
+        .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
+        .with_state(state);
+
+    let public = build_public_router();
+    let combined = public.nest("/api/v2", protected);
+    apply_middleware(combined, cfg)
+}
+
+/// Public router — no auth, no state. Currently just `/health`.
+pub fn build_public_router() -> Router {
+    Router::new().route("/health", get(health::health))
+}
+
+async fn whoami_placeholder(
+    request: axum::extract::Request,
+) -> axum::Json<serde_json::Value> {
+    // Handlers use `crate::require_auth` to reach the AuthContext;
+    // this route exists so the test suite can confirm the middleware
+    // forwards a valid JWT's claims into the request extensions.
+    match crate::auth::require_auth(&request) {
+        Ok(auth) => axum::Json(serde_json::json!({
+            "sub": auth.claims.sub,
+            "iss": auth.claims.iss,
+            "email": auth.claims.email,
+            "role": auth.claims.role,
+        })),
+        Err(_) => axum::Json(serde_json::json!({ "error": "no auth context" })),
+    }
+}
+
+fn apply_middleware(router: Router, cfg: &ServerConfig) -> Router {
     let cors = cors_layer(&cfg.cors_mode);
 
     // Order matters. ServiceBuilder applies layers outside-in, so the
@@ -51,12 +101,10 @@ pub fn build_router(cfg: &ServerConfig) -> Router {
         .layer(PropagateRequestIdLayer::new(request_id_header))
         .layer(TraceLayer::new_for_http());
 
-    let routes = Router::new().route("/health", get(health::health));
-
     let with_cors = if let Some(layer) = cors {
-        routes.layer(layer)
+        router.layer(layer)
     } else {
-        routes
+        router
     };
 
     with_cors

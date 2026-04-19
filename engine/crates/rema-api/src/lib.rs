@@ -8,8 +8,12 @@
 //! `docs/superpowers/specs/2026-04-19-s3-rust-backend-design.md` for
 //! the full architectural context.
 
+pub mod auth;
 pub mod config;
 pub mod health;
+pub mod jwks;
 pub mod router;
 
-pub use router::build_router;
+pub use auth::{require_auth, AppState, AuthContext, AuthError};
+pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
+pub use router::{build_public_router, build_router, build_router_with_state};
