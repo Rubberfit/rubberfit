@@ -28,7 +28,15 @@ updates so backend and frontend types stay in lockstep.
 
 - `types.ts` — auto-generated from `openapi-typescript`. Do not edit
   by hand. Exports `paths`, `components`, and `operations`.
-- `cut-history.ts` — the first consumer. Exports `listCutHistory` +
+- `client.ts` — shared `openapi-fetch` instance for the Rust backend.
+  Consumers should import the per-aggregate wrappers, not this
+  client directly.
+- `rf/inventory.ts` — S3b typed SDK. Per-aggregate wrappers
+  (`materialTypes`, `suppliers`, `materialSuppliers`, `rolls`) with
+  CRUD + stats methods. Flag-gated on
+  `NEXT_PUBLIC_USE_RUST_INVENTORY`; when OFF, calls route to the
+  existing legacy repositories/services.
+- `cut-history.ts` — the S3a consumer. Exports `listCutHistory` +
   `listFavoriteIds`. Branches on `NEXT_PUBLIC_USE_RUST_CUT_HISTORY`:
   - `"true"` — hits the v2 Next.js route handlers at `/api/v2/cuts/*`
     which forward to Rust via the cookie→bearer bridge.
@@ -39,11 +47,17 @@ Callers receive the same `CutHistory[]` shape regardless of which
 backend served the data, so a per-request rollback is a pure flag
 flip — no UI code changes.
 
-## Feature flag
+## Feature flags
 
 ```
-NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true
+NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true      # S3a cut-history
+NEXT_PUBLIC_USE_RUST_INVENTORY=true        # S3b inventory (rolls,
+                                           #  material types, suppliers,
+                                           #  material-supplier links)
 ```
+
+Per-aggregate per-flag so operators can roll out one surface at a
+time and roll back instantly.
 
 Set in `.env.local` (dev) or Vercel env (staging/prod). The flag
 is read at call time, so a Vercel env change takes effect on the
