@@ -75,6 +75,11 @@ export interface NestingVisualizerProps {
   simpleMode?: boolean
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
+  /**
+   * When provided, skips internal live compute and renders this preview directly.
+   * Used by the Pack worker path for cones/trapezoids/cylinders.
+   */
+  overridePreview?: SimplePartPreview
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
 }

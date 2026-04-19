@@ -28,7 +28,7 @@ import {
   computeMultiSheetPreviews,
   globalMultiSheetPack,
 } from "./nesting-shape-previews"
-import { buildPartPreviewItem, computeFabricationScore } from "./nesting-preview-builders"
+import { computeFabricationScore } from "./nesting-preview-builders"
 
 import { drawMiniRoll, drawDetailStep } from "./nesting-svg-renderers"
 
@@ -251,6 +251,7 @@ export default function NestingVisualizer({
   simpleMode = false,
   simplePart,
   simpleParts,
+  overridePreview,
   onMetricsChange,
   onTagMapChange,
 }: NestingVisualizerProps) {
@@ -292,9 +293,11 @@ export default function NestingVisualizer({
 
   // First paint runs the sync generator so the UI is never empty while workers warm up.
   // For cone/trapezoid specs an async refinement runs on the worker pool and replaces
-  // this value when ready (effect below).
+  // this value when ready (effect below). When overridePreview is provided (Pack worker
+  // path), skip sync compute entirely and fall back to the override downstream.
   const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
     if (!simpleMode) return null
+    if (overridePreview) return null
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
           defaultRollWidth,
@@ -313,6 +316,7 @@ export default function NestingVisualizer({
         )
   }, [
     simpleMode,
+    overridePreview,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -351,6 +355,8 @@ export default function NestingVisualizer({
 
   useEffect(() => {
     if (!simpleMode) return
+    // When the Pack worker is supplying the preview, skip the live async refinement.
+    if (overridePreview) return
 
     const key = asyncPreviewKey
     let cancelled = false
@@ -413,6 +419,7 @@ export default function NestingVisualizer({
   }, [
     asyncPreviewKey,
     simpleMode,
+    overridePreview,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -421,8 +428,9 @@ export default function NestingVisualizer({
     defaultQty,
   ])
 
-  const baseSimplePreview =
-    asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
+  const baseSimplePreview = overridePreview
+    ? overridePreview
+    : asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
       ? asyncBasePreview.preview
       : syncBasePreview
 
@@ -478,9 +486,10 @@ export default function NestingVisualizer({
   const activeStrat = scored.find((s) => s.id === activeId)
   const stepNote = computeStepNote(activeStrat, activeStep, rollW, rollL, qty)
 
-  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
+  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations.
+  // Skipped when overridePreview is provided (Pack worker owns the result).
   const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
-    simpleMode,
+    simpleMode && !overridePreview,
     activeSimpleSpecs,
     defaultCutWidth,
     defaultCutHeight,

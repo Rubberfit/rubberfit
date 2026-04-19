@@ -6,8 +6,10 @@ import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { FileUp, Info, Package, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
+import { GreedyPackCanvas } from "./_components/greedy-pack-canvas"
+import { useGreedyPackJob } from "./_hooks/use-greedy-pack-job"
 import PresetDimensionSelector, {
   type PartTemplate,
   type LoadedSelection,
@@ -64,7 +66,7 @@ function LayoutLabel() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line max-lines-per-function
+// eslint-disable-next-line max-lines-per-function, complexity
 export default function CutPlannerPage() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
@@ -77,6 +79,8 @@ export default function CutPlannerPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+
+  const greedyJob = useGreedyPackJob()
 
   useEffect(() => {
     materialTypeService
@@ -299,6 +303,43 @@ export default function CutPlannerPage() {
         : undefined,
     [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
   )
+
+  // Phase 1: any cone/trapezoid/cylinder in the selection gates the whole view
+  // behind the Pack button. Rectangles/circles keep the current live path.
+  const needsGreedyPack = useMemo(
+    () =>
+      selectedTemplates.some(
+        (t) =>
+          t.partType === "cone" || t.partType === "trapezoid" || t.partType === "cylinder"
+      ),
+    [selectedTemplates]
+  )
+
+  // Invalidate the Pack result when inputs change so the user re-packs.
+  useEffect(() => {
+    if (greedyJob.status !== "idle") greedyJob.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nestingSimpleParts, stock.width, stock.length])
+
+  const handlePack = useCallback(() => {
+    if (!needsGreedyPack || nestingSimpleParts.length === 0) return
+    greedyJob.pack({
+      specs: nestingSimpleParts,
+      rollWidth: stock.width,
+      rollLength: stock.length,
+      fallbackCutWidth: selectedTemplate?.width ?? selectedTemplate?.diameter ?? 24,
+      fallbackCutHeight: selectedTemplate?.length ?? selectedTemplate?.height ?? 24,
+      fallbackQty: safeQuantity,
+    })
+  }, [
+    needsGreedyPack,
+    nestingSimpleParts,
+    stock.width,
+    stock.length,
+    selectedTemplate,
+    safeQuantity,
+    greedyJob,
+  ])
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -557,12 +598,31 @@ export default function CutPlannerPage() {
                   <LayoutLabel />
                   4. Graph
                 </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {needsGreedyPack && (
+                    <Button
+                      size="sm"
+                      variant={greedyJob.status === "done" ? "outline" : "default"}
+                      onClick={handlePack}
+                      disabled={
+                        greedyJob.status === "packing" || nestingSimpleParts.length === 0
+                      }
+                    >
+                      <Package className="mr-1.5 h-4 w-4" />
+                      {greedyJob.status === "packing"
+                        ? "Packing…"
+                        : greedyJob.status === "done"
+                          ? "Re-pack"
+                          : "Pack"}
+                    </Button>
+                  )}
+                  {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                    <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
+                      <Scissors className="mr-1.5 h-4 w-4" />
+                      {isRecordingCut ? "Recording…" : "Cut"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardDescription>
                 The graph starts from rectangular stock and shows the actual cut pieces placed on
@@ -571,17 +631,37 @@ export default function CutPlannerPage() {
             </CardHeader>
 
             <CardContent>
-              <NestingVisualizer
-                defaultRollWidth={stock.width}
-                defaultRollLength={stock.length}
-                defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                defaultQty={safeQuantity}
-                simpleMode
-                onMetricsChange={setCutMetrics}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
-              />
+              {needsGreedyPack ? (
+                <GreedyPackCanvas
+                  status={greedyJob.status}
+                  progress={greedyJob.progress}
+                  previewResult={greedyJob.result?.preview ?? null}
+                  error={greedyJob.error}
+                  stockWidth={stock.width}
+                  stockLength={stock.length}
+                  fallbackCutWidth={
+                    selectedTemplate.width ?? selectedTemplate.diameter ?? 24
+                  }
+                  fallbackCutHeight={
+                    selectedTemplate.length ?? selectedTemplate.height ?? 24
+                  }
+                  fallbackQty={safeQuantity}
+                  onMetricsChange={setCutMetrics}
+                  onRetry={handlePack}
+                />
+              ) : (
+                <NestingVisualizer
+                  defaultRollWidth={stock.width}
+                  defaultRollLength={stock.length}
+                  defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
+                  defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
+                  defaultQty={safeQuantity}
+                  simpleMode
+                  onMetricsChange={setCutMetrics}
+                  simpleParts={nestingSimpleParts}
+                  simplePart={nestingSimplePart}
+                />
+              )}
             </CardContent>
           </Card>
         </>
@@ -602,3 +682,4 @@ export default function CutPlannerPage() {
     </div>
   )
 }
+
