@@ -51,31 +51,53 @@ describe("parity fixtures — rust baseline", () => {
   }
 })
 
-// S2 scope: the Rust engine uses warm-start greedy bottom-left only. The real
-// metaheuristic search (sparrow LNS+SA) lands in S2.5, and the strict
-// "rust >= legacy" tolerance belongs in the S2.5 benchmark harness.
+// Task 19b (S2.5c): strict regression guard — `rust.placedCount >=
+// legacy.placedCount` and `rust.overflowCount <= legacy.overflowCount`
+// on every fixture. Task 19a's 2D grid warm-start closed the gap that
+// used to block this tightening (the 4 homogeneous fixtures where
+// Rust's old vertical stacker placed fewer items than legacy).
 //
-// For S2 we only guarantee conservation (items are fully accounted for) and
-// non-trivial output (engine did something). The snapshots above lock in the
-// per-engine behavior so either side regressing is still caught.
-//
-// TODO(S2.5): tighten to rust.placedCount >= legacy.placedCount and per-bin
-// efficiency within 0.5%. See docs/superpowers/specs/2026-04-17-migration-
-// overview-design.md section 3 (S2.5).
-describe("parity fixtures — rust regression guard", () => {
+// Efficiency tolerance is loose (1%) to absorb per-bin rounding noise
+// without masking real regressions. Rust's density >= legacy's on
+// every touched bin is asserted separately by the top-level bench
+// report at docs/superpowers/benchmarks/2026-04-18-s2.5-results.md.
+const EFFICIENCY_TOLERANCE = 0.01
+
+describe("parity fixtures — rust regression guard (S2.5 strict)", () => {
   for (const file of files) {
     it.skipIf(!rustAvailable)(
-      `rust accounts for all items: ${file}`,
+      `rust >= legacy on ${file}`,
       async () => {
         const fixture = loadFixture(file)
         const [legacy, rust] = await Promise.all([
           new LegacyPackingService().pack(fixture),
           new RustPackingService().pack(fixture),
         ])
+
+        // 1. Conservation — same total items accounted for.
         expect(rust.placedCount + rust.overflowCount).toBe(
           legacy.placedCount + legacy.overflowCount
         )
         expect(rust.placedCount + rust.overflowCount).toBeGreaterThan(0)
+
+        // 2. Strict dominance — Rust places at least as many items.
+        expect(rust.placedCount).toBeGreaterThanOrEqual(legacy.placedCount)
+        expect(rust.overflowCount).toBeLessThanOrEqual(legacy.overflowCount)
+
+        // 3. Per-bin efficiency — Rust within EFFICIENCY_TOLERANCE of
+        //    legacy on bins both engines used. Cross-bin operators can
+        //    legitimately shift items between bins, so empty-vs-filled
+        //    pairs are skipped.
+        for (const legBin of legacy.perBin) {
+          const rustBin = rust.perBin.find((b) => b.binId === legBin.binId)
+          if (!rustBin) continue
+          const bothHavePlacements =
+            legBin.efficiency > 0 && rustBin.efficiency > 0
+          if (!bothHavePlacements) continue
+          expect(rustBin.efficiency).toBeGreaterThanOrEqual(
+            legBin.efficiency - EFFICIENCY_TOLERANCE
+          )
+        }
       }
     )
   }
