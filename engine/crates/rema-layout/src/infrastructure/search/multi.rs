@@ -32,7 +32,9 @@
 //
 // See plan: docs/superpowers/plans/2026-04-18-s2.5-task12-orchestrator.md.
 
-use super::assignment::cross_bin_swap::{migrate, swap_two, unload_lightest_bin};
+use super::assignment::cross_bin_swap::{
+    consolidate_tail_bin, migrate, swap_two, unload_lightest_bin,
+};
 use super::assignment::ffd::FfdAssignment;
 use super::cancel::{is_cancelled, CancelToken};
 use super::progress::ProgressEmitter;
@@ -340,7 +342,17 @@ fn apply_operator_ladder(
         return Ok(None);
     }
 
-    // 2. migrate — try both directions per bin pair.
+    // 2. consolidate_tail_bin (Tier 6) — post-unload repair for 2-bin
+    // jobs with collapsed tails. No-op on everything else (gated
+    // internally), so parity-safe for the 9 existing fixtures.
+    if let Some(new) = consolidate_tail_bin(assignment, bins, items, clearance)? {
+        return Ok(Some(new));
+    }
+    if is_cancelled(cancel) {
+        return Ok(None);
+    }
+
+    // 3. migrate — try both directions per bin pair.
     for a in 0..n_bins {
         for b in (a + 1)..n_bins {
             if is_cancelled(cancel) {
@@ -358,7 +370,7 @@ fn apply_operator_ladder(
         return Ok(None);
     }
 
-    // 3. swap_two — pair enumeration.
+    // 4. swap_two — pair enumeration.
     for a in 0..n_bins {
         for b in (a + 1)..n_bins {
             if is_cancelled(cancel) {

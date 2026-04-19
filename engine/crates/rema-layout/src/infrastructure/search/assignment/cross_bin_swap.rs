@@ -508,6 +508,268 @@ pub fn unload_lightest_bin(
 }
 
 // ---------------------------------------------------------------------------
+// Operator 4: consolidate_tail_bin (Tier 6 — tail-remnant preservation)
+// ---------------------------------------------------------------------------
+
+/// Tier 6: tail-remnant preservation operator (Codex-designed).
+///
+/// Unlike `migrate` / `swap_two` / `unload_lightest_bin`, which all use
+/// a fixed-layout `bin_fits` oracle, this operator **repacks the
+/// receiver bin from scratch** with an augmented item multiset. On
+/// the production 2-bin regression this matters because bin-packing's
+/// MaxRects BSSF is greedy — its per-item FFD probe commits to a
+/// layout that can't admit additional items, but a multi-item repack
+/// may find a different layout that fits.
+///
+/// Algorithm (Codex report §1, commit-1 minimal variant):
+///   1. Require `n_bins == 2`, no overflow, both bins non-empty, and
+///      the least-loaded bin's current tail height < TAIL_COLLAPSED_IN.
+///   2. Pick the **tail candidate** (source) = least-loaded bin.
+///   3. Build source units from its placements, sorted by
+///      (top_edge desc, area asc, shape_id asc, bin_id asc).
+///      Top-edge targeting is critical: tail only improves by removing
+///      shapes that touch the current top envelope.
+///   4. For K ∈ [1, K_MAX]: take first K units. Shadow-state:
+///      remove K from source, add K to receiver.
+///   5. Repack receiver from scratch with BSSF; on overflow, try
+///      BottomLeft. Repack source from scratch (removing K can collapse
+///      its height).
+///   6. Require `overflow == 0` on both bins AND
+///      `after_placed == before_placed` AND
+///      `after_overflow == before_overflow`.
+///   7. Score via `TailScore = (closed_bins, tail_height, concentration)`.
+///      Accept strictly improving moves only. Scan all K, keep best.
+///   8. Commit transactionally via `assignment_from_state` with the
+///      chosen K's shadow state; otherwise return `Ok(None)`.
+///
+/// Scope gate: the runtime-bound + 2-bin gate keeps this cheap on the
+/// production regression family and parity-safe everywhere else. The
+/// operator returns `Ok(None)` with no side effects whenever the gates
+/// fail.
+pub fn consolidate_tail_bin(
+    assignment: &FfdAssignment,
+    bins: &[Bin],
+    items: &[Part],
+    clearance: f64,
+) -> OpResult {
+    use crate::infrastructure::warm_start::{
+        greedy_rectangle_pack_with_strategy, PackerStrategy,
+    };
+
+    // K_MAX bumped from Codex's initial 6 → 12. Bench showed K=1 was
+    // the best commit in the narrow variant because the BSSF receiver
+    // couldn't admit K>1. With Auto in the portfolio, K up to 12 is
+    // worth evaluating to let larger multi-item swaps discover better
+    // layouts.
+    const K_MAX: usize = 12;
+    const TAIL_COLLAPSED_IN: f64 = 24.0;
+    const TAIL_EPS_IN: f64 = 0.01;
+
+    // Gate 1: exactly 2 bins.
+    if bins.len() != 2 {
+        return Ok(None);
+    }
+    // Gate 2: no overflow (operator is additive; can't help if items
+    // already don't fit the aggregate stock).
+    if !assignment.overflow.is_empty() {
+        return Ok(None);
+    }
+    // Gate 3: both bins non-empty.
+    if assignment.per_bin.iter().any(|b| b.placements.is_empty()) {
+        return Ok(None);
+    }
+
+    let (state, overflow) = state_from_assignment(assignment);
+    let areas = item_areas(items);
+
+    // Tail preservation target: the bin with MORE current tail free
+    // space is the one we want to preserve further. In the production
+    // regression both bins have near-zero tail, so the tiebreak below
+    // (higher index wins) picks roll-2 as the source and roll-1 as
+    // receiver. That matches the business intent: push load into
+    // earlier rolls, free up the last roll for a clean remnant.
+    let tail_heights: Vec<f64> = (0..2)
+        .map(|i| {
+            assignment.per_bin[i]
+                .placements
+                .iter()
+                .map(|p| p.y + p.height)
+                .fold(0.0_f64, f64::max)
+        })
+        .collect();
+    let tail_free: Vec<f64> = (0..2).map(|i| bins[i].height - tail_heights[i]).collect();
+    let (source_idx, receiver_idx) = if tail_free[1] >= tail_free[0] {
+        (1usize, 0usize)
+    } else {
+        (0usize, 1usize)
+    };
+
+    // Gate 4: tail must be "collapsed" — otherwise there's nothing to
+    // gain. The tail candidate bin's tail_free should be below
+    // TAIL_COLLAPSED_IN. (On the production fixture both bins have
+    // tail_free ≈ 0", so this trips true.)
+    if tail_free[source_idx] >= TAIL_COLLAPSED_IN {
+        return Ok(None);
+    }
+
+    // Build source units with their (top_edge, area, shape_id) keys.
+    // One record per PLACED COPY.
+    let source_placements = &assignment.per_bin[source_idx].placements;
+    let mut units: Vec<(f64, f64, String, usize)> = source_placements
+        .iter()
+        .enumerate()
+        .map(|(idx, p)| {
+            let top_edge = p.y + p.height;
+            let area = areas.get(&p.shape_id).copied().unwrap_or(0.0);
+            (top_edge, area, p.shape_id.clone(), idx)
+        })
+        .collect();
+    // Sort: top_edge desc (hit the top envelope first), area asc (easier
+    // to rehome small items), shape_id asc (deterministic), index asc.
+    units.sort_by(|a, b| {
+        b.0.partial_cmp(&a.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| a.3.cmp(&b.3))
+    });
+
+    // Baseline TailScore. `closed_bins` is the count of empty bins.
+    // `tail_height` is the tail candidate (source) bin's free tail.
+    // `concentration` is the existing lex score's second term.
+    let baseline_tail = tail_free[source_idx];
+    let baseline_conc = score_state(&state, bins, &areas).1;
+    let baseline_closed = state.iter().filter(|c| c.is_empty() || c.values().all(|q| *q == 0)).count() as u32;
+
+    let mut best_shadow: Option<AssignmentState> = None;
+    let mut best_tail: f64 = baseline_tail;
+    let mut best_conc: f64 = baseline_conc;
+    let mut best_closed: u32 = baseline_closed;
+
+    // Iterate prefixes K = 1..K_MAX.
+    for k in 1..=K_MAX.min(units.len()) {
+        let prefix = &units[..k];
+        // Shadow count maps: remove prefix from source, add to receiver.
+        let mut shadow = state.clone();
+        // Remove K copies from source.
+        for (_, _, shape_id, _) in prefix {
+            let entry = shadow[source_idx].entry(shape_id.clone()).or_insert(0);
+            if *entry == 0 {
+                // unexpected — abort
+                shadow = state.clone();
+                break;
+            }
+            *entry -= 1;
+        }
+        // Add K copies to receiver.
+        for (_, _, shape_id, _) in prefix {
+            *shadow[receiver_idx].entry(shape_id.clone()).or_insert(0) += 1;
+        }
+        for counts in shadow.iter_mut() {
+            strip_zero(counts);
+        }
+
+        // Repack RECEIVER with portfolio: BSSF → BottomLeft → Auto.
+        // Auto is expensive but runs each prefix at most once; on a
+        // 2-bin job this stays well under the 700ms local budget.
+        let receiver_items = materialize_parts(&shadow[receiver_idx], items);
+        let receiver_result = if receiver_items.is_empty() {
+            None
+        } else {
+            let try_strategies = [
+                PackerStrategy::Bssf,
+                PackerStrategy::BottomLeft,
+                PackerStrategy::Auto,
+            ];
+            let mut chosen: Option<SeedResult> = None;
+            for strat in &try_strategies {
+                if let Ok(r) = greedy_rectangle_pack_with_strategy(
+                    &bins[receiver_idx],
+                    &receiver_items,
+                    clearance,
+                    *strat,
+                ) {
+                    if r.overflow == 0 {
+                        chosen = Some(r);
+                        break;
+                    }
+                }
+            }
+            chosen
+        };
+        let receiver_result = match receiver_result {
+            Some(r) => r,
+            None => continue, // receiver won't absorb K items — try other K
+        };
+
+        // Repack SOURCE (BSSF only — we want faithful tail height).
+        let source_items = materialize_parts(&shadow[source_idx], items);
+        let source_result = if source_items.is_empty() {
+            SeedResult {
+                placements: vec![],
+                overflow: 0,
+            }
+        } else {
+            match greedy_rectangle_pack_with_strategy(
+                &bins[source_idx],
+                &source_items,
+                clearance,
+                PackerStrategy::Bssf,
+            ) {
+                Ok(r) if r.overflow == 0 => r,
+                _ => continue,
+            }
+        };
+
+        // Conservation check: total placements across touched bins must
+        // equal the baseline count on those bins.
+        let before_placed = assignment.per_bin[source_idx].placements.len()
+            + assignment.per_bin[receiver_idx].placements.len();
+        let after_placed = source_result.placements.len() + receiver_result.placements.len();
+        if after_placed != before_placed {
+            continue;
+        }
+
+        // Compute TailScore components for the shadow state.
+        let new_source_tail = bins[source_idx].height
+            - source_result
+                .placements
+                .iter()
+                .map(|p| p.y + p.height)
+                .fold(0.0_f64, f64::max);
+        let shadow_conc = score_state(&shadow, bins, &areas).1;
+        let shadow_closed =
+            shadow.iter().filter(|c| c.values().all(|q| *q == 0)).count() as u32;
+
+        // Lex acceptance: closed_bins > best_closed, else tail > best_tail + eps,
+        // else tail ~= best_tail and conc > best_conc.
+        let strictly_better = shadow_closed > best_closed
+            || (shadow_closed == best_closed && new_source_tail > best_tail + TAIL_EPS_IN)
+            || (shadow_closed == best_closed
+                && (new_source_tail - best_tail).abs() <= TAIL_EPS_IN
+                && shadow_conc > best_conc + f64::EPSILON);
+
+        if strictly_better {
+            best_shadow = Some(shadow);
+            best_tail = new_source_tail;
+            best_conc = shadow_conc;
+            best_closed = shadow_closed;
+        }
+    }
+
+    match best_shadow {
+        Some(shadow) => {
+            #[cfg(debug_assertions)]
+            assert_per_shape_conservation(&shadow, &overflow, items);
+            Ok(Some(assignment_from_state(
+                &shadow, &overflow, bins, items, clearance,
+            )?))
+        }
+        None => Ok(None),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

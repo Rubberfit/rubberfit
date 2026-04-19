@@ -117,6 +117,42 @@ fn greedy_rectangle_pack(
     items: &[Part],
     clearance: f64,
 ) -> Result<SeedResult, PackError> {
+    greedy_rectangle_pack_with_strategy(bin, items, clearance, PackerStrategy::Bssf)
+}
+
+/// Task 19d/Tier 6 strategy seam: per-bin packer family selector.
+///
+/// `Bssf` is the default used by the warm-start dispatcher (Jylänki BSSF —
+/// biased toward corner-tight fits + large leftover rectangles, see
+/// `greedy_rectangle_pack` docs). Tier 6's `consolidate_tail_bin`
+/// operator uses `BottomLeft` as a secondary repack strategy because
+/// it's directly biased toward lower occupied height — exactly what
+/// tail preservation wants on the receiver bin.
+#[derive(Clone, Copy, Debug)]
+pub enum PackerStrategy {
+    /// MaxRects BSSF — default warm-start + FFD probe.
+    Bssf,
+    /// MaxRects bottom-left — prefers low occupied height.
+    BottomLeft,
+    /// Auto + Multistart — full sweep of MaxRects variants + Skyline +
+    /// Guillotine + randomized restarts. Expensive (~10× BSSF runtime)
+    /// but explores layouts the single heuristics miss. Reserved for
+    /// Tier 6 tail-preservation receiver repack where the extra cost
+    /// is worth one-shot-per-move.
+    Auto,
+}
+
+/// Strategy-parameterized variant of `greedy_rectangle_pack`. Tier 6
+/// operators call this with alternate strategies when repacking a
+/// receiver bin from scratch. Keeping `greedy_rectangle_pack` as a thin
+/// wrapper preserves the Task 19d dispatcher contract unchanged — FFD
+/// + GLS + existing cross-bin operators never observe the new param.
+pub(crate) fn greedy_rectangle_pack_with_strategy(
+    bin: &Bin,
+    items: &[Part],
+    clearance: f64,
+    strategy: PackerStrategy,
+) -> Result<SeedResult, PackError> {
     use bin_packing::two_d::{
         solve_2d, RectDemand2D, Sheet2D, TwoDAlgorithm, TwoDOptions, TwoDProblem,
     };
@@ -246,17 +282,22 @@ fn greedy_rectangle_pack(
     // See CLAUDE.md.
     let min_usable_side: u32 = (6.0 * SCALE).round() as u32;
 
-    // Algorithm choice: `MaxRectsBestShortSideFit` (Jylänki 2010 §3.2).
-    // BSSF places each rect in the free rectangle that leaves the
+    // Algorithm choice: default `MaxRectsBestShortSideFit` (Jylänki 2010
+    // §3.2). BSSF places each rect in the free rectangle that leaves the
     // smallest remainder on the SHORTER axis — biasing the layout
     // toward filling corners tightly and preserving large, clean
     // leftover rectangles on the longer axis. This is exactly REMA's
-    // reusable-offcut objective. Production bench showed `Auto` picked
-    // tighter-waste layouts that fragmented the offcut (Fab Score
-    // regression from 46 → 38 on the 2-bin run); BSSF alone keeps the
-    // consolidation behavior without the regression.
+    // reusable-offcut objective.
+    //
+    // Tier 6 operators may override with `BottomLeft` when the goal is
+    // to minimize occupied height on a receiver bin during consolidation.
+    let algorithm = match strategy {
+        PackerStrategy::Bssf => TwoDAlgorithm::MaxRectsBestShortSideFit,
+        PackerStrategy::BottomLeft => TwoDAlgorithm::MaxRectsBottomLeft,
+        PackerStrategy::Auto => TwoDAlgorithm::Auto,
+    };
     let options = TwoDOptions {
-        algorithm: TwoDAlgorithm::MaxRectsBestShortSideFit,
+        algorithm,
         seed: Some(seed),
         min_usable_side,
         ..TwoDOptions::default()
