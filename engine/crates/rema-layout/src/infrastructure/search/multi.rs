@@ -45,6 +45,20 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use std::collections::HashMap;
 use std::time::Instant;
 
+// Task 18 tuning findings (see
+// `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`):
+//
+// Raising MAX_ROUNDS to 60 / MAX_OPERATOR_GAP to 16 /
+// TERMINATION_NOOP_TICKS to 8 produced ZERO density lift on all 9
+// REMA parity fixtures × 3 modes × 2 seeds. The operators
+// (swap_two, migrate, unload_lightest_bin) return Ok(None) on the
+// first tick — FFD's initial assignment is already Pareto-optimal
+// under the lex score `(closed_bins, concentration)` for this
+// fixture family, so no amount of extra rounds changes the outcome.
+//
+// Kept at conservative defaults to minimize worst-case wall-clock
+// on fixtures where operators genuinely iterate (future work /
+// larger fixtures that aren't in the REMA parity set).
 const MAX_ROUNDS: usize = 20;
 const MAX_OPERATOR_GAP: usize = 8;
 const TERMINATION_NOOP_TICKS: usize = 3;
