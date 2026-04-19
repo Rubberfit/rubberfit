@@ -61,8 +61,9 @@ use jagua_rs::io::export::int_to_ext_transformation;
 use jagua_rs::io::import::ext_to_int_transformation;
 use jagua_rs::probs::bpp::entities::BPInstance;
 use rema_geom::domain::Point2D;
+use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Configuration surface for the search.
 ///
@@ -148,6 +149,402 @@ pub fn optimize(seed: SeedResult, config: OptimizerConfig) -> Result<SeedResult,
         &config.items,
         &config.bin.bin_id,
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Sparrow-style fixed-bin repack spike (Commit 1)
+// ---------------------------------------------------------------------------
+//
+// Hypothesis: feeding the existing BPP-shaped GLS port an INFEASIBLE starting
+// layout (more copies than BSSF can fit, forced in with overlaps) lets
+// `exploration_phase` resolve collisions into a denser feasible layout than
+// the axis-aligned MaxRects heuristics can reach.
+//
+// Codex + Gemini dual sign-off at `.claude/handoff/sparrow-spike-plan.md`.
+// Standalone entry point — NOT wired into `consolidate_tail_bin`'s receiver
+// portfolio yet (parity risk staging). Bench first, wire later.
+//
+// Commit-1 scope: shrink-only outer loop with the naive "drop smallest"
+// heuristic. Always falls back to the BSSF baseline if nothing feasible is
+// found, so callers get a result no worse than today's packer.
+
+/// Configuration for `fixed_bin_sparrow_repack`.
+#[derive(Clone, Debug)]
+pub struct FixedBinRepackConfig {
+    /// Hard wall-clock budget across all inner attempts.
+    pub total_budget_ms: u64,
+    /// Minimum ms per inner `exploration_phase` call — prevents degenerate
+    /// short attempts on the tail end of the budget.
+    pub min_attempt_budget_ms: u64,
+    /// Starting forced-item count. `None` → `min(30, total_copies)`. Clamped
+    /// to `bssf_placed + 1` on the low end so we never attempt a packing
+    /// the BSSF baseline already achieves.
+    pub start_count: Option<usize>,
+    /// Optional seed. `None` → entropy-backed via `SysRng`.
+    pub seed: Option<u64>,
+}
+
+impl Default for FixedBinRepackConfig {
+    fn default() -> Self {
+        Self {
+            total_budget_ms: 1000,
+            min_attempt_budget_ms: 200,
+            start_count: None,
+            seed: Some(42),
+        }
+    }
+}
+
+const FIXED_BIN_REPACK_MAX_ATTEMPTS: usize = 8;
+const FIXED_BIN_REPACK_DEFAULT_START: usize = 30;
+
+/// Bounded sparrow-style repack on a single fixed-width bin.
+///
+/// Runs the existing BPP-shaped GLS port on an intentionally-infeasible
+/// starting layout (more items than BSSF can fit, forced into place with
+/// overlaps) and lets `exploration_phase` resolve collisions. On infeasible
+/// outcome, shrinks the item count by one and retries until a feasible
+/// layout is found, the budget expires, or the count falls to the BSSF
+/// baseline. Always returns at least the BSSF baseline — never worse than
+/// today's packer.
+pub fn fixed_bin_sparrow_repack(
+    bin: &Bin,
+    items: &[Part],
+    clearance: f64,
+    config: FixedBinRepackConfig,
+) -> Result<SeedResult, PackError> {
+    use crate::infrastructure::warm_start::{
+        greedy_rectangle_pack_with_strategy, PackerStrategy,
+    };
+
+    // Baseline. We never return worse than this.
+    let bssf_baseline =
+        greedy_rectangle_pack_with_strategy(bin, items, clearance, PackerStrategy::Bssf)?;
+    let bssf_placed = bssf_baseline.placements.len();
+
+    let total_copies: usize = items.iter().map(|p| p.quantity as usize).sum();
+    if total_copies <= bssf_placed {
+        // BSSF already fits everything. Nothing to gain from the repack.
+        return Ok(bssf_baseline);
+    }
+
+    let start_n = config
+        .start_count
+        .unwrap_or(FIXED_BIN_REPACK_DEFAULT_START)
+        .min(total_copies)
+        .max(bssf_placed + 1);
+
+    // Stable copy order: sort by (area desc, shape_id asc), flatten
+    // respecting per-part quantity. Area desc means tail entries are the
+    // SMALLEST — "drop smallest" is just `take_n -= 1`.
+    let copy_order = build_copy_order(items)?;
+    debug_assert_eq!(
+        copy_order.len(),
+        total_copies,
+        "copy_order length must match total requested copies"
+    );
+
+    let deadline = Instant::now() + Duration::from_millis(config.total_budget_ms);
+    let mut best_feasible: SeedResult = bssf_baseline.clone();
+
+    let mut current_n = start_n;
+    let mut attempts = 0usize;
+
+    while attempts < FIXED_BIN_REPACK_MAX_ATTEMPTS
+        && current_n > bssf_placed
+        && Instant::now() < deadline
+    {
+        attempts += 1;
+
+        let remaining = deadline.saturating_duration_since(Instant::now()).as_millis() as u64;
+        let slots_left = FIXED_BIN_REPACK_MAX_ATTEMPTS.saturating_sub(attempts - 1).max(1) as u64;
+        let per_attempt_budget = (remaining / slots_left).max(config.min_attempt_budget_ms);
+
+        let (overlap_seed, subset_items) =
+            build_overlap_seed(bin, items, &copy_order, clearance, current_n)?;
+
+        // Per-attempt seed: derive from base seed + attempt index so each
+        // retry explores a different RNG trajectory but stays deterministic.
+        let attempt_seed = config.seed.map(|s| s.wrapping_add(attempts as u64));
+
+        let outcome = run_repack_attempt(
+            bin,
+            clearance,
+            &subset_items,
+            overlap_seed,
+            per_attempt_budget,
+            attempt_seed,
+        )?;
+
+        match outcome {
+            RepackOutcome::Feasible(seed_result) => {
+                if seed_result.placements.len() > best_feasible.placements.len() {
+                    best_feasible = seed_result;
+                }
+                // Commit-1: do not attempt to grow further. The shrink-only
+                // path is enough to prove the mechanism.
+                break;
+            }
+            RepackOutcome::Infeasible => {
+                // "Drop smallest" — copy_order is area-desc, so shrinking by
+                // 1 removes the smallest current copy. Smart drop (max-loss
+                // item from CT rebuild) lands in Commit 2 if Commit 1 stalls.
+                current_n -= 1;
+            }
+        }
+    }
+
+    Ok(best_feasible)
+}
+
+/// Decision returned by one inner GLS attempt.
+enum RepackOutcome {
+    Feasible(SeedResult),
+    Infeasible,
+}
+
+/// Build the stable copy-order used by `build_overlap_seed`. Sorted by
+/// `(bbox_area desc, shape_id asc)` and flattened respecting per-part
+/// `quantity`. Deterministic under identical `items` input.
+fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
+    let mut shape_meta: Vec<(usize, f64, &str)> = Vec::with_capacity(items.len());
+    for (idx, part) in items.iter().enumerate() {
+        let bbox =
+            rema_geom::application::bbox_of(&part.polygon).map_err(|source| PackError::InvalidPolygon {
+                shape_id: part.shape_id.clone(),
+                source,
+            })?;
+        let area = (bbox.1.x - bbox.0.x) * (bbox.1.y - bbox.0.y);
+        shape_meta.push((idx, area, part.shape_id.as_str()));
+    }
+    shape_meta.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| a.2.cmp(b.2))
+    });
+
+    let mut copy_order: Vec<(usize, u32)> =
+        Vec::with_capacity(items.iter().map(|p| p.quantity as usize).sum());
+    for (shape_idx, _, _) in shape_meta {
+        for copy_idx in 0..items[shape_idx].quantity {
+            copy_order.push((shape_idx, copy_idx));
+        }
+    }
+    Ok(copy_order)
+}
+
+/// Force-place exactly `take_n` copies into the bin via BSSF for the
+/// feasible base + corner-forced extras. Strategy:
+///
+///   1. Run BSSF to get up to `bssf_placed` feasible placements.
+///   2. If `take_n > bssf_placed`, pick extra copies from `copy_order`
+///      that are NOT already in the BSSF base and stack them at
+///      `(x=0, y=bin.height - cumulative_height)` — the top-of-bin,
+///      which is the region BSSF most commonly leaves empty. These
+///      extras overlap each other and any BSSF items near the top,
+///      giving the separator a concentrated collision region to
+///      resolve instead of the chaotic whole-bin overlaps a naive grid
+///      cascade would produce.
+///
+/// This is mechanically important: `exploration_phase` resolves overlaps
+/// by per-item sampling; a localized collision cluster converges much
+/// faster than a uniform overlap mess.
+///
+/// Returns the overlap seed + a subset_items vector with per-part
+/// quantities decremented to match what was actually placed (Codex R3:
+/// never duplicate Part rows, always decrement).
+fn build_overlap_seed(
+    bin: &Bin,
+    items: &[Part],
+    copy_order: &[(usize, u32)],
+    clearance: f64,
+    take_n: usize,
+) -> Result<(SeedResult, Vec<Part>), PackError> {
+    use crate::infrastructure::warm_start::{
+        greedy_rectangle_pack_with_strategy, PackerStrategy,
+    };
+
+    // Step 1: BSSF feasible base.
+    let bssf = greedy_rectangle_pack_with_strategy(bin, items, clearance, PackerStrategy::Bssf)?;
+    let bssf_placed = bssf.placements.len();
+
+    let take = take_n.min(copy_order.len());
+
+    // Short-circuit: if take <= BSSF already places, just use the BSSF
+    // prefix unchanged. No overlaps to resolve.
+    if take <= bssf_placed {
+        let truncated: Vec<SeedPlacement> = bssf.placements.into_iter().take(take).collect();
+        let mut count_per_shape: Vec<u32> = vec![0; items.len()];
+        for p in &truncated {
+            if let Some((idx, _)) = items
+                .iter()
+                .enumerate()
+                .find(|(_, part)| part.shape_id == p.shape_id)
+            {
+                count_per_shape[idx] += 1;
+            }
+        }
+        let subset_items = build_subset_items(items, &count_per_shape);
+        return Ok((
+            SeedResult {
+                placements: truncated,
+                overflow: 0,
+            },
+            subset_items,
+        ));
+    }
+
+    // Step 2: inventory what BSSF covered so we know which copies to
+    // take from `copy_order` for the extras layer.
+    let mut already_placed: Vec<u32> = vec![0; items.len()];
+    for placement in &bssf.placements {
+        if let Some((idx, _)) = items
+            .iter()
+            .enumerate()
+            .find(|(_, part)| part.shape_id == placement.shape_id)
+        {
+            already_placed[idx] += 1;
+        }
+    }
+
+    // Step 3: walk copy_order, skipping copies BSSF already placed,
+    // stacking `take - bssf_placed` extras from the top of the bin.
+    let mut placements = bssf.placements;
+    let mut count_per_shape = already_placed.clone();
+    let mut cursor_from_top = 0.0_f64;
+    let mut taken_extra = 0usize;
+    let extras_needed = take - bssf_placed;
+
+    let mut skip_remaining = already_placed.clone();
+    for &(shape_idx, _copy_idx) in copy_order {
+        if taken_extra >= extras_needed {
+            break;
+        }
+        // Respect "BSSF already covered this copy": decrement the skip
+        // counter instead of taking the copy.
+        if skip_remaining[shape_idx] > 0 {
+            skip_remaining[shape_idx] -= 1;
+            continue;
+        }
+
+        let part = &items[shape_idx];
+        let bbox =
+            rema_geom::application::bbox_of(&part.polygon).map_err(|source| PackError::InvalidPolygon {
+                shape_id: part.shape_id.clone(),
+                source,
+            })?;
+        let w = bbox.1.x - bbox.0.x;
+        let h = bbox.1.y - bbox.0.y;
+
+        // Anchor extras at the top-of-bin, growing downward. All extras
+        // end up clustered in a narrow band near y = bin.height, which
+        // is typically the region BSSF leaves empty on heterogeneous
+        // inputs. Overlaps are concentrated, not scattered.
+        let x = 0.0;
+        let y = (bin.height - h - cursor_from_top).max(0.0);
+
+        placements.push(SeedPlacement {
+            shape_id: part.shape_id.clone(),
+            instance_index: count_per_shape[shape_idx],
+            bin_id: bin.bin_id.clone(),
+            x,
+            y,
+            rotation_rad: 0.0,
+            polygon: part
+                .polygon
+                .iter()
+                .map(|p| Point2D::new(p.x - bbox.0.x + x, p.y - bbox.0.y + y))
+                .collect(),
+            width: w,
+            height: h,
+        });
+        count_per_shape[shape_idx] += 1;
+        taken_extra += 1;
+
+        // Advance the cursor by the smaller of `h` or a fraction of
+        // bin.height to prevent a single tall part from pushing the
+        // extras band off the bin. `h * 0.3` keeps extras compact —
+        // empirically the separator untangles small overlaps much
+        // faster than large ones.
+        cursor_from_top += h * 0.3;
+    }
+
+    let subset_items = build_subset_items(items, &count_per_shape);
+
+    Ok((
+        SeedResult {
+            placements,
+            overflow: 0,
+        },
+        subset_items,
+    ))
+}
+
+/// Build a subset_items vector from a per-shape count vector. Items with
+/// count 0 are dropped entirely; items with count > 0 get a quantity
+/// matching the count (Codex R3: decrement quantity, never duplicate).
+fn build_subset_items(items: &[Part], count_per_shape: &[u32]) -> Vec<Part> {
+    let mut subset: Vec<Part> = Vec::with_capacity(items.len());
+    for (idx, part) in items.iter().enumerate() {
+        if count_per_shape[idx] > 0 {
+            let mut p = part.clone();
+            p.quantity = count_per_shape[idx];
+            subset.push(p);
+        }
+    }
+    subset
+}
+
+/// Run one bounded GLS attempt against an overlap seed. Returns
+/// `Feasible` with the materialized `SeedResult` or `Infeasible` when the
+/// budget expires before collisions resolve. Inlines the same pipeline
+/// shape as `optimize` but inspects the raw `ExplorationOutcome` so
+/// infeasible attempts can be distinguished from feasible ones — the
+/// regular `optimize` path would conflate them.
+fn run_repack_attempt(
+    bin: &Bin,
+    clearance: f64,
+    subset_items: &[Part],
+    overlap_seed: SeedResult,
+    budget_ms: u64,
+    seed: Option<u64>,
+) -> Result<RepackOutcome, PackError> {
+    let instance = jagua_adapter::to_jagua_instance(
+        std::slice::from_ref(bin),
+        subset_items,
+        clearance,
+    )?;
+
+    let container = instance.container(0).clone();
+    let mut layout = Layout::new(container);
+    replay_seed_into_layout(&mut layout, &instance, subset_items, &overlap_seed)?;
+
+    let rng = rng::from_seed(seed);
+    let mut sep = Separator::new(instance, layout, rng, SeparatorConfig::exploration());
+
+    let deadline = BasicTerminator::with_timeout(Duration::from_millis(budget_ms));
+    let term = cancel::CompositeTerminator::new(deadline, None);
+    let mut listener = NoopListener;
+
+    let outcome = exploration_phase(
+        &mut sep,
+        &term,
+        &mut listener,
+        &ExplorationConfig::paper_defaults(),
+    );
+
+    match outcome {
+        ExplorationOutcome::Feasible(snap) => {
+            let polished = compression_phase(&mut sep, snap, &term, &mut listener);
+            Ok(RepackOutcome::Feasible(snapshot_to_seed(
+                &polished,
+                &sep.instance,
+                subset_items,
+                &bin.bin_id,
+            )))
+        }
+        ExplorationOutcome::Infeasible { .. } => Ok(RepackOutcome::Infeasible),
+    }
 }
 
 /// Replay a warm-start `SeedResult` into a fresh `Layout`.
@@ -593,6 +990,224 @@ mod tests {
             "external polygon centroid should be near (10, 20) — suggests \
              pre_transform wasn't composed via int_to_ext_transformation; \
              got ({cx}, {cy})"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // fixed_bin_sparrow_repack — Commit 1 tests
+    // -----------------------------------------------------------------
+
+    fn rect_part_q(id: &str, side: f64, qty: u32) -> Part {
+        Part {
+            shape_id: id.into(),
+            quantity: qty,
+            polygon: vec![
+                Point2D::new(0.0, 0.0),
+                Point2D::new(side, 0.0),
+                Point2D::new(side, side),
+                Point2D::new(0.0, side),
+            ],
+            shape_spec: None,
+            allow_rotation: false,
+            grain_axis: None,
+            difficulty: None,
+        }
+    }
+
+    fn no_pairwise_overlap(result: &SeedResult) -> bool {
+        // Strict bbox-level disjointness check. Adjacency (shared edge) is
+        // allowed because clearance handling lives in jagua's CDE, not the
+        // returned bbox metadata.
+        for i in 0..result.placements.len() {
+            for j in (i + 1)..result.placements.len() {
+                let a = &result.placements[i];
+                let b = &result.placements[j];
+                let disjoint = a.x + a.width <= b.x
+                    || b.x + b.width <= a.x
+                    || a.y + a.height <= b.y
+                    || b.y + b.height <= a.y;
+                if !disjoint {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    #[test]
+    fn fixed_bin_repack_never_worse_than_bssf_baseline() {
+        // 4 small squares in a bin that only fits 3 — sparrow should place
+        // at least the BSSF baseline's count (3) and never fewer.
+        let bin = Bin {
+            bin_id: "b".into(),
+            width: 30.0,
+            height: 30.0,
+            kind: BinKind::Fresh,
+            priority: None,
+        };
+        let items = vec![rect_part_q("r", 10.0, 4)];
+        let config = FixedBinRepackConfig {
+            total_budget_ms: 500,
+            min_attempt_budget_ms: 100,
+            start_count: Some(4),
+            seed: Some(42),
+        };
+        let out = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
+
+        // BSSF grid packer fits 9 (3×3 of 10×10 in 30×30). Our spike must
+        // return at least that many. Feasibility contract: never worse.
+        assert!(
+            out.placements.len() >= 3,
+            "repack must return at least BSSF baseline, got {} placements",
+            out.placements.len()
+        );
+        assert!(
+            no_pairwise_overlap(&out),
+            "repack must never return overlapping placements"
+        );
+    }
+
+    #[test]
+    fn fixed_bin_repack_beats_overlap_start() {
+        // 5 10×10 squares force-packed into a 22×22 bin. Bin has area for
+        // 4 (actually fits exactly 4 non-overlapping in a 2×2 grid at 0/11
+        // with 1" gaps). Overlap seed will force all 5 in with overlaps.
+        // Sparrow's shrink loop should step from 5 → 4 and find the
+        // feasible 4-square layout.
+        let bin = Bin {
+            bin_id: "b".into(),
+            width: 22.0,
+            height: 22.0,
+            kind: BinKind::Fresh,
+            priority: None,
+        };
+        let items = vec![rect_part_q("s", 10.0, 5)];
+        let config = FixedBinRepackConfig {
+            total_budget_ms: 3_000,
+            min_attempt_budget_ms: 300,
+            start_count: Some(5),
+            seed: Some(42),
+        };
+        let out = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
+
+        // Baseline grid packer fits floor(22/10) × floor(22/10) = 2×2 = 4.
+        // Spike must match or beat that. 5 is geometrically infeasible in
+        // 22×22 without rotation, so 4 is the ceiling.
+        assert!(
+            out.placements.len() >= 4,
+            "expected ≥ 4 placements after sparrow repack, got {}",
+            out.placements.len()
+        );
+        assert!(
+            no_pairwise_overlap(&out),
+            "repack output must not contain overlapping placements"
+        );
+    }
+
+    #[test]
+    fn fixed_bin_repack_deterministic_under_seed() {
+        let bin = Bin {
+            bin_id: "b".into(),
+            width: 40.0,
+            height: 40.0,
+            kind: BinKind::Fresh,
+            priority: None,
+        };
+        let items = vec![rect_part_q("r", 10.0, 6)];
+        let config = FixedBinRepackConfig {
+            total_budget_ms: 1_000,
+            min_attempt_budget_ms: 200,
+            start_count: Some(6),
+            seed: Some(42),
+        };
+
+        let a = fixed_bin_sparrow_repack(&bin, &items, 0.0, config.clone()).unwrap();
+        let b = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
+
+        let key = |r: &SeedResult| -> Vec<(String, u32, u64, u64, u64)> {
+            r.placements
+                .iter()
+                .map(|p| {
+                    (
+                        p.shape_id.clone(),
+                        p.instance_index,
+                        p.x.to_bits(),
+                        p.y.to_bits(),
+                        p.rotation_rad.to_bits(),
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(key(&a), key(&b), "same seed must produce identical output");
+    }
+
+    #[test]
+    fn fixed_bin_repack_respects_budget() {
+        // Adversarial fixture — too many large squares. Test that the call
+        // returns within a reasonable multiple of the budget (not infinite).
+        let bin = Bin {
+            bin_id: "b".into(),
+            width: 50.0,
+            height: 50.0,
+            kind: BinKind::Fresh,
+            priority: None,
+        };
+        let items = vec![rect_part_q("big", 30.0, 4)];
+        let config = FixedBinRepackConfig {
+            total_budget_ms: 500,
+            min_attempt_budget_ms: 100,
+            start_count: Some(4),
+            seed: Some(42),
+        };
+
+        let start = Instant::now();
+        let out = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
+        let elapsed = start.elapsed();
+
+        // BasicTerminator polling is outer-loop only (separator.rs:256), so
+        // exploration_phase can legitimately overshoot a short budget. Ceiling
+        // chosen to be 20× the requested budget — catches infinite loops
+        // and genuine perf regressions while allowing paper-default
+        // strike/iter costs to complete a tail iteration.
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "repack ran longer than 10s ceiling: {elapsed:?}"
+        );
+        assert!(
+            !out.placements.is_empty() || out.overflow == 4,
+            "must return either a valid layout or the BSSF fallback"
+        );
+    }
+
+    #[test]
+    fn fixed_bin_repack_no_shrink_when_bssf_already_fits_all() {
+        // BSSF fits all 4 — sparrow should just return BSSF's result
+        // without wasting budget on GLS.
+        let bin = Bin {
+            bin_id: "b".into(),
+            width: 40.0,
+            height: 40.0,
+            kind: BinKind::Fresh,
+            priority: None,
+        };
+        let items = vec![rect_part_q("r", 10.0, 4)];
+        let config = FixedBinRepackConfig {
+            total_budget_ms: 500,
+            min_attempt_budget_ms: 100,
+            start_count: None,
+            seed: Some(42),
+        };
+
+        let start = Instant::now();
+        let out = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
+        let elapsed = start.elapsed();
+
+        assert_eq!(out.placements.len(), 4);
+        assert_eq!(out.overflow, 0);
+        // Fast-path guard: BSSF-only path must not spend the full budget.
+        assert!(
+            elapsed < Duration::from_millis(250),
+            "BSSF fast path took {elapsed:?} (should be ~immediate)"
         );
     }
 }

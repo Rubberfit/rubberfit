@@ -27,3 +27,17 @@ Field names are camelCase. Industry-common synonyms accepted as aliases:
 - `efficiency` ↔ `density` on `BinResult` (jagua-rs output)
 
 Units default to inches; pass `units: "mm"` to override.
+
+## Experimental: `fixed_bin_sparrow_repack`
+
+`src/infrastructure/search/mod.rs` exposes
+`fixed_bin_sparrow_repack(bin, items, clearance, config)` — a bounded
+sparrow-style repack that force-places items with overlaps and runs the
+BPP-shaped GLS to resolve them. Standalone, not wired into `pack()`.
+
+**2026-04-19 finding:** does NOT lift density on the production 37-part
+fixture. The ported GLS is architecturally a collision resolver, not a
+density-increasing packer. Retained as infrastructure for a future
+ruin-and-recreate LNS port. See
+`.claude/research/sparrow-integration/spike-result.md` for the full
+kill-signal write-up.
