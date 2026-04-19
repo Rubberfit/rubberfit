@@ -68,7 +68,7 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 | `RustPackingService` | Default — `engine/target/release/pack-cli` exists and `USE_RUST_ENGINE` is not `"false"` | `child_process.spawn` with JSON stdin/stdout |
 | `LegacyPackingService` | Fallback — binary missing or `USE_RUST_ENGINE=false` | Calls the in-tree TS `nesting/` engine (greedy NFP + GA) |
 
-The Rust path uses warm-start greedy bottom-left in S2; Sparrow LNS+SA lands in S2.5. The legacy engine is kept for emergency rollback and will be deleted once S2.5 ships.
+The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) + 2D grid warm-start (Task 19a) + sparrow-style Guided Local Search (Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON progress streaming with AbortSignal cancellation (Tasks 14-16). Rust `placedCount >= legacy` on every parity fixture; per-bin efficiency within 1% (Task 19b strict guard). Density lift 33-100% vs S2 on homogeneous fixtures — see `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`. The legacy engine stays for emergency rollback; deletion scheduled post-S3.
 
 **Layer rules:**
 
@@ -195,7 +195,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cut Planner** (`app/dashboard/cut-planner/`): Greedy First-Fit-Decreasing algorithm + 2D nesting engine resolved via `IPackingService`. Defaults to the native Rust `pack-cli` binary (warm-start greedy bottom-left in S2, Sparrow LNS+SA in S2.5); falls back to the legacy TS genetic algorithm in `nesting/` when the binary is missing
+- **Cut Planner** (`app/dashboard/cut-planner/`): 2D nesting via `IPackingService`. Default = Rust `pack-cli` running the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming). Legacy TS genetic algorithm in `nesting/` is the fallback when the binary is missing. Rust strictly dominates legacy on every parity fixture (Task 19b guard enforces `rust.placedCount >= legacy.placedCount`).
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 
