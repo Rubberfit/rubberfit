@@ -36,6 +36,10 @@
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
 
+- .claude/
+  - handoff/ — task briefs and second-opinion assignments
+  - research/ — investigation notes and reports
+
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - nesting/ — 2D nesting engine
 - di/ — TSyringe DI registration

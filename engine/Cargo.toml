@@ -23,17 +23,22 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 
-# jagua-rs 0.7.1 has an internal debug_assert at
-# `collision_detection/quadtree/qt_hazard.rs:111` requiring at least one
-# child quadrant to produce colliding edges when a partial hazard spans
-# subdivisions. Our clearance-inflated tight-bin fixtures can produce
-# grid-aligned rectangles whose edges fall exactly on quadtree
-# subdivision boundaries — `Rect::collides_with(&Edge)` uses strict `>`
-# there, so both neighbours miss the edge.
+# jagua-rs 0.7.1 has an over-aggressive internal debug_assert at
+# `collision_detection/quadtree/qt_hazard.rs:111` — asserts that a
+# `Partial` hazard spanning multiple quadrants must produce at least
+# one child quadrant with colliding edges. Fires when a hazard
+# polygon fully SURROUNDS a child quadrant with zero edge crossings
+# (common in clearance-inflated tight-bin fixtures where rect edges
+# lie outside deeper child quadrants the rect interior fully covers).
 #
-# Release builds strip debug_asserts so production is unaffected.
-# Independent of Task 8's replay bug (which Task 9 fixed); reproduces
-# even with the replay fix in place. Task 9 follow-up:
-# `.claude/research/task9/followups.md` — upstream jagua patch candidate.
+# Downstream neighbor-inference at qt_hazard.rs:116-163 already handles
+# the zero-edge-colliding case correctly via centroid containment.
+# The assertion at line 111 is over-restrictive.
+#
+# Release builds strip debug_asserts — production unaffected. The test
+# override is the only current fix until upstream ships a patch.
+#
+# Upstream issue draft: `.claude/research/task9.5/jagua-upstream-issue.md`
+# Root-cause analysis: `.claude/research/archive/task9.5/gemini-report.md`
 [profile.test.package.jagua-rs]
 debug-assertions = false

@@ -157,31 +157,41 @@ pub fn custom_pipeline_matches_jaguars(shape: &SPolygon, det: &SpecializedHazard
     let default_set: HashSet<HazardEntity> = base_detector.entities().cloned().collect();
     let custom_set: HashSet<HazardEntity> = det.entities().cloned().collect();
 
-    // Deviation from upstream sparrow: upstream uses a bare `assert_eq!`
-    // here. On certain fixtures the custom pipeline can legitimately
-    // diverge from jagua's default (e.g. a containment edge case not
-    // exercised by sparrow's own SPP test suite). When Task 8 enabled
-    // the real GLS path, this panic started blocking
-    // `application::pack::tests::overflow_counted_when_bin_too_small`
-    // and siblings.
+    // Task 9.5 (Gemini + Codex): our custom pipeline's pole pre-check
+    // (specialized_pipeline.rs:51-68) is correctness-improving relative
+    // to jagua's default pass, which under-detects axis-aligned
+    // rectangle overlaps whose bboxes are `Intersecting` but not
+    // `Enclosed` / `Surrounding` (no edge-crossing in the virtual-root
+    // walk + jagua's `detect_containment_collision` returns false for
+    // `Intersecting`).
     //
-    // Downgrading to a `log::warn!` preserves the diagnostic signal
-    // (the warning surfaces in test stderr) without nuking the test
-    // harness. Fix tracked as a follow-up — investigation of the
-    // specific containment / edge-intersection case that produces the
-    // divergence belongs in its own commit.
-    if default_set != custom_set {
+    // Sparrow upstream has the same pole pre-check and the same
+    // bare `assert_eq!`. Sparrow's test fixtures never produce this
+    // configuration; REMA's packing fixtures do routinely (multiple
+    // clearance-inflated rects in tight bins).
+    //
+    // Correct invariant: `custom ⊇ default`. EXTRA hazards in custom
+    // are expected and good. MISSING hazards in custom (items jagua
+    // found but we did not) would be a real regression.
+    let missing_from_custom: Vec<&HazardEntity> =
+        default_set.difference(&custom_set).collect();
+    let extra_in_custom: Vec<&HazardEntity> =
+        custom_set.difference(&default_set).collect();
+
+    if !missing_from_custom.is_empty() {
         warn!(
-            "custom cde pipeline does not match jagua-rs for pk {:?}: \
-             jagua_default={:?}, custom={:?}, \
-             missing_from_custom={:?}, extra_in_custom={:?} \
-             (see followups.md)",
+            "custom cde pipeline MISSED hazards jagua default found for pk {:?}: \
+             jagua_default={:?}, custom={:?}, missing={:?} (REAL REGRESSION)",
+            det.current_pk, default_set, custom_set, missing_from_custom,
+        );
+    } else if !extra_in_custom.is_empty() {
+        log::trace!(
+            "custom cde pipeline found {} extra hazard(s) via pole pre-check for pk {:?}: extra={:?}",
+            extra_in_custom.len(),
             det.current_pk,
-            default_set,
-            custom_set,
-            default_set.difference(&custom_set).collect::<Vec<_>>(),
-            custom_set.difference(&default_set).collect::<Vec<_>>(),
+            extra_in_custom,
         );
     }
-    default_set == custom_set
+
+    missing_from_custom.is_empty()
 }

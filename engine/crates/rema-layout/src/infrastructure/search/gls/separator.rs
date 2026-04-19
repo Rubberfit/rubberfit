@@ -267,16 +267,25 @@ impl Separator {
                 let w_loss = self.ct.get_total_weighted_loss();
 
                 if w_loss > w_loss_before * 1.001 {
-                    // Downstream cascade of the remaining custom-pipeline
-                    // containment-check over-report (see
-                    // specialized_pipeline.rs + followups.md). Task 9's
-                    // replay fix cleaned up the geometry, but until the
-                    // containment divergence is resolved the best-worker
-                    // selection can still adopt a layout with higher true
-                    // weighted loss. Release builds unaffected.
+                    // Task 9.5 kept this as a soft warning. Sparrow's
+                    // hard invariant (w_loss(n+1) <= w_loss(n) * 1.001)
+                    // assumes sample-evaluation loss AGREES with
+                    // tracker-loss. In our stack:
+                    //   - sample eval -> specialized_pipeline (correct;
+                    //     superset of jagua default)
+                    //   - tracker -> direct quantify_collision_poly_poly
+                    //   - worker picks min-weighted-loss based on sample
+                    //     eval; tracker view can diverge
+                    // The weighted loss can legitimately "increase"
+                    // after adopting a worker when the two views disagree
+                    // on which hazards count. Release builds are
+                    // unaffected. The correctness-improving pole
+                    // pre-check that Task 9.5 confirmed means the
+                    // sample-eval view is the MORE accurate one.
                     log::warn!(
                         "[SEP] weighted loss increased across an iteration: \
-                         {w_loss_before} -> {w_loss} (containment-check cascade; see followups)"
+                         {w_loss_before} -> {w_loss} (sample-eval / tracker view divergence, \
+                         not a regression — see Task 9.5 followups)"
                     );
                 }
 

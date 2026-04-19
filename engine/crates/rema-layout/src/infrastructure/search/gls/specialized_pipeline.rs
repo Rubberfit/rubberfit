@@ -101,16 +101,22 @@ pub fn collect_poly_collisions_in_detector_custom(
         }
     }
 
-    // Diagnostic only. Task 9's replay fix resolved the bulk of the
-    // divergence (geometry is now in the correct internal coordinate
-    // space), but a narrower divergence remains in the containment-check
-    // branch: the custom pipeline OVER-REPORTS a PlacedItem hazard that
-    // jagua's default `CDEngine::collect_poly_collisions` does not find.
-    // Tracked in followups.md as Task-9 item for deeper investigation
-    // (likely the containment detection at specialized_pipeline.rs
-    // lines 86-102 is more permissive than jagua's default pass).
-    // Release builds are unaffected (debug_asserts stripped).
-    let _ = assertions::custom_pipeline_matches_jaguars(shape, collector);
+    // Invariant: everything jagua's default collection finds must ALSO
+    // be present in the custom collector (`custom ⊇ default`). EXTRA
+    // hazards in `custom` are expected — the pole pre-check at line
+    // 51-68 catches axis-aligned rectangle overlaps with `Intersecting`
+    // bboxes that jagua's edge+containment path under-detects.
+    //
+    // Task 9.5 restored this hard invariant after Gemini + Codex
+    // root-cause investigation: the Task-8-era "divergence" was
+    // correctness-improving, not buggy. The helper now returns `true`
+    // iff `missing_from_custom.is_empty()`, not strict set equality.
+    debug_assert!(
+        assertions::custom_pipeline_matches_jaguars(shape, collector),
+        "Custom pipeline is MISSING a hazard that jagua's default found \
+         (real regression; see `assertions::custom_pipeline_matches_jaguars` \
+         warning message for the diverged sets)"
+    );
 }
 
 /// Specialized version of `HazardCollector` that computes the loss
