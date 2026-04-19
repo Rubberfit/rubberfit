@@ -66,6 +66,11 @@ temp/
 # these are explicitly audited and safe to commit.
 !engine/crates/rf-api/scripts/smoke.sh
 
+# Internal planning docs — working files for us, not part of the
+# repo. Specs + benchmarks under docs/superpowers/ stay tracked;
+# only per-task plans are local-only.
+docs/superpowers/plans/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
