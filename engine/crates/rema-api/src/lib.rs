@@ -10,10 +10,15 @@
 
 pub mod auth;
 pub mod config;
+pub mod cuts;
 pub mod health;
 pub mod jwks;
 pub mod router;
 
-pub use auth::{require_auth, user_postgrest, AppState, AuthContext, AuthError};
+pub use auth::{
+    require_auth, user_postgrest, AppState, AuthContext, AuthError, CutHistoryPortFactory,
+    SupabaseCutHistoryFactory,
+};
+pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
 pub use router::{build_public_router, build_router, build_router_with_state};

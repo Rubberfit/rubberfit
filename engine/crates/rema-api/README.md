@@ -33,15 +33,29 @@ resolving concrete repositories (`rema-supabase`) per request.
 
 ## Current state
 
-Empty scaffold. Axum wiring lands in S3a Task 2; JWT middleware in
-Task 3; first endpoint (cut-history) in Task 4.
+S3a Tasks 2, 3, 4, 5, 6 landed.
+
+- **Task 2**: Axum server boot + `/health`.
+- **Task 3**: JWKS + RS256 JWT middleware for `/api/v2/*`.
+- **Task 4**: Request-scoped PostgREST client (`rema-supabase`).
+- **Task 5**: Cut-history Port + use cases + Supabase impl
+  (`rema-application::cuts`, `rema-supabase::cut_history`).
+- **Task 6**: Cut-history HTTP routes + DTOs (this crate):
+  - `GET /api/v2/cuts/history` — list with `limit`/`offset`/`since`/`until`.
+  - `GET /api/v2/cuts/history/{id}` — single entry by id.
+  - `GET /api/v2/cuts/favorites` — favorites list.
+
+Routes are assembled via `build_router_with_state(cfg, state)`.
+`AppState` carries a `CutHistoryPortFactory` trait object so
+integration tests inject fakes while production uses
+`SupabaseCutHistoryFactory` (builds a per-request PostgREST
+client from the caller's JWT).
 
 ## Running
-
-Once wired:
 
 ```bash
 cargo run -p rema-api
 # → listens on REMA_API_BIND (default 127.0.0.1:8080)
 # → GET /health returns { "status": "ok", ... }
+# → GET /api/v2/cuts/history requires a Supabase JWT (RS256)
 ```

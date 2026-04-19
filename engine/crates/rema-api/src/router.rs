@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use crate::auth::{jwt_middleware, AppState};
 use crate::config::{CorsMode, ServerConfig};
+use crate::cuts;
 use crate::health;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -51,11 +52,14 @@ pub fn build_router(cfg: &ServerConfig) -> Router {
 /// at startup; tests can also call it with a fake `AppState`.
 pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Router {
     // Protected subtree — everything under /api/v2 requires a valid
-    // Supabase JWT. Routes mount onto this router in later S3a tasks.
+    // Supabase JWT. `/whoami` stays as a cheap sanity check that the
+    // middleware forwards claims correctly; the cut-history routes are
+    // the first real delivery surface.
     let protected = Router::new()
-        // Placeholder — replaced by cut-history handlers in Task 6.
-        // Kept here so integration tests for auth have a target to hit.
         .route("/whoami", get(whoami_placeholder))
+        .route("/cuts/history", get(cuts::list_history))
+        .route("/cuts/history/{id}", get(cuts::get_history_item))
+        .route("/cuts/favorites", get(cuts::list_favorites))
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
         .with_state(state);
 

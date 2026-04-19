@@ -14,9 +14,41 @@ use axum::{
 };
 use jsonwebtoken::{decode, decode_header, Algorithm, Validation};
 
-use rema_supabase::{PostgrestClient, PostgrestError};
+use rema_application::cuts::CutHistoryPort;
+use rema_application::error::AppError;
+use rema_supabase::{PostgrestClient, PostgrestError, SupabaseCutHistoryRepository};
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
+
+/// Factory that builds a request-scoped `CutHistoryPort` from the
+/// caller's auth context. Production impl assembles a
+/// `SupabaseCutHistoryRepository`; tests inject fakes to avoid
+/// touching Supabase.
+pub trait CutHistoryPortFactory: Send + Sync {
+    fn build(&self, auth: &AuthContext) -> Result<Arc<dyn CutHistoryPort>, AppError>;
+}
+
+/// Production factory — builds a request-scoped PostgrestClient and
+/// wraps it in `SupabaseCutHistoryRepository`. Cloning is cheap; the
+/// `supabase_url` / `publishable_key` strings are shared-ref-counted
+/// via `Arc` at the `AppState` level.
+#[derive(Clone)]
+pub struct SupabaseCutHistoryFactory {
+    pub supabase_url: Arc<str>,
+    pub publishable_key: Arc<str>,
+}
+
+impl CutHistoryPortFactory for SupabaseCutHistoryFactory {
+    fn build(&self, auth: &AuthContext) -> Result<Arc<dyn CutHistoryPort>, AppError> {
+        let client = PostgrestClient::new(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )
+        .map_err(AppError::infrastructure)?;
+        Ok(Arc::new(SupabaseCutHistoryRepository::new(client)))
+    }
+}
 
 /// Shared HTTP-layer state — passed into the auth middleware via
 /// `Router::with_state`. Cloning is cheap (`Arc` under the hood).
@@ -32,12 +64,16 @@ pub struct AppState {
     /// header of every PostgREST call. Does NOT grant privileges on
     /// its own — RLS enforces scoping via the user JWT.
     pub supabase_publishable_key: String,
+    /// Factory for cut-history ports. Production uses
+    /// `SupabaseCutHistoryFactory`; tests inject fakes.
+    pub cut_history_factory: Arc<dyn CutHistoryPortFactory>,
 }
 
 impl AppState {
     /// Minimal constructor used by most of the tests — supplies a
     /// placeholder publishable key that's only valid for mocked
-    /// transports. Use `with_supabase` to pass a real key.
+    /// transports. Use `with_supabase` to pass a real key, or
+    /// `with_cut_history_factory` to swap in a test double.
     pub fn new(jwks: JwksCache, supabase_url: impl Into<String>) -> Self {
         Self::with_supabase(jwks, supabase_url, "test-publishable-key")
     }
@@ -50,12 +86,30 @@ impl AppState {
         supabase_publishable_key: impl Into<String>,
     ) -> Self {
         let base = supabase_url.into();
+        let key = supabase_publishable_key.into();
+        let factory = SupabaseCutHistoryFactory {
+            supabase_url: Arc::from(base.clone()),
+            publishable_key: Arc::from(key.clone()),
+        };
+        Self::with_cut_history_factory(jwks, base, key, Arc::new(factory))
+    }
+
+    /// Test-oriented constructor that lets tests inject a fake
+    /// `CutHistoryPortFactory` without touching Supabase.
+    pub fn with_cut_history_factory(
+        jwks: JwksCache,
+        supabase_url: impl Into<String>,
+        supabase_publishable_key: impl Into<String>,
+        cut_history_factory: Arc<dyn CutHistoryPortFactory>,
+    ) -> Self {
+        let base = supabase_url.into();
         let expected_issuer = format!("{}/auth/v1", base.trim_end_matches('/'));
         Self {
             jwks,
             expected_issuer,
             supabase_url: base,
             supabase_publishable_key: supabase_publishable_key.into(),
+            cut_history_factory,
         }
     }
 }
