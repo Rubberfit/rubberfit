@@ -7,10 +7,8 @@ import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { FileUp, Info, Package, Ruler, Scissors, Shapes, X } from "lucide-react"
-import { PackCanvas, type PackStatus } from "./_components/pack-canvas"
-import type { PackProgressView } from "./_components/pack-progress"
-import { useGreedyPackJob } from "./_hooks/use-greedy-pack-job"
-import { useNfpPackJob } from "./_hooks/use-nfp-pack-job"
+import { PackCanvas } from "./_components/pack-canvas"
+import { usePackJob } from "./_hooks/use-pack-job"
 import PresetDimensionSelector, {
   type PartTemplate,
   type LoadedSelection,
@@ -67,7 +65,7 @@ function LayoutLabel() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line max-lines-per-function, complexity
+// eslint-disable-next-line max-lines-per-function
 export default function CutPlannerPage() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
@@ -81,8 +79,7 @@ export default function CutPlannerPage() {
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
 
-  const greedyJob = useGreedyPackJob()
-  const nfpJob = useNfpPackJob()
+  const packJob = usePackJob()
 
   useEffect(() => {
     materialTypeService
@@ -284,111 +281,32 @@ export default function CutPlannerPage() {
     [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
   )
 
-  // Phase 2: routing — rectangles → NFP worker, everything else → greedy worker.
-  // Mixed selections run BOTH workers in parallel.
-  const rectSpecs = useMemo(
-    () => nestingSimpleParts.filter((s) => s.partType === "rectangle"),
-    [nestingSimpleParts]
-  )
-  const otherSpecs = useMemo(
-    () => nestingSimpleParts.filter((s) => s.partType !== "rectangle"),
-    [nestingSimpleParts]
-  )
-
   const needsPack = nestingSimpleParts.length > 0
-  const willRunGreedy = otherSpecs.length > 0
-  const willRunNfp = rectSpecs.length > 0
 
-  // Invalidate both workers when inputs change so the user re-packs.
+  // Invalidate the Pack result when inputs change so the user re-packs.
   useEffect(() => {
-    if (greedyJob.status !== "idle") greedyJob.reset()
-    if (nfpJob.status !== "idle") nfpJob.reset()
+    if (packJob.status !== "idle") packJob.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nestingSimpleParts, stock.width, stock.length])
 
   const handlePack = useCallback(() => {
     if (nestingSimpleParts.length === 0) return
-    const packArgs = {
+    packJob.pack({
+      specs: nestingSimpleParts,
       rollWidth: stock.width,
       rollLength: stock.length,
       fallbackCutWidth: selectedTemplate?.width ?? selectedTemplate?.diameter ?? 24,
       fallbackCutHeight: selectedTemplate?.length ?? selectedTemplate?.height ?? 24,
       fallbackQty: safeQuantity,
-    }
-    if (otherSpecs.length > 0) greedyJob.pack({ specs: otherSpecs, ...packArgs })
-    if (rectSpecs.length > 0) nfpJob.pack({ specs: rectSpecs, ...packArgs })
+    })
   }, [
     nestingSimpleParts,
-    rectSpecs,
-    otherSpecs,
     stock.width,
     stock.length,
     selectedTemplate,
     safeQuantity,
-    greedyJob,
-    nfpJob,
+    packJob,
   ])
-
-  const packStatus: PackStatus = useMemo(() => {
-    const statuses = [
-      willRunGreedy ? greedyJob.status : null,
-      willRunNfp ? nfpJob.status : null,
-    ].filter((s): s is "idle" | "packing" | "done" | "error" => s !== null)
-    if (statuses.length === 0) return "idle"
-    if (statuses.some((s) => s === "error")) return "error"
-    if (statuses.some((s) => s === "packing")) return "packing"
-    if (statuses.every((s) => s === "done")) return "done"
-    return "idle"
-  }, [willRunGreedy, willRunNfp, greedyJob.status, nfpJob.status])
-
-  const packProgress: PackProgressView = useMemo(() => {
-    if (willRunGreedy && willRunNfp) {
-      const gPct = greedyJob.status === "done" ? 100 : greedyJob.progress.stage === "packing" ? 60 : 10
-      const nPct = nfpJob.status === "done" ? 100 : nfpJob.progress.percent
-      return { label: "Packing all shapes", percent: (gPct + nPct) / 2 }
-    }
-    if (willRunGreedy) {
-      const stageLabel =
-        greedyJob.progress.stage === "done"
-          ? "Finishing up"
-          : greedyJob.progress.stage === "packing"
-            ? "Packing shapes"
-            : "Preparing shapes"
-      const pct =
-        greedyJob.status === "done" ? 100 : greedyJob.progress.stage === "packing" ? 60 : 10
-      return { label: stageLabel, percent: pct }
-    }
-    if (willRunNfp) {
-      const stageLabel =
-        nfpJob.progress.stage === "solving"
-          ? "Packing rectangles"
-          : nfpJob.progress.stage === "finalizing"
-            ? "Finishing up"
-            : nfpJob.progress.stage === "done"
-              ? "Finishing up"
-              : "Preparing rectangles"
-      const detail =
-        nfpJob.progress.generation != null
-          ? `gen ${nfpJob.progress.generation}${nfpJob.progress.placedSoFar != null ? `, ${nfpJob.progress.placedSoFar} placed` : ""}`
-          : undefined
-      return { label: stageLabel, percent: nfpJob.progress.percent, detail }
-    }
-    return { label: "Ready", percent: 0 }
-  }, [
-    willRunGreedy,
-    willRunNfp,
-    greedyJob.status,
-    greedyJob.progress,
-    nfpJob.status,
-    nfpJob.progress,
-  ])
-
-  const packError =
-    greedyJob.status === "error"
-      ? greedyJob.error
-      : nfpJob.status === "error"
-        ? nfpJob.error
-        : null
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -651,14 +569,14 @@ export default function CutPlannerPage() {
                   {needsPack && (
                     <Button
                       size="sm"
-                      variant={packStatus === "done" ? "outline" : "default"}
+                      variant={packJob.status === "done" ? "outline" : "default"}
                       onClick={handlePack}
-                      disabled={packStatus === "packing" || nestingSimpleParts.length === 0}
+                      disabled={packJob.status === "packing" || nestingSimpleParts.length === 0}
                     >
                       <Package className="mr-1.5 h-4 w-4" />
-                      {packStatus === "packing"
+                      {packJob.status === "packing"
                         ? "Packing…"
-                        : packStatus === "done"
+                        : packJob.status === "done"
                           ? "Re-pack"
                           : "Pack"}
                     </Button>
@@ -679,16 +597,12 @@ export default function CutPlannerPage() {
 
             <CardContent>
               <PackCanvas
-                status={packStatus}
-                progress={packProgress}
-                greedyPreview={willRunGreedy ? (greedyJob.result?.preview ?? null) : null}
-                nfpPreview={willRunNfp ? (nfpJob.result?.preview ?? null) : null}
-                error={packError}
+                status={packJob.status}
+                progress={packJob.progress}
+                result={packJob.result}
+                error={packJob.error}
                 stockWidth={stock.width}
                 stockLength={stock.length}
-                fallbackCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                fallbackCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                fallbackQty={safeQuantity}
                 onMetricsChange={setCutMetrics}
                 onRetry={handlePack}
               />
