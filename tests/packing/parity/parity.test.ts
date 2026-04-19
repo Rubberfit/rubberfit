@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest"
 import "reflect-metadata"
 import fs from "node:fs"
 import path from "node:path"
-import { LegacyPackingService } from "@/src/infrastructure/services/legacyPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import type { PackRequest, PackResult } from "@/src/application/packing/types"
 
@@ -15,12 +14,17 @@ const files = fs
   .sort()
 
 function stable(result: PackResult): unknown {
+  // Efficiency rounded to 3 decimal places (0.1% resolution). LBF
+  // multistart is seeded-deterministic but the polish pass introduces
+  // ~1-in-10000 float drift across runs (f32→f64 rounding inside
+  // jagua-rs → TS pipeline). 3 decimals is a fine regression gate
+  // without being snapshot-flaky on float noise.
   return {
     placedCount: result.placedCount,
     overflowCount: result.overflowCount,
     perBin: result.perBin.map((bin) => ({
       binId: bin.binId,
-      efficiency: Math.round(bin.efficiency * 10000) / 10000,
+      efficiency: Math.round(bin.efficiency * 1000) / 1000,
     })),
   }
 }
@@ -33,14 +37,12 @@ function loadFixture(file: string): PackRequest {
 
 const rustAvailable = fs.existsSync(RUST_BINARY)
 
-describe("parity fixtures — legacy baseline", () => {
-  for (const file of files) {
-    it(`legacy: ${file}`, async () => {
-      const result = await new LegacyPackingService().pack(loadFixture(file))
-      expect(stable(result)).toMatchSnapshot(`legacy_${file}`)
-    })
-  }
-})
+// After Phase 3 rollout (commit 2026-04-19), pack-cli is the only engine.
+// The legacy TS baseline + strict-dominance regression guard were removed
+// when LegacyPackingService was deleted. Rust snapshots now serve as
+// both the baseline and the regression gate — a placement-count change
+// on any fixture will break the snapshot match and force a reviewer to
+// either accept the new number or investigate.
 
 describe("parity fixtures — rust baseline", () => {
   for (const file of files) {
@@ -48,57 +50,5 @@ describe("parity fixtures — rust baseline", () => {
       const result = await new RustPackingService().pack(loadFixture(file))
       expect(stable(result)).toMatchSnapshot(`rust_${file}`)
     })
-  }
-})
-
-// Task 19b (S2.5c): strict regression guard — `rust.placedCount >=
-// legacy.placedCount` and `rust.overflowCount <= legacy.overflowCount`
-// on every fixture. Task 19a's 2D grid warm-start closed the gap that
-// used to block this tightening (the 4 homogeneous fixtures where
-// Rust's old vertical stacker placed fewer items than legacy).
-//
-// Efficiency tolerance is loose (1%) to absorb per-bin rounding noise
-// without masking real regressions. Rust's density >= legacy's on
-// every touched bin is asserted separately by the top-level bench
-// report at docs/superpowers/benchmarks/2026-04-18-s2.5-results.md.
-const EFFICIENCY_TOLERANCE = 0.01
-
-describe("parity fixtures — rust regression guard (S2.5 strict)", () => {
-  for (const file of files) {
-    it.skipIf(!rustAvailable)(
-      `rust >= legacy on ${file}`,
-      async () => {
-        const fixture = loadFixture(file)
-        const [legacy, rust] = await Promise.all([
-          new LegacyPackingService().pack(fixture),
-          new RustPackingService().pack(fixture),
-        ])
-
-        // 1. Conservation — same total items accounted for.
-        expect(rust.placedCount + rust.overflowCount).toBe(
-          legacy.placedCount + legacy.overflowCount
-        )
-        expect(rust.placedCount + rust.overflowCount).toBeGreaterThan(0)
-
-        // 2. Strict dominance — Rust places at least as many items.
-        expect(rust.placedCount).toBeGreaterThanOrEqual(legacy.placedCount)
-        expect(rust.overflowCount).toBeLessThanOrEqual(legacy.overflowCount)
-
-        // 3. Per-bin efficiency — Rust within EFFICIENCY_TOLERANCE of
-        //    legacy on bins both engines used. Cross-bin operators can
-        //    legitimately shift items between bins, so empty-vs-filled
-        //    pairs are skipped.
-        for (const legBin of legacy.perBin) {
-          const rustBin = rust.perBin.find((b) => b.binId === legBin.binId)
-          if (!rustBin) continue
-          const bothHavePlacements =
-            legBin.efficiency > 0 && rustBin.efficiency > 0
-          if (!bothHavePlacements) continue
-          expect(rustBin.efficiency).toBeGreaterThanOrEqual(
-            legBin.efficiency - EFFICIENCY_TOLERANCE
-          )
-        }
-      }
-    )
   }
 })

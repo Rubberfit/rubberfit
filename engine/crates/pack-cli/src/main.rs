@@ -49,13 +49,15 @@ fn run_batch() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    // Engine selection: `REMA_ENGINE=lbf` routes to Phase 1 LBF-only,
-    // `REMA_ENGINE=lbf-lns` routes to Phase 2 LBF + density-changing
-    // LNS. Default remains pack() so existing callers are unaffected.
+    // Engine selection. Default is pack_lbf_lns + polish (the Phase 3
+    // pipeline): polygon-aware LBF constructive → density-changing LNS
+    // → score-aware polish. The legacy pack() path is retained behind
+    // `REMA_ENGINE=legacy` as an escape hatch; `REMA_ENGINE=lbf` skips
+    // LNS. Both are primarily for benches and debugging.
     let result = match std::env::var("REMA_ENGINE").as_deref() {
+        Ok("legacy") => pack(request),
         Ok("lbf") => pack_lbf(request),
-        Ok("lbf-lns") => pack_lbf_lns(request),
-        _ => pack(request),
+        _ => pack_lbf_lns(request),
     };
     match result {
         Ok(result) => write_json_line(&result),

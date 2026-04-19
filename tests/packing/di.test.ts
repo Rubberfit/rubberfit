@@ -1,34 +1,21 @@
 import { describe, it, expect } from "vitest"
 import "reflect-metadata"
-import fs from "node:fs"
 import { container } from "tsyringe"
 import "@/di/resolve" // triggers registration
-import { RUST_PACK_BINARY } from "@/di/di-registration"
 import { TOKENS } from "@/di/tokens"
 import { PACKING_TOKENS } from "@/src/application/services/packing.service.interface"
-import { LegacyPackingService } from "@/src/infrastructure/services/legacyPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 
-const rustEngineDisabled =
-  (process.env.USE_RUST_ENGINE ?? "").trim().toLowerCase() === "false"
-const rustAvailable = !rustEngineDisabled && fs.existsSync(RUST_PACK_BINARY)
+// After Phase 3 production rollout the legacy TS packer was removed —
+// pack-cli is now the only engine. DI fails fast in di-registration.ts
+// if the binary is missing (no more fallback). These tests therefore
+// assume the binary is present (pretest hook rebuilds it on every run).
 
 describe("DI — IPackingService", () => {
-  it.skipIf(!rustAvailable)(
-    "resolves IPackingService to the Rust engine when pack-cli is built",
-    () => {
-      const svc = container.resolve(PACKING_TOKENS.IPackingService)
-      expect(svc).toBeInstanceOf(RustPackingService)
-    }
-  )
-
-  it.skipIf(rustAvailable)(
-    "falls back to LegacyPackingService when pack-cli is missing",
-    () => {
-      const svc = container.resolve(PACKING_TOKENS.IPackingService)
-      expect(svc).toBeInstanceOf(LegacyPackingService)
-    }
-  )
+  it("resolves IPackingService to the Rust engine", () => {
+    const svc = container.resolve(PACKING_TOKENS.IPackingService)
+    expect(svc).toBeInstanceOf(RustPackingService)
+  })
 
   it("is a singleton (same instance on repeated resolve)", () => {
     const a = container.resolve(PACKING_TOKENS.IPackingService)

@@ -32,7 +32,6 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
-import { LegacyPackingService } from "@/src/infrastructure/services/legacyPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
@@ -68,32 +67,26 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
-// IPackingService: prefer the native Rust engine (pack-cli binary); fall back
-// to the TypeScript LegacyPackingService when the binary is missing or
-// USE_RUST_ENGINE=false is set. Legacy falls out of the tree in S2 Task 26.
+// IPackingService: native Rust engine (pack-cli binary). The legacy TS
+// fallback was removed after pack_lbf_lns + polish matched / beat it on
+// every parity fixture and on the production Fab Score. If the binary
+// is missing the app must fail fast — there is no longer a TS backup.
 export const RUST_PACK_BINARY = path.resolve(
   process.cwd(),
   "engine/target/release/pack-cli"
 )
-const rustEngineDisabled =
-  (process.env.USE_RUST_ENGINE ?? "").trim().toLowerCase() === "false"
-const rustBinaryPresent = fs.existsSync(RUST_PACK_BINARY)
-const useRustEngine = !rustEngineDisabled && rustBinaryPresent
-// Use a cached factory so the implementation decision stays out of TSyringe's
-// constructor reflection (RustPackingService accepts an optional binaryPath
-// string which tsyringe cannot reflect via reflect-metadata).
-container.register(TOKENS.IPackingService, {
-  useFactory: instanceCachingFactory(() =>
-    useRustEngine ? new RustPackingService() : new LegacyPackingService()
-  ),
-})
-if (useRustEngine) {
-  console.info(`[packing] Using RustPackingService (binary: ${RUST_PACK_BINARY})`)
-} else {
-  console.warn(
-    `[packing] Using LegacyPackingService (USE_RUST_ENGINE=${process.env.USE_RUST_ENGINE ?? "unset"}, binary ${rustBinaryPresent ? "present" : "missing"} at ${RUST_PACK_BINARY})`
+if (!fs.existsSync(RUST_PACK_BINARY)) {
+  throw new Error(
+    `[packing] pack-cli binary not found at ${RUST_PACK_BINARY}. ` +
+      `Run "npm run build:engine" to build the Rust nesting engine.`
   )
 }
+// Use a cached factory so the binaryPath constructor arg stays out of
+// TSyringe's constructor reflection (reflect-metadata can't see string).
+container.register(TOKENS.IPackingService, {
+  useFactory: instanceCachingFactory(() => new RustPackingService()),
+})
+console.info(`[packing] Using RustPackingService (binary: ${RUST_PACK_BINARY})`)
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(

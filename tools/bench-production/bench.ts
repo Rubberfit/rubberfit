@@ -1,5 +1,7 @@
 #!/usr/bin/env -S npx tsx
-// Benchmark harness: real production cut lists vs both engines.
+// Benchmark harness: real production cut lists against the current
+// Rust packer vs the legacy pack() pipeline (still reachable via
+// REMA_ENGINE=legacy for regression tracking).
 //
 // Usage:
 //   npx tsx tools/bench-production/bench.ts <cuts.csv> [--bin WxL] [--bins N] [--rotation true|false] [--clearance c]
@@ -9,16 +11,21 @@
 //   3,G1,120.75,35.5
 //   ...
 //
-// Runs both the Rust engine (release binary) and the legacy TS engine on
-// the same PackRequest, reports density / placed / elapsed_ms side-by-side.
+// After the legacy TS engine was deleted (Phase 3 rollout, 2026-04-19),
+// the "Legacy" column below now reports the OLD Rust pack() pipeline
+// (FFD + GLS + cross-bin-swap), still reachable via `REMA_ENGINE=legacy`
+// at pack-cli. "Rust" is the new default (pack_lbf_lns + polish).
 
 import "reflect-metadata"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { spawn } from "node:child_process"
+import path from "node:path"
 import type { PackRequest, PackResult, Part, Placement } from "../../src/application/packing/types"
 import { RustPackingService } from "../../src/infrastructure/services/rustPackingService"
-import { LegacyPackingService } from "../../src/infrastructure/services/legacyPackingService"
 import { extractMaximalFreeRects, classifyFreeRegion } from "../../nesting/free-space"
+
+const PACK_CLI = path.resolve("engine/target/release/pack-cli")
 
 type CliOpts = {
   csv: string
@@ -140,8 +147,44 @@ async function runRust(request: PackRequest) {
 
 async function runLegacy(request: PackRequest) {
   const t0 = Date.now()
-  const result = await new LegacyPackingService().pack(request)
+  // Spawn pack-cli with REMA_ENGINE=legacy so we get the OLD pack()
+  // pipeline (FFD + GLS + cross-bin-swap) as the baseline. The TS
+  // LegacyPackingService was removed after pack_lbf_lns + polish
+  // caught up to it.
+  const result = await spawnPackCli(request, { REMA_ENGINE: "legacy" })
   return { result, elapsedMs: Date.now() - t0 }
+}
+
+function spawnPackCli(
+  request: PackRequest,
+  envOverrides: Record<string, string> = {}
+): Promise<PackResult> {
+  return new Promise((resolveResult, rejectResult) => {
+    const child = spawn(PACK_CLI, [], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, ...envOverrides },
+    })
+    const out: Buffer[] = []
+    const err: Buffer[] = []
+    child.stdout.on("data", (c: Buffer) => out.push(c))
+    child.stderr.on("data", (c: Buffer) => err.push(c))
+    child.on("error", rejectResult)
+    child.on("close", (code) => {
+      const stdout = Buffer.concat(out).toString("utf8")
+      if (code !== 0) {
+        rejectResult(
+          new Error(`pack-cli exit ${code}: ${Buffer.concat(err).toString("utf8")}`)
+        )
+        return
+      }
+      try {
+        resolveResult(JSON.parse(stdout.trim().split("\n").pop() ?? "") as PackResult)
+      } catch (e) {
+        rejectResult(e as Error)
+      }
+    })
+    child.stdin.end(JSON.stringify(request))
+  })
 }
 
 /**

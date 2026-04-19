@@ -211,7 +211,7 @@ fn pack_lbf_lns_single_bin(
         // Nothing left to grow, but we still want to polish the layout
         // so roll-2-style "fits with gaps" outputs get compacted.
         let mut r = lbf_result;
-        if std::env::var("USE_FAB_POLISH").as_deref() == Ok("true") {
+        if polish_enabled() {
             r = polish_pack_result(r, &request.bins, request.clearance);
         }
         r.run_time_ms = Some(started_at.elapsed().as_millis() as u64);
@@ -401,13 +401,21 @@ fn pack_lbf_lns_single_bin(
 
     // Phase 3 — score-aware polish. Slides each bin's placements toward
     // (0, 0) so waste aggregates into one corner reusable rectangle.
-    // Opt-in behind USE_FAB_POLISH=true. See application/polish.rs and
+    // On by default; set `REMA_DISABLE_POLISH=true` to skip. See
+    // application/polish.rs and
     // `.claude/research/sparrow-integration/lbf-finding.md` Phase 3.
-    if std::env::var("USE_FAB_POLISH").as_deref() == Ok("true") {
+    if polish_enabled() {
         final_result = polish_pack_result(final_result, &request.bins, request.clearance);
     }
 
     Ok(final_result)
+}
+
+/// Polish is on by default. Explicitly disable via
+/// `REMA_DISABLE_POLISH=true` for benches or when debugging the
+/// pre-polish layout.
+fn polish_enabled() -> bool {
+    std::env::var("REMA_DISABLE_POLISH").as_deref() != Ok("true")
 }
 
 /// Apply the Fab-reusable polish to each bin of a PackResult. Per bin:
