@@ -267,25 +267,16 @@ impl Separator {
                 let w_loss = self.ct.get_total_weighted_loss();
 
                 if w_loss > w_loss_before * 1.001 {
-                    // Upstream sparrow has this as a hard `debug_assert!`.
-                    // Task 8 demoted it to a `warn!` because the underlying
-                    // cause (the custom specialized_pipeline's hazard
-                    // divergence from jagua — see `assertions::
-                    // custom_pipeline_matches_jaguars` for the detection
-                    // site) can, on certain fixtures, cause the
-                    // min-weighted-loss worker selection to adopt a
-                    // layout whose TRUE weighted loss is higher than the
-                    // pre-iteration incumbent. The primary-path algorithm
-                    // is unaffected in release builds (debug_asserts
-                    // stripped); the cascade is strictly a debug-time
-                    // pain while running the cargo test harness over
-                    // real GLS. Tracked as a follow-up — investigate the
-                    // specialized_pipeline edge case and restore the
-                    // hard invariant once fixed.
+                    // Downstream cascade of the remaining custom-pipeline
+                    // containment-check over-report (see
+                    // specialized_pipeline.rs + followups.md). Task 9's
+                    // replay fix cleaned up the geometry, but until the
+                    // containment divergence is resolved the best-worker
+                    // selection can still adopt a layout with higher true
+                    // weighted loss. Release builds unaffected.
                     log::warn!(
                         "[SEP] weighted loss increased across an iteration: \
-                         {w_loss_before} -> {w_loss} (likely cascade from \
-                         specialized_pipeline hazard divergence; see FOLLOWUP)"
+                         {w_loss_before} -> {w_loss} (containment-check cascade; see followups)"
                     );
                 }
 

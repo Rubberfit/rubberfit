@@ -51,6 +51,7 @@ use crate::infrastructure::warm_start::{SeedPlacement, SeedResult};
 use jagua_rs::entities::{Instance, Layout, LayoutSnapshot, PlacedItem};
 use jagua_rs::geometry::DTransformation;
 use jagua_rs::io::export::int_to_ext_transformation;
+use jagua_rs::io::import::ext_to_int_transformation;
 use jagua_rs::probs::bpp::entities::BPInstance;
 use rema_geom::domain::Point2D;
 use std::collections::HashMap;
@@ -172,11 +173,23 @@ fn replay_seed_into_layout(
                 ))
             })?;
         let item = instance.item(item_id);
-        let dt = DTransformation::new(
+
+        // Codex Task-9 fix: SeedPlacement stores EXTERNAL coordinates
+        // (warm_start.rs applies the user-supplied polygon directly).
+        // jagua's `Layout::place_item` expects INTERNAL coordinates —
+        // jagua applies a centring `pre_transform` to every item during
+        // import (`io::import::centering_transformation`). We must
+        // compose the inverse via `ext_to_int_transformation` before
+        // placing, else every item lands shifted by its centroid and
+        // every downstream collision/pipeline/invariant check sees
+        // bogus overlap geometry. This was the root cause of the three
+        // debug-only warn! downgrades from Task 8.
+        let ext_dt = DTransformation::new(
             placement.rotation_rad as f32,
             (placement.x as f32, placement.y as f32),
         );
-        layout.place_item(item, dt);
+        let int_dt = ext_to_int_transformation(&ext_dt, &item.shape_orig.pre_transform);
+        layout.place_item(item, int_dt);
     }
     Ok(())
 }

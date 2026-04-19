@@ -101,16 +101,15 @@ pub fn collect_poly_collisions_in_detector_custom(
         }
     }
 
-    // Diagnostic only — the helper emits `warn!` on divergence but
-    // does NOT panic. Upstream sparrow wraps this call in
-    // `debug_assert!`, but Task 8 observed the custom pipeline can
-    // legitimately diverge on certain containment edge cases with our
-    // BPP fixtures (seen via
-    // `application::pack::tests::overflow_counted_when_bin_too_small`).
-    // The runtime cost of the divergence is marginal weighted-loss
-    // drift during sample evaluation; release builds are unaffected.
-    // Investigation tracked as a follow-up for Task 9's integration
-    // test pass.
+    // Diagnostic only. Task 9's replay fix resolved the bulk of the
+    // divergence (geometry is now in the correct internal coordinate
+    // space), but a narrower divergence remains in the containment-check
+    // branch: the custom pipeline OVER-REPORTS a PlacedItem hazard that
+    // jagua's default `CDEngine::collect_poly_collisions` does not find.
+    // Tracked in followups.md as Task-9 item for deeper investigation
+    // (likely the containment detection at specialized_pipeline.rs
+    // lines 86-102 is more permissive than jagua's default pass).
+    // Release builds are unaffected (debug_asserts stripped).
     let _ = assertions::custom_pipeline_matches_jaguars(shape, collector);
 }
 

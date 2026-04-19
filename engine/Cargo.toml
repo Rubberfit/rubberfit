@@ -23,17 +23,17 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 
-# jagua-rs 0.7.1 carries internal debug_assert!s that fire on certain
-# packing-edge-case fixtures (e.g. qt_hazard.rs:111's constricted-hazards
-# invariant). Release builds strip debug_asserts so production is
-# unaffected, but our debug `cargo test` harness trips them on fixtures
-# Task 8 now exercises via the real GLS path. Disable debug_asserts for
-# jagua-rs specifically in the test profile. Our own code still runs
-# with debug_asserts enabled.
+# jagua-rs 0.7.1 has an internal debug_assert at
+# `collision_detection/quadtree/qt_hazard.rs:111` requiring at least one
+# child quadrant to produce colliding edges when a partial hazard spans
+# subdivisions. Our clearance-inflated tight-bin fixtures can produce
+# grid-aligned rectangles whose edges fall exactly on quadtree
+# subdivision boundaries — `Rect::collides_with(&Edge)` uses strict `>`
+# there, so both neighbours miss the edge.
 #
-# Follow-up tracked: investigate whether our usage pattern (clearance,
-# small-bin stress) is legitimately hitting a jagua bug that should be
-# reported upstream, or whether it's a known limitation. See
-# `.claude/research/task8/followups.md` (Task 9 scope).
+# Release builds strip debug_asserts so production is unaffected.
+# Independent of Task 8's replay bug (which Task 9 fixed); reproduces
+# even with the replay fix in place. Task 9 follow-up:
+# `.claude/research/task9/followups.md` — upstream jagua patch candidate.
 [profile.test.package.jagua-rs]
 debug-assertions = false
