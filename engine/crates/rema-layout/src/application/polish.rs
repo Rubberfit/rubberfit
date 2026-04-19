@@ -23,6 +23,23 @@
 // for the full research + ranked options that led here.
 
 use crate::domain::Placement;
+use rema_geom::domain::Point2D;
+
+/// Axis-aligned bounding box of a placement's polygon in world coords.
+/// `Placement.x / .y` are the jagua rotation-origin translation (not
+/// necessarily the polygon's bottom-left corner under rotation), so
+/// AABB-overlap checks MUST be computed from the polygon itself.
+fn placement_bbox(p: &Placement) -> (f64, f64, f64, f64) {
+    if p.polygon.is_empty() {
+        return (p.x, p.y, p.x + p.width, p.y + p.height);
+    }
+    p.polygon
+        .iter()
+        .fold(
+            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            |(mnx, mny, mxx, mxy), v| (mnx.min(v.x), mny.min(v.y), mxx.max(v.x), mxy.max(v.y)),
+        )
+}
 
 /// Minimum reusable offcut: 11.5" × 12" in either orientation.
 /// Mirrors nesting/free-space.ts MIN_REUSABLE_OFFCUT_{W,H}.
@@ -120,13 +137,16 @@ pub fn polish_score(placements: &[Placement], bin_width: f64, bin_height: f64) -
         };
     }
 
+    // Compute extents from the actual polygon bboxes — placement.x/y
+    // are jagua rotation-origin translations, which for rotated items
+    // diverge wildly from the polygon's bottom-left corner.
     let occupied_width = placements
         .iter()
-        .map(|p| p.x + p.width)
+        .map(|p| placement_bbox(p).2)
         .fold(0.0_f64, f64::max);
     let occupied_height = placements
         .iter()
-        .map(|p| p.y + p.height)
+        .map(|p| placement_bbox(p).3)
         .fold(0.0_f64, f64::max);
 
     // Two candidate reusable rectangles that cover the L-shape of waste
@@ -198,58 +218,59 @@ pub fn polish_score(placements: &[Placement], bin_width: f64, bin_height: f64) -
 /// Returns the new coordinate for the requested axis. For axis = Axis::X
 /// the function computes how far LEFT this item can shift; for Y, how
 /// far DOWN.
-fn max_slide_toward_origin(
+/// How far along `axis` the item can slide toward the corresponding
+/// origin axis (x→0 for X, y→0 for Y) before colliding with another
+/// item's polygon bbox. Returns the resulting shift as a non-negative
+/// delta (how much to subtract from the item's current bbox min).
+///
+/// All math runs on polygon-derived bboxes, NOT on `Placement.x/.y`
+/// which are jagua rotation-origin translations and diverge under
+/// rotation.
+fn max_slide_toward_origin_delta(
     placements: &[Placement],
     item_idx: usize,
     axis: Axis,
     clearance: f64,
 ) -> f64 {
-    let item = &placements[item_idx];
+    let (ix_min, iy_min, ix_max, iy_max) = placement_bbox(&placements[item_idx]);
     match axis {
         Axis::X => {
-            // Find the rightmost other-item right-edge that blocks this
-            // item's leftward motion. Blockers are placements whose
-            // y-range overlaps this item's y-range AND whose right-edge
-            // is to the LEFT of this item's current x.
-            let item_y0 = item.y;
-            let item_y1 = item.y + item.height;
+            // Blockers are items whose y-range overlaps this item's
+            // y-range AND whose right-edge is to the LEFT of this
+            // item's current left edge.
             let mut closest_blocker_right = 0.0_f64;
             for (idx, other) in placements.iter().enumerate() {
                 if idx == item_idx {
                     continue;
                 }
-                // Strict y-overlap check: equal edges don't overlap.
-                let other_y0 = other.y;
-                let other_y1 = other.y + other.height;
-                if other_y1 <= item_y0 + 1e-9 || other_y0 >= item_y1 - 1e-9 {
+                let (ox_min, oy_min, ox_max, oy_max) = placement_bbox(other);
+                // Strict y-overlap: equal edges don't overlap.
+                if oy_max <= iy_min + 1e-9 || oy_min >= iy_max - 1e-9 {
                     continue;
                 }
-                let other_right = other.x + other.width;
-                if other_right <= item.x + 1e-9 && other_right > closest_blocker_right {
-                    closest_blocker_right = other_right;
+                if ox_max <= ix_min + 1e-9 && ox_max > closest_blocker_right {
+                    closest_blocker_right = ox_max;
                 }
             }
-            (closest_blocker_right + clearance).min(item.x)
+            let target_left = (closest_blocker_right + clearance).min(ix_min);
+            (ix_min - target_left).max(0.0)
         }
         Axis::Y => {
-            let item_x0 = item.x;
-            let item_x1 = item.x + item.width;
             let mut closest_blocker_top = 0.0_f64;
             for (idx, other) in placements.iter().enumerate() {
                 if idx == item_idx {
                     continue;
                 }
-                let other_x0 = other.x;
-                let other_x1 = other.x + other.width;
-                if other_x1 <= item_x0 + 1e-9 || other_x0 >= item_x1 - 1e-9 {
+                let (ox_min, oy_min, ox_max, oy_max) = placement_bbox(other);
+                if ox_max <= ix_min + 1e-9 || ox_min >= ix_max - 1e-9 {
                     continue;
                 }
-                let other_top = other.y + other.height;
-                if other_top <= item.y + 1e-9 && other_top > closest_blocker_top {
-                    closest_blocker_top = other_top;
+                if oy_max <= iy_min + 1e-9 && oy_max > closest_blocker_top {
+                    closest_blocker_top = oy_max;
                 }
             }
-            (closest_blocker_top + clearance).min(item.y)
+            let target_bot = (closest_blocker_top + clearance).min(iy_min);
+            (iy_min - target_bot).max(0.0)
         }
     }
 }
@@ -302,37 +323,34 @@ pub fn polish_placements(
     for _pass in 0..cfg.max_passes {
         let mut moved_by = 0.0_f64;
 
-        // X sweep: sort by ascending x so leftmost items slide first,
-        // making room for items to the right to slide into vacated space
-        // on the NEXT pass. Iteration order within a single sweep is
-        // stable under .sort_by to keep the polish deterministic.
+        // X sweep: sort by ascending bbox.min_x so leftmost items slide
+        // first, making room for items to the right to slide into
+        // vacated space on the NEXT pass. Iteration order within a
+        // single sweep is stable via .sort_by to keep the polish
+        // deterministic.
         let mut order: Vec<usize> = (0..placed.len()).collect();
         order.sort_by(|&a, &b| {
-            placed[a]
-                .x
-                .partial_cmp(&placed[b].x)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let xa = placement_bbox(&placed[a]).0;
+            let xb = placement_bbox(&placed[b]).0;
+            xa.partial_cmp(&xb).unwrap_or(std::cmp::Ordering::Equal)
         });
         for &i in &order {
-            let new_x = max_slide_toward_origin(&placed, i, Axis::X, cfg.clearance);
-            let dx = placed[i].x - new_x;
+            let dx = max_slide_toward_origin_delta(&placed, i, Axis::X, cfg.clearance);
             if dx > cfg.min_improvement {
                 translate_placement(&mut placed[i], -dx, 0.0);
                 moved_by = moved_by.max(dx);
             }
         }
 
-        // Y sweep: same shape, descend along y so bottommost items
+        // Y sweep: same shape, ascending bbox.min_y so bottommost items
         // settle first.
         order.sort_by(|&a, &b| {
-            placed[a]
-                .y
-                .partial_cmp(&placed[b].y)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let ya = placement_bbox(&placed[a]).1;
+            let yb = placement_bbox(&placed[b]).1;
+            ya.partial_cmp(&yb).unwrap_or(std::cmp::Ordering::Equal)
         });
         for &i in &order {
-            let new_y = max_slide_toward_origin(&placed, i, Axis::Y, cfg.clearance);
-            let dy = placed[i].y - new_y;
+            let dy = max_slide_toward_origin_delta(&placed, i, Axis::Y, cfg.clearance);
             if dy > cfg.min_improvement {
                 translate_placement(&mut placed[i], 0.0, -dy);
                 moved_by = moved_by.max(dy);
@@ -343,10 +361,6 @@ pub fn polish_placements(
         if moved_by < cfg.min_improvement {
             break;
         }
-
-        // Score check: only accept this pass if it didn't regress the
-        // largest reusable area. Polish should be monotone-non-worse.
-        let _score = polish_score(&placed, bin_width, bin_height);
     }
 
     placed
@@ -422,18 +436,20 @@ mod tests {
         // Two 10×10 rects in a 100×100 bin:
         //   A at (0, 0)
         //   B at (50, 5) — y-overlaps A but shifted right
-        // Sliding B left should land at x=10 (A's right edge).
+        // Sliding B left should land at x=10 (A's right edge), i.e.,
+        // slide delta = 50 - 10 = 40.
         let placements = vec![rect("a", 0.0, 0.0, 10.0, 10.0), rect("b", 50.0, 5.0, 10.0, 10.0)];
-        let new_x = max_slide_toward_origin(&placements, 1, Axis::X, 0.0);
-        assert!((new_x - 10.0).abs() < 1e-6, "expected x=10, got {}", new_x);
+        let dx = max_slide_toward_origin_delta(&placements, 1, Axis::X, 0.0);
+        assert!((dx - 40.0).abs() < 1e-6, "expected delta=40, got {}", dx);
     }
 
     #[test]
     fn slide_left_free_path_reaches_zero() {
         // B has no y-overlap with A, can slide all the way to x=0.
+        // B starts at x=50, so delta = 50.
         let placements = vec![rect("a", 0.0, 50.0, 10.0, 10.0), rect("b", 50.0, 0.0, 10.0, 10.0)];
-        let new_x = max_slide_toward_origin(&placements, 1, Axis::X, 0.0);
-        assert!(new_x.abs() < 1e-6, "expected x=0, got {}", new_x);
+        let dx = max_slide_toward_origin_delta(&placements, 1, Axis::X, 0.0);
+        assert!((dx - 50.0).abs() < 1e-6, "expected delta=50, got {}", dx);
     }
 
     #[test]

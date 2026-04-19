@@ -208,8 +208,12 @@ fn pack_lbf_lns_single_bin(
     let lbf_result = pack_lbf_with_config(request.clone(), cfg.lbf.clone())?;
 
     if lbf_result.overflow_count == 0 {
-        // Nothing left to grow. Return LBF result with updated run_time_ms.
+        // Nothing left to grow, but we still want to polish the layout
+        // so roll-2-style "fits with gaps" outputs get compacted.
         let mut r = lbf_result;
+        if std::env::var("USE_FAB_POLISH").as_deref() == Ok("true") {
+            r = polish_pack_result(r, &request.bins, request.clearance);
+        }
         r.run_time_ms = Some(started_at.elapsed().as_millis() as u64);
         return Ok(r);
     }
