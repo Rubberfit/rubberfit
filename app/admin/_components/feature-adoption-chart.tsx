@@ -52,9 +52,10 @@ export function FeatureAdoptionChart() {
             background: "#18181b",
             border: "1px solid #27272a",
             borderRadius: "6px",
-            color: "#f4f4f5",
             fontSize: "12px",
           }}
+          labelStyle={{ color: "#ffffff" }}
+          itemStyle={{ color: "#ffffff" }}
           formatter={(value: number) => [`${value}%`, "Orgs using"]}
           cursor={{ fill: "#27272a" }}
         />

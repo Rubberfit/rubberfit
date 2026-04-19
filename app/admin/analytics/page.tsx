@@ -90,10 +90,10 @@ export default function AnalyticsPage() {
             <tbody>
               {TOP_ORGS.map((org) => (
                 <tr key={org.name} className="border-b border-zinc-800/60 last:border-0 hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-4 py-3 text-zinc-200 font-medium">{org.name}</td>
-                  <td className="px-4 py-3 text-zinc-400 tabular-nums">{org.members}</td>
-                  <td className="px-4 py-3 text-zinc-400 tabular-nums font-mono text-xs">{org.nestingJobs}</td>
-                  <td className="px-4 py-3 text-zinc-400 tabular-nums font-mono text-xs">{org.apiCalls}</td>
+                  <td className="px-4 py-3 text-white font-medium">{org.name}</td>
+                  <td className="px-4 py-3 text-white tabular-nums">{org.members}</td>
+                  <td className="px-4 py-3 text-white tabular-nums font-mono text-xs">{org.nestingJobs}</td>
+                  <td className="px-4 py-3 text-white tabular-nums font-mono text-xs">{org.apiCalls}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded ${PLAN_STYLES[org.plan] ?? ""}`}>
                       {org.plan}
