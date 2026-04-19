@@ -48,6 +48,21 @@ async function forward(
   return await forwardToRust(req, { path })
 }
 
+async function forwardWithMethod(
+  path: string,
+  method: string,
+  body?: string,
+  url: string = "https://example.com"
+): Promise<Response> {
+  const init: RequestInit = { method }
+  if (body !== undefined) {
+    init.body = body
+    init.headers = { "content-type": "application/json" }
+  }
+  const req = makeReq(url, init) as unknown as Parameters<typeof forwardToRust>[0]
+  return await forwardToRust(req, { path })
+}
+
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
 describe("cookie→bearer bridge", () => {
@@ -181,5 +196,91 @@ describe("cookie→bearer bridge", () => {
 
     expect(response.status).toBe(404)
     expect(await response.text()).toBe("not found")
+  })
+
+  // S3b added write-verb shims under /api/v2/inventory/**. The bridge
+  // was verb-agnostic from S3a but GET was the only path exercised
+  // in tests. These cover POST / PUT / DELETE explicitly so a
+  // regression in request.arrayBuffer() / body forwarding would fail
+  // here instead of first surfacing as a broken inventory create
+  // button in the UI.
+
+  it("forwards POST body + content-type to upstream", async () => {
+    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    const fetchSpy: FetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: "mt-1", name: "Neoprene" }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        })
+    )
+    global.fetch = fetchSpy as unknown as typeof fetch
+
+    const response = await forwardWithMethod(
+      "/api/v2/inventory/material-types",
+      "POST",
+      JSON.stringify({ name: "Neoprene" })
+    )
+
+    expect(response.status).toBe(201)
+    const [, init] = fetchSpy.mock.calls[0]
+    expect(init?.method).toBe("POST")
+    // reqwest / fetch rejects the body if it was streamed/consumed
+    // before forwarding; an ArrayBuffer roundtrip is the contract.
+    expect(init?.body).toBeDefined()
+    const bytes = new Uint8Array(init?.body as ArrayBuffer)
+    const sent = new TextDecoder().decode(bytes)
+    expect(JSON.parse(sent)).toEqual({ name: "Neoprene" })
+    expect((init?.headers as Record<string, string>)["content-type"]).toBe(
+      "application/json"
+    )
+  })
+
+  it("forwards PUT body to upstream", async () => {
+    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    const fetchSpy: FetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: "mt-1", name: "EPDM" }), {
+          status: 200,
+        })
+    )
+    global.fetch = fetchSpy as unknown as typeof fetch
+
+    const response = await forwardWithMethod(
+      "/api/v2/inventory/material-types/mt-1",
+      "PUT",
+      JSON.stringify({ name: "EPDM" })
+    )
+
+    expect(response.status).toBe(200)
+    const [, init] = fetchSpy.mock.calls[0]
+    expect(init?.method).toBe("PUT")
+    const bytes = new Uint8Array(init?.body as ArrayBuffer)
+    expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({ name: "EPDM" })
+  })
+
+  it("forwards DELETE without a body", async () => {
+    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    const fetchSpy: FetchMock = vi.fn(
+      async () => new Response(null, { status: 204 })
+    )
+    global.fetch = fetchSpy as unknown as typeof fetch
+
+    const response = await forwardWithMethod(
+      "/api/v2/inventory/material-types/mt-1",
+      "DELETE"
+    )
+
+    expect(response.status).toBe(204)
+    const [, init] = fetchSpy.mock.calls[0]
+    expect(init?.method).toBe("DELETE")
+    // DELETE has no request body — the bridge should still invoke
+    // arrayBuffer() and send an empty ArrayBuffer rather than
+    // undefined, but either way it's fine for reqwest. Just check
+    // we didn't erroneously send a non-empty body from elsewhere.
+    if (init?.body !== undefined) {
+      const bytes = new Uint8Array(init.body as ArrayBuffer)
+      expect(bytes.length).toBe(0)
+    }
   })
 })
