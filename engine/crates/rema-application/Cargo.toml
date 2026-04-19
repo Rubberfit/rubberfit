@@ -10,3 +10,7 @@ description = "Application ports + use cases for REMA backend (S3)"
 rema-domain = { path = "../rema-domain" }
 serde = { workspace = true }
 thiserror = { workspace = true }
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

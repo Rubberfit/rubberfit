@@ -16,6 +16,8 @@
 //! `SupabasePurchaseOrderRepository`, etc.) land as each aggregate
 //! migrates off the TS Supabase client in S3a-S3d.
 
+pub mod cut_history;
 pub mod postgrest;
 
+pub use cut_history::SupabaseCutHistoryRepository;
 pub use postgrest::{PostgrestClient, PostgrestError};

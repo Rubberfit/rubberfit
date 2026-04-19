@@ -9,7 +9,10 @@
 //! networking. Upper layers depend on `rema-domain`; `rema-domain`
 //! depends on nothing in the workspace.
 //!
-//! Populating this crate with the real aggregates (Cut, Roll, Part,
-//! PurchaseOrder, ReorderSuggestion, etc.) lands in subsequent S3a
-//! tasks as each vertical slice migrates off the TS-side Supabase
-//! client.
+//! Aggregates land here one at a time as each vertical slice ships.
+//! Task 5 adds the Cut aggregate (cut_history row + favorites);
+//! Roll, PurchaseOrder, and others arrive in later S3 phases.
+
+pub mod cut;
+
+pub use cut::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};

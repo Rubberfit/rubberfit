@@ -1799,9 +1799,11 @@ dependencies = [
 name = "rema-application"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "rema-domain",
  "serde",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
