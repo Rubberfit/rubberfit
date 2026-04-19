@@ -125,11 +125,11 @@ in Vercel: `/health`, `/openapi.json`, and `/api/v2/cuts/history`
 
 ```bash
 # Unauth smoke only:
-RF_API_URL=https://rf-api-staging.fly.dev \
+RF_API_URL=https://rf-api-archanchor.fly.dev \
   ./engine/crates/rf-api/scripts/smoke.sh
 
 # Full smoke including authed roundtrip:
-RF_API_URL=https://rf-api-staging.fly.dev \
+RF_API_URL=https://rf-api-archanchor.fly.dev \
 RF_API_JWT="$(supabase_jwt_for_test_user)" \
   ./engine/crates/rf-api/scripts/smoke.sh
 ```
