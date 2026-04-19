@@ -22,7 +22,7 @@ use rf_api::{
 use rf_application::error::AppError;
 use rf_application::inventory::{
     MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate,
-    MaterialTypePort, NewMaterialSupplier, SupplierPort,
+    MaterialTypePort, NewMaterialSupplier, RollPort, SupplierPort,
 };
 use rf_domain::{
     MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Supplier, SupplierId,
@@ -150,6 +150,12 @@ impl InventoryPortFactory for FakeInventoryFactory {
         _auth: &AuthContext,
     ) -> Result<Arc<dyn MaterialSupplierPort>, AppError> {
         Ok(self.ms_port.clone())
+    }
+    fn rolls(
+        &self,
+        _auth: &AuthContext,
+    ) -> Result<Arc<dyn RollPort>, AppError> {
+        Err(AppError::infrastructure("rolls not used in ms tests"))
     }
 }
 

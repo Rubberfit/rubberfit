@@ -13,6 +13,7 @@
 
 pub mod material_suppliers;
 pub mod material_types;
+pub mod rolls;
 pub mod suppliers;
 
 pub use material_suppliers::{
@@ -25,6 +26,10 @@ pub use material_types::{
     CreateMaterialTypeUseCase, DeleteMaterialTypeUseCase, GetMaterialTypeUseCase,
     ListMaterialTypesUseCase, MaterialTypePort, MaterialTypeUpdate, NewMaterialType,
     UpdateMaterialTypeUseCase,
+};
+pub use rolls::{
+    CreateRollUseCase, DeleteRollUseCase, GetRollUseCase, ListRollsUseCase,
+    NewRoll, RollPort, RollUpdate, UpdateRollUseCase,
 };
 pub use suppliers::{
     CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase,

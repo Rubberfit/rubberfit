@@ -116,6 +116,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/inventory/rolls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_rolls"];
+        put?: never;
+        post: operations["create_roll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/inventory/rolls/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_roll"];
+        put: operations["update_roll"];
+        post?: never;
+        delete: operations["delete_roll"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/inventory/suppliers": {
         parameters: {
             query?: never;
@@ -197,6 +229,30 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name: string;
+        };
+        /**
+         * @description Create body. Caller sends `material_type_id`; the server looks
+         *     up the corresponding name. Any `material_type` string in the
+         *     body is ignored.
+         */
+        CreateRollBody: {
+            color?: string | null;
+            /** Format: double */
+            cost_per_sqft?: number | null;
+            date_received?: string | null;
+            /** Format: double */
+            length: number;
+            location?: string | null;
+            material_type_id: string;
+            notes?: string | null;
+            /** Format: double */
+            remaining_length: number;
+            status?: string | null;
+            supplier?: string | null;
+            /** Format: double */
+            thickness: number;
+            /** Format: double */
+            width: number;
         };
         CreateSupplierBody: {
             active?: boolean | null;
@@ -303,6 +359,29 @@ export interface components {
             name: string;
             updated_at?: string | null;
         };
+        RollDto: {
+            color?: string | null;
+            /** Format: double */
+            cost_per_sqft?: number | null;
+            created_at?: string | null;
+            date_received?: string | null;
+            id: string;
+            /** Format: double */
+            length: number;
+            location?: string | null;
+            material_type: string;
+            material_type_id?: string | null;
+            notes?: string | null;
+            /** Format: double */
+            remaining_length: number;
+            status: string;
+            supplier?: string | null;
+            /** Format: double */
+            thickness: number;
+            updated_at?: string | null;
+            /** Format: double */
+            width: number;
+        };
         SupplierDto: {
             active: boolean;
             address?: string | null;
@@ -360,6 +439,25 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name?: string | null;
+        };
+        UpdateRollBody: {
+            color?: string | null;
+            /** Format: double */
+            cost_per_sqft?: number | null;
+            date_received?: string | null;
+            /** Format: double */
+            length?: number | null;
+            location?: string | null;
+            material_type_id?: string | null;
+            notes?: string | null;
+            /** Format: double */
+            remaining_length?: number | null;
+            status?: string | null;
+            supplier?: string | null;
+            /** Format: double */
+            thickness?: number | null;
+            /** Format: double */
+            width?: number | null;
         };
         /**
          * @description Update body — all fields optional. Single-level `Option<T>` for
@@ -975,6 +1073,249 @@ export interface operations {
             };
             /** @description Blocked — rolls reference this type (`FK_VIOLATION_ROLLS_EXIST`) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_rolls: {
+        parameters: {
+            query?: {
+                /** @description Filter by status (active / depleted / reserved). */
+                status?: string | null;
+                material_type_id?: string | null;
+                location?: string | null;
+                /** @description ILIKE sweep across material_type / color / location / supplier / notes. */
+                q?: string | null;
+                limit?: number | null;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matching rolls */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollDto"][];
+                };
+            };
+            /** @description Bad filter (unknown status) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_roll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRollBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollDto"];
+                };
+            };
+            /** @description Validation failed or unknown material_type_id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description FK conflict / check violation */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_roll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Roll UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The roll */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_roll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Roll UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRollBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RollDto"];
+                };
+            };
+            /** @description Validation failed / invalid depletion state */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_roll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Roll UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -677,6 +677,299 @@
         ]
       }
     },
+    "/api/v2/inventory/rolls": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_rolls",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status (active / depleted / reserved).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "material_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "ILIKE sweep across material_type / color / location / supplier / notes.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching rolls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad filter (unknown status)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_roll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRollBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or unknown material_type_id"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "FK conflict / check violation"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roll",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRollBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed / invalid depletion state"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/inventory/suppliers": {
       "get": {
         "tags": [
@@ -1090,6 +1383,81 @@
           }
         }
       },
+      "CreateRollBody": {
+        "type": "object",
+        "description": "Create body. Caller sends `material_type_id`; the server looks\nup the corresponding name. Any `material_type` string in the\nbody is ignored.",
+        "required": [
+          "material_type_id",
+          "width",
+          "length",
+          "thickness",
+          "remaining_length"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "CreateSupplierBody": {
         "type": "object",
         "required": [
@@ -1497,6 +1865,100 @@
           }
         }
       },
+      "RollDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type",
+          "width",
+          "length",
+          "thickness",
+          "remaining_length",
+          "status"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string"
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "SupplierDto": {
         "type": "object",
         "required": [
@@ -1702,6 +2164,88 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateRollBody": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       },

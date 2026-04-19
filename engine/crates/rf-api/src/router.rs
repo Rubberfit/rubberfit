@@ -94,6 +94,16 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
                 .put(inventory::update_material_supplier)
                 .delete(inventory::delete_material_supplier),
         )
+        .route(
+            "/inventory/rolls",
+            get(inventory::list_rolls).post(inventory::create_roll),
+        )
+        .route(
+            "/inventory/rolls/{id}",
+            get(inventory::get_roll)
+                .put(inventory::update_roll)
+                .delete(inventory::delete_roll),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
         .with_state(state);
 

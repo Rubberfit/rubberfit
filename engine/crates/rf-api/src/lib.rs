@@ -23,9 +23,10 @@ pub use auth::{
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
 pub use inventory::{
-    CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateSupplierBody,
-    ListMaterialSuppliersQuery, ListSuppliersQuery, MaterialSupplierDto,
-    MaterialTypeDto, SupplierDto, UpdateMaterialSupplierBody, UpdateMaterialTypeBody,
+    CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateRollBody,
+    CreateSupplierBody, ListMaterialSuppliersQuery, ListRollsQuery,
+    ListSuppliersQuery, MaterialSupplierDto, MaterialTypeDto, RollDto, SupplierDto,
+    UpdateMaterialSupplierBody, UpdateMaterialTypeBody, UpdateRollBody,
     UpdateSupplierBody,
 };
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};

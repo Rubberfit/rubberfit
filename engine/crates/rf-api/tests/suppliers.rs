@@ -21,7 +21,7 @@ use rf_api::{
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierPort, MaterialTypePort, NewSupplier, SupplierPort,
+    MaterialSupplierPort, MaterialTypePort, NewSupplier, RollPort, SupplierPort,
     SupplierUpdate,
 };
 use rf_domain::{Supplier, SupplierFilters, SupplierId};
@@ -157,6 +157,12 @@ impl InventoryPortFactory for FakeInventoryFactory {
         Err(AppError::infrastructure(
             "material_suppliers not used in supplier tests",
         ))
+    }
+    fn rolls(
+        &self,
+        _auth: &AuthContext,
+    ) -> Result<Arc<dyn RollPort>, AppError> {
+        Err(AppError::infrastructure("rolls not used in supplier tests"))
     }
 }
 

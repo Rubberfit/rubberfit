@@ -26,7 +26,7 @@ use rf_application::cuts::CutHistoryPort;
 use rf_application::error::AppError;
 use rf_application::inventory::{
     MaterialSupplierPort, MaterialTypePort, MaterialTypeUpdate, NewMaterialType,
-    SupplierPort,
+    RollPort, SupplierPort,
 };
 use rf_domain::{MaterialType, MaterialTypeId};
 use rsa::pkcs1::EncodeRsaPrivateKey;
@@ -149,6 +149,12 @@ impl InventoryPortFactory for FakeInventoryFactory {
         Err(AppError::infrastructure(
             "material_suppliers not used in this test",
         ))
+    }
+    fn rolls(
+        &self,
+        _auth: &AuthContext,
+    ) -> Result<Arc<dyn RollPort>, AppError> {
+        Err(AppError::infrastructure("rolls not used in this test"))
     }
 }
 
