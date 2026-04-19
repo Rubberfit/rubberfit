@@ -19,7 +19,7 @@ import type {
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 let currentJobId: string | null = null
 
-const MAX_SHEETS = 4
+const MAX_SHEETS = Infinity
 
 function post(msg: GreedyWorkerOutbound): void {
   ctx.postMessage(msg)
