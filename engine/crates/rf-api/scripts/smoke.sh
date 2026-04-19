@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 #
-# Smoke-test a running rf-api instance (Task 9.5).
+# Smoke-test a running rf-api instance.
 #
-# Covers the three surfaces that MUST work end-to-end before we
-# flip the USE_RUST_CUT_HISTORY flag:
+# Covers the surfaces that MUST work end-to-end before flag flips:
 #   1. /health is 200.
 #   2. /openapi.json is 200 + begins with `{"openapi"`.
-#   3. /api/v2/cuts/history returns JSON with a provided bearer
-#      token (401 without one proves the middleware is live).
+#   3. /api/v2/cuts/history gates on a bearer (401 w/o, 200 with).
+#   4. /api/v2/inventory/material-types gates on a bearer (401 w/o,
+#      200 with).
+#   5. /api/v2/inventory/rolls gates on a bearer (401 w/o, 200 with).
+#   6. /api/v2/inventory/rolls/stats/inventory-value returns JSON
+#      with `value` field when authed.
 #
 # Usage:
-#   RF_API_URL=https://rf-api-staging.fly.dev \
+#   RF_API_URL=https://rf-api-archanchor.fly.dev \
 #   RF_API_JWT=eyJ... \
 #     ./engine/crates/rf-api/scripts/smoke.sh
 #
@@ -40,10 +43,22 @@ openapi=$(curl -fsS "$BASE/openapi.json" | head -c 64)
 [[ "$openapi" == '{'*'"openapi"'* ]] || die "openapi.json body unexpected: $openapi"
 ok "openapi.json"
 
-say "GET $BASE/api/v2/cuts/history (no token) — expect 401"
-code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v2/cuts/history")
-[[ "$code" == "401" ]] || die "expected 401 without token, got $code"
-ok "401 without bearer"
+expect_401() {
+  local path="$1"
+  local label="$2"
+  say "GET $BASE$path (no token) — expect 401"
+  local code
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$path")
+  [[ "$code" == "401" ]] || die "expected 401 for $label, got $code"
+  ok "$label 401 without bearer"
+}
+
+expect_401 "/api/v2/cuts/history" "cuts.history"
+expect_401 "/api/v2/inventory/material-types" "inventory.material-types"
+expect_401 "/api/v2/inventory/suppliers" "inventory.suppliers"
+expect_401 "/api/v2/inventory/material-suppliers" "inventory.material-suppliers"
+expect_401 "/api/v2/inventory/rolls" "inventory.rolls"
+expect_401 "/api/v2/inventory/rolls/stats/inventory-value" "inventory.rolls.stats"
 
 if [[ -z "$TOKEN" ]]; then
   echo
@@ -51,14 +66,38 @@ if [[ -z "$TOKEN" ]]; then
   exit 0
 fi
 
-say "GET $BASE/api/v2/cuts/history?limit=1 (with token) — expect 200"
-response=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
-  "$BASE/api/v2/cuts/history?limit=1") \
-  || die "authed request failed — is the token valid + issued by the same Supabase project?"
-# Don't echo the full body (may contain PII) — just the length.
-echo "  response: ${#response} bytes"
-[[ "$response" == '['* ]] || die "expected JSON array, got: ${response:0:40}..."
-ok "authed history"
+authed_array() {
+  local path="$1"
+  local label="$2"
+  say "GET $BASE$path (with token) — expect 200 + JSON array"
+  local response
+  response=$(curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE$path") \
+    || die "authed $label failed — is the token valid + from the same Supabase project?"
+  echo "  response: ${#response} bytes"
+  [[ "$response" == '['* ]] || die "$label expected JSON array, got: ${response:0:40}..."
+  ok "authed $label"
+}
+
+authed_object_field() {
+  local path="$1"
+  local field="$2"
+  local label="$3"
+  say "GET $BASE$path (with token) — expect object with .$field"
+  local response
+  response=$(curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE$path") \
+    || die "authed $label failed"
+  [[ "$response" == *"\"$field\""* ]] || die "$label body missing .$field: ${response:0:80}"
+  ok "authed $label"
+}
+
+authed_array "/api/v2/cuts/history?limit=1" "cuts.history"
+authed_array "/api/v2/inventory/material-types" "inventory.material-types"
+authed_array "/api/v2/inventory/suppliers" "inventory.suppliers"
+authed_array "/api/v2/inventory/rolls?status=active" "inventory.rolls"
+authed_object_field \
+  "/api/v2/inventory/rolls/stats/inventory-value" \
+  "value" \
+  "inventory.rolls.stats.inventory-value"
 
 echo
 ok "ALL SMOKE CHECKS PASSED"
