@@ -17,7 +17,9 @@
 //! migrates off the TS Supabase client in S3a-S3d.
 
 pub mod cut_history;
+pub mod material_types;
 pub mod postgrest;
 
 pub use cut_history::SupabaseCutHistoryRepository;
+pub use material_types::SupabaseMaterialTypeRepository;
 pub use postgrest::{PostgrestClient, PostgrestError};

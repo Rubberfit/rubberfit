@@ -29,6 +29,7 @@ use utoipa::{Modify, OpenApi};
 
 use crate::cuts::CutHistoryDto;
 use crate::health::Health;
+use crate::inventory::{CreateMaterialTypeBody, MaterialTypeDto, UpdateMaterialTypeBody};
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
 /// Applied once by [`build_doc`] — per-domain `OpenApi` structs
@@ -77,13 +78,22 @@ pub struct MetaDoc;
 )]
 pub struct CutsDoc;
 
-/// Inventory surface (S3b). Empty until Task 2 — the struct exists
-/// now so subsequent tasks only add `paths(...)` / `schemas(...)`
-/// entries, not scaffolding.
+/// Inventory surface (S3b). Material types land in Task 2;
+/// suppliers, material-supplier links, and rolls join in Tasks 3-6.
 #[derive(OpenApi)]
 #[openapi(
-    paths(),
-    components(schemas()),
+    paths(
+        crate::inventory::material_types::list_material_types,
+        crate::inventory::material_types::get_material_type,
+        crate::inventory::material_types::create_material_type,
+        crate::inventory::material_types::update_material_type,
+        crate::inventory::material_types::delete_material_type,
+    ),
+    components(schemas(
+        MaterialTypeDto,
+        CreateMaterialTypeBody,
+        UpdateMaterialTypeBody,
+    )),
     tags((name = "inventory", description = "Rolls, material types, suppliers")),
 )]
 pub struct InventoryDoc;

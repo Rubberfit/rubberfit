@@ -52,6 +52,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/inventory/material-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_material_types"];
+        put?: never;
+        post: operations["create_material_type"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/inventory/material-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_material_type"];
+        put: operations["update_material_type"];
+        post?: never;
+        delete: operations["delete_material_type"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -72,6 +104,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Request body for POST — mandatory `name`, everything else
+         *     optional. The handler validates constraints through the use
+         *     case; the adapter maps a DB unique violation to a stable
+         *     `DUPLICATE_NAME` conflict code.
+         */
+        CreateMaterialTypeBody: {
+            /** Format: double */
+            default_cost?: number | null;
+            description?: string | null;
+            /** Format: double */
+            min_stock_alert?: number | null;
+            name: string;
+        };
         /**
          * @description Response DTO — thin wrapper over the domain entry. Separated from
          *     `CutHistoryEntry` so the HTTP contract can evolve independently
@@ -120,6 +166,44 @@ export interface components {
         Health: {
             status: string;
             version: string;
+        };
+        /**
+         * @description Response DTO — mirrors the domain struct 1:1 today. Separated
+         *     from `MaterialType` so the HTTP contract can evolve without
+         *     reaching into the domain type.
+         */
+        MaterialTypeDto: {
+            created_at?: string | null;
+            /** Format: double */
+            default_cost?: number | null;
+            description?: string | null;
+            id: string;
+            /** Format: double */
+            min_stock_alert?: number | null;
+            name: string;
+            updated_at?: string | null;
+        };
+        /**
+         * @description Request body for PUT. Every field is optional so the HTTP surface
+         *     can evolve to PATCH semantics later without breaking callers —
+         *     for now, the UI always sends a full replacement. Nullable fields
+         *     use `Option<Option<T>>` via `serde_with`-style manual handling:
+         *     `null` in JSON explicitly clears the column, omitted means leave
+         *     as-is.
+         *
+         *     To keep the DTO simple we expose the fields as plain `Option<T>`
+         *     here. Semantics: present-and-non-null replaces the column,
+         *     present-and-null is the same as omitting (the UI today never
+         *     needs to explicitly null a column). If that distinction matters
+         *     later we'll promote to `Option<Option<T>>` + a custom visitor.
+         */
+        UpdateMaterialTypeBody: {
+            /** Format: double */
+            default_cost?: number | null;
+            description?: string | null;
+            /** Format: double */
+            min_stock_alert?: number | null;
+            name?: string | null;
         };
     };
     responses: never;
@@ -237,6 +321,247 @@ export interface operations {
             };
             /** @description Row not found or hidden by RLS */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_material_types: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All material types, ordered by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialTypeDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_material_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMaterialTypeBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialTypeDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate name — `DUPLICATE_NAME` code in body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_material_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-type UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The material type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialTypeDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found or hidden by RLS */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_material_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-type UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaterialTypeBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialTypeDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate name — `DUPLICATE_NAME` code in body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_material_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-type UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blocked — rolls reference this type (`FK_VIOLATION_ROLLS_EXIST`) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

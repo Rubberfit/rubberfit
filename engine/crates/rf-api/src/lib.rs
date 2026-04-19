@@ -12,15 +12,17 @@ pub mod auth;
 pub mod config;
 pub mod cuts;
 pub mod health;
+pub mod inventory;
 pub mod jwks;
 pub mod openapi;
 pub mod router;
 
 pub use auth::{
     require_auth, user_postgrest, AppState, AuthContext, AuthError, CutHistoryPortFactory,
-    SupabaseCutHistoryFactory,
+    InventoryPortFactory, SupabaseCutHistoryFactory, SupabaseInventoryFactory,
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
+pub use inventory::{CreateMaterialTypeBody, MaterialTypeDto, UpdateMaterialTypeBody};
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
 pub use openapi::ApiDoc;
 pub use router::{build_public_router, build_router, build_router_with_state};

@@ -16,7 +16,11 @@ use jsonwebtoken::{decode, decode_header, Algorithm, Validation};
 
 use rf_application::cuts::CutHistoryPort;
 use rf_application::error::AppError;
-use rf_supabase::{PostgrestClient, PostgrestError, SupabaseCutHistoryRepository};
+use rf_application::inventory::MaterialTypePort;
+use rf_supabase::{
+    PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
+    SupabaseMaterialTypeRepository,
+};
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
 
@@ -26,6 +30,20 @@ use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
 /// touching Supabase.
 pub trait CutHistoryPortFactory: Send + Sync {
     fn build(&self, auth: &AuthContext) -> Result<Arc<dyn CutHistoryPort>, AppError>;
+}
+
+/// Factory that builds request-scoped inventory ports. Grouping the
+/// four aggregates behind one trait keeps `AppState` from sprouting
+/// a new field per aggregate; each method mints the adapter lazily
+/// using the caller's JWT so PostgREST + RLS still see the user.
+///
+/// Tests inject a fake that returns in-memory ports; the
+/// production impl is [`SupabaseInventoryFactory`].
+pub trait InventoryPortFactory: Send + Sync {
+    fn material_types(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn MaterialTypePort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -40,14 +58,45 @@ pub struct SupabaseCutHistoryFactory {
 
 impl CutHistoryPortFactory for SupabaseCutHistoryFactory {
     fn build(&self, auth: &AuthContext) -> Result<Arc<dyn CutHistoryPort>, AppError> {
-        let client = PostgrestClient::new(
+        let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
             &auth.raw_jwt,
-        )
-        .map_err(AppError::infrastructure)?;
+        )?;
         Ok(Arc::new(SupabaseCutHistoryRepository::new(client)))
     }
+}
+
+/// Production inventory factory. Each `material_types()` / etc.
+/// call builds a fresh `PostgrestClient` + concrete repository so
+/// the JWT + RLS story stays per-request.
+#[derive(Clone)]
+pub struct SupabaseInventoryFactory {
+    pub supabase_url: Arc<str>,
+    pub publishable_key: Arc<str>,
+}
+
+impl InventoryPortFactory for SupabaseInventoryFactory {
+    fn material_types(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseMaterialTypeRepository::new(client)))
+    }
+}
+
+fn build_client(
+    supabase_url: &str,
+    publishable_key: &str,
+    user_jwt: &str,
+) -> Result<PostgrestClient, AppError> {
+    PostgrestClient::new(supabase_url, publishable_key, user_jwt)
+        .map_err(AppError::infrastructure)
 }
 
 /// Shared HTTP-layer state — passed into the auth middleware via
@@ -67,13 +116,18 @@ pub struct AppState {
     /// Factory for cut-history ports. Production uses
     /// `SupabaseCutHistoryFactory`; tests inject fakes.
     pub cut_history_factory: Arc<dyn CutHistoryPortFactory>,
+    /// Factory for inventory ports — material types, suppliers,
+    /// material-supplier links, rolls. One factory per AppState
+    /// keeps the aggregate-count from blowing up new fields as
+    /// S3b expands.
+    pub inventory_factory: Arc<dyn InventoryPortFactory>,
 }
 
 impl AppState {
     /// Minimal constructor used by most of the tests — supplies a
     /// placeholder publishable key that's only valid for mocked
     /// transports. Use `with_supabase` to pass a real key, or
-    /// `with_cut_history_factory` to swap in a test double.
+    /// `with_factories` to swap in test doubles.
     pub fn new(jwks: JwksCache, supabase_url: impl Into<String>) -> Self {
         Self::with_supabase(jwks, supabase_url, "test-publishable-key")
     }
@@ -87,20 +141,34 @@ impl AppState {
     ) -> Self {
         let base = supabase_url.into();
         let key = supabase_publishable_key.into();
-        let factory = SupabaseCutHistoryFactory {
-            supabase_url: Arc::from(base.clone()),
-            publishable_key: Arc::from(key.clone()),
-        };
-        Self::with_cut_history_factory(jwks, base, key, Arc::new(factory))
+        let cut_history_factory: Arc<dyn CutHistoryPortFactory> =
+            Arc::new(SupabaseCutHistoryFactory {
+                supabase_url: Arc::from(base.clone()),
+                publishable_key: Arc::from(key.clone()),
+            });
+        let inventory_factory: Arc<dyn InventoryPortFactory> =
+            Arc::new(SupabaseInventoryFactory {
+                supabase_url: Arc::from(base.clone()),
+                publishable_key: Arc::from(key.clone()),
+            });
+        Self::with_factories(
+            jwks,
+            base,
+            key,
+            cut_history_factory,
+            inventory_factory,
+        )
     }
 
-    /// Test-oriented constructor that lets tests inject a fake
-    /// `CutHistoryPortFactory` without touching Supabase.
-    pub fn with_cut_history_factory(
+    /// Test-oriented constructor that lets tests inject fakes for
+    /// both factories. Existing S3a callers that only need to swap
+    /// the cut-history factory use [`Self::with_cut_history_factory`].
+    pub fn with_factories(
         jwks: JwksCache,
         supabase_url: impl Into<String>,
         supabase_publishable_key: impl Into<String>,
         cut_history_factory: Arc<dyn CutHistoryPortFactory>,
+        inventory_factory: Arc<dyn InventoryPortFactory>,
     ) -> Self {
         let base = supabase_url.into();
         let expected_issuer = format!("{}/auth/v1", base.trim_end_matches('/'));
@@ -110,7 +178,28 @@ impl AppState {
             supabase_url: base,
             supabase_publishable_key: supabase_publishable_key.into(),
             cut_history_factory,
+            inventory_factory,
         }
+    }
+
+    /// S3a-era back-compat constructor — only overrides the cut-history
+    /// factory; the inventory factory stays the production Supabase
+    /// impl. Keeps the existing cut-history integration tests working
+    /// without a cross-cutting refactor.
+    pub fn with_cut_history_factory(
+        jwks: JwksCache,
+        supabase_url: impl Into<String>,
+        supabase_publishable_key: impl Into<String>,
+        cut_history_factory: Arc<dyn CutHistoryPortFactory>,
+    ) -> Self {
+        let base = supabase_url.into();
+        let key = supabase_publishable_key.into();
+        let inventory_factory: Arc<dyn InventoryPortFactory> =
+            Arc::new(SupabaseInventoryFactory {
+                supabase_url: Arc::from(base.clone()),
+                publishable_key: Arc::from(key.clone()),
+            });
+        Self::with_factories(jwks, base, key, cut_history_factory, inventory_factory)
     }
 }
 

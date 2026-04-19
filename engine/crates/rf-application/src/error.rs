@@ -19,6 +19,18 @@ pub enum AppError {
     #[error("invalid input: {0}")]
     InvalidInput(String),
 
+    /// State conflict — unique-constraint violation, FK cascade
+    /// blocked, or any other situation where the request is valid
+    /// but can't be fulfilled because of current storage state.
+    /// Lands as 409 at the HTTP boundary with the machine code in
+    /// the response body so the UI can localize its own message.
+    ///
+    /// Callers should use stable SCREAMING_SNAKE_CASE codes — e.g.
+    /// `DUPLICATE_NAME`, `FK_VIOLATION_ROLLS_EXIST` — not
+    /// user-facing strings.
+    #[error("conflict: {0}")]
+    Conflict(String),
+
     /// Anything the underlying infrastructure surfaces. We keep the
     /// source opaque via `anyhow::Error` so specific adapter errors
     /// don't leak types up to the delivery layer. Lands as 500.
@@ -29,5 +41,11 @@ pub enum AppError {
 impl AppError {
     pub fn infrastructure<E: std::fmt::Display>(err: E) -> Self {
         AppError::Infrastructure(err.to_string())
+    }
+
+    /// Convenience for adapters that need to promote a specific
+    /// error shape to a stable conflict code.
+    pub fn conflict(code: impl Into<String>) -> Self {
+        AppError::Conflict(code.into())
     }
 }

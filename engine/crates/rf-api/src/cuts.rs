@@ -242,6 +242,14 @@ impl IntoResponse for ApiError {
             ApiError::App(AppError::InvalidInput(msg)) => {
                 (StatusCode::BAD_REQUEST, msg).into_response()
             }
+            ApiError::App(AppError::Conflict(code)) => {
+                // Stable machine code in the body so the UI can
+                // localize its own message. No dependent-row counts
+                // or table names leak — those belong in dedicated
+                // "can delete?" endpoints, not the error channel.
+                let body = serde_json::json!({ "code": code });
+                (StatusCode::CONFLICT, Json(body)).into_response()
+            }
             ApiError::App(AppError::Infrastructure(_)) => {
                 // Don't leak adapter error strings to the client — a
                 // generic 500 is safer. The full message is already

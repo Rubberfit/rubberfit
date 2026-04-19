@@ -21,6 +21,7 @@ use crate::auth::{jwt_middleware, AppState};
 use crate::config::{CorsMode, ServerConfig};
 use crate::cuts;
 use crate::health;
+use crate::inventory;
 use crate::openapi;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -61,6 +62,17 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         .route("/cuts/history", get(cuts::list_history))
         .route("/cuts/history/{id}", get(cuts::get_history_item))
         .route("/cuts/favorites", get(cuts::list_favorites))
+        .route(
+            "/inventory/material-types",
+            get(inventory::list_material_types)
+                .post(inventory::create_material_type),
+        )
+        .route(
+            "/inventory/material-types/{id}",
+            get(inventory::get_material_type)
+                .put(inventory::update_material_type)
+                .delete(inventory::delete_material_type),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
         .with_state(state);
 

@@ -178,6 +178,228 @@
         ]
       }
     },
+    "/api/v2/inventory/material-types": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_material_types",
+        "responses": {
+          "200": {
+            "description": "All material types, ordered by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialTypeDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_material_type",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaterialTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-types/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The material type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found or hidden by RLS"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaterialTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Blocked — rolls reference this type (`FK_VIOLATION_ROLLS_EXIST`)"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -201,6 +423,38 @@
   },
   "components": {
     "schemas": {
+      "CreateMaterialTypeBody": {
+        "type": "object",
+        "description": "Request body for POST — mandatory `name`, everything else\noptional. The handler validates constraints through the use\ncase; the adapter maps a DB unique violation to a stable\n`DUPLICATE_NAME` conflict code.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CutHistoryDto": {
         "type": "object",
         "description": "Response DTO — thin wrapper over the domain entry. Separated from\n`CutHistoryEntry` so the HTTP contract can evolve independently\nof domain schema. Today the mapping is 1:1; renaming / derived\nfields will land here first when we start splitting concerns.",
@@ -352,6 +606,86 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "MaterialTypeDto": {
+        "type": "object",
+        "description": "Response DTO — mirrors the domain struct 1:1 today. Separated\nfrom `MaterialType` so the HTTP contract can evolve without\nreaching into the domain type.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateMaterialTypeBody": {
+        "type": "object",
+        "description": "Request body for PUT. Every field is optional so the HTTP surface\ncan evolve to PATCH semantics later without breaking callers —\nfor now, the UI always sends a full replacement. Nullable fields\nuse `Option<Option<T>>` via `serde_with`-style manual handling:\n`null` in JSON explicitly clears the column, omitted means leave\nas-is.\n\nTo keep the DTO simple we expose the fields as plain `Option<T>`\nhere. Semantics: present-and-non-null replaces the column,\npresent-and-null is the same as omitting (the UI today never\nneeds to explicitly null a column). If that distinction matters\nlater we'll promote to `Option<Option<T>>` + a custom visitor.",
+        "properties": {
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

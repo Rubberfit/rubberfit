@@ -6,11 +6,15 @@
 //! Ports here are the abstractions the use cases depend on; concrete
 //! impls live in `rf-supabase`.
 //!
-//! Current scope: S3a Task 5 lands the `CutHistoryPort` + the three
-//! cut-history use cases. Richer aggregates (rolls, POs, reorder)
-//! follow in later S3 tasks.
+//! Current scope:
+//! - S3a Task 5 landed `CutHistoryPort` + three cut-history use cases.
+//! - S3b lands the inventory ports: `MaterialTypePort`, plus
+//!   `SupplierPort`, `MaterialSupplierPort`, `RollPort` as each
+//!   task ships.
+//! - POs + reorder aggregate follow in S3c.
 
 pub mod cuts;
 pub mod error;
+pub mod inventory;
 
 pub use error::AppError;

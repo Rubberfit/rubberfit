@@ -37,9 +37,25 @@ pub enum PostgrestError {
     ApiError {
         status: reqwest::StatusCode,
         body: String,
+        /// Postgres SQLSTATE parsed out of the error body if present
+        /// (PostgREST echoes it as `code` on most errors). Adapters
+        /// use this to discriminate unique violations (23505), FK
+        /// violations (23503), etc. without re-parsing the body.
+        pg_code: Option<String>,
     },
     #[error("failed to decode response body: {0}")]
     Decode(#[from] serde_json::Error),
+}
+
+impl PostgrestError {
+    /// Convenience — returns the Postgres SQLSTATE when this is an
+    /// `ApiError` with a parseable code.
+    pub fn pg_code(&self) -> Option<&str> {
+        match self {
+            PostgrestError::ApiError { pg_code, .. } => pg_code.as_deref(),
+            _ => None,
+        }
+    }
 }
 
 impl PostgrestClient {
@@ -123,13 +139,67 @@ impl PostgrestClient {
 
     /// POST a JSON payload to a PostgREST endpoint and deserialize
     /// the response.
+    ///
+    /// Stamps `Prefer: return=representation` so PostgREST echoes
+    /// the inserted row(s) back as JSON. Without this the endpoint
+    /// returns 201 with an empty body, and callers would need a
+    /// follow-up GET to read what they just wrote.
     pub async fn post<B: Serialize, T: DeserializeOwned>(
         &self,
         path: &str,
         body: &B,
     ) -> Result<T, PostgrestError> {
         let url = self.join(path);
-        let response = self.http.post(&url).json(body).send().await?;
+        let response = self
+            .http
+            .post(&url)
+            .header("Prefer", "return=representation")
+            .json(body)
+            .send()
+            .await?;
+        self.decode(response).await
+    }
+
+    /// PATCH rows matching `query` with the JSON body and deserialize
+    /// the response. PostgREST requires a filter (e.g. `id=eq.<uuid>`)
+    /// or it refuses to update — we pass the filter through as query
+    /// params so adapters build their own precise targets.
+    pub async fn patch<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+        body: &B,
+    ) -> Result<T, PostgrestError> {
+        let url = self.join(path);
+        let mut req = self
+            .http
+            .patch(&url)
+            .header("Prefer", "return=representation")
+            .json(body);
+        if !query.is_empty() {
+            req = req.query(query);
+        }
+        let response = req.send().await?;
+        self.decode(response).await
+    }
+
+    /// DELETE rows matching `query`. Returns the deleted rows (empty
+    /// array when no row matched) so the caller can tell present
+    /// vs. already-gone.
+    pub async fn delete<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T, PostgrestError> {
+        let url = self.join(path);
+        let mut req = self
+            .http
+            .delete(&url)
+            .header("Prefer", "return=representation");
+        if !query.is_empty() {
+            req = req.query(query);
+        }
+        let response = req.send().await?;
         self.decode(response).await
     }
 
@@ -155,7 +225,12 @@ impl PostgrestClient {
                 .text()
                 .await
                 .unwrap_or_else(|e| format!("<failed to read body: {e}>"));
-            return Err(PostgrestError::ApiError { status, body });
+            let pg_code = extract_pg_code(&body);
+            return Err(PostgrestError::ApiError {
+                status,
+                body,
+                pg_code,
+            });
         }
         let text = response.text().await.map_err(PostgrestError::ClientBuild)?;
         // serde_json → better error messages than reqwest::json()
@@ -165,10 +240,27 @@ impl PostgrestClient {
     }
 }
 
+/// Parse PostgREST's JSON error body and pull out the Postgres
+/// SQLSTATE `code` field when present. Other fields (`message`,
+/// `details`, `hint`) stay in the raw body for logging; the code
+/// is the discriminator adapters branch on.
+fn extract_pg_code(body: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct PgrstError<'a> {
+        code: Option<&'a str>,
+    }
+    let parsed: Option<PgrstError<'_>> = serde_json::from_str(body).ok();
+    parsed
+        .and_then(|e| e.code)
+        .filter(|c| !c.is_empty())
+        .map(|c| c.to_string())
+}
+
 fn header_build_error(header: &'static str) -> PostgrestError {
     PostgrestError::ApiError {
         status: reqwest::StatusCode::INTERNAL_SERVER_ERROR,
         body: format!("invalid characters in {header} header"),
+        pg_code: None,
     }
 }
 
@@ -226,5 +318,23 @@ mod tests {
         let err =
             PostgrestClient::new("https://project.supabase.co", "key\nwith-newline", "token");
         assert!(matches!(err, Err(PostgrestError::ApiError { .. })));
+    }
+
+    #[test]
+    fn extracts_pg_code_from_typical_error_body() {
+        // Shape PostgREST actually returns — verified against Supabase
+        // on a unique-constraint violation.
+        let body = r#"{"code":"23505","details":"Key (name)=(X) already exists.","hint":null,"message":"duplicate key"}"#;
+        assert_eq!(extract_pg_code(body), Some("23505".to_string()));
+    }
+
+    #[test]
+    fn extracts_pg_code_returns_none_for_non_json() {
+        assert_eq!(extract_pg_code("not json at all"), None);
+    }
+
+    #[test]
+    fn extracts_pg_code_returns_none_when_absent() {
+        assert_eq!(extract_pg_code(r#"{"message":"oops"}"#), None);
     }
 }
