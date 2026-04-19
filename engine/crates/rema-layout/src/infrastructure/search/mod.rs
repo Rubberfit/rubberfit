@@ -32,14 +32,17 @@
 //      seed — jagua's `SlotMap` iteration order is not stable.
 
 pub mod assignment;
+pub mod cancel;
 pub mod gls;
 pub mod multi;
 pub mod objective;
+pub mod progress;
 pub mod rng;
 pub mod state;
 pub mod terminator;
 
 pub use multi::optimize_multi;
+pub use progress::{PackProgress, ProgressCallback};
 
 use crate::domain::{Bin, Part, PackError};
 use crate::infrastructure::jagua_adapter;
@@ -83,6 +86,12 @@ pub struct OptimizerConfig {
     pub items: Vec<Part>,
     /// Minimum item separation, passed to jagua's importer.
     pub clearance: f64,
+    /// Task 14: optional cooperative-cancel token. `None` = deadline-only
+    /// termination; `Some(token)` threads through `CompositeTerminator`
+    /// into Separator's inner loop, enabling cancel latency bounded by
+    /// one GLS iteration rather than one strike cycle.
+    #[allow(clippy::struct_field_names)]
+    pub cancel_token: Option<cancel::CancelToken>,
 }
 
 /// Run the real GLS pipeline (explore -> compress -> translate).
@@ -111,9 +120,12 @@ pub fn optimize(seed: SeedResult, config: OptimizerConfig) -> Result<SeedResult,
     let rng = rng::from_seed(config.seed);
     let mut sep = Separator::new(instance, layout, rng, SeparatorConfig::exploration());
 
-    // 4. Arm a deadline Terminator. 100% explore — compression is
-    //    identity per Task 7.
-    let term = BasicTerminator::with_timeout(Duration::from_millis(config.time_budget_ms));
+    // 4. Arm a `CompositeTerminator` (deadline + cancel). 100% explore
+    //    budget — compression is identity per Task 7. If
+    //    `config.cancel_token` is None, behaves exactly like
+    //    `BasicTerminator` alone (Task 9 parity preserved).
+    let deadline = BasicTerminator::with_timeout(Duration::from_millis(config.time_budget_ms));
+    let term = cancel::CompositeTerminator::new(deadline, config.cancel_token.clone());
     let mut listener = NoopListener;
 
     // 5. Run exploration -> compression (identity pass-through).
@@ -363,6 +375,7 @@ mod tests {
             bin,
             items,
             clearance: 0.0,
+            cancel_token: None,
         }
     }
 

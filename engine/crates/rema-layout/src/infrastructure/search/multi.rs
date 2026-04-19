@@ -34,6 +34,8 @@
 
 use super::assignment::cross_bin_swap::{migrate, swap_two, unload_lightest_bin};
 use super::assignment::ffd::FfdAssignment;
+use super::cancel::{is_cancelled, CancelToken};
+use super::progress::ProgressEmitter;
 use crate::domain::{PackError, PackRequest, Part};
 use crate::infrastructure::search::optimize as optimize_single;
 use crate::infrastructure::search::OptimizerConfig;
@@ -47,7 +49,18 @@ const MAX_ROUNDS: usize = 20;
 const MAX_OPERATOR_GAP: usize = 8;
 const TERMINATION_NOOP_TICKS: usize = 3;
 
-/// Multi-bin search orchestrator.
+/// Output of `optimize_multi_with_hooks`.
+///
+/// `was_cancelled = true` means the caller's cancel token flipped
+/// before search completed. `assignment` carries best-so-far state
+/// regardless. Callers (pack.rs) propagate `was_cancelled` into the
+/// public `PackResult`.
+pub struct OptimizeMultiOutcome {
+    pub assignment: FfdAssignment,
+    pub was_cancelled: bool,
+}
+
+/// Multi-bin search orchestrator (no-hooks entry point).
 ///
 /// Takes an initial assignment (typically from `ffd_assign`) and
 /// refines it in-place. Returns the final `FfdAssignment` ready for
@@ -56,17 +69,57 @@ pub fn optimize_multi(
     assignment: FfdAssignment,
     request: &PackRequest,
 ) -> Result<FfdAssignment, PackError> {
+    let outcome = optimize_multi_with_hooks(assignment, request, None, None)?;
+    Ok(outcome.assignment)
+}
+
+/// Multi-bin search orchestrator with progress + cancel hooks
+/// (Task 14). Called from `pack_with_options`.
+///
+/// Cancel token is polled at round boundaries + between bins + before
+/// the operator ladder + inside Separator's inner loop via
+/// `CompositeTerminator`. Latency is bounded by the slowest of those
+/// checkpoints.
+pub fn optimize_multi_with_hooks(
+    assignment: FfdAssignment,
+    request: &PackRequest,
+    cancel: Option<CancelToken>,
+    mut emitter: Option<ProgressEmitter>,
+) -> Result<OptimizeMultiOutcome, PackError> {
     let n_bins = request.bins.len();
     let total_budget_ms = request.resolved_time_budget_ms();
     let t0 = Instant::now();
     let global_deadline = t0 + std::time::Duration::from_millis(total_budget_ms);
+
+    // Emit baseline progress frame before any work.
+    if let Some(ref mut em) = emitter {
+        em.emit_baseline(&assignment, &request.bins, &request.items, "explore");
+    }
+
+    // Early-cancel check — if token is already set, return immediately
+    // with the FFD-only assignment as the best-so-far result.
+    if is_cancelled(cancel.as_ref()) {
+        return Ok(OptimizeMultiOutcome {
+            assignment,
+            was_cancelled: true,
+        });
+    }
 
     // Single-bin fast path — bypass the entire orchestrator. Task 9
     // parity fixtures depend on this delegating to today's `optimize`
     // semantics without instantiating orch RNG, round counters, or
     // operator scheduling.
     if n_bins <= 1 {
-        return optimize_single_bin_fast_path(assignment, request, total_budget_ms);
+        let refined =
+            optimize_single_bin_fast_path(assignment, request, total_budget_ms, cancel.as_ref())?;
+        // Offer a final progress frame in case single-bin refined.
+        if let Some(ref mut em) = emitter {
+            em.offer(&refined, &request.bins, &request.items, "explore");
+        }
+        return Ok(OptimizeMultiOutcome {
+            assignment: refined,
+            was_cancelled: is_cancelled(cancel.as_ref()),
+        });
     }
 
     let per_bin_quota_ms = total_budget_ms / (n_bins as u64);
@@ -89,10 +142,28 @@ pub fn optimize_multi(
             &mut gls_spent_ms,
             global_deadline,
             &mut orch_rng,
+            cancel.as_ref(),
         )?;
 
+        // Offer a monotonic progress frame after each round's bin pass.
+        if let Some(ref mut em) = emitter {
+            em.offer(&cur, &request.bins, &request.items, "explore");
+        }
+
         if Instant::now() >= global_deadline {
-            return Ok(cur);
+            return Ok(OptimizeMultiOutcome {
+                assignment: cur,
+                was_cancelled: is_cancelled(cancel.as_ref()),
+            });
+        }
+
+        // Cancel check between rounds — Codex-locked: short-circuit
+        // BEFORE mutating back-off state.
+        if is_cancelled(cancel.as_ref()) {
+            return Ok(OptimizeMultiOutcome {
+                assignment: cur,
+                was_cancelled: true,
+            });
         }
 
         // Phase B: operator ladder gated by back-off countdown.
@@ -101,17 +172,33 @@ pub fn optimize_multi(
             continue;
         }
 
-        match apply_operator_ladder(&cur, request)? {
+        match apply_operator_ladder(&cur, request, cancel.as_ref())? {
             Some(next) => {
                 cur = next;
+                if let Some(ref mut em) = emitter {
+                    em.offer(&cur, &request.bins, &request.items, "explore");
+                }
                 consecutive_noop_operator_ticks = 0;
                 operator_gap = 1;
                 rounds_until_next_operator = 0;
             }
             None => {
+                // Codex sign-off §3: if cancel fired during the ladder,
+                // it short-circuits `apply_operator_ladder` with
+                // `Some(cur)` (unchanged) — we detect the flag here
+                // and skip the no-op back-off mutation.
+                if is_cancelled(cancel.as_ref()) {
+                    return Ok(OptimizeMultiOutcome {
+                        assignment: cur,
+                        was_cancelled: true,
+                    });
+                }
                 consecutive_noop_operator_ticks += 1;
                 if consecutive_noop_operator_ticks >= TERMINATION_NOOP_TICKS {
-                    return Ok(cur);
+                    return Ok(OptimizeMultiOutcome {
+                        assignment: cur,
+                        was_cancelled: false,
+                    });
                 }
                 operator_gap = (operator_gap.saturating_mul(2)).min(MAX_OPERATOR_GAP);
                 rounds_until_next_operator = operator_gap.saturating_sub(1);
@@ -119,13 +206,17 @@ pub fn optimize_multi(
         }
     }
 
-    Ok(cur)
+    Ok(OptimizeMultiOutcome {
+        assignment: cur,
+        was_cancelled: is_cancelled(cancel.as_ref()),
+    })
 }
 
 fn optimize_single_bin_fast_path(
     mut assignment: FfdAssignment,
     request: &PackRequest,
     total_budget_ms: u64,
+    _cancel: Option<&CancelToken>,
 ) -> Result<FfdAssignment, PackError> {
     if assignment.per_bin.is_empty() {
         return Ok(assignment);
@@ -143,6 +234,7 @@ fn optimize_single_bin_fast_path(
         bin: request.bins[bin_idx].clone(),
         items: items_for_bin,
         clearance: request.clearance,
+        cancel_token: _cancel.cloned(),
     };
     let refined = optimize_single(seed.clone(), cfg)?;
     assignment.per_bin[bin_idx] = refined;
@@ -156,6 +248,7 @@ fn optimize_all_bins(
     gls_spent_ms: &mut [u64],
     global_deadline: Instant,
     orch_rng: &mut Xoshiro256PlusPlus,
+    cancel: Option<&CancelToken>,
 ) -> Result<FfdAssignment, PackError> {
     let n_bins = request.bins.len();
     #[allow(clippy::needless_range_loop)]
@@ -165,6 +258,10 @@ fn optimize_all_bins(
         let bin_seed: u64 = orch_rng.random();
 
         if Instant::now() >= global_deadline {
+            continue;
+        }
+        // Cancel check between bins (Codex plan §4).
+        if is_cancelled(cancel) {
             continue;
         }
         if assignment.per_bin[bin_idx].placements.is_empty() {
@@ -193,6 +290,7 @@ fn optimize_all_bins(
             bin: request.bins[bin_idx].clone(),
             items: items_for_bin,
             clearance: request.clearance,
+            cancel_token: cancel.cloned(),
         };
 
         let call_start = Instant::now();
@@ -208,20 +306,32 @@ fn optimize_all_bins(
 fn apply_operator_ladder(
     assignment: &FfdAssignment,
     request: &PackRequest,
+    cancel: Option<&CancelToken>,
 ) -> Result<Option<FfdAssignment>, PackError> {
     let n_bins = request.bins.len();
     let bins = &request.bins;
     let items = &request.items;
     let clearance = request.clearance;
 
+    // Cancel check before unload (Codex plan §4: between operator stages).
+    if is_cancelled(cancel) {
+        return Ok(None);
+    }
+
     // 1. unload — one-shot, scans all bins internally.
     if let Some(new) = unload_lightest_bin(assignment, bins, items, clearance)? {
         return Ok(Some(new));
+    }
+    if is_cancelled(cancel) {
+        return Ok(None);
     }
 
     // 2. migrate — try both directions per bin pair.
     for a in 0..n_bins {
         for b in (a + 1)..n_bins {
+            if is_cancelled(cancel) {
+                return Ok(None);
+            }
             if let Some(new) = migrate(assignment, a, b, None, bins, items, clearance)? {
                 return Ok(Some(new));
             }
@@ -230,10 +340,16 @@ fn apply_operator_ladder(
             }
         }
     }
+    if is_cancelled(cancel) {
+        return Ok(None);
+    }
 
     // 3. swap_two — pair enumeration.
     for a in 0..n_bins {
         for b in (a + 1)..n_bins {
+            if is_cancelled(cancel) {
+                return Ok(None);
+            }
             if let Some(new) = swap_two(assignment, a, b, bins, items, clearance)? {
                 return Ok(Some(new));
             }
@@ -343,6 +459,7 @@ mod tests {
             bin: req.bins[0].clone(),
             items: items_for_bin,
             clearance: 0.0,
+            cancel_token: None,
         };
         let via_direct = optimize_single(asn.per_bin[0].clone(), cfg).unwrap();
 

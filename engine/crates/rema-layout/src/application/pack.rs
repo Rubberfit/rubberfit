@@ -1,11 +1,25 @@
 // engine/crates/rema-layout/src/application/pack.rs
-use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
+use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement, SearchOptions};
 use crate::infrastructure::search::assignment::ffd::ffd_assign;
-use crate::infrastructure::search::optimize_multi;
+use crate::infrastructure::search::multi::optimize_multi_with_hooks;
+use crate::infrastructure::search::progress::ProgressEmitter;
 use std::collections::HashMap;
 use std::time::Instant;
 
+/// Top-level pack entry point without runtime hooks. Delegates to
+/// `pack_with_options` with default (no callback, no cancel token).
 pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
+    pack_with_options(request, SearchOptions::default())
+}
+
+/// Task 14 public entry point accepting a `SearchOptions` for progress
+/// streaming + cooperative cancellation. pack-cli (Task 15) attaches
+/// a NDJSON-serializing callback when `--stream` is set, and a
+/// stdin-driven cancel token when cancel lines appear on stdin.
+pub fn pack_with_options(
+    request: PackRequest,
+    options: SearchOptions,
+) -> Result<PackResult, PackError> {
     if request.bins.is_empty() {
         return Err(PackError::NoBins);
     }
@@ -17,9 +31,17 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
 
     // Task 10: single up-front FFD pass decides which items go to which
     // bin. Task 12: `optimize_multi` refines across bins via cross-bin
-    // swap operators + per-bin GLS.
+    // swap operators + per-bin GLS. Task 14: hooks via SearchOptions.
     let assignment = ffd_assign(&request.bins, &request.items, request.clearance)?;
-    let refined = optimize_multi(assignment, &request)?;
+
+    let emitter = options
+        .progress_callback
+        .clone()
+        .map(|cb| ProgressEmitter::new(Some(cb), started_at));
+    let outcome =
+        optimize_multi_with_hooks(assignment, &request, options.cancel_token.clone(), emitter)?;
+    let refined = outcome.assignment;
+    let was_cancelled = outcome.was_cancelled;
 
     let mut placements: Vec<Placement> = Vec::new();
     let mut per_bin: Vec<BinResult> = Vec::new();
@@ -116,6 +138,7 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
         total_waste_area,
         overall_density,
         run_time_ms: Some(run_time_ms),
+        was_cancelled,
     })
 }
 

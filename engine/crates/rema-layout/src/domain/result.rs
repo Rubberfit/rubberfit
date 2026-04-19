@@ -58,6 +58,12 @@ pub struct PackResult {
     /// A `Some(0)` is a valid result for trivial inputs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub run_time_ms: Option<u64>,
+    /// Task 14: `true` if the caller-provided `cancel_token` flipped
+    /// before search completed; `false` otherwise. Best-so-far partial
+    /// state is still returned as a valid result (cooperative cancel
+    /// is non-exceptional).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub was_cancelled: bool,
 }
 
 #[cfg(test)]
@@ -161,6 +167,7 @@ mod tests {
             total_waste_area: 25.0,
             overall_density: 0.8,
             run_time_ms: Some(1234),
+            was_cancelled: false,
         };
         let json = serde_json::to_string(&pr).unwrap();
         assert!(json.contains("\"overallDensity\":0.8"));

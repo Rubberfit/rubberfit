@@ -261,6 +261,16 @@ impl Separator {
             );
 
             while n_iter_no_improvement < self.config.iter_no_imprv_limit {
+                // Task 14: inner-loop cancel polling. Codex-locked:
+                // outer-only polling at `n_strikes` granularity gives
+                // seconds-level cancel latency; checking at every inner
+                // iteration is an `AtomicBool::load(Relaxed)` — fast
+                // enough to run unconditionally. CompositeTerminator's
+                // `kill()` path short-circuits to the cancel flag after
+                // the deadline check.
+                if term.kill() {
+                    break 'outer;
+                }
                 let w_loss_before = self.ct.get_total_weighted_loss();
                 sep_stats += self.move_items_multi();
                 let loss = self.ct.get_total_loss();

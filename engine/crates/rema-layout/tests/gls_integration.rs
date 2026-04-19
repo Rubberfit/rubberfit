@@ -155,6 +155,7 @@ fn warm_start_and_optimize(f: &Fixture, seed: u64) -> (SeedResult, SeedResult) {
         bin: f.bin.clone(),
         items: f.parts.clone(),
         clearance: 0.125,
+        cancel_token: None,
     };
 
     let opt = optimize(ws_seed.clone(), cfg)
