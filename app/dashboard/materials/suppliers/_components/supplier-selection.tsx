@@ -5,7 +5,7 @@ import { Check, ChevronsUpDown, Star, Building } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 
 import { type Supplier } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { suppliers as suppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { Button } from "@/app/components/ui/button"
 import {
   Command,
@@ -45,9 +45,9 @@ export function SupplierSelection({
   const fetchSuppliers = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await supplierService.getSuppliers({
-        filterActive,
-        filterPreferred,
+      const data = await suppliersSdk.list({
+        active: filterActive,
+        preferred: filterPreferred,
       })
       setSuppliers(data)
     } catch (error) {
@@ -216,7 +216,7 @@ export function SupplierSelect({
     const fetchSuppliers = async () => {
       setLoading(true)
       try {
-        const data = await supplierService.getActiveSuppliers()
+        const data = await suppliersSdk.list({ active: true })
         setSuppliers(data)
       } catch (error) {
         console.error("Error fetching suppliers:", error)

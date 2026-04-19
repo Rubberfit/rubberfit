@@ -6,7 +6,7 @@ import {
   type MaterialSupplierWithDetails,
   type MaterialSupplier,
 } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { materialSuppliers as materialSuppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import { Badge } from "@/app/components/ui/badge"
@@ -98,7 +98,7 @@ export function SupplierLinkedMaterials({
                     size="icon"
                     onClick={async () => {
                       try {
-                        await supplierService.unlinkMaterialFromSupplier(link.id)
+                        await materialSuppliersSdk.delete(link.id)
                         toast.success("Material unlinked")
                         onRefresh(supplierId)
                       } catch (_error) {

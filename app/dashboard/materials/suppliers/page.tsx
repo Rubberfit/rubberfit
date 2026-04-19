@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useMemo } from "react"
 import { Plus, Search, Filter, Star } from "lucide-react"
 
 import { type Supplier } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { suppliers as suppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -43,7 +43,7 @@ export default function SuppliersPage() {
   const fetchSuppliers = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await supplierService.getAllSuppliersOrdered()
+      const data = await suppliersSdk.list()
       setSuppliers(data)
     } catch (error) {
       console.error("Error fetching suppliers:", error)
@@ -97,16 +97,19 @@ export default function SuppliersPage() {
     if (!supplierToDelete) return
 
     try {
-      await supplierService.deleteSupplier(supplierToDelete.id)
+      await suppliersSdk.delete(supplierToDelete.id)
 
       toast.success(`${supplierToDelete.name} has been deleted`)
       fetchSuppliers()
     } catch (error) {
+      const errCode =
+        typeof error === "object" && error !== null && "code" in error
+          ? (error as { code?: string }).code
+          : undefined
       const isFkError =
-        typeof error === "object" &&
-        error !== null &&
-        (("code" in error && (error as { code?: string }).code === "23503") ||
-          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+        errCode === "23503" ||
+        errCode === "FK_VIOLATION_MATERIAL_SUPPLIERS_EXIST" ||
+        ((error as { message?: string }).message?.includes("foreign key constraint") ?? false)
       toast.error("Cannot delete supplier", {
         description: isFkError
           ? "This supplier is referenced by existing purchase orders or material records"

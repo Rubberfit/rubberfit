@@ -7,7 +7,7 @@ import {
   type Supplier,
   type MaterialSupplierWithDetails,
 } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { materialSuppliers as materialSuppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import {
   Dialog,
   DialogContent,
@@ -41,8 +41,8 @@ export function SupplierDetailView({
   const fetchMaterialSuppliers = useCallback(async () => {
     setLoadingMaterials(true)
     try {
-      const data = await supplierService.getMaterialsBySupplier(supplier.id)
-      setMaterialSuppliers(data)
+      const data = await materialSuppliersSdk.list({ supplier_id: supplier.id })
+      setMaterialSuppliers(data as MaterialSupplierWithDetails[])
     } catch (error) {
       console.error("Error fetching material suppliers:", error)
       setMaterialSuppliers([])

@@ -12,8 +12,11 @@ import type {
   MaterialSupplier,
   CreateMaterialSupplier,
 } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import {
+  materialSuppliers as materialSuppliersSdk,
+  materialTypes as materialTypesSdk,
+  suppliers as suppliersSdk,
+} from "@/src/infrastructure/api-client/rf/inventory"
 import {
   Dialog,
   DialogContent,
@@ -86,8 +89,8 @@ export function MaterialSupplierLink({
     setLoadingData(true)
     try {
       const [materialsData, suppliersData] = await Promise.all([
-        materialTypeService.getAll(),
-        supplierService.getActiveSuppliers(),
+        materialTypesSdk.list(),
+        suppliersSdk.list({ active: true }),
       ])
 
       setMaterials(materialsData)
@@ -141,11 +144,17 @@ export function MaterialSupplierLink({
   const onSubmit = async (data: MaterialSupplierFormData) => {
     setSubmitting(true)
     try {
-      // Check for existing link if creating new
+      // Check for existing link if creating new — the SDK's
+      // materialSuppliers.list scopes to the material_type, so we
+      // filter client-side by supplier_id. A 409 DUPLICATE_PAIR
+      // from the create call is the backstop if a concurrent
+      // request races this check.
       if (!materialSupplier) {
-        const existingLink = await supplierService.checkMaterialSupplierLink(
-          data.material_type_id,
-          data.supplier_id
+        const existingLinks = await materialSuppliersSdk.list({
+          material_type_id: data.material_type_id,
+        })
+        const existingLink = existingLinks.find(
+          (l) => l.supplier_id === data.supplier_id
         )
 
         if (existingLink) {
@@ -170,10 +179,19 @@ export function MaterialSupplierLink({
       }
 
       if (materialSupplier) {
-        await supplierService.updateMaterialSupplier(materialSupplier.id, linkData)
+        await materialSuppliersSdk.update(
+          materialSupplier.id,
+          linkData as unknown as Parameters<
+            typeof materialSuppliersSdk.update
+          >[1]
+        )
         toast.success("Material-supplier link updated successfully")
       } else {
-        await supplierService.linkMaterialToSupplier(linkData)
+        await materialSuppliersSdk.create(
+          linkData as unknown as Parameters<
+            typeof materialSuppliersSdk.create
+          >[0]
+        )
         toast.success("Material-supplier link created successfully")
       }
 

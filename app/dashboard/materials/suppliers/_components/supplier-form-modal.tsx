@@ -9,7 +9,10 @@ import {
   type MaterialSupplier,
   type MaterialSupplierWithDetails,
 } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import {
+  materialSuppliers as materialSuppliersSdk,
+  suppliers as suppliersSdk,
+} from "@/src/infrastructure/api-client/rf/inventory"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { MaterialSupplierLink } from "./material-supplier-link"
 import { SupplierLinkedMaterials } from "./supplier-linked-materials"
@@ -70,8 +73,8 @@ export function SupplierFormModal({
   const fetchLinkedMaterials = useCallback(async (supplierId: string) => {
     setLoadingMaterials(true)
     try {
-      const materials = await supplierService.getMaterialsBySupplier(supplierId)
-      setLinkedMaterials(materials || [])
+      const materials = await materialSuppliersSdk.list({ supplier_id: supplierId })
+      setLinkedMaterials((materials ?? []) as typeof linkedMaterials)
     } catch (error) {
       console.error("Error fetching linked materials:", error)
     } finally {
@@ -130,14 +133,14 @@ export function SupplierFormModal({
       const supplierData = buildSupplierPayload(data, !!supplier)
 
       if (supplier) {
-        await supplierService.updateSupplier(
+        await suppliersSdk.update(
           supplier.id,
-          supplierData as Partial<Omit<Supplier, "id" | "user_id" | "created_at" | "updated_at">>
+          supplierData as unknown as Parameters<typeof suppliersSdk.update>[1]
         )
         toast.success("Supplier updated successfully")
       } else {
-        await supplierService.createSupplier(
-          supplierData as Omit<Supplier, "id" | "user_id" | "created_at" | "updated_at">
+        await suppliersSdk.create(
+          supplierData as unknown as Parameters<typeof suppliersSdk.create>[0]
         )
         toast.success("Supplier created successfully")
       }
