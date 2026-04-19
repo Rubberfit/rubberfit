@@ -22,8 +22,8 @@
 // See `.claude/research/sparrow-integration/lbf-finding.md` for the
 // two-phase plan that this file implements.
 
-use crate::application::{pack_lbf_with_config, PackLbfConfig};
-use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
+use crate::application::{pack_lbf_with_config, polish_placements, polish_score, PackLbfConfig, PolishConfig};
+use crate::domain::{Bin, BinResult, PackError, PackRequest, PackResult, Placement};
 use crate::infrastructure::jagua_adapter::to_jagua_instance;
 use crate::infrastructure::search::cancel;
 use crate::infrastructure::search::gls::explore::{
@@ -384,7 +384,7 @@ fn pack_lbf_lns_single_bin(
 
     // Rebuild PackResult from the (possibly grown) target-bin snapshot +
     // the original LBF placements for the other bins.
-    let final_result = rebuild_pack_result(
+    let mut final_result = rebuild_pack_result(
         &request,
         &lbf_result,
         target_bin_idx,
@@ -395,7 +395,131 @@ fn pack_lbf_lns_single_bin(
         attempts_made,
     )?;
 
+    // Phase 3 — score-aware polish. Slides each bin's placements toward
+    // (0, 0) so waste aggregates into one corner reusable rectangle.
+    // Opt-in behind USE_FAB_POLISH=true. See application/polish.rs and
+    // `.claude/research/sparrow-integration/lbf-finding.md` Phase 3.
+    if std::env::var("USE_FAB_POLISH").as_deref() == Ok("true") {
+        final_result = polish_pack_result(final_result, &request.bins, request.clearance);
+    }
+
     Ok(final_result)
+}
+
+/// Apply the Fab-reusable polish to each bin of a PackResult. Per bin:
+///   1. Slice out placements belonging to that bin.
+///   2. Compute pre-polish score.
+///   3. Run polish_placements toward (0, 0).
+///   4. Compute post-polish score; keep only if it's strictly better.
+///   5. Recompute this bin's BinResult stats from the polished placements.
+/// Then update top-level totals + overall_density.
+fn polish_pack_result(
+    mut result: PackResult,
+    bins: &[Bin],
+    clearance: f64,
+) -> PackResult {
+    let cfg = PolishConfig {
+        clearance,
+        ..PolishConfig::default()
+    };
+
+    // Group placements by bin_id.
+    let mut per_bin_placements: std::collections::HashMap<String, Vec<Placement>> =
+        std::collections::HashMap::new();
+    for p in result.placements.drain(..) {
+        per_bin_placements
+            .entry(p.bin_id.clone())
+            .or_default()
+            .push(p);
+    }
+
+    // Polish each bin independently; keep the polished version only if it
+    // improves the score (defensive: never accept a regression even on
+    // the score proxy).
+    let mut polished_all: Vec<Placement> = Vec::new();
+    let mut new_per_bin: Vec<BinResult> = Vec::with_capacity(bins.len());
+
+    for bin in bins {
+        let bin_placements = per_bin_placements.remove(&bin.bin_id).unwrap_or_default();
+        if bin_placements.is_empty() {
+            new_per_bin.push(BinResult {
+                bin_id: bin.bin_id.clone(),
+                used_area: 0.0,
+                waste_area: bin.width * bin.height,
+                occupied_width: bin.width,
+                occupied_height: bin.height,
+                efficiency: 0.0,
+                scrap_ratio: 1.0,
+            });
+            continue;
+        }
+
+        let pre_score = polish_score(&bin_placements, bin.width, bin.height);
+        let polished = polish_placements(&bin_placements, bin.width, bin.height, &cfg);
+        let post_score = polish_score(&polished, bin.width, bin.height);
+
+        let selected = if post_score.is_better_than(&pre_score) {
+            polished
+        } else {
+            bin_placements
+        };
+
+        // Recompute per-bin stats from `selected`.
+        let used_area: f64 = selected.iter().map(|p| polygon_area(&p.polygon)).sum();
+        let occupied_width = selected
+            .iter()
+            .flat_map(|p| p.polygon.iter())
+            .map(|v| v.x)
+            .fold(0.0_f64, f64::max);
+        let occupied_height = selected
+            .iter()
+            .flat_map(|p| p.polygon.iter())
+            .map(|v| v.y)
+            .fold(0.0_f64, f64::max);
+        let stock_area = bin.width * bin.height;
+        let waste_area = (stock_area - used_area).max(0.0);
+        let efficiency = if stock_area > 0.0 {
+            used_area / stock_area
+        } else {
+            0.0
+        };
+
+        new_per_bin.push(BinResult {
+            bin_id: bin.bin_id.clone(),
+            used_area,
+            waste_area,
+            occupied_width: if occupied_width > 0.0 {
+                occupied_width
+            } else {
+                bin.width
+            },
+            occupied_height: if occupied_height > 0.0 {
+                occupied_height
+            } else {
+                bin.height
+            },
+            efficiency,
+            scrap_ratio: 1.0 - efficiency,
+        });
+
+        polished_all.extend(selected);
+    }
+
+    // Recompute top-level totals.
+    let total_used_area: f64 = new_per_bin.iter().map(|b| b.used_area).sum();
+    let total_waste_area: f64 = new_per_bin.iter().map(|b| b.waste_area).sum();
+    let overall_density = if total_used_area + total_waste_area > 0.0 {
+        total_used_area / (total_used_area + total_waste_area)
+    } else {
+        0.0
+    };
+
+    result.placements = polished_all;
+    result.per_bin = new_per_bin;
+    result.total_used_area = total_used_area;
+    result.total_waste_area = total_waste_area;
+    result.overall_density = overall_density;
+    result
 }
 
 /// Attempt one grow operation: find a position for `item_id` in the
