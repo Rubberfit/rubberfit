@@ -1,8 +1,10 @@
 // engine/crates/rema-layout/src/infrastructure/search/assignment/mod.rs
 //
 // Bin-assignment heuristics. Decides which items go to which bin
-// BEFORE the per-bin GLS optimize runs. Task 10 introduces FFD
-// (First-Fit-Decreasing); Task 11 will add `cross_bin_swap` as a
-// sibling; future variants (BFD, shelf) slot in here.
+// BEFORE the per-bin GLS optimize runs.
+//   - Task 10 shipped `ffd` (First-Fit-Decreasing).
+//   - Task 11 adds `cross_bin_swap` (swap/migrate/unload operators).
+//   - Future variants (BFD, shelf) slot in as siblings.
 
+pub mod cross_bin_swap;
 pub mod ffd;

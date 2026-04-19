@@ -197,7 +197,7 @@ fn build_trial_items(
 /// per the counts map. Preserves all non-quantity Part fields from the
 /// originals. Sorted by `shape_id` for deterministic emission (§3.6
 /// Codex sign-off fix).
-fn materialize_parts(counts: &HashMap<String, u32>, original_items: &[Part]) -> Vec<Part> {
+pub(crate) fn materialize_parts(counts: &HashMap<String, u32>, original_items: &[Part]) -> Vec<Part> {
     // Collect sorted shape_ids for deterministic iteration.
     let mut shape_ids: Vec<&String> = counts.keys().filter(|_| true).collect();
     shape_ids.sort();
