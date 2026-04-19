@@ -31,6 +31,7 @@
 //      renumbering so `instance_index` is deterministic under fixed
 //      seed — jagua's `SlotMap` iteration order is not stable.
 
+pub mod assignment;
 pub mod gls;
 pub mod objective;
 pub mod rng;
