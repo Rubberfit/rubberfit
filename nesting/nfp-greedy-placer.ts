@@ -11,8 +11,6 @@ import {
   type GreedyPlacement,
   type PartPartNfpCache,
 } from "./nfp-pack-rotation"
-import { getAngleWorkerPool } from "./worker-pool"
-
 export type { GreedyPlacement, PartPartNfpCache }
 
 export interface GreedyPackResult {
@@ -197,81 +195,6 @@ export function greedyNfpPack(
   // pickBestCoarse sorts coarseResults in place (most placements → tightest bb)
   pickBestCoarse(coarseResults)
   const best = refineSync(tryAngle, coarseResults, qty)
-  return finalizeResult(best, qty, shapeArea)
-}
-
-/**
- * Async variant that fans the coarse-angle pass across a Web Worker pool.
- * Falls back to the sync path if the worker pool is unavailable (e.g., bundling failure).
- */
-export async function greedyNfpPackAsync(
-  polygon: Polygon2D,
-  binWidth: number,
-  binHeight: number,
-  qty: number,
-  spacing = 0,
-  rotationSteps = DEFAULT_COARSE_STEPS
-): Promise<GreedyPackResult> {
-  const pool = getAngleWorkerPool()
-  if (!pool.isAvailable()) {
-    return greedyNfpPack(polygon, binWidth, binHeight, qty, spacing, rotationSteps)
-  }
-
-  const hull = convexHull(polygon.points)
-  const shapeArea = polygonArea(polygon.points)
-
-  const partPartNfpCache = buildPartPartNfpCache(hull, spacing)
-  if (!partPartNfpCache) return emptyResult(qty)
-
-  const angles: number[] = []
-  for (let step = 0; step < rotationSteps; step++) {
-    angles.push((step / rotationSteps) * Math.PI * 2)
-  }
-
-  const startTime = Date.now()
-  const workerResults = await pool.runAngleBatch({
-    originalPoints: polygon.points,
-    hullPoints: hull,
-    binWidth,
-    binHeight,
-    qty,
-    spacing,
-    partPartNfpCache,
-    angles,
-  })
-  const endTime = Date.now()
-  console.log(`Time take (async): ${endTime - startTime} ms`)
-
-  const coarseResults: Array<{ angle: number; placements: GreedyPlacement[] }> = []
-  for (let i = 0; i < workerResults.length; i++) {
-    const placements = workerResults[i]
-    if (placements && placements.length > 0) {
-      coarseResults.push({ angle: angles[i], placements })
-    }
-  }
-  if (coarseResults.length === 0) return emptyResult(qty)
-
-  // Fine/ultra-fine refinement stays on the main thread (few iterations,
-  // depends on the best seed so fanning it out has little upside).
-  const { placements: bestSeed, angle: seedAngle } = pickBestCoarse(coarseResults)
-  const seeds = coarseResults.slice()
-  seeds.sort((a, b) => b.placements.length - a.placements.length)
-  const tryAngle = (angle: number): GreedyPlacement[] | null =>
-    packWithRotation(
-      polygon.points,
-      hull,
-      binWidth,
-      binHeight,
-      qty,
-      spacing,
-      angle,
-      partPartNfpCache
-    )
-  const best = refineSync(
-    tryAngle,
-    [{ angle: seedAngle, placements: bestSeed }, ...seeds.slice(1)],
-    qty
-  )
   return finalizeResult(best, qty, shapeArea)
 }
 

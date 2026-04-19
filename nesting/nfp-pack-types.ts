@@ -1,6 +1,6 @@
 import type {
+  MultiSheetResult,
   SimplePartSpec,
-  SimplePartPreview,
 } from "@/app/dashboard/cut-planner/_components/nesting-visualizer-types"
 
 export interface NfpPackRequest {
@@ -36,7 +36,7 @@ export interface NfpProgressMessage {
 export interface NfpDoneMessage {
   type: "done"
   jobId: string
-  preview: SimplePartPreview
+  multiSheet: MultiSheetResult
 }
 
 export interface NfpErrorMessage {

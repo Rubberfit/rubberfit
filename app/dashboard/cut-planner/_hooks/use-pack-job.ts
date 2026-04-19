@@ -12,10 +12,8 @@ import type {
 import type {
   MultiSheetResult,
   SheetPreview,
-  SimplePartPreview,
   SimplePartSpec,
 } from "@/app/dashboard/cut-planner/_components/nesting-visualizer-types"
-import { computeFabricationScore } from "@/app/dashboard/cut-planner/_components/nesting-preview-builders"
 
 export type PackJobStatus = "idle" | "packing" | "done" | "error"
 
@@ -51,7 +49,7 @@ export interface UsePackJob {
 type EngineState = {
   active: boolean
   done: boolean
-  preview: SimplePartPreview | null
+  multiSheet: MultiSheetResult | null
   percent: number
   detail?: string
 }
@@ -60,33 +58,30 @@ const INITIAL_PROGRESS: PackJobProgress = { label: "Ready", percent: 0 }
 const initialEngineState = (): EngineState => ({
   active: false,
   done: false,
-  preview: null,
+  multiSheet: null,
   percent: 0,
 })
 
-function buildMultiSheet(
-  greedy: SimplePartPreview | null,
-  nfp: SimplePartPreview | null,
-  rollWidth: number,
-  rollLength: number
-): MultiSheetResult {
+function mergeMultiSheets(
+  greedy: MultiSheetResult | null,
+  nfp: MultiSheetResult | null
+): MultiSheetResult | null {
+  if (!greedy && !nfp) return null
+  const ordered = [greedy, nfp].filter((m): m is MultiSheetResult => m !== null)
   const sheets: SheetPreview[] = []
-  const push = (preview: SimplePartPreview, idx: number) => {
-    sheets.push({ sheetIndex: idx, preview, isPartial: preview.overflowUnits > 0 })
-  }
-  if (greedy) push(greedy, sheets.length)
-  if (nfp) push(nfp, sheets.length)
+  ordered.forEach((ms) => {
+    ms.sheets.forEach((sheet) => {
+      sheets.push({ ...sheet, sheetIndex: sheets.length })
+    })
+  })
 
-  const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0)
-  const totalUsedArea = sheets.reduce((s, sh) => s + sh.preview.usedArea, 0)
-  const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0)
-  const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0)
-  const remainingOverflow = sheets.reduce((s, sh) => s + sh.preview.overflowUnits, 0)
-  const fabScores = sheets.map(
-    (sh) =>
-      sh.preview.fabricationScore ??
-      computeFabricationScore(sh.preview, rollWidth, rollLength).score
-  )
+  const totalUnitsCompleted = ordered.reduce((s, ms) => s + ms.totalUnitsCompleted, 0)
+  const totalUsedArea = ordered.reduce((s, ms) => s + ms.totalUsedArea, 0)
+  const totalReusableArea = ordered.reduce((s, ms) => s + ms.totalReusableArea, 0)
+  const totalScrapArea = ordered.reduce((s, ms) => s + ms.totalScrapArea, 0)
+  const totalStockArea = ordered.reduce((s, ms) => s + ms.totalStockArea, 0)
+  const remainingOverflow = ordered.reduce((s, ms) => s + ms.remainingOverflow, 0)
+  const fabScores = ordered.map((ms) => ms.avgFabScore).filter((n) => n > 0)
   const avgFabScore =
     fabScores.length > 0 ? Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length) : 0
 
@@ -96,7 +91,7 @@ function buildMultiSheet(
     totalUsedArea,
     totalReusableArea,
     totalScrapArea,
-    totalStockArea: rollWidth * rollLength * sheets.length,
+    totalStockArea,
     remainingOverflow,
     avgFabScore,
   }
@@ -113,11 +108,6 @@ export function usePackJob(): UsePackJob {
   const [progress, setProgress] = useState<PackJobProgress>(INITIAL_PROGRESS)
   const [result, setResult] = useState<PackJobResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [rollDims, setRollDims] = useState<{ width: number; length: number }>({
-    width: 0,
-    length: 0,
-  })
-
   const recomputeAggregate = useCallback(() => {
     const g = greedyStateRef.current
     const n = nfpStateRef.current
@@ -140,17 +130,12 @@ export function usePackJob(): UsePackJob {
     setProgress({ label, percent: pct, detail })
 
     if (active.every((e) => e.done)) {
-      const multiSheet = buildMultiSheet(
-        g.preview,
-        n.preview,
-        rollDims.width,
-        rollDims.length
-      )
-      setResult({ multiSheet })
+      const multiSheet = mergeMultiSheets(g.multiSheet, n.multiSheet)
+      if (multiSheet) setResult({ multiSheet })
       setStatus("done")
       currentJobIdRef.current = null
     }
-  }, [rollDims.width, rollDims.length])
+  }, [])
 
   const ensureGreedyWorker = useCallback((): Worker => {
     if (greedyWorkerRef.current) return greedyWorkerRef.current
@@ -172,7 +157,7 @@ export function usePackJob(): UsePackJob {
           ...greedyStateRef.current,
           done: true,
           percent: 100,
-          preview: msg.preview,
+          multiSheet: msg.multiSheet,
         }
         recomputeAggregate()
       } else if (msg.type === "error") {
@@ -214,7 +199,7 @@ export function usePackJob(): UsePackJob {
           ...nfpStateRef.current,
           done: true,
           percent: 100,
-          preview: msg.preview,
+          multiSheet: msg.multiSheet,
         }
         recomputeAggregate()
       } else if (msg.type === "error") {
@@ -262,7 +247,6 @@ export function usePackJob(): UsePackJob {
       greedyStateRef.current = { ...initialEngineState(), active: otherSpecs.length > 0 }
       nfpStateRef.current = { ...initialEngineState(), active: rectSpecs.length > 0 }
 
-      setRollDims({ width: input.rollWidth, length: input.rollLength })
       setStatus("packing")
       setProgress({ label: "Starting", percent: 5 })
       setResult(null)

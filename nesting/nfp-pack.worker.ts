@@ -9,11 +9,14 @@ import {
   computeFabricationScore,
 } from "@/app/dashboard/cut-planner/_components/nesting-preview-builders"
 import type {
+  MultiSheetResult,
   PreviewItem,
   RectLikePreview,
+  SheetPreview,
   SimplePartPreview,
+  SimplePartSpec,
 } from "@/app/dashboard/cut-planner/_components/nesting-visualizer-types"
-import type { NestingInput, NestingResult } from "./types"
+import type { NestingInput, NestingPart, NestingResult } from "./types"
 import { NFPSolver } from "./nfp-solver"
 import type {
   NfpPackRequest,
@@ -24,6 +27,8 @@ import type {
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 const solver = new NFPSolver()
 let currentJobId: string | null = null
+
+const MAX_SHEETS = 4
 
 function post(msg: NfpWorkerOutbound): void {
   ctx.postMessage(msg)
@@ -80,23 +85,13 @@ function assemblePreview(
   return { ...withBands, fabricationScore: fab.score, fabricationBreakdown: fab.breakdown }
 }
 
-async function handlePack(request: NfpPackRequest): Promise<void> {
-  currentJobId = request.jobId
-
-  post({
-    type: "progress",
-    jobId: request.jobId,
-    stage: "starting",
-    percent: 5,
-  })
-
-  const nestingParts = request.specs.flatMap((spec, i) =>
-    simplePartToNestingParts(
-      spec,
-      request.fallbackCutWidth,
-      request.fallbackCutHeight,
-      i
-    ).map((np) => ({
+function buildNestingParts(
+  specs: SimplePartSpec[],
+  fallbackCutWidth: number,
+  fallbackCutHeight: number
+): NestingPart[] {
+  return specs.flatMap((spec, i) =>
+    simplePartToNestingParts(spec, fallbackCutWidth, fallbackCutHeight, i).map((np) => ({
       ...np,
       originalSpec: {
         ...np.originalSpec,
@@ -105,12 +100,14 @@ async function handlePack(request: NfpPackRequest): Promise<void> {
       },
     }))
   )
+}
 
-  if (nestingParts.length === 0) {
-    post({ type: "error", jobId: request.jobId, message: "No parts to pack" })
-    return
-  }
-
+async function solveOne(
+  specs: SimplePartSpec[],
+  request: NfpPackRequest,
+  reportProgress: (pct: number, generation?: number, placedSoFar?: number) => void
+): Promise<{ preview: SimplePartPreview; items: PreviewItem[]; placedBySpec: Map<number, number> }> {
+  const nestingParts = buildNestingParts(specs, request.fallbackCutWidth, request.fallbackCutHeight)
   const totalQty = nestingParts.reduce((s, p) => s + p.quantity, 0)
   const generations = Math.min(18, Math.max(10, 8 + Math.floor(totalQty / 3)))
   const populationSize = Math.min(10, Math.max(4, 4 + Math.floor(totalQty / 4)))
@@ -126,35 +123,112 @@ async function handlePack(request: NfpPackRequest): Promise<void> {
     mutationRate: 0.2,
   }
 
-  post({
-    type: "progress",
-    jobId: request.jobId,
-    stage: "solving",
-    percent: 10,
+  let progressCount = 0
+  const result = await new Promise<NestingResult>((resolve, reject) => {
+    solver.solve(input, {
+      onProgress: (partial) => {
+        if (currentJobId !== request.jobId) return
+        progressCount++
+        reportProgress(
+          Math.min(85, 10 + (progressCount / generations) * 75),
+          progressCount,
+          partial.placed
+        )
+      },
+      onComplete: (r) => resolve(r),
+      onError: (msg) => reject(new Error(msg)),
+    })
   })
 
-  let progressCount = 0
-  let finalResult: NestingResult | null = null
-  try {
-    finalResult = await new Promise<NestingResult>((resolve, reject) => {
-      solver.solve(input, {
-        onProgress: (partial) => {
-          if (currentJobId !== request.jobId) return
-          progressCount++
-          const pct = Math.min(85, 10 + (progressCount / generations) * 75)
-          post({
-            type: "progress",
-            jobId: request.jobId,
-            stage: "solving",
-            percent: pct,
-            generation: progressCount,
-            placedSoFar: partial.placed,
-          })
-        },
-        onComplete: (result) => resolve(result),
-        onError: (message) => reject(new Error(message)),
-      })
+  const items = nestingResultToPreviewItems(
+    result,
+    nestingParts,
+    specs,
+    request.fallbackCutWidth,
+    request.fallbackCutHeight
+  ).map((it, i) => {
+    const placement = result.placements[i]
+    const partIdBase = placement.partId.replace(/-\d+$/, "")
+    const np = nestingParts.find((p) => p.id === partIdBase)
+    return {
+      ...it,
+      specIndex: np?.sourceSpecIndex,
+      partNumber: np?.originalSpec.partNumber as string | undefined,
+    }
+  })
+
+  const placedBySpec = new Map<number, number>()
+  for (const it of items) {
+    if (it.specIndex == null) continue
+    placedBySpec.set(it.specIndex, (placedBySpec.get(it.specIndex) ?? 0) + 1)
+  }
+
+  const requestedUnits = specs.reduce((s, spec) => s + Math.max(1, spec.quantity), 0)
+  const preview = assemblePreview(
+    result,
+    items,
+    request.rollWidth,
+    request.rollLength,
+    requestedUnits
+  )
+  return { preview, items, placedBySpec }
+}
+
+function subtractPlaced(
+  specs: SimplePartSpec[],
+  placedBySpec: Map<number, number>
+): SimplePartSpec[] {
+  return specs
+    .map((spec, i) => {
+      const placed = placedBySpec.get(i) ?? 0
+      const remaining = Math.max(0, (spec.quantity ?? 0) - placed)
+      return remaining > 0 ? { ...spec, quantity: remaining } : null
     })
+    .filter((s): s is SimplePartSpec => s !== null)
+}
+
+async function handlePack(request: NfpPackRequest): Promise<void> {
+  currentJobId = request.jobId
+  post({ type: "progress", jobId: request.jobId, stage: "starting", percent: 5 })
+
+  if (request.specs.length === 0) {
+    post({ type: "error", jobId: request.jobId, message: "No parts to pack" })
+    return
+  }
+
+  post({ type: "progress", jobId: request.jobId, stage: "solving", percent: 10 })
+
+  const sheets: SheetPreview[] = []
+  let remaining = request.specs
+  const stockArea = request.rollWidth * request.rollLength
+
+  try {
+    while (remaining.length > 0 && sheets.length < MAX_SHEETS) {
+      const sheetIndex = sheets.length
+      const { preview, placedBySpec } = await solveOne(remaining, request, (pct, gen, placed) => {
+        const basePct = (sheetIndex * 90) / MAX_SHEETS
+        const scaledPct = basePct + (pct * 90) / MAX_SHEETS / 100
+        post({
+          type: "progress",
+          jobId: request.jobId,
+          stage: "solving",
+          percent: Math.min(90, scaledPct),
+          generation: gen,
+          placedSoFar: placed,
+        })
+      })
+
+      if (currentJobId !== request.jobId) return
+      if (preview.unitsCompleted === 0) break
+
+      sheets.push({
+        sheetIndex,
+        preview,
+        isPartial: preview.overflowUnits > 0,
+      })
+
+      remaining = subtractPlaced(remaining, placedBySpec)
+    }
   } catch (err) {
     if (currentJobId !== request.jobId) return
     post({
@@ -165,42 +239,35 @@ async function handlePack(request: NfpPackRequest): Promise<void> {
     return
   }
 
-  if (currentJobId !== request.jobId || !finalResult) return
+  if (currentJobId !== request.jobId) return
 
-  post({
-    type: "progress",
-    jobId: request.jobId,
-    stage: "finalizing",
-    percent: 90,
-  })
+  post({ type: "progress", jobId: request.jobId, stage: "finalizing", percent: 95 })
 
-  const items = nestingResultToPreviewItems(
-    finalResult,
-    nestingParts,
-    request.specs,
-    request.fallbackCutWidth,
-    request.fallbackCutHeight
-  ).map((it, i) => {
-    const placement = finalResult!.placements[i]
-    const partIdBase = placement.partId.replace(/-\d+$/, "")
-    const np = nestingParts.find((p) => p.id === partIdBase)
-    return {
-      ...it,
-      specIndex: np?.sourceSpecIndex,
-      partNumber: np?.originalSpec.partNumber as string | undefined,
-    }
-  })
-
-  const requestedUnits = request.specs.reduce((s, spec) => s + Math.max(1, spec.quantity), 0)
-  const preview = assemblePreview(
-    finalResult,
-    items,
-    request.rollWidth,
-    request.rollLength,
-    requestedUnits
+  const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0)
+  const totalUsedArea = sheets.reduce((s, sh) => s + sh.preview.usedArea, 0)
+  const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0)
+  const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0)
+  const remainingOverflow = remaining.reduce((s, spec) => s + Math.max(0, spec.quantity ?? 0), 0)
+  const fabScores = sheets.map(
+    (sh) =>
+      sh.preview.fabricationScore ??
+      computeFabricationScore(sh.preview, request.rollWidth, request.rollLength).score
   )
+  const avgFabScore =
+    fabScores.length > 0 ? Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length) : 0
 
-  post({ type: "done", jobId: request.jobId, preview })
+  const multiSheet: MultiSheetResult = {
+    sheets,
+    totalUnitsCompleted,
+    totalUsedArea,
+    totalReusableArea,
+    totalScrapArea,
+    totalStockArea: stockArea * Math.max(1, sheets.length),
+    remainingOverflow,
+    avgFabScore,
+  }
+
+  post({ type: "done", jobId: request.jobId, multiSheet })
 }
 
 function handleCancel(jobId: string): void {

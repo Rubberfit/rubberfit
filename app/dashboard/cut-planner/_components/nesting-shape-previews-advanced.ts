@@ -30,11 +30,7 @@ import {
   buildConeSplitSections,
   buildTrapezoidSplitSections,
 } from "./nesting-preview-builders"
-import {
-  greedyNfpPack,
-  greedyNfpPackAsync,
-  type GreedyPackResult,
-} from "@/nesting/nfp-greedy-placer"
+import { greedyNfpPack, type GreedyPackResult } from "@/nesting/nfp-greedy-placer"
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Polygon2D } from "@/nesting/types"
 
@@ -159,55 +155,6 @@ function coneNfpPolygon(
     id: "sector",
     points: sectorToPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees, 48),
   }
-}
-
-export async function generateConePreviewAsync(
-  rollW: number,
-  rollL: number,
-  innerRadius: number,
-  outerRadius: number,
-  arcDegrees: number,
-  qty: number,
-  cutDirection: SimpleCutDirection = "radial_split",
-  cutRatios?: number[]
-): Promise<SimplePartPreview> {
-  const safeInnerRadius = Math.max(0, innerRadius)
-  const safeOuterRadius = Math.max(safeInnerRadius, outerRadius)
-  const safeArcDegrees = Math.min(320, Math.max(20, arcDegrees))
-  const requestedCutSections = Math.max(1, qty)
-  const hasCutRatios = hasNonEmptyCutRatios(cutRatios)
-  // Split-path doesn't use NFP at all, so skip the worker call.
-  if (requestedCutSections > 1 && hasCutRatios) {
-    return generateConePreview(
-      rollW,
-      rollL,
-      innerRadius,
-      outerRadius,
-      arcDegrees,
-      qty,
-      cutDirection,
-      cutRatios
-    )
-  }
-  const nfpResult = await greedyNfpPackAsync(
-    coneNfpPolygon(safeInnerRadius, safeOuterRadius, safeArcDegrees),
-    rollW,
-    rollL,
-    qty,
-    NFP_DEFAULT_SPACING,
-    NFP_COARSE_STEPS
-  )
-  return generateConePreview(
-    rollW,
-    rollL,
-    innerRadius,
-    outerRadius,
-    arcDegrees,
-    qty,
-    cutDirection,
-    cutRatios,
-    nfpResult
-  )
 }
 
 export function generateConePreview(
@@ -411,52 +358,6 @@ function trapNfpPolygon(topWidth: number, bottomWidth: number, height: number): 
     id: "trapezoid",
     points: trapezoidToPolygon(topWidth, bottomWidth, height),
   }
-}
-
-export async function generateTrapezoidPreviewAsync(
-  rollW: number,
-  rollL: number,
-  topWidth: number,
-  bottomWidth: number,
-  height: number,
-  qty: number,
-  cutDirection: SimpleCutDirection = "vertical_split",
-  cutRatios?: number[]
-): Promise<SimplePartPreview> {
-  const requestedCutSections = Math.max(1, qty)
-  const hasCutRatios = hasNonEmptyCutRatios(cutRatios)
-  // Split-path doesn't use NFP, skip the worker call.
-  if (requestedCutSections > 1 && hasCutRatios) {
-    return generateTrapezoidPreview(
-      rollW,
-      rollL,
-      topWidth,
-      bottomWidth,
-      height,
-      qty,
-      cutDirection,
-      cutRatios
-    )
-  }
-  const nfpResult = await greedyNfpPackAsync(
-    trapNfpPolygon(topWidth, bottomWidth, height),
-    rollW,
-    rollL,
-    qty,
-    NFP_DEFAULT_SPACING,
-    NFP_COARSE_STEPS
-  )
-  return generateTrapezoidPreview(
-    rollW,
-    rollL,
-    topWidth,
-    bottomWidth,
-    height,
-    qty,
-    cutDirection,
-    cutRatios,
-    nfpResult
-  )
 }
 
 export function generateTrapezoidPreview(
