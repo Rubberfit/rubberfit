@@ -241,7 +241,7 @@ function buildTagMap(basePreview: SimplePartPreview | null, multiSheet: MultiShe
   )
 }
 
-// eslint-disable-next-line max-lines-per-function
+// eslint-disable-next-line max-lines-per-function, complexity
 export default function NestingVisualizer({
   defaultRollWidth = 48,
   defaultRollLength = 96,
@@ -252,6 +252,7 @@ export default function NestingVisualizer({
   simplePart,
   simpleParts,
   overridePreview,
+  overrideMultiSheet,
   onMetricsChange,
   onTagMapChange,
 }: NestingVisualizerProps) {
@@ -297,7 +298,7 @@ export default function NestingVisualizer({
   // path), skip sync compute entirely and fall back to the override downstream.
   const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
     if (!simpleMode) return null
-    if (overridePreview) return null
+    if (overridePreview || overrideMultiSheet) return null
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
           defaultRollWidth,
@@ -317,6 +318,7 @@ export default function NestingVisualizer({
   }, [
     simpleMode,
     overridePreview,
+    overrideMultiSheet,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -356,7 +358,7 @@ export default function NestingVisualizer({
   useEffect(() => {
     if (!simpleMode) return
     // When the Pack worker is supplying the preview, skip the live async refinement.
-    if (overridePreview) return
+    if (overridePreview || overrideMultiSheet) return
 
     const key = asyncPreviewKey
     let cancelled = false
@@ -420,6 +422,7 @@ export default function NestingVisualizer({
     asyncPreviewKey,
     simpleMode,
     overridePreview,
+    overrideMultiSheet,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -428,11 +431,13 @@ export default function NestingVisualizer({
     defaultQty,
   ])
 
-  const baseSimplePreview = overridePreview
-    ? overridePreview
-    : asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
-      ? asyncBasePreview.preview
-      : syncBasePreview
+  const baseSimplePreview = overrideMultiSheet
+    ? (overrideMultiSheet.sheets[0]?.preview ?? null)
+    : overridePreview
+      ? overridePreview
+      : asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
+        ? asyncBasePreview.preview
+        : syncBasePreview
 
   useEffect(() => {
     if (!simpleMode) return
@@ -487,9 +492,9 @@ export default function NestingVisualizer({
   const stepNote = computeStepNote(activeStrat, activeStep, rollW, rollL, qty)
 
   // Calls useNfpOptimizer to attempt to optimize the UI for long running generations.
-  // Skipped when overridePreview is provided (Pack worker owns the result).
+  // Skipped when overridePreview / overrideMultiSheet is provided (Pack worker owns the result).
   const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
-    simpleMode && !overridePreview,
+    simpleMode && !overridePreview && !overrideMultiSheet,
     activeSimpleSpecs,
     defaultCutWidth,
     defaultCutHeight,
@@ -500,6 +505,7 @@ export default function NestingVisualizer({
 
   const multiSheet = useMemo(
     () =>
+      overrideMultiSheet ??
       buildMultiSheet(
         simpleMode,
         baseSimplePreview,
@@ -510,6 +516,7 @@ export default function NestingVisualizer({
         defaultCutHeight
       ),
     [
+      overrideMultiSheet,
       simpleMode,
       baseSimplePreview,
       activeSimpleSpecs,

@@ -7,9 +7,10 @@ import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { FileUp, Info, Package, Ruler, Scissors, Shapes, X } from "lucide-react"
-import NestingVisualizer from "./_components/NestingVisualizer"
-import { GreedyPackCanvas } from "./_components/greedy-pack-canvas"
+import { PackCanvas, type PackStatus } from "./_components/pack-canvas"
+import type { PackProgressView } from "./_components/pack-progress"
 import { useGreedyPackJob } from "./_hooks/use-greedy-pack-job"
+import { useNfpPackJob } from "./_hooks/use-nfp-pack-job"
 import PresetDimensionSelector, {
   type PartTemplate,
   type LoadedSelection,
@@ -81,6 +82,7 @@ export default function CutPlannerPage() {
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
 
   const greedyJob = useGreedyPackJob()
+  const nfpJob = useNfpPackJob()
 
   useEffect(() => {
     materialTypeService
@@ -282,64 +284,111 @@ export default function CutPlannerPage() {
     [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
   )
 
-  const nestingSimplePart = useMemo(
-    () =>
-      selectedTemplate
-        ? {
-            partType: selectedTemplate.partType,
-            quantity: safeQuantity,
-            cutDirection,
-            cutRatios: customCutRatios,
-            width: selectedTemplate.width,
-            length: selectedTemplate.length,
-            diameter: selectedTemplate.diameter,
-            height: selectedTemplate.height,
-            topWidth: selectedTemplate.topWidth,
-            bottomWidth: selectedTemplate.bottomWidth,
-            innerRadius: selectedTemplate.innerRadius,
-            outerRadius: selectedTemplate.outerRadius,
-            arcDegrees: selectedTemplate.arcDegrees,
-          }
-        : undefined,
-    [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
+  // Phase 2: routing — rectangles → NFP worker, everything else → greedy worker.
+  // Mixed selections run BOTH workers in parallel.
+  const rectSpecs = useMemo(
+    () => nestingSimpleParts.filter((s) => s.partType === "rectangle"),
+    [nestingSimpleParts]
+  )
+  const otherSpecs = useMemo(
+    () => nestingSimpleParts.filter((s) => s.partType !== "rectangle"),
+    [nestingSimpleParts]
   )
 
-  // Phase 1: any cone/trapezoid/cylinder in the selection gates the whole view
-  // behind the Pack button. Rectangles/circles keep the current live path.
-  const needsGreedyPack = useMemo(
-    () =>
-      selectedTemplates.some(
-        (t) =>
-          t.partType === "cone" || t.partType === "trapezoid" || t.partType === "cylinder"
-      ),
-    [selectedTemplates]
-  )
+  const needsPack = nestingSimpleParts.length > 0
+  const willRunGreedy = otherSpecs.length > 0
+  const willRunNfp = rectSpecs.length > 0
 
-  // Invalidate the Pack result when inputs change so the user re-packs.
+  // Invalidate both workers when inputs change so the user re-packs.
   useEffect(() => {
     if (greedyJob.status !== "idle") greedyJob.reset()
+    if (nfpJob.status !== "idle") nfpJob.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nestingSimpleParts, stock.width, stock.length])
 
   const handlePack = useCallback(() => {
-    if (!needsGreedyPack || nestingSimpleParts.length === 0) return
-    greedyJob.pack({
-      specs: nestingSimpleParts,
+    if (nestingSimpleParts.length === 0) return
+    const packArgs = {
       rollWidth: stock.width,
       rollLength: stock.length,
       fallbackCutWidth: selectedTemplate?.width ?? selectedTemplate?.diameter ?? 24,
       fallbackCutHeight: selectedTemplate?.length ?? selectedTemplate?.height ?? 24,
       fallbackQty: safeQuantity,
-    })
+    }
+    if (otherSpecs.length > 0) greedyJob.pack({ specs: otherSpecs, ...packArgs })
+    if (rectSpecs.length > 0) nfpJob.pack({ specs: rectSpecs, ...packArgs })
   }, [
-    needsGreedyPack,
     nestingSimpleParts,
+    rectSpecs,
+    otherSpecs,
     stock.width,
     stock.length,
     selectedTemplate,
     safeQuantity,
     greedyJob,
+    nfpJob,
   ])
+
+  const packStatus: PackStatus = useMemo(() => {
+    const statuses = [
+      willRunGreedy ? greedyJob.status : null,
+      willRunNfp ? nfpJob.status : null,
+    ].filter((s): s is "idle" | "packing" | "done" | "error" => s !== null)
+    if (statuses.length === 0) return "idle"
+    if (statuses.some((s) => s === "error")) return "error"
+    if (statuses.some((s) => s === "packing")) return "packing"
+    if (statuses.every((s) => s === "done")) return "done"
+    return "idle"
+  }, [willRunGreedy, willRunNfp, greedyJob.status, nfpJob.status])
+
+  const packProgress: PackProgressView = useMemo(() => {
+    if (willRunGreedy && willRunNfp) {
+      const gPct = greedyJob.status === "done" ? 100 : greedyJob.progress.stage === "packing" ? 60 : 10
+      const nPct = nfpJob.status === "done" ? 100 : nfpJob.progress.percent
+      return { label: "Packing all shapes", percent: (gPct + nPct) / 2 }
+    }
+    if (willRunGreedy) {
+      const stageLabel =
+        greedyJob.progress.stage === "done"
+          ? "Finishing up"
+          : greedyJob.progress.stage === "packing"
+            ? "Packing shapes"
+            : "Preparing shapes"
+      const pct =
+        greedyJob.status === "done" ? 100 : greedyJob.progress.stage === "packing" ? 60 : 10
+      return { label: stageLabel, percent: pct }
+    }
+    if (willRunNfp) {
+      const stageLabel =
+        nfpJob.progress.stage === "solving"
+          ? "Packing rectangles"
+          : nfpJob.progress.stage === "finalizing"
+            ? "Finishing up"
+            : nfpJob.progress.stage === "done"
+              ? "Finishing up"
+              : "Preparing rectangles"
+      const detail =
+        nfpJob.progress.generation != null
+          ? `gen ${nfpJob.progress.generation}${nfpJob.progress.placedSoFar != null ? `, ${nfpJob.progress.placedSoFar} placed` : ""}`
+          : undefined
+      return { label: stageLabel, percent: nfpJob.progress.percent, detail }
+    }
+    return { label: "Ready", percent: 0 }
+  }, [
+    willRunGreedy,
+    willRunNfp,
+    greedyJob.status,
+    greedyJob.progress,
+    nfpJob.status,
+    nfpJob.progress,
+  ])
+
+  const packError =
+    greedyJob.status === "error"
+      ? greedyJob.error
+      : nfpJob.status === "error"
+        ? nfpJob.error
+        : null
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -599,19 +648,17 @@ export default function CutPlannerPage() {
                   4. Graph
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  {needsGreedyPack && (
+                  {needsPack && (
                     <Button
                       size="sm"
-                      variant={greedyJob.status === "done" ? "outline" : "default"}
+                      variant={packStatus === "done" ? "outline" : "default"}
                       onClick={handlePack}
-                      disabled={
-                        greedyJob.status === "packing" || nestingSimpleParts.length === 0
-                      }
+                      disabled={packStatus === "packing" || nestingSimpleParts.length === 0}
                     >
                       <Package className="mr-1.5 h-4 w-4" />
-                      {greedyJob.status === "packing"
+                      {packStatus === "packing"
                         ? "Packing…"
-                        : greedyJob.status === "done"
+                        : packStatus === "done"
                           ? "Re-pack"
                           : "Pack"}
                     </Button>
@@ -631,37 +678,20 @@ export default function CutPlannerPage() {
             </CardHeader>
 
             <CardContent>
-              {needsGreedyPack ? (
-                <GreedyPackCanvas
-                  status={greedyJob.status}
-                  progress={greedyJob.progress}
-                  previewResult={greedyJob.result?.preview ?? null}
-                  error={greedyJob.error}
-                  stockWidth={stock.width}
-                  stockLength={stock.length}
-                  fallbackCutWidth={
-                    selectedTemplate.width ?? selectedTemplate.diameter ?? 24
-                  }
-                  fallbackCutHeight={
-                    selectedTemplate.length ?? selectedTemplate.height ?? 24
-                  }
-                  fallbackQty={safeQuantity}
-                  onMetricsChange={setCutMetrics}
-                  onRetry={handlePack}
-                />
-              ) : (
-                <NestingVisualizer
-                  defaultRollWidth={stock.width}
-                  defaultRollLength={stock.length}
-                  defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                  defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                  defaultQty={safeQuantity}
-                  simpleMode
-                  onMetricsChange={setCutMetrics}
-                  simpleParts={nestingSimpleParts}
-                  simplePart={nestingSimplePart}
-                />
-              )}
+              <PackCanvas
+                status={packStatus}
+                progress={packProgress}
+                greedyPreview={willRunGreedy ? (greedyJob.result?.preview ?? null) : null}
+                nfpPreview={willRunNfp ? (nfpJob.result?.preview ?? null) : null}
+                error={packError}
+                stockWidth={stock.width}
+                stockLength={stock.length}
+                fallbackCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
+                fallbackCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
+                fallbackQty={safeQuantity}
+                onMetricsChange={setCutMetrics}
+                onRetry={handlePack}
+              />
             </CardContent>
           </Card>
         </>
