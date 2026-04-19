@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-
+// Define the data structures and types for endpoints, and the hook return value.
 export type EndpointStatus = "operational" | "degraded" | "down" | "unknown"
 
+// In a real implementation, these would be fetched from the 
+// database or defined in a config file
 export interface Endpoint {
   id: string
   service: string
@@ -86,13 +88,22 @@ export function useEndpoints(): UseEndpointsReturn {
     setIsLoading(true)
     setError(null)
     try {
+      // In a real implementation, this would call an 
+      // API route that queries the database for 
+      // the latest status of each endpoint
       const res = await fetch("/api/admin/health/endpoints")
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }
         setError(body.error ?? `HTTP ${res.status}`)
         return
       }
+      // The API returns data in a raw format that may not be ideal 
+      // for the frontend component, so we transform it into a more 
+      // convenient format.
       const data = await res.json() as EndpointsResponse
+
+      //Store the values of endpoints in the state, 
+      // after mapping them to the frontend format
       setEndpoints(data.endpoints.map(mapEndpoint))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch endpoints")
@@ -101,10 +112,13 @@ export function useEndpoints(): UseEndpointsReturn {
     }
   }, [])
 
+  // This function would trigger the backend to run the health checks for all endpoints,
+  // and then refresh the endpoint data to get the updated status.
   const runChecks = useCallback(async () => {
     setIsRunning(true)
     setError(null)
     try {
+      
       const res = await fetch("/api/admin/health/run-endpoints", { method: "POST" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }

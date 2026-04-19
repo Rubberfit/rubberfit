@@ -5,17 +5,7 @@ import { cn } from "@/app/lib/utils"
 import { useEndpoints } from "../_hooks/use-endpoints"
 import type { EndpointStatus, Endpoint } from "../_hooks/use-endpoints"
 
-// Icon map — matches the icon names from the API or fallback
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  Database: () => <span>DB</span>,
-  Shield: () => <span>🛡️</span>,
-  Zap: () => <span>⚡</span>,
-  Globe: () => <span>🌐</span>,
-  Mail: () => <span>📧</span>,
-  Key: () => <span>🔑</span>,
-}
-
+ 
 // Style maps
 
 const ENDPOINT_BAR_COLOR: Record<EndpointStatus, string> = {

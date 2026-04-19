@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
-
+// Create interface of the endpoint data structure returned 
+// by the API, and the format expected by the frontend component. 
+// This allows us to transform the raw data from the database into a format 
+// that's easier for the frontend to work with.
 interface RawEndpoint {
   id: string
   service_name: string
@@ -12,19 +15,21 @@ interface RawEndpoint {
   avg_response_ms: number | null
 }
 
+// This is the format that the frontend component will use
 interface EndpointsResponse {
   endpoints: RawEndpoint[]
   fetchedAt: string
 }
 
 // Mock endpoints configuration — in production, fetch from a database table
+// This is hardcoded here for simplicity, but ideally this would be stored in a database table
 const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
   {
     id: "supabase-db",
     service_name: "Supabase DB",
     description: "SELECT 1 ping via REST",
     method: "SQL",
-    icon: "Database",
+    icon: "🛢",
     current_status: "operational",
     last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
     avg_response_ms: 6,
@@ -34,7 +39,7 @@ const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
     service_name: "Supabase Auth",
     description: "Token validation endpoint",
     method: "POST /auth/v1/token",
-    icon: "Shield",
+    icon: "🛡️",
     current_status: "operational",
     last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
     avg_response_ms: 42,
@@ -44,7 +49,7 @@ const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
     service_name: "Edge Functions",
     description: "Invoke health check function",
     method: "POST /functions/v1/health",
-    icon: "Zap",
+    icon: "⚡",
     current_status: "degraded",
     last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
     avg_response_ms: 310,
@@ -54,7 +59,7 @@ const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
     service_name: "Frontend",
     description: "HTTP 200 on deployed URL",
     method: "GET /",
-    icon: "Globe",
+    icon: "🌐",
     current_status: "operational",
     last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
     avg_response_ms: 88,
@@ -64,7 +69,7 @@ const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
     service_name: "Email (Resend)",
     description: "API key validation check",
     method: "GET /v1/domains",
-    icon: "Mail",
+    icon: "📧",
     current_status: "operational",
     last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
     avg_response_ms: 134,
@@ -74,14 +79,15 @@ const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
     service_name: "Stripe",
     description: "API connectivity check",
     method: "GET /v1/balance",
-    icon: "Key",
+    icon: "🔑",
     current_status: "unknown",
     last_checked_at: null,
     avg_response_ms: null,
   },
 ]
-
+// In a real implementation, the GET handler would fetch the latest status of each endpoint from the database
 export async function GET(request: NextRequest): Promise<NextResponse<EndpointsResponse | { error: string }>> {
+  //basic auth and role check
   const authClient = makeAuthClient(request)
   if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
 
@@ -96,7 +102,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<EndpointsR
   if (!Array.isArray(roles) || !roles.includes("admin")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-
+  // End of auth checks
   return NextResponse.json({
     endpoints: CONFIGURED_ENDPOINTS,
     fetchedAt: new Date().toISOString(),
