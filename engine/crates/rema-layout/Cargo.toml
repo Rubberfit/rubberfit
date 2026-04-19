@@ -24,3 +24,8 @@ ordered-float = "5"
 
 [dev-dependencies]
 serde_json = { workspace = true }
+criterion = { version = "0.7", default-features = false }
+
+[[bench]]
+name = "parity_benchmark"
+harness = false
