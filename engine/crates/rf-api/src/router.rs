@@ -94,6 +94,21 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
                 .put(inventory::update_material_supplier)
                 .delete(inventory::delete_material_supplier),
         )
+        // Stats routes BEFORE the generic /{id} pattern so
+        // /rolls/stats/... doesn't get captured as an id.
+        .route(
+            "/inventory/rolls/stats/inventory-value",
+            get(inventory::inventory_value),
+        )
+        .route(
+            "/inventory/rolls/stats/low-stock-count",
+            get(inventory::low_stock_count),
+        )
+        .route(
+            "/inventory/rolls/stats/growth-percentage",
+            get(inventory::inventory_growth),
+        )
+        .route("/inventory/rolls/recent", get(inventory::recent_rolls))
         .route(
             "/inventory/rolls",
             get(inventory::list_rolls).post(inventory::create_roll),

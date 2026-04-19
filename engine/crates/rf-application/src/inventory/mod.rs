@@ -14,7 +14,13 @@
 pub mod material_suppliers;
 pub mod material_types;
 pub mod rolls;
+pub mod stats;
 pub mod suppliers;
+
+pub use stats::{
+    InventoryGrowthUseCase, InventoryValueUseCase, LowStockCountUseCase,
+    RecentRollsUseCase,
+};
 
 pub use material_suppliers::{
     CreateMaterialSupplierUseCase, DeleteMaterialSupplierUseCase,

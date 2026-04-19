@@ -7,7 +7,13 @@
 pub mod material_suppliers;
 pub mod material_types;
 pub mod rolls;
+pub mod stats;
 pub mod suppliers;
+
+pub use stats::{
+    inventory_growth, inventory_value, low_stock_count, recent_rolls,
+    InventoryGrowthDto, InventoryValueDto, LowStockCountDto, RecentRollsQuery,
+};
 
 pub use material_suppliers::{
     create_material_supplier, delete_material_supplier, get_material_supplier,

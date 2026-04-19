@@ -31,7 +31,8 @@ use crate::cuts::CutHistoryDto;
 use crate::health::Health;
 use crate::inventory::{
     CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateRollBody,
-    CreateSupplierBody, MaterialSupplierDto, MaterialTypeDto, RollDto, SupplierDto,
+    CreateSupplierBody, InventoryGrowthDto, InventoryValueDto, LowStockCountDto,
+    MaterialSupplierDto, MaterialTypeDto, RollDto, SupplierDto,
     UpdateMaterialSupplierBody, UpdateMaterialTypeBody, UpdateRollBody,
     UpdateSupplierBody,
 };
@@ -108,6 +109,10 @@ pub struct CutsDoc;
         crate::inventory::rolls::create_roll,
         crate::inventory::rolls::update_roll,
         crate::inventory::rolls::delete_roll,
+        crate::inventory::stats::inventory_value,
+        crate::inventory::stats::low_stock_count,
+        crate::inventory::stats::inventory_growth,
+        crate::inventory::stats::recent_rolls,
     ),
     components(schemas(
         MaterialTypeDto,
@@ -122,6 +127,9 @@ pub struct CutsDoc;
         RollDto,
         CreateRollBody,
         UpdateRollBody,
+        InventoryValueDto,
+        LowStockCountDto,
+        InventoryGrowthDto,
     )),
     tags((name = "inventory", description = "Rolls, material types, suppliers")),
 )]

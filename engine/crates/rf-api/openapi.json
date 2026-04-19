@@ -833,6 +833,149 @@
         ]
       }
     },
+    "/api/v2/inventory/rolls/recent": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "recent_rolls",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of rows to return. Clamped server-side to 200.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Most-recent active rolls by created_at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/growth-percentage": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "inventory_growth",
+        "responses": {
+          "200": {
+            "description": "Roll-count growth percentage, last-7d vs previous-7d",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryGrowthDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/inventory-value": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "inventory_value",
+        "responses": {
+          "200": {
+            "description": "Total inventory value in USD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryValueDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/low-stock-count": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "low_stock_count",
+        "responses": {
+          "200": {
+            "description": "Count of material types below their min_stock_alert threshold",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LowStockCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/inventory/rolls/{id}": {
       "get": {
         "tags": [
@@ -1711,6 +1854,45 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "InventoryGrowthDto": {
+        "type": "object",
+        "required": [
+          "percentage"
+        ],
+        "properties": {
+          "percentage": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage growth vs. the prior 7 days."
+          }
+        }
+      },
+      "InventoryValueDto": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "number",
+            "format": "double",
+            "description": "Total value in USD."
+          }
+        }
+      },
+      "LowStockCountDto": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
