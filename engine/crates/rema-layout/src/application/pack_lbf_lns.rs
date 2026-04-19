@@ -22,7 +22,10 @@
 // See `.claude/research/sparrow-integration/lbf-finding.md` for the
 // two-phase plan that this file implements.
 
-use crate::application::{pack_lbf_with_config, polish_placements, polish_score, PackLbfConfig, PolishConfig};
+use crate::application::{
+    pack_lbf_with_config, polish_placements, polish_score, try_cross_bin_moveout,
+    PackLbfConfig, PolishConfig,
+};
 use crate::domain::{Bin, BinResult, PackError, PackRequest, PackResult, Placement};
 use crate::infrastructure::jagua_adapter::to_jagua_instance;
 use crate::infrastructure::search::cancel;
@@ -173,9 +176,8 @@ pub fn pack_lbf_lns_with_config(
     } else {
         0.0
     };
-    let run_time_ms = started_at.elapsed().as_millis() as u64;
 
-    Ok(PackResult {
+    let mut result = PackResult {
         placements: all_placements,
         placed_count,
         overflow_count: total_overflow,
@@ -183,9 +185,22 @@ pub fn pack_lbf_lns_with_config(
         total_used_area,
         total_waste_area,
         overall_density,
-        run_time_ms: Some(run_time_ms),
+        run_time_ms: None, // finalized below
         was_cancelled: false,
-    })
+    };
+
+    // Phase 3 follow-up — cross-bin move-out. Tries to reduce Σ(occ×w)
+    // across bins by moving a protruding item from one bin to another.
+    // Only accepts moves that strictly improve total occupied area.
+    // Gated by `REMA_DISABLE_CROSSBIN=true` for benches / debugging;
+    // on by default since moves that don't improve are rejected
+    // internally (never regresses).
+    if std::env::var("REMA_DISABLE_CROSSBIN").as_deref() != Ok("true") {
+        result = try_cross_bin_moveout(result, &request.bins, request.clearance, 3);
+    }
+
+    result.run_time_ms = Some(started_at.elapsed().as_millis() as u64);
+    Ok(result)
 }
 
 /// Single-bin core for `pack_lbf_lns`. Processes one bin. The multi-bin
