@@ -28,7 +28,16 @@ export type RfClient = ReturnType<typeof createClient<paths>>
  *     both browser and Next.js server contexts.
  */
 export function buildRfClient(baseUrl: string = ""): RfClient {
-  return createClient<paths>({ baseUrl })
+  // openapi-fetch captures `fetch` at construction time
+  // (`baseFetch = globalThis.fetch`), which bakes in whatever was
+  // on globalThis at module load. That's a pain in tests that
+  // swap `global.fetch` per case. Wrapping with a thunk makes the
+  // lookup late-binding — tests can replace globalThis.fetch and
+  // this client picks the change up on the next call.
+  return createClient<paths>({
+    baseUrl,
+    fetch: (input, init) => globalThis.fetch(input, init),
+  })
 }
 
 export const rfClient: RfClient = buildRfClient()
