@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/health/cron?tier=critical",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/admin/health/cron?tier=standard",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/admin/health/cron?tier=extended",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}

@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
   }
 
-  const { email, password, full_name, roles } = body as Record<string, unknown>
+  const { email, password, full_name, roles, allowInternalDomain } = body as Record<string, unknown>
 
   if (typeof email !== "string" || !email.trim()) {
     return NextResponse.json({ error: "email is required" }, { status: 400 })
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   const normalizedEmail = email.trim().toLowerCase()
 
-  if (normalizedEmail.endsWith("@archandanchor.com")) {
+  if (normalizedEmail.endsWith("@archandanchor.com") && allowInternalDomain !== true) {
     return NextResponse.json(
       { error: "@archandanchor.com accounts cannot be created here" },
       { status: 400 }

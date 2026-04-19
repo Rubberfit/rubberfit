@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useForm } from "react-hook-form"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
@@ -46,6 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
+import { Switch } from "@/app/components/ui/switch"
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,13 @@ const createSchema = z.object({
     .refine((e) => !e.toLowerCase().endsWith("@archandanchor.com"), {
       message: "@archandanchor.com accounts cannot be created here",
     }),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  roles: z.array(z.string()).min(1, "At least one role is required"),
+})
+
+const createSchemaOpen = z.object({
+  full_name: z.string().min(1, "Name is required"),
+  email: z.string().email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   roles: z.array(z.string()).min(1, "At least one role is required"),
 })
@@ -325,12 +333,29 @@ interface CreateUserFormProps {
 }
 
 function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
+  const [allowInternalDomain, setAllowInternalDomain] = useState(false)
+  const allowRef = useRef(allowInternalDomain)
+
+  const dynamicResolver = useCallback<Resolver<CreateFormData>>(
+    async (values, context, options) => {
+      const schema = allowRef.current ? createSchemaOpen : createSchema
+      return zodResolver(schema)(values, context, options)
+    },
+    [],
+  )
+
   const form = useForm<CreateFormData>({
-    resolver: zodResolver(createSchema),
+    resolver: dynamicResolver,
     defaultValues: { full_name: "", email: "", password: "", roles: ["member"] },
   })
 
   const [submitting, setSubmitting] = useState(false)
+
+  function handleToggle(checked: boolean) {
+    allowRef.current = checked
+    setAllowInternalDomain(checked)
+    void form.trigger("email")
+  }
 
   async function onSubmit(data: CreateFormData) {
     setSubmitting(true)
@@ -343,6 +368,7 @@ function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
           password: data.password,
           full_name: data.full_name,
           roles: data.roles,
+          allowInternalDomain,
         }),
       })
 
@@ -392,6 +418,19 @@ function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
                 />
               </FormControl>
               <FormMessage />
+              <div className="flex items-center gap-2 pt-1">
+                <Switch
+                  id="allow-internal-domain"
+                  checked={allowInternalDomain}
+                  onCheckedChange={handleToggle}
+                />
+                <label
+                  htmlFor="allow-internal-domain"
+                  className="text-xs text-muted-foreground cursor-pointer select-none"
+                >
+                  Allow <span className="font-medium text-foreground">@archandanchor.com</span> email
+                </label>
+              </div>
             </FormItem>
           )}
         />
