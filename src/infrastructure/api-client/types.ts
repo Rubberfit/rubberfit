@@ -52,6 +52,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/inventory/material-suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_material_suppliers"];
+        put?: never;
+        post: operations["create_material_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/inventory/material-suppliers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_material_supplier"];
+        put: operations["update_material_supplier"];
+        post?: never;
+        delete: operations["delete_material_supplier"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/inventory/material-types": {
         parameters: {
             query?: never;
@@ -136,6 +168,22 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CreateMaterialSupplierBody: {
+            active?: boolean | null;
+            /** Format: double */
+            cost_per_sqft: number;
+            effective_date?: string | null;
+            expiration_date?: string | null;
+            /** Format: int32 */
+            lead_time_days?: number | null;
+            material_type_id: string;
+            /** Format: double */
+            minimum_order_sqft?: number | null;
+            notes?: string | null;
+            preferred_supplier?: boolean | null;
+            supplier_id: string;
+            supplier_material_code?: string | null;
+        };
         /**
          * @description Request body for POST — mandatory `name`, everything else
          *     optional. The handler validates constraints through the use
@@ -218,6 +266,27 @@ export interface components {
             status: string;
             version: string;
         };
+        MaterialSupplierDto: {
+            active: boolean;
+            /** Format: double */
+            cost_per_sqft: number;
+            created_at?: string | null;
+            effective_date?: string | null;
+            expiration_date?: string | null;
+            id: string;
+            /** Format: int32 */
+            lead_time_days?: number | null;
+            material_type?: null | components["schemas"]["MaterialTypeDto"];
+            material_type_id: string;
+            /** Format: double */
+            minimum_order_sqft?: number | null;
+            notes?: string | null;
+            preferred_supplier: boolean;
+            supplier?: null | components["schemas"]["SupplierDto"];
+            supplier_id: string;
+            supplier_material_code?: string | null;
+            updated_at?: string | null;
+        };
         /**
          * @description Response DTO — mirrors the domain struct 1:1 today. Separated
          *     from `MaterialType` so the HTTP contract can evolve without
@@ -255,6 +324,20 @@ export interface components {
             updated_at?: string | null;
             website?: string | null;
             zip_code?: string | null;
+        };
+        UpdateMaterialSupplierBody: {
+            active?: boolean | null;
+            /** Format: double */
+            cost_per_sqft?: number | null;
+            effective_date?: string | null;
+            expiration_date?: string | null;
+            /** Format: int32 */
+            lead_time_days?: number | null;
+            /** Format: double */
+            minimum_order_sqft?: number | null;
+            notes?: string | null;
+            preferred_supplier?: boolean | null;
+            supplier_material_code?: string | null;
         };
         /**
          * @description Request body for PUT. Every field is optional so the HTTP surface
@@ -417,6 +500,239 @@ export interface operations {
                 content?: never;
             };
             /** @description Row not found or hidden by RLS */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_material_suppliers: {
+        parameters: {
+            query?: {
+                material_type_id?: string | null;
+                supplier_id?: string | null;
+                active?: boolean | null;
+                limit?: number | null;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Material-supplier rows with embedded material_type + supplier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialSupplierDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_material_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMaterialSupplierBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialSupplierDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate (material_type, supplier) pair — `DUPLICATE_PAIR` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_material_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-supplier row UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Row with embedded parents */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialSupplierDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_material_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-supplier row UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaterialSupplierBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialSupplierDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_material_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Material-supplier row UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
             404: {
                 headers: {
                     [name: string]: unknown;

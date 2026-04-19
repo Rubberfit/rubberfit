@@ -21,7 +21,8 @@ use rf_api::{
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialTypePort, NewSupplier, SupplierPort, SupplierUpdate,
+    MaterialSupplierPort, MaterialTypePort, NewSupplier, SupplierPort,
+    SupplierUpdate,
 };
 use rf_domain::{Supplier, SupplierFilters, SupplierId};
 use rsa::pkcs1::EncodeRsaPrivateKey;
@@ -148,6 +149,14 @@ impl InventoryPortFactory for FakeInventoryFactory {
         _auth: &AuthContext,
     ) -> Result<Arc<dyn SupplierPort>, AppError> {
         Ok(self.suppliers.clone())
+    }
+    fn material_suppliers(
+        &self,
+        _auth: &AuthContext,
+    ) -> Result<Arc<dyn MaterialSupplierPort>, AppError> {
+        Err(AppError::infrastructure(
+            "material_suppliers not used in supplier tests",
+        ))
     }
 }
 

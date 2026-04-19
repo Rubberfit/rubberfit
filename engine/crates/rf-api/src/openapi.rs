@@ -30,7 +30,8 @@ use utoipa::{Modify, OpenApi};
 use crate::cuts::CutHistoryDto;
 use crate::health::Health;
 use crate::inventory::{
-    CreateMaterialTypeBody, CreateSupplierBody, MaterialTypeDto, SupplierDto,
+    CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateSupplierBody,
+    MaterialSupplierDto, MaterialTypeDto, SupplierDto, UpdateMaterialSupplierBody,
     UpdateMaterialTypeBody, UpdateSupplierBody,
 };
 
@@ -96,6 +97,11 @@ pub struct CutsDoc;
         crate::inventory::suppliers::create_supplier,
         crate::inventory::suppliers::update_supplier,
         crate::inventory::suppliers::delete_supplier,
+        crate::inventory::material_suppliers::list_material_suppliers,
+        crate::inventory::material_suppliers::get_material_supplier,
+        crate::inventory::material_suppliers::create_material_supplier,
+        crate::inventory::material_suppliers::update_material_supplier,
+        crate::inventory::material_suppliers::delete_material_supplier,
     ),
     components(schemas(
         MaterialTypeDto,
@@ -104,6 +110,9 @@ pub struct CutsDoc;
         SupplierDto,
         CreateSupplierBody,
         UpdateSupplierBody,
+        MaterialSupplierDto,
+        CreateMaterialSupplierBody,
+        UpdateMaterialSupplierBody,
     )),
     tags((name = "inventory", description = "Rolls, material types, suppliers")),
 )]

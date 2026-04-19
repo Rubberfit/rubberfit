@@ -4,9 +4,15 @@
 //! layout. Each submodule owns its DTOs, handlers, and `utoipa::path`
 //! annotations; the parent re-exports everything the router needs.
 
+pub mod material_suppliers;
 pub mod material_types;
 pub mod suppliers;
 
+pub use material_suppliers::{
+    create_material_supplier, delete_material_supplier, get_material_supplier,
+    list_material_suppliers, update_material_supplier, CreateMaterialSupplierBody,
+    ListMaterialSuppliersQuery, MaterialSupplierDto, UpdateMaterialSupplierBody,
+};
 pub use material_types::{
     create_material_type, delete_material_type, get_material_type,
     list_material_types, update_material_type, CreateMaterialTypeBody,

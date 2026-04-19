@@ -178,6 +178,283 @@
         ]
       }
     },
+    "/api/v2/inventory/material-suppliers": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_material_suppliers",
+        "parameters": [
+          {
+            "name": "material_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Material-supplier rows with embedded material_type + supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialSupplierDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_material_supplier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaterialSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate (material_type, supplier) pair — `DUPLICATE_PAIR`"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-suppliers/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row with embedded parents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaterialSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/inventory/material-types": {
       "get": {
         "tags": [
@@ -711,6 +988,76 @@
   },
   "components": {
     "schemas": {
+      "CreateMaterialSupplierBody": {
+        "type": "object",
+        "required": [
+          "material_type_id",
+          "supplier_id",
+          "cost_per_sqft"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "supplier_material_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CreateMaterialTypeBody": {
         "type": "object",
         "description": "Request body for POST — mandatory `name`, everything else\noptional. The handler validates constraints through the use\ncase; the adapter maps a DB unique violation to a stable\n`DUPLICATE_NAME` conflict code.",
@@ -999,6 +1346,109 @@
           }
         }
       },
+      "MaterialSupplierDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type_id",
+          "supplier_id",
+          "cost_per_sqft",
+          "preferred_supplier",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "cost_per_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "material_type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MaterialTypeDto",
+                "description": "The embedded material_types row, present on list/get, absent\non create/update response (PostgREST Prefer:\nreturn=representation doesn't include embeds)."
+              }
+            ]
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": "boolean"
+          },
+          "supplier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupplierDto"
+              }
+            ]
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "supplier_material_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "MaterialTypeDto": {
         "type": "object",
         "description": "Response DTO — mirrors the domain struct 1:1 today. Separated\nfrom `MaterialType` so the HTTP contract can evolve without\nreaching into the domain type.",
@@ -1154,6 +1604,68 @@
             ]
           },
           "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateMaterialSupplierBody": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "supplier_material_code": {
             "type": [
               "string",
               "null"
