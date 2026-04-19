@@ -15,9 +15,12 @@
 // production dependency is the obvious next step.
 
 use rema_geom::domain::Point2D;
-use rema_layout::domain::{Bin, BinKind, Part};
+use rema_layout::application::{pack, pack_lbf, pack_lbf_with_config, PackLbfConfig};
+use rema_layout::domain::{Bin, BinKind, PackRequest, Part};
 use rema_layout::infrastructure::jagua_adapter::to_jagua_instance;
-use rema_layout::infrastructure::warm_start::greedy_bottom_left;
+use rema_layout::infrastructure::warm_start::{
+    greedy_bottom_left, greedy_rectangle_pack_with_strategy, PackerStrategy,
+};
 
 use lbf::config::LBFConfig;
 use lbf::opt::lbf_bpp::LBFOptimizerBP;
@@ -166,6 +169,114 @@ fn lbf_vs_bssf_on_production_fixture_no_rotation() {
             );
         }
     }
+}
+
+#[test]
+#[ignore]
+fn bin_packing_auto_vs_bssf_on_production_fixture() {
+    // Gemini's contrarian suggestion: measure `PackerStrategy::Auto` on
+    // the single-bin warm-start. Auto is already wired to bin-packing
+    // crate's full MaxRects + Skyline + Guillotine + BFDH + Multistart +
+    // RotationSearch sweep, but it's never been called on the production
+    // single-bin path — only from Tier 6 cross-bin-swap receiver repack.
+    //
+    // If Auto lifts us meaningfully above BSSF's 13/37, it's a simpler
+    // intervention than adopting LBF (no new crate dep, no new engine).
+    let bin = production_bin();
+
+    for allow_rotation in [false, true] {
+        println!(
+            "\n[bin-packing Auto bench] rotation={}",
+            allow_rotation
+        );
+        let items = production_items(allow_rotation);
+        let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
+
+        for strategy in [PackerStrategy::Bssf, PackerStrategy::BottomLeft, PackerStrategy::Auto] {
+            let start = Instant::now();
+            let result = greedy_rectangle_pack_with_strategy(&bin, &items, 0.0, strategy);
+            let elapsed = start.elapsed();
+            match result {
+                Ok(r) => println!(
+                    "  {:<12?}: placed={}/{}, overflow={}, elapsed={:?}",
+                    strategy, r.placements.len(), total_copies, r.overflow, elapsed
+                ),
+                Err(e) => println!("  {:<12?}: ERROR {}", strategy, e),
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn pack_lbf_vs_pack_on_production_fixture() {
+    // End-to-end bench: same fixture, both engines via their public API
+    // (pack vs pack_lbf). Proves the pack_lbf wrapper with multistart
+    // matches the direct-LBF bench numbers (32/37).
+    let bin = production_bin();
+    let items = production_items(true);
+    let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
+
+    let request = PackRequest {
+        bins: vec![bin.clone()],
+        clearance: 0.0,
+        items: items.clone(),
+        operator_profile: None,
+        mode: None,
+        time_budget_ms: None,
+        improvement_budget_ms: None,
+        seed: Some(42),
+        units: Default::default(),
+    };
+
+    println!(
+        "\n[pack_lbf bench] {} unique parts, {} total copies, bin {}x{}, rotation=true",
+        items.len(),
+        total_copies,
+        bin.width,
+        bin.height
+    );
+
+    // Current pack() path (FFD + MaxRects + GLS, rotation=true).
+    let pack_start = Instant::now();
+    let pack_result = pack(request.clone()).unwrap();
+    let pack_elapsed = pack_start.elapsed();
+    println!(
+        "pack()          : placed={}/{}, density={:.2}%, elapsed={:?}",
+        pack_result.placed_count,
+        total_copies,
+        pack_result.overall_density * 100.0,
+        pack_elapsed
+    );
+
+    // pack_lbf with defaults (10-seed multistart).
+    let lbf_start = Instant::now();
+    let lbf_result = pack_lbf(request.clone()).unwrap();
+    let lbf_elapsed = lbf_start.elapsed();
+    println!(
+        "pack_lbf (10×)  : placed={}/{}, density={:.2}%, elapsed={:?}",
+        lbf_result.placed_count,
+        total_copies,
+        lbf_result.overall_density * 100.0,
+        lbf_elapsed
+    );
+
+    // pack_lbf with 20 seeds — matches the standalone multistart bench.
+    let cfg20 = PackLbfConfig {
+        n_samples: 5000,
+        ls_frac: 0.2,
+        multistart_seeds: 20,
+    };
+    let lbf20_start = Instant::now();
+    let lbf20_result = pack_lbf_with_config(request.clone(), cfg20).unwrap();
+    let lbf20_elapsed = lbf20_start.elapsed();
+    println!(
+        "pack_lbf (20×)  : placed={}/{}, density={:.2}%, elapsed={:?}",
+        lbf20_result.placed_count,
+        total_copies,
+        lbf20_result.overall_density * 100.0,
+        lbf20_elapsed
+    );
 }
 
 #[test]

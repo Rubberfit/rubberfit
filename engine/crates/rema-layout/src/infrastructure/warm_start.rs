@@ -147,7 +147,7 @@ pub enum PackerStrategy {
 /// receiver bin from scratch. Keeping `greedy_rectangle_pack` as a thin
 /// wrapper preserves the Task 19d dispatcher contract unchanged — FFD
 /// + GLS + existing cross-bin operators never observe the new param.
-pub(crate) fn greedy_rectangle_pack_with_strategy(
+pub fn greedy_rectangle_pack_with_strategy(
     bin: &Bin,
     items: &[Part],
     clearance: f64,
