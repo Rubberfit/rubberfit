@@ -20,6 +20,7 @@ import {
 
 import { cn } from "@/app/lib/utils"
 import { OverviewPanel } from "./_components/overview-panel"
+import { HealthEndPoint } from "./_components/health-endpoint-panel"
 import { useHealthStatus } from "./_hooks/use-health-status"
 import { useAlerts } from "./_hooks/use-alerts"
 import type { HealthAlert } from "./_hooks/use-alerts"
@@ -48,7 +49,7 @@ interface HealthCheck {
   detail: string
 }
 
-// ─── Endpoints data ───────────────────────────────────────────────────────────
+// Endpoints data
 
 const ENDPOINTS: Endpoint[] = [
   { id: "supabase-db",    service: "Supabase DB",    description: "SELECT 1 ping via REST",           method: "SQL",                    icon: Database, status: "operational", lastChecked: "2m ago", responseTime: "6ms"   },
@@ -59,7 +60,7 @@ const ENDPOINTS: Endpoint[] = [
   { id: "stripe",         service: "Stripe",         description: "API connectivity check",            method: "GET /v1/balance",        icon: Key,      status: "unknown",     lastChecked: "Never",  responseTime: null    },
 ]
 
-// ─── Periodic data ────────────────────────────────────────────────────────────
+// Periodic data
 
 const HEALTH_CHECKS: HealthCheck[] = [
   { timestamp: "10:35 AM", service: "Supabase DB",    status: "operational", responseMs: 6,    detail: "OK" },
@@ -126,7 +127,7 @@ const ALERT_SEVERITY_TEXT: Record<string, string> = {
   low:      "text-sky-400",
 }
 
-// ─── Live overview tab (uses hooks for real data) ─────────────────────────────
+// Live overview tab (uses hooks for real data)
 
 function LiveOverviewTab() {
   const { services, incidents, isLoading, isRunning, lastChecked, error, runChecks } =
@@ -198,75 +199,7 @@ function LiveOverviewTab() {
 
 // Tab panels
 
-function EndpointsPanel() {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-zinc-500">
-          6 configurable endpoints. Click the gear icon to edit connection details.
-        </p>
-        <button className="flex items-center gap-1.5 text-xs font-medium text-violet-400 hover:text-violet-300 bg-violet-900/30 hover:bg-violet-900/50 border border-violet-800/60 px-3 py-1.5 rounded-md transition-colors">
-          <RefreshCw className="w-3 h-3" />
-          Run All Checks
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {ENDPOINTS.map((ep) => {
-          const Icon = ep.icon
-          const StatusIcon = ENDPOINT_STATUS_ICON[ep.status]
-          return (
-            <div key={ep.id} className="relative overflow-hidden bg-zinc-950 border border-zinc-800 rounded-lg p-4 flex flex-col gap-3 hover:border-zinc-700 transition-colors">
-              <div className={cn("absolute w-[3px] inset-y-0 left-0", ENDPOINT_BAR_COLOR[ep.status])} />
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4 text-zinc-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-200 leading-tight">{ep.service}</p>
-                    <p className="text-[11px] text-zinc-500 font-mono mt-0.5">{ep.method}</p>
-                  </div>
-                </div>
-                <button className="w-6 h-6 rounded flex items-center justify-center text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-colors shrink-0">
-                  <Settings className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-xs text-zinc-500 leading-snug">{ep.description}</p>
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                <div className="flex items-center gap-1.5">
-                  <StatusIcon className={cn("w-3.5 h-3.5", {
-                    "text-emerald-400": ep.status === "operational",
-                    "text-amber-400":   ep.status === "degraded",
-                    "text-red-400":     ep.status === "down",
-                    "text-zinc-500":    ep.status === "unknown",
-                  })} />
-                  <span className={cn("text-xs font-semibold", {
-                    "text-emerald-400": ep.status === "operational",
-                    "text-amber-400":   ep.status === "degraded",
-                    "text-red-400":     ep.status === "down",
-                    "text-zinc-500":    ep.status === "unknown",
-                  })}>
-                    {ENDPOINT_STATUS_LABEL[ep.status]}
-                  </span>
-                  {ep.status !== "operational" && ep.status !== "unknown" && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  )}
-                </div>
-                <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-                  {ep.responseTime !== null && (
-                    <span className="font-mono text-zinc-400">{ep.responseTime}</span>
-                  )}
-                  <span>{ep.lastChecked}</span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 function PeriodicPanel() {
   return (
@@ -403,7 +336,7 @@ export default function HealthPage() {
       {/* Tab content */}
       <div className="p-6">
         {activeTab === "overview"  && <LiveOverviewTab />}
-        {activeTab === "endpoints" && <EndpointsPanel />}
+        {activeTab === "endpoints" && <HealthEndPoint />}
         {activeTab === "periodic"  && <PeriodicPanel  />}
       </div>
     </div>

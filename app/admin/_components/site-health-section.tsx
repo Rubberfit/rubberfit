@@ -6,7 +6,7 @@ import { Activity, ChevronDown, LayoutGrid, List } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import { Sparkline } from "@/app/admin/_components/sparkline"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Types 
 
 type EndpointStatus = "operational" | "degraded" | "down" | "unknown"
 type LayoutMode = "grid" | "list"
@@ -28,7 +28,7 @@ interface IncidentEvent {
   detail: string
 }
 
-// ─── Static data ─────────────────────────────────────────────────────────────
+// Static data
 
 import { Database, Globe, Key, Mail, Shield, Zap } from "lucide-react"
 
@@ -49,7 +49,7 @@ const INCIDENT_TIMELINE: IncidentEvent[] = [
   { time: "Yesterday 11:50 PM",  service: "Supabase DB",   type: "recovered", detail: "Query performance returned to normal" },
 ]
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
 const STATUS_DOT: Record<EndpointStatus, string> = {
   operational: "bg-emerald-400",
@@ -97,7 +97,7 @@ const LAYOUT_BUTTONS: { mode: LayoutMode; icon: React.ElementType; label: string
   { mode: "list", icon: List,       label: "List" },
 ]
 
-// ─── Uptime badges ────────────────────────────────────────────────────────────
+// Uptime badges 
 
 function UptimeBadges({ svc }: { svc: ServiceCard }) {
   return (
@@ -123,7 +123,7 @@ function UptimeBadges({ svc }: { svc: ServiceCard }) {
   )
 }
 
-// ─── Incident timeline ────────────────────────────────────────────────────────
+// Incident timeline
 
 function IncidentTimeline() {
   return (
@@ -154,7 +154,7 @@ function IncidentTimeline() {
   )
 }
 
-// ─── Layout: Grid ─────────────────────────────────────────────────────────────
+// Layout: Grid
 
 function GridLayout({ cards }: { cards: ServiceCard[] }) {
   return (
@@ -195,7 +195,7 @@ function GridLayout({ cards }: { cards: ServiceCard[] }) {
   )
 }
 
-// ─── Layout: List (compact rows) ─────────────────────────────────────────────
+// Layout: List (compact rows) 
 
 function ListLayout({ cards }: { cards: ServiceCard[] }) {
   return (
@@ -255,7 +255,7 @@ function ListLayout({ cards }: { cards: ServiceCard[] }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// Main component 
 
 export function SiteHealthSection() {
   const [layout, setLayout] = useState<LayoutMode>("grid")

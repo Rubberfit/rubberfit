@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     .select("id, service_name, severity, title, message, status, triggered_at, acknowledged_by, acknowledged_at, resolved_by, resolved_at")
     .in("status", ["active", "investigating"])
     .order("triggered_at", { ascending: false })
-
+  //500 error if query fails; otherwise return array of alerts (possibly empty)
   //if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({
