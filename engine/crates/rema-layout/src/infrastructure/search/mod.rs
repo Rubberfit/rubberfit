@@ -33,10 +33,13 @@
 
 pub mod assignment;
 pub mod gls;
+pub mod multi;
 pub mod objective;
 pub mod rng;
 pub mod state;
 pub mod terminator;
+
+pub use multi::optimize_multi;
 
 use crate::domain::{Bin, Part, PackError};
 use crate::infrastructure::jagua_adapter;

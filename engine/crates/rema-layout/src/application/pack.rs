@@ -1,8 +1,7 @@
 // engine/crates/rema-layout/src/application/pack.rs
-use crate::domain::{BinResult, PackError, Part, PackRequest, PackResult, Placement};
-use crate::infrastructure::search;
+use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement};
 use crate::infrastructure::search::assignment::ffd::ffd_assign;
-use crate::infrastructure::warm_start::SeedResult;
+use crate::infrastructure::search::optimize_multi;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -15,44 +14,27 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
     }
 
     let started_at = Instant::now();
-    let total_budget_ms = request.resolved_time_budget_ms();
-    let per_bin_budget_ms = total_budget_ms / (request.bins.len() as u64).max(1);
 
     // Task 10: single up-front FFD pass decides which items go to which
-    // bin. Replaces Task-8-era per-bin spillover loop, which routed
-    // items in input order and lost packing efficiency when small-first
-    // item lists starved later items of fit.
+    // bin. Task 12: `optimize_multi` refines across bins via cross-bin
+    // swap operators + per-bin GLS.
     let assignment = ffd_assign(&request.bins, &request.items, request.clearance)?;
+    let refined = optimize_multi(assignment, &request)?;
 
     let mut placements: Vec<Placement> = Vec::new();
     let mut per_bin: Vec<BinResult> = Vec::new();
     let mut index_counters: HashMap<String, u32> = HashMap::new();
 
-    for (bin, seed) in request.bins.iter().zip(assignment.per_bin.into_iter()) {
-        let items_for_bin = items_for_seed(&seed, &request.items);
-
-        // Real GLS optimize (Task 8) with FFD-routed subset.
-        let result = if items_for_bin.is_empty() {
-            // FFD routed zero items to this bin — skip optimize, emit
-            // an empty BinResult so per_bin.len() matches input bins.
-            SeedResult { placements: vec![], overflow: 0 }
-        } else {
-            let config = search::OptimizerConfig {
-                time_budget_ms: per_bin_budget_ms,
-                improvement_budget_ms: request.improvement_budget_ms,
-                seed: request.seed,
-                bin: bin.clone(),
-                items: items_for_bin,
-                clearance: request.clearance,
-            };
-            search::optimize(seed, config)?
-        };
-
+    for (bin, seed) in request.bins.iter().zip(refined.per_bin.into_iter()) {
         let mut used_area = 0.0_f64;
         let mut occupied_width = 0.0_f64;
         let mut occupied_height = 0.0_f64;
 
-        for p in result.placements {
+        for p in seed.placements {
+            // Global `instance_index` renumbering per shape — stays in
+            // pack.rs post-processing per Codex sign-off (§8). The
+            // search layer emits bin-local indices; this makes them
+            // globally unique across the whole PackResult.
             let counter = index_counters.entry(p.shape_id.clone()).or_insert(0);
             let instance_index = *counter;
             *counter += 1;
@@ -97,11 +79,7 @@ pub fn pack(request: PackRequest) -> Result<PackResult, PackError> {
             scrap_ratio: 1.0 - efficiency,
         });
 
-        // Note: `result.overflow` within a bin is "the FFD-routed
-        // subset didn't fit after GLS". Scalar overflow_count below is
-        // recomputed from total-requested minus total-placed so it
-        // stays correct regardless of per-bin GLS overflow.
-        let _ = result.overflow;
+        let _ = seed.overflow;
     }
 
     // Overflow = total requested across all shapes minus total placed.
@@ -149,35 +127,6 @@ fn polygon_area(poly: &[rema_geom::domain::Point2D]) -> f64 {
         s += a.x * b.y - b.x * a.y;
     }
     s.abs() / 2.0
-}
-
-/// Reconstruct the `Vec<Part>` subset that FFD routed to a single bin
-/// from that bin's seed placements. Collapses per-shape counts into
-/// one Part each (no duplicate shape_id rows, matching
-/// `replay_seed_into_layout`'s precondition at search/mod.rs:144).
-/// Part order follows the input `request.items` order for determinism.
-fn items_for_seed(seed: &SeedResult, original: &[Part]) -> Vec<Part> {
-    if seed.placements.is_empty() {
-        return Vec::new();
-    }
-    let mut counts: HashMap<&str, u32> = HashMap::new();
-    for p in &seed.placements {
-        *counts.entry(p.shape_id.as_str()).or_insert(0) += 1;
-    }
-    original
-        .iter()
-        .filter_map(|part| {
-            counts.get(part.shape_id.as_str()).map(|qty| Part {
-                shape_id: part.shape_id.clone(),
-                quantity: *qty,
-                polygon: part.polygon.clone(),
-                shape_spec: part.shape_spec.clone(),
-                allow_rotation: part.allow_rotation,
-                grain_axis: part.grain_axis,
-                difficulty: part.difficulty,
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]
