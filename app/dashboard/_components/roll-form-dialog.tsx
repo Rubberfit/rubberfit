@@ -18,7 +18,10 @@ import { Form } from "@/app/components/ui/form"
 import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
-import { rollService } from "@/src/infrastructure/services/rollService"
+import {
+  materialTypes as materialTypesSdk,
+  rolls as rollsSdk,
+} from "@/src/infrastructure/api-client/rf/inventory"
 import type { Roll, MaterialType } from "@/src/infrastructure/models/supabase"
 import { RollFormFields } from "./roll-form-fields"
 
@@ -67,11 +70,11 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
     },
   })
 
-  // Fetch material types on mount
+  // Fetch material types on mount.
   useEffect(() => {
     const fetchMaterialTypes = async () => {
       try {
-        const types = await rollService.getMaterialTypes()
+        const types = await materialTypesSdk.list()
         setMaterialTypes(types)
       } catch (error) {
         console.error("Error fetching material types:", error)
@@ -119,18 +122,48 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
   const onSubmit = async (values: RollFormValues) => {
     setLoading(true)
     try {
+      // The Rust API requires `material_type_id` (UUID), not the
+      // denormalized name. The legacy path accepts the name directly.
+      // The SDK wrapper handles both — on v2 it forwards
+      // `material_type_id`; on the legacy fallback it forwards the
+      // name alongside. So we look up the id from the current
+      // materialTypes list whenever we have one and pass BOTH.
+      const matchedType = materialTypes.find(
+        (m) => m.name === values.material_type
+      )
+      const materialTypeId = matchedType?.id
+
       if (isEdit && roll) {
-        await rollService.updateRoll(roll.id, {
+        await rollsSdk.update(roll.id, {
           ...values,
+          ...(materialTypeId ? { material_type_id: materialTypeId } : {}),
           remaining_length: values.remaining_length ?? values.length,
         })
         toast.success("Roll updated successfully")
       } else {
-        await rollService.addRoll({
-          ...values,
+        if (!materialTypeId) {
+          // v2 needs material_type_id; on legacy this is still a
+          // soft contract (column is nullable) but we enforce it
+          // uniformly so the cutover doesn't produce rows missing
+          // the FK.
+          throw new Error(
+            "Select a material type from the dropdown (unknown name)"
+          )
+        }
+        await rollsSdk.create({
+          material_type_id: materialTypeId,
+          width: values.width,
+          length: values.length,
+          thickness: values.thickness,
+          color: values.color,
+          location: values.location,
+          date_received: values.date_received,
+          supplier: values.supplier,
+          cost_per_sqft: values.cost_per_sqft,
           remaining_length: values.length,
           status: "active",
-        } as Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">)
+          notes: values.notes,
+        })
         toast.success("Roll added successfully")
       }
 

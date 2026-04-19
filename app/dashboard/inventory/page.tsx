@@ -10,7 +10,7 @@ import { InventorySearch } from "../_components/inventory-search"
 import { RollFormDialog } from "../_components/roll-form-dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { toast } from "sonner"
@@ -46,7 +46,7 @@ export default function InventoryPage() {
 
   const handleExportCSV = async () => {
     try {
-      const rolls = await rollService.getActiveRolls()
+      const rolls = await rollsSdk.list({ status: "active" })
       if (rolls && rolls.length > 0) {
         exportService.exportInventory(rolls as unknown as Record<string, unknown>[])
       } else {
@@ -60,7 +60,7 @@ export default function InventoryPage() {
 
   const handleExportPDF = async () => {
     try {
-      const rolls = await rollService.getActiveRolls()
+      const rolls = await rollsSdk.list({ status: "active" })
       const summary = {
         totalRolls: rolls?.length || 0,
         activeRolls: rolls?.filter((r) => r.status === "active").length || 0,

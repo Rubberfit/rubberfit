@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import {
   Table,
   TableBody,
@@ -49,7 +49,9 @@ export function InventoryTable({
   const fetchRolls = useCallback(async (query: string = "") => {
     try {
       setLoading(true)
-      const data = query ? await rollService.searchRolls(query) : await rollService.getAllRolls()
+      const data = query
+        ? await rollsSdk.list({ q: query })
+        : await rollsSdk.list()
       setRolls(data || [])
     } catch (error: unknown) {
       console.error("Error fetching rolls:", error)
@@ -67,7 +69,7 @@ export function InventoryTable({
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this roll?")) return
     try {
-      await rollService.deleteRoll(id)
+      await rollsSdk.delete(id)
       toast.success("Roll deleted successfully")
       fetchRolls(searchQuery)
     } catch (error: unknown) {
@@ -78,7 +80,11 @@ export function InventoryTable({
 
   const handleMarkDepleted = async (id: string) => {
     try {
-      await rollService.markRollDepleted(id)
+      // Depletion = status "depleted" AND remaining_length 0 in one call,
+      // because the Rust backend rejects status-only depletion (see
+      // INVALID_DEPLETION_STATE) and the legacy service also zeroed
+      // remaining_length internally.
+      await rollsSdk.update(id, { status: "depleted", remaining_length: 0 })
       toast.success("Roll marked as depleted")
       fetchRolls(searchQuery)
     } catch (error: unknown) {
