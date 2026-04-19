@@ -116,6 +116,29 @@ curl -fsS https://rema-api.fly.dev/health
 # → { "status": "ok", "version": "0.1.0" }
 ```
 
+## Smoke test (Task 9.5 prep)
+
+`scripts/smoke.sh` exercises the three surfaces that must work
+end-to-end before flipping `NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true`
+in Vercel: `/health`, `/openapi.json`, and `/api/v2/cuts/history`
+(with and without a bearer token).
+
+```bash
+# Unauth smoke only:
+REMA_API_URL=https://rema-api-staging.fly.dev \
+  ./engine/crates/rema-api/scripts/smoke.sh
+
+# Full smoke including authed roundtrip:
+REMA_API_URL=https://rema-api-staging.fly.dev \
+REMA_API_JWT="$(supabase_jwt_for_test_user)" \
+  ./engine/crates/rema-api/scripts/smoke.sh
+```
+
+The script fail-fasts on the first broken invariant and never
+echoes the full response body (PII-safe).
+
+## Docker build
+
 The Dockerfile is proven to build + run locally via:
 
 ```bash
