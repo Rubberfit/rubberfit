@@ -66,7 +66,7 @@ export class ProfileRepository implements IProfileRepository {
     try {
       const { data: buckets } = await supabase.storage.listBuckets()
 
-      if (buckets?.find((b) => b.name === "avatars")) {
+      if (buckets?.find((b: { name: string }) => b.name === "avatars")) {
         return { success: true, message: "Bucket already exists" }
       }
 

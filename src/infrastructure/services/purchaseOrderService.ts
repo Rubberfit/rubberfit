@@ -49,7 +49,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       if (error) throw error
 
-      const ordersWithCount = data?.map((order) => ({
+      const ordersWithCount = data?.map((order: Record<string, any>) => ({
         ...order,
         items_count: order.items?.[0]?.count || 0,
       }))
@@ -499,7 +499,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
       if (checkError) throw checkError
 
       const fullyReceived = allItems?.every(
-        (item) => (item.quantity_received || 0) >= item.quantity_sqft
+        (item: Record<string, any>) => (item.quantity_received || 0) >= item.quantity_sqft
       )
 
       if (fullyReceived) {
@@ -559,7 +559,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       if (itemsError) throw itemsError
 
-      const subtotal = items?.reduce((sum, item) => sum + (item.line_total || 0), 0) || 0
+      const subtotal = items?.reduce((sum: number, item: Record<string, any>) => sum + (item.line_total || 0), 0) || 0
 
       const { data: po, error: poError } = await supabase
         .from("purchase_orders")

@@ -96,7 +96,7 @@ export class PriceHistoryService implements IPriceHistoryService {
         return []
       }
 
-      const materialSupplierIds = materialSuppliers.map((ms) => ms.id)
+      const materialSupplierIds = materialSuppliers.map((ms: { id: string }) => ms.id)
 
       const { data, error } = await supabase
         .from("price_history")

@@ -116,7 +116,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: string, session: any) => {
       if (!active || !session) {
         return
       }

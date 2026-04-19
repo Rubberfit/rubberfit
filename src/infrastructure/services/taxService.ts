@@ -73,7 +73,7 @@ export class TaxService implements ITaxService {
         p_tax_name: taxName,
         p_expires_at: expiresAt.toISOString(),
       })
-      .then(({ error: cacheError }) => {
+      .then(({ error: cacheError }: { error: { message: string } | null }) => {
         if (cacheError) {
           console.warn("Failed to cache API rate:", cacheError.message)
         }

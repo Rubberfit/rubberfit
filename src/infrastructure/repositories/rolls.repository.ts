@@ -80,7 +80,7 @@ export class RollsRepository implements IRollsRepository {
     if (error) throw error
     if (!data || data.length === 0) return 0
 
-    return data.reduce((sum, roll) => {
+    return data.reduce((sum: number, roll: Record<string, any>) => {
       const sqft = (roll.width * roll.remaining_length) / 144
       return sum + sqft * (roll.cost_per_sqft ?? 0)
     }, 0)
@@ -116,13 +116,13 @@ export class RollsRepository implements IRollsRepository {
       if (rollError) throw rollError
 
       const stockLevels = new Map<string, number>()
-      rolls?.forEach((roll) => {
+      rolls?.forEach((roll: Record<string, any>) => {
         const sqft = (roll.width * roll.remaining_length) / 144
         const current = stockLevels.get(roll.material_type) ?? 0
         stockLevels.set(roll.material_type, current + sqft)
       })
 
-      return materialTypes.reduce((count, mt) => {
+      return materialTypes.reduce((count: number, mt: Record<string, any>) => {
         const currentStock = stockLevels.get(mt.name) ?? 0
         return currentStock < (mt.min_stock_alert ?? 0) ? count + 1 : count
       }, 0)
@@ -175,7 +175,7 @@ export class RollsRepository implements IRollsRepository {
 
     if (error) throw error
     const map = new Map<string, string>()
-    data?.forEach((r) => map.set(r.id, r.material_type))
+    data?.forEach((r: { id: string; material_type: string }) => map.set(r.id, r.material_type))
     return map
   }
 
@@ -207,7 +207,7 @@ export class RollsRepository implements IRollsRepository {
       if (!data || data.length === 0) return 0
 
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      const recentRolls = data.filter((roll) => new Date(roll.created_at) > oneWeekAgo).length
+      const recentRolls = data.filter((roll: { created_at: string }) => new Date(roll.created_at) > oneWeekAgo).length
 
       return (recentRolls / data.length) * 100
     } catch (_error) {
@@ -223,7 +223,9 @@ export class RollsRepository implements IRollsRepository {
       .eq("material_type", materialType)
 
     if (error) throw error
-    return [...new Set(data?.map((r) => r.thickness))].sort((a, b) => a - b)
+    return [...new Set(data?.map((r: { thickness: number }) => r.thickness))].sort(
+      (a, b) => (a as number) - (b as number)
+    ) as number[]
   }
 
   // Cross-domain convenience method — prefer materialTypeRepository.getAll() in new code
