@@ -69,11 +69,129 @@ impl Default for PackLbfLnsConfig {
 }
 
 /// `pack_lbf` followed by density-changing LNS.
+///
+/// For multi-bin requests, processes bins SEQUENTIALLY: runs LBF + LNS
+/// on bin #1 with the full item set (concentrating placement), routes
+/// overflow to bin #2, and so on. This mirrors legacy's concentration
+/// behavior — previously-uniform distribution (pack_lbf's natural
+/// multi-bin output) gave away Fab Score by leaving more scrap on the
+/// earlier bins. Single-bin requests go straight through.
 pub fn pack_lbf_lns(request: PackRequest) -> Result<PackResult, PackError> {
     pack_lbf_lns_with_config(request, PackLbfLnsConfig::default())
 }
 
 pub fn pack_lbf_lns_with_config(
+    request: PackRequest,
+    cfg: PackLbfLnsConfig,
+) -> Result<PackResult, PackError> {
+    if request.bins.len() <= 1 {
+        return pack_lbf_lns_single_bin(request, cfg);
+    }
+
+    // Sequential multi-bin: for each bin in request order, run
+    // single-bin LBF+LNS on the remaining items, collect results,
+    // decrement per-shape quantities by what was placed.
+    let started_at = Instant::now();
+    let mut remaining_items = request.items.clone();
+
+    let mut all_placements: Vec<Placement> = Vec::new();
+    let mut per_bin: Vec<BinResult> = Vec::new();
+    let mut index_counters: HashMap<String, u32> = HashMap::new();
+
+    for bin in &request.bins {
+        // Build a single-bin subrequest with current remaining_items.
+        // Filter to items with positive remaining quantity.
+        let sub_items: Vec<_> = remaining_items
+            .iter()
+            .filter(|p| p.quantity > 0)
+            .cloned()
+            .collect();
+
+        if sub_items.is_empty() {
+            // No items left — emit an empty BinResult for this bin so
+            // per_bin.len() stays aligned with request.bins.
+            per_bin.push(BinResult {
+                bin_id: bin.bin_id.clone(),
+                used_area: 0.0,
+                waste_area: bin.width * bin.height,
+                occupied_width: bin.width,
+                occupied_height: bin.height,
+                efficiency: 0.0,
+                scrap_ratio: 1.0,
+            });
+            continue;
+        }
+
+        let sub_request = PackRequest {
+            bins: vec![bin.clone()],
+            clearance: request.clearance,
+            items: sub_items,
+            operator_profile: request.operator_profile.clone(),
+            mode: request.mode.clone(),
+            time_budget_ms: request.time_budget_ms,
+            improvement_budget_ms: request.improvement_budget_ms,
+            seed: request.seed,
+            units: request.units,
+        };
+
+        let sub_result = pack_lbf_lns_single_bin(sub_request, cfg.clone())?;
+
+        // Extract this bin's per_bin row (must exist — single-bin result
+        // always has exactly one BinResult).
+        let sub_bin_result = sub_result
+            .per_bin
+            .into_iter()
+            .next()
+            .ok_or_else(|| PackError::EngineFailed("empty per_bin in sub-result".into()))?;
+        per_bin.push(sub_bin_result);
+
+        // Gather placements, renumber instance_index globally.
+        let mut placed_counts: HashMap<String, u32> = HashMap::new();
+        for mut p in sub_result.placements {
+            *placed_counts.entry(p.shape_id.clone()).or_insert(0) += 1;
+            let c = index_counters.entry(p.shape_id.clone()).or_insert(0);
+            p.instance_index = *c;
+            *c += 1;
+            all_placements.push(p);
+        }
+
+        // Decrement remaining_items by what this bin placed.
+        for part in &mut remaining_items {
+            if let Some(&placed) = placed_counts.get(&part.shape_id) {
+                part.quantity = part.quantity.saturating_sub(placed);
+            }
+        }
+    }
+
+    let placed_count = all_placements.len() as u32;
+    let total_requested: u32 = request.items.iter().map(|p| p.quantity).sum();
+    let total_overflow = total_requested.saturating_sub(placed_count);
+    let total_used_area: f64 = per_bin.iter().map(|b| b.used_area).sum();
+    let total_waste_area: f64 = per_bin.iter().map(|b| b.waste_area).sum();
+    let overall_density = if total_used_area + total_waste_area > 0.0 {
+        total_used_area / (total_used_area + total_waste_area)
+    } else {
+        0.0
+    };
+    let run_time_ms = started_at.elapsed().as_millis() as u64;
+
+    Ok(PackResult {
+        placements: all_placements,
+        placed_count,
+        overflow_count: total_overflow,
+        per_bin,
+        total_used_area,
+        total_waste_area,
+        overall_density,
+        run_time_ms: Some(run_time_ms),
+        was_cancelled: false,
+    })
+}
+
+/// Single-bin core for `pack_lbf_lns`. Processes one bin. The multi-bin
+/// entry point calls this in a per-bin loop with item quantities
+/// decremented by what earlier bins placed.
+fn pack_lbf_lns_single_bin(
     request: PackRequest,
     cfg: PackLbfLnsConfig,
 ) -> Result<PackResult, PackError> {

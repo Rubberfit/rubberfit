@@ -14,6 +14,8 @@
 // See docs/superpowers/plans/2026-04-18-s2.5-rust-engine.md Task 15.
 
 use rema_layout::application::pack::{pack, pack_with_options};
+use rema_layout::application::pack_lbf::pack_lbf;
+use rema_layout::application::pack_lbf_lns::pack_lbf_lns;
 use rema_layout::domain::{PackRequest, PackResult, SearchOptions};
 use rema_layout::infrastructure::search::progress::ProgressCallback;
 use serde_json::Deserializer;
@@ -47,7 +49,15 @@ fn run_batch() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match pack(request) {
+    // Engine selection: `REMA_ENGINE=lbf` routes to Phase 1 LBF-only,
+    // `REMA_ENGINE=lbf-lns` routes to Phase 2 LBF + density-changing
+    // LNS. Default remains pack() so existing callers are unaffected.
+    let result = match std::env::var("REMA_ENGINE").as_deref() {
+        Ok("lbf") => pack_lbf(request),
+        Ok("lbf-lns") => pack_lbf_lns(request),
+        _ => pack(request),
+    };
+    match result {
         Ok(result) => write_json_line(&result),
         Err(e) => {
             eprintln!("pack-cli: pack failed: {e}");
