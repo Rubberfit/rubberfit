@@ -93,12 +93,12 @@ Before the first deploy:
 ```bash
 # Launch without deploying so Fly can read fly.toml and provision
 # resources without pulling a build.
-fly apps create rema-api            # one-time, from repo root
+fly apps create rema-api-archanchor  # one-time, from repo root
 
 fly secrets set \
   SUPABASE_URL=https://PROJECT_REF.supabase.co \
   SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
-  --app rema-api --config engine/fly.toml
+  --app rema-api-archanchor
 ```
 
 Deploy:
@@ -112,7 +112,7 @@ fly deploy --config engine/fly.toml
 Health check after deploy:
 
 ```bash
-curl -fsS https://rema-api.fly.dev/health
+curl -fsS https://rema-api-archanchor.fly.dev/health
 # → { "status": "ok", "version": "0.1.0" }
 ```
 

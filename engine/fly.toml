@@ -11,7 +11,7 @@
 # a sibling `fly.staging.toml` / `fly.prod.toml` if we want to
 # pin app names, or override with `--app` at the CLI.
 
-app = "rema-api"
+app = "rema-api-archanchor"
 primary_region = "sjc"
 # Kill a hung migration or frozen request hard rather than let it
 # accumulate a backlog. 60s > the Axum `REMA_API_REQUEST_TIMEOUT`
