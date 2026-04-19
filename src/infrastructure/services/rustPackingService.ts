@@ -1,7 +1,27 @@
 import "reflect-metadata"
 import { injectable } from "tsyringe"
-import { spawn } from "node:child_process"
-import path from "node:path"
+// node: imports happen lazily inside the methods that need them.
+// This module is referenced from di-registration, which reaches
+// client chunks through the cut-planner hook's TSyringe resolve —
+// and Turbopack refuses to bundle `node:child_process` / `node:path`
+// for the browser even under runtime guards. Moving the import to
+// the call site keeps the module body browser-safe (no spawn on the
+// client means no spawn import on the client).
+//
+// `loadChildProcess` is memoized so repeated pack calls don't pay
+// the import resolution cost more than once.
+let cachedChildProcess: typeof import("node:child_process") | null = null
+async function loadChildProcess(): Promise<
+  typeof import("node:child_process")
+> {
+  if (cachedChildProcess) return cachedChildProcess
+  // Dynamic import — Turbopack leaves this alone for client chunks
+  // because the specifier is resolved at runtime, not statically.
+  // In a real browser the import resolution will throw (no `node:*`
+  // scheme); in Node and vitest+happy-dom it resolves fine.
+  cachedChildProcess = await import("node:child_process")
+  return cachedChildProcess
+}
 import type {
   IPackingService,
   PackOptions,
@@ -15,10 +35,14 @@ import type {
   PackProgress,
 } from "@/src/application/packing/types"
 
-const DEFAULT_BINARY = path.resolve(
-  process.cwd(),
-  "engine/target/release/pack-cli"
-)
+// Default binary location — the build writes `pack-cli` to
+// `engine/target/release` under the cwd. String concat is safe on
+// Linux/macOS (both Fly and Vercel); if Windows support ever matters
+// we'd need node:path, which would pull us back into the bundler-
+// escape-hatch territory we just left.
+const DEFAULT_BINARY =
+  (typeof process !== "undefined" ? process.cwd?.() : "") +
+  "/engine/target/release/pack-cli"
 
 /**
  * Task 16: RustPackingService wires pack-cli's `--stream` protocol
@@ -68,6 +92,7 @@ export class RustPackingService implements IPackingService {
   }
 
   private async packBatch(request: PackRequest): Promise<PackResult> {
+    const { spawn } = await loadChildProcess()
     return new Promise<PackResult>((resolve, reject) => {
       const child = spawn(this.binary, [], {
         stdio: ["pipe", "pipe", "pipe"],
@@ -110,6 +135,7 @@ export class RustPackingService implements IPackingService {
     request: PackRequest,
     options: PackOptions
   ): Promise<PackResult> {
+    const { spawn } = await loadChildProcess()
     return new Promise<PackResult>((resolve, reject) => {
       const child = spawn(this.binary, ["--stream"], {
         stdio: ["pipe", "pipe", "pipe"],
