@@ -26,6 +26,19 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 thiserror = "2"
+# S3 backend stack (spec: docs/superpowers/specs/2026-04-19-s3-rust-backend-design.md).
+# Versions pinned at workspace level so all backend crates move in lockstep.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "request-id", "util", "trace", "timeout"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }
+http = "1"
+http-body-util = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+jsonwebtoken = "9"
 
 [profile.release]
 opt-level = 3

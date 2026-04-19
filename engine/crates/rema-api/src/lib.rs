@@ -1,12 +1,15 @@
-//! REMA backend HTTP delivery layer — Axum router, JWT middleware,
-//! OpenAPI schema, DTO types (S3).
+//! REMA backend HTTP delivery layer — Axum router, middleware stack,
+//! DTO types, and the `build_router` factory that integration tests
+//! use to exercise the server without binding a TCP socket.
 //!
-//! This crate is the outermost ring: it maps HTTP requests to
-//! use-case invocations and serializes results back out. It depends
-//! on `rema-application` for the use-case surface and on
-//! `rema-supabase` only so `main.rs` can wire concrete repositories
-//! into the DI container at startup.
-//!
-//! Task 2 adds the Axum server boot + `/health`. JWKS/JWT middleware
-//! arrives in Task 3. Per-aggregate endpoints land as each S3a-S3d
-//! vertical slice ships.
+//! Depends on `rema-application` for the use-case surface and on
+//! `rema-supabase` so `main.rs` can wire concrete repositories at
+//! startup. See
+//! `docs/superpowers/specs/2026-04-19-s3-rust-backend-design.md` for
+//! the full architectural context.
+
+pub mod config;
+pub mod health;
+pub mod router;
+
+pub use router::build_router;
