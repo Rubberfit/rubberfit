@@ -45,12 +45,21 @@ fn bin(id: &str, w: f64, h: f64) -> Bin {
 }
 
 fn long_budget_fixture() -> PackRequest {
+    // Task 19d: bumped item count so the pack actually takes more than
+    // ~50ms. The prior 10-item fixture used to rely on rectangle-pack's
+    // slow per-item probes; bin-packing's MaxRects BSSF is fast enough
+    // that a 10-item fixture completed before the test's 50ms cancel
+    // could fire, leaving `was_cancelled=false`. 40 mixed rects keeps
+    // the search actively running long enough to exercise the cancel
+    // path deterministically across packers.
     PackRequest {
         bins: vec![bin("A", 48.0, 96.0), bin("B", 48.0, 96.0)],
         clearance: 0.0,
         items: vec![
-            rect_part("plank", 6, 10.0, 40.0),
-            rect_part("block", 4, 15.0, 15.0),
+            rect_part("plank", 12, 10.0, 40.0),
+            rect_part("block", 10, 15.0, 15.0),
+            rect_part("strip", 10, 6.0, 30.0),
+            rect_part("tile", 8, 8.0, 12.0),
         ],
         operator_profile: None,
         mode: Some(PackMode::Thorough),

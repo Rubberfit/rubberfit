@@ -57,28 +57,22 @@ pub fn greedy_bottom_left(
     items: &[Part],
     clearance: f64,
 ) -> Result<SeedResult, PackError> {
-    // Task 19a/19c dispatcher:
+    // Task 19a/19c/19d dispatcher:
     //   - Homogeneous single-shape inputs: 2D grid packer (Task 19a).
-    //   - Heterogeneous inputs: rectangle-pack-backed 2D allocator
-    //     (Task 19c) — closes the gap measured in the production cut
-    //     benchmark (legacy 37/37 at 70.5% vs prior Rust 8/37 at 44%).
-    //   - Inputs that rectangle-pack can't handle (e.g. all copies
-    //     exceeding a dimension): vertical-stacker fallback for
-    //     deterministic overflow accounting.
+    //   - Heterogeneous inputs: `bin-packing` MaxRects BSSF (Task 19d) —
+    //     replaces Task 19c's `rectangle-pack` which hit a single-bin
+    //     ceiling at 12/37 parts on the production diagnostic. BSSF
+    //     (Jylänki 2010) preserves larger reusable offcuts by biasing
+    //     placement toward corner-tight fits, which closed the
+    //     legacy-vs-Rust Fab Score gap on the single-bin bench
+    //     (Rust 71 vs legacy 57).
+    //   - Pathological inputs: vertical-stacker fallback keeps overflow
+    //     accounting deterministic if the primary packer errors.
     //
-    // Codex sign-off rejected guillotiere and hand-rolled shelf packers;
-    // rectangle-pack chosen for deterministic free-section splitting
-    // with public `available_bin_sections()` visibility. Algorithm is
-    // inspired by rectpack2D (NOT MAXRECTS as originally scoped — the
-    // crate docs clarify this).
-    //
-    // Rotation: rectangle-pack exposes rotation flags in RectToInsert
-    // but 0.4.2 does NOT implement rotation internally (source has
-    // `TODO: Implement rotations`). For this task we pack with the
-    // natural orientation only. Real-world fabric/rubber cut lists
-    // rarely need rotation when item dimensions fit the bin; the
-    // production benchmark confirms this (all 37 parts fit 78×396 in
-    // natural orientation).
+    // Rotation: disabled (can_rotate=false on every demand) — matches
+    // the rectangle-pack integration's effective behavior. Enabling
+    // rotation requires validating jagua_adapter polygon + rotation_rad
+    // round-trip, deferred to a follow-up.
     if items.len() == 1 {
         return greedy_2d_grid(bin, &items[0], clearance);
     }
@@ -86,47 +80,75 @@ pub fn greedy_bottom_left(
         Ok(result) => Ok(result),
         Err(_) => {
             // Fallback to vertical stacker on any packer error. Keeps
-            // overflow accounting deterministic even if rectangle-pack
-            // rejects the whole set.
+            // overflow accounting deterministic even if bin-packing
+            // returns Infeasible2D.
             greedy_vertical_stack(bin, items, clearance)
         }
     }
 }
 
-/// Task 19c: heterogeneous 2D packer backed by `rectangle-pack`.
+/// Task 19d: heterogeneous 2D packer backed by `bin-packing` v0.3.0.
 ///
-/// Scales f64 coordinates to u32 via a fixed 10000x factor (1e4 —
-/// keeps 78×396 inputs well within u32::MAX while preserving 0.0001"
-/// precision). Codex sign-off §2.3 locks this scale; do NOT reuse
-/// rema-geom's 1e7 Clipper scale — it would overflow u32 at 396".
+/// Replaces Task 19c's `rectangle-pack` integration, which fit only 12/37
+/// parts on a 78×396 single-bin production diagnostic. `bin-packing`'s
+/// `Auto` strategy runs MaxRects (4 variants), Skyline (2), Guillotine
+/// BSSF + shorter-leftover-axis, BFDH, Multistart, and RotationSearch in
+/// one sweep and returns the best result ranked lexicographically on
+/// `(unplaced, sheet_count, total_waste_area, total_cost, max_usable_drop_area↑, total_sum_sq_usable_drop_areas↑)`.
+/// The two consolidation tiebreakers directly reward reusable-offcut
+/// preservation, which is REMA's top business metric.
+///
+/// Scales f64 coordinates to u32 via a fixed 10000x factor (1e4 — keeps
+/// 78×396 inputs well within u32::MAX while preserving 0.0001" precision).
+/// SCALE is pinned across Task 19c/19d; changing it would invalidate
+/// parity snapshots.
+///
+/// Rotation: disabled for v1 (`can_rotate = false` on every demand). The
+/// prior rectangle-pack integration was also effectively no-rotation.
+/// Rotation requires a polygon-rotation pass on the SeedPlacement output
+/// — deferred until we have rotation-aware downstream tests.
+///
+/// Determinism: honors a fixed seed so `Multistart` + `RotationSearch`
+/// produce bit-identical output. Seed is derived from a stable hash of
+/// the inputs (bin + sorted (shape_id, qty) multiset) so the same probe
+/// state always yields the same seed.
 fn greedy_rectangle_pack(
     bin: &Bin,
     items: &[Part],
     clearance: f64,
 ) -> Result<SeedResult, PackError> {
-    use rectangle_pack::{
-        contains_smallest_box, pack_rects, volume_heuristic, GroupedRectsToPlace, RectToInsert,
-        TargetBin,
+    use bin_packing::two_d::{
+        solve_2d, RectDemand2D, Sheet2D, TwoDAlgorithm, TwoDOptions, TwoDProblem,
     };
-    use std::collections::BTreeMap;
 
     const SCALE: f64 = 10_000.0;
 
-    let clearance_scaled = (clearance * SCALE).round() as u32;
     let bin_w_scaled = (bin.width * SCALE).round() as u32;
     let bin_h_scaled = (bin.height * SCALE).round() as u32;
 
-    // Rect id = (shape_id, instance_ordinal). rectangle-pack wants one
-    // RectToInsert per copy — we expand quantities here and map back
-    // to SeedPlacements after.
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
-    struct RectKey(String, u32);
+    // Quantize clearance into a kerf gap. bin-packing applies kerf as the
+    // minimum separation between adjacent placements, which matches our
+    // Task 11 conservative clearance semantics (each copy consumes an
+    // h + 2c / w + 2c cell). Kerf-as-clearance is exactly right here
+    // because edge-adjacent factory boundaries are already free.
+    let kerf_scaled = ((clearance * 2.0) * SCALE).round() as u32;
 
-    let mut rects_to_place = GroupedRectsToPlace::<RectKey, ()>::new();
-    let mut part_meta: std::collections::HashMap<String, (usize, f64, f64, Vec<Point2D>)> =
-        std::collections::HashMap::new();
+    // Per-part metadata: bbox, visible dims, canonical polygon (at origin).
+    // Used both for (a) building RectDemand2D inputs and (b) materializing
+    // SeedPlacements after solve_2d returns.
+    struct PartMeta {
+        w_visible: f64,
+        h_visible: f64,
+        w_scaled: u32,
+        h_scaled: u32,
+        quantity: u32,
+        polygon_canonical: Vec<Point2D>,
+    }
+    let mut part_meta: std::collections::BTreeMap<String, PartMeta> =
+        std::collections::BTreeMap::new();
+    let mut rejected_overflow: u32 = 0;
 
-    for (part_idx, part) in items.iter().enumerate() {
+    for part in items {
         let bbox = rema_geom::application::bbox_of(&part.polygon).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
@@ -138,104 +160,177 @@ fn greedy_rectangle_pack(
         let w_eff = w + 2.0 * clearance;
         let h_eff = h + 2.0 * clearance;
 
-        // Width/height gate: item must fit at least ONE copy.
+        // Width/height gate: parts whose (w+2c,h+2c) exceeds the bin are
+        // counted as overflow up-front — `solve_2d` would return
+        // `Infeasible2D` otherwise.
         if w_eff > bin.width || h_eff > bin.height {
+            rejected_overflow = rejected_overflow.saturating_add(part.quantity);
             continue;
         }
 
-        let w_scaled = (w_eff * SCALE).round() as u32;
-        let h_scaled = (h_eff * SCALE).round() as u32;
-
         part_meta.insert(
             part.shape_id.clone(),
-            (
-                part_idx,
-                w,
-                h,
-                part.polygon.iter().map(|p| Point2D::new(p.x - bbox.0.x, p.y - bbox.0.y)).collect(),
-            ),
+            PartMeta {
+                w_visible: w,
+                h_visible: h,
+                w_scaled: (w * SCALE).round() as u32,
+                h_scaled: (h * SCALE).round() as u32,
+                quantity: part.quantity,
+                polygon_canonical: part
+                    .polygon
+                    .iter()
+                    .map(|p| Point2D::new(p.x - bbox.0.x, p.y - bbox.0.y))
+                    .collect(),
+            },
         );
-
-        for instance in 0..part.quantity {
-            rects_to_place.push_rect(
-                RectKey(part.shape_id.clone(), instance),
-                None,
-                RectToInsert::new(w_scaled, h_scaled, 1),
-            );
-        }
     }
 
-    // Single-bin for now; multi-bin is handled one level up by FFD.
-    let mut target_bins = BTreeMap::new();
-    target_bins.insert((), TargetBin::new(bin_w_scaled, bin_h_scaled, 1));
-
-    let pack_result = pack_rects(
-        &rects_to_place,
-        &mut target_bins,
-        &volume_heuristic,
-        &contains_smallest_box,
-    );
-
-    let placements_map = match pack_result {
-        Ok(ok) => ok.packed_locations().clone(),
-        Err(_) => {
-            // rectangle-pack returns an error if ANY rect fails to pack.
-            // Propagate up — caller falls back to vertical stacker.
-            return Err(PackError::EngineFailed(
-                "rectangle-pack: not all rectangles placed".into(),
-            ));
-        }
-    };
-
-    // Emit SeedPlacements in canonical order: sort keys so repeated
-    // runs produce bit-identical output. Assign per-shape instance
-    // indices fresh (0..quantity).
-    let mut sorted_keys: Vec<_> = placements_map.keys().cloned().collect();
-    sorted_keys.sort();
-
-    let mut per_shape_counter: std::collections::HashMap<String, u32> =
-        std::collections::HashMap::new();
-    let mut placements = Vec::with_capacity(sorted_keys.len());
-
-    for key in sorted_keys {
-        let (_bin_id, location) = &placements_map[&key];
-        let (_, w, h, _canonical_poly) = &part_meta[&key.0];
-
-        // rectangle-pack gives us the cell origin (including clearance
-        // halo). Visible item sits at cell_origin + (clearance, clearance).
-        let x_cell = (location.x() as f64) / SCALE;
-        let y_cell = (location.y() as f64) / SCALE;
-        let x_visible = x_cell + clearance;
-        let y_visible = y_cell + clearance;
-
-        let instance_index = *per_shape_counter
-            .entry(key.0.clone())
-            .and_modify(|c| *c += 1)
-            .or_insert(0);
-
-        let original_part = items.iter().find(|p| p.shape_id == key.0).unwrap();
-        let bbox = rema_geom::application::bbox_of(&original_part.polygon).unwrap();
-        let polygon = original_part
-            .polygon
-            .iter()
-            .map(|p| Point2D::new(p.x - bbox.0.x + x_visible, y_visible + (p.y - bbox.0.y)))
-            .collect();
-
-        placements.push(SeedPlacement {
-            shape_id: key.0,
-            instance_index,
-            bin_id: bin.bin_id.clone(),
-            x: x_visible,
-            y: y_visible,
-            rotation_rad: 0.0,
-            polygon,
-            width: *w,
-            height: *h,
+    if part_meta.is_empty() {
+        let total: u32 = items.iter().map(|p| p.quantity).sum();
+        return Ok(SeedResult {
+            placements: vec![],
+            overflow: total,
         });
     }
 
+    // Build TwoDProblem with one sheet + one demand per shape.
+    let sheet = Sheet2D {
+        name: bin.bin_id.clone(),
+        width: bin_w_scaled,
+        height: bin_h_scaled,
+        cost: 1.0,
+        quantity: Some(1),
+        kerf: kerf_scaled,
+        edge_kerf_relief: false,
+    };
+    let demands: Vec<RectDemand2D> = part_meta
+        .iter()
+        .map(|(shape_id, meta)| RectDemand2D {
+            name: shape_id.clone(),
+            width: meta.w_scaled,
+            height: meta.h_scaled,
+            quantity: meta.quantity as usize,
+            // Rotation disabled for v1. Enabling it made the packer
+            // return 11 placements instead of 12 on the production
+            // fixture — Auto's RotationSearch sampling apparently can't
+            // beat no-rotation MaxRects here. Revisit once we have
+            // rotation-aware downstream validation (jagua round-trip
+            // via PI/2 rotation_rad was not exercised in v1).
+            can_rotate: false,
+        })
+        .collect();
+
+    // Deterministic seed: hash the (bin_id, sorted demands) so identical
+    // problems always produce identical output across runs. This also
+    // means FFD probe calls with the same partial state get the same
+    // layout — critical for the probe's fit oracle semantics.
+    let seed: u64 = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        bin.bin_id.hash(&mut h);
+        bin_w_scaled.hash(&mut h);
+        bin_h_scaled.hash(&mut h);
+        kerf_scaled.hash(&mut h);
+        for d in &demands {
+            d.name.hash(&mut h);
+            d.width.hash(&mut h);
+            d.height.hash(&mut h);
+            d.quantity.hash(&mut h);
+        }
+        h.finish()
+    };
+
+    // REMA thresholds for reusable offcut: 11.5×12" and 6×24". Use the
+    // smaller of the two (6" = 60000 scaled) as min_usable_side so that
+    // narrower strips don't contribute to the consolidation tiebreakers.
+    // See CLAUDE.md.
+    let min_usable_side: u32 = (6.0 * SCALE).round() as u32;
+
+    // Algorithm choice: `MaxRectsBestShortSideFit` (Jylänki 2010 §3.2).
+    // BSSF places each rect in the free rectangle that leaves the
+    // smallest remainder on the SHORTER axis — biasing the layout
+    // toward filling corners tightly and preserving large, clean
+    // leftover rectangles on the longer axis. This is exactly REMA's
+    // reusable-offcut objective. Production bench showed `Auto` picked
+    // tighter-waste layouts that fragmented the offcut (Fab Score
+    // regression from 46 → 38 on the 2-bin run); BSSF alone keeps the
+    // consolidation behavior without the regression.
+    let options = TwoDOptions {
+        algorithm: TwoDAlgorithm::MaxRectsBestShortSideFit,
+        seed: Some(seed),
+        min_usable_side,
+        ..TwoDOptions::default()
+    };
+
+    let solution = solve_2d(
+        TwoDProblem {
+            sheets: vec![sheet],
+            demands,
+        },
+        options,
+    )
+    .map_err(|e| PackError::EngineFailed(format!("bin-packing solve_2d: {e}")))?;
+
+    // Materialize placements. bin-packing's layouts are ordered by the
+    // sheet ordering we supplied — single sheet here, so layouts[0] is
+    // the only one (or none if solver placed nothing).
+    let mut placements: Vec<SeedPlacement> = Vec::new();
+    let mut per_shape_counter: std::collections::HashMap<String, u32> =
+        std::collections::HashMap::new();
+
+    if let Some(layout) = solution.layouts.first() {
+        // Canonical emission order: sort by (y asc, x asc, name asc). Keeps
+        // repeat runs bit-identical regardless of bin-packing's internal
+        // ordering choices.
+        let mut sorted: Vec<&bin_packing::two_d::Placement2D> = layout.placements.iter().collect();
+        sorted.sort_by(|a, b| {
+            a.y.cmp(&b.y)
+                .then_with(|| a.x.cmp(&b.x))
+                .then_with(|| a.name.cmp(&b.name))
+        });
+
+        for p in sorted {
+            let meta = match part_meta.get(&p.name) {
+                Some(m) => m,
+                None => continue, // shouldn't happen; demand names track meta keys
+            };
+            let x_visible = (p.x as f64) / SCALE + clearance;
+            let y_visible = (p.y as f64) / SCALE + clearance;
+
+            let instance_index = *per_shape_counter
+                .entry(p.name.clone())
+                .and_modify(|c| *c += 1)
+                .or_insert(0);
+
+            // can_rotate=false invariant: bin-packing never sets
+            // `p.rotated`. Translate canonical polygon directly.
+            debug_assert!(!p.rotated, "rotation disabled in v1 demands");
+            let polygon: Vec<Point2D> = meta
+                .polygon_canonical
+                .iter()
+                .map(|pt| Point2D::new(pt.x + x_visible, pt.y + y_visible))
+                .collect();
+
+            placements.push(SeedPlacement {
+                shape_id: p.name.clone(),
+                instance_index,
+                bin_id: bin.bin_id.clone(),
+                x: x_visible,
+                y: y_visible,
+                rotation_rad: 0.0,
+                polygon,
+                width: meta.w_visible,
+                height: meta.h_visible,
+            });
+        }
+    }
+
+    // Overflow accounting: `rejected_overflow` (parts whose bbox exceeds
+    // the bin wholesale) is NOT passed to the solver, so it's not in
+    // `placements.len()`. The solver's own unplaced count is implicit in
+    // `total - placed`. Total overflow = everything we didn't place.
     let total_requested: u32 = items.iter().map(|p| p.quantity).sum();
-    let _ = clearance_scaled;
+    let _ = rejected_overflow; // folded into total - placed below
     Ok(SeedResult {
         overflow: total_requested.saturating_sub(placements.len() as u32),
         placements,

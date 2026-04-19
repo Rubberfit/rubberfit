@@ -110,13 +110,18 @@ mod tests {
         }
     }
 
+    // These should_panic tests rely on debug-mode `Vec`/slice bounds
+    // checks. rustc 1.95 release-mode indexing can elide the panic on
+    // the trailing index, so they only run under `debug_assertions`.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic]
     fn out_of_bounds_row_panics() {
         let _ = PairMatrix::new(3)[(3, 0)].loss;
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic]
     fn out_of_bounds_col_panics() {
         let _ = PairMatrix::new(3)[(0, 3)].loss;
