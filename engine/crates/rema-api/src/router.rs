@@ -21,6 +21,7 @@ use crate::auth::{jwt_middleware, AppState};
 use crate::config::{CorsMode, ServerConfig};
 use crate::cuts;
 use crate::health;
+use crate::openapi;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
 
@@ -68,9 +69,13 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
     apply_middleware(combined, cfg)
 }
 
-/// Public router — no auth, no state. Currently just `/health`.
+/// Public router — no auth, no state. `/health` + `/openapi.json`.
+/// The OpenAPI document is unauthenticated so the frontend build can
+/// pull it without a JWT and regenerate TypeScript types at CI time.
 pub fn build_public_router() -> Router {
-    Router::new().route("/health", get(health::health))
+    Router::new()
+        .route("/health", get(health::health))
+        .route("/openapi.json", get(openapi::openapi_json))
 }
 
 async fn whoami_placeholder(

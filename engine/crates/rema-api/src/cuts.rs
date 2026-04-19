@@ -19,20 +19,25 @@ use rema_application::cuts::{
 use rema_application::error::AppError;
 use rema_domain::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::{require_auth, AppState, AuthError};
 
 /// Query params for `/api/v2/cuts/history`. Named distinctly from the
 /// domain `CutHistoryFilters` because the HTTP surface exposes a
 /// narrow camelCase-friendly subset and maps it before delegating.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
 pub struct ListHistoryQuery {
+    /// Page size. Clamped to 200 server-side; defaults to 50 when omitted.
     #[serde(default)]
     pub limit: Option<u32>,
+    /// Zero-based offset from the newest entry.
     #[serde(default)]
     pub offset: Option<u32>,
+    /// Lower bound on `cut_date` (ISO-8601, inclusive).
     #[serde(default)]
     pub since: Option<String>,
+    /// Upper bound on `cut_date` (ISO-8601, inclusive).
     #[serde(default)]
     pub until: Option<String>,
 }
@@ -52,7 +57,7 @@ impl From<ListHistoryQuery> for CutHistoryFilters {
 /// `CutHistoryEntry` so the HTTP contract can evolve independently
 /// of domain schema. Today the mapping is 1:1; renaming / derived
 /// fields will land here first when we start splitting concerns.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct CutHistoryDto {
     pub id: i64,
     pub user_id: Option<String>,
@@ -120,6 +125,18 @@ fn user_id_from(auth: &crate::AuthContext) -> UserId {
     UserId(auth.claims.sub.clone())
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v2/cuts/history",
+    tag = "cuts",
+    params(ListHistoryQuery),
+    responses(
+        (status = 200, description = "Cut-history entries, newest first", body = [CutHistoryDto]),
+        (status = 401, description = "Missing or invalid bearer token"),
+        (status = 500, description = "Downstream infrastructure failure"),
+    ),
+    security(("supabase_jwt" = []))
+)]
 pub async fn list_history(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListHistoryQuery>,
@@ -139,6 +156,19 @@ pub async fn list_history(
     Ok(Json(entries.into_iter().map(CutHistoryDto::from).collect()))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v2/cuts/history/{id}",
+    tag = "cuts",
+    params(("id" = i64, Path, description = "Cut-history row id")),
+    responses(
+        (status = 200, description = "The cut-history entry", body = CutHistoryDto),
+        (status = 401, description = "Missing or invalid bearer token"),
+        (status = 404, description = "Row not found or hidden by RLS"),
+        (status = 500, description = "Downstream infrastructure failure"),
+    ),
+    security(("supabase_jwt" = []))
+)]
 pub async fn get_history_item(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,
@@ -158,6 +188,17 @@ pub async fn get_history_item(
     Ok(Json(entry.into()))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v2/cuts/favorites",
+    tag = "cuts",
+    responses(
+        (status = 200, description = "Favorited cut-history entries", body = [CutHistoryDto]),
+        (status = 401, description = "Missing or invalid bearer token"),
+        (status = 500, description = "Downstream infrastructure failure"),
+    ),
+    security(("supabase_jwt" = []))
+)]
 pub async fn list_favorites(
     State(state): State<Arc<AppState>>,
     req: Request,

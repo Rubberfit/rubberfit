@@ -13,6 +13,7 @@ pub mod config;
 pub mod cuts;
 pub mod health;
 pub mod jwks;
+pub mod openapi;
 pub mod router;
 
 pub use auth::{
@@ -21,4 +22,5 @@ pub use auth::{
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
+pub use openapi::ApiDoc;
 pub use router::{build_public_router, build_router, build_router_with_state};

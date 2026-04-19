@@ -10,6 +10,13 @@ description = "Axum HTTP API for REMA backend (S3)"
 name = "rema-api"
 path = "src/main.rs"
 
+# CI helper: `cargo run --bin dump-openapi > engine/crates/rema-api/openapi.json`
+# regenerates the committed spec. Kept as a bin (not a test) so it's
+# trivial to invoke from build scripts and pipelines.
+[[bin]]
+name = "dump-openapi"
+path = "src/bin/dump_openapi.rs"
+
 [dependencies]
 rema-domain = { path = "../rema-domain" }
 rema-application = { path = "../rema-application" }
@@ -28,6 +35,7 @@ uuid = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
 jsonwebtoken = { workspace = true }
+utoipa = { workspace = true }
 async-trait = "0.1"
 
 [dev-dependencies]

@@ -27,7 +27,10 @@
     "build:engine:dev": "cargo build --manifest-path engine/Cargo.toml",
     "test:rust": "cargo test --manifest-path engine/Cargo.toml",
     "fmt:rust": "cargo fmt --manifest-path engine/Cargo.toml --all",
-    "clippy:rust": "cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings"
+    "clippy:rust": "cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings",
+    "openapi:dump": "cargo run --quiet --manifest-path engine/Cargo.toml -p rema-api --bin dump-openapi > engine/crates/rema-api/openapi.json",
+    "openapi:types": "openapi-typescript engine/crates/rema-api/openapi.json --output src/infrastructure/api-client/types.ts",
+    "openapi:check": "bash -c 'tmp=$(mktemp) && cargo run --quiet --manifest-path engine/Cargo.toml -p rema-api --bin dump-openapi > \"$tmp\" && diff -u engine/crates/rema-api/openapi.json \"$tmp\" && rm \"$tmp\"'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -79,6 +82,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^17.4.0",
     "happy-dom": "^20.9.0",
+    "openapi-typescript": "^7.4.4",
     "postcss": "^8.5.9",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
