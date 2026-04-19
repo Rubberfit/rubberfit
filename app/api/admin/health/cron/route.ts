@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { NextRequest, NextResponse } from "next/server"
 import { makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
 import { runHealthCheck } from "@/src/infrastructure/services/healthCheckAdapters"
