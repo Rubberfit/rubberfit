@@ -21,6 +21,7 @@ float-cmp = "0.10"
 itertools = "0.14"
 log = "0.4"
 ordered-float = "5"
+rectangle-pack = "0.4.2"
 
 [dev-dependencies]
 serde_json = { workspace = true }
