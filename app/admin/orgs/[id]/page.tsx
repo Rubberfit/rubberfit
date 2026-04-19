@@ -1,6 +1,8 @@
 import Link from "next/link"
-import { ArrowLeft, BarChart3, Package, Server, Users } from "lucide-react"
+import { ArrowLeft, Activity, BarChart3, Package, Scissors, Server, Users } from "lucide-react"
 
+import { FeaturePageViewsChart } from "../../_components/feature-page-views-chart"
+import { NestingJobsChart } from "../../_components/nesting-jobs-chart"
 import { StatCard } from "../../_components/stat-card"
 
 const USERS = [
@@ -31,6 +33,10 @@ const FEATURE_FLAGS = [
   { label: "Advanced Analytics", enabled: false },
 ]
 
+const STORAGE_USED_GB = 4.2
+const STORAGE_MAX_GB = 20
+const STORAGE_PCT = Math.round((STORAGE_USED_GB / STORAGE_MAX_GB) * 100)
+
 export default function OrgDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -51,12 +57,60 @@ export default function OrgDetailPage() {
         <p className="text-sm text-zinc-400 mt-1">org-001 · Created Jan 4, 2026</p>
       </div>
 
-      {/* Stat row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Users" value="34" icon={Users} />
-        <StatCard label="Active Rolls" value="218" icon={Package} />
-        <StatCard label="API Calls (30d)" value="142k" delta="+18%" deltaPositive icon={BarChart3} />
-        <StatCard label="Storage Used" value="4.2 GB" delta="of 20 GB" icon={Server} />
+      {/* Engagement metrics row */}
+      <div>
+        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Engagement</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Daily Active Users" value="8" delta="of 34 total" icon={Activity} />
+          <StatCard label="Weekly Active Users" value="21" delta="+2 vs last week" deltaPositive icon={Activity} />
+          <StatCard label="Monthly Active Users" value="34" delta="all members" deltaPositive icon={Activity} />
+          {/* Storage card with inline progress bar */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Storage Used</span>
+              <Server className="w-4 h-4 text-zinc-600" />
+            </div>
+            <p className="text-2xl font-bold text-zinc-100">{STORAGE_USED_GB} GB</p>
+            <div className="flex flex-col gap-1">
+              <div className="w-full bg-zinc-800 rounded-full h-1.5">
+                <div
+                  className="bg-violet-600 h-1.5 rounded-full"
+                  style={{ width: `${STORAGE_PCT}%` }}
+                />
+              </div>
+              <span className="text-xs text-zinc-500">{STORAGE_PCT}% of {STORAGE_MAX_GB} GB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Usage metrics row */}
+      <div>
+        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Usage</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Total Users" value="34" icon={Users} />
+          <StatCard label="Active Rolls" value="218" icon={Package} />
+          <StatCard label="Nesting Jobs (30d)" value="312" delta="+18%" deltaPositive icon={BarChart3} />
+          <StatCard label="Total Cuts" value="1,847" delta="+241 this month" deltaPositive icon={Scissors} />
+        </div>
+      </div>
+
+      {/* Usage metrics charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-200">Page Views by Feature</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Last 30 days · from page view tracking</p>
+          </div>
+          <FeaturePageViewsChart />
+        </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-200">Nesting Jobs</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Jobs run per period · from audit_log</p>
+          </div>
+          <NestingJobsChart />
+        </div>
       </div>
 
       {/* Users + Config grid */}
@@ -131,14 +185,6 @@ export default function OrgDetailPage() {
               ))}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Usage timeline */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col gap-3">
-        <h2 className="text-sm font-semibold text-zinc-200">Roll Consumption — Last 30 Days</h2>
-        <div className="h-32 bg-zinc-800 rounded flex items-center justify-center text-zinc-500">
-          <span className="text-xs italic">Area chart — daily roll consumption over 30 days</span>
         </div>
       </div>
 
