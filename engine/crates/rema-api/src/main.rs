@@ -53,16 +53,22 @@ async fn main() -> ExitCode {
     };
     info!(local_addr = ?listener.local_addr().ok(), "listening");
 
-    let router = match std::env::var("SUPABASE_URL") {
-        Ok(url) if !url.trim().is_empty() => {
-            info!(supabase_url = %url, "SUPABASE_URL set — mounting /api/v2 behind JWT middleware");
+    let router = match (
+        std::env::var("SUPABASE_URL"),
+        std::env::var("SUPABASE_PUBLISHABLE_KEY"),
+    ) {
+        (Ok(url), Ok(key)) if !url.trim().is_empty() && !key.trim().is_empty() => {
+            info!(supabase_url = %url, "SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY set — mounting /api/v2 behind JWT middleware");
             let fetcher: Arc<dyn JwksFetcher> = Arc::new(HttpJwksFetcher::new(&url));
             let cache = JwksCache::new(fetcher);
-            let state = Arc::new(AppState::new(cache, url));
+            let state = Arc::new(AppState::with_supabase(cache, url, key));
             build_router_with_state(&cfg, state)
         }
         _ => {
-            warn!("SUPABASE_URL not set — serving public-only router (just /health)");
+            warn!(
+                "SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY not set — serving public-only router \
+                 (just /health)"
+            );
             build_router(&cfg)
         }
     };

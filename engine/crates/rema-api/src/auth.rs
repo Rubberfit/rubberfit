@@ -14,6 +14,8 @@ use axum::{
 };
 use jsonwebtoken::{decode, decode_header, Algorithm, Validation};
 
+use rema_supabase::{PostgrestClient, PostgrestError};
+
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
 
 /// Shared HTTP-layer state — passed into the auth middleware via
@@ -24,17 +26,54 @@ pub struct AppState {
     /// Expected `iss` claim: `<SUPABASE_URL>/auth/v1`. Verified with
     /// an exact match after stripping trailing slashes.
     pub expected_issuer: String,
+    /// Base URL for Supabase REST calls. e.g. `https://project.supabase.co`.
+    pub supabase_url: String,
+    /// Publishable / anon key for the project. Goes onto the `apikey`
+    /// header of every PostgREST call. Does NOT grant privileges on
+    /// its own — RLS enforces scoping via the user JWT.
+    pub supabase_publishable_key: String,
 }
 
 impl AppState {
+    /// Minimal constructor used by most of the tests — supplies a
+    /// placeholder publishable key that's only valid for mocked
+    /// transports. Use `with_supabase` to pass a real key.
     pub fn new(jwks: JwksCache, supabase_url: impl Into<String>) -> Self {
+        Self::with_supabase(jwks, supabase_url, "test-publishable-key")
+    }
+
+    /// Full constructor — callers provide the project's publishable
+    /// key so `user_postgrest` can stamp it on outgoing requests.
+    pub fn with_supabase(
+        jwks: JwksCache,
+        supabase_url: impl Into<String>,
+        supabase_publishable_key: impl Into<String>,
+    ) -> Self {
         let base = supabase_url.into();
         let expected_issuer = format!("{}/auth/v1", base.trim_end_matches('/'));
         Self {
             jwks,
             expected_issuer,
+            supabase_url: base,
+            supabase_publishable_key: supabase_publishable_key.into(),
         }
     }
+}
+
+/// Build a fresh PostgREST client scoped to a single verified user.
+/// This is the canonical path for handlers to talk to Supabase. The
+/// alternative — sharing a long-lived client across requests — would
+/// require the service role key and bypass RLS, which the S3 spec
+/// explicitly disallows.
+pub fn user_postgrest(
+    state: &AppState,
+    auth: &AuthContext,
+) -> Result<PostgrestClient, PostgrestError> {
+    PostgrestClient::new(
+        state.supabase_url.clone(),
+        &state.supabase_publishable_key,
+        &auth.raw_jwt,
+    )
 }
 
 /// Everything the verification step proved true about the caller. Lives

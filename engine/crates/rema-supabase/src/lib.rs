@@ -15,3 +15,7 @@
 //! Concrete repository structs (`SupabaseRollRepository`,
 //! `SupabasePurchaseOrderRepository`, etc.) land as each aggregate
 //! migrates off the TS Supabase client in S3a-S3d.
+
+pub mod postgrest;
+
+pub use postgrest::{PostgrestClient, PostgrestError};
