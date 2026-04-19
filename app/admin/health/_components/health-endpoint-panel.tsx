@@ -1,9 +1,20 @@
 "use client"
 
-import { RefreshCw, Settings, CheckCircle2, AlertTriangle, XCircle, Circle } from "lucide-react"
+import {
+  RefreshCw, Settings, CheckCircle2, AlertTriangle, XCircle, Circle,
+  Database, Globe, HardDrive, KeyRound, ListChecks,
+} from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import { useEndpoints } from "../_hooks/use-endpoints"
-import type { EndpointStatus, Endpoint } from "../_hooks/use-endpoints"
+import type { EndpointStatus, CheckType, Endpoint } from "../_hooks/use-endpoints"
+
+const CHECK_TYPE_ICON: Record<CheckType, React.ElementType> = {
+  db:      Database,
+  auth:    KeyRound,
+  storage: HardDrive,
+  queue:   ListChecks,
+  http:    Globe,
+}
 
  
 // Style maps
@@ -89,6 +100,7 @@ export function HealthEndPoint({ onRunChecks }: HealthEndPointProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {endpoints.map((ep: Endpoint) => {
             const StatusIcon = ENDPOINT_STATUS_ICON[ep.status]
+            const TypeIcon = CHECK_TYPE_ICON[ep.checkType]
             return (
               <div
                 key={ep.id}
@@ -98,7 +110,7 @@ export function HealthEndPoint({ onRunChecks }: HealthEndPointProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center shrink-0">
-                      <span className="text-sm text-zinc-400">{ep.icon}</span>
+                      <TypeIcon className="w-4 h-4 text-zinc-400" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-zinc-200 leading-tight">

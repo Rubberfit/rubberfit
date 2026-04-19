@@ -130,7 +130,7 @@ async function checkStripe(): Promise<CheckResult> {
   }
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<{ message: string } | { error: string }>> {
+export async function POST(request: NextRequest): Promise<NextResponse<{ results: CheckResult[]; checkedAt: string } | { error: string }>> {
   const authClient = makeAuthClient(request)
   if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
 
@@ -156,8 +156,35 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ message
     checkStripe(),
   ])
 
-  // TODO: Persist results to database if health_checks table exists
-  // For now, just return success
+  // Resolve endpoint UUIDs and last-known statuses
+  const serviceNames = results.map(r => r.serviceName)
+  const { data: endpoints, error: epError } = await adminClient.rpc("get_health_endpoint_ids", {
+    p_names: serviceNames,
+  })
+  if (epError) return NextResponse.json({ error: epError.message }, { status: 500 })
 
-  return NextResponse.json({ message: "Health checks completed" })
+  interface EndpointRow { id: string; service_name: string; current_status: string | null }
+  const endpointMap = new Map((endpoints as EndpointRow[]).map(e => [e.service_name, e]))
+
+  const inserts = results
+    .map(r => {
+      const ep = endpointMap.get(r.serviceName)
+      if (!ep) return null
+      return {
+        endpoint_id:   ep.id,
+        status:        r.status,
+        response_ms:   r.responseMs,
+        http_status:   null,
+        detail:        r.detail,
+        is_transition: ep.current_status !== null && ep.current_status !== r.status,
+      }
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+
+  if (inserts.length > 0) {
+    const { error: insertError } = await adminClient.rpc("record_health_checks", { p_checks: inserts })
+    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ results, checkedAt: new Date().toISOString() })
 }

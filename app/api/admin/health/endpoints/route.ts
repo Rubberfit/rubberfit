@@ -1,93 +1,51 @@
 import { NextRequest, NextResponse } from "next/server"
 import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
-// Create interface of the endpoint data structure returned 
-// by the API, and the format expected by the frontend component. 
-// This allows us to transform the raw data from the database into a format 
-// that's easier for the frontend to work with.
+
 interface RawEndpoint {
   id: string
   service_name: string
   description: string
   method: string
-  icon: string
+  check_type: string
   current_status: string | null
   last_checked_at: string | null
   avg_response_ms: number | null
 }
 
-// This is the format that the frontend component will use
 interface EndpointsResponse {
   endpoints: RawEndpoint[]
   fetchedAt: string
 }
 
-// Mock endpoints configuration — in production, fetch from a database table
-// This is hardcoded here for simplicity, but ideally this would be stored in a database table
-const CONFIGURED_ENDPOINTS: RawEndpoint[] = [
-  {
-    id: "supabase-db",
-    service_name: "Supabase DB",
-    description: "SELECT 1 ping via REST",
-    method: "SQL",
-    icon: "🛢",
-    current_status: "operational",
-    last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    avg_response_ms: 6,
-  },
-  {
-    id: "supabase-auth",
-    service_name: "Supabase Auth",
-    description: "Token validation endpoint",
-    method: "POST /auth/v1/token",
-    icon: "🛡️",
-    current_status: "operational",
-    last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    avg_response_ms: 42,
-  },
-  {
-    id: "edge-functions",
-    service_name: "Edge Functions",
-    description: "Invoke health check function",
-    method: "POST /functions/v1/health",
-    icon: "⚡",
-    current_status: "degraded",
-    last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    avg_response_ms: 310,
-  },
-  {
-    id: "frontend",
-    service_name: "Frontend",
-    description: "HTTP 200 on deployed URL",
-    method: "GET /",
-    icon: "🌐",
-    current_status: "operational",
-    last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    avg_response_ms: 88,
-  },
-  {
-    id: "email-resend",
-    service_name: "Email (Resend)",
-    description: "API key validation check",
-    method: "GET /v1/domains",
-    icon: "📧",
-    current_status: "operational",
-    last_checked_at: new Date(Date.now() - 2 * 60_000).toISOString(),
-    avg_response_ms: 134,
-  },
-  {
-    id: "stripe",
-    service_name: "Stripe",
-    description: "API connectivity check",
-    method: "GET /v1/balance",
-    icon: "🔑",
-    current_status: "unknown",
-    last_checked_at: null,
-    avg_response_ms: null,
-  },
-]
-// In a real implementation, the GET handler would fetch the latest status of each endpoint from the database
-export async function GET(request: NextRequest): Promise<NextResponse<EndpointsResponse | { error: string }>> {
-  //basic auth and role check
+interface DbEndpoint {
+  id: string
+  service_name: string
+  description: string
+  method: string
+  tier: string
+  check_type: string
+  is_active: boolean
+  current_status: string | null
+  last_checked_at: string | null
+  avg_response_ms_24h: number | null
+}
+
+function toRawEndpoint(row: DbEndpoint): RawEndpoint {
+  return {
+    id:              row.id,
+    service_name:    row.service_name,
+    description:     row.description,
+    method:          row.method,
+    check_type:      row.check_type,
+    current_status:  row.current_status,
+    last_checked_at: row.last_checked_at,
+    avg_response_ms: row.avg_response_ms_24h !== null ? Math.round(row.avg_response_ms_24h) : null,
+  }
+}
+
+export async function GET(
+  request: NextRequest
+): Promise<NextResponse<EndpointsResponse | { error: string }>> {
   const authClient = makeAuthClient(request)
   if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
 
@@ -97,14 +55,21 @@ export async function GET(request: NextRequest): Promise<NextResponse<EndpointsR
   const adminClient = makeAdminClient()
   if (!adminClient) return NextResponse.json({ error: "Service role key not configured" }, { status: 500 })
 
-  const { data: profile } = await adminClient.from("profiles").select("roles").eq("id", user.id).single()
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("roles")
+    .eq("id", user.id)
+    .single()
   const roles = profile?.roles
   if (!Array.isArray(roles) || !roles.includes("admin")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
-  // End of auth checks
+
+  const { data, error } = await adminClient.rpc("get_health_endpoints_with_status")
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
   return NextResponse.json({
-    endpoints: CONFIGURED_ENDPOINTS,
-    fetchedAt: new Date().toISOString(),
+    endpoints:  ((data as DbEndpoint[]) ?? []).map(toRawEndpoint),
+    fetchedAt:  new Date().toISOString(),
   })
 }
