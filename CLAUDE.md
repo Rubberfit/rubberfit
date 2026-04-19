@@ -43,7 +43,7 @@ src/                        # Domain logic (framework-agnostic)
 │   └── use-cases/          # Business-logic orchestrators (complex ops only)
 ├── entities/               # Domain models and custom errors
 ├── infrastructure/
-│   ├── services/           # Supabase-backed service implementations (+ RustPackingService, LegacyPackingService)
+│   ├── services/           # Supabase-backed service implementations (+ RustPackingService)
 │   ├── repositories/       # Supabase-backed repository implementations
 │   └── supabase/           # Generated types + SQL migrations
 └── interface-adapters/     # Reserved for controllers — currently empty, no server actions yet
@@ -53,7 +53,7 @@ engine/                     # Rust nesting engine (Cargo workspace)
 ├── crates/rf-geom/       # Geometry primitives (MIT, future open-source crate)
 ├── crates/rf-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
 └── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
-nesting/                    # Legacy TS 2D NFP engine — fallback when pack-cli is missing (slated for deletion post-S2)
+nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cut-planner UI for NFP-based shape previews (removal tracked as Task #16, post-Tauri cleanup)
 di/                         # TSyringe dependency injection registration
 config/                     # App-wide constants (APP_CONFIG)
 tests/                      # Vitest TS tests (packing, parity, service boundaries)
@@ -61,14 +61,39 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 
 ### Packing engine
 
-`IPackingService` is the canonical packing interface (`src/application/services/packing.service.interface.ts`). Two implementations are registered through `di/di-registration.ts`, selected at startup:
+`IPackingService` is the canonical packing interface
+(`src/application/services/packing.service.interface.ts`). One
+implementation, `RustPackingService`, is registered through
+`di/di-registration.ts` as the sole binding — no TS fallback:
 
 | Engine | When | Invocation |
 |---|---|---|
-| `RustPackingService` | Default — `engine/target/release/pack-cli` exists and `USE_RUST_ENGINE` is not `"false"` | `child_process.spawn` with JSON stdin/stdout |
-| `LegacyPackingService` | Fallback — binary missing or `USE_RUST_ENGINE=false` | Calls the in-tree TS `nesting/` engine (greedy NFP + GA) |
+| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cut-planner page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
 
-The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) + 2D grid warm-start (Task 19a) + sparrow-style Guided Local Search (Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON progress streaming with AbortSignal cancellation (Tasks 14-16). Rust `placedCount >= legacy` on every parity fixture; per-bin efficiency within 1% (Task 19b strict guard). Density lift 33-100% vs S2 on homogeneous fixtures — see `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`. The legacy engine stays for emergency rollback; deletion scheduled post-S3.
+The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
+2D grid warm-start (Task 19a) + sparrow-style Guided Local Search
+(Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON
+progress streaming with AbortSignal cancellation (Tasks 14-16).
+Benchmarks: `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+
+`LegacyPackingService` was removed after `pack_lbf_lns + polish`
+beat it on every parity fixture at the production Fab Score.
+`USE_RUST_ENGINE=false` is no longer honored; the Rust binary is
+the only path.
+
+### Dev server
+
+`npm run dev` does NOT auto-build the Rust engine (unlike
+`npm run build`, which has a `prebuild` hook). On a fresh clone:
+
+```bash
+npm install
+npm run build:engine    # one-time; ~2 min cold, seconds after
+npm run dev
+```
+
+Without the binary, visiting `/dashboard/cut-planner` surfaces a
+"pack-cli binary not found" error from the DI container.
 
 **Layer rules:**
 
@@ -195,7 +220,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cut Planner** (`app/dashboard/cut-planner/`): 2D nesting via `IPackingService`. Default = Rust `pack-cli` running the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming). Legacy TS genetic algorithm in `nesting/` is the fallback when the binary is missing. Rust strictly dominates legacy on every parity fixture (Task 19b guard enforces `rust.placedCount >= legacy.placedCount`).
+- **Cut Planner** (`app/dashboard/cut-planner/`): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 
