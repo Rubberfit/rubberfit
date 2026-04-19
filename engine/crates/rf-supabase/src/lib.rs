@@ -19,7 +19,9 @@
 pub mod cut_history;
 pub mod material_types;
 pub mod postgrest;
+pub mod suppliers;
 
 pub use cut_history::SupabaseCutHistoryRepository;
 pub use material_types::SupabaseMaterialTypeRepository;
 pub use postgrest::{PostgrestClient, PostgrestError};
+pub use suppliers::SupabaseSupplierRepository;

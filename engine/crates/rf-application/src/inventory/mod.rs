@@ -12,9 +12,15 @@
 //! S3b tasks; the module is added here as each lands.
 
 pub mod material_types;
+pub mod suppliers;
 
 pub use material_types::{
     CreateMaterialTypeUseCase, DeleteMaterialTypeUseCase, GetMaterialTypeUseCase,
     ListMaterialTypesUseCase, MaterialTypePort, MaterialTypeUpdate, NewMaterialType,
     UpdateMaterialTypeUseCase,
+};
+pub use suppliers::{
+    CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase,
+    ListSuppliersUseCase, NewSupplier, SupplierPort, SupplierUpdate,
+    UpdateSupplierUseCase,
 };

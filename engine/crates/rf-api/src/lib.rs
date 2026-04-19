@@ -22,7 +22,10 @@ pub use auth::{
     InventoryPortFactory, SupabaseCutHistoryFactory, SupabaseInventoryFactory,
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
-pub use inventory::{CreateMaterialTypeBody, MaterialTypeDto, UpdateMaterialTypeBody};
+pub use inventory::{
+    CreateMaterialTypeBody, CreateSupplierBody, ListSuppliersQuery, MaterialTypeDto,
+    SupplierDto, UpdateMaterialTypeBody, UpdateSupplierBody,
+};
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
 pub use openapi::ApiDoc;
 pub use router::{build_public_router, build_router, build_router_with_state};

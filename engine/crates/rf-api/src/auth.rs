@@ -16,10 +16,10 @@ use jsonwebtoken::{decode, decode_header, Algorithm, Validation};
 
 use rf_application::cuts::CutHistoryPort;
 use rf_application::error::AppError;
-use rf_application::inventory::MaterialTypePort;
+use rf_application::inventory::{MaterialTypePort, SupplierPort};
 use rf_supabase::{
     PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
-    SupabaseMaterialTypeRepository,
+    SupabaseMaterialTypeRepository, SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -44,6 +44,11 @@ pub trait InventoryPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn MaterialTypePort>, AppError>;
+
+    fn suppliers(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn SupplierPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -87,6 +92,18 @@ impl InventoryPortFactory for SupabaseInventoryFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabaseMaterialTypeRepository::new(client)))
+    }
+
+    fn suppliers(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseSupplierRepository::new(client)))
     }
 }
 

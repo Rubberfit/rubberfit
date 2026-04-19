@@ -400,6 +400,294 @@
         ]
       }
     },
+    "/api/v2/inventory/suppliers": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_suppliers",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "description": "When set, only return suppliers matching the given active flag.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "preferred",
+            "in": "query",
+            "description": "When set, only return suppliers matching the given preferred flag.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "ILIKE search across name / contact_person / email / city.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size. Clamped to 200 server-side.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Zero-based offset.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suppliers, preferred first then alphabetical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_supplier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/suppliers/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Blocked — material_supplier rows reference this supplier"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -452,6 +740,108 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "CreateSupplierBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -657,6 +1047,120 @@
           }
         }
       },
+      "SupplierDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "preferred",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateMaterialTypeBody": {
         "type": "object",
         "description": "Request body for PUT. Every field is optional so the HTTP surface\ncan evolve to PATCH semantics later without breaking callers —\nfor now, the UI always sends a full replacement. Nullable fields\nuse `Option<Option<T>>` via `serde_with`-style manual handling:\n`null` in JSON explicitly clears the column, omitted means leave\nas-is.\n\nTo keep the DTO simple we expose the fields as plain `Option<T>`\nhere. Semantics: present-and-non-null replaces the column,\npresent-and-null is the same as omitting (the UI today never\nneeds to explicitly null a column). If that distinction matters\nlater we'll promote to `Option<Option<T>>` + a custom visitor.",
@@ -682,6 +1186,109 @@
             "format": "double"
           },
           "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateSupplierBody": {
+        "type": "object",
+        "description": "Update body — all fields optional. Single-level `Option<T>` for\nsimplicity; explicit null-ing of columns isn't something the UI\nneeds today. When it does, promote to Option<Option<T>>.",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
             "type": [
               "string",
               "null"

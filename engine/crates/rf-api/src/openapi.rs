@@ -29,7 +29,10 @@ use utoipa::{Modify, OpenApi};
 
 use crate::cuts::CutHistoryDto;
 use crate::health::Health;
-use crate::inventory::{CreateMaterialTypeBody, MaterialTypeDto, UpdateMaterialTypeBody};
+use crate::inventory::{
+    CreateMaterialTypeBody, CreateSupplierBody, MaterialTypeDto, SupplierDto,
+    UpdateMaterialTypeBody, UpdateSupplierBody,
+};
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
 /// Applied once by [`build_doc`] — per-domain `OpenApi` structs
@@ -88,11 +91,19 @@ pub struct CutsDoc;
         crate::inventory::material_types::create_material_type,
         crate::inventory::material_types::update_material_type,
         crate::inventory::material_types::delete_material_type,
+        crate::inventory::suppliers::list_suppliers,
+        crate::inventory::suppliers::get_supplier,
+        crate::inventory::suppliers::create_supplier,
+        crate::inventory::suppliers::update_supplier,
+        crate::inventory::suppliers::delete_supplier,
     ),
     components(schemas(
         MaterialTypeDto,
         CreateMaterialTypeBody,
         UpdateMaterialTypeBody,
+        SupplierDto,
+        CreateSupplierBody,
+        UpdateSupplierBody,
     )),
     tags((name = "inventory", description = "Rolls, material types, suppliers")),
 )]

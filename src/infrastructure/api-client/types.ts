@@ -84,6 +84,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/inventory/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_suppliers"];
+        put?: never;
+        post: operations["create_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/inventory/suppliers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_supplier"];
+        put: operations["update_supplier"];
+        post?: never;
+        delete: operations["delete_supplier"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -117,6 +149,25 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name: string;
+        };
+        CreateSupplierBody: {
+            active?: boolean | null;
+            address?: string | null;
+            city?: string | null;
+            contact_person?: string | null;
+            country?: string | null;
+            email?: string | null;
+            name: string;
+            notes?: string | null;
+            payment_terms?: string | null;
+            phone?: string | null;
+            preferred?: boolean | null;
+            /** Format: double */
+            rating?: number | null;
+            state?: string | null;
+            tax_id?: string | null;
+            website?: string | null;
+            zip_code?: string | null;
         };
         /**
          * @description Response DTO — thin wrapper over the domain entry. Separated from
@@ -183,6 +234,28 @@ export interface components {
             name: string;
             updated_at?: string | null;
         };
+        SupplierDto: {
+            active: boolean;
+            address?: string | null;
+            city?: string | null;
+            contact_person?: string | null;
+            country?: string | null;
+            created_at?: string | null;
+            email?: string | null;
+            id: string;
+            name: string;
+            notes?: string | null;
+            payment_terms?: string | null;
+            phone?: string | null;
+            preferred: boolean;
+            /** Format: double */
+            rating?: number | null;
+            state?: string | null;
+            tax_id?: string | null;
+            updated_at?: string | null;
+            website?: string | null;
+            zip_code?: string | null;
+        };
         /**
          * @description Request body for PUT. Every field is optional so the HTTP surface
          *     can evolve to PATCH semantics later without breaking callers —
@@ -204,6 +277,30 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name?: string | null;
+        };
+        /**
+         * @description Update body — all fields optional. Single-level `Option<T>` for
+         *     simplicity; explicit null-ing of columns isn't something the UI
+         *     needs today. When it does, promote to Option<Option<T>>.
+         */
+        UpdateSupplierBody: {
+            active?: boolean | null;
+            address?: string | null;
+            city?: string | null;
+            contact_person?: string | null;
+            country?: string | null;
+            email?: string | null;
+            name?: string | null;
+            notes?: string | null;
+            payment_terms?: string | null;
+            phone?: string | null;
+            preferred?: boolean | null;
+            /** Format: double */
+            rating?: number | null;
+            state?: string | null;
+            tax_id?: string | null;
+            website?: string | null;
+            zip_code?: string | null;
         };
     };
     responses: never;
@@ -561,6 +658,258 @@ export interface operations {
                 content?: never;
             };
             /** @description Blocked — rolls reference this type (`FK_VIOLATION_ROLLS_EXIST`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_suppliers: {
+        parameters: {
+            query?: {
+                /** @description When set, only return suppliers matching the given active flag. */
+                active?: boolean | null;
+                /** @description When set, only return suppliers matching the given preferred flag. */
+                preferred?: boolean | null;
+                /** @description ILIKE search across name / contact_person / email / city. */
+                q?: string | null;
+                /** @description Page size. Clamped to 200 server-side. */
+                limit?: number | null;
+                /** @description Zero-based offset. */
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suppliers, preferred first then alphabetical */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSupplierBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate name — `DUPLICATE_NAME` code in body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Supplier UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The supplier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Supplier UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSupplierBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate name — `DUPLICATE_NAME` code in body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Downstream infrastructure failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_supplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Supplier UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Row not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blocked — material_supplier rows reference this supplier */
             409: {
                 headers: {
                     [name: string]: unknown;
