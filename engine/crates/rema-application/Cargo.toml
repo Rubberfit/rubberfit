@@ -1,0 +1,12 @@
+[package]
+name = "rema-application"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Application ports + use cases for REMA backend (S3)"
+
+[dependencies]
+rema-domain = { path = "../rema-domain" }
+serde = { workspace = true }
+thiserror = { workspace = true }

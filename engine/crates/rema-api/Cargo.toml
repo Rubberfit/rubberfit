@@ -1,0 +1,20 @@
+[package]
+name = "rema-api"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Axum HTTP API for REMA backend (S3)"
+
+[[bin]]
+name = "rema-api"
+path = "src/main.rs"
+
+[dependencies]
+rema-domain = { path = "../rema-domain" }
+rema-application = { path = "../rema-application" }
+rema-supabase = { path = "../rema-supabase" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }

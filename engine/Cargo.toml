@@ -5,6 +5,15 @@ members = [
     "crates/rema-geom",
     "crates/rema-layout",
     "crates/pack-cli",
+    # S3 — Rust backend service (spec: docs/superpowers/specs/
+    # 2026-04-19-s3-rust-backend-design.md). Split into four layers
+    # per Clean Architecture — domain owns the types, application
+    # defines the Ports, supabase is the infrastructure adapter, api
+    # wires Axum + middleware + OpenAPI on top.
+    "crates/rema-domain",
+    "crates/rema-application",
+    "crates/rema-supabase",
+    "crates/rema-api",
 ]
 
 [workspace.package]
