@@ -263,7 +263,7 @@ mod tests {
     fn instance_indices_are_globally_unique_per_shape() {
         let req = PackRequest {
             bins: vec![bin("b1", 20.0, 20.0), bin("b2", 20.0, 20.0)],
-            clearance: 0.125,
+            clearance: 0.0, // items exactly fill bin width; clearance tested elsewhere
             items: vec![rect_part("rect-a", 8, 20.0, 5.0)],
             operator_profile: None,
             mode: Some(PackMode::Fast),
@@ -289,7 +289,7 @@ mod tests {
     fn overflow_counted_when_bin_too_small() {
         let req = PackRequest {
             bins: vec![bin("b1", 10.0, 10.0)],
-            clearance: 0.125,
+            clearance: 0.0, // items exactly fill bin width; clearance tested elsewhere
             items: vec![rect_part("rect-a", 5, 10.0, 5.0)], // only 2 fit
             operator_profile: None,
             mode: Some(PackMode::Fast),
@@ -366,7 +366,7 @@ mod tests {
                 bin("b1", 20.0, 10.0),
                 bin("b2", 20.0, 10.0),
             ],
-            clearance: 0.125,
+            clearance: 0.0, // items exactly fill bin width; clearance tested elsewhere
             items: vec![rect_part("rect-a", 3, 20.0, 5.0)], // 2 fit on b1, 1 spills to b2
             operator_profile: None,
             mode: Some(PackMode::Fast),
