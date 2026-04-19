@@ -28,7 +28,28 @@ updates so backend and frontend types stay in lockstep.
 
 - `types.ts` — auto-generated from `openapi-typescript`. Do not edit
   by hand. Exports `paths`, `components`, and `operations`.
+- `cut-history.ts` — the first consumer. Exports `listCutHistory` +
+  `listFavoriteIds`. Branches on `NEXT_PUBLIC_USE_RUST_CUT_HISTORY`:
+  - `"true"` — hits the v2 Next.js route handlers at `/api/v2/cuts/*`
+    which forward to Rust via the cookie→bearer bridge.
+  - anything else — hits the legacy `/api/cuts/*` routes that query
+    Supabase directly via the service role.
 
-When we start consuming these types, the client wrapper code lands
-here too (likely as `client.ts` calling `openapi-fetch` with the
-generated `paths` type).
+Callers receive the same `CutHistory[]` shape regardless of which
+backend served the data, so a per-request rollback is a pure flag
+flip — no UI code changes.
+
+## Feature flag
+
+```
+NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true
+```
+
+Set in `.env.local` (dev) or Vercel env (staging/prod). The flag
+is read at call time, so a Vercel env change takes effect on the
+next page render without a redeploy.
+
+Default is OFF until the Fly staging deploy (Task 9.5) validates
+latency + parity against legacy. Rollback path for production: flip
+the flag back to `false` in Vercel and the hook's next call lands
+on the original Supabase path.
