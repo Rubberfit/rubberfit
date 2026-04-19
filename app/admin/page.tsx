@@ -2,6 +2,7 @@ import { Activity, AlertCircle, Building2, Rocket, Users } from "lucide-react"
 
 import { StatCard } from "./_components/stat-card"
 import { SiteHealthSection } from "./_components/site-health-section"
+import { SystemStatusSection } from "./_components/system-status-section"
 
 const RECENT_ACTIVITY = [
   { id: 1, color: "bg-emerald-400", text: "Org Apex Fabrics created", time: "2m ago" },
@@ -9,15 +10,6 @@ const RECENT_ACTIVITY = [
   { id: 3, color: "bg-amber-400", text: "High memory usage on API-02 node", time: "31m ago" },
   { id: 4, color: "bg-violet-400", text: "New user batch imported — NexThread (12 users)", time: "1h ago" },
   { id: 5, color: "bg-zinc-500", text: "Scheduled maintenance window completed", time: "3h ago" },
-]
-
-const SYSTEM_SERVICES = [
-  { name: "API Gateway", status: "Operational", color: "text-emerald-400 bg-emerald-900/40" },
-  { name: "Database (Primary)", status: "Operational", color: "text-emerald-400 bg-emerald-900/40" },
-  { name: "Job Queue", status: "Degraded", color: "text-amber-400 bg-amber-900/40" },
-  { name: "File Storage", status: "Operational", color: "text-emerald-400 bg-emerald-900/40" },
-  { name: "Email Service", status: "Operational", color: "text-emerald-400 bg-emerald-900/40" },
-  { name: "Auth Service", status: "Operational", color: "text-emerald-400 bg-emerald-900/40" },
 ]
 
 export default function AdminHomePage() {
@@ -62,19 +54,7 @@ export default function AdminHomePage() {
         </div>
 
         {/* System Status */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 flex flex-col gap-3">
-          <h2 className="text-sm font-semibold text-zinc-200">System Status</h2>
-          <ul className="flex flex-col gap-2">
-            {SYSTEM_SERVICES.map((svc) => (
-              <li key={svc.name} className="flex items-center justify-between py-1 border-b border-zinc-800/60 last:border-0">
-                <span className="text-sm text-zinc-300">{svc.name}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded ${svc.color}`}>
-                  {svc.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <SystemStatusSection />
       </div>
       {/* Site Health */}
       <SiteHealthSection />
