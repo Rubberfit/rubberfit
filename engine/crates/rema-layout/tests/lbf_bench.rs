@@ -15,7 +15,10 @@
 // production dependency is the obvious next step.
 
 use rema_geom::domain::Point2D;
-use rema_layout::application::{pack, pack_lbf, pack_lbf_with_config, PackLbfConfig};
+use rema_layout::application::{
+    pack, pack_lbf, pack_lbf_lns, pack_lbf_lns_with_config, pack_lbf_with_config,
+    PackLbfConfig, PackLbfLnsConfig,
+};
 use rema_layout::domain::{Bin, BinKind, PackRequest, Part};
 use rema_layout::infrastructure::jagua_adapter::to_jagua_instance;
 use rema_layout::infrastructure::warm_start::{
@@ -168,6 +171,147 @@ fn lbf_vs_bssf_on_production_fixture_no_rotation() {
                 placed as i32 - bssf.placements.len() as i32
             );
         }
+    }
+}
+
+#[test]
+#[ignore]
+fn pack_lbf_lns_vs_pack_lbf_on_production_fixture() {
+    // Phase 2 bench — does the density-changing LNS close the 32 → 33+
+    // gap on single bin?
+    let bin = production_bin();
+    let items = production_items(true);
+    let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
+
+    let request = PackRequest {
+        bins: vec![bin.clone()],
+        clearance: 0.0,
+        items,
+        operator_profile: None,
+        mode: None,
+        time_budget_ms: None,
+        improvement_budget_ms: None,
+        seed: Some(42),
+        units: Default::default(),
+    };
+
+    println!(
+        "\n[LNS bench] {} unique parts, {} total copies, bin {}x{}, rotation=true",
+        request.items.len(),
+        total_copies,
+        bin.width,
+        bin.height
+    );
+
+    // Phase 1 baseline
+    let lbf_start = Instant::now();
+    let lbf_result = pack_lbf(request.clone()).unwrap();
+    let lbf_elapsed = lbf_start.elapsed();
+    println!(
+        "pack_lbf     : placed={}/{}  density={:.2}%  elapsed={:?}",
+        lbf_result.placed_count, total_copies, lbf_result.overall_density * 100.0, lbf_elapsed
+    );
+
+    // Phase 2 default config (10 LNS attempts, 200ms per grow)
+    let lns_start = Instant::now();
+    let lns_result = pack_lbf_lns(request.clone()).unwrap();
+    let lns_elapsed = lns_start.elapsed();
+    println!(
+        "pack_lbf_lns : placed={}/{}  density={:.2}%  elapsed={:?}  delta_vs_lbf=+{}",
+        lns_result.placed_count,
+        total_copies,
+        lns_result.overall_density * 100.0,
+        lns_elapsed,
+        lns_result.placed_count as i32 - lbf_result.placed_count as i32
+    );
+
+    // Phase 2 with higher grow budget
+    let aggressive_cfg = PackLbfLnsConfig {
+        lbf: PackLbfConfig::default(),
+        per_grow_budget_ms: 500,
+        attempts_per_item: 5,
+        max_growth_ops: 20,
+    };
+    let lns2_start = Instant::now();
+    let lns2_result = pack_lbf_lns_with_config(request, aggressive_cfg).unwrap();
+    let lns2_elapsed = lns2_start.elapsed();
+    println!(
+        "pack_lbf_lns aggressive: placed={}/{}  density={:.2}%  elapsed={:?}  delta_vs_lbf=+{}",
+        lns2_result.placed_count,
+        total_copies,
+        lns2_result.overall_density * 100.0,
+        lns2_elapsed,
+        lns2_result.placed_count as i32 - lbf_result.placed_count as i32
+    );
+}
+
+#[test]
+#[ignore]
+fn pack_lbf_two_bin_fab_score_comparison() {
+    // 2-bin fixture: same 37 parts on 2× 78×396 rolls. Measures whether
+    // pack_lbf already beats legacy on the Fab Score gap (current Rust
+    // is 46 vs legacy 52 = -6 points, with 0.01" tail remnant vs 125"
+    // legacy).
+    let bins = vec![
+        production_bin(),
+        Bin {
+            bin_id: "roll-2".into(),
+            ..production_bin()
+        },
+    ];
+    let items = production_items(true);
+    let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
+
+    let request = PackRequest {
+        bins,
+        clearance: 0.0,
+        items,
+        operator_profile: None,
+        mode: None,
+        time_budget_ms: None,
+        improvement_budget_ms: None,
+        seed: Some(42),
+        units: Default::default(),
+    };
+
+    println!(
+        "\n[2-bin bench] {} unique parts, {} total copies, 2× 78×396 rolls, rotation=true",
+        request.items.len(),
+        total_copies
+    );
+
+    let pack_start = Instant::now();
+    let pack_result = pack(request.clone()).unwrap();
+    let pack_elapsed = pack_start.elapsed();
+    println!(
+        "pack()   : placed={}/{}  density={:.2}%  elapsed={:?}",
+        pack_result.placed_count,
+        total_copies,
+        pack_result.overall_density * 100.0,
+        pack_elapsed
+    );
+    for (i, b) in pack_result.per_bin.iter().enumerate() {
+        println!(
+            "  bin #{}: occupied_height={:.2}\"  efficiency={:.2}%",
+            i, b.occupied_height, b.efficiency * 100.0
+        );
+    }
+
+    let lbf_start = Instant::now();
+    let lbf_result = pack_lbf(request).unwrap();
+    let lbf_elapsed = lbf_start.elapsed();
+    println!(
+        "pack_lbf : placed={}/{}  density={:.2}%  elapsed={:?}",
+        lbf_result.placed_count,
+        total_copies,
+        lbf_result.overall_density * 100.0,
+        lbf_elapsed
+    );
+    for (i, b) in lbf_result.per_bin.iter().enumerate() {
+        println!(
+            "  bin #{}: occupied_height={:.2}\"  efficiency={:.2}%",
+            i, b.occupied_height, b.efficiency * 100.0
+        );
     }
 }
 
