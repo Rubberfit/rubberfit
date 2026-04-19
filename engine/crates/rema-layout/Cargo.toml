@@ -26,6 +26,10 @@ bin-packing = { version = "=0.3.0", default-features = false, features = ["two-d
 [dev-dependencies]
 serde_json = { workspace = true }
 criterion = { version = "0.7", default-features = false }
+# LBF reference BPP solver from jagua-rs workspace. Test-only dep so we can
+# empirically measure what jagua-rs's built-in polygon-aware optimizer does
+# on REMA fixtures before deciding whether to adopt it as a production dep.
+lbf = { git = "https://github.com/JeroenGar/jagua-rs", tag = "0.7.1" }
 
 [[bench]]
 name = "parity_benchmark"
