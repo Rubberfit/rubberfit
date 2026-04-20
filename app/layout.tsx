@@ -3,6 +3,7 @@ import "@/di/di-registration"
 import type { ReactNode } from "react"
 
 import type { Metadata } from "next"
+import { Analytics } from "@vercel/analytics/next"
 
 import { Toaster } from "@/app/components/ui/sonner"
 import { APP_CONFIG } from "@/config/app-config"
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             <Toaster />
           </PreferencesStoreProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   )
