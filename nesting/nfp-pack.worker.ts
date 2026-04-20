@@ -18,11 +18,7 @@ import type {
 } from "@/app/dashboard/cut-planner/_components/nesting-visualizer-types"
 import type { NestingInput, NestingPart, NestingResult } from "./types"
 import { NFPSolver } from "./nfp-solver"
-import type {
-  NfpPackRequest,
-  NfpWorkerInbound,
-  NfpWorkerOutbound,
-} from "./nfp-pack-types"
+import type { NfpPackRequest, NfpWorkerInbound, NfpWorkerOutbound } from "./nfp-pack-types"
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 const solver = new NFPSolver()
@@ -106,7 +102,11 @@ async function solveOne(
   specs: SimplePartSpec[],
   request: NfpPackRequest,
   reportProgress: (pct: number, generation?: number, placedSoFar?: number) => void
-): Promise<{ preview: SimplePartPreview; items: PreviewItem[]; placedBySpec: Map<number, number> }> {
+): Promise<{
+  preview: SimplePartPreview
+  items: PreviewItem[]
+  placedBySpec: Map<number, number>
+}> {
   const nestingParts = buildNestingParts(specs, request.fallbackCutWidth, request.fallbackCutHeight)
   const totalQty = nestingParts.reduce((s, p) => s + p.quantity, 0)
   const generations = Math.min(18, Math.max(10, 8 + Math.floor(totalQty / 3)))

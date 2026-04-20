@@ -154,7 +154,8 @@ function placeMixedItemsWithRotations<TMeta>(
 
   // Sort by largest first-variant AABB (stable-enough size ordering).
   items.sort(
-    (a, b) => b.variants[0].width * b.variants[0].height - a.variants[0].width * a.variants[0].height
+    (a, b) =>
+      b.variants[0].width * b.variants[0].height - a.variants[0].width * a.variants[0].height
   )
 
   const placements: MixedPlacement<TMeta>[] = []
@@ -164,7 +165,11 @@ function placeMixedItemsWithRotations<TMeta>(
     for (const variant of item.variants) {
       const pos = findBottomLeftPosition(variant, placements, rollW, rollH)
       if (!pos) continue
-      if (!best || pos.y < best.pos.y - 0.001 || (Math.abs(pos.y - best.pos.y) < 0.001 && pos.x < best.pos.x - 0.001)) {
+      if (
+        !best ||
+        pos.y < best.pos.y - 0.001 ||
+        (Math.abs(pos.y - best.pos.y) < 0.001 && pos.x < best.pos.x - 0.001)
+      ) {
         best = { variant, pos }
       }
     }
@@ -250,4 +255,3 @@ export function packMixedNfp<TMeta>(
   const rotations = findBestRotationsPerSpec(specs, rollW, rollH)
   return placeMixedItemsWithRotations(specs, rotations, rollW, rollH)
 }
-

@@ -41,7 +41,4 @@ export interface GreedyErrorMessage {
   message: string
 }
 
-export type GreedyWorkerOutbound =
-  | GreedyProgressMessage
-  | GreedyDoneMessage
-  | GreedyErrorMessage
+export type GreedyWorkerOutbound = GreedyProgressMessage | GreedyDoneMessage | GreedyErrorMessage
