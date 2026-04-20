@@ -859,7 +859,12 @@ function tryGapFillSheet(
   remainingSpecs: SimplePartSpec[],
   rollW: number,
   rollL: number,
-  stockArea: number
+  stockArea: number,
+  // Global label→originalSpecIndex / partNumber lookups derived from the full
+  // allSpecs list. Ensures gap-filled items recover their tag even when the
+  // parent spec's label hasn't been placed on the current sheet yet.
+  globalLabelToSpecIndex?: Map<string, number>,
+  globalLabelToPartNumber?: Map<string, string>
 ): { preview: SimplePartPreview; remainingSpecs: SimplePartSpec[] } {
   const allFreeRects = [
     ...(sheetPreview.offcutBands ?? []),
@@ -878,6 +883,18 @@ function tryGapFillSheet(
     if (item.specIndex != null && !labelToSpecIndex.has(item.label)) {
       labelToSpecIndex.set(item.label, item.specIndex)
       if (item.partNumber) labelToPartNumber.set(item.label, item.partNumber)
+    }
+  }
+  // Fall back to the global map for specs that haven't appeared on this sheet
+  // (e.g., rectangles pushed below a trapezoid row by the hybrid packer).
+  if (globalLabelToSpecIndex) {
+    for (const [label, idx] of globalLabelToSpecIndex) {
+      if (!labelToSpecIndex.has(label)) labelToSpecIndex.set(label, idx)
+    }
+  }
+  if (globalLabelToPartNumber) {
+    for (const [label, pn] of globalLabelToPartNumber) {
+      if (!labelToPartNumber.has(label)) labelToPartNumber.set(label, pn)
     }
   }
 
@@ -986,6 +1003,22 @@ export function computeMultiSheetPreviews(
   let placed = 0
   let overflowSpecs = allSpecs ? [...allSpecs] : undefined
 
+  // Build a stable label → originalSpecIndex lookup from the full allSpecs list
+  // so tryGapFillSheet can recover `specIndex` for overflow items whose parent
+  // spec hasn't been placed on the current sheet yet. Without this, gap-filled
+  // shapes render their raw dimensions instead of the legend tag.
+  const globalLabelToSpecIndex = new Map<string, number>()
+  const globalLabelToPartNumber = new Map<string, string>()
+  if (allSpecs) {
+    allSpecs.forEach((spec, idx) => {
+      const label = buildPartPreviewItem(spec, 0, 0).label
+      if (!globalLabelToSpecIndex.has(label)) {
+        globalLabelToSpecIndex.set(label, idx)
+        if (spec.partNumber) globalLabelToPartNumber.set(label, spec.partNumber)
+      }
+    })
+  }
+
   while (placed < totalNeeded && sheets.length < maxSheets) {
     const remaining = totalNeeded - placed
     const unitsOnSheet = Math.min(capacityPerSheet, remaining)
@@ -1002,7 +1035,15 @@ export function computeMultiSheetPreviews(
 
     if (isMultiPart && overflowSpecs && overflowSpecs.length > 0) {
       let remainingSpecs = reduceSpecsByPlacedItems(overflowSpecs, sheetPreview.items)
-      const gapResult = tryGapFillSheet(sheetPreview, remainingSpecs, rollW, rollL, stockArea)
+      const gapResult = tryGapFillSheet(
+        sheetPreview,
+        remainingSpecs,
+        rollW,
+        rollL,
+        stockArea,
+        globalLabelToSpecIndex,
+        globalLabelToPartNumber
+      )
       sheetPreview = gapResult.preview
       remainingSpecs = gapResult.remainingSpecs
       overflowSpecs = remainingSpecs

@@ -341,7 +341,7 @@ function SheetSvg({
                 wastePatternId={sWastePat}
                 viewHeight={layout.viewHeight}
                 surfacePxW={layout.surfacePxW}
-                tagLetter={tagMap?.get(String(item.specIndex ?? -1))}
+                tagLetter={tagMap?.get(String(item.specIndex ?? -1)) ?? item.partNumber}
                 zoom={zoom}
                 renderPass={pass}
               />
