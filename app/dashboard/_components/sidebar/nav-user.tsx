@@ -44,7 +44,7 @@ export function NavUser({
   }
 
   const handleAccountClick = () => {
-    router.push("/dashboard/account")
+    router.push("/dashboard/settings/profile")
   }
 
   const handleNotificationsClick = () => {

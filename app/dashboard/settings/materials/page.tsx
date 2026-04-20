@@ -9,6 +9,8 @@ import { materialTypeService } from "@/src/infrastructure/services/materialTypeS
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
+import { PageHeader, PageShell } from "@/app/components/patterns"
+
 import { MaterialConfigList } from "./_components/material-config-list"
 import { MaterialDialogs } from "./_components/material-dialogs"
 
@@ -154,38 +156,34 @@ export default function MaterialSettingsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
-        <div>
-          <h1 className="text-2xl font-bold">Material Settings</h1>
-          <p className="text-muted-foreground">Configure material types and stock thresholds</p>
-        </div>
-        <div className="text-center py-8 text-muted-foreground">Loading materials...</div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Material Settings</h1>
-          <p className="text-muted-foreground">Configure material types and stock thresholds</p>
-        </div>
-        <Button onClick={() => setNewMaterialDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Material Type
-        </Button>
-      </div>
-
-      <MaterialConfigList
-        materials={materials}
-        editedValues={editedValues}
-        onValueChange={handleValueChange}
-        onSave={handleSave}
-        onDeleteClick={(id) => setDeleteMaterialDialog(id)}
+    <PageShell variant="form">
+      <PageHeader
+        crumbs={[
+          { label: "Settings", href: "/dashboard/settings" },
+          { label: "Materials" },
+        ]}
+        title="Material settings"
+        subtitle="Configure material types and stock thresholds."
+        actions={
+          <Button size="sm" onClick={() => setNewMaterialDialog(true)}>
+            <Plus className="size-3.5" />
+            Add material type
+          </Button>
+        }
       />
+
+      {loading ? (
+        <div className="py-8 text-center text-muted-foreground">Loading materials…</div>
+      ) : (
+        <MaterialConfigList
+          materials={materials}
+          editedValues={editedValues}
+          onValueChange={handleValueChange}
+          onSave={handleSave}
+          onDeleteClick={(id) => setDeleteMaterialDialog(id)}
+        />
+      )}
 
       <MaterialDialogs
         newMaterialDialog={newMaterialDialog}
@@ -197,6 +195,6 @@ export default function MaterialSettingsPage() {
         onDeleteMaterialDialogChange={setDeleteMaterialDialog}
         onDeleteMaterial={handleDeleteMaterial}
       />
-    </div>
+    </PageShell>
   )
 }

@@ -5,12 +5,13 @@ import { useState, useRef, useEffect } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { profileService } from "@/src/infrastructure/services/profileService"
+import { PageHeader, PageShell } from "@/app/components/patterns"
 
 import { ProfileCard } from "./_components/profile-card"
 import { SecurityCard } from "./_components/security-card"
 import { AccountInfoCard } from "./_components/account-info-card"
 
-export default function AccountPage() {
+export default function ProfileSettingsPage() {
   const { user, updatePassword } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar ?? "")
@@ -138,16 +139,15 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Account</h1>
-          <p className="text-muted-foreground">
-            Manage your account settings and profile information
-          </p>
-        </div>
-      </div>
+    <PageShell variant="form">
+      <PageHeader
+        crumbs={[
+          { label: "Settings", href: "/dashboard/settings" },
+          { label: "Profile & account" },
+        ]}
+        title="Profile & account"
+        subtitle="Profile, avatar, password, and account metadata."
+      />
 
       <ProfileCard
         user={user}
@@ -168,6 +168,6 @@ export default function AccountPage() {
       />
 
       <AccountInfoCard user={user} />
-    </div>
+    </PageShell>
   )
 }
