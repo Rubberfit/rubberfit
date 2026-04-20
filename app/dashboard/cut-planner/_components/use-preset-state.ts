@@ -28,6 +28,16 @@ import {
   templateFitsStock,
   formatInches,
 } from "./preset-utils"
+import type {
+  SelectionPreset,
+  PresetTemplateSnapshot,
+} from "./selection-presets"
+import {
+  loadSelectionPresets,
+  saveSelectionPresets,
+  findMatchingTemplate,
+  templateFromDims,
+} from "./selection-presets"
 
 /** Mirrors PartCustomDimensions from the infrastructure layer — kept local to
  *  avoid coupling this component file to the database model. */
@@ -41,6 +51,13 @@ interface DimensionSet {
   innerRadius?: number
   outerRadius?: number
   arcDegrees?: number
+}
+
+interface LoadedSelectionEntry {
+  partType: SupportedPartType
+  labels: string[]
+  customDimensions?: DimensionSet[]
+  quantityPerIndex?: number[]
 }
 
 export interface LoadedSelection {
