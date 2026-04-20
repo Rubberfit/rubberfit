@@ -179,14 +179,8 @@ export default function TrendsPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Trends</h1>
-          <p className="text-muted-foreground">
-            Analyze performance trends and identify patterns over time
-          </p>
-        </div>
+      {/* Timeframe filter — tab strip above carries the page identity. */}
+      <div className="flex justify-end">
         <Select value={timeframe} onValueChange={setTimeframe}>
           <SelectTrigger className="w-40">
             <SelectValue />

@@ -55,7 +55,7 @@ export function PricingTrends() {
                   <span>Low-cost materials</span>
                   <span>$1.50 - $3.00</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-muted rounded-full h-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full"
                     style={{
@@ -68,7 +68,7 @@ export function PricingTrends() {
                   <span>Mid-range materials</span>
                   <span>$3.00 - $6.00</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-muted rounded-full h-2">
                   <div
                     className="bg-green-600 h-2 rounded-full"
                     style={{
@@ -81,7 +81,7 @@ export function PricingTrends() {
                   <span>Premium materials</span>
                   <span>$6.00+</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-muted rounded-full h-2">
                   <div
                     className="bg-orange-600 h-2 rounded-full"
                     style={{

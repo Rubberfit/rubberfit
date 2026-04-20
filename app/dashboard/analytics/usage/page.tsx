@@ -150,14 +150,6 @@ export default function MaterialUsagePage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Material Usage</h1>
-        <p className="text-muted-foreground">
-          Track material consumption patterns and utilization efficiency
-        </p>
-      </div>
-
       {/* Summary Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>

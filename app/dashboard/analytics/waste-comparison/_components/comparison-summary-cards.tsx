@@ -20,7 +20,7 @@ export function ComparisonSummaryCards({ comparison }: ComparisonSummaryCardsPro
   const getImprovementColor = (value: number) => {
     if (value > 0) return "text-green-600"
     if (value < 0) return "text-red-600"
-    return "text-gray-600"
+    return "text-muted-foreground"
   }
 
   const getImprovementIcon = (value: number) => {

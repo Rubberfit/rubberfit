@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format, subDays, subWeeks, subMonths, startOfWeek, startOfMonth } from "date-fns"
-import { Download, TrendingDown } from "lucide-react"
+import { Download } from "lucide-react"
 import { toast } from "sonner"
 
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
@@ -206,19 +206,8 @@ export default function WasteAnalysisPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <TrendingDown className="h-6 w-6" />
-            Waste Analysis
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Waste ratio trends derived from recorded cut history
-          </p>
-        </div>
-
-        {/* Controls */}
+      {/* Controls — tab strip carries the page identity. */}
+      <div className="flex justify-end">
         <div className="flex flex-wrap items-center gap-2">
           {showUserSelect && !roleLoading && (
             <Select

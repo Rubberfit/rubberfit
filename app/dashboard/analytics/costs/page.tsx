@@ -212,14 +212,8 @@ export default function CostReportsPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Cost Reports</h1>
-          <p className="text-muted-foreground">
-            Analyze material costs, waste expenses, and spending patterns
-          </p>
-        </div>
+      {/* Period filter — tab strip carries the page identity. */}
+      <div className="flex justify-end">
         <div className="flex items-center gap-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-40">

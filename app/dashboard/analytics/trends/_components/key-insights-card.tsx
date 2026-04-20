@@ -54,7 +54,7 @@ export function KeyInsightsCard({ metrics, formatTrendValue }: KeyInsightsCardPr
         )}
 
         {Math.abs(metrics.cutsChange) < 5 && Math.abs(metrics.wasteChange) < 5 && (
-          <div className="rounded-lg border bg-gray-50 p-4 text-gray-800 dark:bg-gray-950 dark:text-gray-300">
+          <div className="rounded-lg border bg-muted/50 p-4 text-foreground dark:bg-muted/50 dark:text-muted-foreground">
             <h4 className="font-medium">Stable Operations</h4>
             <p className="text-sm mt-1">
               Operations are stable with consistent cutting volume and waste levels. Good

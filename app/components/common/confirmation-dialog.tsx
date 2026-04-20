@@ -73,7 +73,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
             {getIcon()}
             {title}
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-gray-600">{description}</AlertDialogDescription>
+          <AlertDialogDescription className="text-muted-foreground">{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel className="min-h-[44px]">{cancelText}</AlertDialogCancel>

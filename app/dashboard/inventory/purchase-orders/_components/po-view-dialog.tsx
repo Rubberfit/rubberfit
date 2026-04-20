@@ -100,10 +100,10 @@ export function POViewDialog({
                 PO #{selectedPO.po_number}
               </DialogTitle>
               <DialogDescription className="flex items-center gap-2 text-base">
-                <Building2 className="h-4 w-4 text-gray-400" />
+                <Building2 className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium text-[#111827]">{selectedPO.supplier?.name}</span>
                 {selectedPO.supplier?.city && selectedPO.supplier?.state && (
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     -- {selectedPO.supplier.city}, {selectedPO.supplier.state}
                   </span>
                 )}

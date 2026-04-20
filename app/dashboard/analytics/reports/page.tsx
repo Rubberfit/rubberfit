@@ -51,16 +51,6 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Reports</h1>
-          <p className="text-muted-foreground">
-            Generate comprehensive reports for operations, costs, and efficiency analysis
-          </p>
-        </div>
-      </div>
-
       {/* Report Filters */}
       <Card
         className={reportType !== "all" || reportPeriod !== "monthly" ? "border-primary/50" : ""}

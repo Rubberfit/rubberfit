@@ -214,10 +214,6 @@ export default function WasteComparisonPage() {
   if (loading) {
     return (
       <div className="flex flex-col gap-4 md:gap-6">
-        <div>
-          <h1 className="text-2xl font-bold">Waste Reduction Metrics</h1>
-          <p className="text-muted-foreground">Compare waste performance across periods</p>
-        </div>
         <div className="text-center py-12">Loading comparison data...</div>
       </div>
     )
@@ -225,11 +221,7 @@ export default function WasteComparisonPage() {
 
   return (
     <div className="flex flex-col gap-4 md:gap-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Waste Reduction Metrics</h1>
-          <p className="text-muted-foreground">Compare waste performance across periods</p>
-        </div>
+      <div className="flex justify-end">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />
           <DatePickerWithRange

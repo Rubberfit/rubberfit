@@ -40,7 +40,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <Calendar className="h-4 w-4" />
           Order Details
         </CardTitle>
@@ -48,7 +48,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
       <CardContent className="px-5 pb-4">
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
           <div className="space-y-1">
-            <Label className="text-xs text-gray-500">Order Date</Label>
+            <Label className="text-xs text-muted-foreground">Order Date</Label>
             <p className="text-sm font-medium">
               {selectedPO.order_date
                 ? format(new Date(selectedPO.order_date), "MMM dd, yyyy")
@@ -56,7 +56,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
             </p>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-gray-500">Requested Delivery</Label>
+            <Label className="text-xs text-muted-foreground">Requested Delivery</Label>
             <p className="text-sm font-medium">
               {selectedPO.requested_delivery_date
                 ? format(new Date(selectedPO.requested_delivery_date), "MMM dd, yyyy")
@@ -65,18 +65,18 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
           </div>
           {selectedPO.actual_delivery_date && (
             <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Actual Delivery</Label>
+              <Label className="text-xs text-muted-foreground">Actual Delivery</Label>
               <p className="text-sm font-medium text-[#16A34A]">
                 {format(new Date(selectedPO.actual_delivery_date), "MMM dd, yyyy")}
               </p>
             </div>
           )}
           <div className="space-y-1">
-            <Label className="text-xs text-gray-500">Payment Terms</Label>
+            <Label className="text-xs text-muted-foreground">Payment Terms</Label>
             <p className="text-sm font-medium">{selectedPO.payment_terms || "--"}</p>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-gray-500">Status</Label>
+            <Label className="text-xs text-muted-foreground">Status</Label>
             <div>{getStatusBadge(selectedPO.status)}</div>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
                   Approved by {selectedPO.approved_by}
                 </p>
                 {selectedPO.approved_at && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {format(new Date(selectedPO.approved_at), "MMM dd, yyyy 'at' h:mm a")}
                   </p>
                 )}
@@ -121,7 +121,7 @@ export function SupplierContactCard({ selectedPO }: SupplierContactCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <Building2 className="h-4 w-4" />
           Supplier Contact
         </CardTitle>
@@ -130,25 +130,25 @@ export function SupplierContactCard({ selectedPO }: SupplierContactCardProps) {
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
           {selectedPO.supplier?.contact_person && (
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="text-sm font-medium">{selectedPO.supplier.contact_person}</span>
             </div>
           )}
           {selectedPO.supplier?.email && (
             <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="text-sm">{selectedPO.supplier.email}</span>
             </div>
           )}
           {selectedPO.supplier?.phone && (
             <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="text-sm">{selectedPO.supplier.phone}</span>
             </div>
           )}
           {(selectedPO.supplier?.address || selectedPO.supplier?.city) && (
             <div className="flex items-start gap-2 sm:col-span-2">
-              <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+              <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
               <span className="text-sm whitespace-pre-wrap">
                 {[
                   selectedPO.supplier.address,
@@ -181,7 +181,7 @@ export function LineItemsCard({ selectedPO }: LineItemsCardProps) {
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <Package className="h-4 w-4" />
             Line Items
           </CardTitle>
@@ -195,10 +195,10 @@ export function LineItemsCard({ selectedPO }: LineItemsCardProps) {
         {/* Mobile view - Cards */}
         <div className="sm:hidden space-y-3">
           {selectedPO.items?.map((item) => (
-            <Card key={item.id} className="p-4 bg-gray-50 border-gray-200">
+            <Card key={item.id} className="p-4 bg-muted/50 border-border">
               <div className="space-y-2">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs text-gray-500 font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     Item #{item.line_number}
                   </span>
                   <Badge variant="outline" className="font-mono">
@@ -208,11 +208,11 @@ export function LineItemsCard({ selectedPO }: LineItemsCardProps) {
                 <p className="font-medium text-sm">{item.description}</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-gray-500">Qty: </span>
+                    <span className="text-muted-foreground">Qty: </span>
                     <span className="font-mono">{item.quantity_sqft.toLocaleString()} sq ft</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Unit: </span>
+                    <span className="text-muted-foreground">Unit: </span>
                     <span className="font-mono">${item.unit_cost.toFixed(2)}</span>
                   </div>
                 </div>
@@ -226,7 +226,7 @@ export function LineItemsCard({ selectedPO }: LineItemsCardProps) {
           <div className="overflow-hidden rounded-lg border border-[#E5E7EB]">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
+                <TableRow className="bg-muted/50">
                   <TableHead className="w-10 px-3 font-semibold">#</TableHead>
                   <TableHead className="px-3 font-semibold">Description</TableHead>
                   <TableHead className="text-right px-3 w-28 font-semibold">Qty (sq ft)</TableHead>
@@ -277,7 +277,7 @@ export function AddressesCard({ selectedPO }: AddressesCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <MapPin className="h-4 w-4" />
           Addresses
         </CardTitle>
@@ -285,8 +285,8 @@ export function AddressesCard({ selectedPO }: AddressesCardProps) {
       <CardContent className="px-5 pb-4">
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
           {selectedPO.shipping_address && (
-            <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-[#E5E7EB]">
-              <Label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-[#E5E7EB]">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Truck className="h-3.5 w-3.5" />
                 Shipping Address
               </Label>
@@ -296,8 +296,8 @@ export function AddressesCard({ selectedPO }: AddressesCardProps) {
             </div>
           )}
           {selectedPO.billing_address && (
-            <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-[#E5E7EB]">
-              <Label className="text-xs text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-[#E5E7EB]">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5" />
                 Billing Address
               </Label>
@@ -321,7 +321,7 @@ export function OrderSummaryCard({ selectedPO, selectedPOTaxDetails }: OrderSumm
   return (
     <Card className="border-[#E5E7EB]">
       <CardHeader className="pb-3 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <DollarSign className="h-4 w-4" />
           Order Summary
         </CardTitle>
@@ -329,14 +329,14 @@ export function OrderSummaryCard({ selectedPO, selectedPOTaxDetails }: OrderSumm
       <CardContent className="px-5 pb-4">
         <div className="space-y-2.5">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Subtotal</span>
+            <span className="text-muted-foreground">Subtotal</span>
             <span className="font-mono font-medium">${selectedPO.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">
+            <span className="text-muted-foreground">
               Tax
               {selectedPOTaxDetails && (
-                <span className="ml-1 text-xs text-gray-400">
+                <span className="ml-1 text-xs text-muted-foreground">
                   ({taxService.formatTaxRate(selectedPOTaxDetails.taxRate)}
                   {selectedPOTaxDetails.taxLevel === "exempt"
                     ? " - Tax Exempt"
@@ -350,7 +350,7 @@ export function OrderSummaryCard({ selectedPO, selectedPOTaxDetails }: OrderSumm
             <span className="font-mono font-medium">${selectedPO.tax_amount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Shipping</span>
+            <span className="text-muted-foreground">Shipping</span>
             <span className="font-mono font-medium">${selectedPO.shipping_cost.toFixed(2)}</span>
           </div>
           <Separator className="my-1" />
@@ -374,7 +374,7 @@ export function NotesCard({ notes }: NotesCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Notes
         </CardTitle>
