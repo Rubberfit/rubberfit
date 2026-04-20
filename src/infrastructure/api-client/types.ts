@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/po/{id}/receive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["receive_purchase_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/po/{id}/status": {
         parameters: {
             query?: never;
@@ -627,6 +643,38 @@ export interface components {
             /** Format: double */
             unit_cost: number;
             updated_at?: string | null;
+            /** Format: double */
+            width?: number | null;
+        };
+        ReceiveItemBody: {
+            item_id: string;
+            /** Format: double */
+            quantity_received: number;
+            roll_data?: null | components["schemas"]["ReceiveRollDataBody"];
+        };
+        ReceivePurchaseOrderBody: {
+            items: components["schemas"]["ReceiveItemBody"][];
+        };
+        /**
+         * @description Response DTO — JSON representation of `ReceiveReceipt`. Kept
+         *     separate so the HTTP shape can evolve without touching the
+         *     use-case struct.
+         */
+        ReceiveReceiptDto: {
+            completed_at?: string | null;
+            /** Format: int32 */
+            items_received: number;
+            partial: boolean;
+            po_id: string;
+            roll_ids: string[];
+        };
+        ReceiveRollDataBody: {
+            color?: string | null;
+            /** Format: double */
+            length?: number | null;
+            location?: string | null;
+            /** Format: double */
+            thickness?: number | null;
             /** Format: double */
             width?: number | null;
         };
@@ -2297,6 +2345,54 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    receive_purchase_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Purchase order UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceivePurchaseOrderBody"];
+            };
+        };
+        responses: {
+            /** @description Receive flow completed (or partial) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiveReceiptDto"];
+                };
+            };
+            /** @description Validation failed (empty items, bad quantity, etc.) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PO_ALREADY_RECEIVED / PO_NOT_FOUND / PO_ITEM_NOT_FOUND / CHECK_VIOLATION / FK_VIOLATION_PARENT_MISSING */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

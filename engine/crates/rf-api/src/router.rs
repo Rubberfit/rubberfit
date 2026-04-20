@@ -145,6 +145,10 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
             axum::routing::put(procurement::update_purchase_order_status),
         )
         .route(
+            "/po/{id}/receive",
+            axum::routing::post(procurement::receive_purchase_order),
+        )
+        .route(
             "/po/{po_id}/items",
             get(procurement::list_po_items).post(procurement::add_po_item),
         )

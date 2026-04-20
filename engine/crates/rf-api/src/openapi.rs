@@ -38,8 +38,10 @@ use crate::inventory::{
 };
 use crate::procurement::{
     CreatePurchaseOrderBody, CreatePurchaseOrderItemBody, PurchaseOrderDto,
-    PurchaseOrderItemDto, TaxPreviewDto, UpdatePurchaseOrderBody,
-    UpdatePurchaseOrderItemBody, UpdatePurchaseOrderStatusBody,
+    PurchaseOrderItemDto, ReceiveItemBody, ReceivePurchaseOrderBody,
+    ReceiveReceiptDto, ReceiveRollDataBody, TaxPreviewDto,
+    UpdatePurchaseOrderBody, UpdatePurchaseOrderItemBody,
+    UpdatePurchaseOrderStatusBody,
 };
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
@@ -101,6 +103,7 @@ pub struct CutsDoc;
         crate::procurement::purchase_orders::update_purchase_order,
         crate::procurement::purchase_orders::delete_purchase_order,
         crate::procurement::status::update_purchase_order_status,
+        crate::procurement::receive::receive_purchase_order,
         crate::procurement::tax::tax_preview,
         crate::procurement::po_items::list_po_items,
         crate::procurement::po_items::add_po_item,
@@ -113,6 +116,10 @@ pub struct CutsDoc;
         UpdatePurchaseOrderBody,
         UpdatePurchaseOrderStatusBody,
         TaxPreviewDto,
+        ReceivePurchaseOrderBody,
+        ReceiveItemBody,
+        ReceiveRollDataBody,
+        ReceiveReceiptDto,
         PurchaseOrderItemDto,
         CreatePurchaseOrderItemBody,
         UpdatePurchaseOrderItemBody,

@@ -20,14 +20,16 @@ use rf_application::inventory::{
     MaterialSupplierPort, MaterialTypePort, RollPort, SupplierPort,
 };
 use rf_application::notifications::NotificationPort;
-use rf_application::procurement::{PurchaseOrderItemPort, PurchaseOrderPort};
+use rf_application::procurement::{
+    PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort,
+};
 use rf_application::tax::TaxPort;
 use rf_supabase::{
     HttpTaxProxy, PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
     SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
-    SupabasePurchaseOrderRepository, SupabaseRollRepository,
-    SupabaseSupplierRepository,
+    SupabasePurchaseOrderRepository, SupabaseReceiveRepository,
+    SupabaseRollRepository, SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -106,6 +108,14 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn TaxPort>, AppError>;
+
+    /// Receive-flow RPC client (S3c Task 5). The
+    /// `receive_purchase_order` Postgres function owns the
+    /// transaction; this port is a thin forwarder.
+    fn receive(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn ReceivePort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -250,6 +260,18 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         })?;
         let proxy = HttpTaxProxy::new(base.to_string(), auth.raw_jwt.clone())?;
         Ok(Arc::new(proxy))
+    }
+
+    fn receive(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn ReceivePort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseReceiveRepository::new(client)))
     }
 }
 

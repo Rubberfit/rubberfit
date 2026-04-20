@@ -9,6 +9,7 @@
 
 pub mod po_items;
 pub mod purchase_orders;
+pub mod receive;
 pub mod status;
 pub mod tax;
 
@@ -20,6 +21,10 @@ pub use purchase_orders::{
     create_purchase_order, delete_purchase_order, get_purchase_order,
     list_purchase_orders, update_purchase_order, CreatePurchaseOrderBody,
     ListPurchaseOrdersQuery, PurchaseOrderDto, UpdatePurchaseOrderBody,
+};
+pub use receive::{
+    receive_purchase_order, ReceiveItemBody, ReceivePurchaseOrderBody,
+    ReceiveReceiptDto, ReceiveRollDataBody,
 };
 pub use status::{update_purchase_order_status, UpdatePurchaseOrderStatusBody};
 pub use tax::{tax_preview, TaxPreviewDto, TaxPreviewQuery};

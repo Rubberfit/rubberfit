@@ -1712,6 +1712,61 @@
         ]
       }
     },
+    "/api/v2/po/{id}/receive": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "receive_purchase_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceivePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Receive flow completed (or partial)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiveReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (empty items, bad quantity, etc.)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "PO_ALREADY_RECEIVED / PO_NOT_FOUND / PO_ITEM_NOT_FOUND / CHECK_VIOLATION / FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/po/{id}/status": {
       "put": {
         "tags": [
@@ -2976,6 +3031,118 @@
               "string",
               "null"
             ]
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ReceiveItemBody": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "quantity_received"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "quantity_received": {
+            "type": "number",
+            "format": "double"
+          },
+          "roll_data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReceiveRollDataBody"
+              }
+            ]
+          }
+        }
+      },
+      "ReceivePurchaseOrderBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiveItemBody"
+            }
+          }
+        }
+      },
+      "ReceiveReceiptDto": {
+        "type": "object",
+        "description": "Response DTO — JSON representation of `ReceiveReceipt`. Kept\nseparate so the HTTP shape can evolve without touching the\nuse-case struct.",
+        "required": [
+          "po_id",
+          "items_received",
+          "roll_ids",
+          "partial"
+        ],
+        "properties": {
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items_received": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "po_id": {
+            "type": "string"
+          },
+          "roll_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReceiveRollDataBody": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           },
           "width": {
             "type": [
