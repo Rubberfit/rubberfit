@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { rollService } from "@/src/infrastructure/services/rollService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { useRouter } from "next/navigation"
+
+import { PageHeader, PageShell } from "@/app/components/patterns"
 
 import { ImportReviewCard } from "./_components/import-review-card"
 import { ImportUploadCard } from "./_components/import-upload-card"
@@ -208,11 +209,16 @@ export default function CSVImportPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Import Inventory from CSV</h1>
-        <p className="text-muted-foreground">Upload a CSV file to bulk import inventory data</p>
-      </div>
+    <PageShell variant="form">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Import" },
+        ]}
+        title="Import from CSV"
+        subtitle="Upload a CSV to bulk-import rolls. Review parsed data before committing."
+      />
 
       <ImportTemplateCard />
 
@@ -229,6 +235,6 @@ export default function CSVImportPage() {
         importing={importing}
         onImport={importData}
       />
-    </div>
+    </PageShell>
   )
 }
