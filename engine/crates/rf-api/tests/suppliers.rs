@@ -17,7 +17,7 @@ use rf_api::{
     config::{CorsMode, ServerConfig},
     jwks::JwksFetcher,
     AppState, AuthContext, CutHistoryPortFactory, InventoryPortFactory, JwksCache, JwksError,
-    SupabaseCutHistoryFactory,
+    ProcurementPortFactory, SupabaseCutHistoryFactory, SupabaseProcurementFactory,
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
@@ -173,6 +173,13 @@ fn dummy_cut_history_factory() -> Arc<dyn CutHistoryPortFactory> {
     })
 }
 
+fn dummy_procurement_factory() -> Arc<dyn ProcurementPortFactory> {
+    Arc::new(SupabaseProcurementFactory {
+        supabase_url: Arc::from(SUPABASE_URL.to_string()),
+        publishable_key: Arc::from("test-key".to_string()),
+    })
+}
+
 struct TestKeys {
     encoding: EncodingKey,
     jwk: Jwk,
@@ -283,6 +290,7 @@ fn state_with_supplier_port(
         "test-publishable-key",
         dummy_cut_history_factory(),
         inv_factory,
+        dummy_procurement_factory(),
     ))
 }
 

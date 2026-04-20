@@ -36,6 +36,10 @@ use crate::inventory::{
     UpdateMaterialSupplierBody, UpdateMaterialTypeBody, UpdateRollBody,
     UpdateSupplierBody,
 };
+use crate::procurement::{
+    CreatePurchaseOrderBody, CreatePurchaseOrderItemBody, PurchaseOrderDto,
+    PurchaseOrderItemDto, UpdatePurchaseOrderBody, UpdatePurchaseOrderItemBody,
+};
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
 /// Applied once by [`build_doc`] — per-domain `OpenApi` structs
@@ -83,6 +87,37 @@ pub struct MetaDoc;
     tags((name = "cuts", description = "Cut-history + favorites")),
 )]
 pub struct CutsDoc;
+
+/// Procurement surface (S3c). Task 2 adds PO + line-item CRUD; later
+/// tasks add status transitions, tax proxy, receive flow, reorder
+/// rules + suggestions, reorder→PO (3 paths), and CSV import.
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        crate::procurement::purchase_orders::list_purchase_orders,
+        crate::procurement::purchase_orders::get_purchase_order,
+        crate::procurement::purchase_orders::create_purchase_order,
+        crate::procurement::purchase_orders::update_purchase_order,
+        crate::procurement::purchase_orders::delete_purchase_order,
+        crate::procurement::po_items::list_po_items,
+        crate::procurement::po_items::add_po_item,
+        crate::procurement::po_items::update_po_item,
+        crate::procurement::po_items::delete_po_item,
+    ),
+    components(schemas(
+        PurchaseOrderDto,
+        CreatePurchaseOrderBody,
+        UpdatePurchaseOrderBody,
+        PurchaseOrderItemDto,
+        CreatePurchaseOrderItemBody,
+        UpdatePurchaseOrderItemBody,
+    )),
+    tags((
+        name = "procurement",
+        description = "Purchase orders, reorder rules + suggestions, CSV import"
+    )),
+)]
+pub struct ProcurementDoc;
 
 /// Inventory surface (S3b). Material types land in Task 2;
 /// suppliers, material-supplier links, and rolls join in Tasks 3-6.
@@ -143,6 +178,7 @@ pub fn build_doc() -> utoipa::openapi::OpenApi {
     let mut doc = MetaDoc::openapi();
     doc.merge(CutsDoc::openapi());
     doc.merge(InventoryDoc::openapi());
+    doc.merge(ProcurementDoc::openapi());
 
     // utoipa's `.merge` preserves the destination's `info`, which
     // comes from MetaDoc. Override it here so the merged document
@@ -213,6 +249,23 @@ mod tests {
     }
 
     #[test]
+    fn merged_spec_lists_procurement_routes() {
+        let doc = build_doc();
+        let paths = doc.paths.paths.keys().collect::<Vec<_>>();
+        for expected in [
+            "/api/v2/po",
+            "/api/v2/po/{id}",
+            "/api/v2/po/{po_id}/items",
+            "/api/v2/po/{po_id}/items/{item_id}",
+        ] {
+            assert!(
+                paths.iter().any(|p| p.as_str() == expected),
+                "expected {expected} in procurement surface — got {paths:?}"
+            );
+        }
+    }
+
+    #[test]
     fn merged_spec_lists_health_route() {
         let doc = build_doc();
         assert!(
@@ -257,6 +310,7 @@ mod tests {
         assert!(tag_names.contains(&"meta"), "tags: {tag_names:?}");
         assert!(tag_names.contains(&"cuts"), "tags: {tag_names:?}");
         assert!(tag_names.contains(&"inventory"), "tags: {tag_names:?}");
+        assert!(tag_names.contains(&"procurement"), "tags: {tag_names:?}");
     }
 
     #[test]

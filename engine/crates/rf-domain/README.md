@@ -31,7 +31,12 @@ framework or I/O dependencies — this crate compiles against
 
 ## Current state
 
-Empty scaffold. Aggregates populate as S3 tasks land.
+- `cut` — cut_history + favorites (S3a).
+- `inventory` — rolls, material types, suppliers,
+  material↔supplier junction (S3b).
+- `procurement` — purchase orders, PO items, reorder rules,
+  reorder suggestions, CSV import row + PO status / urgency
+  enums (S3c Task 1).
 
 See `docs/superpowers/specs/2026-04-19-s3-rust-backend-design.md` for
 the architectural context and the per-slice migration order.

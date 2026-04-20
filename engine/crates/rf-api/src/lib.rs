@@ -15,11 +15,13 @@ pub mod health;
 pub mod inventory;
 pub mod jwks;
 pub mod openapi;
+pub mod procurement;
 pub mod router;
 
 pub use auth::{
     require_auth, user_postgrest, AppState, AuthContext, AuthError, CutHistoryPortFactory,
-    InventoryPortFactory, SupabaseCutHistoryFactory, SupabaseInventoryFactory,
+    InventoryPortFactory, ProcurementPortFactory, SupabaseCutHistoryFactory,
+    SupabaseInventoryFactory, SupabaseProcurementFactory,
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
 pub use inventory::{

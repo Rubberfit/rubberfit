@@ -36,7 +36,7 @@ export function buildRfClient(baseUrl: string = ""): RfClient {
   // this client picks the change up on the next call.
   return createClient<paths>({
     baseUrl,
-    fetch: (input, init) => globalThis.fetch(input, init),
+    fetch: (input: Request) => globalThis.fetch(input),
   })
 }
 

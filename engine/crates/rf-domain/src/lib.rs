@@ -12,14 +12,21 @@
 //! Aggregates land here one at a time as each vertical slice ships.
 //! Task 5 added the Cut aggregate (cut_history row + favorites).
 //! S3b adds the inventory aggregates (rolls, material types,
-//! suppliers, and the material↔supplier junction). PurchaseOrder
-//! and the reorder aggregate arrive in S3c.
+//! suppliers, and the material↔supplier junction). S3c adds the
+//! procurement aggregates (purchase orders, purchase-order items,
+//! reorder rules, reorder suggestions, CSV import row).
 
 pub mod cut;
 pub mod inventory;
+pub mod procurement;
 
 pub use cut::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};
 pub use inventory::{
     MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Roll, RollFilters,
     RollId, RollStatus, Supplier, SupplierFilters, SupplierId,
+};
+pub use procurement::{
+    CsvImportRow, PurchaseOrder, PurchaseOrderFilters, PurchaseOrderId, PurchaseOrderItem,
+    PurchaseOrderItemId, PurchaseOrderStatus, ReorderRule, ReorderRuleId, ReorderSuggestion,
+    Urgency,
 };

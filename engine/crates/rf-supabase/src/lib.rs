@@ -19,13 +19,17 @@
 pub mod cut_history;
 pub mod material_suppliers;
 pub mod material_types;
+pub mod po_items;
 pub mod postgrest;
+pub mod purchase_orders;
 pub mod rolls;
 pub mod suppliers;
 
 pub use cut_history::SupabaseCutHistoryRepository;
 pub use material_suppliers::SupabaseMaterialSupplierRepository;
 pub use material_types::SupabaseMaterialTypeRepository;
+pub use po_items::SupabasePurchaseOrderItemRepository;
 pub use postgrest::{PostgrestClient, PostgrestError};
+pub use purchase_orders::SupabasePurchaseOrderRepository;
 pub use rolls::SupabaseRollRepository;
 pub use suppliers::SupabaseSupplierRepository;

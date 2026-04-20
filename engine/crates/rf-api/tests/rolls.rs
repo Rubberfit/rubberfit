@@ -22,7 +22,7 @@ use rf_api::{
     config::{CorsMode, ServerConfig},
     jwks::JwksFetcher,
     AppState, AuthContext, CutHistoryPortFactory, InventoryPortFactory, JwksCache, JwksError,
-    SupabaseCutHistoryFactory,
+    ProcurementPortFactory, SupabaseCutHistoryFactory, SupabaseProcurementFactory,
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
@@ -223,6 +223,17 @@ fn dummy_cut_history_factory() -> Arc<dyn CutHistoryPortFactory> {
     })
 }
 
+fn dummy_procurement_factory() -> Arc<dyn ProcurementPortFactory> {
+    // Roll tests never hit procurement routes — this factory is only
+    // required to satisfy the AppState constructor. A production
+    // factory pointed at the test URL is fine because nothing
+    // downstream invokes it.
+    Arc::new(SupabaseProcurementFactory {
+        supabase_url: Arc::from(SUPABASE_URL.to_string()),
+        publishable_key: Arc::from("test-key".to_string()),
+    })
+}
+
 struct TestKeys {
     encoding: EncodingKey,
     jwk: Jwk,
@@ -334,6 +345,7 @@ fn state(
         "test-publishable-key",
         dummy_cut_history_factory(),
         inv_factory,
+        dummy_procurement_factory(),
     ))
 }
 

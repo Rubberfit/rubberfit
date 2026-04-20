@@ -23,6 +23,7 @@ use crate::cuts;
 use crate::health;
 use crate::inventory;
 use crate::openapi;
+use crate::procurement;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
 
@@ -118,6 +119,28 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
             get(inventory::get_roll)
                 .put(inventory::update_roll)
                 .delete(inventory::delete_roll),
+        )
+        // Procurement — S3c. PO CRUD + line items in Task 2; status,
+        // receive flow, tax preview, reorder, CSV import follow.
+        .route(
+            "/po",
+            get(procurement::list_purchase_orders)
+                .post(procurement::create_purchase_order),
+        )
+        .route(
+            "/po/{id}",
+            get(procurement::get_purchase_order)
+                .put(procurement::update_purchase_order)
+                .delete(procurement::delete_purchase_order),
+        )
+        .route(
+            "/po/{po_id}/items",
+            get(procurement::list_po_items).post(procurement::add_po_item),
+        )
+        .route(
+            "/po/{po_id}/items/{item_id}",
+            axum::routing::put(procurement::update_po_item)
+                .delete(procurement::delete_po_item),
         )
         .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
         .with_state(state);

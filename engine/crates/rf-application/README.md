@@ -33,4 +33,12 @@ use-case orchestration code that coordinates them.
 
 ## Current state
 
-Empty scaffold. Ports + use cases populate as S3 tasks land.
+- `cuts` — `CutHistoryPort` + list/get/favorites use cases (S3a).
+- `inventory` — material types, suppliers, material↔supplier junction,
+  rolls (CRUD + filters + stats) (S3b).
+- `notifications` — `NotificationPort` trait for procurement-driven
+  side effects (approve / receive / reorder-created) (S3c Task 1).
+- `tax` — `TaxPort` trait; S3c proxies to the TS tax service, S3d
+  will port the logic directly (S3c Task 1).
+- `procurement` — module scaffold; purchase-order, reorder, and
+  CSV-import ports + use cases land in S3c Tasks 2–8.

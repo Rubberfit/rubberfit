@@ -19,9 +19,11 @@ use rf_application::error::AppError;
 use rf_application::inventory::{
     MaterialSupplierPort, MaterialTypePort, RollPort, SupplierPort,
 };
+use rf_application::procurement::{PurchaseOrderItemPort, PurchaseOrderPort};
 use rf_supabase::{
     PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
+    SupabasePurchaseOrderItemRepository, SupabasePurchaseOrderRepository,
     SupabaseRollRepository, SupabaseSupplierRepository,
 };
 
@@ -62,6 +64,25 @@ pub trait InventoryPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn RollPort>, AppError>;
+}
+
+/// Factory for procurement ports (S3c). Grouping PurchaseOrder +
+/// PurchaseOrderItem (and the later reorder / CSV-import ports) keeps
+/// `AppState` from sprouting one field per aggregate — same ergonomic
+/// choice as `InventoryPortFactory`.
+///
+/// Each call builds a fresh PostgrestClient scoped to the caller's
+/// JWT so RLS stays per-request.
+pub trait ProcurementPortFactory: Send + Sync {
+    fn purchase_orders(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn PurchaseOrderPort>, AppError>;
+
+    fn po_items(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -144,6 +165,40 @@ impl InventoryPortFactory for SupabaseInventoryFactory {
     }
 }
 
+/// Production procurement factory. Same per-request client pattern
+/// as the inventory factory.
+#[derive(Clone)]
+pub struct SupabaseProcurementFactory {
+    pub supabase_url: Arc<str>,
+    pub publishable_key: Arc<str>,
+}
+
+impl ProcurementPortFactory for SupabaseProcurementFactory {
+    fn purchase_orders(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn PurchaseOrderPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabasePurchaseOrderRepository::new(client)))
+    }
+
+    fn po_items(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabasePurchaseOrderItemRepository::new(client)))
+    }
+}
+
 fn build_client(
     supabase_url: &str,
     publishable_key: &str,
@@ -175,6 +230,10 @@ pub struct AppState {
     /// keeps the aggregate-count from blowing up new fields as
     /// S3b expands.
     pub inventory_factory: Arc<dyn InventoryPortFactory>,
+    /// Factory for procurement ports — purchase orders + line items
+    /// in S3c Task 2; reorder + CSV import join as later S3c tasks
+    /// land. Same aggregate-grouping rationale as `inventory_factory`.
+    pub procurement_factory: Arc<dyn ProcurementPortFactory>,
 }
 
 impl AppState {
@@ -205,17 +264,23 @@ impl AppState {
                 supabase_url: Arc::from(base.clone()),
                 publishable_key: Arc::from(key.clone()),
             });
+        let procurement_factory: Arc<dyn ProcurementPortFactory> =
+            Arc::new(SupabaseProcurementFactory {
+                supabase_url: Arc::from(base.clone()),
+                publishable_key: Arc::from(key.clone()),
+            });
         Self::with_factories(
             jwks,
             base,
             key,
             cut_history_factory,
             inventory_factory,
+            procurement_factory,
         )
     }
 
     /// Test-oriented constructor that lets tests inject fakes for
-    /// both factories. Existing S3a callers that only need to swap
+    /// all three factories. Existing S3a callers that only need to swap
     /// the cut-history factory use [`Self::with_cut_history_factory`].
     pub fn with_factories(
         jwks: JwksCache,
@@ -223,6 +288,7 @@ impl AppState {
         supabase_publishable_key: impl Into<String>,
         cut_history_factory: Arc<dyn CutHistoryPortFactory>,
         inventory_factory: Arc<dyn InventoryPortFactory>,
+        procurement_factory: Arc<dyn ProcurementPortFactory>,
     ) -> Self {
         let base = supabase_url.into();
         let expected_issuer = format!("{}/auth/v1", base.trim_end_matches('/'));
@@ -233,13 +299,14 @@ impl AppState {
             supabase_publishable_key: supabase_publishable_key.into(),
             cut_history_factory,
             inventory_factory,
+            procurement_factory,
         }
     }
 
     /// S3a-era back-compat constructor — only overrides the cut-history
-    /// factory; the inventory factory stays the production Supabase
-    /// impl. Keeps the existing cut-history integration tests working
-    /// without a cross-cutting refactor.
+    /// factory; the inventory + procurement factories stay the
+    /// production Supabase impls. Keeps the existing cut-history
+    /// integration tests working without a cross-cutting refactor.
     pub fn with_cut_history_factory(
         jwks: JwksCache,
         supabase_url: impl Into<String>,
@@ -253,7 +320,19 @@ impl AppState {
                 supabase_url: Arc::from(base.clone()),
                 publishable_key: Arc::from(key.clone()),
             });
-        Self::with_factories(jwks, base, key, cut_history_factory, inventory_factory)
+        let procurement_factory: Arc<dyn ProcurementPortFactory> =
+            Arc::new(SupabaseProcurementFactory {
+                supabase_url: Arc::from(base.clone()),
+                publishable_key: Arc::from(key.clone()),
+            });
+        Self::with_factories(
+            jwks,
+            base,
+            key,
+            cut_history_factory,
+            inventory_factory,
+            procurement_factory,
+        )
     }
 }
 

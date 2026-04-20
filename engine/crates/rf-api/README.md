@@ -35,6 +35,11 @@ resolving concrete repositories (`rf-supabase`) per request.
 
 S3a shipped (`s3a-foundation` tag) — cut-history.
 S3b shipped (`s3b-inventory` tag) — inventory aggregates.
+S3c in progress — procurement (POs + reorder + CSV import).
+Task 1 lands the domain scaffold, `NotificationPort` + `TaxPort`
+traits, the `procurement` tag on the merged OpenAPI doc, and a
+migration that ports `generate_po_number()` to a per-year
+`SEQUENCE` plus empty-shell RPCs for Tasks 5 and 7.
 
 ### S3a surface
 

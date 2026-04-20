@@ -244,6 +244,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/po": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_purchase_orders"];
+        put?: never;
+        post: operations["create_purchase_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/po/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_purchase_order"];
+        put: operations["update_purchase_order"];
+        post?: never;
+        delete: operations["delete_purchase_order"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/po/{po_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_po_items"];
+        put?: never;
+        post: operations["add_po_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/po/{po_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["update_po_item"];
+        post?: never;
+        delete: operations["delete_po_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -293,6 +357,40 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name: string;
+        };
+        /** @description Body for POST. `status` defaults to `draft` server-side if omitted. */
+        CreatePurchaseOrderBody: {
+            auto_generated?: boolean | null;
+            billing_address?: string | null;
+            created_by?: string | null;
+            notes?: string | null;
+            order_date?: string | null;
+            payment_terms?: string | null;
+            reorder_rule_id?: string | null;
+            requested_delivery_date?: string | null;
+            shipping_address?: string | null;
+            /** Format: double */
+            shipping_cost?: number | null;
+            status?: string | null;
+            supplier_id: string;
+            /** Format: double */
+            tax_amount?: number | null;
+        };
+        CreatePurchaseOrderItemBody: {
+            color?: string | null;
+            description: string;
+            /** Format: double */
+            length?: number | null;
+            material_type_id: string;
+            notes?: string | null;
+            /** Format: double */
+            quantity_sqft: number;
+            /** Format: double */
+            thickness?: number | null;
+            /** Format: double */
+            unit_cost: number;
+            /** Format: double */
+            width?: number | null;
         };
         /**
          * @description Create body. Caller sends `material_type_id`; the server looks
@@ -441,6 +539,65 @@ export interface components {
             name: string;
             updated_at?: string | null;
         };
+        /**
+         * @description Response DTO — mirrors the domain struct. Separate so the HTTP
+         *     surface can diverge from the domain without a domain change.
+         */
+        PurchaseOrderDto: {
+            actual_delivery_date?: string | null;
+            approved_at?: string | null;
+            approved_by?: string | null;
+            auto_generated: boolean;
+            billing_address?: string | null;
+            created_at?: string | null;
+            created_by?: string | null;
+            id: string;
+            notes?: string | null;
+            order_date?: string | null;
+            payment_terms?: string | null;
+            po_number: string;
+            reorder_rule_id?: string | null;
+            requested_delivery_date?: string | null;
+            shipping_address?: string | null;
+            /** Format: double */
+            shipping_cost: number;
+            status: string;
+            /** Format: double */
+            subtotal: number;
+            supplier_id: string;
+            /** Format: double */
+            tax_amount: number;
+            /** Format: double */
+            total_amount: number;
+            updated_at?: string | null;
+        };
+        PurchaseOrderItemDto: {
+            color?: string | null;
+            created_at?: string | null;
+            description: string;
+            id: string;
+            /** Format: double */
+            length?: number | null;
+            /** Format: int32 */
+            line_number: number;
+            /** Format: double */
+            line_total: number;
+            material_type_id: string;
+            notes?: string | null;
+            purchase_order_id: string;
+            /** Format: double */
+            quantity_received: number;
+            /** Format: double */
+            quantity_sqft: number;
+            received_date?: string | null;
+            /** Format: double */
+            thickness?: number | null;
+            /** Format: double */
+            unit_cost: number;
+            updated_at?: string | null;
+            /** Format: double */
+            width?: number | null;
+        };
         RollDto: {
             color?: string | null;
             /** Format: double */
@@ -521,6 +678,40 @@ export interface components {
             /** Format: double */
             min_stock_alert?: number | null;
             name?: string | null;
+        };
+        /**
+         * @description Body for PUT — status is NOT on this type. Status changes go
+         *     through `PUT /api/v2/po/{id}/status` (Task 3), which enforces the
+         *     state machine + blocks `received` from the generic path.
+         */
+        UpdatePurchaseOrderBody: {
+            billing_address?: string | null;
+            notes?: string | null;
+            order_date?: string | null;
+            payment_terms?: string | null;
+            requested_delivery_date?: string | null;
+            shipping_address?: string | null;
+            /** Format: double */
+            shipping_cost?: number | null;
+            supplier_id?: string | null;
+            /** Format: double */
+            tax_amount?: number | null;
+        };
+        UpdatePurchaseOrderItemBody: {
+            color?: string | null;
+            description?: string | null;
+            /** Format: double */
+            length?: number | null;
+            material_type_id?: string | null;
+            notes?: string | null;
+            /** Format: double */
+            quantity_sqft?: number | null;
+            /** Format: double */
+            thickness?: number | null;
+            /** Format: double */
+            unit_cost?: number | null;
+            /** Format: double */
+            width?: number | null;
         };
         UpdateRollBody: {
             color?: string | null;
@@ -1796,6 +1987,377 @@ export interface operations {
             };
             /** @description Downstream infrastructure failure */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_purchase_orders: {
+        parameters: {
+            query?: {
+                status?: string;
+                supplier_id?: string;
+                auto_generated?: boolean;
+                q?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All POs matching filters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_purchase_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePurchaseOrderBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict (FK / duplicate / check violation) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_purchase_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Purchase order UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PO */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_purchase_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Purchase order UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePurchaseOrderBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict (FK / check violation) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_purchase_order: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Purchase order UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_po_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent PO UUID */
+                po_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All items for the PO */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderItemDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    add_po_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent PO UUID */
+                po_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePurchaseOrderItemBody"];
+            };
+        };
+        responses: {
+            /** @description Line item added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderItemDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict — `LINE_NUMBER_RACE` or FK violation */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_po_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent PO UUID */
+                po_id: string;
+                /** @description Line item UUID */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePurchaseOrderItemBody"];
+            };
+        };
+        responses: {
+            /** @description Line item updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderItemDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_po_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent PO UUID */
+                po_id: string;
+                /** @description Line item UUID */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
