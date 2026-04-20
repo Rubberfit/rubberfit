@@ -1,5 +1,6 @@
+/* eslint-disable max-lines -- this file owns per-shape routing + mixed-NFP candidate assembly */
 // Preview dispatch functions — multi-part layout and single-part routing
-// Split from nesting-shape-previews-advanced.ts to keep files under 500 lines
+// Split from nesting-shape-previews-advanced.ts
 
 import type {
   MultiSheetResult,
@@ -34,7 +35,12 @@ import {
 } from "./nesting-shape-previews-advanced"
 import type { PreviewItem } from "./nesting-visualizer-types"
 import { packMixedNfp, type MixedPackResult, type MixedSpec } from "@/nesting/mixed-nfp-placer"
-import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
+import {
+  circleToPolygon,
+  rectToPolygon,
+  sectorToPolygon,
+  trapezoidToPolygon,
+} from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
 
 interface PackingCandidate {
@@ -91,8 +97,8 @@ function evaluatePackingCandidate(
 const MIN_TRAPEZOID_STEP = 2
 
 /**
- * Build the unrotated base polygon for a cone or trapezoid spec.
- * Returns null for any spec type that mixed-NFP doesn't handle.
+ * Build the unrotated base polygon for a spec. Every shape type has a polygon
+ * representation so mixed-NFP can pack heterogeneous batches uniformly.
  */
 function basePolygonForSpec(
   spec: SimplePartSpec,
@@ -111,7 +117,19 @@ function basePolygonForSpec(
     const height = spec.height ?? fallbackHeight
     return trapezoidToPolygon(topWidth, bottomWidth, height)
   }
-  return null
+  if (spec.partType === "cylinder") {
+    const diameter = spec.diameter ?? fallbackWidth
+    const height = spec.height ?? fallbackHeight
+    return rectToPolygon(Math.PI * diameter, height)
+  }
+  if (spec.partType === "circle") {
+    const diameter = spec.diameter ?? fallbackWidth
+    return circleToPolygon(diameter)
+  }
+  // rectangle (and any future additions)
+  const width = spec.width ?? fallbackWidth
+  const length = spec.length ?? fallbackHeight
+  return rectToPolygon(width, length)
 }
 
 type MixedSpecMeta = PreviewItem & { usedArea: number }
@@ -181,10 +199,7 @@ function mixedResultToCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = placedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -264,12 +279,7 @@ function packOtherSpecsForHybrid(
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(
-      otherSpecs,
-      fallbackWidth,
-      fallbackHeight,
-      originalIndices
-    )
+    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = packMixedNfp(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -315,10 +325,7 @@ function buildHybridCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = combinedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -374,10 +381,7 @@ function tryTrapezoidHybridCandidate(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce(
-    (m, item) => Math.max(m, item.y + item.height),
-    0
-  )
+  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = packOtherSpecsForHybrid(
@@ -585,21 +589,20 @@ export function generateMultiPartPreview(
       return item
     })
   )
-  // Mixed-NFP applies when every spec is cone/trapezoid AND at least one is a
-  // cone. Pure trapezoid keeps using packInterleavedTrapezoids (its specialized
-  // interlocking is denser than generic NFP). Pure cone or cone+trapezoid mixes
-  // get NFP rotation per spec and global collision-checked placement.
-  const allConeOrTrapezoid = simpleParts.every(
-    (s) => s.partType === "cone" || s.partType === "trapezoid"
-  )
-  const hasCone = simpleParts.some((s) => s.partType === "cone")
+  // Every multi-spec batch runs through per-spec NFP rotation + global
+  // bottom-left placement. `basePolygonForSpec` returns a polygon for every
+  // shape type, so mixed-NFP now handles rectangles and circles alongside
+  // cones and trapezoids. Goal: densest possible packing, at the cost of
+  // runtime for large batches.
   const hasTrapezoid = simpleParts.some((s) => s.partType === "trapezoid")
   const hasNonTrapezoid = simpleParts.some((s) => s.partType !== "trapezoid")
-  // Trapezoid hybrid takes precedence when trapezoids are mixed with any
-  // other shape — pure NFP placement loses the interlocked flip pattern.
+  // Trapezoid hybrid still fires when trapezoids are mixed with any other
+  // shape — its interleaved layout is denser than generic NFP for pure-trap
+  // runs and can beat mixed-NFP when trapezoids dominate. The selection logic
+  // below picks whichever candidate places more items.
   const useTrapezoidHybrid =
     !skipNfpPacking && simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
-  const useMixedNfp = !skipNfpPacking && simpleParts.length > 1 && allConeOrTrapezoid && hasCone
+  const useMixedNfp = !skipNfpPacking && simpleParts.length > 1
 
   // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
   // both and pick whichever places more items so a partial hybrid (e.g. cone
@@ -791,7 +794,6 @@ export function generateSimplePartPreview(
 
   return tagSingleSpecPreview(preview, simplePart)
 }
-
 
 // ── Multi-sheet overflow generation ─────────────────────────────────────────
 
