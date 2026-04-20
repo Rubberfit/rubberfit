@@ -4,6 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks"
 import nextPlugin from "@next/eslint-plugin-next"
 import unusedImports from "eslint-plugin-unused-imports"
 import eslintConfigPrettier from "eslint-config-prettier"
+import globals from "globals"
 
 export default tseslint.config(
   {
@@ -51,6 +52,27 @@ export default tseslint.config(
       "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
       "max-lines-per-function": ["warn", { max: 200, skipBlankLines: true, skipComments: true }],
       complexity: ["warn", 20],
+    },
+  },
+  {
+    // Node.js automation scripts (GitHub Actions, Husky hooks, build tooling).
+    // These run under Node, not the browser, and don't need app-code limits.
+    files: [
+      ".github/scripts/**/*.mjs",
+      ".github/scripts/**/*.js",
+      "scripts/**/*.mjs",
+      "next.config.mjs",
+      "next.config.js",
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      "max-lines": "off",
+      "max-lines-per-function": "off",
+      complexity: "off",
     },
   },
   eslintConfigPrettier

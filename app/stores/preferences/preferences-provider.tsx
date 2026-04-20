@@ -4,21 +4,18 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 
 import { type StoreApi, useStore } from "zustand"
 
-import { type FontKey, fontRegistry } from "@/app/lib/fonts/registry"
 import {
   CONTENT_LAYOUT_VALUES,
   NAVBAR_STYLE_VALUES,
   SIDEBAR_COLLAPSIBLE_VALUES,
   SIDEBAR_VARIANT_VALUES,
 } from "@/app/lib/preferences/layout-config"
-import { THEME_MODE_VALUES, THEME_PRESET_VALUES } from "@/app/lib/preferences/theme"
+import { THEME_MODE_VALUES } from "@/app/lib/preferences/theme"
 import { applyThemeMode, subscribeToSystemTheme } from "@/app/lib/preferences/theme-utils"
 
 import { createPreferencesStore, type PreferencesState } from "./preferences-store"
 
 const PreferencesStoreContext = createContext<StoreApi<PreferencesState> | null>(null)
-
-const FONT_VALUES = Object.keys(fontRegistry) as FontKey[]
 
 function getSafeValue<T extends string>(raw: string | null, allowed: readonly T[]): T | undefined {
   if (!raw) return undefined
@@ -34,8 +31,6 @@ function readDomState(): Partial<PreferencesState> {
   return {
     themeMode: themeModeAttr ?? resolvedMode,
     resolvedThemeMode: resolvedMode,
-    themePreset: getSafeValue(root.getAttribute("data-theme-preset"), THEME_PRESET_VALUES),
-    font: getSafeValue(root.getAttribute("data-font"), FONT_VALUES),
     contentLayout: getSafeValue(root.getAttribute("data-content-layout"), CONTENT_LAYOUT_VALUES),
     navbarStyle: getSafeValue(root.getAttribute("data-navbar-style"), NAVBAR_STYLE_VALUES),
     sidebarVariant: getSafeValue(root.getAttribute("data-sidebar-variant"), SIDEBAR_VARIANT_VALUES),
@@ -49,23 +44,17 @@ function readDomState(): Partial<PreferencesState> {
 export const PreferencesStoreProvider = ({
   children,
   themeMode,
-  themePreset,
-  font,
   contentLayout,
   navbarStyle,
 }: {
   children: React.ReactNode
   themeMode: PreferencesState["themeMode"]
-  themePreset: PreferencesState["themePreset"]
-  font: PreferencesState["font"]
   contentLayout: PreferencesState["contentLayout"]
   navbarStyle: PreferencesState["navbarStyle"]
 }) => {
   const [store] = useState<StoreApi<PreferencesState>>(() =>
     createPreferencesStore({
       themeMode,
-      themePreset,
-      font,
       contentLayout,
       navbarStyle,
     })

@@ -1,21 +1,37 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Theme preset styles: these override CSS variables based on the selected data-theme-preset */
-@import "./styles/presets/brutalist.css";
-@import "./styles/presets/soft-pop.css";
-@import "./styles/presets/tangerine.css";
-
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Design tokens — single source of truth.
+ *
+ * Three layers:
+ *   1. `@theme inline` — Tailwind v4 tokens. Exposed as utility
+ *      classes (bg-background, text-muted-foreground, etc.).
+ *      Each aliases a CSS variable below.
+ *   2. `:root` — the CSS variables. Every role is oklch so the
+ *      dark-mode sibling in `.dark` stays perceptually consistent.
+ *   3. `.dark` — overrides for dark theme. Every `:root` token
+ *      must have a `.dark` sibling.
+ *
+ * Rule: app code references semantic roles only. No raw hex, no
+ * raw gray palette. If you need a new role, add it here first.
+ *
+ * Per-tenant branding (S5/S6) will override a subset of these
+ * vars at the `<html data-tenant="...">` scope.
+ */
+
 @theme inline {
+  /* Radii */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Surfaces / text / borders (shadcn baseline) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -32,13 +48,41 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Status — each carries fg / bg / border as a triple */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  /* Charts — categorical 1..5 + semantic */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-positive: var(--success);
+  --color-chart-negative: var(--danger);
+  --color-chart-warning: var(--warning);
+  --color-chart-muted: var(--muted-foreground);
+
+  /* Sidebar */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -47,12 +91,31 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Interactive state modifiers — applied via color-mix where needed */
+  --color-hover-overlay: var(--hover-overlay);
+  --color-active-overlay: var(--active-overlay);
+  --color-selected-bg: var(--selected-bg);
+  --color-focus-ring: var(--ring);
+  --color-disabled-fg: var(--disabled-fg);
+  --color-disabled-bg: var(--disabled-bg);
+
+  /* Elevation — flat default, shadow reserved for floating materials */
+  --shadow-flat: 0 0 0 0 transparent;
+  --shadow-raised: 0 1px 2px 0 oklch(0 0 0 / 0.04), 0 1px 1px 0 oklch(0 0 0 / 0.03);
+  --shadow-floating: 0 8px 24px -6px oklch(0 0 0 / 0.10), 0 4px 8px -2px oklch(0 0 0 / 0.06);
+  --shadow-overlay: 0 24px 48px -12px oklch(0 0 0 / 0.18), 0 8px 16px -4px oklch(0 0 0 / 0.10);
 }
 
-/* Default theme styles (used when no data-theme-preset is set or when 'default' is selected).
-These serve as the fallback; there is no separate default.css file. */
+/* Light theme tokens */
 :root {
   --radius: 0.625rem;
+
+  /* Fonts */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Core surfaces / text / borders */
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -69,13 +132,22 @@ These serve as the fallback; there is no separate default.css file. */
   --accent-foreground: oklch(0.45 0.31 265);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
+  --border-subtle: oklch(0.955 0.003 286.32);
+  --border-strong: oklch(0.78 0.005 286.32);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.45 0.31 265);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+
+  /* Charts — 5 perceptually-uniform categorical hues for stacks,
+     groupings, legends. Picked to stay distinct from status tokens
+     (success/warning/danger) so thresholded columns don't collide
+     with categorical columns. */
+  --chart-1: oklch(0.58 0.22 260); /* blue */
+  --chart-2: oklch(0.62 0.18 160); /* emerald */
+  --chart-3: oklch(0.74 0.16 75);  /* amber */
+  --chart-4: oklch(0.6 0.21 20);   /* rose */
+  --chart-5: oklch(0.56 0.2 295);  /* violet */
+
+  /* Sidebar */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.45 0.31 265);
@@ -85,64 +157,61 @@ These serve as the fallback; there is no separate default.css file. */
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* fonts */
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-geist-mono);
+  /* Status — semantic triples (fg text / bg tint / border accent) */
+  --success: oklch(0.58 0.16 148);
+  --success-foreground: oklch(0.34 0.11 148);
+  --success-bg: oklch(0.96 0.03 148);
+  --success-border: oklch(0.72 0.14 148);
 
-  --color-text-success: #22c55e;
-  --color-text-danger: #ef4444;
-  --color-text-warning: #f59e0b;
+  --warning: oklch(0.74 0.16 75);
+  --warning-foreground: oklch(0.42 0.13 75);
+  --warning-bg: oklch(0.96 0.04 75);
+  --warning-border: oklch(0.78 0.14 75);
 
-  --color-background-success: rgba(34, 197, 94, 0.1);
-  --color-background-danger: rgba(239, 68, 68, 0.1);
+  --danger: oklch(0.58 0.22 25);
+  --danger-foreground: oklch(0.40 0.18 25);
+  --danger-bg: oklch(0.96 0.03 25);
+  --danger-border: oklch(0.72 0.17 25);
 
-  --color-border-success: #22c55e;
-  --color-border-danger: #ef4444;
+  --info: oklch(0.58 0.18 230);
+  --info-foreground: oklch(0.38 0.14 230);
+  --info-bg: oklch(0.96 0.03 230);
+  --info-border: oklch(0.72 0.14 230);
 
-  --color-text-primary: rgb(104, 104, 105);
-  --color-text-secondary: #0e0e11;
-  --color-text-tertiary: #6b7280;
+  /* Interactive state modifiers */
+  --hover-overlay: oklch(0 0 0 / 0.04);
+  --active-overlay: oklch(0 0 0 / 0.08);
+  --selected-bg: oklch(0.96 0.01 265);
+  --disabled-fg: oklch(0.72 0.01 286);
+  --disabled-bg: oklch(0.97 0.002 286);
 
-  --color-background: #ffffff;
-  --color-background-secondary: #ffffff;
-
-  --color-border: #334155;
-  --color-border-tertiary: #4e484833;
-
-  --svg-bg: #ffffff;
+  /*
+   * Legacy token aliases — cut-planner visualization components
+   * (nesting-viz-rect-panel, nesting-viz-controls,
+   * nesting-strategy-panel) still reference these names. S4 Task 8
+   * rewrites the Cutting Engine and deletes these aliases.
+   * Do not add new consumers; use the canonical tokens above.
+   */
+  --color-text-success: var(--success-foreground);
+  --color-text-danger: var(--danger-foreground);
+  --color-text-warning: var(--warning-foreground);
+  --color-text-info: var(--info-foreground);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+  --color-background-success: var(--success-bg);
+  --color-background-danger: var(--danger-bg);
+  --color-background-secondary: var(--muted);
+  --color-border-success: var(--success-border);
+  --color-border-danger: var(--danger-border);
+  --color-border-info: var(--info-border);
+  --color-border-primary: var(--border-strong);
+  --color-border-secondary: var(--border);
+  --color-border-tertiary: var(--border-subtle);
+  --svg-bg: var(--card);
 }
 
-/* Ensure toast text is visible - force black/white text */
-[data-sonner-toast] {
-  background: white !important;
-  border: 1px solid #e5e7eb !important;
-}
-
-[data-sonner-toast] [data-description] {
-  color: #6b7280 !important;
-  opacity: 1 !important;
-}
-
-[data-sonner-toast] [data-title] {
-  color: #111827 !important;
-  font-weight: 600 !important;
-}
-
-.dark [data-sonner-toast] {
-  background: #1f2937 !important;
-  border: 1px solid #374151 !important;
-}
-
-.dark [data-sonner-toast] [data-description] {
-  color: #9ca3af !important;
-  opacity: 1 !important;
-}
-
-.dark [data-sonner-toast] [data-title] {
-  color: #f3f4f6 !important;
-  font-weight: 600 !important;
-}
-
+/* Dark theme tokens */
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
@@ -150,7 +219,7 @@ These serve as the fallback; there is no separate default.css file. */
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.45 0.31 265);
+  --primary: oklch(0.55 0.29 265);
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
@@ -160,13 +229,19 @@ These serve as the fallback; there is no separate default.css file. */
   --accent-foreground: oklch(0.95 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
+  --border-subtle: oklch(1 0 0 / 6%);
+  --border-strong: oklch(1 0 0 / 20%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.55 0.29 265);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+
+  /* Charts — dark-mode variants slightly brighter so bars read
+     against the dark surface. */
+  --chart-1: oklch(0.68 0.2 260); /* blue */
+  --chart-2: oklch(0.72 0.17 160); /* emerald */
+  --chart-3: oklch(0.82 0.15 75);  /* amber */
+  --chart-4: oklch(0.7 0.2 20);    /* rose */
+  --chart-5: oklch(0.66 0.19 295); /* violet */
+
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.55 0.29 265);
@@ -175,29 +250,51 @@ These serve as the fallback; there is no separate default.css file. */
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.439 0 0);
-  --color-background-success: rgba(34, 197, 94, 0.1);
-  --color-background-danger: rgba(239, 68, 68, 0.1);
 
-  --color-border-success: #22c55e;
-  --color-border-danger: #ef4444;
+  --success: oklch(0.68 0.16 148);
+  --success-foreground: oklch(0.88 0.08 148);
+  --success-bg: oklch(0.22 0.05 148);
+  --success-border: oklch(0.48 0.14 148);
 
-  --color-text-primary: #ececf0cc;
-  --color-text-secondary: #fafafa;
-  --color-text-tertiary: #fafafa;
-  --color-background: #3b3b3b;
-  --color-background-secondary: #222225;
+  --warning: oklch(0.82 0.16 75);
+  --warning-foreground: oklch(0.92 0.08 75);
+  --warning-bg: oklch(0.26 0.07 75);
+  --warning-border: oklch(0.55 0.14 75);
 
-  --svg-bg: #18181b;
+  --danger: oklch(0.70 0.20 25);
+  --danger-foreground: oklch(0.90 0.10 25);
+  --danger-bg: oklch(0.26 0.08 25);
+  --danger-border: oklch(0.50 0.17 25);
 
-  --btn-bg: #222225;
+  --info: oklch(0.68 0.17 230);
+  --info-foreground: oklch(0.88 0.09 230);
+  --info-bg: oklch(0.22 0.06 230);
+  --info-border: oklch(0.46 0.14 230);
 
-  --btn-text: #ffff;
-  --btn-border: #4b5563;
-  --btn-hover-border: #cbd5f5;
+  --hover-overlay: oklch(1 0 0 / 0.06);
+  --active-overlay: oklch(1 0 0 / 0.10);
+  --selected-bg: oklch(0.30 0.05 265);
+  --disabled-fg: oklch(0.50 0.01 286);
+  --disabled-bg: oklch(0.22 0.004 286);
 
-  --btn-active-bg: #eff6ff;
-  --btn-active-border: #3b82f6;
-  --btn-active-text: #1e3a8a;
+  /* Legacy aliases (see :root for rationale; deleted in Task 8). */
+  --color-text-success: var(--success-foreground);
+  --color-text-danger: var(--danger-foreground);
+  --color-text-warning: var(--warning-foreground);
+  --color-text-info: var(--info-foreground);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-tertiary: var(--muted-foreground);
+  --color-background-success: var(--success-bg);
+  --color-background-danger: var(--danger-bg);
+  --color-background-secondary: var(--muted);
+  --color-border-success: var(--success-border);
+  --color-border-danger: var(--danger-border);
+  --color-border-info: var(--info-border);
+  --color-border-primary: var(--border-strong);
+  --color-border-secondary: var(--border);
+  --color-border-tertiary: var(--border-subtle);
+  --svg-bg: var(--card);
 }
 
 @layer base {
@@ -209,76 +306,11 @@ These serve as the fallback; there is no separate default.css file. */
     @apply bg-background text-foreground;
     font-family: var(--font-sans), system-ui, sans-serif;
   }
-}
 
-@layer utilities {
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-2xs {
-    box-shadow: var(--shadow-2xs);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-xs {
-    box-shadow: var(--shadow-xs);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-sm {
-    box-shadow: var(--shadow-sm);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow {
-    box-shadow: var(--shadow);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-md {
-    box-shadow: var(--shadow-md);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-lg {
-    box-shadow: var(--shadow-lg);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-xl {
-    box-shadow: var(--shadow-xl);
-  }
-
-  [data-theme-preset]:not([data-theme-preset="default"]) .shadow-2xl {
-    box-shadow: var(--shadow-2xl);
-  }
-
-  html[data-font="inter"] body {
-    --font-sans: var(--font-inter);
-  }
-  html[data-font="roboto"] body {
-    --font-sans: var(--font-roboto);
-  }
-  html[data-font="poppins"] body {
-    --font-sans: var(--font-poppins);
-  }
-  html[data-font="geist"] body {
-    --font-sans: var(--font-geist);
-  }
-  html[data-font="geistMono"] body {
-    --font-sans: var(--font-geist-mono);
-  }
-  html[data-font="jakarta"] body {
-    --font-sans: var(--font-jakarta);
-  }
-  html[data-font="nunito"] body {
-    --font-sans: var(--font-nunito);
-  }
-  html[data-font="gabriela"] body {
-    --font-sans: var(--font-gabriela);
-  }
-  html[data-font="outfit"] body {
-    --font-sans: var(--font-outfit);
-  }
-  html[data-font="manrope"] body {
-    --font-sans: var(--font-manrope);
-  }
-  html[data-font="dmSans"] body {
-    --font-sans: var(--font-dm-sans);
-  }
-  html[data-font="greatVibes"] body {
-    --font-sans: var(--font-great-vibes);
+  /* Tabular-number utility for KPIs, table cells, time estimates */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
 

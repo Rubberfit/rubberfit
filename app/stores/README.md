@@ -143,20 +143,17 @@ updateMaterialPrice: async (materialSupplierId, newPrice, reason?, changedBy?) =
 
 ## preferences/
 
-- **preferences-store.ts** -- Zustand vanilla store for user preferences (theme, font, sidebar layout, content width)
+- **preferences-store.ts** -- Zustand vanilla store for user preferences (theme mode, sidebar layout, content width). Fonts are frozen on Geist + Geist Mono (see `app/layout.tsx`); theme presets were removed in S4. Per-tenant branding overrides ship later.
 
 ```typescript
 export type PreferencesState = {
   themeMode: ThemeMode
   resolvedThemeMode: ResolvedThemeMode
-  themePreset: ThemePreset
-  font: FontKey
   contentLayout: ContentLayout
   navbarStyle: NavbarStyle
   sidebarVariant: SidebarVariant
   sidebarCollapsible: SidebarCollapsible
   setThemeMode: (mode: ThemeMode) => void
-  setFont: (font: FontKey) => void
   // ... setters for each preference
   isSynced: boolean
 }
@@ -166,7 +163,6 @@ export const createPreferencesStore = (init?: Partial<PreferencesState>) =>
     themeMode: init?.themeMode ?? PREFERENCE_DEFAULTS.theme_mode,
     // ... defaults from PREFERENCE_DEFAULTS
     setThemeMode: (mode) => set({ themeMode: mode }),
-    setFont: (font) => set({ font }),
     // ...
   }))
 ```
@@ -175,9 +171,9 @@ export const createPreferencesStore = (init?: Partial<PreferencesState>) =>
 
 ```typescript
 // Provider — wraps children with Zustand store context
-export const PreferencesStoreProvider = ({ children, themeMode, themePreset, font, contentLayout, navbarStyle }: Props) => {
-  const [store] = useState(() => createPreferencesStore({ themeMode, themePreset, font, contentLayout, navbarStyle }))
-  // On mount: reads DOM attributes (data-theme-mode, data-font, etc.) and syncs to store
+export const PreferencesStoreProvider = ({ children, themeMode, contentLayout, navbarStyle }: Props) => {
+  const [store] = useState(() => createPreferencesStore({ themeMode, contentLayout, navbarStyle }))
+  // On mount: reads DOM attributes (data-theme-mode, etc.) and syncs to store
   // Subscribes to system theme changes when themeMode === "system"
   return <PreferencesStoreContext.Provider value={store}>{children}</PreferencesStoreContext.Provider>
 }
