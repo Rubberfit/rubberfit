@@ -171,10 +171,13 @@ export const purchaseOrders = {
   ): Promise<PurchaseOrderDto> {
     if (!useRustBackend()) {
       // Legacy `updatePurchaseOrderStatus(id, status, approvedBy?, notes?)`
-      // silently accepts `received` — the Rust path rejects it with
-      // RECEIVED_REQUIRES_RECEIVE_FLOW. Keep the legacy shim
-      // unguarded so flag-OFF preserves the existing UI behavior
-      // until Task 11a cuts over.
+      // enforces its own isValidStatusTransition ladder, allowing
+      // `ordered → received` but rejecting other → received. That
+      // mismatches the Rust-side terminal-via-receive-only
+      // invariant (rejects EVERY → received through this path),
+      // so flag-OFF can succeed where flag-ON throws
+      // RECEIVED_REQUIRES_RECEIVE_FLOW. Acceptable trade-off for
+      // the cutover window — flag-ON is the new truth.
       const row = await legacyPos.updatePurchaseOrderStatus(
         id,
         // Legacy takes a narrow union type; cast at the boundary
@@ -368,9 +371,15 @@ export const reorderRules = {
     include_pending?: boolean
   }): Promise<ReorderSuggestionDto[]> {
     if (!useRustBackend()) {
-      const rows = await legacyReorder.generateReorderSuggestions(
-        params?.include_pending
-      )
+      // Do NOT forward `include_pending` to legacy —
+      // `generateReorderSuggestions(includeInactive)` takes a
+      // parameter with a completely different meaning ("include
+      // inactive MATERIALS", not "include rules already covered
+      // by a non-draft PO"). Legacy's pending-suppression happens
+      // internally inside `IReorderService.generateReorderSuggestions`.
+      // Passing true here would silently widen the result set to
+      // disabled materials, breaking parity.
+      const rows = await legacyReorder.generateReorderSuggestions()
       return rows as unknown as ReorderSuggestionDto[]
     }
     const res = await rfClient.GET("/api/v2/reorder-rules/suggestions", {
@@ -476,10 +485,29 @@ export const importRolls = {
       body: file,
     })
     if (!res.ok) {
+      // Match the `unwrap` contract the rest of the SDK uses:
+      // populate `err.code` from the JSON body when the server
+      // returned a structured conflict code, so UI code can
+      // discriminate consistently (`err.code === "CHECK_VIOLATION"`
+      // etc.) regardless of which SDK method threw.
       const text = await res.text()
-      throw new Error(
-        `${res.status} ${res.statusText || "request failed"}: ${text}`
-      )
+      let code: string | undefined
+      try {
+        const parsed = JSON.parse(text) as { code?: string }
+        if (parsed && typeof parsed === "object" && typeof parsed.code === "string") {
+          code = parsed.code
+        }
+      } catch {
+        // Non-JSON body — fall through without .code.
+      }
+      const message = code ?? `${res.status} ${res.statusText || "request failed"}`
+      const err = new Error(message) as Error & {
+        code?: string
+        status: number
+      }
+      if (code) err.code = code
+      err.status = res.status
+      throw err
     }
     return (await res.json()) as ImportReceiptDto
   },

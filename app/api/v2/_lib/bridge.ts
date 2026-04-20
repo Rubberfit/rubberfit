@@ -136,12 +136,31 @@ export async function forwardToRust(
 
   let upstream: Response
   try {
+    // Forward the request's content-type verbatim when there IS a
+    // body. S3c's CSV import route submits `text/csv`; hardcoding
+    // `application/json` would silently mis-label the payload and
+    // break any Rust handler that branches on the header. We also
+    // forward `accept` so clients can negotiate `text/csv` /
+    // `application/json` responses too. For bodies without an
+    // incoming content-type, fall back to `application/json` —
+    // matches the original S3a default.
+    const forwardedHeaders: Record<string, string> = {
+      authorization: `Bearer ${token}`,
+    }
+    if (body !== undefined) {
+      const incomingContentType = request.headers.get("content-type")
+      forwardedHeaders["content-type"] =
+        incomingContentType && incomingContentType.trim() !== ""
+          ? incomingContentType
+          : "application/json"
+    }
+    const incomingAccept = request.headers.get("accept")
+    if (incomingAccept && incomingAccept.trim() !== "") {
+      forwardedHeaders["accept"] = incomingAccept
+    }
     upstream = await fetch(upstreamUrl, {
       method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      },
+      headers: forwardedHeaders,
       body,
       // Per-route feature flags + retries belong here later; S3a keeps
       // the wiring minimal so the cutover diff is small.

@@ -6,7 +6,7 @@ import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
 import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { toast } from "sonner"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
@@ -30,10 +30,9 @@ export default function PurchaseOrdersPage() {
       open: true,
       action: async () => {
         try {
-          const result = await purchaseOrderService.updatePurchaseOrderStatus(
-            poItem.id,
-            "cancelled"
-          )
+          const result = await purchaseOrdersSdk.updateStatus(poItem.id, {
+            status: "cancelled",
+          })
           if (result) {
             toast.success("Purchase order cancelled")
             po.fetchData()
@@ -41,7 +40,16 @@ export default function PurchaseOrdersPage() {
             toast.error("Failed to cancel purchase order")
           }
         } catch (error) {
+          const err = error as Error & { code?: string }
           console.error("Error canceling PO:", error)
+          // INVALID_STATE_TRANSITION surfaces when the PO is already
+          // in a terminal state (received). Keep the error specific
+          // rather than a generic "failed" — the user often clicks
+          // cancel on a stale list; the toast tells them why.
+          if (err.code === "INVALID_STATE_TRANSITION") {
+            toast.error("This purchase order can't be cancelled from its current state.")
+            return
+          }
           toast.error("Failed to cancel purchase order")
         }
       },
