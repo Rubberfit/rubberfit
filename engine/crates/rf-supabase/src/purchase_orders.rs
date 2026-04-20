@@ -260,6 +260,109 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
         }
     }
 
+    async fn update_status(
+        &self,
+        id: &PurchaseOrderId,
+        target: PurchaseOrderStatus,
+        approved_by: Option<&str>,
+    ) -> Result<Option<PurchaseOrder>, AppError> {
+        // Stamp the side-column fields alongside `status` in a
+        // single round-trip so the DB's valid_approval CHECK
+        // constraint (which requires approved_by + approved_at to
+        // move together with status='approved') sees a consistent
+        // row.
+        let mut body = Map::new();
+        body.insert("status".into(), Value::String(target.as_str().into()));
+        match target {
+            PurchaseOrderStatus::Approved => {
+                // approved_by is a VARCHAR(100) column; use case
+                // threads the caller's user id from the JWT.
+                body.insert(
+                    "approved_by".into(),
+                    approved_by
+                        .map(|s| Value::String(s.to_string()))
+                        .unwrap_or(Value::Null),
+                );
+                // `now()` on the DB side would be nicer, but that
+                // requires an RPC — PostgREST PATCH can't inject
+                // a computed value. Client clock is acceptable
+                // here because approved_at is narrative, not an
+                // ordering invariant; the UNIQUE PK + RLS scoping
+                // cover the real correctness story.
+                body.insert(
+                    "approved_at".into(),
+                    Value::String(now_iso()),
+                );
+            }
+            PurchaseOrderStatus::Ordered => {
+                // Stamp order_date only if not already set. A
+                // re-transition through `ordered` (e.g.
+                // approved → ordered → cancelled → draft →
+                // pending → approved → ordered) would otherwise
+                // silently rewrite the date the PO was first
+                // placed. Fetch the current row once, check, then
+                // patch.
+                let id_filter = format!("eq.{}", id.0);
+                let current_query = [
+                    ("select", "order_date"),
+                    ("id", id_filter.as_str()),
+                    ("limit", "1"),
+                ];
+                #[derive(serde::Deserialize)]
+                struct DateOnly {
+                    order_date: Option<String>,
+                }
+                let rows: Vec<DateOnly> = self
+                    .client
+                    .get("/rest/v1/purchase_orders", &current_query)
+                    .await
+                    .map_err(AppError::infrastructure)?;
+                let already_set =
+                    rows.first().map(|r| r.order_date.is_some()).unwrap_or(false);
+                if !already_set {
+                    body.insert(
+                        "order_date".into(),
+                        Value::String(today_iso_date()),
+                    );
+                }
+            }
+            PurchaseOrderStatus::Cancelled
+            | PurchaseOrderStatus::Draft
+            | PurchaseOrderStatus::Pending => {
+                // If transitioning back off `approved` via any of
+                // these paths, the valid_approval CHECK demands
+                // we clear approved_by + approved_at too.
+                body.insert("approved_by".into(), Value::Null);
+                body.insert("approved_at".into(), Value::Null);
+            }
+            PurchaseOrderStatus::Received => {
+                // The use case gates this off; defense-in-depth
+                // means the adapter shouldn't silently accept it
+                // either. Surface as a conflict so the HTTP layer
+                // returns a 409 if an internal caller slips past
+                // the use-case guard.
+                return Err(AppError::Conflict(
+                    "RECEIVED_REQUIRES_RECEIVE_FLOW".into(),
+                ));
+            }
+        }
+
+        let id_filter = format!("eq.{}", id.0);
+        let query = [("id", id_filter.as_str())];
+        match self
+            .client
+            .patch::<_, Vec<PurchaseOrder>>(
+                "/rest/v1/purchase_orders",
+                &query,
+                &Value::Object(body),
+            )
+            .await
+        {
+            Ok(mut rows) => Ok(rows.pop()),
+            Err(err) => Err(map_write_error(err)),
+        }
+    }
+
     async fn delete(&self, id: &PurchaseOrderId) -> Result<bool, AppError> {
         let id_filter = format!("eq.{}", id.0);
         let query = [("id", id_filter.as_str())];
@@ -272,6 +375,21 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
             Err(err) => Err(map_write_error(err)),
         }
     }
+}
+
+/// RFC-3339 "now" — e.g. `2026-04-19T12:00:00.000Z`. Used by
+/// `update_status` to stamp `approved_at` when transitioning to
+/// `approved`. Postgres can't inject `now()` via a PATCH body and
+/// we don't want a separate RPC just for the timestamp.
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+/// Date-only "today" in UTC — e.g. `2026-04-19`. Used by
+/// `update_status` to stamp `order_date` when transitioning to
+/// `ordered`. Postgres DATE column; no timezone ambiguity.
+fn today_iso_date() -> String {
+    chrono::Utc::now().date_naive().to_string()
 }
 
 fn escape_ilike(search: &str) -> String {

@@ -31,6 +31,18 @@ pub enum AppError {
     #[error("conflict: {0}")]
     Conflict(String),
 
+    /// Same as [`Self::Conflict`] but carries a structured JSON
+    /// payload alongside the code. Used by status-transition
+    /// enforcement (S3c Task 3) to echo `allowedTargets` so the UI
+    /// can surface the allowed next statuses without a second RPC.
+    ///
+    /// The body at the HTTP boundary becomes:
+    /// ```json
+    /// { "code": "<code>", "details": <details> }
+    /// ```
+    #[error("conflict: {0}")]
+    ConflictWithDetails(String, serde_json::Value),
+
     /// Anything the underlying infrastructure surfaces. We keep the
     /// source opaque via `anyhow::Error` so specific adapter errors
     /// don't leak types up to the delivery layer. Lands as 500.

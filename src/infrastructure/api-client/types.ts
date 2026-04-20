@@ -276,6 +276,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/po/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["update_purchase_order_status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/po/{po_id}/items": {
         parameters: {
             query?: never;
@@ -712,6 +728,17 @@ export interface components {
             unit_cost?: number | null;
             /** Format: double */
             width?: number | null;
+        };
+        /**
+         * @description `PUT /api/v2/po/{id}/status` body. `status` is the lowercase
+         *     string variant (`draft` / `pending` / `approved` / `ordered` /
+         *     `cancelled`). `received` is accepted on the wire but rejected
+         *     in the use case with a 409 — we deliberately don't drop it at
+         *     parse time so the error carries the structured
+         *     `allowedTargets` payload the UI consumes.
+         */
+        UpdatePurchaseOrderStatusBody: {
+            status: string;
         };
         UpdateRollBody: {
             color?: string | null;
@@ -2193,6 +2220,61 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_purchase_order_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Purchase order UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePurchaseOrderStatusBody"];
+            };
+        };
+        responses: {
+            /** @description Status updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderDto"];
+                };
+            };
+            /** @description Unknown status string */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PO not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid transition. Body is `{ code: "INVALID_STATE_TRANSITION" | "RECEIVED_REQUIRES_RECEIVE_FLOW", details: { allowedTargets: [...] } }`. Received is only reachable via /api/v2/po/{id}/receive (Task 5). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1659,6 +1659,64 @@
         ]
       }
     },
+    "/api/v2/po/{id}/status": {
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_purchase_order_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOrderStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown status string"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "PO not found"
+          },
+          "409": {
+            "description": "Invalid transition. Body is `{ code: \"INVALID_STATE_TRANSITION\" | \"RECEIVED_REQUIRES_RECEIVE_FLOW\", details: { allowedTargets: [...] } }`. Received is only reachable via /api/v2/po/{id}/receive (Task 5)."
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/po/{po_id}/items": {
       "get": {
         "tags": [
@@ -3300,6 +3358,18 @@
               "null"
             ],
             "format": "double"
+          }
+        }
+      },
+      "UpdatePurchaseOrderStatusBody": {
+        "type": "object",
+        "description": "`PUT /api/v2/po/{id}/status` body. `status` is the lowercase\nstring variant (`draft` / `pending` / `approved` / `ordered` /\n`cancelled`). `received` is accepted on the wire but rejected\nin the use case with a 409 — we deliberately don't drop it at\nparse time so the error carries the structured\n`allowedTargets` payload the UI consumes.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
           }
         }
       },

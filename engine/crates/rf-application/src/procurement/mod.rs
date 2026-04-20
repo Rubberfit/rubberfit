@@ -23,5 +23,5 @@ pub use po_items::{
 pub use purchase_orders::{
     CreatePurchaseOrderUseCase, DeletePurchaseOrderUseCase, GetPurchaseOrderUseCase,
     ListPurchaseOrdersUseCase, NewPurchaseOrder, PurchaseOrderPort, PurchaseOrderUpdate,
-    UpdatePurchaseOrderUseCase,
+    UpdatePurchaseOrderStatusUseCase, UpdatePurchaseOrderUseCase,
 };

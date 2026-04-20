@@ -21,8 +21,10 @@ use async_trait::async_trait;
 use rf_domain::{
     PurchaseOrder, PurchaseOrderFilters, PurchaseOrderId, PurchaseOrderStatus, SupplierId,
 };
+use serde_json::json;
 
 use crate::error::AppError;
+use crate::notifications::NotificationPort;
 
 /// Request shape for creating a PO header. `po_number` is *not* on
 /// this struct — the use case obtains it from the RPC before calling
@@ -97,6 +99,26 @@ pub trait PurchaseOrderPort: Send + Sync {
         &self,
         id: &PurchaseOrderId,
         patch: &PurchaseOrderUpdate,
+    ) -> Result<Option<PurchaseOrder>, AppError>;
+
+    /// Status-only update. Lives on the port (vs. a side-ported
+    /// "status transition" repository) because the adapter stamps
+    /// the side-column fields (approved_by/approved_at on approve,
+    /// order_date on ordered) in the same round-trip — keeping the
+    /// use case from knowing those column names.
+    ///
+    /// `approved_by` is the caller's user id, threaded from the JWT
+    /// at the HTTP boundary. The adapter only uses it when the
+    /// target status is `Approved`.
+    ///
+    /// Validation (state-machine + received-terminal) happens in the
+    /// use-case layer BEFORE this method is called; the port assumes
+    /// the transition is legal.
+    async fn update_status(
+        &self,
+        id: &PurchaseOrderId,
+        target: PurchaseOrderStatus,
+        approved_by: Option<&str>,
     ) -> Result<Option<PurchaseOrder>, AppError>;
 
     async fn delete(&self, id: &PurchaseOrderId) -> Result<bool, AppError>;
@@ -205,11 +227,17 @@ impl CreatePurchaseOrderUseCase {
         // machine"): the receive endpoint is the only writer for
         // `received` — creating a PO directly in `received` would
         // bypass roll creation + actual_delivery_date stamping. The
-        // UPDATE status path (Task 3) mirrors this rejection so the
-        // invariant can't be side-stepped from either entry point.
+        // UPDATE status path mirrors this rejection so the invariant
+        // can't be side-stepped from either entry point, with the
+        // SAME response shape (`ConflictWithDetails` → `{code,
+        // details: {allowedTargets: [...]}}`) so the client's 409
+        // handler is branch-free. On CREATE there's no "current
+        // state" so `allowedTargets` is empty.
         if matches!(new.status, Some(PurchaseOrderStatus::Received)) {
-            return Err(AppError::Conflict(
+            let empty: Vec<&str> = Vec::new();
+            return Err(AppError::ConflictWithDetails(
                 "RECEIVED_REQUIRES_RECEIVE_FLOW".into(),
+                json!({ "allowedTargets": empty }),
             ));
         }
         let po_number = self.port.generate_number().await?;
@@ -252,6 +280,119 @@ impl UpdatePurchaseOrderUseCase {
             Some(po) => Ok(po),
             None => Err(AppError::NotFound),
         }
+    }
+}
+
+/// State-machine + received-terminal check for the generic
+/// status-update path. Returns:
+///
+/// - `Err(RECEIVED_REQUIRES_RECEIVE_FLOW)` when the target is
+///   `Received` (that transition is reachable only via the dedicated
+///   receive flow, which also creates rolls + stamps delivery date
+///   atomically — see S3c plan §"PO status state machine").
+/// - `Err(INVALID_STATE_TRANSITION)` when the target isn't in the
+///   source's `allowed_targets_from()` set.
+/// - `Ok(())` when the transition is legal.
+///
+/// Both error bodies carry `allowedTargets: [...]` in their JSON
+/// details so the UI can show the operator what they CAN do without
+/// another round-trip.
+fn validate_transition(
+    from: PurchaseOrderStatus,
+    to: PurchaseOrderStatus,
+) -> Result<(), AppError> {
+    let allowed: Vec<&str> = from
+        .allowed_targets_from()
+        .iter()
+        .map(|s| s.as_str())
+        .collect();
+    if matches!(to, PurchaseOrderStatus::Received) {
+        return Err(AppError::ConflictWithDetails(
+            "RECEIVED_REQUIRES_RECEIVE_FLOW".into(),
+            json!({ "allowedTargets": allowed }),
+        ));
+    }
+    if !from.allowed_targets_from().contains(&to) {
+        return Err(AppError::ConflictWithDetails(
+            "INVALID_STATE_TRANSITION".into(),
+            json!({
+                "from": from.as_str(),
+                "to": to.as_str(),
+                "allowedTargets": allowed,
+            }),
+        ));
+    }
+    Ok(())
+}
+
+/// Update a PO's status, enforcing the state machine + receiving-
+/// the-received-terminal rule + firing the PO-approved notification
+/// side-effect. The adapter stamps `approved_by/approved_at` on
+/// approve and `order_date` on ordered — the use case just asks for
+/// the transition.
+#[derive(Clone)]
+pub struct UpdatePurchaseOrderStatusUseCase {
+    port: Arc<dyn PurchaseOrderPort>,
+    notifications: Arc<dyn NotificationPort>,
+}
+
+impl UpdatePurchaseOrderStatusUseCase {
+    pub fn new(
+        port: Arc<dyn PurchaseOrderPort>,
+        notifications: Arc<dyn NotificationPort>,
+    ) -> Self {
+        Self { port, notifications }
+    }
+
+    pub async fn execute(
+        &self,
+        id: PurchaseOrderId,
+        target: PurchaseOrderStatus,
+        actor: Option<String>,
+    ) -> Result<PurchaseOrder, AppError> {
+        let current = match self.port.get(&id).await? {
+            Some(po) => po,
+            None => return Err(AppError::NotFound),
+        };
+
+        // Fast-path: no-op transition to the same status. Returning
+        // the existing row keeps the HTTP path idempotent for
+        // "click approve twice" UI retries.
+        if current.status == target {
+            return Ok(current);
+        }
+
+        validate_transition(current.status, target)?;
+
+        let updated = self
+            .port
+            .update_status(&id, target, actor.as_deref())
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        // Notify only when a caller actually caused the transition
+        // (not on no-op). `send_po_approved` is the S3c entry for
+        // the approve event; receive/create-reorder have their own
+        // notification hooks wired in Tasks 5 / 7.
+        if matches!(target, PurchaseOrderStatus::Approved) {
+            // Notification is fire-and-forget at this layer: a
+            // failure shouldn't roll back a PO that's already
+            // flipped in the DB — that matches the TS use case
+            // where the toast/email was a separate side channel.
+            // We still log at WARN so operators can spot a stuck
+            // notification subsystem without having to correlate
+            // HTTP access logs.
+            if let Err(err) = self.notifications.send_po_approved(&updated).await {
+                tracing::warn!(
+                    po_id = %updated.id.0,
+                    po_number = %updated.po_number,
+                    error = %err,
+                    "send_po_approved failed; PO transition already persisted",
+                );
+            }
+        }
+
+        Ok(updated)
     }
 }
 
@@ -374,11 +515,68 @@ mod tests {
             }
             Ok(None)
         }
+        async fn update_status(
+            &self,
+            id: &PurchaseOrderId,
+            target: PurchaseOrderStatus,
+            approved_by: Option<&str>,
+        ) -> Result<Option<PurchaseOrder>, AppError> {
+            let mut guard = self.by_id.lock().unwrap();
+            for po in guard.iter_mut() {
+                if po.id == *id {
+                    po.status = target;
+                    match target {
+                        PurchaseOrderStatus::Approved => {
+                            po.approved_by = approved_by.map(str::to_string);
+                            po.approved_at = Some("2026-04-19T12:00:00Z".into());
+                        }
+                        PurchaseOrderStatus::Ordered => {
+                            po.order_date = Some("2026-04-19".into());
+                        }
+                        _ => {}
+                    }
+                    return Ok(Some(po.clone()));
+                }
+            }
+            Ok(None)
+        }
         async fn delete(&self, id: &PurchaseOrderId) -> Result<bool, AppError> {
             let mut guard = self.by_id.lock().unwrap();
             let len = guard.len();
             guard.retain(|p| p.id != *id);
             Ok(guard.len() != len)
+        }
+    }
+
+    /// Notification stub that records every invocation so tests can
+    /// assert send_po_approved fires exactly once on a successful
+    /// approve transition.
+    #[derive(Default)]
+    struct FakeNotifier {
+        approved: Mutex<Vec<String>>,
+    }
+
+    #[async_trait]
+    impl NotificationPort for FakeNotifier {
+        async fn send_po_approved(
+            &self,
+            po: &PurchaseOrder,
+        ) -> Result<(), AppError> {
+            self.approved.lock().unwrap().push(po.id.0.clone());
+            Ok(())
+        }
+        async fn send_po_received(
+            &self,
+            _po: &PurchaseOrder,
+        ) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn send_reorder_po_created(
+            &self,
+            _po: &PurchaseOrder,
+            _rule: &rf_domain::ReorderRule,
+        ) -> Result<(), AppError> {
+            Ok(())
         }
     }
 
@@ -430,17 +628,25 @@ mod tests {
     async fn create_rejects_received_status() {
         // Terminal-via-receive-only: CREATE must not land a PO in
         // `received` state — the receive flow is the sole writer.
-        // Mirrors the UPDATE-side gate that Task 3 installs.
+        // Mirrors the UPDATE-side gate with the same response shape
+        // (`ConflictWithDetails` + `allowedTargets`) so clients can
+        // share one branch for both entry points.
         let port = Arc::new(FakePort::default());
         let uc = CreatePurchaseOrderUseCase::new(port);
         let mut new = sample_new("sup-1");
         new.status = Some(PurchaseOrderStatus::Received);
         let err = uc.execute(new).await.unwrap_err();
         match err {
-            AppError::Conflict(code) => {
-                assert_eq!(code, "RECEIVED_REQUIRES_RECEIVE_FLOW")
+            AppError::ConflictWithDetails(code, details) => {
+                assert_eq!(code, "RECEIVED_REQUIRES_RECEIVE_FLOW");
+                let allowed =
+                    details.get("allowedTargets").unwrap().as_array().unwrap();
+                assert!(
+                    allowed.is_empty(),
+                    "CREATE has no source state, so allowedTargets is empty"
+                );
             }
-            other => panic!("expected Conflict, got {other:?}"),
+            other => panic!("expected ConflictWithDetails, got {other:?}"),
         }
     }
 
@@ -539,5 +745,206 @@ mod tests {
         assert_eq!(all.len(), 3);
         assert_eq!(all[0].po_number, "PO-26-0001");
         assert_eq!(all[2].po_number, "PO-26-0003");
+    }
+
+    // ---- Task 3: status transitions --------------------------------
+
+    async fn create_draft(port: &Arc<FakePort>) -> PurchaseOrder {
+        CreatePurchaseOrderUseCase::new(port.clone())
+            .execute(sample_new("sup-1"))
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn status_rejects_received_target_via_generic_path() {
+        let port = Arc::new(FakePort::default());
+        let po = create_draft(&port).await;
+        // Set to Ordered first — from Draft → Received wouldn't
+        // even be in the allowed_targets_from set, so we'd hit the
+        // INVALID_STATE_TRANSITION branch and never reach the
+        // received-specific branch. Testing via Ordered exercises
+        // the guard that terminates received regardless of source.
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port.clone(),
+            Arc::new(FakeNotifier::default()),
+        );
+        // Drive to Ordered via Pending → Approved → Ordered first.
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
+            .await
+            .unwrap();
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Approved, None)
+            .await
+            .unwrap();
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Ordered, None)
+            .await
+            .unwrap();
+        let err = uc
+            .execute(po.id, PurchaseOrderStatus::Received, None)
+            .await
+            .unwrap_err();
+        match err {
+            AppError::ConflictWithDetails(code, details) => {
+                assert_eq!(code, "RECEIVED_REQUIRES_RECEIVE_FLOW");
+                let allowed =
+                    details.get("allowedTargets").unwrap().as_array().unwrap();
+                // Ordered.allowed_targets_from() = [cancelled] — UI
+                // can show this list after the 409.
+                let allowed_strs: Vec<&str> =
+                    allowed.iter().map(|v| v.as_str().unwrap()).collect();
+                assert_eq!(allowed_strs, vec!["cancelled"]);
+            }
+            other => panic!("expected ConflictWithDetails, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn status_rejects_illegal_transition_with_allowed_list() {
+        let port = Arc::new(FakePort::default());
+        let po = create_draft(&port).await;
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port.clone(),
+            Arc::new(FakeNotifier::default()),
+        );
+        // Draft → Ordered is illegal (Draft.allowed_targets_from()
+        // = [Pending, Cancelled]).
+        let err = uc
+            .execute(po.id, PurchaseOrderStatus::Ordered, None)
+            .await
+            .unwrap_err();
+        match err {
+            AppError::ConflictWithDetails(code, details) => {
+                assert_eq!(code, "INVALID_STATE_TRANSITION");
+                assert_eq!(details.get("from").unwrap(), "draft");
+                assert_eq!(details.get("to").unwrap(), "ordered");
+                let allowed: Vec<&str> = details
+                    .get("allowedTargets")
+                    .unwrap()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap())
+                    .collect();
+                assert_eq!(allowed, vec!["pending", "cancelled"]);
+            }
+            other => panic!("expected ConflictWithDetails, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn approve_fires_notification_exactly_once() {
+        let port = Arc::new(FakePort::default());
+        let notifier = Arc::new(FakeNotifier::default());
+        let po = create_draft(&port).await;
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port.clone(),
+            notifier.clone(),
+        );
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
+            .await
+            .unwrap();
+        assert!(notifier.approved.lock().unwrap().is_empty());
+        let approved = uc
+            .execute(
+                po.id.clone(),
+                PurchaseOrderStatus::Approved,
+                Some("user-1".into()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(approved.approved_by.as_deref(), Some("user-1"));
+        assert!(approved.approved_at.is_some());
+        let fired = notifier.approved.lock().unwrap();
+        assert_eq!(fired.len(), 1);
+        assert_eq!(fired[0], approved.id.0);
+    }
+
+    #[tokio::test]
+    async fn ordered_transition_stamps_order_date() {
+        let port = Arc::new(FakePort::default());
+        let po = create_draft(&port).await;
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port.clone(),
+            Arc::new(FakeNotifier::default()),
+        );
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
+            .await
+            .unwrap();
+        uc.execute(po.id.clone(), PurchaseOrderStatus::Approved, None)
+            .await
+            .unwrap();
+        let ordered = uc
+            .execute(po.id, PurchaseOrderStatus::Ordered, None)
+            .await
+            .unwrap();
+        assert!(ordered.order_date.is_some());
+    }
+
+    #[tokio::test]
+    async fn status_no_op_is_idempotent() {
+        let port = Arc::new(FakePort::default());
+        let notifier = Arc::new(FakeNotifier::default());
+        let po = create_draft(&port).await;
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port.clone(),
+            notifier.clone(),
+        );
+        // Draft → Draft is a no-op; returns current row, does NOT
+        // fire notifications.
+        let out = uc
+            .execute(po.id.clone(), PurchaseOrderStatus::Draft, None)
+            .await
+            .unwrap();
+        assert_eq!(out.status, PurchaseOrderStatus::Draft);
+        assert!(notifier.approved.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn status_update_on_missing_returns_not_found() {
+        let port = Arc::new(FakePort::default());
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port,
+            Arc::new(FakeNotifier::default()),
+        );
+        let err = uc
+            .execute(
+                PurchaseOrderId("missing".into()),
+                PurchaseOrderStatus::Pending,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::NotFound));
+    }
+
+    #[tokio::test]
+    async fn terminal_received_blocks_all_further_transitions() {
+        // Received has NO allowed targets at the state-machine level
+        // (domain test locks this in). Confirm the use case surfaces
+        // that as an INVALID_STATE_TRANSITION when called — the
+        // get() returns a PO already in received from a receive flow
+        // (simulated by seeding the fake port).
+        let port = Arc::new(FakePort::default());
+        let po = create_draft(&port).await;
+        // Seed it directly into received, bypassing the use case
+        // (simulating the receive flow in Task 5 that WILL set this).
+        {
+            let mut guard = port.by_id.lock().unwrap();
+            guard[0].status = PurchaseOrderStatus::Received;
+        }
+        let uc = UpdatePurchaseOrderStatusUseCase::new(
+            port,
+            Arc::new(FakeNotifier::default()),
+        );
+        let err = uc
+            .execute(po.id, PurchaseOrderStatus::Cancelled, None)
+            .await
+            .unwrap_err();
+        match err {
+            AppError::ConflictWithDetails(code, _) => {
+                assert_eq!(code, "INVALID_STATE_TRANSITION");
+            }
+            other => panic!("expected ConflictWithDetails, got {other:?}"),
+        }
     }
 }

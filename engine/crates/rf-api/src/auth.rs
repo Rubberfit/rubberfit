@@ -19,12 +19,14 @@ use rf_application::error::AppError;
 use rf_application::inventory::{
     MaterialSupplierPort, MaterialTypePort, RollPort, SupplierPort,
 };
+use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{PurchaseOrderItemPort, PurchaseOrderPort};
 use rf_supabase::{
     PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
-    SupabasePurchaseOrderItemRepository, SupabasePurchaseOrderRepository,
-    SupabaseRollRepository, SupabaseSupplierRepository,
+    SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
+    SupabasePurchaseOrderRepository, SupabaseRollRepository,
+    SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -83,6 +85,16 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError>;
+
+    /// Notification side-effect sink. Status-transition (approve),
+    /// receive, and reorder→PO use cases call through this. Mirrors
+    /// the TS service's notification-on-approve / notification-on-
+    /// receive / notification-on-manual-reorder side effects ported
+    /// in S3c.
+    fn notifications(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn NotificationPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -196,6 +208,18 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabasePurchaseOrderItemRepository::new(client)))
+    }
+
+    fn notifications(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn NotificationPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseNotificationRepository::new(client)))
     }
 }
 

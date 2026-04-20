@@ -17,6 +17,11 @@ async-trait = "0.1"
 url = "2"
 http = { workspace = true }
 tokio = { workspace = true }
+# Timestamp formatting for status-transition side-column stamps
+# (approved_at, order_date). Postgres can't default those via
+# PostgREST PATCH, and the S3c plan keeps the adapter oblivious to
+# RPC infrastructure for the generic status path.
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock"] }
 
 [dev-dependencies]
 tokio = { workspace = true }

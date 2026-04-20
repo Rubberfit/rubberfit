@@ -250,6 +250,17 @@ impl IntoResponse for ApiError {
                 let body = serde_json::json!({ "code": code });
                 (StatusCode::CONFLICT, Json(body)).into_response()
             }
+            ApiError::App(AppError::ConflictWithDetails(code, details)) => {
+                // Same as Conflict but carries a structured `details`
+                // payload — e.g. status-transition 409 echoes
+                // `allowedTargets` so the UI can render the next
+                // options without another round-trip.
+                let body = serde_json::json!({
+                    "code": code,
+                    "details": details,
+                });
+                (StatusCode::CONFLICT, Json(body)).into_response()
+            }
             ApiError::App(AppError::Infrastructure(_)) => {
                 // Don't leak adapter error strings to the client — a
                 // generic 500 is safer. The full message is already
