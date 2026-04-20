@@ -166,7 +166,7 @@ export function greedyNfpPack(
   const partPartNfpCache = buildPartPartNfpCache(hull, spacing)
   if (!partPartNfpCache) return emptyResult(qty)
 
-  const startTime = Date.now()
+  const startTime = performance.now()
   const tryAngle = (angle: number): GreedyPlacement[] | null =>
     packWithRotation(
       polygon.points,
@@ -180,6 +180,7 @@ export function greedyNfpPack(
     )
 
   // OPTIMIZATION: THIS IS WHERE THE LONGEST CALCULATIONS TAKE PLACE
+  const coarseStart = performance.now()
   const coarseResults: Array<{ angle: number; placements: GreedyPlacement[] }> = []
   for (let step = 0; step < rotationSteps; step++) {
     const angle = (step / rotationSteps) * Math.PI * 2
@@ -188,14 +189,24 @@ export function greedyNfpPack(
       coarseResults.push({ angle, placements: result })
     }
   }
-  const endTime = Date.now()
-  console.log(`Time take: ${endTime - startTime} ms`)
-  if (coarseResults.length === 0) return emptyResult(qty)
+  const coarseMs = performance.now() - coarseStart
+  if (coarseResults.length === 0) {
+    console.log(
+      `[perf] greedyNfpPack vertices=${polygon.points.length} qty=${qty} rotationSteps=${rotationSteps} coarseMs=${coarseMs.toFixed(2)} refineMs=0.00 totalMs=${(performance.now() - startTime).toFixed(2)} placed=0`
+    )
+    return emptyResult(qty)
+  }
 
   // pickBestCoarse sorts coarseResults in place (most placements → tightest bb)
   pickBestCoarse(coarseResults)
+  const refineStart = performance.now()
   const best = refineSync(tryAngle, coarseResults, qty)
-  return finalizeResult(best, qty, shapeArea)
+  const refineMs = performance.now() - refineStart
+  const result = finalizeResult(best, qty, shapeArea)
+  console.log(
+    `[perf] greedyNfpPack vertices=${polygon.points.length} qty=${qty} rotationSteps=${rotationSteps} coarseMs=${coarseMs.toFixed(2)} refineMs=${refineMs.toFixed(2)} totalMs=${(performance.now() - startTime).toFixed(2)} placed=${result.placed}`
+  )
+  return result
 }
 
 function getBoundsFromPlacements(placements: GreedyPlacement[]): {
