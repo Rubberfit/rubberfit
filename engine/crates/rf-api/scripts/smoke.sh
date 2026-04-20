@@ -60,6 +60,12 @@ expect_401 "/api/v2/inventory/material-suppliers" "inventory.material-suppliers"
 expect_401 "/api/v2/inventory/rolls" "inventory.rolls"
 expect_401 "/api/v2/inventory/rolls/stats/inventory-value" "inventory.rolls.stats"
 
+# Procurement surfaces (S3c).
+expect_401 "/api/v2/po" "procurement.po.list"
+expect_401 "/api/v2/po/tax/preview?supplier_id=_&subtotal=0" "procurement.po.tax-preview"
+expect_401 "/api/v2/reorder-rules" "procurement.reorder-rules.list"
+expect_401 "/api/v2/reorder-rules/suggestions" "procurement.reorder-rules.suggestions"
+
 if [[ -z "$TOKEN" ]]; then
   echo
   say "skip: auth smoke (set RF_API_JWT to run the bearer path)"
@@ -98,6 +104,15 @@ authed_object_field \
   "/api/v2/inventory/rolls/stats/inventory-value" \
   "value" \
   "inventory.rolls.stats.inventory-value"
+
+# Procurement authed happy paths (S3c). These are list endpoints
+# only — write flows (create PO, receive, reorder → PO, CSV import)
+# would mutate production state, so we leave them to the parity
+# test suite (`npm run test tests/api-v2-procurement-parity.test.ts`)
+# which mocks fetch. The list surfaces are safe side-effect-free.
+authed_array "/api/v2/po?limit=1" "procurement.po.list"
+authed_array "/api/v2/reorder-rules" "procurement.reorder-rules.list"
+authed_array "/api/v2/reorder-rules/suggestions" "procurement.reorder-rules.suggestions"
 
 echo
 ok "ALL SMOKE CHECKS PASSED"
