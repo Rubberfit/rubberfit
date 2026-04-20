@@ -165,12 +165,12 @@ export function CutHistoryTable({
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onReopen(cut.id)}
-                          aria-label="Reopen in Cut Planner"
+                          aria-label="Reopen in Cutting Engine"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Reopen in Cut Planner</TooltipContent>
+                      <TooltipContent>Reopen in Cutting Engine</TooltipContent>
                     </Tooltip>
                     {canDelete && (
                       <Tooltip>

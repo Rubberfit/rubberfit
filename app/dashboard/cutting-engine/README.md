@@ -1,20 +1,12 @@
-# Cut Planner
+# Cutting Engine
 
-The cut planner is the core feature of Rema Portal. It calculates optimal layouts for cutting rubber shapes from stock sheets, minimizing waste and maximizing material utilization.
+The Cutting Engine is the core feature of Rubberfit. It calculates optimal layouts for cutting rubber shapes from stock sheets, minimizing waste and maximizing material utilization.
 
-## Modes
+Renamed from "Cut Planner" (and briefly "Nesting Engine") in S4 Task 8. Batch and Manual sub-modes were deleted in the same task — the single-job flow is the only surface. Legacy `/dashboard/cut-planner*` and `/dashboard/nesting-engine*` URLs both 308-redirect here via `next.config.mjs`.
 
-### Simple Mode (Interactive)
+## Flow
 
-User selects a part type, enters dimensions, and sees a real-time preview of the layout on stock. Supports rectangles, circles, cylinders, cones, and trapezoids.
-
-### Batch Mode
-
-User queues multiple parts with different shapes/sizes. The system uses NFP (No-Fit Polygon) optimization with a genetic algorithm to find the best combined layout.
-
-### Manual Mode
-
-Direct input of cut dimensions against a specific roll. Used for quick one-off calculations.
+User selects a part type (preset or custom), enters dimensions, sets quantity, and sees a real-time Konva preview of the nested layout on the selected stock. Supports rectangles, circles, cylinders, cones, trapezoids, and annular sectors. The Pack call resolves `IPackingService` from the TSyringe container; the Rust `pack-cli` binary runs the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). See `engine.ltx` for the algorithm writeup.
 
 ## Architecture
 

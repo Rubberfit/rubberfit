@@ -217,10 +217,10 @@ export function useCutHistory() {
     }
   }, [deleteConfirm])
 
-  // Navigate to cut planner
+  // Navigate to nesting engine
   const handleReopen = useCallback(
     (cutId: number) => {
-      router.push(`/dashboard/cut-planner?loadCut=${cutId}`)
+      router.push(`/dashboard/cutting-engine?loadCut=${cutId}`)
     },
     [router]
   )

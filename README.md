@@ -144,7 +144,7 @@ npm run format:check     # Check formatting without writing
 rema-portal/
 ├── app/                       # Next.js App Router
 │   ├── dashboard/
-│   │   ├── cut-planner/       # 2D nesting engine UI
+│   │   ├── cutting-engine/    # 2D nesting engine UI (renamed from cut-planner in S4)
 │   │   ├── inventory/         # Inventory & reorder management
 │   │   ├── materials/         # Material types, pricing, suppliers
 │   │   ├── procurement/       # Purchase orders

@@ -29,7 +29,7 @@ function CutLoaderInner({ onLoad }: CutLoaderProps) {
         toast.error("Could not load cut record")
       })
       .finally(() => {
-        router.replace("/dashboard/cut-planner")
+        router.replace("/dashboard/cutting-engine")
       })
   }, [loadCutId, router, onLoad])
 

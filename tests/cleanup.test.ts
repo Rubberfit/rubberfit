@@ -8,7 +8,17 @@ const DELETED = [
   // "src/infrastructure/services/useRole.ts", // DEFERRED: 5 active importers in app/ — migration required first
   "src/infrastructure/scripts/theme-boot.tsx",
   "src/infrastructure/services/README.md",
-  "app/dashboard/cut-planner/_components/use-nesting-compute.ts",
+  "app/dashboard/cutting-engine/_components/use-nesting-compute.ts",
+  "app/dashboard/cut-planner/page.tsx",
+  "app/dashboard/cut-planner/batch/page.tsx",
+  "app/dashboard/cut-planner/manual/page.tsx",
+  "app/dashboard/account/page.tsx",
+  "app/dashboard/waste/page.tsx",
+  "app/dashboard/usage/page.tsx",
+  "app/dashboard/costs/page.tsx",
+  "app/dashboard/trends/page.tsx",
+  "app/dashboard/reports/page.tsx",
+  "app/dashboard/waste-comparison/page.tsx",
 ]
 
 const BANNED_SYMBOLS = [
@@ -44,7 +54,7 @@ describe("cleanup: banned symbols removed", () => {
 describe("handoff: IPackingService is the canonical Pack boundary", () => {
   it("use-nfp-optimizer.ts does NOT import NFPSolver directly", () => {
     const src = fs.readFileSync(
-      path.join(__dirname, "../app/dashboard/cut-planner/_components/use-nfp-optimizer.ts"),
+      path.join(__dirname, "../app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts"),
       "utf-8"
     )
     // Direct engine instantiation was replaced with DI resolution in Phase 7.
@@ -54,7 +64,7 @@ describe("handoff: IPackingService is the canonical Pack boundary", () => {
 
   it("use-nfp-optimizer.ts resolves IPackingService via DI", () => {
     const src = fs.readFileSync(
-      path.join(__dirname, "../app/dashboard/cut-planner/_components/use-nfp-optimizer.ts"),
+      path.join(__dirname, "../app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts"),
       "utf-8"
     )
     expect(src).toMatch(/container\.resolve.*PACKING_TOKENS\.IPackingService|TOKENS\.IPackingService/)

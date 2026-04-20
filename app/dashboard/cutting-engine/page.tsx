@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
-import Link from "next/link"
 import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
+import { usePackGate } from "./_hooks/use-pack-gate"
 import PresetDimensionSelector, {
   type PartTemplate,
   type LoadedSelection,
@@ -77,6 +77,14 @@ export default function CutPlannerPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+
+  // Pack-gate: the Graph card doesn't mount the NestingVisualizer
+  // until the operator presses **Pack**. Any change to parts,
+  // stock, or cut-direction resets the gate to `idle` so the
+  // operator has to re-pack against the current inputs — this kills
+  // the old live-preview churn that nudged operators into cutting
+  // before their inputs had settled.
+  const packGate = usePackGate()
 
   useEffect(() => {
     materialTypeService
@@ -442,11 +450,11 @@ export default function CutPlannerPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <Badge variant="outline" className="w-fit">
-            Cut Planner
+            Cutting Engine
           </Badge>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-300">
-              Cut Planner
+              Cutting Engine
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
               Select a finished profile, choose the standard size, set the cut count, and preview
@@ -457,9 +465,6 @@ export default function CutPlannerPage() {
 
         <div className="flex flex-wrap items-center gap-2 md:shrink-0">
           <RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />
-          <Button asChild variant="outline">
-            <Link href="/dashboard/cut-planner/batch">Batch Mode</Link>
-          </Button>
         </div>
       </div>
 
