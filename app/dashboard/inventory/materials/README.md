@@ -1,10 +1,10 @@
 # materials/
 
-Materials management pages for material types, suppliers, and pricing.
+Materials management pages for material types, suppliers, and pricing. Nested under `inventory/` as of S4 Task 3 (was previously at `app/dashboard/materials/`). Prior paths 308-redirect via `next.config.mjs`.
 
 ## Files
 
-- **page.tsx** -- Materials overview: stat cards, management links, and widgets (MaterialTypesOverview, SupplierOverview, PricingTrends)
+- **page.tsx** -- Materials landing. S4 Task 6 polished: `PageShell` + `PageHeader` with crumbs; 4 `StatCard`s (Material types, Avg cost, Alert thresholds, Cost range) with semantic intents; 3 `QuickLinkCard`s routing to Types / Suppliers / Pricing sub-pages; `MaterialTypesOverview` + `SupplierOverview` + `PricingTrends` widget row.
 
 ## Subdirectories
 

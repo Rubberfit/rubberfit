@@ -22,7 +22,7 @@ import { Input } from "@/app/components/ui/input"
 import { Textarea } from "@/app/components/ui/textarea"
 
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
-import { SupplierSelect } from "../materials/suppliers/_components/supplier-selection"
+import { SupplierSelect } from "../inventory/materials/suppliers/_components/supplier-selection"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import type { rollFormSchema } from "./roll-form-dialog"
 

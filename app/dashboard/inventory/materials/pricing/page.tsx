@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/app/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import { PageHeader, PageShell } from "@/app/components/patterns"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { toast } from "sonner"
 import type {
@@ -156,13 +157,17 @@ export default function PricingPage() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Pricing Dashboard</h1>
-        <p className="text-muted-foreground">
-          Manage material costs, compare supplier prices, and track trends
-        </p>
-      </div>
+    <PageShell variant="overview">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Materials", href: "/dashboard/inventory/materials" },
+          { label: "Pricing" },
+        ]}
+        title="Pricing"
+        subtitle="Cost tracking, supplier price comparison, and change alerts."
+      />
       <PricingStatsCards
         materialTypes={materialTypes}
         suppliers={suppliers}
@@ -233,7 +238,7 @@ export default function PricingPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   )
 }
 

@@ -1,13 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useState, useMemo } from "react"
-import { Plus, Search, Filter, Star } from "lucide-react"
+import { Plus, Filter, Star } from "lucide-react"
 
 import { type Supplier } from "@/src/infrastructure/models/supabase"
 import { suppliers as suppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Card } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
-import { Input } from "@/app/components/ui/input"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -19,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
 import { SupplierFormModal } from "./_components/supplier-form-modal"
 import { SupplierDetailView } from "./_components/supplier-detail-view"
@@ -124,59 +124,50 @@ export default function SuppliersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Suppliers</h1>
-          <p className="text-muted-foreground">
-            Manage your material suppliers and vendor relationships
-          </p>
-        </div>
-        <Button onClick={handleAddSupplier} size="lg" className="min-h-[44px]">
-          <Plus className="mr-2 h-5 w-5" />
-          Add Supplier
-        </Button>
-      </div>
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Materials", href: "/dashboard/inventory/materials" },
+          { label: "Suppliers" },
+        ]}
+        title="Suppliers"
+        subtitle="Supplier profiles, shipping preferences, and performance history."
+        actions={
+          <Button onClick={handleAddSupplier} size="sm">
+            <Plus className="size-3.5" />
+            Add supplier
+          </Button>
+        }
+      />
 
-      {/* Search and Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Search & Filter</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, contact, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 min-h-[44px]"
-              />
-            </div>
-            <div className="flex gap-2">
+      <Card className="overflow-hidden p-0">
+        <ViewToolbar
+          searchPlaceholder="Search name, contact, or email…"
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          filters={
+            <>
               <Button
                 variant={filterPreferred ? "default" : "outline"}
                 onClick={() => setFilterPreferred(!filterPreferred)}
-                size="lg"
-                className="min-h-[44px]"
+                size="sm"
               >
-                <Star className="mr-2 h-4 w-4" />
+                <Star className="size-3.5" />
                 Preferred
               </Button>
               <Button
                 variant={filterActive ? "default" : "outline"}
                 onClick={() => setFilterActive(!filterActive)}
-                size="lg"
-                className="min-h-[44px]"
+                size="sm"
               >
-                <Filter className="mr-2 h-4 w-4" />
-                Active Only
+                <Filter className="size-3.5" />
+                Active only
               </Button>
-            </div>
-          </div>
-        </CardContent>
+            </>
+          }
+        />
       </Card>
 
       <SuppliersTableCard
@@ -234,6 +225,6 @@ export default function SuppliersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }

@@ -26,6 +26,9 @@ import {
 } from "@/app/components/ui/alert-dialog"
 import { toast } from "sonner"
 
+import { PageHeader, PageShell } from "@/app/components/patterns"
+import { Card } from "@/app/components/ui/card"
+
 import { MaterialTypesTable } from "../_components/material-types-table"
 import { MaterialTypeDialog } from "../_components/material-type-dialog"
 import { MaterialImportDialog } from "../_components/material-import-dialog"
@@ -183,42 +186,47 @@ export default function MaterialTypesPage() {
   }, [fetchMaterialTypes])
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Material Types</h1>
-          <p className="text-muted-foreground">
-            Manage rubber material categories and their properties
-          </p>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" />
-              Add Material Type
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={openAddDialog}>
-              <Plus className="h-4 w-4" />
-              Add Manually
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <MaterialTypesTable
-        materialTypes={materialTypes}
-        loading={loading}
-        onEdit={openEditDialog}
-        onDelete={handleDeleteClick}
+    <PageShell variant="overview">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Materials", href: "/dashboard/inventory/materials" },
+          { label: "Types" },
+        ]}
+        title="Material Types"
+        subtitle="Rubber categories, durometers, minimum stock alerts."
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm">
+                <Plus className="size-3.5" />
+                Add material
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={openAddDialog}>
+                <Plus className="size-3.5" />
+                Add manually
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
+                <Upload className="size-3.5" />
+                Import CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
+
+      <Card className="p-0">
+        <MaterialTypesTable
+          materialTypes={materialTypes}
+          loading={loading}
+          onEdit={openEditDialog}
+          onDelete={handleDeleteClick}
+        />
+      </Card>
 
       <MaterialTypeDialog
         open={dialogOpen}
@@ -266,6 +274,6 @@ export default function MaterialTypesPage() {
         existingNames={existingNameSet}
         onImportComplete={fetchMaterialTypes}
       />
-    </div>
+    </PageShell>
   )
 }

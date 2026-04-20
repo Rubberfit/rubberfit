@@ -165,7 +165,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         toast.success("Password updated", {
           description: "Your password has been reset. Redirecting now.",
         })
-        router.replace(redirectTo ?? "/dashboard/default")
+        router.replace(redirectTo ?? "/dashboard")
       } else {
         toast.error("Password reset failed", {
           description: error || "Please request a new reset link and try again.",
