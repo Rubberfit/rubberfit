@@ -53,7 +53,7 @@ engine/                     # Rust nesting engine (Cargo workspace)
 ├── crates/rf-geom/       # Geometry primitives (MIT, future open-source crate)
 ├── crates/rf-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
 └── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
-nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cut-planner UI for NFP-based shape previews (removal tracked as Task #16, post-Tauri cleanup)
+nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cutting-engine UI for NFP-based shape previews (removal tracked as Task #16, post-Tauri cleanup)
 di/                         # TSyringe dependency injection registration
 config/                     # App-wide constants (APP_CONFIG)
 tests/                      # Vitest TS tests (packing, parity, service boundaries)
@@ -68,7 +68,7 @@ implementation, `RustPackingService`, is registered through
 
 | Engine | When | Invocation |
 |---|---|---|
-| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cut-planner page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
+| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cutting-engine page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
 
 The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
 2D grid warm-start (Task 19a) + sparrow-style Guided Local Search
@@ -92,7 +92,7 @@ npm run build:engine    # one-time; ~2 min cold, seconds after
 npm run dev
 ```
 
-Without the binary, visiting `/dashboard/cut-planner` surfaces a
+Without the binary, visiting `/dashboard/cutting-engine` surfaces a
 "pack-cli binary not found" error from the DI container.
 
 **Layer rules:**
@@ -167,6 +167,16 @@ State lives at the lowest scope that works:
 
 Zustand stores follow a flat interface with `isLoading`, `isUpdating`, and `error` fields. Components use selectors: `useStore(s => s.data)`. Never put UI state (modal open/closed, hover, etc.) in Zustand.
 
+### Hooks colocation (2-tier rule, S4 Task 4)
+
+| Scope                                 | Location                                       |
+| ------------------------------------- | ---------------------------------------------- |
+| Page-local (used by one surface only) | `app/dashboard/<surface>/_components/use-*.ts` |
+| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts` |
+
+No domain tier (`<surface>/_hooks/`) — if a surface grows past
+five shared hooks, revisit. Until then, two tiers is enough.
+
 ## TypeScript Rules (Strict — No Exceptions)
 
 - **Zero `any`** — use `unknown` + type narrowing or define an interface
@@ -220,7 +230,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cut Planner** (`app/dashboard/cut-planner/`): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
+- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Batch and Manual sub-modes were deleted in the same task; the single-job flow is the only surface. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 
