@@ -136,7 +136,6 @@ function subtractPlacementFromBand(band: OffcutBand, placement: ShapePlacement):
 }
 
 export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, rollL: number) {
-  const perfStart = performance.now()
   if (placements.length === 0) {
     return [] as OffcutBand[]
   }
@@ -252,14 +251,7 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     bands.push(...pieces)
   }
 
-  const preMergeCount = bands.length
-  const mergeStart = performance.now()
-  const merged = mergeVerticallyAdjacentBands(bands)
-  const now = performance.now()
-  console.log(
-    `[perf] buildShelfGapBands placements=${placements.length} preMerge=${preMergeCount} postMerge=${merged.length} mergeMs=${(now - mergeStart).toFixed(2)} totalMs=${(now - perfStart).toFixed(2)}`
-  )
-  return merged
+  return mergeVerticallyAdjacentBands(bands)
 }
 
 // Fuse bands that share the same (x, width) column and touch at their

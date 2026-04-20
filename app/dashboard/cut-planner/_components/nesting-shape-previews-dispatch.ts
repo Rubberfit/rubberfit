@@ -62,24 +62,18 @@ function evaluatePackingCandidate(
   sortBy: "area" | "height" | "width" | "max-edge",
   allRectangles: boolean
 ): PackingCandidate {
-  const perfStart = performance.now()
-  const packStart = performance.now()
   const packed = allRectangles
     ? packRectItemsWithGuillotine(requestedItems, rollW, rollL, sortBy)
     : packPreviewItemsOnShelves(requestedItems, rollW, rollL, sortBy)
-  const packMs = performance.now() - packStart
   const bounds = getPlacementBounds(packed.items)
-  const bandsStart = performance.now()
   const allBands = allRectangles
     ? (packed.freeRects ?? [])
     : buildShelfGapBands(packed.items, rollW, rollL)
-  const bandsMs = performance.now() - bandsStart
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
   let scrapArea = 0
 
-  const classifyStart = performance.now()
   allBands.forEach((band) => {
     const area = band.width * band.height
     if (bandFitsAnyPreviewItem(band, packed.items)) {
@@ -90,7 +84,6 @@ function evaluatePackingCandidate(
       scrapArea += area
     }
   })
-  const classifyMs = performance.now() - classifyStart
 
   const intraBlankWaste = packed.items.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
@@ -98,11 +91,6 @@ function evaluatePackingCandidate(
     bounds.occupiedWidth * bounds.occupiedHeight > 0
       ? scrapArea / (bounds.occupiedWidth * bounds.occupiedHeight)
       : 1
-
-  const totalMs = performance.now() - perfStart
-  console.log(
-    `[perf] evaluatePackingCandidate sortBy=${sortBy} allRect=${allRectangles} items=${requestedItems.length} placed=${packed.items.length} bands=${allBands.length} packMs=${packMs.toFixed(2)} bandsMs=${bandsMs.toFixed(2)} classifyMs=${classifyMs.toFixed(2)} totalMs=${totalMs.toFixed(2)} trimDensity=${trimDensity.toFixed(3)}`
-  )
 
   return { sortBy, packed, bounds, offcutBands, scrapBands, reusableArea, scrapArea, trimDensity }
 }
@@ -218,13 +206,8 @@ function mixedResultToCandidate(
     )
     .filter((poly): poly is Point2D[] => poly.length >= 3)
 
-  const extractStart = performance.now()
   const freeRects =
     placedPolygons.length > 0 ? extractMaximalFreeRects(rollW, rollL, placedPolygons, 24) : []
-  const totalVertices = placedPolygons.reduce((sum, p) => sum + p.length, 0)
-  console.log(
-    `[perf] extractMaximalFreeRects (mixedResult) polygons=${placedPolygons.length} totalVertices=${totalVertices} freeRects=${freeRects.length} totalMs=${(performance.now() - extractStart).toFixed(2)}`
-  )
 
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
@@ -277,18 +260,10 @@ function tryMixedNfpCandidate(
   fallbackWidth: number,
   fallbackHeight: number
 ): PackingCandidate | null {
-  const perfStart = performance.now()
   const inputs = buildMixedNfpInputs(simpleParts, fallbackWidth, fallbackHeight)
   if (!inputs) return null
-  const totalQty = simpleParts.reduce((sum, s) => sum + Math.max(1, s.quantity || 1), 0)
-  const packStart = performance.now()
   const result = packMixedNfp(inputs, rollW, rollL)
-  const packMs = performance.now() - packStart
-  const candidate = mixedResultToCandidate(result, rollW, rollL)
-  console.log(
-    `[perf] tryMixedNfpCandidate specs=${simpleParts.length} totalQty=${totalQty} placed=${result.placements.length} packMs=${packMs.toFixed(2)} totalMs=${(performance.now() - perfStart).toFixed(2)}`
-  )
-  return candidate
+  return mixedResultToCandidate(result, rollW, rollL)
 }
 
 /**
@@ -386,13 +361,8 @@ function buildHybridCandidate(
     )
     .filter((poly): poly is Point2D[] => poly.length >= 3)
 
-  const extractStart = performance.now()
   const freeRects =
     placedPolygons.length > 0 ? extractMaximalFreeRects(rollW, rollL, placedPolygons, 24) : []
-  const totalVertices = placedPolygons.reduce((sum, p) => sum + p.length, 0)
-  console.log(
-    `[perf] extractMaximalFreeRects (hybrid) polygons=${placedPolygons.length} totalVertices=${totalVertices} freeRects=${freeRects.length} totalMs=${(performance.now() - extractStart).toFixed(2)}`
-  )
 
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
@@ -449,7 +419,6 @@ function tryTrapezoidHybridCandidate(
   fallbackWidth: number,
   fallbackHeight: number
 ): PackingCandidate | null {
-  const perfStart = performance.now()
   // Track each spec's original index so the trapezoid/other split doesn't
   // collide tag-map keys (specIndex) downstream.
   const trapWithIdx = simpleParts
@@ -484,16 +453,12 @@ function tryTrapezoidHybridCandidate(
   )
   const translatedOthers = translateItemsY(otherPacked.items, trapMaxY)
 
-  const candidate = buildHybridCandidate(
+  return buildHybridCandidate(
     [...trapPacked.packed.items, ...translatedOthers],
     trapPacked.packed.usedArea + otherPacked.usedArea,
     rollW,
     rollL
   )
-  console.log(
-    `[perf] tryTrapezoidHybridCandidate traps=${trapWithIdx.length} others=${otherWithIdx.length} trapPlaced=${trapPacked.packed.items.length} otherPlaced=${otherPacked.items.length} totalMs=${(performance.now() - perfStart).toFixed(2)}`
-  )
-  return candidate
 }
 
 /** Async variant — runs the cone subset (if any) through the worker pool. */
@@ -675,7 +640,6 @@ export function generateMultiPartPreview(
   // first sheet's NFP-rotated layout.
   skipNfpPacking = true
 ): SimplePartPreview {
-  const perfStart = performance.now()
   const requestedItems = simpleParts.flatMap((spec, specIdx) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
@@ -721,17 +685,13 @@ export function generateMultiPartPreview(
     best = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
   }
 
-  const preview = buildMultiPartPreviewFromCandidate(
+  return buildMultiPartPreviewFromCandidate(
     best,
     simpleParts,
     requestedItems.length,
     rollW,
     rollL
   )
-  console.log(
-    `[perf] generateMultiPartPreview specs=${simpleParts.length} totalQty=${requestedItems.length} skipNfp=${skipNfpPacking} useHybrid=${useTrapezoidHybrid} useMixedNfp=${useMixedNfp} totalMs=${(performance.now() - perfStart).toFixed(2)}`
-  )
-  return preview
 }
 
 /**
