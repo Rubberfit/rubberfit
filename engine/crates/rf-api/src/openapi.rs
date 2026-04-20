@@ -37,11 +37,12 @@ use crate::inventory::{
     UpdateSupplierBody,
 };
 use crate::procurement::{
-    CreatePurchaseOrderBody, CreatePurchaseOrderItemBody, PurchaseOrderDto,
-    PurchaseOrderItemDto, ReceiveItemBody, ReceivePurchaseOrderBody,
-    ReceiveReceiptDto, ReceiveRollDataBody, TaxPreviewDto,
-    UpdatePurchaseOrderBody, UpdatePurchaseOrderItemBody,
-    UpdatePurchaseOrderStatusBody,
+    CreatePurchaseOrderBody, CreatePurchaseOrderItemBody, CreateReorderRuleBody,
+    PurchaseOrderDto, PurchaseOrderItemDto, ReceiveItemBody,
+    ReceivePurchaseOrderBody, ReceiveReceiptDto, ReceiveRollDataBody,
+    ReorderRuleDto, ReorderSuggestionDto, TaxPreviewDto, UpdatePurchaseOrderBody,
+    UpdatePurchaseOrderItemBody, UpdatePurchaseOrderStatusBody,
+    UpdateReorderRuleBody,
 };
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
@@ -105,6 +106,12 @@ pub struct CutsDoc;
         crate::procurement::status::update_purchase_order_status,
         crate::procurement::receive::receive_purchase_order,
         crate::procurement::tax::tax_preview,
+        crate::procurement::reorder_rules::list_reorder_rules,
+        crate::procurement::reorder_rules::get_reorder_rule,
+        crate::procurement::reorder_rules::create_reorder_rule,
+        crate::procurement::reorder_rules::update_reorder_rule,
+        crate::procurement::reorder_rules::delete_reorder_rule,
+        crate::procurement::reorder_rules::reorder_suggestions,
         crate::procurement::po_items::list_po_items,
         crate::procurement::po_items::add_po_item,
         crate::procurement::po_items::update_po_item,
@@ -120,6 +127,10 @@ pub struct CutsDoc;
         ReceiveItemBody,
         ReceiveRollDataBody,
         ReceiveReceiptDto,
+        ReorderRuleDto,
+        CreateReorderRuleBody,
+        UpdateReorderRuleBody,
+        ReorderSuggestionDto,
         PurchaseOrderItemDto,
         CreatePurchaseOrderItemBody,
         UpdatePurchaseOrderItemBody,

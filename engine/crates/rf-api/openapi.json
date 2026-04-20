@@ -2026,6 +2026,252 @@
         ]
       }
     },
+    "/api/v2/reorder-rules": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "list_reorder_rules",
+        "responses": {
+          "200": {
+            "description": "All reorder rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "DUPLICATE_MATERIAL_RULE, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/suggestions": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "reorder_suggestions",
+        "parameters": [
+          {
+            "name": "include_pending",
+            "in": "query",
+            "description": "Default `false` — rules with at least one non-draft PO\nline item are excluded. Set to `true` to show them anyway\n(the UI's \"review pending\" affordance).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestions (sorted by urgency)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderSuggestionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/{id}": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "get_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReorderRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "CHECK_VIOLATION or FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "delete_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2292,6 +2538,70 @@
               "null"
             ],
             "format": "double"
+          }
+        }
+      },
+      "CreateReorderRuleBody": {
+        "type": "object",
+        "required": [
+          "material_type_id",
+          "reorder_point",
+          "reorder_quantity",
+          "lead_time_days"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "auto_reorder": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -3153,6 +3463,161 @@
           }
         }
       },
+      "ReorderRuleDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type_id",
+          "reorder_point",
+          "reorder_quantity",
+          "lead_time_days",
+          "auto_reorder",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "auto_reorder": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_triggered_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReorderSuggestionDto": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "material_type_id",
+          "material_name",
+          "current_stock_sqft",
+          "threshold_sqft",
+          "reorder_quantity_sqft",
+          "urgency",
+          "pending_quantity_sqft",
+          "has_pending_po"
+        ],
+        "properties": {
+          "current_stock_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "days_until_stockout": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "estimated_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "has_pending_po": {
+            "type": "boolean"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "pending_quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threshold_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "urgency": {
+            "type": "string"
+          }
+        }
+      },
       "RollDto": {
         "type": "object",
         "required": [
@@ -3616,6 +4081,70 @@
         "properties": {
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "UpdateReorderRuleBody": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "auto_reorder": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

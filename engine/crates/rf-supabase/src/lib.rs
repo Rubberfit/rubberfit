@@ -24,7 +24,9 @@ pub mod po_items;
 pub mod postgrest;
 pub mod purchase_orders;
 pub mod receive;
+pub mod reorder_rules;
 pub mod rolls;
+pub mod suggestions;
 pub mod suppliers;
 pub mod tax;
 
@@ -36,6 +38,8 @@ pub use po_items::SupabasePurchaseOrderItemRepository;
 pub use postgrest::{PostgrestClient, PostgrestError};
 pub use purchase_orders::SupabasePurchaseOrderRepository;
 pub use receive::SupabaseReceiveRepository;
+pub use reorder_rules::SupabaseReorderRuleRepository;
 pub use rolls::SupabaseRollRepository;
+pub use suggestions::SupabaseSuggestionReads;
 pub use suppliers::SupabaseSupplierRepository;
 pub use tax::HttpTaxProxy;

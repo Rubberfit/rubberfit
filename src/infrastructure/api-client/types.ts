@@ -356,6 +356,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/reorder-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_reorder_rules"];
+        put?: never;
+        post: operations["create_reorder_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/reorder-rules/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reorder_suggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/reorder-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_reorder_rule"];
+        put: operations["update_reorder_rule"];
+        post?: never;
+        delete: operations["delete_reorder_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -439,6 +487,23 @@ export interface components {
             unit_cost: number;
             /** Format: double */
             width?: number | null;
+        };
+        CreateReorderRuleBody: {
+            active?: boolean | null;
+            auto_reorder?: boolean | null;
+            /** Format: int32 */
+            lead_time_days: number;
+            material_type_id: string;
+            /** Format: double */
+            max_stock_level?: number | null;
+            notes?: string | null;
+            /** Format: double */
+            reorder_point: number;
+            /** Format: double */
+            reorder_quantity: number;
+            /** Format: int32 */
+            safety_stock_days?: number | null;
+            supplier_id?: string | null;
         };
         /**
          * @description Create body. Caller sends `material_type_id`; the server looks
@@ -678,6 +743,48 @@ export interface components {
             /** Format: double */
             width?: number | null;
         };
+        ReorderRuleDto: {
+            active: boolean;
+            auto_reorder: boolean;
+            created_at?: string | null;
+            id: string;
+            last_triggered_at?: string | null;
+            /** Format: int32 */
+            lead_time_days: number;
+            material_type_id: string;
+            /** Format: double */
+            max_stock_level?: number | null;
+            notes?: string | null;
+            /** Format: double */
+            reorder_point: number;
+            /** Format: double */
+            reorder_quantity: number;
+            /** Format: int32 */
+            safety_stock_days?: number | null;
+            supplier_id?: string | null;
+            updated_at?: string | null;
+        };
+        ReorderSuggestionDto: {
+            /** Format: double */
+            current_stock_sqft: number;
+            /** Format: int32 */
+            days_until_stockout?: number | null;
+            /** Format: double */
+            estimated_cost?: number | null;
+            has_pending_po: boolean;
+            material_name: string;
+            material_type_id: string;
+            /** Format: double */
+            pending_quantity_sqft: number;
+            /** Format: double */
+            reorder_quantity_sqft: number;
+            rule_id: string;
+            supplier_id?: string | null;
+            supplier_name?: string | null;
+            /** Format: double */
+            threshold_sqft: number;
+            urgency: string;
+        };
         RollDto: {
             color?: string | null;
             /** Format: double */
@@ -820,6 +927,22 @@ export interface components {
          */
         UpdatePurchaseOrderStatusBody: {
             status: string;
+        };
+        UpdateReorderRuleBody: {
+            active?: boolean | null;
+            auto_reorder?: boolean | null;
+            /** Format: int32 */
+            lead_time_days?: number | null;
+            /** Format: double */
+            max_stock_level?: number | null;
+            notes?: string | null;
+            /** Format: double */
+            reorder_point?: number | null;
+            /** Format: double */
+            reorder_quantity?: number | null;
+            /** Format: int32 */
+            safety_stock_days?: number | null;
+            supplier_id?: string | null;
         };
         UpdateRollBody: {
             color?: string | null;
@@ -2592,6 +2715,239 @@ export interface operations {
                 po_id: string;
                 /** @description Line item UUID */
                 item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_reorder_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All reorder rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderRuleDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_reorder_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReorderRuleBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderRuleDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DUPLICATE_MATERIAL_RULE, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reorder_suggestions: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Default `false` — rules with at least one non-draft PO
+                 *     line item are excluded. Set to `true` to show them anyway
+                 *     (the UI's "review pending" affordance).
+                 */
+                include_pending?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suggestions (sorted by urgency) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderSuggestionDto"][];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_reorder_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reorder rule UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderRuleDto"];
+                };
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_reorder_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reorder rule UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReorderRuleBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderRuleDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CHECK_VIOLATION or FK_VIOLATION_PARENT_MISSING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_reorder_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reorder rule UUID */
+                id: string;
             };
             cookie?: never;
         };

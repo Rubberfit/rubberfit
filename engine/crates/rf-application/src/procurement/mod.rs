@@ -15,10 +15,21 @@
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
+pub mod reorder_rules;
+pub mod suggestions;
 
 pub use receive::{
     ReceiveItem, ReceivePort, ReceivePurchaseOrderUseCase, ReceiveReceipt,
     ReceiveRollData,
+};
+pub use reorder_rules::{
+    CreateReorderRuleUseCase, DeleteReorderRuleUseCase, GetReorderRuleUseCase,
+    ListReorderRulesUseCase, NewReorderRule, ReorderRulePort, ReorderRuleUpdate,
+    UpdateReorderRuleUseCase,
+};
+pub use suggestions::{
+    GenerateReorderSuggestionsUseCase, MaterialSupplierQuote,
+    SuggestionOptions, SuggestionReadsPort,
 };
 
 pub use po_items::{

@@ -10,8 +10,16 @@
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
+pub mod reorder_rules;
 pub mod status;
 pub mod tax;
+
+pub use reorder_rules::{
+    create_reorder_rule, delete_reorder_rule, get_reorder_rule,
+    list_reorder_rules, reorder_suggestions, update_reorder_rule,
+    CreateReorderRuleBody, ReorderRuleDto, ReorderSuggestionDto,
+    ReorderSuggestionsQuery, UpdateReorderRuleBody,
+};
 
 pub use po_items::{
     add_po_item, delete_po_item, list_po_items, update_po_item,

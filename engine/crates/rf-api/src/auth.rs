@@ -21,7 +21,8 @@ use rf_application::inventory::{
 };
 use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{
-    PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort,
+    PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort, ReorderRulePort,
+    SuggestionReadsPort,
 };
 use rf_application::tax::TaxPort;
 use rf_supabase::{
@@ -29,7 +30,8 @@ use rf_supabase::{
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
     SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
     SupabasePurchaseOrderRepository, SupabaseReceiveRepository,
-    SupabaseRollRepository, SupabaseSupplierRepository,
+    SupabaseReorderRuleRepository, SupabaseRollRepository,
+    SupabaseSuggestionReads, SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -116,6 +118,21 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn ReceivePort>, AppError>;
+
+    /// Reorder-rule CRUD (S3c Task 6).
+    fn reorder_rules(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn ReorderRulePort>, AppError>;
+
+    /// Read-side port for the reorder-suggestion generator
+    /// (S3c Task 6). Spans `rolls`, `cuts`,
+    /// `purchase_order_items`, `material_suppliers`, and
+    /// `material_types`.
+    fn suggestion_reads(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn SuggestionReadsPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -272,6 +289,30 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabaseReceiveRepository::new(client)))
+    }
+
+    fn reorder_rules(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn ReorderRulePort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseReorderRuleRepository::new(client)))
+    }
+
+    fn suggestion_reads(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn SuggestionReadsPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseSuggestionReads::new(client)))
     }
 }
 

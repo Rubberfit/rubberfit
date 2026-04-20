@@ -148,6 +148,24 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
             "/po/{id}/receive",
             axum::routing::post(procurement::receive_purchase_order),
         )
+        // Reorder rules — S3c Task 6. Suggestions path is static;
+        // mount it BEFORE /reorder-rules/{id} so the matcher
+        // doesn't capture "suggestions" as an id.
+        .route(
+            "/reorder-rules/suggestions",
+            get(procurement::reorder_suggestions),
+        )
+        .route(
+            "/reorder-rules",
+            get(procurement::list_reorder_rules)
+                .post(procurement::create_reorder_rule),
+        )
+        .route(
+            "/reorder-rules/{id}",
+            get(procurement::get_reorder_rule)
+                .put(procurement::update_reorder_rule)
+                .delete(procurement::delete_reorder_rule),
+        )
         .route(
             "/po/{po_id}/items",
             get(procurement::list_po_items).post(procurement::add_po_item),
