@@ -9,7 +9,7 @@ import {
 } from "@/src/infrastructure/services/permissionService"
 import type { Session } from "@supabase/supabase-js"
 
-const ADMIN_EMAIL_DOMAIN = "@archandanchor.com"
+//const ADMIN_EMAIL_DOMAIN = "@archandanchor.com"
 
 interface ProfileRow {
   super_admin: boolean | null
@@ -87,9 +87,17 @@ export async function proxy(request: NextRequest) {
     if (!hasPermission(userRoles, requiredPermission)) {
       return redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
     }
-  }
-  if(pathname.startsWith("/admin") && !user.email?.endsWith(ADMIN_EMAIL_DOMAIN)) {
-    return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
+  } 
+  if (pathname.startsWith("/admin")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("super_admin")
+      .eq("id", user.id)
+      .single<ProfileRow>()
+
+    if (!profile?.super_admin) {
+      return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
+    }
   }
 
   response.headers.set("Cache-Control", "private, no-store")

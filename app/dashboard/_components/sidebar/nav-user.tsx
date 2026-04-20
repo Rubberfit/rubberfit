@@ -36,8 +36,8 @@ export function NavUser({
   const router = useRouter()
 
   const isAdminPanelVisible =
-    authUser?.isSuperAdmin === true &&
-    authUser.email.toLowerCase().endsWith("@archandanchor.com")
+    authUser?.isSuperAdmin === true 
+    //LATER: authUser.email.toLowerCase().endsWith("@archandanchor.com")
 
   const handleSignOut = async () => {
     try {

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   role        VARCHAR(20) NOT NULL DEFAULT 'member',
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
+   
 
   -- Constraints
   CONSTRAINT valid_role  CHECK (role IN ('admin', 'member', 'cutter', 'viewer', 'manager', 'supervisor')),

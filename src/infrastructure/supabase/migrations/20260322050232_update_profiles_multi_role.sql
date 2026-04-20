@@ -28,10 +28,11 @@ ALTER TABLE profiles DROP COLUMN IF EXISTS role;
 
 -- 3. Add new roles array column
 ALTER TABLE profiles
-  ADD COLUMN roles TEXT[] NOT NULL DEFAULT ARRAY['member']::TEXT[];
+  ADD COLUMN IF NOT EXISTS roles TEXT[] NOT NULL DEFAULT ARRAY['member']::TEXT[];
 
 
 -- 4. Constraint — every value must be a valid role
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS valid_roles;
 ALTER TABLE profiles
   ADD CONSTRAINT valid_roles CHECK (
     roles <@ ARRAY['admin','cutter','manager','member','supervisor','viewer']::TEXT[]
@@ -48,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_roles ON profiles USING GIN (roles);
 -- has unrestricted access to every schema including admin.*
 -- Only set manually by a DBA — never via the application UI.
 ALTER TABLE profiles
-  ADD COLUMN super_admin BOOLEAN NOT NULL DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS super_admin BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_super_admin ON profiles (super_admin)
   WHERE super_admin = TRUE;                   -- partial index: only indexes the rare TRUE rows

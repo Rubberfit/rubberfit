@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { Spinner } from "@/app/components/ui/spinner"
 
-const ADMIN_EMAIL_DOMAIN = "@archandanchor.com"
+//const ADMIN_EMAIL_DOMAIN = "@archandanchor.com"
 
 function isAdminAuthorized(email: string, isSuperAdmin: boolean | undefined): boolean {
-  return email.endsWith(ADMIN_EMAIL_DOMAIN) && isSuperAdmin === true
+  //TO BE IMPLEMENTED LATER: email.endsWith(ADMIN_EMAIL_DOMAIN) && 
+  return isSuperAdmin === true
 }
 
 export function AdminProtectedRoute({ children }: { children: ReactNode }) {
