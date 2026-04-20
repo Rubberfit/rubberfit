@@ -7,6 +7,7 @@
 //! submodule owns its DTOs, handlers, and `utoipa::path`
 //! annotations; the parent re-exports everything the router needs.
 
+pub mod create_reorder_po;
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
@@ -14,6 +15,11 @@ pub mod reorder_rules;
 pub mod status;
 pub mod tax;
 
+pub use create_reorder_po::{
+    create_reorder_po_batch, create_reorder_po_bulk, create_reorder_po_row,
+    CreateReorderPoBatchBody, CreateReorderPoBulkBody, CreateReorderPoRowBody,
+    ReorderPoBatchItemBody, ReorderPoBulkItemBody, ReorderPoReceiptDto,
+};
 pub use reorder_rules::{
     create_reorder_rule, delete_reorder_rule, get_reorder_rule,
     list_reorder_rules, reorder_suggestions, update_reorder_rule,

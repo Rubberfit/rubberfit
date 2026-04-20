@@ -2099,6 +2099,97 @@
         ]
       }
     },
+    "/api/v2/reorder-rules/create-bulk-po": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_bulk",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoBulkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Bulk PO created (1 PO, N line items)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING (transactional — any failure rolls back the entire bulk PO)"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/create-pos": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoBatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "All N items succeeded; response is an ordered array of N receipts. IMPORTANT: the handler is NOT transactional across items — each input runs its own RPC and commits independently. A mid-batch failure returns 4xx/5xx and earlier successes persist in the DB but are NOT returned in the response body. Clients should refetch the PO list (or retry just the failing items) after a partial-batch error rather than trust the current response body on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (empty items / negative quantity / etc.)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING. Earlier items in the batch may have committed (see 201 notes)."
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/reorder-rules/suggestions": {
       "get": {
         "tags": [
@@ -2263,6 +2354,61 @@
           },
           "404": {
             "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/{id}/create-po": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_row",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoRowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "PO created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING"
           }
         },
         "security": [
@@ -2537,6 +2683,59 @@
               "number",
               "null"
             ],
+            "format": "double"
+          }
+        }
+      },
+      "CreateReorderPoBatchBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReorderPoBatchItemBody"
+            }
+          }
+        }
+      },
+      "CreateReorderPoBulkBody": {
+        "type": "object",
+        "required": [
+          "supplier_id",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReorderPoBulkItemBody"
+            }
+          },
+          "supplier_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateReorderPoRowBody": {
+        "type": "object",
+        "required": [
+          "supplier_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
             "format": "double"
           }
         }
@@ -3460,6 +3659,93 @@
               "null"
             ],
             "format": "double"
+          }
+        }
+      },
+      "ReorderPoBatchItemBody": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "supplier_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPoBulkItemBody": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPoReceiptDto": {
+        "type": "object",
+        "description": "Response DTO — mirrors `ReorderPoReceipt` in snake_case.",
+        "required": [
+          "po_id",
+          "po_number",
+          "supplier_id",
+          "items_count",
+          "subtotal",
+          "rule_ids",
+          "bulk"
+        ],
+        "properties": {
+          "bulk": {
+            "type": "boolean"
+          },
+          "items_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "po_id": {
+            "type": "string"
+          },
+          "po_number": {
+            "type": "string"
+          },
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": "string"
           }
         }
       },

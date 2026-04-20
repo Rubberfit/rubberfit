@@ -372,6 +372,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/reorder-rules/create-bulk-po": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_reorder_po_bulk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/reorder-rules/create-pos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_reorder_po_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/reorder-rules/suggestions": {
         parameters: {
             query?: never;
@@ -399,6 +431,22 @@ export interface paths {
         put: operations["update_reorder_rule"];
         post?: never;
         delete: operations["delete_reorder_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/reorder-rules/{id}/create-po": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_reorder_po_row"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -487,6 +535,20 @@ export interface components {
             unit_cost: number;
             /** Format: double */
             width?: number | null;
+        };
+        CreateReorderPoBatchBody: {
+            items: components["schemas"]["ReorderPoBatchItemBody"][];
+        };
+        CreateReorderPoBulkBody: {
+            items: components["schemas"]["ReorderPoBulkItemBody"][];
+            supplier_id: string;
+        };
+        CreateReorderPoRowBody: {
+            /** Format: double */
+            quantity_sqft: number;
+            supplier_id: string;
+            /** Format: double */
+            unit_cost: number;
         };
         CreateReorderRuleBody: {
             active?: boolean | null;
@@ -742,6 +804,33 @@ export interface components {
             thickness?: number | null;
             /** Format: double */
             width?: number | null;
+        };
+        ReorderPoBatchItemBody: {
+            /** Format: double */
+            quantity_sqft: number;
+            rule_id: string;
+            supplier_id: string;
+            /** Format: double */
+            unit_cost: number;
+        };
+        ReorderPoBulkItemBody: {
+            /** Format: double */
+            quantity_sqft: number;
+            rule_id: string;
+            /** Format: double */
+            unit_cost: number;
+        };
+        /** @description Response DTO — mirrors `ReorderPoReceipt` in snake_case. */
+        ReorderPoReceiptDto: {
+            bulk: boolean;
+            /** Format: int32 */
+            items_count: number;
+            po_id: string;
+            po_number: string;
+            rule_ids: string[];
+            /** Format: double */
+            subtotal: number;
+            supplier_id: string;
         };
         ReorderRuleDto: {
             active: boolean;
@@ -2815,6 +2904,96 @@ export interface operations {
             };
         };
     };
+    create_reorder_po_bulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReorderPoBulkBody"];
+            };
+        };
+        responses: {
+            /** @description Bulk PO created (1 PO, N line items) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderPoReceiptDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING (transactional — any failure rolls back the entire bulk PO) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_reorder_po_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReorderPoBatchBody"];
+            };
+        };
+        responses: {
+            /** @description All N items succeeded; response is an ordered array of N receipts. IMPORTANT: the handler is NOT transactional across items — each input runs its own RPC and commits independently. A mid-batch failure returns 4xx/5xx and earlier successes persist in the DB but are NOT returned in the response body. Clients should refetch the PO list (or retry just the failing items) after a partial-batch error rather than trust the current response body on failure. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderPoReceiptDto"][];
+                };
+            };
+            /** @description Validation failed (empty items / negative quantity / etc.) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING. Earlier items in the batch may have committed (see 201 notes). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     reorder_suggestions: {
         parameters: {
             query?: {
@@ -2969,6 +3148,54 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_reorder_po_row: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Reorder rule UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReorderPoRowBody"];
+            };
+        };
+        responses: {
+            /** @description PO created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderPoReceiptDto"];
+                };
+            };
+            /** @description Validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -16,6 +16,7 @@
 //! `SupabasePurchaseOrderRepository`, etc.) land as each aggregate
 //! migrates off the TS Supabase client in S3a-S3d.
 
+pub mod create_reorder_po;
 pub mod cut_history;
 pub mod material_suppliers;
 pub mod material_types;
@@ -30,6 +31,7 @@ pub mod suggestions;
 pub mod suppliers;
 pub mod tax;
 
+pub use create_reorder_po::SupabaseCreateReorderPoRepository;
 pub use cut_history::SupabaseCutHistoryRepository;
 pub use material_suppliers::SupabaseMaterialSupplierRepository;
 pub use material_types::SupabaseMaterialTypeRepository;

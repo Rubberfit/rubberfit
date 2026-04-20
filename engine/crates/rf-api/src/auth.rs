@@ -21,12 +21,13 @@ use rf_application::inventory::{
 };
 use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{
-    PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort, ReorderRulePort,
-    SuggestionReadsPort,
+    CreateReorderPoPort, PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort,
+    ReorderRulePort, SuggestionReadsPort,
 };
 use rf_application::tax::TaxPort;
 use rf_supabase::{
-    HttpTaxProxy, PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
+    HttpTaxProxy, PostgrestClient, PostgrestError,
+    SupabaseCreateReorderPoRepository, SupabaseCutHistoryRepository,
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
     SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
     SupabasePurchaseOrderRepository, SupabaseReceiveRepository,
@@ -133,6 +134,15 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn SuggestionReadsPort>, AppError>;
+
+    /// Create-reorder-PO RPC client (S3c Task 7). One function
+    /// serves all three HTTP paths (row / batch / bulk); the
+    /// `bulk` flag controls whether `reorder_rule_id` stamps as
+    /// the first rule or null for multi-rule bulk.
+    fn create_reorder_po(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn CreateReorderPoPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -313,6 +323,18 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabaseSuggestionReads::new(client)))
+    }
+
+    fn create_reorder_po(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn CreateReorderPoPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseCreateReorderPoRepository::new(client)))
     }
 }
 

@@ -12,11 +12,17 @@
 //! Task 1 scaffolded the module with no bodies. Tasks 2–8 fill them
 //! in as each vertical slice lands.
 
+pub mod create_reorder_po;
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
 pub mod reorder_rules;
 pub mod suggestions;
+
+pub use create_reorder_po::{
+    CreateReorderPoPort, CreateReorderPurchaseOrderUseCase, ReorderPoItem,
+    ReorderPoMode, ReorderPoReceipt,
+};
 
 pub use receive::{
     ReceiveItem, ReceivePort, ReceivePurchaseOrderUseCase, ReceiveReceipt,

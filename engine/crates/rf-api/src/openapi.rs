@@ -37,12 +37,14 @@ use crate::inventory::{
     UpdateSupplierBody,
 };
 use crate::procurement::{
-    CreatePurchaseOrderBody, CreatePurchaseOrderItemBody, CreateReorderRuleBody,
-    PurchaseOrderDto, PurchaseOrderItemDto, ReceiveItemBody,
-    ReceivePurchaseOrderBody, ReceiveReceiptDto, ReceiveRollDataBody,
-    ReorderRuleDto, ReorderSuggestionDto, TaxPreviewDto, UpdatePurchaseOrderBody,
-    UpdatePurchaseOrderItemBody, UpdatePurchaseOrderStatusBody,
-    UpdateReorderRuleBody,
+    CreatePurchaseOrderBody, CreatePurchaseOrderItemBody,
+    CreateReorderPoBatchBody, CreateReorderPoBulkBody, CreateReorderPoRowBody,
+    CreateReorderRuleBody, PurchaseOrderDto, PurchaseOrderItemDto,
+    ReceiveItemBody, ReceivePurchaseOrderBody, ReceiveReceiptDto,
+    ReceiveRollDataBody, ReorderPoBatchItemBody, ReorderPoBulkItemBody,
+    ReorderPoReceiptDto, ReorderRuleDto, ReorderSuggestionDto, TaxPreviewDto,
+    UpdatePurchaseOrderBody, UpdatePurchaseOrderItemBody,
+    UpdatePurchaseOrderStatusBody, UpdateReorderRuleBody,
 };
 
 /// Adds the `supabase_jwt` bearer scheme to the merged document.
@@ -112,6 +114,9 @@ pub struct CutsDoc;
         crate::procurement::reorder_rules::update_reorder_rule,
         crate::procurement::reorder_rules::delete_reorder_rule,
         crate::procurement::reorder_rules::reorder_suggestions,
+        crate::procurement::create_reorder_po::create_reorder_po_row,
+        crate::procurement::create_reorder_po::create_reorder_po_batch,
+        crate::procurement::create_reorder_po::create_reorder_po_bulk,
         crate::procurement::po_items::list_po_items,
         crate::procurement::po_items::add_po_item,
         crate::procurement::po_items::update_po_item,
@@ -131,6 +136,12 @@ pub struct CutsDoc;
         CreateReorderRuleBody,
         UpdateReorderRuleBody,
         ReorderSuggestionDto,
+        CreateReorderPoRowBody,
+        CreateReorderPoBatchBody,
+        CreateReorderPoBulkBody,
+        ReorderPoBatchItemBody,
+        ReorderPoBulkItemBody,
+        ReorderPoReceiptDto,
         PurchaseOrderItemDto,
         CreatePurchaseOrderItemBody,
         UpdatePurchaseOrderItemBody,
