@@ -225,18 +225,56 @@ export default function CutPlannerPage() {
   }, [])
 
   const handleUploadedParts = (parts: ExtractedPart[], stockWidth?: number) => {
-    const uploaded: PartTemplate[] = parts.map((p, i) => ({
-      id: `uploaded-${Date.now()}-${i}`,
-      partType: "rectangle" as const,
-      label: `${p.width}" × ${p.length}"`,
-      summary: p.partNumber ? `Uploaded: ${p.partNumber}` : "Uploaded dimension",
-      quantity: p.quantity,
-      category: "custom" as const,
-      width: p.width,
-      length: p.length,
-      isCustom: true,
-      partNumber: p.partNumber ?? undefined,
-    }))
+    const now = Date.now()
+    const uploaded: PartTemplate[] = parts.map((p, i) => {
+      const id = `uploaded-${now}-${i}`
+      const summary = p.partNumber ? `Uploaded: ${p.partNumber}` : "Uploaded dimension"
+      const base = {
+        id,
+        quantity: p.quantity,
+        category: "custom" as const,
+        isCustom: true,
+        partNumber: p.partNumber ?? undefined,
+        summary,
+      }
+      switch (p.partType) {
+        case "cylinder":
+          return {
+            ...base,
+            partType: "cylinder" as const,
+            label: `\u00D8${p.diameter}" \u00D7 ${p.height}"`,
+            diameter: p.diameter,
+            height: p.height,
+          }
+        case "cone":
+          return {
+            ...base,
+            partType: "cone" as const,
+            label: `${Math.round(p.arcDegrees ?? 0)}\u00B0 \u2022 R${p.innerRadius ?? 0}" to R${p.outerRadius ?? 0}"`,
+            innerRadius: p.innerRadius,
+            outerRadius: p.outerRadius,
+            arcDegrees: p.arcDegrees,
+          }
+        case "trapezoid":
+          return {
+            ...base,
+            partType: "trapezoid" as const,
+            label: `${p.topWidth}" / ${p.bottomWidth}" \u00D7 ${p.height}"`,
+            topWidth: p.topWidth,
+            bottomWidth: p.bottomWidth,
+            height: p.height,
+          }
+        case "rectangle":
+        default:
+          return {
+            ...base,
+            partType: "rectangle" as const,
+            label: `${p.width}" \u00D7 ${p.length}"`,
+            width: p.width,
+            length: p.length,
+          }
+      }
+    })
     setUploadedParts((prev) => [...prev, ...uploaded])
     if (stockWidth && stockWidth > 0) {
       setStock((prev) => ({ ...prev, width: stockWidth }))
@@ -299,14 +337,7 @@ export default function CutPlannerPage() {
       fallbackCutHeight: selectedTemplate?.length ?? selectedTemplate?.height ?? 24,
       fallbackQty: safeQuantity,
     })
-  }, [
-    nestingSimpleParts,
-    stock.width,
-    stock.length,
-    selectedTemplate,
-    safeQuantity,
-    packJob,
-  ])
+  }, [nestingSimpleParts, stock.width, stock.length, selectedTemplate, safeQuantity, packJob])
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -626,4 +657,3 @@ export default function CutPlannerPage() {
     </div>
   )
 }
-

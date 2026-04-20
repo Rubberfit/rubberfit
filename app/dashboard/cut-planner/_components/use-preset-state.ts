@@ -190,6 +190,7 @@ function hydrateCustomTemplates(
   }
 }
 
+/* eslint-disable max-lines-per-function */
 export function usePresetState(
   onApply?: (templates: PartTemplate[]) => void,
   rollWidth?: number,
