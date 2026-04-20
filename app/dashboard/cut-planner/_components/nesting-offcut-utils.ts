@@ -251,7 +251,42 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     bands.push(...pieces)
   }
 
-  return bands
+  return mergeVerticallyAdjacentBands(bands)
+}
+
+// Fuse bands that share the same (x, width) column and touch at their
+// y-boundary. Row-by-row gap generation emits one band per row, so a reusable
+// band directly above a scrap band with the same x-range would otherwise stay
+// split and get classified independently; merging lets the combined rectangle
+// re-hit the reusable thresholds downstream.
+function mergeVerticallyAdjacentBands(bands: OffcutBand[]): OffcutBand[] {
+  if (bands.length <= 1) return bands
+  const EPS = 0.01
+  const buckets = new Map<string, OffcutBand[]>()
+  for (const band of bands) {
+    const key = `${Math.round(band.x / EPS)}|${Math.round(band.width / EPS)}`
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(band)
+    else buckets.set(key, [band])
+  }
+
+  const merged: OffcutBand[] = []
+  for (const bucket of buckets.values()) {
+    bucket.sort((a, b) => a.y - b.y)
+    let current: OffcutBand = { ...bucket[0] }
+    for (let i = 1; i < bucket.length; i++) {
+      const next = bucket[i]
+      const currentEnd = current.y + current.height
+      if (Math.abs(next.y - currentEnd) <= EPS) {
+        current.height = next.y + next.height - current.y
+      } else {
+        merged.push(current)
+        current = { ...next }
+      }
+    }
+    merged.push(current)
+  }
+  return merged
 }
 
 export function countPieceFitsInBand(band: OffcutBand, pieceW: number, pieceH: number) {

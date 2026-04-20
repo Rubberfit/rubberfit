@@ -685,7 +685,13 @@ export function generateMultiPartPreview(
     best = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
   }
 
-  return buildMultiPartPreviewFromCandidate(best, simpleParts, requestedItems.length, rollW, rollL)
+  return buildMultiPartPreviewFromCandidate(
+    best,
+    simpleParts,
+    requestedItems.length,
+    rollW,
+    rollL
+  )
 }
 
 /**

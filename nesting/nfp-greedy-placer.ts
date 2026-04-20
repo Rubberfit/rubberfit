@@ -166,7 +166,6 @@ export function greedyNfpPack(
   const partPartNfpCache = buildPartPartNfpCache(hull, spacing)
   if (!partPartNfpCache) return emptyResult(qty)
 
-  const startTime = Date.now()
   const tryAngle = (angle: number): GreedyPlacement[] | null =>
     packWithRotation(
       polygon.points,
@@ -179,7 +178,6 @@ export function greedyNfpPack(
       partPartNfpCache
     )
 
-  // OPTIMIZATION: THIS IS WHERE THE LONGEST CALCULATIONS TAKE PLACE
   const coarseResults: Array<{ angle: number; placements: GreedyPlacement[] }> = []
   for (let step = 0; step < rotationSteps; step++) {
     const angle = (step / rotationSteps) * Math.PI * 2
@@ -188,8 +186,6 @@ export function greedyNfpPack(
       coarseResults.push({ angle, placements: result })
     }
   }
-  const endTime = Date.now()
-  console.log(`Time take: ${endTime - startTime} ms`)
   if (coarseResults.length === 0) return emptyResult(qty)
 
   // pickBestCoarse sorts coarseResults in place (most placements → tightest bb)
