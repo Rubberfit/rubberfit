@@ -97,7 +97,14 @@ export default function CutListUpload({ onPartsConfirmed }: CutListUploadProps) 
           setStatus("idle")
           return
         }
-        setExtractedParts(result.parts)
+        // Vision extraction historically produces rectangles only — default any
+        // row that's missing a partType. Once the edge function is extended to
+        // detect cones/trapezoids/cylinders, this normalization becomes a no-op.
+        const normalized = result.parts.map((p) => ({
+          ...p,
+          partType: p.partType ?? "rectangle",
+        })) as ExtractedPart[]
+        setExtractedParts(normalized)
         setWarnings(result.warnings || [])
         setStockWidth(result.stockWidth)
         setStatus("review")

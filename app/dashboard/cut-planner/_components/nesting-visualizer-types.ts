@@ -75,6 +75,17 @@ export interface NestingVisualizerProps {
   simpleMode?: boolean
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
+  /**
+   * When provided, skips internal live compute and renders this preview directly.
+   * Used by the Pack worker path for cones/trapezoids/cylinders.
+   */
+  overridePreview?: SimplePartPreview
+  /**
+   * When provided, skips internal live compute AND buildMultiSheet — renders
+   * the supplied MultiSheetResult directly. Used when merging greedy + NFP
+   * worker results into a 2-sheet view for mixed selections.
+   */
+  overrideMultiSheet?: MultiSheetResult
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
 }

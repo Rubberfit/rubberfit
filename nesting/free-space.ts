@@ -422,11 +422,43 @@ function clipperSubtractRect(polygonPoints: ReadonlyArray<Point2D>, rect: FreeRe
  * 4. Subtract accepted rect from its outer contour, requeue the remainder
  * 5. Stop when no rectangle meets area thresholds or maxRects reached
  */
+export type FreeRectMode = "maximal" | "contour-aabb"
+
+function contourAabbRegions(
+  outers: ReadonlyArray<ReadonlyArray<Point2D>>,
+  maxRects: number
+): FreeRegion[] {
+  const rects: FreeRegion[] = []
+  for (const poly of outers) {
+    if (polygonArea(poly) < MIN_REGION_AREA) continue
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const pt of poly) {
+      if (pt.x < minX) minX = pt.x
+      if (pt.x > maxX) maxX = pt.x
+      if (pt.y < minY) minY = pt.y
+      if (pt.y > maxY) maxY = pt.y
+    }
+    const width = maxX - minX
+    const height = maxY - minY
+    const area = width * height
+    if (area < MIN_REGION_AREA) continue
+    rects.push({ x: minX, y: minY, width, height, area })
+    if (rects.length >= maxRects) break
+  }
+  // Bigger regions first so the legend lists the most useful offcut at the top.
+  rects.sort((a, b) => b.area - a.area)
+  return rects
+}
+
 export function extractMaximalFreeRects(
   stockW: number,
   stockH: number,
   placedPolygons: ReadonlyArray<ReadonlyArray<Point2D>>,
-  maxRects = 10
+  maxRects = 10,
+  mode: FreeRectMode = "maximal"
 ): FreeRegion[] {
   if (placedPolygons.length === 0 || stockW <= 0 || stockH <= 0) {
     return []
@@ -434,6 +466,14 @@ export function extractMaximalFreeRects(
 
   // 1. Clipper difference: stock - union(shapes) → outers + holes
   const { outers, holes } = clipperDifference(stockW, stockH, placedPolygons)
+
+  // Fast path for concave inputs (cones/trapezoids): use each outer contour's
+  // AABB directly instead of iteratively carving maximal inscribed rectangles via
+  // Clipper. The iterative path fragments the free polygon on each subtraction,
+  // and Clipper cost grows with fragmentation — cone sectors blow this up at N≥4.
+  if (mode === "contour-aabb") {
+    return contourAabbRegions(outers, maxRects)
+  }
 
   // 2. Start with outer contours as the free polygon candidates
   let freePolygons = outers.filter((p) => polygonArea(p) >= MIN_REGION_AREA)

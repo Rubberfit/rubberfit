@@ -6,8 +6,9 @@ import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
-import NestingVisualizer from "./_components/NestingVisualizer"
+import { FileUp, Info, Package, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { PackCanvas } from "./_components/pack-canvas"
+import { usePackJob } from "./_hooks/use-pack-job"
 import PresetDimensionSelector, {
   type PartTemplate,
   type LoadedSelection,
@@ -78,6 +79,8 @@ export default function CutPlannerPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+
+  const packJob = usePackJob()
 
   useEffect(() => {
     materialTypeService
@@ -260,18 +263,56 @@ export default function CutPlannerPage() {
   }, [])
 
   const handleUploadedParts = (parts: ExtractedPart[], stockWidth?: number) => {
-    const uploaded: PartTemplate[] = parts.map((p, i) => ({
-      id: `uploaded-${Date.now()}-${i}`,
-      partType: "rectangle" as const,
-      label: `${p.width}" × ${p.length}"`,
-      summary: p.partNumber ? `Uploaded: ${p.partNumber}` : "Uploaded dimension",
-      quantity: p.quantity,
-      category: "custom" as const,
-      width: p.width,
-      length: p.length,
-      isCustom: true,
-      partNumber: p.partNumber ?? undefined,
-    }))
+    const now = Date.now()
+    const uploaded: PartTemplate[] = parts.map((p, i) => {
+      const id = `uploaded-${now}-${i}`
+      const summary = p.partNumber ? `Uploaded: ${p.partNumber}` : "Uploaded dimension"
+      const base = {
+        id,
+        quantity: p.quantity,
+        category: "custom" as const,
+        isCustom: true,
+        partNumber: p.partNumber ?? undefined,
+        summary,
+      }
+      switch (p.partType) {
+        case "cylinder":
+          return {
+            ...base,
+            partType: "cylinder" as const,
+            label: `\u00D8${p.diameter}" \u00D7 ${p.height}"`,
+            diameter: p.diameter,
+            height: p.height,
+          }
+        case "cone":
+          return {
+            ...base,
+            partType: "cone" as const,
+            label: `${Math.round(p.arcDegrees ?? 0)}\u00B0 \u2022 R${p.innerRadius ?? 0}" to R${p.outerRadius ?? 0}"`,
+            innerRadius: p.innerRadius,
+            outerRadius: p.outerRadius,
+            arcDegrees: p.arcDegrees,
+          }
+        case "trapezoid":
+          return {
+            ...base,
+            partType: "trapezoid" as const,
+            label: `${p.topWidth}" / ${p.bottomWidth}" \u00D7 ${p.height}"`,
+            topWidth: p.topWidth,
+            bottomWidth: p.bottomWidth,
+            height: p.height,
+          }
+        case "rectangle":
+        default:
+          return {
+            ...base,
+            partType: "rectangle" as const,
+            label: `${p.width}" \u00D7 ${p.length}"`,
+            width: p.width,
+            length: p.length,
+          }
+      }
+    })
     setUploadedParts((prev) => [...prev, ...uploaded])
     if (stockWidth && stockWidth > 0) {
       setStock((prev) => ({ ...prev, width: stockWidth }))
@@ -299,9 +340,7 @@ export default function CutPlannerPage() {
     () =>
       selectedTemplates.map((template) => ({
         partType: template.partType,
-        // Use the per-template quantity (already reflects the quantities-map override).
-        // Fall back to safeQuantity only when the template has no quantity set.
-        quantity: template.quantity > 1 ? template.quantity : safeQuantity,
+        quantity: template.quantity,
         cutDirection,
         cutRatios: customCutRatios,
         width: template.width,
@@ -318,27 +357,25 @@ export default function CutPlannerPage() {
     [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
   )
 
-  const nestingSimplePart = useMemo(
-    () =>
-      selectedTemplate
-        ? {
-            partType: selectedTemplate.partType,
-            quantity: safeQuantity,
-            cutDirection,
-            cutRatios: customCutRatios,
-            width: selectedTemplate.width,
-            length: selectedTemplate.length,
-            diameter: selectedTemplate.diameter,
-            height: selectedTemplate.height,
-            topWidth: selectedTemplate.topWidth,
-            bottomWidth: selectedTemplate.bottomWidth,
-            innerRadius: selectedTemplate.innerRadius,
-            outerRadius: selectedTemplate.outerRadius,
-            arcDegrees: selectedTemplate.arcDegrees,
-          }
-        : undefined,
-    [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
-  )
+  const needsPack = nestingSimpleParts.length > 0
+
+  // Invalidate the Pack result when inputs change so the user re-packs.
+  useEffect(() => {
+    if (packJob.status !== "idle") packJob.reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nestingSimpleParts, stock.width, stock.length])
+
+  const handlePack = useCallback(() => {
+    if (nestingSimpleParts.length === 0) return
+    packJob.pack({
+      specs: nestingSimpleParts,
+      rollWidth: stock.width,
+      rollLength: stock.length,
+      fallbackCutWidth: selectedTemplate?.width ?? selectedTemplate?.diameter ?? 24,
+      fallbackCutHeight: selectedTemplate?.length ?? selectedTemplate?.height ?? 24,
+      fallbackQty: safeQuantity,
+    })
+  }, [nestingSimpleParts, stock.width, stock.length, selectedTemplate, safeQuantity, packJob])
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -537,7 +574,7 @@ export default function CutPlannerPage() {
                     className="group flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 pl-1 pr-2 py-1 text-xs transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
                   >
                     {tag && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white dark:bg-slate-200 dark:text-slate-800">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-800 px-1.5 text-[10px] font-bold leading-none text-white dark:bg-slate-200 dark:text-slate-800">
                         {tag}
                       </span>
                     )}
@@ -597,12 +634,29 @@ export default function CutPlannerPage() {
                   <LayoutLabel />
                   4. Graph
                 </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {needsPack && (
+                    <Button
+                      size="sm"
+                      variant={packJob.status === "done" ? "outline" : "default"}
+                      onClick={handlePack}
+                      disabled={packJob.status === "packing" || nestingSimpleParts.length === 0}
+                    >
+                      <Package className="mr-1.5 h-4 w-4" />
+                      {packJob.status === "packing"
+                        ? "Packing…"
+                        : packJob.status === "done"
+                          ? "Re-pack"
+                          : "Pack"}
+                    </Button>
+                  )}
+                  {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                    <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
+                      <Scissors className="mr-1.5 h-4 w-4" />
+                      {isRecordingCut ? "Recording…" : "Cut"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardDescription>
                 The graph starts from rectangular stock and shows the actual cut pieces placed on
@@ -611,16 +665,15 @@ export default function CutPlannerPage() {
             </CardHeader>
 
             <CardContent>
-              <NestingVisualizer
-                defaultRollWidth={stock.width}
-                defaultRollLength={stock.length}
-                defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                defaultQty={safeQuantity}
-                simpleMode
+              <PackCanvas
+                status={packJob.status}
+                progress={packJob.progress}
+                result={packJob.result}
+                error={packJob.error}
+                stockWidth={stock.width}
+                stockLength={stock.length}
                 onMetricsChange={setCutMetrics}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
+                onRetry={handlePack}
               />
             </CardContent>
           </Card>

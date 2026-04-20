@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { AlertTriangle, Trash2 } from "lucide-react"
 import {
   Dialog,
@@ -19,7 +19,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
-import type { ExtractedPart } from "./upload-types"
+import {
+  describeExtractedPart,
+  type ExtractedPart,
+  type ExtractedPartType,
+} from "./upload-types"
 
 interface UploadReviewDialogProps {
   open: boolean
@@ -28,6 +32,13 @@ interface UploadReviewDialogProps {
   stockWidth?: number
   onConfirm: (parts: ExtractedPart[]) => void
   onCancel: () => void
+}
+
+const TYPE_LABEL: Record<ExtractedPartType, string> = {
+  rectangle: "Rectangle",
+  cylinder: "Cylinder",
+  cone: "Cone",
+  trapezoid: "Trapezoid",
 }
 
 export default function UploadReviewDialog({
@@ -44,21 +55,33 @@ export default function UploadReviewDialog({
     setParts(initialParts)
   }, [initialParts])
 
-  const updateField = (index: number, field: keyof ExtractedPart, value: string) => {
+  const counts = useMemo(() => {
+    const map = new Map<ExtractedPartType, number>()
+    for (const p of parts) map.set(p.partType, (map.get(p.partType) ?? 0) + 1)
+    return map
+  }, [parts])
+
+  const updatePartNumber = (index: number, value: string) => {
     setParts((prev) =>
-      prev.map((p, i) => {
-        if (i !== index) return p
-        const num = Number(value)
-        if (field === "partNumber") return { ...p, partNumber: value }
-        if (!Number.isFinite(num) || num < 0) return p
-        return { ...p, [field]: field === "quantity" ? Math.max(1, Math.round(num)) : num }
-      })
+      prev.map((p, i) => (i === index ? { ...p, partNumber: value || undefined } : p))
+    )
+  }
+
+  const updateQuantity = (index: number, value: string) => {
+    const num = Number(value)
+    if (!Number.isFinite(num) || num < 1) return
+    setParts((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, quantity: Math.max(1, Math.round(num)) } : p))
     )
   }
 
   const removeRow = (index: number) => {
     setParts((prev) => prev.filter((_, i) => i !== index))
   }
+
+  const shapeSummary = [...counts.entries()]
+    .map(([type, count]) => `${count} ${TYPE_LABEL[type].toLowerCase()}${count !== 1 ? "s" : ""}`)
+    .join(", ")
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
@@ -67,7 +90,8 @@ export default function UploadReviewDialog({
           <DialogTitle>Review Extracted Dimensions</DialogTitle>
           <DialogDescription>
             {parts.length} part{parts.length !== 1 ? "s" : ""} extracted
-            {stockWidth ? ` - Stock width: ${stockWidth}"` : ""}
+            {shapeSummary ? ` (${shapeSummary})` : ""}
+            {stockWidth ? ` · Stock width: ${stockWidth}"` : ""}
           </DialogDescription>
         </DialogHeader>
 
@@ -86,50 +110,40 @@ export default function UploadReviewDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">Part #</TableHead>
-                <TableHead className="w-[90px]">Width</TableHead>
-                <TableHead className="w-[90px]">Length</TableHead>
-                <TableHead className="w-[70px]">Qty</TableHead>
+                <TableHead className="w-[50px] text-right">#</TableHead>
+                <TableHead className="w-[120px]">Part #</TableHead>
+                <TableHead className="w-[100px]">Shape</TableHead>
+                <TableHead>Dimensions</TableHead>
+                <TableHead className="w-[80px]">Qty</TableHead>
                 <TableHead className="w-[40px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {parts.map((part, index) => (
                 <TableRow key={index}>
+                  <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                    {index + 1}
+                  </TableCell>
                   <TableCell>
                     <input
                       className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-sm"
                       value={part.partNumber ?? ""}
-                      onChange={(e) => updateField(index, "partNumber", e.target.value)}
+                      onChange={(e) => updatePartNumber(index, e.target.value)}
                       placeholder="\u2014"
                     />
                   </TableCell>
-                  <TableCell>
-                    <input
-                      type="number"
-                      className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-sm"
-                      value={part.width}
-                      onChange={(e) => updateField(index, "width", e.target.value)}
-                      min="0"
-                      step="0.125"
-                    />
+                  <TableCell className="text-xs font-medium text-muted-foreground">
+                    {TYPE_LABEL[part.partType]}
                   </TableCell>
-                  <TableCell>
-                    <input
-                      type="number"
-                      className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-sm"
-                      value={part.length}
-                      onChange={(e) => updateField(index, "length", e.target.value)}
-                      min="0"
-                      step="0.125"
-                    />
+                  <TableCell className="font-mono text-xs">
+                    {describeExtractedPart(part)}
                   </TableCell>
                   <TableCell>
                     <input
                       type="number"
                       className="w-full rounded border border-border bg-transparent px-1.5 py-1 text-sm"
                       value={part.quantity}
-                      onChange={(e) => updateField(index, "quantity", e.target.value)}
+                      onChange={(e) => updateQuantity(index, e.target.value)}
                       min="1"
                       step="1"
                     />

@@ -1,7 +1,7 @@
 # RubberFit
 
 <p align="center">
-  <img src="app/public/archanchorlogo.png" alt="Arc & Anchor" width="120" />
+  <img src="app/public/archanchorreadme.png" alt="Arc & Anchor" width="120" />
 </p>
 
 <p align="center">

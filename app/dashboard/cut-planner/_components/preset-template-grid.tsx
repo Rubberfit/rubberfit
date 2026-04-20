@@ -15,6 +15,7 @@ interface PresetTemplateGridProps {
   onEditCustom: (template: PartTemplate) => void
   onRemoveCustom: (templateId: string) => void
   tagMap?: Map<string, string>
+  fitsStock?: (template: PartTemplate) => boolean
 }
 
 export function PresetTemplateGrid({
@@ -27,23 +28,30 @@ export function PresetTemplateGrid({
   onEditCustom,
   onRemoveCustom,
   tagMap,
+  fitsStock,
 }: PresetTemplateGridProps) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
       {visible.map((template) => {
         const isChecked = checked.has(template.id)
+        const fits = fitsStock ? fitsStock(template) : true
+        const disabled = !fits
         return (
           <label
             key={template.id}
-            className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all duration-150 select-none ${
-              isChecked
-                ? `  border-blue-400 text-blue-900 shadow-sm ring-1 ring-inset ring-blue-200`
-                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-card dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
+            className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all duration-150 select-none ${
+              disabled
+                ? "cursor-not-allowed opacity-50 bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700"
+                : isChecked
+                  ? `cursor-pointer  border-blue-400 text-blue-900 shadow-sm ring-1 ring-inset ring-blue-200`
+                  : "cursor-pointer bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-card dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700"
             }`}
+            title={disabled ? "This shape's bounding box is larger than the stock sheet." : undefined}
           >
             <input
               type="checkbox"
               checked={isChecked}
+              disabled={disabled}
               onChange={() => onToggle(template.id)}
               className="sr-only"
             />
@@ -73,7 +81,7 @@ export function PresetTemplateGrid({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {isChecked && tagMap?.has(template.id) && (
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-stone-700 px-1.5 text-[10px] font-bold leading-none text-stone-50">
                         {tagMap.get(template.id)}
                       </span>
                     )}
@@ -89,6 +97,11 @@ export function PresetTemplateGrid({
                   <div className="text-[11px] text-slate-500 mt-0.5  dark:text-slate-100">
                     {getTemplateAreaSqFt(template).toFixed(1)} sq ft
                   </div>
+                  {disabled && (
+                    <div className="mt-0.5 text-[10px] font-medium text-red-600 dark:text-red-400">
+                      Too large for stock
+                    </div>
+                  )}
                   {editingCustomId === template.id && (
                     <div className="mt-1 text-[10px] font-medium text-blue-700">Editing</div>
                   )}
@@ -113,9 +126,33 @@ export function PresetTemplateGrid({
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
-                          {quantities.get(template.id) ?? 1}
-                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={quantities.get(template.id) ?? 1}
+                          aria-label="Quantity"
+                          onClick={(event) => event.stopPropagation()}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/[^0-9]/g, "")
+                            if (raw === "") return
+                            const num = Number(raw)
+                            if (!Number.isFinite(num)) return
+                            const clamped = Math.max(1, Math.min(99, Math.round(num)))
+                            onQuantityChange(template.id, clamped)
+                          }}
+                          onBlur={(event) => {
+                            const raw = Number(event.target.value)
+                            const clamped = Number.isFinite(raw)
+                              ? Math.max(1, Math.min(99, Math.round(raw)))
+                              : 1
+                            if (clamped !== (quantities.get(template.id) ?? 1)) {
+                              onQuantityChange(template.id, clamped)
+                            }
+                          }}
+                          className="w-9 border-x border-slate-200 bg-transparent text-center text-xs font-semibold tabular-nums outline-none focus:bg-slate-50 dark:border-slate-600 dark:focus:bg-slate-700/40"
+                        />
                         <button
                           type="button"
                           aria-label="Increase quantity"
