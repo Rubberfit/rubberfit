@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Alert, AlertDescription } from "@/app/components/ui/alert"
 import { toast } from "sonner"
 import { csvService } from "@/src/infrastructure/services/csvService"
+import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 
 export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [isUploading, setIsUploading] = useState(false)
@@ -49,18 +50,34 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
 
     setIsUploading(true)
     try {
-      const result = await csvService.processCSVFile(file)
-
-      if (result.success) {
+      // SDK flag-ON → Rust CSV endpoint (server-side parser +
+      // per-row receipt). Flag-OFF → legacy parse + insert.
+      // Either way the receipt has `{imported, skipped, errors}`.
+      const receipt = await importRollsSdk.uploadCsv(file)
+      if (receipt.errors.length === 0 && receipt.imported > 0) {
         toast.success("CSV imported successfully", {
-          description: `${result.count} rolls added to inventory`,
+          description: `${receipt.imported} rolls added to inventory`,
         })
+        if (onUploadComplete) {
+          onUploadComplete()
+        }
+      } else if (receipt.imported > 0) {
+        // Partial success — some rows landed, others were
+        // skipped with per-row errors. Show both counts so the
+        // operator can scan the CSV and fix the offenders.
+        toast.warning(
+          `Imported ${receipt.imported}; skipped ${receipt.skipped}`,
+          {
+            description:
+              receipt.errors[0]?.message ?? "Review errors in the report",
+          }
+        )
         if (onUploadComplete) {
           onUploadComplete()
         }
       } else {
         toast.error("Import failed", {
-          description: result.error || "Failed to import CSV",
+          description: receipt.errors[0]?.message ?? "No rows imported",
         })
       }
     } catch (error) {

@@ -1,6 +1,6 @@
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import type { ICreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { resolveUseCase } from "@/di/resolve"
@@ -282,9 +282,16 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
 
           const rule = reorderRules.find((r) => r.material_type_id === item.materialTypeId)
           if (rule) {
-            await reorderService.updateReorderRule(rule.id, {
+            // Flag-ON: Rust bumps last_triggered_at inside the
+            // reorder→PO RPC (see create_reorder_purchase_order).
+            // Flag-OFF: no-op from the SDK's update call below
+            // because `last_triggered_at` isn't on the Rust
+            // `ReorderRuleUpdate` patch shape — the SDK's legacy
+            // fallback casts through the legacy service's
+            // partial-update surface which DOES accept it.
+            await reorderRulesSdk.update(rule.id, {
               last_triggered_at: new Date().toISOString(),
-            })
+            } as unknown as Parameters<typeof reorderRulesSdk.update>[1])
           }
         }
 
