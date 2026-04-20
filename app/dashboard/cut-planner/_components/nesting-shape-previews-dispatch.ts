@@ -340,13 +340,42 @@ function buildHybridCandidate(
   rollL: number
 ): PackingCandidate {
   const bounds = getPlacementBounds(combinedItems)
-  const allBands = buildShelfGapBands(combinedItems, rollW, rollL)
+
+  // Polygon-aware free-space extraction — mirror the fix applied to
+  // mixedResultToCandidate. The trapezoid hybrid places trapezoids via
+  // packInterleavedTrapezoids (non-uniform y positions) and the "other" specs
+  // via shelf packing beneath, so buildShelfGapBands' row-key approach leaves
+  // gaps between the trap row and the shelf-packed row, producing black
+  // (uncovered) regions where scrap bands should be. extractMaximalFreeRects
+  // tiles the full free polygon regardless of placement geometry.
+  const placedPolygons = combinedItems
+    .map((item) =>
+      item.placedPolygon && item.placedPolygon.length >= 3
+        ? item.placedPolygon
+        : [
+            { x: item.x, y: item.y },
+            { x: item.x + item.width, y: item.y },
+            { x: item.x + item.width, y: item.y + item.height },
+            { x: item.x, y: item.y + item.height },
+          ]
+    )
+    .filter((poly): poly is Point2D[] => poly.length >= 3)
+
+  const freeRects =
+    placedPolygons.length > 0 ? extractMaximalFreeRects(rollW, rollL, placedPolygons, 24) : []
+
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
   let scrapArea = 0
-  allBands.forEach((band) => {
-    const area = band.width * band.height
+  for (const rect of freeRects) {
+    const band: OffcutBand = {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    }
+    const area = rect.width * rect.height
     if (bandFitsAnyPreviewItem(band, combinedItems)) {
       offcutBands.push(band)
       reusableArea += area
@@ -354,7 +383,7 @@ function buildHybridCandidate(
       scrapBands.push(band)
       scrapArea += area
     }
-  })
+  }
   const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =

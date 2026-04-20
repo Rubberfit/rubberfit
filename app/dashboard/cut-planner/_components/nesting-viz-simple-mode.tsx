@@ -258,19 +258,22 @@ function SheetSvg({
           strokeWidth="2"
         />
         <g clipPath={`url(#${sClip})`}>
-          {!layout.shapeFirstView &&
-            sheet.preview.items.some(
-              (item) => item.placedPolygon && item.placedPolygon.length > 0
-            ) && (
-              <rect
-                x={layout.surfaceX}
-                y={layout.surfaceY}
-                width={layout.surfacePxW}
-                height={layout.surfacePxH}
-                fill={`url(#${sWastePat})`}
-                opacity="0.95"
-              />
-            )}
+          {/* Always paint the waste (red) backdrop in stock view so any region
+              not explicitly covered by a scrap/offcut band or an item polygon
+              reads as scrap instead of the dark stock pattern. Previously
+              gated on `items.some(placedPolygon)`, but that produced visible
+              black patches in mixes where rectangles lacked polygons AND the
+              band extraction missed small regions. */}
+          {!layout.shapeFirstView && (
+            <rect
+              x={layout.surfaceX}
+              y={layout.surfaceY}
+              width={layout.surfacePxW}
+              height={layout.surfacePxH}
+              fill={`url(#${sWastePat})`}
+              opacity="0.95"
+            />
+          )}
           {!layout.shapeFirstView &&
             sheet.preview.scrapBands.map((band, index) =>
               band.polygon ? (
