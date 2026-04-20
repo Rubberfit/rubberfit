@@ -1,14 +1,10 @@
 /* eslint-disable max-lines -- this file owns per-shape routing + mixed-NFP candidate assembly */
-/* eslint-disable max-lines -- this file owns per-shape routing + mixed-NFP candidate assembly */
 // Preview dispatch functions — multi-part layout and single-part routing
-// Split from nesting-shape-previews-advanced.ts
 // Split from nesting-shape-previews-advanced.ts
 
 import type {
   MultiSheetResult,
-  MultiSheetResult,
   OffcutBand,
-  SheetPreview,
   SheetPreview,
   SimplePartPreview,
   SimplePartSpec,
@@ -31,11 +27,6 @@ import {
   computeFabricationScore,
   getPartTypeLabel,
 } from "./nesting-preview-builders"
-import {
-  buildPartPreviewItem,
-  computeFabricationScore,
-  getPartTypeLabel,
-} from "./nesting-preview-builders"
 import { generateRectanglePreview, generateCirclePreview } from "./nesting-shape-previews-basic"
 import {
   generateCylinderPreview,
@@ -44,20 +35,13 @@ import {
 } from "./nesting-shape-previews-advanced"
 import type { PreviewItem } from "./nesting-visualizer-types"
 import { packMixedNfp, type MixedPackResult, type MixedSpec } from "@/nesting/mixed-nfp-placer"
-import { packMixedNfp, type MixedPackResult, type MixedSpec } from "@/nesting/mixed-nfp-placer"
 import {
   circleToPolygon,
   rectToPolygon,
   sectorToPolygon,
   trapezoidToPolygon,
 } from "@/nesting/shape-to-polygon"
-  circleToPolygon,
-  rectToPolygon,
-  sectorToPolygon,
-  trapezoidToPolygon,
-} from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
-import { extractMaximalFreeRects } from "@/nesting/free-space"
 import { extractMaximalFreeRects } from "@/nesting/free-space"
 
 interface PackingCandidate {
@@ -128,8 +112,6 @@ const MIN_TRAPEZOID_STEP = 2
 /**
  * Build the unrotated base polygon for a spec. Every shape type has a polygon
  * representation so mixed-NFP can pack heterogeneous batches uniformly.
- * Build the unrotated base polygon for a spec. Every shape type has a polygon
- * representation so mixed-NFP can pack heterogeneous batches uniformly.
  */
 function basePolygonForSpec(
   spec: SimplePartSpec,
@@ -148,19 +130,6 @@ function basePolygonForSpec(
     const height = spec.height ?? fallbackHeight
     return trapezoidToPolygon(topWidth, bottomWidth, height)
   }
-  if (spec.partType === "cylinder") {
-    const diameter = spec.diameter ?? fallbackWidth
-    const height = spec.height ?? fallbackHeight
-    return rectToPolygon(Math.PI * diameter, height)
-  }
-  if (spec.partType === "circle") {
-    const diameter = spec.diameter ?? fallbackWidth
-    return circleToPolygon(diameter)
-  }
-  // rectangle (and any future additions)
-  const width = spec.width ?? fallbackWidth
-  const length = spec.length ?? fallbackHeight
-  return rectToPolygon(width, length)
   if (spec.partType === "cylinder") {
     const diameter = spec.diameter ?? fallbackWidth
     const height = spec.height ?? fallbackHeight
@@ -269,14 +238,6 @@ function mixedResultToCandidate(
       height: rect.height,
     }
     const area = rect.width * rect.height
-  for (const rect of freeRects) {
-    const band: OffcutBand = {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-    }
-    const area = rect.width * rect.height
     if (bandFitsAnyPreviewItem(band, placedItems)) {
       offcutBands.push(band)
       reusableArea += area
@@ -284,8 +245,6 @@ function mixedResultToCandidate(
       scrapBands.push(band)
       scrapArea += area
     }
-  }
-  const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   }
   const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
@@ -376,7 +335,6 @@ function packOtherSpecsForHybrid(
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
     const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
-    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = packMixedNfp(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -448,14 +406,6 @@ function buildHybridCandidate(
       height: rect.height,
     }
     const area = rect.width * rect.height
-  for (const rect of freeRects) {
-    const band: OffcutBand = {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-    }
-    const area = rect.width * rect.height
     if (bandFitsAnyPreviewItem(band, combinedItems)) {
       offcutBands.push(band)
       reusableArea += area
@@ -463,8 +413,6 @@ function buildHybridCandidate(
       scrapBands.push(band)
       scrapArea += area
     }
-  }
-  const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   }
   const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
@@ -523,7 +471,6 @@ function tryTrapezoidHybridCandidate(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
@@ -742,24 +689,14 @@ export function generateMultiPartPreview(
   // shape type, so mixed-NFP now handles rectangles and circles alongside
   // cones and trapezoids. Goal: densest possible packing, at the cost of
   // runtime for large batches.
-  // Every multi-spec batch runs through per-spec NFP rotation + global
-  // bottom-left placement. `basePolygonForSpec` returns a polygon for every
-  // shape type, so mixed-NFP now handles rectangles and circles alongside
-  // cones and trapezoids. Goal: densest possible packing, at the cost of
-  // runtime for large batches.
   const hasTrapezoid = simpleParts.some((s) => s.partType === "trapezoid")
   const hasNonTrapezoid = simpleParts.some((s) => s.partType !== "trapezoid")
   // Trapezoid hybrid still fires when trapezoids are mixed with any other
   // shape — its interleaved layout is denser than generic NFP for pure-trap
   // runs and can beat mixed-NFP when trapezoids dominate. The selection logic
   // below picks whichever candidate places more items.
-  // Trapezoid hybrid still fires when trapezoids are mixed with any other
-  // shape — its interleaved layout is denser than generic NFP for pure-trap
-  // runs and can beat mixed-NFP when trapezoids dominate. The selection logic
-  // below picks whichever candidate places more items.
   const useTrapezoidHybrid =
     !skipNfpPacking && simpleParts.length > 1 && hasTrapezoid && hasNonTrapezoid
-  const useMixedNfp = !skipNfpPacking && simpleParts.length > 1
   const useMixedNfp = !skipNfpPacking && simpleParts.length > 1
 
   // When both hybrid and mixed-NFP are eligible (cone+trapezoid), compute
@@ -964,7 +901,6 @@ export function generateSimplePartPreview(
 }
 
 // ── Multi-sheet overflow generation ─────────────────────────────────────────
-// ── Multi-sheet overflow generation ─────────────────────────────────────────
 
 // Matches placed items back to specs by formatted dimension label. This couples
 // to the label format in buildPartPreviewItem — keep them in sync.
@@ -993,25 +929,11 @@ function isGapFillFriendly(spec: SimplePartSpec): boolean {
   return spec.partType === "rectangle" || spec.partType === "circle"
 }
 
-function isGapFillFriendly(spec: SimplePartSpec): boolean {
-  // Only shapes that pack tightly as AABBs benefit from gap-fill. Cones,
-  // trapezoids, and cylinders need NFP rotation to nest — letting gap-fill
-  // grab one as a bounding box would split it from other same-type specs
-  // that should nest together on the next sheet.
-  return spec.partType === "rectangle" || spec.partType === "circle"
-}
-
 function tryGapFillSheet(
   sheetPreview: SimplePartPreview,
   remainingSpecs: SimplePartSpec[],
   rollW: number,
   rollL: number,
-  stockArea: number,
-  // Global label→originalSpecIndex / partNumber lookups derived from the full
-  // allSpecs list. Ensures gap-filled items recover their tag even when the
-  // parent spec's label hasn't been placed on the current sheet yet.
-  globalLabelToSpecIndex?: Map<string, number>,
-  globalLabelToPartNumber?: Map<string, string>
   stockArea: number,
   // Global label→originalSpecIndex / partNumber lookups derived from the full
   // allSpecs list. Ensures gap-filled items recover their tag even when the
@@ -1027,9 +949,6 @@ function tryGapFillSheet(
   const gapFillSpecs = remainingSpecs.filter(isGapFillFriendly)
 
   if (gapFillSpecs.length === 0 || allFreeRects.length === 0) {
-  const gapFillSpecs = remainingSpecs.filter(isGapFillFriendly)
-
-  if (gapFillSpecs.length === 0 || allFreeRects.length === 0) {
     return { preview: sheetPreview, remainingSpecs }
   }
 
@@ -1041,20 +960,6 @@ function tryGapFillSheet(
       if (item.partNumber) labelToPartNumber.set(item.label, item.partNumber)
     }
   }
-  // Fall back to the global map for specs that haven't appeared on this sheet
-  // (e.g., rectangles pushed below a trapezoid row by the hybrid packer).
-  if (globalLabelToSpecIndex) {
-    for (const [label, idx] of globalLabelToSpecIndex) {
-      if (!labelToSpecIndex.has(label)) labelToSpecIndex.set(label, idx)
-    }
-  }
-  if (globalLabelToPartNumber) {
-    for (const [label, pn] of globalLabelToPartNumber) {
-      if (!labelToPartNumber.has(label)) labelToPartNumber.set(label, pn)
-    }
-  }
-
-  const overflowItems = gapFillSpecs.flatMap((spec) =>
   // Fall back to the global map for specs that haven't appeared on this sheet
   // (e.g., rectangles pushed below a trapezoid row by the hybrid packer).
   if (globalLabelToSpecIndex) {
@@ -1142,11 +1047,6 @@ function tryGapFillSheet(
  * calling `regenerate` iteratively for additional sheets until all qty is placed
  * or maxSheets is reached.
  */
-/**
- * Expand a base preview (possibly with overflow) into a multi-sheet result by
- * calling `regenerate` iteratively for additional sheets until all qty is placed
- * or maxSheets is reached.
- */
 export function computeMultiSheetPreviews(
   preview: SimplePartPreview,
   rollW: number,
@@ -1194,22 +1094,6 @@ export function computeMultiSheetPreviews(
     })
   }
 
-  // Build a stable label → originalSpecIndex lookup from the full allSpecs list
-  // so tryGapFillSheet can recover `specIndex` for overflow items whose parent
-  // spec hasn't been placed on the current sheet yet. Without this, gap-filled
-  // shapes render their raw dimensions instead of the legend tag.
-  const globalLabelToSpecIndex = new Map<string, number>()
-  const globalLabelToPartNumber = new Map<string, string>()
-  if (allSpecs) {
-    allSpecs.forEach((spec, idx) => {
-      const label = buildPartPreviewItem(spec, 0, 0).label
-      if (!globalLabelToSpecIndex.has(label)) {
-        globalLabelToSpecIndex.set(label, idx)
-        if (spec.partNumber) globalLabelToPartNumber.set(label, spec.partNumber)
-      }
-    })
-  }
-
   while (placed < totalNeeded && sheets.length < maxSheets) {
     const remaining = totalNeeded - placed
     const unitsOnSheet = Math.min(capacityPerSheet, remaining)
@@ -1226,15 +1110,6 @@ export function computeMultiSheetPreviews(
 
     if (isMultiPart && overflowSpecs && overflowSpecs.length > 0) {
       let remainingSpecs = reduceSpecsByPlacedItems(overflowSpecs, sheetPreview.items)
-      const gapResult = tryGapFillSheet(
-        sheetPreview,
-        remainingSpecs,
-        rollW,
-        rollL,
-        stockArea,
-        globalLabelToSpecIndex,
-        globalLabelToPartNumber
-      )
       const gapResult = tryGapFillSheet(
         sheetPreview,
         remainingSpecs,
@@ -1262,8 +1137,6 @@ export function computeMultiSheetPreviews(
   const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0)
   const remainingOverflow = Math.max(0, totalNeeded - totalUnitsCompleted)
   const fabScores = sheets.map((sh) => computeFabricationScore(sh.preview, rollW, rollL).score)
-  const avgFabScore =
-    fabScores.length > 0 ? Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length) : 0
   const avgFabScore =
     fabScores.length > 0 ? Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length) : 0
 
