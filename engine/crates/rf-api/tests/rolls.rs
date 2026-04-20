@@ -231,6 +231,7 @@ fn dummy_procurement_factory() -> Arc<dyn ProcurementPortFactory> {
     Arc::new(SupabaseProcurementFactory {
         supabase_url: Arc::from(SUPABASE_URL.to_string()),
         publishable_key: Arc::from("test-key".to_string()),
+        tax_proxy_base: None,
     })
 }
 

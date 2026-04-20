@@ -10,6 +10,7 @@
 pub mod po_items;
 pub mod purchase_orders;
 pub mod status;
+pub mod tax;
 
 pub use po_items::{
     add_po_item, delete_po_item, list_po_items, update_po_item,
@@ -21,3 +22,4 @@ pub use purchase_orders::{
     ListPurchaseOrdersQuery, PurchaseOrderDto, UpdatePurchaseOrderBody,
 };
 pub use status::{update_purchase_order_status, UpdatePurchaseOrderStatusBody};
+pub use tax::{tax_preview, TaxPreviewDto, TaxPreviewQuery};

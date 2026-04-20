@@ -20,14 +20,20 @@ use crate::error::AppError;
 
 /// Tax calculation result for a PO or PO-tax preview.
 ///
-/// `tax_level` is one of `"state"`, `"city"`, `"zip"`, or `"exempt"`
-/// — the same tier strings the TS service emits. Treated as opaque
-/// at this layer; the UI renders it.
+/// `tax_level` is one of `"state"`, `"city"`, `"zip_code"`,
+/// `"default"`, `"api"`, `"exempt"`, or `"override"` — the same
+/// tier strings the TS service emits. Treated as opaque at this
+/// layer; the UI renders it alongside `tax_name` (e.g.
+/// `"Texas State"`, `"Tax Exempt"`, `"Supplier Override Rate"`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaxCalculation {
     pub tax_amount: f64,
     pub tax_rate: f64,
     pub tax_level: String,
+    /// Human-readable label — rendered verbatim by the PO dialog's
+    /// tax helper (`po-tax-helpers.ts`). Examples:
+    /// `"Texas State"`, `"Tax Exempt"`, `"Supplier Override Rate"`.
+    pub tax_name: String,
 }
 
 #[async_trait]

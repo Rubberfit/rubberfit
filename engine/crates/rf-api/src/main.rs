@@ -61,7 +61,20 @@ async fn main() -> ExitCode {
             info!(supabase_url = %url, "SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY set — mounting /api/v2 behind JWT middleware");
             let fetcher: Arc<dyn JwksFetcher> = Arc::new(HttpJwksFetcher::new(&url));
             let cache = JwksCache::new(fetcher);
-            let state = Arc::new(AppState::with_supabase(cache, url, key));
+            // S3c Task 4: optional tax-proxy base. In prod this is the
+            // internal Next.js origin (e.g. `https://app.arc-and-
+            // anchor.com`) on Fly; in dev it's `http://localhost:3000`.
+            // Missing is a soft condition — the preview endpoint
+            // returns a clear "not configured" error at call time.
+            let tax_proxy_base = std::env::var("TAX_PROXY_BASE")
+                .ok()
+                .filter(|s| !s.trim().is_empty());
+            if let Some(base) = tax_proxy_base.as_deref() {
+                info!(tax_proxy_base = %base, "TAX_PROXY_BASE set — tax preview endpoint enabled");
+            } else {
+                warn!("TAX_PROXY_BASE not set — /api/v2/po/tax/preview will 500 until configured");
+            }
+            let state = Arc::new(AppState::with_supabase(cache, url, key, tax_proxy_base));
             build_router_with_state(&cfg, state)
         }
         _ => {

@@ -25,6 +25,7 @@ pub mod postgrest;
 pub mod purchase_orders;
 pub mod rolls;
 pub mod suppliers;
+pub mod tax;
 
 pub use cut_history::SupabaseCutHistoryRepository;
 pub use material_suppliers::SupabaseMaterialSupplierRepository;
@@ -35,3 +36,4 @@ pub use postgrest::{PostgrestClient, PostgrestError};
 pub use purchase_orders::SupabasePurchaseOrderRepository;
 pub use rolls::SupabaseRollRepository;
 pub use suppliers::SupabaseSupplierRepository;
+pub use tax::HttpTaxProxy;

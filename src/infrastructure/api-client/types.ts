@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/po/tax/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["tax_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/po/{id}": {
         parameters: {
             query?: never;
@@ -658,6 +674,23 @@ export interface components {
             updated_at?: string | null;
             website?: string | null;
             zip_code?: string | null;
+        };
+        /**
+         * @description Response shape — mirrors the TS service's `TaxCalculation` minus
+         *     the redundant `subtotal` / `total` fields (the client already has
+         *     those). `tax_level` is one of `"state"`, `"city"`, `"zip_code"`,
+         *     `"default"`, `"exempt"`, `"override"`, or `"api"`; `tax_name`
+         *     is the human-readable label the PO dialog shows (`"Texas State"`,
+         *     `"Tax Exempt"`, `"Supplier Override Rate"`, etc.). Both are
+         *     passed through verbatim — treated as opaque at this layer.
+         */
+        TaxPreviewDto: {
+            /** Format: double */
+            tax_amount: number;
+            tax_level: string;
+            tax_name: string;
+            /** Format: double */
+            tax_rate: number;
         };
         UpdateMaterialSupplierBody: {
             active?: boolean | null;
@@ -2093,6 +2126,50 @@ export interface operations {
             };
             /** @description Conflict (FK / duplicate / check violation) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    tax_preview: {
+        parameters: {
+            query: {
+                supplier_id: string;
+                subtotal: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tax preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxPreviewDto"];
+                };
+            };
+            /** @description subtotal must be a finite non-negative number */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description TAX_PROXY_BASE not configured or downstream failure */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

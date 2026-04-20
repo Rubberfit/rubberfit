@@ -120,8 +120,15 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
                 .put(inventory::update_roll)
                 .delete(inventory::delete_roll),
         )
-        // Procurement — S3c. PO CRUD + line items in Task 2; status,
-        // receive flow, tax preview, reorder, CSV import follow.
+        // Procurement — S3c. PO CRUD + line items in Task 2; status
+        // transitions in Task 3; tax preview in Task 4. Receive
+        // flow, reorder, CSV import follow.
+        //
+        // Register the tax-preview static path BEFORE the `/po/{id}`
+        // dynamic route so Axum's matcher doesn't capture "tax" as
+        // an id. S3b inventory followed the same stats-before-/{id}
+        // pattern for the same reason.
+        .route("/po/tax/preview", get(procurement::tax_preview))
         .route(
             "/po",
             get(procurement::list_purchase_orders)

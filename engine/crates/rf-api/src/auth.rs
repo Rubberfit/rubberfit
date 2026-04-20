@@ -21,8 +21,9 @@ use rf_application::inventory::{
 };
 use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{PurchaseOrderItemPort, PurchaseOrderPort};
+use rf_application::tax::TaxPort;
 use rf_supabase::{
-    PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
+    HttpTaxProxy, PostgrestClient, PostgrestError, SupabaseCutHistoryRepository,
     SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
     SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
     SupabasePurchaseOrderRepository, SupabaseRollRepository,
@@ -95,6 +96,16 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn NotificationPort>, AppError>;
+
+    /// Tax proxy. S3c keeps the TS tax service as source of truth
+    /// and proxies calculation requests over HTTP (S3c Task 4).
+    /// Returns `Infrastructure` if `TAX_PROXY_BASE` isn't configured
+    /// — operators see a clear startup-config error instead of a
+    /// mysterious 500 on the first tax preview call.
+    fn tax(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn TaxPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -179,10 +190,15 @@ impl InventoryPortFactory for SupabaseInventoryFactory {
 
 /// Production procurement factory. Same per-request client pattern
 /// as the inventory factory.
+///
+/// `tax_proxy_base` is optional — dev/local setups without it still
+/// boot; the `tax()` method returns a configuration error if a
+/// caller hits the tax preview endpoint before the env is wired.
 #[derive(Clone)]
 pub struct SupabaseProcurementFactory {
     pub supabase_url: Arc<str>,
     pub publishable_key: Arc<str>,
+    pub tax_proxy_base: Option<Arc<str>>,
 }
 
 impl ProcurementPortFactory for SupabaseProcurementFactory {
@@ -220,6 +236,20 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabaseNotificationRepository::new(client)))
+    }
+
+    fn tax(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn TaxPort>, AppError> {
+        let base = self.tax_proxy_base.as_deref().ok_or_else(|| {
+            AppError::Infrastructure(
+                "TAX_PROXY_BASE is not configured; tax preview unavailable"
+                    .into(),
+            )
+        })?;
+        let proxy = HttpTaxProxy::new(base.to_string(), auth.raw_jwt.clone())?;
+        Ok(Arc::new(proxy))
     }
 }
 
@@ -266,15 +296,19 @@ impl AppState {
     /// transports. Use `with_supabase` to pass a real key, or
     /// `with_factories` to swap in test doubles.
     pub fn new(jwks: JwksCache, supabase_url: impl Into<String>) -> Self {
-        Self::with_supabase(jwks, supabase_url, "test-publishable-key")
+        Self::with_supabase(jwks, supabase_url, "test-publishable-key", None)
     }
 
     /// Full constructor — callers provide the project's publishable
     /// key so `user_postgrest` can stamp it on outgoing requests.
+    /// `tax_proxy_base` comes from the `TAX_PROXY_BASE` env var
+    /// (Task 4) and is optional; if absent, the tax preview endpoint
+    /// returns a 500 with a clear "not configured" message.
     pub fn with_supabase(
         jwks: JwksCache,
         supabase_url: impl Into<String>,
         supabase_publishable_key: impl Into<String>,
+        tax_proxy_base: Option<String>,
     ) -> Self {
         let base = supabase_url.into();
         let key = supabase_publishable_key.into();
@@ -292,6 +326,7 @@ impl AppState {
             Arc::new(SupabaseProcurementFactory {
                 supabase_url: Arc::from(base.clone()),
                 publishable_key: Arc::from(key.clone()),
+                tax_proxy_base: tax_proxy_base.map(Arc::from),
             });
         Self::with_factories(
             jwks,
@@ -348,6 +383,7 @@ impl AppState {
             Arc::new(SupabaseProcurementFactory {
                 supabase_url: Arc::from(base.clone()),
                 publishable_key: Arc::from(key.clone()),
+                tax_proxy_base: None,
             });
         Self::with_factories(
             jwks,

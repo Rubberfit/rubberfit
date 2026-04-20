@@ -1528,6 +1528,59 @@
         ]
       }
     },
+    "/api/v2/po/tax/preview": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "tax_preview",
+        "parameters": [
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subtotal",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tax preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "subtotal must be a finite non-negative number"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "TAX_PROXY_BASE not configured or downstream failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/po/{id}": {
       "get": {
         "tags": [
@@ -3138,6 +3191,32 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "TaxPreviewDto": {
+        "type": "object",
+        "description": "Response shape — mirrors the TS service's `TaxCalculation` minus\nthe redundant `subtotal` / `total` fields (the client already has\nthose). `tax_level` is one of `\"state\"`, `\"city\"`, `\"zip_code\"`,\n`\"default\"`, `\"exempt\"`, `\"override\"`, or `\"api\"`; `tax_name`\nis the human-readable label the PO dialog shows (`\"Texas State\"`,\n`\"Tax Exempt\"`, `\"Supplier Override Rate\"`, etc.). Both are\npassed through verbatim — treated as opaque at this layer.",
+        "required": [
+          "tax_amount",
+          "tax_rate",
+          "tax_level",
+          "tax_name"
+        ],
+        "properties": {
+          "tax_amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "tax_level": {
+            "type": "string"
+          },
+          "tax_name": {
+            "type": "string"
+          },
+          "tax_rate": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
