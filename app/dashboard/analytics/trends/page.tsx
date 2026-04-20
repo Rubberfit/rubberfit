@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { Activity } from "lucide-react"
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 
-import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
+import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import {
   Select,
   SelectContent,

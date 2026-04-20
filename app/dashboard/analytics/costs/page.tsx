@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 
-import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
+import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { exportService } from "@/src/infrastructure/services/exportService"

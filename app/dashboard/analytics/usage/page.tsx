@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { BarChart3, Package, TrendingUp, Activity } from "lucide-react"
 import { format, subMonths } from "date-fns"
 
-import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
+import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
