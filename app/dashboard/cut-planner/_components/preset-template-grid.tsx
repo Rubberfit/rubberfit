@@ -126,9 +126,33 @@ export function PresetTemplateGrid({
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
-                          {quantities.get(template.id) ?? 1}
-                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={quantities.get(template.id) ?? 1}
+                          aria-label="Quantity"
+                          onClick={(event) => event.stopPropagation()}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/[^0-9]/g, "")
+                            if (raw === "") return
+                            const num = Number(raw)
+                            if (!Number.isFinite(num)) return
+                            const clamped = Math.max(1, Math.min(99, Math.round(num)))
+                            onQuantityChange(template.id, clamped)
+                          }}
+                          onBlur={(event) => {
+                            const raw = Number(event.target.value)
+                            const clamped = Number.isFinite(raw)
+                              ? Math.max(1, Math.min(99, Math.round(raw)))
+                              : 1
+                            if (clamped !== (quantities.get(template.id) ?? 1)) {
+                              onQuantityChange(template.id, clamped)
+                            }
+                          }}
+                          className="w-9 border-x border-slate-200 bg-transparent text-center text-xs font-semibold tabular-nums outline-none focus:bg-slate-50 dark:border-slate-600 dark:focus:bg-slate-700/40"
+                        />
                         <button
                           type="button"
                           aria-label="Increase quantity"
