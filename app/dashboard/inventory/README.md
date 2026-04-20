@@ -1,18 +1,22 @@
 # inventory/
 
-Inventory management pages for viewing, adding, importing, and managing rubber rolls.
+Inventory management pages for viewing, adding, importing, and managing rubber rolls. Absorbs material catalog management (`materials/`) as of S4 Task 3 — the prior top-level `/dashboard/materials/*` routes 308-redirect here via `next.config.mjs`.
 
 ## Files
 
-- **page.tsx** -- Main inventory page: roll table with search, add/edit dialogs, CSV import, and export actions (RBAC-gated)
+- **page.tsx** -- Main inventory page. S4 Task 6 polished: `PageShell` (dense variant) + `PageHeader` with crumbs + actions + `ViewToolbar` search above the `InventoryTable`. CSV upload card still appears above the table for roll-manage roles. Export dropdown (CSV + PDF) and Add Roll actions in the header.
 
 ## Subdirectories
+
+### materials/
+
+Material catalog: types, suppliers, pricing. Moved into inventory by S4 Task 3 so all stock-adjacent surfaces live under one root. See `materials/README.md` for detail.
 
 ### import/
 
 CSV bulk import flow for rolls.
 
-- **page.tsx** -- Import wizard page
+- **page.tsx** -- Import wizard page. S4 Task 7 polished: `PageShell` (form variant) + `PageHeader` with crumbs; three-step card sequence (Template, Upload, Review) preserved.
 - **\_components/import-upload-card.tsx** -- File upload dropzone for CSV files
 - **\_components/import-template-card.tsx** -- Download CSV template card
 - **\_components/import-review-card.tsx** -- Review parsed data before committing the import
@@ -21,7 +25,7 @@ CSV bulk import flow for rolls.
 
 Purchase order management within inventory.
 
-- **page.tsx** -- PO list page with create/edit/view capabilities
+- **page.tsx** -- PO list page. S4 Task 7 polished: `PageShell` (dense) + `PageHeader` with crumbs + Export/New PO actions; 4 `StatCard`s (Total POs with draft/pending chips, Total Value, In Transit, Avg Lead Time); `InlineNotice` when pending approvals > 0; `POTable` in bordered card. All existing create/edit/view/cancel dialogs preserved with `INVALID_STATE_TRANSITION` handling.
 - **\_components/po-table.tsx** -- Sortable, filterable PO data table with context-aware status actions
 - **\_components/po-create-dialog.tsx** -- Create new PO dialog
 - **\_components/po-edit-dialog.tsx** -- Edit existing PO dialog
@@ -39,7 +43,7 @@ Purchase order management within inventory.
 
 Automatic reorder management.
 
-- **page.tsx** -- Reorder dashboard with tabs: Rules, Suggestions, Analytics
+- **page.tsx** -- Reorder dashboard. S4 Task 7 polished: `PageShell` (dense) + `PageHeader` with crumbs; three-tab layout (Rules / Suggestions / Analytics) with existing rules table, suggestion-to-PO flow, and quick stats preserved.
 - **\_components/reorder-rules-table.tsx** -- Table with inline editing (click Edit -> Input fields appear in-row -> Save/Cancel)
 - **\_components/reorder-rule-modal.tsx** -- Create/edit reorder rule modal
 - **\_components/reorder-rule-form-fields.tsx** -- Form fields for reorder rule configuration
