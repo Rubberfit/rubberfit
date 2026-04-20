@@ -42,6 +42,7 @@ import {
   trapezoidToPolygon,
 } from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
+import { extractMaximalFreeRects } from "@/nesting/free-space"
 
 interface PackingCandidate {
   sortBy: string
@@ -184,13 +185,42 @@ function mixedResultToCandidate(
   }))
 
   const bounds = getPlacementBounds(placedItems)
-  const allBands = buildShelfGapBands(placedItems, rollW, rollL)
+
+  // Use polygon-aware free-space extraction instead of buildShelfGapBands.
+  // Mixed-NFP lands items at non-uniform y values (per-copy rotation variants,
+  // bottom-left placement with collision checks), so row-based gap detection
+  // leaves holes — regions between rows not emitted as bands render as stock
+  // background (black) instead of red scrap. extractMaximalFreeRects decomposes
+  // the full free polygon via Clipper and yields rectangles that tile the unused
+  // area regardless of placement geometry.
+  const placedPolygons = placedItems
+    .map((item) =>
+      item.placedPolygon && item.placedPolygon.length >= 3
+        ? item.placedPolygon
+        : [
+            { x: item.x, y: item.y },
+            { x: item.x + item.width, y: item.y },
+            { x: item.x + item.width, y: item.y + item.height },
+            { x: item.x, y: item.y + item.height },
+          ]
+    )
+    .filter((poly): poly is Point2D[] => poly.length >= 3)
+
+  const freeRects =
+    placedPolygons.length > 0 ? extractMaximalFreeRects(rollW, rollL, placedPolygons, 24) : []
+
   const offcutBands: OffcutBand[] = []
   const scrapBands: OffcutBand[] = []
   let reusableArea = 0
   let scrapArea = 0
-  allBands.forEach((band) => {
-    const area = band.width * band.height
+  for (const rect of freeRects) {
+    const band: OffcutBand = {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    }
+    const area = rect.width * rect.height
     if (bandFitsAnyPreviewItem(band, placedItems)) {
       offcutBands.push(band)
       reusableArea += area
@@ -198,7 +228,7 @@ function mixedResultToCandidate(
       scrapBands.push(band)
       scrapArea += area
     }
-  })
+  }
   const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
