@@ -258,19 +258,22 @@ function SheetSvg({
           strokeWidth="2"
         />
         <g clipPath={`url(#${sClip})`}>
-          {!layout.shapeFirstView &&
-            sheet.preview.items.some(
-              (item) => item.placedPolygon && item.placedPolygon.length > 0
-            ) && (
-              <rect
-                x={layout.surfaceX}
-                y={layout.surfaceY}
-                width={layout.surfacePxW}
-                height={layout.surfacePxH}
-                fill={`url(#${sWastePat})`}
-                opacity="0.95"
-              />
-            )}
+          {/* Always paint the waste (red) backdrop in stock view so any region
+              not explicitly covered by a scrap/offcut band or an item polygon
+              reads as scrap instead of the dark stock pattern. Previously
+              gated on `items.some(placedPolygon)`, but that produced visible
+              black patches in mixes where rectangles lacked polygons AND the
+              band extraction missed small regions. */}
+          {!layout.shapeFirstView && (
+            <rect
+              x={layout.surfaceX}
+              y={layout.surfaceY}
+              width={layout.surfacePxW}
+              height={layout.surfacePxH}
+              fill={`url(#${sWastePat})`}
+              opacity="0.95"
+            />
+          )}
           {!layout.shapeFirstView &&
             sheet.preview.scrapBands.map((band, index) =>
               band.polygon ? (
@@ -341,7 +344,7 @@ function SheetSvg({
                 wastePatternId={sWastePat}
                 viewHeight={layout.viewHeight}
                 surfacePxW={layout.surfacePxW}
-                tagLetter={tagMap?.get(String(item.specIndex ?? -1))}
+                tagLetter={tagMap?.get(String(item.specIndex ?? -1)) ?? item.partNumber}
                 zoom={zoom}
                 renderPass={pass}
               />
@@ -452,10 +455,12 @@ export default function NestingVizSimpleMode({
         indexToLabel.set(key, item.label)
       }
     }
-    // Return sorted by tag letter
+    // Return sorted by tag letter. Keep `key` (specIndex) for React keying —
+    // `tag` can repeat across distinct specs (e.g. two uploaded parts sharing
+    // a partNumber like "G1"), so it's not safe to use as a React key.
     return [...tagMap.entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([key, tag]) => ({ tag, label: indexToLabel.get(key) ?? key }))
+      .map(([key, tag]) => ({ key, tag, label: indexToLabel.get(key) ?? key }))
   }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
@@ -490,8 +495,8 @@ export default function NestingVizSimpleMode({
       {legendEntries.length > 0 && (
         <div className="flex flex-wrap gap-3 border-b border-border bg-[#1b1b19] px-4 py-2.5 text-xs text-stone-300">
           {legendEntries.map((entry) => (
-            <span key={entry.tag} className="flex items-center gap-1.5">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+            <span key={entry.key} className="flex items-center gap-1.5">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-stone-700 px-1.5 text-[10px] font-bold leading-none text-stone-50">
                 {entry.tag}
               </span>
               <span>{entry.label}</span>

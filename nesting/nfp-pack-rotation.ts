@@ -1,6 +1,5 @@
-// Single-angle NFP packing — extracted so both the main-thread placer
-// (nfp-greedy-placer.ts) and the angle worker (nfp-angle-worker.ts) can share it
-// without introducing a cycle through the worker pool.
+// Single-angle NFP packing — called by nfp-greedy-placer.ts to try one
+// rotation of the base polygon and produce a candidate placement set.
 
 import ClipperLib from "clipper-lib"
 import type { Point2D } from "./types"

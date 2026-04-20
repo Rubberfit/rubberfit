@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx"
-import type { ExtractedPart } from "./upload-types"
+import type { ExtractedPart, ExtractedPartType } from "./upload-types"
 
 const WIDTH_ALIASES = ["width", "w", "wid", "wide"]
-const LENGTH_ALIASES = ["length", "len", "l", "height", "h", "long"]
+const LENGTH_ALIASES = ["length", "len", "l", "long"]
 const QTY_ALIASES = ["quantity", "qty", "count", "pcs", "pieces", "ea", "amount", "amt", "#"]
 const PART_ALIASES = [
   "part number",
@@ -17,13 +17,59 @@ const PART_ALIASES = [
   "sku",
 ]
 const SIZE_ALIASES = ["size", "sizes", "dimension", "dimensions", "dim", "dims", "cut", "cut size"]
+const DIAMETER_ALIASES = ["diameter", "diam", "dia"]
+const HEIGHT_ALIASES = ["height", "h"]
+const INNER_RADIUS_ALIASES = [
+  "inner radius",
+  "innerradius",
+  "inner r",
+  "inner_r",
+  "inner-radius",
+]
+const OUTER_RADIUS_ALIASES = [
+  "outer radius",
+  "outerradius",
+  "outer r",
+  "outer_r",
+  "outer-radius",
+]
+const ARC_DEGREES_ALIASES = [
+  "arc degrees",
+  "arcdegrees",
+  "arc",
+  "degrees",
+  "arc deg",
+  "arc_degrees",
+]
+const TOP_WIDTH_ALIASES = ["top width", "topwidth", "top w", "top_w", "top-width"]
+const BOTTOM_WIDTH_ALIASES = [
+  "bottom width",
+  "bottomwidth",
+  "bottom w",
+  "bottom_w",
+  "bottom-width",
+]
+const PART_TYPE_ALIASES = ["part type", "type", "shape", "parttype", "part_type"]
+
+const SHEET_NAME_TO_TYPE: Array<{ pattern: RegExp; type: ExtractedPartType }> = [
+  { pattern: /^rect/i, type: "rectangle" },
+  { pattern: /^cyl/i, type: "cylinder" },
+  { pattern: /^cone/i, type: "cone" },
+  { pattern: /^trap/i, type: "trapezoid" },
+]
+
+const TYPE_KEYWORDS: Array<{ pattern: RegExp; type: ExtractedPartType }> = [
+  { pattern: /rect/i, type: "rectangle" },
+  { pattern: /cyl/i, type: "cylinder" },
+  { pattern: /cone/i, type: "cone" },
+  { pattern: /trap/i, type: "trapezoid" },
+]
 
 function matchColumn(header: string, aliases: string[]): boolean {
   const h = header.toLowerCase().trim()
   if (!h) return false
   return aliases.some((a) => {
     if (h === a) return true
-    // Short aliases (1-2 chars) must be exact match only to avoid false positives
     if (a.length <= 2) return false
     return h.startsWith(a + " ") || h.startsWith(a + "(") || h.includes(a)
   })
@@ -36,20 +82,19 @@ export function parseFractionalInches(raw: string | number): number {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : 0
   const s = raw
     .trim()
-    .replace(/\u00bd/g, ".5") // ½
-    .replace(/\u00bc/g, ".25") // ¼
-    .replace(/\u00be/g, ".75") // ¾
-    .replace(/\u2153/g, ".333") // ⅓
-    .replace(/\u2154/g, ".667") // ⅔
-    .replace(/\u215b/g, ".125") // ⅛
-    .replace(/\u215c/g, ".375") // ⅜
-    .replace(/\u215d/g, ".625") // ⅝
-    .replace(/\u215e/g, ".875") // ⅞
+    .replace(/\u00bd/g, ".5")
+    .replace(/\u00bc/g, ".25")
+    .replace(/\u00be/g, ".75")
+    .replace(/\u2153/g, ".333")
+    .replace(/\u2154/g, ".667")
+    .replace(/\u215b/g, ".125")
+    .replace(/\u215c/g, ".375")
+    .replace(/\u215d/g, ".625")
+    .replace(/\u215e/g, ".875")
     .replace(/"/g, "")
     .replace(/'/g, "")
     .trim()
 
-  // "11-1/2" or "11 1/2"
   const mixedMatch = s.match(/^(\d+)[\s-]+(\d+)\/(\d+)$/)
   if (mixedMatch) {
     const denom = Number(mixedMatch[3])
@@ -58,7 +103,6 @@ export function parseFractionalInches(raw: string | number): number {
     return Number.isFinite(result) ? result : 0
   }
 
-  // "1/2"
   const fracMatch = s.match(/^(\d+)\/(\d+)$/)
   if (fracMatch) {
     const denom = Number(fracMatch[2])
@@ -71,10 +115,6 @@ export function parseFractionalInches(raw: string | number): number {
   return Number.isFinite(num) ? num : 0
 }
 
-/**
- * Parse a combined dimension string like "18 x 14", "18x14", "11-1/2 x 40"
- * Returns [width, length] or null if not a dimension pattern
- */
 function parseCombinedDimension(raw: string | number): [number, number] | null {
   if (typeof raw === "number") return null
   const s = String(raw).trim()
@@ -86,111 +126,221 @@ function parseCombinedDimension(raw: string | number): [number, number] | null {
   return null
 }
 
-interface ColumnMap {
-  width: number
-  length: number
-  qty: number
-  partNumber: number
-  combined: number // single column with "WxL" dimensions
-}
-
-function detectColumns(headers: string[]): ColumnMap | null {
-  let width = -1
-  let length = -1
-  let qty = -1
-  let partNumber = -1
-  let combined = -1
-
+function findColumnIndex(headers: string[], aliases: string[]): number {
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i]
     if (!h || !String(h).trim()) continue
-
-    if (width < 0 && matchColumn(h, WIDTH_ALIASES)) width = i
-    else if (length < 0 && matchColumn(h, LENGTH_ALIASES)) length = i
-    else if (qty < 0 && matchColumn(h, QTY_ALIASES)) qty = i
-    else if (partNumber < 0 && matchColumn(h, PART_ALIASES)) partNumber = i
-    else if (combined < 0 && matchColumn(h, SIZE_ALIASES)) combined = i
+    if (matchColumn(String(h), aliases)) return i
   }
+  return -1
+}
 
-  // If we found separate width + length columns, use those
-  if (width >= 0 && length >= 0) return { width, length, qty, partNumber, combined: -1 }
+interface BaseCols {
+  qty: number
+  partNumber: number
+  partType: number
+}
 
-  // If we found a combined size/dimension column, use that
-  if (combined >= 0) return { width: -1, length: -1, qty, partNumber, combined }
+interface RectCols extends BaseCols {
+  kind: "rectangle"
+  width: number
+  length: number
+  combined: number
+}
+
+interface CylinderCols extends BaseCols {
+  kind: "cylinder"
+  diameter: number
+  height: number
+}
+
+interface ConeCols extends BaseCols {
+  kind: "cone"
+  innerRadius: number
+  outerRadius: number
+  arcDegrees: number
+}
+
+interface TrapezoidCols extends BaseCols {
+  kind: "trapezoid"
+  topWidth: number
+  bottomWidth: number
+  height: number
+}
+
+type ShapeCols = RectCols | CylinderCols | ConeCols | TrapezoidCols
+
+// eslint-disable-next-line complexity -- detects columns for four distinct shape types
+function detectColumns(headers: string[], forceType?: ExtractedPartType): ShapeCols | null {
+  const qty = findColumnIndex(headers, QTY_ALIASES)
+  const partNumber = findColumnIndex(headers, PART_ALIASES)
+  const partType = findColumnIndex(headers, PART_TYPE_ALIASES)
+
+  // Shape-specific column detection.
+  const innerRadius = findColumnIndex(headers, INNER_RADIUS_ALIASES)
+  const outerRadius = findColumnIndex(headers, OUTER_RADIUS_ALIASES)
+  const arcDegrees = findColumnIndex(headers, ARC_DEGREES_ALIASES)
+  const diameter = findColumnIndex(headers, DIAMETER_ALIASES)
+  const topWidth = findColumnIndex(headers, TOP_WIDTH_ALIASES)
+  const bottomWidth = findColumnIndex(headers, BOTTOM_WIDTH_ALIASES)
+  const height = findColumnIndex(headers, HEIGHT_ALIASES)
+  const width = findColumnIndex(headers, WIDTH_ALIASES)
+  const length = findColumnIndex(headers, LENGTH_ALIASES)
+  const combined = findColumnIndex(headers, SIZE_ALIASES)
+
+  const hasConeCols = innerRadius >= 0 && outerRadius >= 0 && arcDegrees >= 0
+  const hasTrapCols = topWidth >= 0 && bottomWidth >= 0 && height >= 0
+  const hasCylCols = diameter >= 0 && height >= 0
+  const hasRectCols = (width >= 0 && length >= 0) || combined >= 0
+
+  const base = { qty, partNumber, partType }
+
+  // Pick strongest signal. Explicit forceType (from sheet name) is used only
+  // when column detection is ambiguous.
+  if (hasConeCols) return { kind: "cone", ...base, innerRadius, outerRadius, arcDegrees }
+  if (hasTrapCols && !hasCylCols)
+    return { kind: "trapezoid", ...base, topWidth, bottomWidth, height }
+  if (hasCylCols && !hasTrapCols) return { kind: "cylinder", ...base, diameter, height }
+  if (hasRectCols) return { kind: "rectangle", ...base, width, length, combined }
+
+  if (forceType === "cylinder" && diameter >= 0 && height >= 0)
+    return { kind: "cylinder", ...base, diameter, height }
+  if (forceType === "trapezoid" && topWidth >= 0 && bottomWidth >= 0 && height >= 0)
+    return { kind: "trapezoid", ...base, topWidth, bottomWidth, height }
 
   return null
 }
 
-/**
- * Fallback: scan all columns in the first data row looking for numeric pairs
- * that could be width/length
- */
-function detectColumnsFromData(headers: string[], firstDataRow: string[]): ColumnMap | null {
-  const numericCols: number[] = []
-  const dimCols: number[] = []
-
-  for (let i = 0; i < firstDataRow.length; i++) {
-    const val = String(firstDataRow[i]).trim()
-    if (!val) continue
-
-    if (parseCombinedDimension(val)) {
-      dimCols.push(i)
-    } else if (parseFractionalInches(val) > 0) {
-      numericCols.push(i)
-    }
-  }
-
-  // Combined dimension column found in data
-  if (dimCols.length > 0) {
-    let qty = -1
-    let partNumber = -1
-    for (let i = 0; i < headers.length; i++) {
-      if (i === dimCols[0]) continue
-      if (qty < 0 && matchColumn(String(headers[i]), QTY_ALIASES)) qty = i
-      else if (partNumber < 0 && matchColumn(String(headers[i]), PART_ALIASES)) partNumber = i
-    }
-    return { width: -1, length: -1, qty, partNumber, combined: dimCols[0] }
-  }
-
-  // Two numeric columns could be width + length
-  if (numericCols.length >= 2) {
-    let qty = -1
-    let partNumber = -1
-    for (let i = 0; i < headers.length; i++) {
-      if (i === numericCols[0] || i === numericCols[1]) continue
-      if (qty < 0 && matchColumn(String(headers[i]), QTY_ALIASES)) qty = i
-      else if (partNumber < 0 && matchColumn(String(headers[i]), PART_ALIASES)) partNumber = i
-    }
-    return { width: numericCols[0], length: numericCols[1], qty, partNumber, combined: -1 }
-  }
-
-  return null
-}
-
-/**
- * Scan the first rows to find the actual header row.
- * Spreadsheets often have title rows, blank rows, or unit labels before the real headers.
- */
 function findHeaderRow(
   rows: string[][],
-  maxScan: number = 10
-): { headerIndex: number; cols: ColumnMap } | null {
+  forceType?: ExtractedPartType,
+  maxScan = 10
+): { headerIndex: number; cols: ShapeCols } | null {
   const limit = Math.min(maxScan, rows.length - 1)
-  for (let r = 0; r < limit; r++) {
+  for (let r = 0; r <= limit; r++) {
     const candidate = rows[r].map(String)
-    const cols = detectColumns(candidate)
+    const cols = detectColumns(candidate, forceType)
     if (cols) return { headerIndex: r, cols }
   }
+  return null
+}
 
-  // Fallback: infer from data rows
-  for (let r = 0; r < limit; r++) {
-    const nextRow = rows[r + 1]
-    if (!nextRow) continue
-    const cols = detectColumnsFromData(rows[r].map(String), nextRow.map(String))
-    if (cols) return { headerIndex: r, cols }
+function sheetNameToType(name: string): ExtractedPartType | undefined {
+  for (const { pattern, type } of SHEET_NAME_TO_TYPE) {
+    if (pattern.test(name.trim())) return type
+  }
+  return undefined
+}
+
+function cellToType(cell: unknown): ExtractedPartType | undefined {
+  const s = String(cell ?? "").trim()
+  if (!s) return undefined
+  for (const { pattern, type } of TYPE_KEYWORDS) {
+    if (pattern.test(s)) return type
+  }
+  return undefined
+}
+
+function num(row: string[], col: number): number {
+  if (col < 0) return 0
+  return parseFractionalInches(row[col] ?? 0)
+}
+
+function rowPartNumber(row: string[], col: number): string | undefined {
+  if (col < 0) return undefined
+  const raw = String(row[col] ?? "").trim()
+  return raw || undefined
+}
+
+function rowQuantity(row: string[], col: number): number {
+  if (col < 0) return 1
+  return Math.max(1, Math.round(parseFractionalInches(row[col] ?? 1)))
+}
+
+// eslint-disable-next-line complexity -- branches per shape type × required-field validation
+function parseRow(
+  row: string[],
+  cols: ShapeCols,
+  sheetType: ExtractedPartType | undefined
+): ExtractedPart | null {
+  // Per-row Part Type column overrides the sheet-level type.
+  const rowType = cellToType(row[cols.partType]) ?? sheetType ?? cols.kind
+
+  const quantity = rowQuantity(row, cols.qty)
+  const partNumber = rowPartNumber(row, cols.partNumber)
+
+  if (rowType === "rectangle" && cols.kind === "rectangle") {
+    let w = 0
+    let l = 0
+    if (cols.combined >= 0) {
+      const dim = parseCombinedDimension(row[cols.combined] ?? "")
+      if (!dim) return null
+      ;[w, l] = dim
+    } else {
+      w = num(row, cols.width)
+      l = num(row, cols.length)
+    }
+    if (w <= 0 || l <= 0) return null
+    return { partType: "rectangle", width: w, length: l, quantity, partNumber, confidence: 1 }
+  }
+
+  if (rowType === "cylinder" && cols.kind === "cylinder") {
+    const diameter = num(row, cols.diameter)
+    const height = num(row, cols.height)
+    if (diameter <= 0 || height <= 0) return null
+    return { partType: "cylinder", diameter, height, quantity, partNumber, confidence: 1 }
+  }
+
+  if (rowType === "cone" && cols.kind === "cone") {
+    const innerRadius = num(row, cols.innerRadius)
+    const outerRadius = num(row, cols.outerRadius)
+    const arcDegrees = num(row, cols.arcDegrees)
+    if (outerRadius <= 0 || arcDegrees <= 0) return null
+    return {
+      partType: "cone",
+      innerRadius: innerRadius > 0 ? innerRadius : 0,
+      outerRadius,
+      arcDegrees,
+      quantity,
+      partNumber,
+      confidence: 1,
+    }
+  }
+
+  if (rowType === "trapezoid" && cols.kind === "trapezoid") {
+    const topWidth = num(row, cols.topWidth)
+    const bottomWidth = num(row, cols.bottomWidth)
+    const height = num(row, cols.height)
+    if (topWidth <= 0 || bottomWidth <= 0 || height <= 0) return null
+    return {
+      partType: "trapezoid",
+      topWidth,
+      bottomWidth,
+      height,
+      quantity,
+      partNumber,
+      confidence: 1,
+    }
   }
 
   return null
+}
+
+function parseSheet(
+  rows: string[][],
+  sheetType: ExtractedPartType | undefined
+): ExtractedPart[] {
+  if (rows.length < 2) return []
+  const found = findHeaderRow(rows, sheetType)
+  if (!found) return []
+  const { headerIndex, cols } = found
+
+  const parts: ExtractedPart[] = []
+  for (let i = headerIndex + 1; i < rows.length; i++) {
+    const part = parseRow(rows[i], cols, sheetType)
+    if (part) parts.push(part)
+  }
+  return parts
 }
 
 export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
@@ -199,50 +349,23 @@ export async function parseSpreadsheet(file: File): Promise<ExtractedPart[]> {
   if (workbook.SheetNames.length === 0) {
     throw new Error("Spreadsheet contains no sheets.")
   }
-  const sheetName = workbook.SheetNames[0]
-  const sheet = workbook.Sheets[sheetName]
-  const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
 
-  if (rows.length < 2) return []
+  const allParts: ExtractedPart[] = []
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName]
+    const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
+    const sheetType = sheetNameToType(sheetName)
+    const parts = parseSheet(rows, sheetType)
+    allParts.push(...parts)
+  }
 
-  const found = findHeaderRow(rows)
-  if (!found) {
+  if (allParts.length === 0) {
     throw new Error(
-      "Could not detect dimension columns. " +
-        "Expected headers like: Width, Length, Size, or columns with dimension data (e.g. 18 x 14)."
+      "Could not detect any dimension columns. " +
+        "Expected headers like: Width/Length, Diameter/Height, Inner Radius/Outer Radius/Arc Degrees, " +
+        "or Top Width/Bottom Width/Height. Sheet names like 'Rectangles', 'Cylinders', 'Cones', 'Trapezoids' help disambiguate."
     )
   }
 
-  const { headerIndex, cols } = found
-  const parts: ExtractedPart[] = []
-
-  for (let i = headerIndex + 1; i < rows.length; i++) {
-    const row = rows[i]
-    let w: number
-    let l: number
-
-    if (cols.combined >= 0) {
-      const dim = parseCombinedDimension(row[cols.combined])
-      if (!dim) continue
-      ;[w, l] = dim
-    } else {
-      w = parseFractionalInches(row[cols.width])
-      l = parseFractionalInches(row[cols.length])
-    }
-
-    if (w <= 0 || l <= 0) continue
-
-    const q = cols.qty >= 0 ? Math.max(1, Math.round(parseFractionalInches(row[cols.qty]))) : 1
-    const pn = cols.partNumber >= 0 ? String(row[cols.partNumber]).trim() : undefined
-
-    parts.push({
-      width: w,
-      length: l,
-      quantity: q,
-      partNumber: pn || undefined,
-      confidence: 1.0,
-    })
-  }
-
-  return parts
+  return allParts
 }
