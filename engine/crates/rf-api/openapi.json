@@ -178,6 +178,87 @@
         ]
       }
     },
+    "/api/v2/import/rolls": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "import_rolls_json",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRollsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Import receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/import/rolls/csv": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "import_rolls_csv",
+        "requestBody": {
+          "description": "CSV with required columns material_type, width, length, thickness and optional color, location, date_received, supplier, cost_per_sqft, notes. Header row is case-insensitive; whitespace → underscore.",
+          "content": {
+            "text/csv": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "CSV missing required columns or empty"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "413": {
+            "description": "CSV body exceeds 10 MiB"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
     "/api/v2/inventory/material-suppliers": {
       "get": {
         "tags": [
@@ -3132,6 +3213,130 @@
           },
           "version": {
             "type": "string"
+          }
+        }
+      },
+      "ImportReceiptDto": {
+        "type": "object",
+        "required": [
+          "imported",
+          "skipped",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRowErrorDto"
+            }
+          },
+          "imported": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ImportRollRowBody": {
+        "type": "object",
+        "description": "Matches `CsvImportRow` on the wire. `material_type_id` is\noptional and null-safe — the dedicated review page fills it\nwhen the row matches an existing material, and leaves it null\nwhen the user typed a new name.",
+        "required": [
+          "material_type",
+          "width",
+          "length",
+          "thickness"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ImportRollsBody": {
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRollRowBody"
+            }
+          }
+        }
+      },
+      "ImportRowErrorDto": {
+        "type": "object",
+        "required": [
+          "row_number",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "row_number": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

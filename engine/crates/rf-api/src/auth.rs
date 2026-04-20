@@ -21,18 +21,19 @@ use rf_application::inventory::{
 };
 use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{
-    CreateReorderPoPort, PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort,
-    ReorderRulePort, SuggestionReadsPort,
+    CreateReorderPoPort, CsvImportPort, PurchaseOrderItemPort, PurchaseOrderPort,
+    ReceivePort, ReorderRulePort, SuggestionReadsPort,
 };
 use rf_application::tax::TaxPort;
 use rf_supabase::{
     HttpTaxProxy, PostgrestClient, PostgrestError,
-    SupabaseCreateReorderPoRepository, SupabaseCutHistoryRepository,
-    SupabaseMaterialSupplierRepository, SupabaseMaterialTypeRepository,
-    SupabaseNotificationRepository, SupabasePurchaseOrderItemRepository,
-    SupabasePurchaseOrderRepository, SupabaseReceiveRepository,
-    SupabaseReorderRuleRepository, SupabaseRollRepository,
-    SupabaseSuggestionReads, SupabaseSupplierRepository,
+    SupabaseCreateReorderPoRepository, SupabaseCsvImportRepository,
+    SupabaseCutHistoryRepository, SupabaseMaterialSupplierRepository,
+    SupabaseMaterialTypeRepository, SupabaseNotificationRepository,
+    SupabasePurchaseOrderItemRepository, SupabasePurchaseOrderRepository,
+    SupabaseReceiveRepository, SupabaseReorderRuleRepository,
+    SupabaseRollRepository, SupabaseSuggestionReads,
+    SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -143,6 +144,15 @@ pub trait ProcurementPortFactory: Send + Sync {
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn CreateReorderPoPort>, AppError>;
+
+    /// CSV / JSON inventory import client (S3c Task 8). Resolves
+    /// material_types by name (auto-creating missing ones) and
+    /// batch-inserts rolls with a per-row fallback on CHECK
+    /// violations.
+    fn csv_import(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn CsvImportPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -335,6 +345,18 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
             &auth.raw_jwt,
         )?;
         Ok(Arc::new(SupabaseCreateReorderPoRepository::new(client)))
+    }
+
+    fn csv_import(
+        &self,
+        auth: &AuthContext,
+    ) -> Result<Arc<dyn CsvImportPort>, AppError> {
+        let client = build_client(
+            self.supabase_url.as_ref(),
+            self.publishable_key.as_ref(),
+            &auth.raw_jwt,
+        )?;
+        Ok(Arc::new(SupabaseCsvImportRepository::new(client)))
     }
 }
 

@@ -13,11 +13,17 @@
 //! in as each vertical slice lands.
 
 pub mod create_reorder_po;
+pub mod csv_import;
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
 pub mod reorder_rules;
 pub mod suggestions;
+
+pub use csv_import::{
+    parse_csv_bytes, CsvImportPort, ImportCsvBytesUseCase, ImportReceipt,
+    ImportReviewedRowsUseCase, ImportRowError,
+};
 
 pub use create_reorder_po::{
     CreateReorderPoPort, CreateReorderPurchaseOrderUseCase, ReorderPoItem,

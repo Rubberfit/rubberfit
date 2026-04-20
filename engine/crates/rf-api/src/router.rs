@@ -179,6 +179,19 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
             "/reorder-rules/{id}/create-po",
             axum::routing::post(procurement::create_reorder_po_row),
         )
+        // CSV inventory import — S3c Task 8. Two endpoints:
+        // the JSON body serves the reviewed-rows path (dedicated
+        // import page); the /csv path accepts raw text/csv bytes
+        // for the quick-upload on the main inventory page. DXF/DWG
+        // imports are deferred.
+        .route(
+            "/import/rolls",
+            axum::routing::post(procurement::import_rolls_json),
+        )
+        .route(
+            "/import/rolls/csv",
+            axum::routing::post(procurement::import_rolls_csv),
+        )
         .route(
             "/po/{po_id}/items",
             get(procurement::list_po_items).post(procurement::add_po_item),

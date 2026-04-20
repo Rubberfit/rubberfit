@@ -8,12 +8,18 @@
 //! annotations; the parent re-exports everything the router needs.
 
 pub mod create_reorder_po;
+pub mod import;
 pub mod po_items;
 pub mod purchase_orders;
 pub mod receive;
 pub mod reorder_rules;
 pub mod status;
 pub mod tax;
+
+pub use import::{
+    import_rolls_csv, import_rolls_json, ImportReceiptDto, ImportRollRowBody,
+    ImportRollsBody, ImportRowErrorDto,
+};
 
 pub use create_reorder_po::{
     create_reorder_po_batch, create_reorder_po_bulk, create_reorder_po_row,
