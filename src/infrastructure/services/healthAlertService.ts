@@ -22,15 +22,18 @@ export class HealthAlertService implements IHealthAlertService {
     if (existing && (existing as unknown[]).length > 0) return
 
     // Persist alert row
-    await adminClient.schema("admin").from("alerts").insert({
-      source_table: "health_checks",
-      service_name: input.serviceName,
-      severity: input.status === "down" ? "high" : "medium",
-      title: `${input.serviceName} is ${input.status}`,
-      message: input.detail,
-      status: "active",
-      triggered_at: input.checkedAt,
-    })
+    await adminClient
+      .schema("admin")
+      .from("alerts")
+      .insert({
+        source_table: "health_checks",
+        service_name: input.serviceName,
+        severity: input.status === "down" ? "high" : "medium",
+        title: `${input.serviceName} is ${input.status}`,
+        message: input.detail,
+        status: "active",
+        triggered_at: input.checkedAt,
+      })
 
     const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/admin/health`
 
@@ -39,7 +42,7 @@ export class HealthAlertService implements IHealthAlertService {
     if (recipientEnv) {
       const recipients = recipientEnv
         .split(",")
-        .map(e => e.trim())
+        .map((e) => e.trim())
         .filter(Boolean)
 
       if (recipients.length > 0) {

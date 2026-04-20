@@ -95,10 +95,7 @@ container.registerInstance<IUserManagementService>(
   TOKENS.IUserManagementService,
   userManagementService
 )
-container.registerInstance<IHealthAlertService>(
-  TOKENS.IHealthAlertService,
-  healthAlertService
-)
+container.registerInstance<IHealthAlertService>(TOKENS.IHealthAlertService, healthAlertService)
 
 // Use cases — registered as class-based singletons so the container lazily
 // constructs them on first resolve, keeping use-case modules import-safe for

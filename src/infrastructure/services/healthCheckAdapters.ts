@@ -112,12 +112,7 @@ class InternalStorageAdapter implements IHealthCheckAdapter {
       const { data, error } = await client.storage.listBuckets()
       const responseMs = Date.now() - start
       if (error) return result(input, "down", responseMs, error.message)
-      return result(
-        input,
-        "operational",
-        responseMs,
-        `${(data ?? []).length} buckets accessible`
-      )
+      return result(input, "operational", responseMs, `${(data ?? []).length} buckets accessible`)
     } catch (err) {
       return result(
         input,
@@ -176,8 +171,8 @@ class InternalQueueAdapter implements IHealthCheckAdapter {
       const responseMs = Date.now() - start
       if (error) return result(input, "down", responseMs, error.message)
       const rows = data ?? []
-      const failed = rows.filter(r => r.status === "failed").length
-      const pending = rows.filter(r => r.status === "pending").length
+      const failed = rows.filter((r) => r.status === "failed").length
+      const pending = rows.filter((r) => r.status === "pending").length
       if (failed > 5) {
         return result(input, "degraded", responseMs, `${failed} failed jobs in queue`)
       }
@@ -210,7 +205,7 @@ export async function runHealthCheck(
   input: AdapterCheckInput,
   client: SupabaseClient
 ): Promise<CheckResult> {
-  const adapter = ADAPTERS.find(a => a.canHandle(input.checkType))
+  const adapter = ADAPTERS.find((a) => a.canHandle(input.checkType))
   if (!adapter) {
     return {
       endpointId: input.id,

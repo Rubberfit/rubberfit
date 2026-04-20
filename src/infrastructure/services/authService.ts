@@ -48,13 +48,13 @@ async function getProfileRoles(userId: string): Promise<ProfileData> {
 
     if (error) {
       console.error("Error loading profile roles:", error)
-      return {roles: normalizeRoles(), isSuperAdmin: false}
+      return { roles: normalizeRoles(), isSuperAdmin: false }
     }
 
-    return {roles: normalizeRoles(data?.roles), isSuperAdmin: data?.super_admin === true}
+    return { roles: normalizeRoles(data?.roles), isSuperAdmin: data?.super_admin === true }
   } catch (error) {
     console.error("Error loading profile roles:", error)
-    return {roles: normalizeRoles(), isSuperAdmin: false}
+    return { roles: normalizeRoles(), isSuperAdmin: false }
   }
 }
 
@@ -75,7 +75,8 @@ async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
     email: user.email!,
     name: getUserName(user),
     avatar: getUserAvatar(user),
-    roles: roles, isSuperAdmin,
+    roles: roles,
+    isSuperAdmin,
     authProvider: getUserAuthProvider(user),
     createdAt: user.created_at,
   }
