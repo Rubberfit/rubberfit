@@ -536,7 +536,7 @@ export default function CutPlannerPage() {
                     className="group flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 pl-1 pr-2 py-1 text-xs transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
                   >
                     {tag && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white dark:bg-slate-200 dark:text-slate-800">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-800 px-1.5 text-[10px] font-bold leading-none text-white dark:bg-slate-200 dark:text-slate-800">
                         {tag}
                       </span>
                     )}

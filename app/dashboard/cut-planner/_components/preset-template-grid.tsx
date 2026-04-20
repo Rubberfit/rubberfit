@@ -81,7 +81,7 @@ export function PresetTemplateGrid({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {isChecked && tagMap?.has(template.id) && (
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-stone-700 px-1.5 text-[10px] font-bold leading-none text-stone-50">
                         {tagMap.get(template.id)}
                       </span>
                     )}
