@@ -42,11 +42,14 @@ delete / parts / assignees / PDF export all happen inline.
 - **job-parts-panel.tsx** -- Parts table + "Add part" dialog.
   Dimensions × quantity × material, inline sqft totals.
 - **job-sufficiency-panel.tsx** -- Per-material needed / available
-  / shortfall readout against active inventory rolls. Green
-  "Covered" or red "Shortfall" + "Create PO" button per row.
-  Match is on material name (lowercased); width feasibility and
-  already-allocated rolls not yet subtracted — tracked as a
-  hardening follow-up.
+  / shortfall readout against active inventory rolls. Three states
+  ordered by severity: **Infeasible width** (at least one part is
+  wider than every roll of its material — "Source new stock"
+  button), **Shortfall** (enough width, not enough length —
+  "Create PO" deep-link with the gap pre-filled), or **Covered**.
+  Availability subtracts lengths earmarked by *other* jobs via
+  `job_roll_allocations` so a roll already committed elsewhere
+  doesn't double-count. Reserved sqft is also surfaced inline.
 - **job-roster-panel.tsx** -- Lead + worker assignees. One lead
   per job enforced via a DB partial unique index.
 - **job-allocations-panel.tsx** -- Earmarked rolls (selector
@@ -80,12 +83,18 @@ delete / parts / assignees / PDF export all happen inline.
   jobs CRUD, parts CRUD, assignees CRUD, allocations CRUD,
   sufficiency computation, linked-PO + linked-cut listing.
 
+## Tests
+
+- `tests/jobs/sufficiency.test.ts` exercises `aggregateSufficiency`
+  (the pure function behind `computeSufficiency`). Covers width
+  feasibility, allocation subtraction, reservation capping,
+  material normalisation (case + whitespace), null material
+  fallback, and severity-based sort order.
+
 ## Coming next
 
-- Hardening the sufficiency check: width feasibility (a 48"-wide
-  part shouldn't pass against 24"-wide rolls), and subtracting
-  already-allocated length from availability to prevent
-  double-counting across jobs.
 - Pre-fill the PO creator when the "Create PO" button fires —
   currently it just passes query params that the creator doesn't
   yet read.
+- Job status auto-transitions (flip to `completed` when every part
+  has a matching cut_history row).

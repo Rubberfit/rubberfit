@@ -14,25 +14,210 @@ import {
   type Roll,
 } from "@/src/infrastructure/models/supabase"
 
+/** Part the sufficiency check rejected on width grounds. */
+export interface InfeasibleJobPart {
+  id: string
+  description: string | null
+  part_number: string | null
+  width: number
+  quantity: number
+}
+
 /**
  * Per-material sufficiency summary used by the job detail page.
  * Grouping key is the normalised material_type string, because
  * `job_parts.material_type_id` is optional — the name is the
  * only reliable cross-reference across parts + rolls.
+ *
+ * Two independent failure modes surface here:
+ *   1. **Width infeasibility** — a part is wider than every roll of
+ *      its material. No amount of sqft fixes it; `infeasible_parts`
+ *      flags exactly which lines need a new roll class.
+ *   2. **Sqft shortfall** — plenty of width, not enough length.
+ *      `shortfall_sqft` > 0 when `needed_sqft > available_sqft`
+ *      (after subtracting rolls reserved by other jobs).
  */
 export interface JobMaterialSufficiency {
   material: string
-  /** Square feet needed to fulfil the parts lines for this material. */
+  /** Total square feet required across ALL parts of this material (feasible or not). */
   needed_sqft: number
-  /** Square feet currently available across active rolls of this material. */
+  /**
+   * Square feet available across active rolls of this material,
+   * net of lengths already allocated to other jobs.
+   */
   available_sqft: number
   /** `max(0, needed_sqft - available_sqft)`. Zero when inventory covers the job. */
   shortfall_sqft: number
+  /**
+   * Square feet across this material's rolls that are earmarked
+   * by *other* jobs' roll allocations. Informational — already
+   * subtracted from `available_sqft`.
+   */
+  reserved_sqft: number
+  /** Max width required by any part of this material. `0` if no parts. */
+  max_required_width: number
+  /** Max width of any active roll of this material. `0` if no rolls. */
+  max_available_width: number
+  /** Parts where `width > max_available_width` — no roll can cut them. */
+  infeasible_parts: InfeasibleJobPart[]
   /** Individual rolls feeding the availability number — caller can render them. */
   matching_rolls: Pick<
     Roll,
     "id" | "part_number" | "width" | "remaining_length" | "location"
   >[]
+}
+
+/** Minimal roll shape the aggregator needs (lets tests pass lightweight fixtures). */
+export type SufficiencyRoll = Pick<
+  Roll,
+  "id" | "part_number" | "material_type" | "width" | "remaining_length" | "location"
+>
+
+/** Minimal allocation shape — only the fields used to subtract reserved length. */
+export interface SufficiencyAllocation {
+  roll_id: string
+  allocated_length: number
+}
+
+const MATERIAL_KEY_UNSPECIFIED = "unspecified"
+const MATERIAL_LABEL_UNSPECIFIED = "Unspecified"
+
+function normaliseMaterialKey(value: string | null | undefined): string {
+  const trimmed = (value ?? "").trim().toLowerCase()
+  return trimmed || MATERIAL_KEY_UNSPECIFIED
+}
+
+function displayMaterial(value: string | null | undefined): string {
+  const trimmed = (value ?? "").trim()
+  return trimmed || MATERIAL_LABEL_UNSPECIFIED
+}
+
+function round2(value: number): number {
+  return Number(value.toFixed(2))
+}
+
+/**
+ * Pure aggregation — exported so the unit tests can exercise the
+ * width-feasibility and allocation-subtraction logic without
+ * touching Supabase. `otherJobAllocations` must already exclude
+ * the current job (the repository method handles that filter).
+ */
+export function aggregateSufficiency(
+  parts: JobPart[],
+  rolls: SufficiencyRoll[],
+  otherJobAllocations: SufficiencyAllocation[]
+): JobMaterialSufficiency[] {
+  // Sum reserved length per roll so a single roll earmarked across
+  // several other jobs is only subtracted once, capped at its
+  // remaining length (can't reserve more than exists).
+  const reservedByRoll = new Map<string, number>()
+  for (const a of otherJobAllocations) {
+    reservedByRoll.set(
+      a.roll_id,
+      (reservedByRoll.get(a.roll_id) ?? 0) + a.allocated_length
+    )
+  }
+
+  // Bucket parts + rolls by normalised material name. Using the
+  // name (not material_type_id) keeps offcuts and ad-hoc part
+  // entries from falling through the cracks when the FK is null.
+  interface PartsGroup {
+    display: string
+    parts: JobPart[]
+  }
+  const partsByMaterial = new Map<string, PartsGroup>()
+  for (const p of parts) {
+    const key = normaliseMaterialKey(p.material_type)
+    const group = partsByMaterial.get(key)
+    if (group) {
+      group.parts.push(p)
+    } else {
+      partsByMaterial.set(key, { display: displayMaterial(p.material_type), parts: [p] })
+    }
+  }
+
+  const rollsByMaterial = new Map<string, SufficiencyRoll[]>()
+  for (const r of rolls) {
+    const key = normaliseMaterialKey(r.material_type)
+    const list = rollsByMaterial.get(key)
+    if (list) list.push(r)
+    else rollsByMaterial.set(key, [r])
+  }
+
+  const results: JobMaterialSufficiency[] = []
+  for (const [key, { display, parts: groupParts }] of partsByMaterial) {
+    const materialRolls = rollsByMaterial.get(key) ?? []
+    const maxAvailableWidth = materialRolls.reduce(
+      (max, r) => (r.width > max ? r.width : max),
+      0
+    )
+    const maxRequiredWidth = groupParts.reduce(
+      (max, p) => (p.width > max ? p.width : max),
+      0
+    )
+
+    const infeasibleParts: InfeasibleJobPart[] = []
+    for (const p of groupParts) {
+      if (p.width > maxAvailableWidth) {
+        infeasibleParts.push({
+          id: p.id,
+          description: p.description,
+          part_number: p.part_number,
+          width: p.width,
+          quantity: p.quantity,
+        })
+      }
+    }
+
+    // Total needed counts every part — the UI shows infeasibility
+    // separately, but the sqft figure reflects the whole job.
+    const needed = groupParts.reduce(
+      (sum, p) => sum + (p.width * p.length * p.quantity) / 144,
+      0
+    )
+
+    let available = 0
+    let reserved = 0
+    for (const r of materialRolls) {
+      const rawReserved = reservedByRoll.get(r.id) ?? 0
+      const effectiveReserved = Math.min(rawReserved, r.remaining_length)
+      reserved += (effectiveReserved * r.width) / 144
+      const effectiveRemaining = Math.max(0, r.remaining_length - effectiveReserved)
+      available += (effectiveRemaining * r.width) / 144
+    }
+
+    results.push({
+      material: display,
+      needed_sqft: round2(needed),
+      available_sqft: round2(available),
+      shortfall_sqft: round2(Math.max(0, needed - available)),
+      reserved_sqft: round2(reserved),
+      max_required_width: maxRequiredWidth,
+      max_available_width: maxAvailableWidth,
+      infeasible_parts: infeasibleParts,
+      matching_rolls: materialRolls.map((r) => ({
+        id: r.id,
+        part_number: r.part_number,
+        width: r.width,
+        remaining_length: r.remaining_length,
+        location: r.location,
+      })),
+    })
+  }
+
+  // Surface infeasibility first (nothing else matters until there's
+  // a roll wide enough), then biggest shortfall, then everything
+  // else by display name for deterministic output.
+  results.sort((a, b) => {
+    if (a.infeasible_parts.length !== b.infeasible_parts.length) {
+      return b.infeasible_parts.length - a.infeasible_parts.length
+    }
+    if (a.shortfall_sqft !== b.shortfall_sqft) {
+      return b.shortfall_sqft - a.shortfall_sqft
+    }
+    return a.material.localeCompare(b.material)
+  })
+  return results
 }
 
 /**
@@ -352,69 +537,44 @@ export class JobsRepository {
   // ── sufficiency check (client-side aggregation) ────────────
 
   async computeSufficiency(jobId: string): Promise<JobMaterialSufficiency[]> {
-    const [partsResult, rollsResult] = await Promise.all([
+    // Three reads, all parallel. Allocations query is scoped to
+    // *other* jobs so we subtract competing reservations from the
+    // available pool without double-counting the current job's own
+    // earmarks (which the sufficiency view shouldn't penalise).
+    const [partsResult, rollsResult, allocationsResult] = await Promise.all([
       supabase.from("job_parts").select("*").eq("job_id", jobId),
       supabase
         .from("rolls")
-        .select("id, part_number, material_type, width, length, remaining_length, location")
+        .select("id, part_number, material_type, width, remaining_length, location")
         .eq("status", "active"),
+      supabase
+        .from("job_roll_allocations")
+        .select("roll_id, allocated_length")
+        .neq("job_id", jobId),
     ])
     if (partsResult.error) throw partsResult.error
     if (rollsResult.error) throw rollsResult.error
 
     const parts = (partsResult.data ?? []) as JobPart[]
-    const rolls = (rollsResult.data ?? []) as Array<
-      Pick<
-        Roll,
-        "id" | "part_number" | "material_type" | "width" | "length" | "remaining_length" | "location"
-      >
-    >
+    const rolls = (rollsResult.data ?? []) as SufficiencyRoll[]
 
-    // Aggregate needed sqft per material (normalised to lowercase
-    // to handle "Butyl" vs "butyl"). Unknown material on a part
-    // is grouped under the literal label "Unspecified".
-    const byMaterial = new Map<
-      string,
-      { display: string; needed: number }
-    >()
-    for (const p of parts) {
-      const key = (p.material_type ?? "").trim().toLowerCase() || "unspecified"
-      const display = p.material_type?.trim() || "Unspecified"
-      const needed = (p.width * p.length * p.quantity) / 144
-      const existing = byMaterial.get(key)
-      if (existing) existing.needed += needed
-      else byMaterial.set(key, { display, needed })
+    // Allocations table may be unmigrated in some envs — degrade
+    // gracefully instead of failing the whole check. 42P01 =
+    // relation does not exist; 42703 = column missing.
+    let otherAllocations: SufficiencyAllocation[] = []
+    if (allocationsResult.error) {
+      const code = allocationsResult.error.code
+      if (code !== "42P01" && code !== "42703") {
+        console.warn("[jobs] allocations lookup failed; sufficiency will ignore reservations", {
+          message: allocationsResult.error.message,
+          code,
+        })
+      }
+    } else {
+      otherAllocations = (allocationsResult.data ?? []) as SufficiencyAllocation[]
     }
 
-    // Match rolls to each material by the same normalised key.
-    const results: JobMaterialSufficiency[] = []
-    for (const [key, { display, needed }] of byMaterial) {
-      const matchingRolls = rolls.filter(
-        (r) => r.material_type.trim().toLowerCase() === key
-      )
-      const available =
-        matchingRolls.reduce(
-          (sum, r) => sum + (r.remaining_length * r.width) / 144,
-          0
-        )
-      results.push({
-        material: display,
-        needed_sqft: Number(needed.toFixed(2)),
-        available_sqft: Number(available.toFixed(2)),
-        shortfall_sqft: Number(Math.max(0, needed - available).toFixed(2)),
-        matching_rolls: matchingRolls.map((r) => ({
-          id: r.id,
-          part_number: r.part_number,
-          width: r.width,
-          remaining_length: r.remaining_length,
-          location: r.location,
-        })),
-      })
-    }
-    // Sort by biggest shortfall first — operators care about
-    // what's blocking the job, not what's comfortably covered.
-    results.sort((a, b) => b.shortfall_sqft - a.shortfall_sqft)
-    return results
+    return aggregateSufficiency(parts, rolls, otherAllocations)
   }
 }
 
