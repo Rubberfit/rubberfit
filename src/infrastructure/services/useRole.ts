@@ -5,6 +5,7 @@ import {
   hasAnyRole as hasAnyRoleForRoles,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
+import { getUserRoles } from "@/src/infrastructure/services/getUserRoles"
 
 // Hook return type
 export interface UseRoleReturn {
@@ -55,21 +56,19 @@ export function useRole(): UseRoleReturn {
           return
         }
 
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("roles, full_name, email")
-          .eq("id", session.user.id)
-          .single()
+        const [resolvedRoles, { data: profile }] = await Promise.all([
+          getUserRoles(supabase, session.user.id),
+          supabase
+            .from("profiles")
+            .select("full_name, email")
+            .eq("id", session.user.id)
+            .maybeSingle(),
+        ])
 
         if (mounted) {
-          if (error || !profile) {
-            // Profile missing — treat as member until synced
-            setRoles([...DEFAULT_ROLES])
-          } else {
-            setRoles((profile.roles ?? [...DEFAULT_ROLES]) as AppRole[])
-            setFullName(profile.full_name ?? null)
-            setEmail(profile.email ?? session.user.email ?? null)
-          }
+          setRoles(resolvedRoles.length > 0 ? resolvedRoles : [...DEFAULT_ROLES])
+          setFullName(profile?.full_name ?? null)
+          setEmail(profile?.email ?? session.user.email ?? null)
           setUserId(session.user.id)
           setIsLoading(false)
         }

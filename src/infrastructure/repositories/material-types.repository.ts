@@ -1,77 +1,63 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
-import type { MaterialType } from "@/src/entities"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type { CreateMaterialType, MaterialType, UpdateMaterialType } from "@/src/entities"
 import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
+import {
+  mapCreateMaterialTypeToInsert,
+  mapRowToMaterialType,
+  mapUpdateMaterialTypeToUpdate,
+} from "@/src/infrastructure/mappers/material-types.mapper"
 
 export class MaterialTypeRepository implements IMaterialTypeRepository {
   async getAll(): Promise<MaterialType[]> {
     const { data, error } = await supabase
       .from("material_types")
       .select("*")
+      .is("deleted_at", null)
       .order("name", { ascending: true })
-
     if (error) throw error
-    return data as MaterialType[]
+    return (data ?? []).map(mapRowToMaterialType)
   }
 
   async getByIds(ids: string[]): Promise<MaterialType[]> {
     if (ids.length === 0) return []
     const { data, error } = await supabase.from("material_types").select("*").in("id", ids)
-
     if (error) throw error
-    return data as MaterialType[]
+    return (data ?? []).map(mapRowToMaterialType)
   }
 
   async getNames(): Promise<Pick<MaterialType, "id" | "name">[]> {
     const { data, error } = await supabase
       .from("material_types")
       .select("id, name")
+      .is("deleted_at", null)
       .order("name", { ascending: true })
-
     if (error) throw error
-    return data as Pick<MaterialType, "id" | "name">[]
+    return data ?? []
   }
 
-  async getTopByCost(limit: number): Promise<MaterialType[]> {
+  async create(input: CreateMaterialType): Promise<MaterialType> {
     const { data, error } = await supabase
       .from("material_types")
-      .select("*")
-      .order("default_cost", { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-    return data as MaterialType[]
-  }
-
-  async create(
-    material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">
-  ): Promise<MaterialType> {
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
-      .from("material_types")
-      .insert([{ ...material, user_id }])
+      .insert(mapCreateMaterialTypeToInsert(input))
       .select()
       .single()
-
     if (error) throw error
-    return data as MaterialType
+    return mapRowToMaterialType(data)
   }
 
-  async update(id: string, updates: Partial<MaterialType>): Promise<MaterialType> {
+  async update(id: string, patch: UpdateMaterialType): Promise<MaterialType> {
     const { data, error } = await supabase
       .from("material_types")
-      .update(updates)
+      .update(mapUpdateMaterialTypeToUpdate(patch))
       .eq("id", id)
       .select()
       .single()
-
     if (error) throw error
-    return data as MaterialType
+    return mapRowToMaterialType(data)
   }
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from("material_types").delete().eq("id", id)
-
     if (error) throw error
   }
 }

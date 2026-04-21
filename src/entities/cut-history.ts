@@ -1,6 +1,9 @@
 import type { Area, Length, Percentage, PricePerArea } from "./value-objects"
 import type { AuditFields, SoftDeletable } from "./shared"
 
+export type CreateCutHistory = Omit<CutHistory, "id" | keyof AuditFields | keyof SoftDeletable>
+export type UpdateCutHistory = Partial<CreateCutHistory>
+
 export interface CutHistory extends AuditFields, SoftDeletable {
   id: string
   tenantId: string

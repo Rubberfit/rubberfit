@@ -3,7 +3,7 @@ import { format } from "date-fns"
 
 import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
-import { uploadCutPdf } from "@/src/infrastructure/services/cutHistoryService"
+import { cutHistoryService } from "@/src/infrastructure/services/cutHistoryService"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
@@ -456,7 +456,17 @@ export async function buildAndUploadCutPdf(
   const pdfBlob = await generateCutPdf(svgElements, pdfData)
   const { data: authData } = await supabase.auth.getUser()
   if (authData.user) {
-    await uploadCutPdf(cutId, authData.user.id, pdfBlob)
+    // TODO: thread tenant_id through the cut planner so the PDF upload lands
+    // under the correct tenant path. The full cut planner migration will
+    // replace cutId: number with a uuid from cutHistoryService.create().
+    const { data: cutRow } = await supabase
+      .from("cut_history")
+      .select("tenant_id")
+      .eq("id", String(cutId))
+      .maybeSingle()
+    if (cutRow) {
+      await cutHistoryService.uploadPdf(String(cutId), cutRow.tenant_id, pdfBlob)
+    }
   }
 }
 

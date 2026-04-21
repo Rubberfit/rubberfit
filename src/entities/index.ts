@@ -1,7 +1,7 @@
 export type { AuditFields, CreatedOnly, SoftDeletable } from "./shared"
 export * from "./value-objects"
 
-export type { MaterialType } from "./material-type"
+export type { CreateMaterialType, MaterialType, UpdateMaterialType } from "./material-type"
 export type {
   Supplier,
   CreateSupplier,
@@ -30,7 +30,7 @@ export type {
 export type { TaxRate, TaxRateSource } from "./tax-rate"
 
 export type { CreateCut, Cut, UpdateCut } from "./cut"
-export type { CutHistory } from "./cut-history"
+export type { CreateCutHistory, CutHistory, UpdateCutHistory } from "./cut-history"
 export type { CutHistorySelection } from "./cut-history-selection"
 export type { CutFavorite } from "./cut-favorite"
 

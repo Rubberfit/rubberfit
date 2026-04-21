@@ -15,9 +15,7 @@ import {
 } from "@/app/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/app/components/ui/tooltip"
 
-import { type CutHistoryRow, PART_LABELS } from "./use-cut-history"
-
-// FabScoreBadge
+import { type CutHistoryRow } from "./use-cut-history"
 
 function FabScoreBadge({ score }: { score: number }) {
   const pct = Math.round(score * 100)
@@ -25,19 +23,15 @@ function FabScoreBadge({ score }: { score: number }) {
   return <Badge variant={variant}>{pct}%</Badge>
 }
 
-// Props
-
 interface CutHistoryTableProps {
   cuts: CutHistoryRow[]
   loading: boolean
   totalColSpan: number
   canDelete: boolean
-  onToggleFavorite: (id: number) => void
-  onDeleteRequest: (cutId: number) => void
-  onReopen: (cutId: number) => void
+  onToggleFavorite: (id: string) => void
+  onDeleteRequest: (cutId: string) => void
+  onReopen: (cutId: string) => void
 }
-
-// Component
 
 export function CutHistoryTable({
   cuts,
@@ -55,7 +49,7 @@ export function CutHistoryTable({
           <TableRow className="bg-slate-100 dark:bg-slate-800/50">
             <TableHead className="w-8 px-2" />
             <TableHead className="min-w-[110px] pl-2">Cut Date</TableHead>
-            <TableHead className="min-w-[110px]">Part</TableHead>
+            <TableHead className="min-w-[110px]">Stock</TableHead>
             <TableHead className="min-w-[140px] whitespace-nowrap">Stock (W×L×T)</TableHead>
             <TableHead className="text-right min-w-[40px]">Qty</TableHead>
             <TableHead className="text-right min-w-[68px] whitespace-nowrap">Parts Done</TableHead>
@@ -85,7 +79,6 @@ export function CutHistoryTable({
                 key={cut.id}
                 className={cut.isFavorite ? "bg-amber-50/40 dark:bg-amber-950/20" : undefined}
               >
-                {/* Favorite star */}
                 <TableCell className="px-2">
                   <button
                     type="button"
@@ -102,54 +95,49 @@ export function CutHistoryTable({
                   </button>
                 </TableCell>
 
-                {/* Date */}
                 <TableCell className="pl-2 whitespace-nowrap">
-                  <div className="font-medium">{format(new Date(cut.cut_date), "MMM d, yyyy")}</div>
+                  <div className="font-medium">{format(new Date(cut.cutDate), "MMM d, yyyy")}</div>
                   <div className="text-xs text-muted-foreground">
-                    {format(new Date(cut.cut_date), "HH:mm:ss")}
+                    {format(new Date(cut.cutDate), "HH:mm:ss")}
                   </div>
                 </TableCell>
 
-                {/* Part */}
-                <TableCell className="font-medium">
-                  {PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`}
-                </TableCell>
+                <TableCell className="font-medium">{cut.stockLabel ?? "—"}</TableCell>
 
-                {/* Stock dimensions */}
                 <TableCell className="font-mono whitespace-nowrap">
-                  {cut.cut_width}" × {cut.cut_length}" × {cut.cut_thickness}"
+                  {cut.cutWidth.toInches().toFixed(1)}" × {cut.cutLength.toInches().toFixed(1)}" ×{" "}
+                  {cut.cutThickness ? `${cut.cutThickness.toInches().toFixed(3)}"` : "—"}
                 </TableCell>
 
-                <TableCell className="text-right tabular-nums">{cut.cut_amount}</TableCell>
-                <TableCell className="text-right tabular-nums">{cut.parts_completed}</TableCell>
+                <TableCell className="text-right tabular-nums">{cut.cutAmount}</TableCell>
+                <TableCell className="text-right tabular-nums">{cut.partsCompleted}</TableCell>
 
                 <TableCell className="text-right tabular-nums font-mono whitespace-nowrap">
-                  {cut.material_used_sqft.toFixed(2)} ft²
-                </TableCell>
-
-                <TableCell className="text-right tabular-nums font-mono whitespace-nowrap">
-                  {cut.reusable_offset_sqft.toFixed(2)} ft²
+                  {cut.materialUsed.toSqft().toFixed(2)} ft²
                 </TableCell>
 
                 <TableCell className="text-right tabular-nums font-mono whitespace-nowrap">
-                  {cut.scrap_sqft.toFixed(2)} ft²
+                  —
+                </TableCell>
+
+                <TableCell className="text-right tabular-nums font-mono whitespace-nowrap">
+                  {cut.scrap.toSqft().toFixed(2)} ft²
                 </TableCell>
 
                 <TableCell className="text-right">
-                  <FabScoreBadge score={cut.fab_score} />
+                  <FabScoreBadge score={cut.fabScore?.toFraction() ?? 0} />
                 </TableCell>
 
-                {/* Actions */}
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    {cut.pdf_url && (
+                    {cut.pdfUrl && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                            onClick={() => window.open(cut.pdf_url ?? "", "_blank")}
+                            onClick={() => window.open(cut.pdfUrl ?? "", "_blank")}
                             aria-label="View PDF"
                           >
                             <FileText className="h-3.5 w-3.5" />

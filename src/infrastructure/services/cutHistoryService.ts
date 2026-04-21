@@ -1,84 +1,152 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type { CreateCutHistory, CutHistory, UpdateCutHistory } from "@/src/entities"
+import {
+  mapCreateCutHistoryToInsert,
+  mapRowToCutHistory,
+  mapUpdateCutHistoryToUpdate,
+} from "@/src/infrastructure/mappers/cut-history.mapper"
+import type {
+  ICutHistoryService,
+  ListCutHistoryOptions,
+} from "@/src/application/services/cut-history.service.interface"
 
-// Get current user's cut history
-export const getCutHistory = async () => {
-  const { data, error } = await supabase
-    .from("cut_history")
-    .select("*")
-    .order("cut_date", { ascending: false })
+// TODO: resolve currency from tenant_settings.default_currency
+const DEFAULT_CURRENCY = "USD"
+const CUT_HISTORY_PDF_BUCKET = "cut-history-pdfs"
 
-  if (error) throw error
-  return data
-}
+export class CutHistoryService implements ICutHistoryService {
+  async list(options: ListCutHistoryOptions = {}): Promise<CutHistory[]> {
+    let query = supabase
+      .from("cut_history")
+      .select("*")
+      .is("deleted_at", null)
+      .order("cut_date", { ascending: false })
 
-// Add a new cut history entry
-export const addCutHistory = async (cut: {
-  material_id: number
-  cut_length: number
-  cut_width: number
-  cut_thickness: number
-  cut_amount: number
-  part_id?: number
-  part_custom_width?: number
-  part_custom_height?: number
-  part_selected_size?: number[]
-  part_selected_size_text?: string[]
-  part_selected_label?: string[]
-}) => {
-  const { data, error } = await supabase.from("cut_history").insert(cut).select().single()
+    if (options.from) query = query.gte("cut_date", options.from.toISOString())
+    if (options.to) query = query.lte("cut_date", options.to.toISOString())
+    if (options.userId) query = query.eq("user_id", options.userId)
+    if (options.limit) query = query.limit(options.limit)
 
-  if (error) throw error
-  return data
-}
+    const { data, error } = await query
+    if (error) throw error
+    return (data ?? []).map((row) => mapRowToCutHistory(row, DEFAULT_CURRENCY))
+  }
 
-// Delete a cut history entry
-export const deleteCutHistory = async (id: number) => {
-  const { error } = await supabase.from("cut_history").delete().eq("id", id)
+  async getById(id: string): Promise<CutHistory | null> {
+    const { data, error } = await supabase
+      .from("cut_history")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return null
+    return mapRowToCutHistory(data, DEFAULT_CURRENCY)
+  }
 
-  if (error) throw error
-}
+  async create(input: CreateCutHistory): Promise<CutHistory> {
+    const { data, error } = await supabase
+      .from("cut_history")
+      .insert(mapCreateCutHistoryToInsert(input))
+      .select()
+      .single()
+    if (error) throw error
+    return mapRowToCutHistory(data, DEFAULT_CURRENCY)
+  }
 
-// Upload a PDF blob for a cut history entry to Supabase Storage
-export async function uploadCutPdf(
-  cutId: number,
-  userId: string,
-  pdfBlob: Blob
-): Promise<string | null> {
-  const fileName = `${userId}/${cutId}-${Date.now()}.pdf`
-  const { error: uploadError } = await supabase.storage
-    .from("cut-history-pdfs")
-    .upload(fileName, pdfBlob, {
-      cacheControl: "3600",
-      contentType: "application/pdf",
-      upsert: true,
+  async update(id: string, patch: UpdateCutHistory): Promise<CutHistory> {
+    const { data, error } = await supabase
+      .from("cut_history")
+      .update(mapUpdateCutHistoryToUpdate(patch))
+      .eq("id", id)
+      .select()
+      .single()
+    if (error) throw error
+    return mapRowToCutHistory(data, DEFAULT_CURRENCY)
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase.from("cut_history").delete().eq("id", id)
+    if (error) throw error
+  }
+
+  async listFavoriteIds(userId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from("cut_favorites")
+      .select("cut_history_id")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+    if (error) throw error
+    return (data ?? []).map((r) => r.cut_history_id)
+  }
+
+  async toggleFavorite(
+    userId: string,
+    cutHistoryId: string
+  ): Promise<{ isFavorite: boolean }> {
+    const { data: existing } = await supabase
+      .from("cut_favorites")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("cut_history_id", cutHistoryId)
+      .is("deleted_at", null)
+      .maybeSingle()
+
+    if (existing) {
+      const { error } = await supabase.from("cut_favorites").delete().eq("id", existing.id)
+      if (error) throw error
+      return { isFavorite: false }
+    }
+
+    // Look up the parent cut_history row's tenant_id for the insert.
+    const { data: parent, error: parentError } = await supabase
+      .from("cut_history")
+      .select("tenant_id")
+      .eq("id", cutHistoryId)
+      .maybeSingle()
+    if (parentError || !parent) {
+      throw parentError ?? new Error("Cut history record not found")
+    }
+
+    const { error } = await supabase.from("cut_favorites").insert({
+      user_id: userId,
+      cut_history_id: cutHistoryId,
+      tenant_id: parent.tenant_id,
     })
-  if (uploadError) {
-    console.error("PDF upload failed:", uploadError)
-    return null
+    if (error) throw error
+    return { isFavorite: true }
   }
 
-  const { data: urlData } = supabase.storage.from("cut-history-pdfs").getPublicUrl(fileName)
+  async uploadPdf(
+    cutHistoryId: string,
+    tenantId: string,
+    pdfBlob: Blob
+  ): Promise<string | null> {
+    const path = `${tenantId}/${cutHistoryId}.pdf`
 
-  const { error: updateError } = await supabase
-    .from("cut_history")
-    .update({ pdf_url: urlData.publicUrl })
-    .eq("id", cutId)
+    const { error: uploadError } = await supabase.storage
+      .from(CUT_HISTORY_PDF_BUCKET)
+      .upload(path, pdfBlob, {
+        cacheControl: "3600",
+        contentType: "application/pdf",
+        upsert: true,
+      })
+    if (uploadError) {
+      console.error("PDF upload failed:", uploadError)
+      return null
+    }
 
-  if (updateError) {
-    console.error("Failed to save PDF URL:", updateError)
-    return null
+    const { error: updateError } = await supabase
+      .from("cut_history")
+      .update({ pdf_url: path })
+      .eq("id", cutHistoryId)
+    if (updateError) {
+      console.error("Failed to save PDF path:", updateError)
+      return null
+    }
+
+    return path
   }
-
-  return urlData.publicUrl
 }
 
-// Get all cut history (admin/manager/supervisor only)
-export const getAllCutHistory = async () => {
-  const { data, error } = await supabase
-    .from("cut_history")
-    .select("*, profiles(full_name, roles)")
-    .order("cut_date", { ascending: false })
-
-  if (error) throw error
-  return data
-}
+export const cutHistoryService = new CutHistoryService()

@@ -10,10 +10,12 @@ interface CutHistoryStatsProps {
 
 export function CutHistoryStats({ cuts }: CutHistoryStatsProps) {
   const totalCuts = cuts.length
-  const totalPieces = cuts.reduce((sum, cut) => sum + cut.cut_amount, 0)
-  const totalMatUsed = cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0)
+  const totalPieces = cuts.reduce((sum, cut) => sum + cut.cutAmount, 0)
+  const totalMatUsed = cuts.reduce((sum, cut) => sum + cut.materialUsed.toSqft(), 0)
   const avgFabScore =
-    cuts.length > 0 ? cuts.reduce((sum, cut) => sum + cut.fab_score, 0) / cuts.length : 0
+    cuts.length > 0
+      ? cuts.reduce((sum, cut) => sum + (cut.fabScore?.toFraction() ?? 0), 0) / cuts.length
+      : 0
   // Waste is the complement of the fab score (scrap / total material)
   const avgWastePct = (1 - avgFabScore) * 100
 
