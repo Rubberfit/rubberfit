@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import type { CutHistory } from "@/src/entities"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { getUserRoles } from "@/src/infrastructure/services/getUserRoles"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   //  Authenticate caller
@@ -46,9 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   //  Resolve caller role
-  const { data: profile } = await db.from("profiles").select("roles").eq("id", user.id).single()
-
-  const roles: string[] = (profile?.roles as string[] | null) ?? []
+  const roles = await getUserRoles(authClient, user.id)
   const isPrivileged =
     roles.includes("admin") || roles.includes("manager") || roles.includes("supervisor")
   const isOwnRecord = (cut as { user_id: string | null }).user_id === user.id
@@ -110,9 +109,7 @@ export async function DELETE(
   }
 
   //  Resolve caller role
-  const { data: profile } = await db.from("profiles").select("roles").eq("id", user.id).single()
-
-  const roles: string[] = (profile?.roles as string[] | null) ?? []
+  const roles = await getUserRoles(authClient, user.id)
   const isPrivileged = roles.includes("admin") || roles.includes("manager")
   const isOwnRecord = (cut as { user_id: string | null }).user_id === user.id
   const isCutter = roles.includes("cutter")

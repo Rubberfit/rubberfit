@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr"
 
 import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/app/lib/auth-redirect"
 import { type AppRole, DEFAULT_ROLES } from "@/src/application/permissions"
+import { getUserRoles } from "@/src/infrastructure/services/getUserRoles"
 
 type PendingCookie = {
   name: string
@@ -98,12 +99,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("roles")
-      .eq("id", user.id)
-      .maybeSingle()
-    roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
+    roles = await getUserRoles(supabase, user.id)
   }
 
   return redirectWithCookies(

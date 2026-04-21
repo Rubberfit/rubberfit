@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { getUserRoles } from "@/src/infrastructure/services/getUserRoles"
 
 /** GET /api/users
  *  Returns a list of users (id + full_name) for the admin / manager / supervisor dropdown.
@@ -24,16 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-  if (profileError) {
-    console.error("users GET profile fetch error:", profileError)
-    return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
-  }
-  const roles: string[] = (profile?.roles as string[] | null) ?? []
+  const roles = await getUserRoles(supabase, user.id)
   const isPrivileged =
     roles.includes("admin") || roles.includes("manager") || roles.includes("supervisor")
 

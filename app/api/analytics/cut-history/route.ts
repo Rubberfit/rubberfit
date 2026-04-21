@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import type { CutHistory } from "@/src/entities"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { getUserRoles } from "@/src/infrastructure/services/getUserRoles"
 
 const MAX_ROWS = 10000
 
@@ -31,13 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Resolve caller's role
-  const { data: callerProfile } = await db
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-
-  const callerRoles: string[] = (callerProfile?.roles as string[] | null) ?? []
+  const callerRoles = await getUserRoles(db, user.id)
   const isPrivileged =
     callerRoles.includes("admin") ||
     callerRoles.includes("manager") ||
