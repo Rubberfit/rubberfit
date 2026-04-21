@@ -149,13 +149,23 @@ COMMENT ON COLUMN material_suppliers.cost_per_sqm_cents IS
 
 
 -- ─── rolls ─────────────────────────────────────────────────────────────────
--- Physical inventory: one row per received roll. Dimensions in mm.
+-- Physical inventory: one row per piece of stock. Two sources:
+--   • source_type = 'received' — a roll purchased from a supplier (normal case)
+--   • source_type = 'offcut'   — a reusable leftover produced by a cut job.
+--                                parent_roll_id points to the roll it came
+--                                from; source_cut_history_id points to the
+--                                cut that produced it (FK added in file 3).
+-- Offcuts inherit material_type_id / supplier_id / cost_per_sqm_cents from
+-- their parent roll at creation time (enforced in app layer, not schema).
 
 CREATE TABLE rolls (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id            uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   material_type_id     uuid NOT NULL REFERENCES material_types(id) ON DELETE RESTRICT,
   supplier_id          uuid REFERENCES suppliers(id) ON DELETE SET NULL,
+  source_type          varchar(20) NOT NULL DEFAULT 'received'
+                       CHECK (source_type IN ('received', 'offcut')),
+  parent_roll_id       uuid REFERENCES rolls(id) ON DELETE RESTRICT,
   width_mm             integer NOT NULL CHECK (width_mm > 0),
   length_mm            integer NOT NULL CHECK (length_mm > 0),
   remaining_length_mm  integer NOT NULL CHECK (remaining_length_mm >= 0),
@@ -167,6 +177,7 @@ CREATE TABLE rolls (
   status               varchar(20) NOT NULL DEFAULT 'active'
                        CHECK (status IN ('active', 'depleted', 'reserved')),
   notes                text,
+  qr_generated_at      timestamptz,
   created_at           timestamptz NOT NULL DEFAULT now(),
   created_by           uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
   updated_at           timestamptz NOT NULL DEFAULT now(),
@@ -174,13 +185,19 @@ CREATE TABLE rolls (
   deleted_at           timestamptz,
 
   CONSTRAINT rolls_remaining_within_length
-    CHECK (remaining_length_mm <= length_mm)
+    CHECK (remaining_length_mm <= length_mm),
+  CONSTRAINT rolls_parent_not_self
+    CHECK (parent_roll_id IS NULL OR parent_roll_id <> id)
 );
 
+COMMENT ON COLUMN rolls.source_type IS
+  'received = purchased from a supplier; offcut = reusable leftover from a cut job.';
+COMMENT ON COLUMN rolls.parent_roll_id IS
+  'The roll this offcut was cut from. NULL for received rolls. Required for offcuts (CHECK added in file 3 alongside source_cut_history_id).';
 COMMENT ON COLUMN rolls.thickness_mm IS
   'Thickness in mm. Uses numeric(8,3) because material thicknesses are commonly sub-mm (e.g., 0.5 mm vinyl).';
 COMMENT ON COLUMN rolls.cost_per_sqm_cents IS
-  'Snapshot of material_suppliers.cost_per_sqm_cents at time of receipt. Not kept in sync with price changes.';
+  'Snapshot of material_suppliers.cost_per_sqm_cents at time of receipt. For offcuts, inherited from parent roll at creation.';
 
 
 -- ─── price_history ─────────────────────────────────────────────────────────

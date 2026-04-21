@@ -69,8 +69,8 @@ CREATE TRIGGER trg_reorder_rules_updated_at         BEFORE UPDATE ON reorder_rul
 CREATE TRIGGER trg_cuts_updated_at          BEFORE UPDATE ON cuts          FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_cut_history_updated_at   BEFORE UPDATE ON cut_history   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_cut_favorites_updated_at BEFORE UPDATE ON cut_favorites FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE TRIGGER trg_cut_reusable_updated_at  BEFORE UPDATE ON cut_reusable  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 -- cut_history_selection: insert-only, no updated_at
+-- Offcut rolls live in the rolls table; rolls already has trg_rolls_updated_at
 
 -- Commerce (file 4)
 CREATE TRIGGER trg_projects_updated_at              BEFORE UPDATE ON projects              FOR EACH ROW EXECUTE FUNCTION set_updated_at();

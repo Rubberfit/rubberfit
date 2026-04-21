@@ -2,7 +2,13 @@
 -- REDESIGN — File 3 of 9: Operations schema (cut planner)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Tables (in dependency order):
---   cuts, cut_history, cut_history_selection, cut_favorites, cut_reusable
+--   cuts, cut_history, cut_history_selection, cut_favorites
+--
+-- Also at the bottom of this file: ALTER TABLE rolls to add
+-- source_cut_history_id (FK to cut_history) + the consistency CHECK that
+-- ties rolls.source_type to parent_roll_id / source_cut_history_id.
+-- These live here because the FK target (cut_history) doesn't exist yet
+-- when file 2 runs.
 --
 -- Design decisions:
 --   • Units: lengths as integer mm (numeric(8,3) for thickness); computed
@@ -11,8 +17,9 @@
 --   • tenant_id on every table, ON DELETE CASCADE
 --   • cut_history array columns (part_selected_*) are normalized into
 --     cut_history_selection (one row per selection, ordered by selection_index)
---   • cut_reusable replaces the legacy reusable_offset_sqft scalar on
---     cut_history — offcut pieces are persisted as their own rows
+--   • Reusable offcuts are NOT a separate table — they are stored as rolls
+--     rows with source_type = 'offcut'. This unifies the inventory for cut
+--     planning, QR code generation, and low-stock alerts.
 --   • user_id and created_by are kept as semantically distinct: user_id is
 --     the operator (cutter / favoriter); created_by is who wrote the record
 --
@@ -150,28 +157,26 @@ CREATE TABLE cut_favorites (
 );
 
 
--- ─── cut_reusable ──────────────────────────────────────────────────────────
--- Leftover offcut pieces produced by a cut_history job that are large enough
--- to reuse. Persisted as individual rows (replaces legacy
--- cut_history.reusable_offset_sqft scalar).
+-- ─── rolls: offcut lineage (deferred columns + consistency CHECK) ──────────
+-- rolls.source_type and rolls.parent_roll_id are defined in file 2. The FK
+-- to cut_history and the consistency CHECK live here because cut_history is
+-- only defined above.
 
-CREATE TABLE cut_reusable (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  user_id             uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  cut_history_id      uuid NOT NULL REFERENCES cut_history(id) ON DELETE CASCADE,
-  length_mm           integer NOT NULL CHECK (length_mm > 0),
-  width_mm            integer NOT NULL CHECK (width_mm > 0),
-  thickness_mm        numeric(8,3) NOT NULL CHECK (thickness_mm > 0),
-  reusable_sqmm       bigint NOT NULL CHECK (reusable_sqmm >= 0),
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  created_by          uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
-  updated_at          timestamptz NOT NULL DEFAULT now(),
-  updated_by          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  deleted_at          timestamptz
-);
+ALTER TABLE rolls
+  ADD COLUMN source_cut_history_id uuid
+    REFERENCES cut_history(id) ON DELETE RESTRICT;
 
-COMMENT ON TABLE cut_reusable IS
-  'Offcut pieces from a cut_history job that are large enough to reuse. One row per piece.';
-COMMENT ON COLUMN cut_reusable.reusable_sqmm IS
-  'Usable area in square millimeters. Expected to equal length_mm * width_mm.';
+COMMENT ON COLUMN rolls.source_cut_history_id IS
+  'The cut_history row that produced this offcut. NULL for received rolls; required for offcuts (CHECK below).';
+
+ALTER TABLE rolls
+  ADD CONSTRAINT rolls_source_consistency
+    CHECK (
+      (source_type = 'received'
+         AND parent_roll_id IS NULL
+         AND source_cut_history_id IS NULL)
+      OR
+      (source_type = 'offcut'
+         AND parent_roll_id IS NOT NULL
+         AND source_cut_history_id IS NOT NULL)
+    );

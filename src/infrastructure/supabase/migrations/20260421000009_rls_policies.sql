@@ -115,7 +115,6 @@ ALTER TABLE cuts                    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cut_history             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cut_history_selection   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cut_favorites           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cut_reusable            ENABLE ROW LEVEL SECURITY;
 
 -- Commerce (file 4)
 ALTER TABLE projects                ENABLE ROW LEVEL SECURITY;
@@ -336,11 +335,6 @@ CREATE POLICY cut_history_tenant_isolation ON cut_history
   WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
 
 CREATE POLICY cut_history_selection_tenant_isolation ON cut_history_selection
-  FOR ALL
-  USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))
-  WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
-
-CREATE POLICY cut_reusable_tenant_isolation ON cut_reusable
   FOR ALL
   USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))
   WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));

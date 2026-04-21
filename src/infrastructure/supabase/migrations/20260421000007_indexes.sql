@@ -73,12 +73,20 @@ CREATE INDEX idx_material_suppliers_material_active
   WHERE active = true AND deleted_at IS NULL;
 
 -- rolls
-CREATE INDEX idx_rolls_tenant_id          ON rolls(tenant_id);
-CREATE INDEX idx_rolls_material_type_id   ON rolls(material_type_id);
-CREATE INDEX idx_rolls_supplier_id        ON rolls(supplier_id) WHERE supplier_id IS NOT NULL;
+CREATE INDEX idx_rolls_tenant_id                ON rolls(tenant_id);
+CREATE INDEX idx_rolls_material_type_id         ON rolls(material_type_id);
+CREATE INDEX idx_rolls_supplier_id              ON rolls(supplier_id)              WHERE supplier_id IS NOT NULL;
+CREATE INDEX idx_rolls_parent_roll_id           ON rolls(parent_roll_id)           WHERE parent_roll_id IS NOT NULL;
+CREATE INDEX idx_rolls_source_cut_history_id    ON rolls(source_cut_history_id)    WHERE source_cut_history_id IS NOT NULL;
 CREATE INDEX idx_rolls_tenant_status
   ON rolls(tenant_id, status)
   WHERE deleted_at IS NULL;
+CREATE INDEX idx_rolls_tenant_source_active
+  ON rolls(tenant_id, source_type)
+  WHERE status = 'active' AND deleted_at IS NULL;
+CREATE INDEX idx_rolls_tenant_qr_pending
+  ON rolls(tenant_id)
+  WHERE qr_generated_at IS NULL AND deleted_at IS NULL;
 
 -- price_history
 CREATE INDEX idx_price_history_material_supplier_id ON price_history(material_supplier_id);
@@ -123,12 +131,6 @@ CREATE INDEX idx_cut_history_selection_tenant_id ON cut_history_selection(tenant
 -- (user_id, cut_history_id) UNIQUE covers user_id-leading.
 CREATE INDEX idx_cut_favorites_cut_history_id ON cut_favorites(cut_history_id);
 CREATE INDEX idx_cut_favorites_tenant_id      ON cut_favorites(tenant_id);
-
--- cut_reusable
-CREATE INDEX idx_cut_reusable_cut_history_id ON cut_reusable(cut_history_id);
-CREATE INDEX idx_cut_reusable_tenant_id      ON cut_reusable(tenant_id);
-CREATE INDEX idx_cut_reusable_user_id        ON cut_reusable(user_id) WHERE user_id IS NOT NULL;
-
 
 -- ─── Commerce (file 4) ─────────────────────────────────────────────────────
 
