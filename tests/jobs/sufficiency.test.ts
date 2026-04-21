@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   aggregateSufficiency,
+  JobsRepository,
   type SufficiencyAllocation,
   type SufficiencyRoll,
 } from "@/src/infrastructure/repositories/jobs.repository"
@@ -226,5 +227,32 @@ describe("aggregateSufficiency", () => {
     )
     expect(result[0].reserved_sqft).toBe(0)
     expect(result[0].available_sqft).toBe(40)
+  })
+})
+
+describe("JobsRepository.shouldAutoComplete", () => {
+  it("returns true when completed ≥ needed and status is active", () => {
+    expect(JobsRepository.shouldAutoComplete(10, 10, "in_progress")).toBe(true)
+    expect(JobsRepository.shouldAutoComplete(10, 15, "scheduled")).toBe(true)
+    expect(JobsRepository.shouldAutoComplete(10, 10, "draft")).toBe(true)
+  })
+
+  it("returns false when completed < needed", () => {
+    expect(JobsRepository.shouldAutoComplete(10, 9, "in_progress")).toBe(false)
+    expect(JobsRepository.shouldAutoComplete(10, 0, "in_progress")).toBe(false)
+  })
+
+  it("never stomps a terminal status", () => {
+    // Already completed or explicitly cancelled should stay put
+    // regardless of whether the quantities technically match.
+    expect(JobsRepository.shouldAutoComplete(10, 10, "completed")).toBe(false)
+    expect(JobsRepository.shouldAutoComplete(10, 10, "cancelled")).toBe(false)
+  })
+
+  it("returns false when the job has no parts (needed = 0)", () => {
+    // Guards against auto-completing an empty job on the first
+    // stray general-cutter cut that happened to get tagged.
+    expect(JobsRepository.shouldAutoComplete(0, 0, "in_progress")).toBe(false)
+    expect(JobsRepository.shouldAutoComplete(0, 5, "in_progress")).toBe(false)
   })
 })

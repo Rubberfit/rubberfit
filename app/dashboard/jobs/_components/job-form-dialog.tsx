@@ -36,21 +36,25 @@ import type { Job, JobStatus } from "@/src/infrastructure/models/supabase"
  */
 
 const jobSchema = z.object({
-  name: z.string().min(1, "Job name is required"),
-  description: z.string().optional(),
-  customer_name: z.string().optional(),
-  customer_email: z
-    .string()
-    .optional()
-    .refine(
-      (v) => !v || /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]+$/.test(v),
-      "Enter a valid email"
-    ),
-  customer_phone: z.string().optional(),
-  customer_po_number: z.string().optional(),
+  // `.trim()` on every text field so whitespace-only values don't
+  // slip past `.min(1)` or persist as padded strings. The hand-
+  // rolled customer_email regex below was also rejecting valid
+  // addresses like `orders+plant@…` (no `+` in the charset);
+  // swapping to Zod's built-in `.email()` fixes that too. Empty
+  // strings are normalised to undefined so the optional check on
+  // the email still passes when the field is simply blank.
+  name: z.string().trim().min(1, "Job name is required"),
+  description: z.string().trim().optional(),
+  customer_name: z.string().trim().optional(),
+  customer_email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().email("Enter a valid email").optional()
+  ),
+  customer_phone: z.string().trim().optional(),
+  customer_po_number: z.string().trim().optional(),
   status: z.enum(["draft", "scheduled", "in_progress", "completed", "cancelled"]),
   due_date: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().trim().optional(),
 })
 
 type JobFormValues = z.infer<typeof jobSchema>

@@ -534,6 +534,30 @@ export class JobsRepository {
     return (data ?? []) as CutHistory[]
   }
 
+  // ── auto-complete decision (pure helper) ───────────────────
+
+  /**
+   * Policy for flipping a job to `completed` after a cut lands.
+   * Pure so the post-cut route can unit-test the decision without
+   * spinning up Supabase. Rules:
+   *   - Need at least one part recorded (`needed > 0`), otherwise
+   *     we'd auto-complete empty jobs on the first stray cut.
+   *   - Cuts' completed-count must equal or exceed the job's total
+   *     part quantity.
+   *   - Never stomp on `completed` or `cancelled` — those are
+   *     terminal states the operator chose explicitly.
+   */
+  static shouldAutoComplete(
+    needed: number,
+    completed: number,
+    currentStatus: string
+  ): boolean {
+    if (needed <= 0) return false
+    if (completed < needed) return false
+    if (currentStatus === "completed" || currentStatus === "cancelled") return false
+    return true
+  }
+
   // ── sufficiency check (client-side aggregation) ────────────
 
   async computeSufficiency(jobId: string): Promise<JobMaterialSufficiency[]> {

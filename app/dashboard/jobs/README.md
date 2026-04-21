@@ -91,10 +91,23 @@ delete / parts / assignees / PDF export all happen inline.
   material normalisation (case + whitespace), null material
   fallback, and severity-based sort order.
 
+## Auto-status transitions
+
+The cut-history POST route (`app/api/cuts/history/route.ts`) flips
+a job to `completed` when the linked cut brings the total
+`parts_completed` at or above the sum of `job_parts.quantity`.
+Policy lives in `JobsRepository.shouldAutoComplete` (pure, unit-
+tested) and refuses to stomp on `completed` / `cancelled` — those
+terminal states require an operator to explicitly re-open.
+Side-effect is best-effort: any query failure is logged but
+doesn't block the cut insert.
+
 ## Coming next
 
 - Pre-fill the PO creator when the "Create PO" button fires —
   currently it just passes query params that the creator doesn't
   yet read.
-- Job status auto-transitions (flip to `completed` when every part
-  has a matching cut_history row).
+- Per-line fulfilment: stamp `cut_history.job_part_id` when the
+  engine knows which job_part a cut maps to, so the auto-complete
+  check can distinguish "10 cuts of part A" from "5 cuts each of
+  parts A + B".

@@ -47,16 +47,30 @@ interface JobPartsPanelProps {
   onChanged: () => void
 }
 
+// Empty strings from cleared inputs would otherwise coerce to 0
+// and trip the `.positive()` / `.min(0)` checks or silently save a
+// zero price. Preprocess "" → undefined so optional stays optional.
+const optionalNumber = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.coerce.number().optional()
+)
+
 const partSchema = z.object({
-  material_type: z.string().min(1, "Material is required"),
-  part_number: z.string().optional(),
-  description: z.string().optional(),
+  material_type: z.string().trim().min(1, "Material is required"),
+  part_number: z.string().trim().optional(),
+  description: z.string().trim().optional(),
   width: z.coerce.number().positive("Width > 0"),
   length: z.coerce.number().positive("Length > 0"),
-  thickness: z.coerce.number().positive().optional(),
+  thickness: optionalNumber.refine(
+    (v) => v === undefined || v > 0,
+    "Thickness must be greater than 0"
+  ),
   quantity: z.coerce.number().int().positive("Quantity must be at least 1"),
-  unit_price: z.coerce.number().min(0).optional(),
-  notes: z.string().optional(),
+  unit_price: optionalNumber.refine(
+    (v) => v === undefined || v >= 0,
+    "Unit price must be 0 or greater"
+  ),
+  notes: z.string().trim().optional(),
 })
 type PartFormValues = z.infer<typeof partSchema>
 

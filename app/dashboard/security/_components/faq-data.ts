@@ -187,7 +187,7 @@ export const FAQ_SECTIONS: ReadonlyArray<FaqSectionData> = [
       },
       {
         q: "Can we get a DPA?",
-        a: "Yes. Contact security@arcandanchor.com with the name of the contracting entity — we'll return a signed DPA with the subprocessor addendum within two business days.",
+        a: "Yes. Our processor DPA template (covering GDPR, UK GDPR, and CCPA, with EU Standard Contractual Clauses and a subprocessor addendum) is maintained at docs/legal/data-processing-agreement-template.md in the repo. Contact security@arcandanchor.com with the name of the contracting entity and we'll return a counter-signed copy within two business days.",
       },
       {
         q: "Do you fill out security questionnaires (SIG-lite, CAIQ)?",

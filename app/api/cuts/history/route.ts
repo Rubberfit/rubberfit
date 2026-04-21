@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/supabase"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { JobsRepository } from "@/src/infrastructure/repositories/jobs.repository"
 
 const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
@@ -448,6 +449,68 @@ export async function POST(request: NextRequest) {
           })
         }
       }
+    }
+  }
+
+  // ── Post-insert job status reconciliation ───────────────────
+  // If this cut is linked to a job, check whether the job's parts
+  // are now all covered and flip the status to `completed`. The
+  // decision policy lives on `JobsRepository.shouldAutoComplete`
+  // (pure + unit-tested). Best-effort: failures log but never
+  // block the cut from being recorded — the operator can always
+  // flip status manually from the drawer.
+  if (jobId) {
+    try {
+      const [partsResult, cutsResult, jobResult] = await Promise.all([
+        db.from("job_parts").select("quantity").eq("job_id", jobId),
+        db.from("cut_history").select("parts_completed").eq("job_id", jobId),
+        db.from("jobs").select("status").eq("id", jobId).single(),
+      ])
+      if (!partsResult.error && !cutsResult.error && !jobResult.error) {
+        const partsRows = (partsResult.data ?? []) as Array<{ quantity: number }>
+        const cutsRows = (cutsResult.data ?? []) as Array<{ parts_completed: number }>
+        const jobRow = jobResult.data as { status: string } | null
+        const needed = partsRows.reduce((sum, p) => sum + (p.quantity ?? 0), 0)
+        const completed = cutsRows.reduce(
+          (sum, c) => sum + (c.parts_completed ?? 0),
+          0
+        )
+        if (
+          jobRow &&
+          JobsRepository.shouldAutoComplete(needed, completed, jobRow.status)
+        ) {
+          const { error: jobUpdErr } = await db
+            .from("jobs")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", jobId)
+          if (jobUpdErr) {
+            console.error("job auto-complete update failed:", {
+              jobId,
+              message: jobUpdErr.message,
+              code: jobUpdErr.code,
+            })
+          }
+        }
+      } else {
+        // 42703 = missing column (pre-migration env), 42P01 = missing
+        // table. In either case skip the check instead of failing
+        // the whole POST.
+        const errs = [partsResult.error, cutsResult.error, jobResult.error].filter(
+          (e): e is NonNullable<typeof e> => Boolean(e)
+        )
+        const benign = errs.every((e) => e.code === "42703" || e.code === "42P01")
+        if (!benign) {
+          console.warn("job auto-complete check skipped — query error", {
+            jobId,
+            errors: errs.map((e) => ({ code: e.code, message: e.message })),
+          })
+        }
+      }
+    } catch (err) {
+      console.error("job auto-complete check threw:", err)
     }
   }
 

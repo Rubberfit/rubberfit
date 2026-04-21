@@ -25,6 +25,14 @@ import {
 import type { Roll, MaterialType } from "@/src/infrastructure/models/supabase"
 import { RollFormFields } from "./roll-form-fields"
 
+// Optional numeric fields need a preprocess step: z.coerce.number()
+// on its own turns "" into 0, which would quietly persist a zero
+// cost or zero remaining-length instead of leaving the field blank.
+const optionalNumber = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.coerce.number().optional()
+)
+
 export const rollFormSchema = z.object({
   material_type: z.string().min(1, "Material type is required"),
   width: z.coerce.number().positive("Width must be greater than 0"),
@@ -34,9 +42,15 @@ export const rollFormSchema = z.object({
   location: z.string().optional(),
   date_received: z.string().min(1, "Date received is required"),
   supplier: z.string().optional(),
-  cost_per_sqft: z.coerce.number().min(0, "Cost must be 0 or greater").optional(),
+  cost_per_sqft: optionalNumber.refine(
+    (v) => v === undefined || v >= 0,
+    "Cost must be 0 or greater"
+  ),
   notes: z.string().optional(),
-  remaining_length: z.coerce.number().min(0).optional(),
+  remaining_length: optionalNumber.refine(
+    (v) => v === undefined || v >= 0,
+    "Remaining length must be 0 or greater"
+  ),
 })
 
 type RollFormValues = z.infer<typeof rollFormSchema>
@@ -92,8 +106,15 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
         thickness: roll.thickness,
         color: roll.color ?? "",
         location: roll.location ?? "",
+        // Date-only strings (YYYY-MM-DD) parse as UTC midnight via
+        // `new Date(...)`, which shifts to the previous local day in
+        // negative UTC offsets. Take the first 10 chars directly
+        // when the value already looks date-only; only fall through
+        // to Date for full timestamps (legacy rows).
         date_received: roll.date_received
-          ? format(new Date(roll.date_received), "yyyy-MM-dd")
+          ? /^\d{4}-\d{2}-\d{2}/.test(roll.date_received)
+            ? roll.date_received.slice(0, 10)
+            : format(new Date(roll.date_received), "yyyy-MM-dd")
           : format(new Date(), "yyyy-MM-dd"),
         supplier: roll.supplier ?? "",
         cost_per_sqft: roll.cost_per_sqft ?? 2.5,
