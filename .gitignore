@@ -71,6 +71,16 @@ temp/
 # only per-task plans are local-only.
 docs/superpowers/plans/
 
+# Per-session Claude Code scratch — handoffs, research, worktrees,
+# and any new S5+ plan drafts. Historical archives under archive/
+# that are already tracked stay tracked; this just prevents NEW
+# plan/research files from sneaking into commits.
+.claude/handoff/
+.claude/research/
+.claude/worktrees/
+.claude/tmp/
+.claude/scratch/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
