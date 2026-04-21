@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog"
-import type { Roll } from "@/src/infrastructure/models/supabase"
+import type { Roll } from "@/src/infrastructure/models/database.types"
 
 interface CutOptimization {
   roll: Roll

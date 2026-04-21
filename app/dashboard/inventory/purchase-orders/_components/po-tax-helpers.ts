@@ -1,4 +1,4 @@
-import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/database.types"
 import { taxService } from "@/src/infrastructure/services/taxService"
 
 export interface TaxDetails {

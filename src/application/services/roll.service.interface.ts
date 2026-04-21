@@ -1,4 +1,4 @@
-import type { Roll } from "@/src/infrastructure/models/supabase"
+import type { Roll } from "@/src/infrastructure/models/database.types"
 
 export interface BulkAddResult {
   imported: number

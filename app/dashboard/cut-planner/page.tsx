@@ -35,7 +35,7 @@ import {
   type CutHistory,
   type MaterialType,
   type PartCustomDimensions,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import { CutLoader } from "./_components/cut-loader"

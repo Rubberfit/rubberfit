@@ -6,7 +6,7 @@ import { Building, CreditCard, Star, Edit } from "lucide-react"
 import {
   type Supplier,
   type MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import {
   Dialog,

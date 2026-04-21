@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import type { VisionExtractionResponse } from "@/app/dashboard/cut-planner/_components/upload-types"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
 import "reflect-metadata"

@@ -2,7 +2,7 @@
 
 import { Edit, Trash2 } from "lucide-react"
 
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/database.types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import {

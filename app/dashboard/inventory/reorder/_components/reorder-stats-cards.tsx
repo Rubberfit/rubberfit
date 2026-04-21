@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ShoppingCart, Truck, Activity } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
 import type { ReorderSuggestion } from "./reorder-suggestions"
 
 interface ReorderStatsCardsProps {

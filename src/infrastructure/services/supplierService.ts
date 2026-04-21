@@ -1,13 +1,13 @@
-import {
-  supabase,
-  type Supplier,
-  type MaterialSupplier,
-  type MaterialSupplierWithDetails,
-  type CreateSupplier,
-  type UpdateSupplier,
-  type CreateMaterialSupplier,
-  type UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  Supplier,
+  MaterialSupplier,
+  MaterialSupplierWithDetails,
+  CreateSupplier,
+  UpdateSupplier,
+  CreateMaterialSupplier,
+  UpdateMaterialSupplier,
+} from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { priceHistoryService } from "./priceHistoryService"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"

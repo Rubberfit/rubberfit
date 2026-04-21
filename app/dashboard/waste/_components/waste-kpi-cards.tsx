@@ -2,7 +2,7 @@
 
 import { Layers, Scissors, TrendingDown, TrendingUp, Zap } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/database.types"
 
 interface WasteKpiCardsProps {
   cuts: CutHistory[]

@@ -1,6 +1,6 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
+import type { PurchaseOrder } from "@/src/infrastructure/models/database.types"
 import type {
   ReorderSuggestion,
   OptimalOrderQuantity,

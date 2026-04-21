@@ -3,7 +3,7 @@ import type {
   MaterialSupplierWithDetails,
   CreateMaterialSupplier,
   UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 export interface IMaterialSuppliersRepository {
   findById(id: string): Promise<MaterialSupplier | null>

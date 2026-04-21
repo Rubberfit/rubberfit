@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
+import type { CutHistory } from "@/src/infrastructure/models/database.types"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 const MAX_ROWS = 10000

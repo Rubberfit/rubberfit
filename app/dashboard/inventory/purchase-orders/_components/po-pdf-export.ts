@@ -1,6 +1,6 @@
 import { format } from "date-fns"
 
-import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/database.types"
 
 // eslint-disable-next-line complexity
 export function handleDownloadPDF(po: PurchaseOrderWithDetails) {

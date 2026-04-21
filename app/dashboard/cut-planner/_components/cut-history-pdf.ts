@@ -1,7 +1,7 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
 
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
 import { uploadCutPdf } from "@/src/infrastructure/services/cutHistoryService"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"

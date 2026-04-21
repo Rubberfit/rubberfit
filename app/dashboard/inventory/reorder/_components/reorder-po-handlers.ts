@@ -1,4 +1,4 @@
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"

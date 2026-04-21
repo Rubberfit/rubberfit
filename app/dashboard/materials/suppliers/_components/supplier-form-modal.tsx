@@ -8,7 +8,7 @@ import {
   type Supplier,
   type MaterialSupplier,
   type MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { MaterialSupplierLink } from "./material-supplier-link"

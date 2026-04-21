@@ -2,7 +2,7 @@ import type {
   NotificationQueue,
   CreateNotificationQueue,
   UpdateNotificationQueue,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 export interface INotificationQueueRepository {
   findById(id: string): Promise<NotificationQueue | null>

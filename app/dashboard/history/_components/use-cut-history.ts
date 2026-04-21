@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
-import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/database.types"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
 // Types

@@ -1,4 +1,4 @@
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/infrastructure/models/database.types"
 
 export interface IMaterialTypeService {
   getAll(): Promise<MaterialType[]>

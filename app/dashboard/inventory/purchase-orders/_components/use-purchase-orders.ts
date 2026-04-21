@@ -3,12 +3,12 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
-import {
-  supabase,
-  type PurchaseOrderWithDetails,
-  type Supplier,
-  type MaterialType,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  PurchaseOrderWithDetails,
+  Supplier,
+  MaterialType,
+} from "@/src/infrastructure/models/database.types"
 
 import { type TaxDetails } from "./po-tax-helpers"
 import { usePOFormState } from "./use-po-form-state"

@@ -1,9 +1,9 @@
-import {
-  supabase,
-  type PurchaseOrder,
-  type PurchaseOrderWithDetails,
-  type Roll,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  PurchaseOrder,
+  PurchaseOrderWithDetails,
+  Roll,
+} from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
   POReceiptItem,

@@ -1,4 +1,4 @@
-import type { Supplier, CreateSupplier, UpdateSupplier } from "@/src/infrastructure/models/supabase"
+import type { Supplier, CreateSupplier, UpdateSupplier } from "@/src/infrastructure/models/database.types"
 
 export interface ISuppliersRepository {
   findById(id: string): Promise<Supplier | null>

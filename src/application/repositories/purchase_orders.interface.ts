@@ -3,7 +3,7 @@ import type {
   PurchaseOrderWithDetails,
   CreatePurchaseOrder,
   UpdatePurchaseOrder,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 export interface IPurchaseOrdersRepository {
   findById(id: string): Promise<PurchaseOrder | null>

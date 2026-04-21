@@ -1,9 +1,9 @@
-import {
-  supabase,
-  type ReorderRuleWithDetails,
-  type CreateReorderRule,
-  type UpdateReorderRule,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  ReorderRuleWithDetails,
+  CreateReorderRule,
+  UpdateReorderRule,
+} from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
 import type {

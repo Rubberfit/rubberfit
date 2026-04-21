@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 
 export async function getCurrentUserId(): Promise<string> {
   const {

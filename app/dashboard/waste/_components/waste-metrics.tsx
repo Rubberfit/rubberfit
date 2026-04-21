@@ -2,7 +2,7 @@
 
 import { TrendingDown, DollarSign, AlertCircle, Target } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type Cut } from "@/src/infrastructure/models/supabase"
+import { type Cut } from "@/src/infrastructure/models/database.types"
 
 interface WasteMetricsProps {
   cuts: (Cut & { roll?: { cost_per_sqft?: number } })[]

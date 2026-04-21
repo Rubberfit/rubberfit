@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 
-import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/database.types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import {

@@ -5,7 +5,7 @@ import { DollarSign, Layers, Building2, AlertTriangle } from "lucide-react"
 import type {
   MaterialType,
   MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { PriceAlert } from "./pricing-types"
 

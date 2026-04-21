@@ -1,4 +1,4 @@
-import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
 import type {
   IGenerateReorderSuggestionsUseCase,
   ReorderSuggestionOutput,

@@ -7,7 +7,7 @@ import type { ISupplierService } from "@/src/application/services/supplier.servi
 import type {
   PurchaseOrderWithDetails,
   ReorderRuleWithDetails,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { TOKENS } from "@/di/tokens"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use-case"

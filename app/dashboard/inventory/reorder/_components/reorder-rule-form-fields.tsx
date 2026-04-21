@@ -15,7 +15,7 @@ import {
 import { Switch } from "@/app/components/ui/switch"
 import { Alert, AlertDescription } from "@/app/components/ui/alert"
 import { Separator } from "@/app/components/ui/separator"
-import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
+import type { MaterialType, Supplier } from "@/src/infrastructure/models/database.types"
 
 interface FormData {
   material_type_id: string

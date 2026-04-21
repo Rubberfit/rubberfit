@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/database.types"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 const MAX_LIMIT = 100

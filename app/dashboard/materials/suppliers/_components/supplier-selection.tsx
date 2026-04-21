@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Check, ChevronsUpDown, Star, Building } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 
-import { type Supplier } from "@/src/infrastructure/models/supabase"
+import { type Supplier } from "@/src/infrastructure/models/database.types"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { Button } from "@/app/components/ui/button"
 import {

@@ -12,7 +12,7 @@ import type {
   CreatePurchaseOrderItem,
   UpdatePurchaseOrderItem,
   Roll,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 interface POStats {
   total: number

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
+import type { CutHistory } from "@/src/infrastructure/models/database.types"
 
 interface CutLoaderProps {
   onLoad: (cut: CutHistory) => void

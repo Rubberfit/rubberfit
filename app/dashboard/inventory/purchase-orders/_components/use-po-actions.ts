@@ -6,7 +6,7 @@ import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
   type Supplier,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
 import { resolveUseCase } from "@/di/resolve"

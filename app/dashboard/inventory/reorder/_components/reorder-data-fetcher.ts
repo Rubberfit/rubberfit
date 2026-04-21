@@ -1,9 +1,9 @@
-import {
-  supabase,
-  type MaterialType,
-  type ReorderRuleWithDetails,
-  type Supplier,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  MaterialType,
+  ReorderRuleWithDetails,
+  Supplier,
+} from "@/src/infrastructure/models/database.types"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 

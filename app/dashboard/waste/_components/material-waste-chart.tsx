@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type Cut } from "@/src/infrastructure/models/supabase"
+import { type Cut } from "@/src/infrastructure/models/database.types"
 
 interface MaterialWasteChartProps {
   cuts: (Cut & { roll?: { material_type: string; cost_per_sqft?: number } })[]

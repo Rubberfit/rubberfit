@@ -1,6 +1,7 @@
 import { Resend } from "resend"
 // import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
-import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type { NotificationQueue } from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
 import "reflect-metadata"

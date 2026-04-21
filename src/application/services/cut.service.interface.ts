@@ -1,4 +1,4 @@
-import type { Cut, Roll } from "@/src/infrastructure/models/supabase"
+import type { Cut, Roll } from "@/src/infrastructure/models/database.types"
 
 export interface WasteStats {
   averageWastePercentage: number

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import type { MaterialType, Roll } from "@/src/infrastructure/models/supabase"
+import type { MaterialType, Roll } from "@/src/infrastructure/models/database.types"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { rollService } from "@/src/infrastructure/services/rollService"

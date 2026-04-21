@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 
-import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/database.types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Table,

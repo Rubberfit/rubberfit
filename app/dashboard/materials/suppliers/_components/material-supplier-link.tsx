@@ -11,7 +11,7 @@ import type {
   MaterialType,
   MaterialSupplier,
   CreateMaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import {

@@ -5,7 +5,7 @@ import { format, subDays, subWeeks, subMonths, startOfWeek, startOfMonth } from 
 import { Download, TrendingDown } from "lucide-react"
 import { toast } from "sonner"
 
-import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { type CutHistory } from "@/src/infrastructure/models/database.types"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import { Button } from "@/app/components/ui/button"
 import {

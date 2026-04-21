@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog"
-import type { Roll } from "@/src/infrastructure/models/supabase"
+import type { Roll } from "@/src/infrastructure/models/database.types"
 import { UseFormReturn } from "react-hook-form"
 
 interface CutRequest {

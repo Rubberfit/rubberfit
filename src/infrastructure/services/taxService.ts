@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { taxApiService } from "./taxApiService"
 import type {
   ITaxService,

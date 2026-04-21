@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { DEFAULT_ROLES, type AppRole, type Permission } from "@/src/application/permissions"
 import {
   hasAnyRole as hasAnyRoleForRoles,

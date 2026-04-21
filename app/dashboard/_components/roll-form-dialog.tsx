@@ -19,7 +19,7 @@ import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
 
 import { rollService } from "@/src/infrastructure/services/rollService"
-import type { Roll, MaterialType } from "@/src/infrastructure/models/supabase"
+import type { Roll, MaterialType } from "@/src/infrastructure/models/database.types"
 import { RollFormFields } from "./roll-form-fields"
 
 export const rollFormSchema = z.object({

@@ -1,7 +1,7 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
-import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
 import { TOKENS } from "@/di/tokens"
 
 export interface ReorderSuggestionOutput {

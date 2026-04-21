@@ -2,7 +2,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderWithDetails,
   Roll,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import type { POReceiptItem } from "@/src/application/services/purchase-order.service.interface"
 
 export interface POAnalyticsStats {

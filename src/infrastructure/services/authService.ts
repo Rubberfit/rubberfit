@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
 import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { normalizeRoles } from "@/src/application/rbac"
 import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"

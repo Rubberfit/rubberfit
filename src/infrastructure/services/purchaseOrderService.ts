@@ -1,13 +1,13 @@
-import {
-  supabase,
-  type PurchaseOrder,
-  type PurchaseOrderWithDetails,
-  type PurchaseOrderItemWithDetails,
-  type CreatePurchaseOrder,
-  type UpdatePurchaseOrder,
-  type CreatePurchaseOrderItem,
-  type UpdatePurchaseOrderItem,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  PurchaseOrder,
+  PurchaseOrderWithDetails,
+  PurchaseOrderItemWithDetails,
+  CreatePurchaseOrder,
+  UpdatePurchaseOrder,
+  CreatePurchaseOrderItem,
+  UpdatePurchaseOrderItem,
+} from "@/src/infrastructure/models/database.types"
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"

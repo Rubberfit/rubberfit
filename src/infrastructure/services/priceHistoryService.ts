@@ -1,8 +1,8 @@
-import {
-  supabase,
-  type PriceHistory,
-  type MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  PriceHistory,
+  MaterialSupplierWithDetails,
+} from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
   IPriceHistoryService,

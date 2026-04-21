@@ -8,7 +8,7 @@ import type {
   ReorderRuleWithDetails,
   CreateReorderRule,
   UpdateReorderRule,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 interface ReorderState {
   // Data

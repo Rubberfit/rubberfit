@@ -3,7 +3,7 @@ import type {
   MaterialSupplierWithDetails,
   PriceHistory,
   Supplier,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 
 export interface PriceHistoryWithJoins extends PriceHistory {
   material_supplier?: MaterialSupplierWithDetails & {

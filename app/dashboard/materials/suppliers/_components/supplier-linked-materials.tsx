@@ -5,7 +5,7 @@ import { Plus, Trash2, Link2 } from "lucide-react"
 import {
   type MaterialSupplierWithDetails,
   type MaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
+} from "@/src/infrastructure/models/database.types"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"

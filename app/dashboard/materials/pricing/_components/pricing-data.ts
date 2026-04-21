@@ -1,9 +1,9 @@
-import {
-  supabase,
-  type MaterialType,
-  type MaterialSupplierWithDetails,
-  type Supplier,
-} from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type {
+  MaterialType,
+  MaterialSupplierWithDetails,
+  Supplier,
+} from "@/src/infrastructure/models/database.types"
 import { subDays } from "date-fns"
 import type { PriceHistoryWithJoins, PriceAlert } from "./pricing-types"
 

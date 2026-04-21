@@ -1,4 +1,5 @@
-import { supabase, type MaterialType } from "@/src/infrastructure/models/supabase"
+import { supabase } from "@/src/infrastructure/models/supabase-context"
+import type { MaterialType } from "@/src/infrastructure/models/database.types"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 
