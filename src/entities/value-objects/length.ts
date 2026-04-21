@@ -8,13 +8,13 @@ export class Length {
   static fromMm(mm: number): Length {
     if (!Number.isFinite(mm)) throw new LengthError("mm must be finite")
     if (mm < 0) throw new LengthError("mm must be non-negative")
-    return new Length(Math.round(mm))
+    return new Length(mm)
   }
 
   static fromInches(inches: number): Length {
     if (!Number.isFinite(inches)) throw new LengthError("inches must be finite")
     if (inches < 0) throw new LengthError("inches must be non-negative")
-    return new Length(Math.round(inches * MM_PER_INCH))
+    return new Length(inches * MM_PER_INCH)
   }
 
   static zero(): Length {
