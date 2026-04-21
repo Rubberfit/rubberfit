@@ -80,6 +80,8 @@ COMMENT ON COLUMN tenants.slug IS 'URL-safe tenant identifier (lowercase, dashes
 CREATE TABLE tenant_settings (
   tenant_id           uuid PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
   default_currency    char(3) NOT NULL DEFAULT 'USD',
+  unit_system         varchar(10) NOT NULL DEFAULT 'metric'
+                      CHECK (unit_system IN ('metric', 'imperial')),
   date_format         varchar(20) NOT NULL DEFAULT 'MM/DD/YYYY',
   timezone            varchar(50) NOT NULL DEFAULT 'America/New_York',
   inventory_settings  jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -90,6 +92,8 @@ CREATE TABLE tenant_settings (
 
 COMMENT ON TABLE tenant_settings IS
   'Tenant-wide preferences. Shared PK with tenants for 1:1 relationship.';
+COMMENT ON COLUMN tenant_settings.unit_system IS
+  'Display/input unit system for this tenant. Storage remains metric (mm / sqm / cents) regardless; the app converts at the UI edge. Users can override via user_preferences.ui_preferences.unit_system.';
 
 
 -- ─── subscriptions ─────────────────────────────────────────────────────────
