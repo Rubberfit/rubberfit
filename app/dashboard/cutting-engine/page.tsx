@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { toast } from "sonner"
-import { Badge } from "@/app/components/ui/badge"
-import { Button } from "@/app/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { Info, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import { usePackGate } from "./_hooks/use-pack-gate"
 import PresetDimensionSelector, {
@@ -17,11 +14,9 @@ import type { ExtractedPart } from "@/src/application/vision/types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
-  StockPreviewConfigurator,
   STOCK_PRESETS,
   type StockConfig,
 } from "./_components/stock-preview-configurator"
-import { CutConfigCard } from "./_components/cut-config-card"
 import {
   getRequestedSqFt,
   getDefaultCutDirection,
@@ -29,7 +24,6 @@ import {
   parseDimsFromLabel,
 } from "./_components/cut-planner-utils"
 import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
-import { RecordedCutSelect } from "./_components/recorded-cut-select"
 import {
   type CutHistory,
   type MaterialType,
@@ -42,6 +36,12 @@ import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
 import type { JobFullDetail, Roll } from "@/src/infrastructure/models/supabase"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { PageShell } from "@/app/components/patterns/page-shell"
+import { WorkspaceRow, WorkspaceColumn } from "@/app/components/patterns/workspace-column"
+import { PartsQueuePanel, type PartsFilter } from "./_components/parts-queue-panel"
+import { CanvasToolbar } from "./_components/canvas-toolbar"
+import { StrategyResultsPanel } from "./_components/strategy-results-panel"
+import { TweaksPanel } from "./_components/tweaks-panel"
 
 // Constants
 
@@ -58,12 +58,6 @@ const PART_ID_TO_TYPE: Record<number, SupportedPartType> = {
   2: "cylinder",
   3: "cone",
   4: "trapezoid",
-}
-
-// Helpers
-
-function LayoutLabel() {
-  return <Ruler className="h-4 w-4 text-slate-500" />
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -100,6 +94,7 @@ export default function CutPlannerPage() {
     JobFullDetail,
     "id" | "job_number" | "name" | "customer_name"
   > | null>(null)
+  const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
 
   // Pack-gate: the Graph card doesn't mount the NestingVisualizer
   // until the operator presses **Pack**. Any change to parts,
@@ -563,34 +558,10 @@ export default function CutPlannerPage() {
 
   // Render
   return (
-    <div className="space-y-6">
+    <PageShell variant="workspace">
+      {/* Query-string loaders — no visible output, side-effects only */}
       <RollLoader onLoad={handleLoadRoll} />
       <JobLoader onLoad={handleLoadJob} />
-      {sourceJob && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
-            {" — "}
-            {sourceJob.name}
-            {sourceJob.customer_name ? (
-              <span className="text-blue-700 dark:text-blue-400">
-                {" · "}
-                {sourceJob.customer_name}
-              </span>
-            ) : null}
-            . This cut will link back to the job's Cuts Recorded panel.
-          </span>
-          <button
-            type="button"
-            aria-label="Clear job"
-            onClick={() => setSourceJob(null)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
       <CutLoader
         onLoad={(cut) => {
           handleLoadCut(cut)
@@ -598,121 +569,108 @@ export default function CutPlannerPage() {
         }}
       />
 
-      {loadedFromHistory && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cut loaded from history — all fields are editable. Adjust and click <strong>Cut</strong>{" "}
-            to record a new entry.
-          </span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setLoadedFromHistory(false)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <Badge variant="outline" className="w-fit">
-            Cutting Engine
-          </Badge>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-300">
-              Cutting Engine
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Select a finished profile, choose the standard size, set the cut count, and preview
-              the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 md:shrink-0">
-          <RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />
-        </div>
-      </div>
-
-      <CutListUpload onPartsConfirmed={handleUploadedParts} />
-
-      {uploadedParts.length > 0 && (
-        <Card className="border border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <FileUp className="h-4 w-4 text-blue-500" />
-                Uploaded Parts
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {uploadedParts.reduce((sum, p) => sum + p.quantity, 0)} cuts
-                </Badge>
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearUploadedParts}
-                className="h-7 text-xs text-muted-foreground hover:text-destructive"
+      {/* Contextual banners */}
+      {(sourceJob || loadedFromHistory) && (
+        <div className="flex flex-col gap-2 px-4 pt-3">
+          {sourceJob && (
+            <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1 text-xs">
+                Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
+                {" — "}
+                {sourceJob.name}
+                {sourceJob.customer_name ? (
+                  <span className="text-blue-700 dark:text-blue-400">
+                    {" · "}
+                    {sourceJob.customer_name}
+                  </span>
+                ) : null}
+              </span>
+              <button
+                type="button"
+                aria-label="Clear job"
+                onClick={() => setSourceJob(null)}
+                className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-200"
               >
-                <X className="mr-1 h-3 w-3" />
-                Clear All
-              </Button>
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-1.5">
-              {uploadedParts.map((part) => {
-                const tag = tagByTemplateId.get(part.id)
-                return (
-                  <div
-                    key={part.id}
-                    className="group flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 pl-1 pr-2 py-1 text-xs transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
-                  >
-                    {tag && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white dark:bg-slate-200 dark:text-slate-800">
-                        {tag}
-                      </span>
-                    )}
-                    <span className="font-medium">{part.label}</span>
-                    {part.quantity > 1 && (
-                      <span className="text-muted-foreground">qty {part.quantity}</span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeUploadedPart(part.id)}
-                      className="ml-0.5 rounded-full p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Remove part"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                )
-              })}
+          )}
+          {loadedFromHistory && (
+            <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1 text-xs">
+                Cut loaded from history — adjust and click <strong>Cut</strong> to record a new entry.
+              </span>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setLoadedFromHistory(false)}
+                className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
-      <StockPreviewConfigurator
-        activeStockPreset={activeStockPreset}
-        stock={stock}
-        onStockChange={setStock}
-        materialTypes={materialTypes}
-      />
+      <WorkspaceRow>
+        {/* ── Left — Parts queue ── */}
+        <WorkspaceColumn column="left">
+          <PartsQueuePanel
+            parts={selectedTemplates}
+            activeFilter={partsFilter}
+            onFilterChange={setPartsFilter}
+          />
+          {/* Upload trigger + preset selector live below the queue header */}
+          <div className="border-t border-border/40 px-3 py-3">
+            <CutListUpload onPartsConfirmed={handleUploadedParts} />
+          </div>
+          <div className="px-3 pb-4 overflow-y-auto">
+            <PresetDimensionSelector
+              onApply={handleTemplateApply}
+              rollWidth={stock.width}
+              rollLength={stock.length}
+              tagMap={tagByTemplateId}
+              loadedSelection={loadedSelection}
+            />
+          </div>
+        </WorkspaceColumn>
 
-      <PresetDimensionSelector
-        onApply={handleTemplateApply}
-        rollWidth={stock.width}
-        rollLength={stock.length}
-        tagMap={tagByTemplateId}
-        loadedSelection={loadedSelection}
-      />
+        {/* ── Center — Canvas ── */}
+        <WorkspaceColumn column="center">
+          <div className="flex flex-col h-full">
+            <CanvasToolbar />
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              {selectedTemplates.length > 0 && selectedTemplate ? (
+                <NestingVisualizer
+                  defaultRollWidth={stock.width}
+                  defaultRollLength={stock.length}
+                  defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
+                  defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
+                  defaultQty={safeQuantity}
+                  onMetricsChange={setCutMetrics}
+                  simpleParts={nestingSimpleParts}
+                  simplePart={nestingSimplePart}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                  <Shapes className="h-10 w-10 opacity-20" />
+                  <p className="text-sm">Pick a part on the left to start nesting.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </WorkspaceColumn>
 
-      {selectedTemplates.length > 0 && selectedTemplate ? (
-        <>
-          <CutConfigCard
+        {/* ── Right — Strategy & results ── */}
+        <WorkspaceColumn column="right">
+          <StrategyResultsPanel
+            stock={stock}
+            onStockChange={setStock}
+            materialTypes={materialTypes}
+            activeStockPreset={activeStockPreset ?? null}
             selectedTemplate={selectedTemplate}
             selectedTemplates={selectedTemplates}
             safeQuantity={safeQuantity}
@@ -722,77 +680,16 @@ export default function CutPlannerPage() {
             setCustomCutRatioInput={setCustomCutRatioInput}
             customCutRatios={customCutRatios}
             requestedSqFt={requestedSqFt}
+            cutMetrics={cutMetrics}
+            onRecordCut={handleRecordCut}
+            isRecordingCut={isRecordingCut}
+            refreshKey={cutListRefreshKey}
+            onLoadCut={handleLoadCut}
           />
+        </WorkspaceColumn>
+      </WorkspaceRow>
 
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <LayoutLabel />
-                  4. Graph
-                </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
-              </div>
-              <CardDescription>
-                The graph starts from rectangular stock and shows the actual cut pieces placed on
-                that stock, with reusable offcut in amber and waste in red.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <NestingVisualizer
-                defaultRollWidth={stock.width}
-                defaultRollLength={stock.length}
-                defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                defaultQty={safeQuantity}
-                onMetricsChange={setCutMetrics}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
-              />
-            </CardContent>
-          </Card>
-        </>
-      ) : (
-        // Empty-state: same `NestingVisualizer` used once a part is
-        // picked, but with an explicit empty `simpleParts` so the
-        // visualizer short-circuits the preview pipeline and renders
-        // the stock chrome with no placed pieces. Guarantees the
-        // layout doesn't swap out when a cut is added or removed.
-        <Card className="border border-slate-200 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <LayoutLabel />
-                4. Graph
-              </CardTitle>
-            </div>
-            <CardDescription>
-              The loaded stock sheet — no cuts placed yet. Pick a part above to start
-              nesting onto it; the layout stays put.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <NestingVisualizer
-              defaultRollWidth={stock.width}
-              defaultRollLength={stock.length}
-              defaultCutWidth={Math.max(1, stock.width / 4)}
-              defaultCutHeight={Math.max(1, stock.length / 8)}
-              defaultQty={0}
-              simpleParts={[]}
-            />
-            <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
-              <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>Pick a preset or upload a cut list to start nesting parts onto this sheet.</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+      <TweaksPanel />
+    </PageShell>
   )
 }
