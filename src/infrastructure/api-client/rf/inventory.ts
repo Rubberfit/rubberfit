@@ -138,6 +138,12 @@ function rollFromDto(dto: RollDto): Roll {
     remaining_length: dto.remaining_length,
     status: dto.status as Roll["status"],
     notes: dto.notes ?? undefined,
+    part_number: dto.part_number ?? undefined,
+    parent_roll_id: dto.parent_roll_id ?? undefined,
+    is_offcut: dto.is_offcut ?? undefined,
+    barcode_format: dto.barcode_format === "code128" ? "code128" : undefined,
+    barcode_asset_path: dto.barcode_asset_path ?? undefined,
+    barcode_generated_at: dto.barcode_generated_at ?? undefined,
     created_at: dto.created_at ?? new Date(0).toISOString(),
     updated_at: dto.updated_at ?? new Date(0).toISOString(),
   } as Roll
@@ -157,9 +163,7 @@ function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T
       err.status = result.response.status
       throw err
     }
-    throw new Error(
-      `${result.response.status} ${result.response.statusText || "request failed"}`
-    )
+    throw new Error(`${result.response.status} ${result.response.statusText || "request failed"}`)
   }
   if (result.data === undefined) {
     throw new Error("response had no data")
@@ -204,10 +208,8 @@ export const materialTypes = {
     if (!useRustBackend()) {
       const patch: Partial<MaterialType> = {}
       if (body.name != null) patch.name = body.name
-      if (body.description !== undefined)
-        patch.description = body.description ?? undefined
-      if (body.default_cost !== undefined)
-        patch.default_cost = body.default_cost ?? undefined
+      if (body.description !== undefined) patch.description = body.description ?? undefined
+      if (body.default_cost !== undefined) patch.default_cost = body.default_cost ?? undefined
       if (body.min_stock_alert !== undefined)
         patch.min_stock_alert = body.min_stock_alert ?? undefined
       return legacyMaterialTypes.update(id, patch)
@@ -232,11 +234,7 @@ export const materialTypes = {
 // ---------------------------------------------------------------
 
 export const suppliers = {
-  async list(params?: {
-    active?: boolean
-    preferred?: boolean
-    q?: string
-  }): Promise<Supplier[]> {
+  async list(params?: { active?: boolean; preferred?: boolean; q?: string }): Promise<Supplier[]> {
     if (!useRustBackend()) {
       return legacySuppliers.getSuppliers({
         filterActive: params?.active,
@@ -302,9 +300,7 @@ export const materialSuppliers = {
   }): Promise<MaterialSupplier[]> {
     if (!useRustBackend()) {
       if (params?.material_type_id) {
-        return legacySuppliers.getSuppliersByMaterialType(
-          params.material_type_id
-        )
+        return legacySuppliers.getSuppliersByMaterialType(params.material_type_id)
       }
       if (params?.supplier_id) {
         return legacySuppliers.getMaterialsBySupplier(params.supplier_id)
@@ -321,9 +317,7 @@ export const materialSuppliers = {
   async create(body: CreateMaterialSupplierBody): Promise<MaterialSupplier> {
     if (!useRustBackend()) {
       return legacySuppliers.linkMaterialToSupplier(
-        body as unknown as Parameters<
-          typeof legacySuppliers.linkMaterialToSupplier
-        >[0]
+        body as unknown as Parameters<typeof legacySuppliers.linkMaterialToSupplier>[0]
       )
     }
     const res = await rfClient.POST("/api/v2/inventory/material-suppliers", {
@@ -331,22 +325,17 @@ export const materialSuppliers = {
     })
     return materialSupplierFromDto(unwrap(res))
   },
-  async update(
-    id: string,
-    body: UpdateMaterialSupplierBody
-  ): Promise<MaterialSupplier> {
+  async update(id: string, body: UpdateMaterialSupplierBody): Promise<MaterialSupplier> {
     if (!useRustBackend()) {
       return legacySuppliers.updateMaterialSupplier(
         id,
-        body as unknown as Parameters<
-          typeof legacySuppliers.updateMaterialSupplier
-        >[1]
+        body as unknown as Parameters<typeof legacySuppliers.updateMaterialSupplier>[1]
       )
     }
-    const res = await rfClient.PUT(
-      "/api/v2/inventory/material-suppliers/{id}",
-      { params: { path: { id } }, body }
-    )
+    const res = await rfClient.PUT("/api/v2/inventory/material-suppliers/{id}", {
+      params: { path: { id } },
+      body,
+    })
     return materialSupplierFromDto(unwrap(res))
   },
   async delete(id: string): Promise<void> {
@@ -354,10 +343,9 @@ export const materialSuppliers = {
       await legacySuppliers.unlinkMaterialFromSupplier(id)
       return
     }
-    const res = await rfClient.DELETE(
-      "/api/v2/inventory/material-suppliers/{id}",
-      { params: { path: { id } } }
-    )
+    const res = await rfClient.DELETE("/api/v2/inventory/material-suppliers/{id}", {
+      params: { path: { id } },
+    })
     if (!res.response.ok) unwrap(res)
   },
 }
@@ -402,9 +390,7 @@ export const rolls = {
   },
   async create(body: CreateRollBody): Promise<Roll> {
     if (!useRustBackend()) {
-      return legacyRolls.addRoll(
-        body as unknown as Parameters<typeof legacyRolls.addRoll>[0]
-      )
+      return legacyRolls.addRoll(body as unknown as Parameters<typeof legacyRolls.addRoll>[0])
     }
     const res = await rfClient.POST("/api/v2/inventory/rolls", { body })
     return rollFromDto(unwrap(res))
@@ -432,23 +418,17 @@ export const rolls = {
 
   async inventoryValue(): Promise<number> {
     if (!useRustBackend()) return legacyRolls.getInventoryValue()
-    const res = await rfClient.GET(
-      "/api/v2/inventory/rolls/stats/inventory-value"
-    )
+    const res = await rfClient.GET("/api/v2/inventory/rolls/stats/inventory-value")
     return unwrap(res).value
   },
   async lowStockCount(): Promise<number> {
     if (!useRustBackend()) return legacyRolls.getLowStockCount()
-    const res = await rfClient.GET(
-      "/api/v2/inventory/rolls/stats/low-stock-count"
-    )
+    const res = await rfClient.GET("/api/v2/inventory/rolls/stats/low-stock-count")
     return unwrap(res).count
   },
   async growthPercentage(): Promise<number> {
     if (!useRustBackend()) return legacyRolls.getInventoryGrowthPercentage()
-    const res = await rfClient.GET(
-      "/api/v2/inventory/rolls/stats/growth-percentage"
-    )
+    const res = await rfClient.GET("/api/v2/inventory/rolls/stats/growth-percentage")
     return unwrap(res).percentage
   },
   async recent(limit = 10): Promise<Roll[]> {

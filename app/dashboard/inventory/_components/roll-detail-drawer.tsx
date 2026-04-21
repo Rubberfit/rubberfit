@@ -13,11 +13,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet"
-import type {
-  Roll,
-  RollReusableOffcutSummary,
-} from "@/src/infrastructure/models/supabase"
+import type { Roll, RollReusableOffcutSummary } from "@/src/infrastructure/models/supabase"
 import { rollService } from "@/src/infrastructure/services/rollService"
+import { ensureStoredRollBarcode } from "@/src/infrastructure/services/rollBarcodeAssetService"
 import { cn } from "@/app/lib/utils"
 import { toast } from "sonner"
 
@@ -122,9 +120,7 @@ export function RollDetailDrawer({
   if (!roll) return null
 
   const remainingPercent =
-    roll.length > 0
-      ? Math.max(0, Math.min(100, (roll.remaining_length / roll.length) * 100))
-      : 0
+    roll.length > 0 ? Math.max(0, Math.min(100, (roll.remaining_length / roll.length) * 100)) : 0
   const remainingSqft = (roll.remaining_length * roll.width) / 144
 
   const handleOpenInEngine = () => {
@@ -137,8 +133,9 @@ export function RollDetailDrawer({
     onOpenChange(false)
   }
 
-  const handlePrintLabel = () => {
+  const handlePrintLabel = async () => {
     try {
+      await ensureStoredRollBarcode(roll)
       downloadRollLabelPdf([roll])
       toast.success("Label PDF downloaded")
     } catch (err) {
@@ -177,10 +174,7 @@ export function RollDetailDrawer({
                 </span>
               </SheetDescription>
             </div>
-            <Badge
-              variant="outline"
-              className={cn("shrink-0 capitalize", statusTone(roll.status))}
-            >
+            <Badge variant="outline" className={cn("shrink-0 capitalize", statusTone(roll.status))}>
               {roll.status ?? "unknown"}
             </Badge>
           </div>
@@ -224,9 +218,7 @@ export function RollDetailDrawer({
                 </p>
                 <p className="mt-1 font-semibold text-foreground text-sm">
                   {remainingSqft.toFixed(1)}{" "}
-                  <span className="font-normal text-muted-foreground text-[11px]">
-                    sqft
-                  </span>
+                  <span className="font-normal text-muted-foreground text-[11px]">sqft</span>
                 </p>
               </div>
               <div className="rounded-md border border-border-subtle bg-muted/30 p-3">
@@ -234,9 +226,7 @@ export function RollDetailDrawer({
                   Value
                 </p>
                 <p className="mt-1 font-semibold text-foreground text-sm">
-                  {roll.cost_per_sqft
-                    ? formatCurrency(remainingSqft * roll.cost_per_sqft)
-                    : "—"}
+                  {roll.cost_per_sqft ? formatCurrency(remainingSqft * roll.cost_per_sqft) : "—"}
                 </p>
               </div>
             </div>
@@ -310,9 +300,7 @@ export function RollDetailDrawer({
                   <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.12em]">
                     Cuts
                   </p>
-                  <p className="mt-1 font-semibold text-foreground text-sm">
-                    {usage.cut_count}
-                  </p>
+                  <p className="mt-1 font-semibold text-foreground text-sm">{usage.cut_count}</p>
                 </div>
               </div>
               <p className="mt-2 text-muted-foreground text-[11px]">
@@ -330,19 +318,10 @@ export function RollDetailDrawer({
               </h3>
             </div>
             <dl className="divide-y divide-border-subtle">
-              <MetaRow
-                label="Location"
-                value={roll.location ?? "—"}
-              />
+              <MetaRow label="Location" value={roll.location ?? "—"} />
               <MetaRow label="Supplier" value={roll.supplier ?? "—"} />
-              <MetaRow
-                label="Received"
-                value={formatDate(roll.date_received)}
-              />
-              <MetaRow
-                label="Cost / sqft"
-                value={formatCurrency(roll.cost_per_sqft)}
-              />
+              <MetaRow label="Received" value={formatDate(roll.date_received)} />
+              <MetaRow label="Cost / sqft" value={formatCurrency(roll.cost_per_sqft)} />
               <MetaRow label="Notes" value={roll.notes ?? "—"} />
             </dl>
           </section>

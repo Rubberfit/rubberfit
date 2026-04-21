@@ -10,10 +10,9 @@ import type { Roll } from "@/src/infrastructure/models/supabase"
  * Scannable stock-label PDF for one or more rolls. Each label is
  * 4" × 2" and carries TWO scan surfaces plus human-readable text:
  *
- *   • **QR code** — encodes `{origin}/r/<part_number>`. Scanning
- *     with any phone camera pops the URL, which routes to the
- *     inventory drawer for that roll (full material + dims +
- *     location + offcut lineage).
+ *   • **QR code** — encodes `{origin}/r/<part_number>/pdf`.
+ *     Scanning with any phone camera opens a one-page PDF with the
+ *     roll's key details. No app login, no landing page click.
  *   • **Code 128 barcode** — encodes just the part number. Lives
  *     for handheld laser scanners that can't read 2-D codes.
  *   • Large mono part number, material, dimensions, location,
@@ -60,12 +59,10 @@ function resolveOrigin(): string {
 }
 
 function buildScanUrl(roll: Roll, origin: string): string {
-  // The short-path route `/r/<part_number>` is public-ish: it
-  // redirects to the inventory drawer for the matching roll. If the
-  // scanner isn't signed in, middleware kicks them to /login and
-  // forwards back post-auth.
+  // The QR code points straight at the PDF route so a phone scan
+  // opens the document immediately instead of landing on the app.
   const id = roll.part_number ?? roll.id
-  return `${origin}/r/${encodeURIComponent(id)}`
+  return `${origin}/r/${encodeURIComponent(id)}/pdf`
 }
 
 function renderBarcodePng(text: string, bcid: "code128" | "qrcode"): string {
@@ -101,7 +98,7 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   doc.setLineWidth(0.75)
   doc.roundedRect(x, y, LABEL_W_PT, LABEL_H_PT, 6, 6)
 
-  // Left block — QR code (phone scan → roll drawer).
+  // Left block — QR code (phone scan → info PDF).
   const qrX = x + 14
   const qrY = y + (LABEL_H_PT - QR_SIZE_PT) / 2
   try {
@@ -122,8 +119,7 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   // migration so the label still prints an identifier instead of a
   // blank dash. The QR + Code 128 already encode the full id in
   // that case so lookups keep working.
-  const displayId =
-    roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`
+  const displayId = roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`
   doc.setFont("courier", "bold")
   doc.setFontSize(17)
   doc.setTextColor(20)
@@ -186,12 +182,9 @@ function addHeader(doc: jsPDF, pageIndex: number) {
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.setTextColor(120)
-  doc.text(
-    new Date().toLocaleString(),
-    PAGE_W_PT - PAGE_MARGIN,
-    PAGE_MARGIN - 6,
-    { align: "right" }
-  )
+  doc.text(new Date().toLocaleString(), PAGE_W_PT - PAGE_MARGIN, PAGE_MARGIN - 6, {
+    align: "right",
+  })
 }
 
 export interface BuildRollLabelPdfOptions {
@@ -202,10 +195,7 @@ export interface BuildRollLabelPdfOptions {
   origin?: string
 }
 
-export function buildRollLabelPdf(
-  rolls: Roll[],
-  opts: BuildRollLabelPdfOptions = {}
-): jsPDF {
+export function buildRollLabelPdf(rolls: Roll[], opts: BuildRollLabelPdfOptions = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter" })
   doc.setProperties({ title: "Rubberfit roll labels" })
   const origin = opts.origin ?? resolveOrigin()
@@ -226,9 +216,7 @@ export function buildRollLabelPdf(
   const gridWidth = cols * LABEL_W_PT + (cols - 1) * LABEL_GAP_X
   const gridStartX = (PAGE_W_PT - gridWidth) / 2
   const gridStartY = PAGE_MARGIN + 12
-  const rowsPerPage = Math.floor(
-    (PAGE_H_PT - gridStartY - PAGE_MARGIN) / rowHeight
-  )
+  const rowsPerPage = Math.floor((PAGE_H_PT - gridStartY - PAGE_MARGIN) / rowHeight)
   const perPage = cols * rowsPerPage
 
   let pageIndex = 0
@@ -248,10 +236,7 @@ export function buildRollLabelPdf(
   return doc
 }
 
-export function downloadRollLabelPdf(
-  rolls: Roll[],
-  opts: BuildRollLabelPdfOptions = {}
-): void {
+export function downloadRollLabelPdf(rolls: Roll[], opts: BuildRollLabelPdfOptions = {}): void {
   const doc = buildRollLabelPdf(rolls, opts)
   const first = rolls[0]
   const single = rolls.length === 1 && first

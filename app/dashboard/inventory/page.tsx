@@ -17,6 +17,7 @@ import {
 } from "@/app/components/ui/dropdown-menu"
 import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { ensureStoredRollBarcodes } from "@/src/infrastructure/services/rollBarcodeAssetService"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { useRole } from "@/src/infrastructure/services/useRole"
@@ -35,10 +36,9 @@ function InventoryPageInner() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const readOnlyInventory = isRestrictedCutter(user?.roles)
 
-  // `?scan=<part_number>` lands here after someone scans a printed
-  // QR label with their phone (see `app/r/[partNumber]/page.tsx`).
-  // Held in local state so we can keep the URL clean after the
-  // drawer opens for the matching roll.
+  // `?scan=<part_number>` still deep-links into the inventory drawer
+  // for in-app lookups, but printed phone-facing QR labels now point
+  // to `/r/<part>/pdf` instead of this page.
   const scanFromUrl = searchParams.get("scan")
   const [scanTarget, setScanTarget] = useState<string | null>(scanFromUrl)
   const scanToastRef = useRef<string | null>(null)
@@ -78,7 +78,14 @@ function InventoryPageInner() {
         toast.error("No active rolls to label")
         return
       }
+      const { failedRollIds } = await ensureStoredRollBarcodes(list)
       downloadRollLabelPdf(list)
+      if (failedRollIds.length > 0) {
+        toast.error("Labels generated, but some barcodes were not stored", {
+          description: `${failedRollIds.length} roll${failedRollIds.length === 1 ? "" : "s"} failed barcode upload`,
+        })
+        return
+      }
       toast.success(`Labels generated for ${list.length} roll${list.length === 1 ? "" : "s"}`)
     } catch (error) {
       console.error("Error generating labels:", error)

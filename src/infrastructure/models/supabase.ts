@@ -106,6 +106,16 @@ export interface Roll {
    * shop-floor scanning.
    */
   part_number?: string
+  /**
+   * Render format of the stored barcode asset. We keep
+   * `part_number` as the canonical payload to avoid a redundant
+   * second text identifier column.
+   */
+  barcode_format?: "code128"
+  /** Supabase Storage object path of the generated barcode PNG. */
+  barcode_asset_path?: string | null
+  /** When the current barcode PNG was last generated/uploaded. */
+  barcode_generated_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -477,12 +487,7 @@ export interface RollReusableOffcutSummary {
   last_cut_at: string | null
 }
 
-export type JobStatus =
-  | "draft"
-  | "scheduled"
-  | "in_progress"
-  | "completed"
-  | "cancelled"
+export type JobStatus = "draft" | "scheduled" | "in_progress" | "completed" | "cancelled"
 
 export interface Job {
   id: string

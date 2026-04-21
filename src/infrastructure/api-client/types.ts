@@ -942,18 +942,24 @@ export interface components {
             urgency: string;
         };
         RollDto: {
+            barcode_asset_path?: string | null;
+            barcode_format?: string | null;
+            barcode_generated_at?: string | null;
             color?: string | null;
             /** Format: double */
             cost_per_sqft?: number | null;
             created_at?: string | null;
             date_received?: string | null;
             id: string;
+            is_offcut?: boolean | null;
             /** Format: double */
             length: number;
             location?: string | null;
             material_type: string;
             material_type_id?: string | null;
             notes?: string | null;
+            parent_roll_id?: string | null;
+            part_number?: string | null;
             /** Format: double */
             remaining_length: number;
             status: string;

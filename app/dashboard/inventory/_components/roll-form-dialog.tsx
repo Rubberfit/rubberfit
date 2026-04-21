@@ -23,6 +23,7 @@ import {
   rolls as rollsSdk,
 } from "@/src/infrastructure/api-client/rf/inventory"
 import type { Roll, MaterialType } from "@/src/infrastructure/models/supabase"
+import { ensureStoredRollBarcode } from "@/src/infrastructure/services/rollBarcodeAssetService"
 import { RollFormFields } from "./roll-form-fields"
 
 // Optional numeric fields need a preprocess step: z.coerce.number()
@@ -147,25 +148,22 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
       // `material_type_id`; on the legacy fallback it forwards the
       // name alongside. So we look up the id from the current
       // materialTypes list whenever we have one and pass BOTH.
-      const matchedType = materialTypes.find(
-        (m) => m.name === values.material_type
-      )
+      const matchedType = materialTypes.find((m) => m.name === values.material_type)
       const materialTypeId = matchedType?.id
 
+      let savedRoll: Roll
+
       if (isEdit && roll) {
-        await rollsSdk.update(roll.id, {
+        savedRoll = await rollsSdk.update(roll.id, {
           ...values,
           ...(materialTypeId ? { material_type_id: materialTypeId } : {}),
           remaining_length: values.remaining_length ?? values.length,
         })
-        toast.success("Roll updated successfully")
       } else {
         if (!materialTypeId) {
-          throw new Error(
-            "Select a material type from the dropdown (unknown name)"
-          )
+          throw new Error("Select a material type from the dropdown (unknown name)")
         }
-        await rollsSdk.create({
+        savedRoll = await rollsSdk.create({
           material_type_id: materialTypeId,
           width: values.width,
           length: values.length,
@@ -179,7 +177,22 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
           status: "active",
           notes: values.notes,
         })
-        toast.success("Roll added successfully")
+      }
+
+      let barcodeStorageError: string | null = null
+      try {
+        await ensureStoredRollBarcode(savedRoll)
+      } catch (error) {
+        barcodeStorageError =
+          error instanceof Error ? error.message : "Unknown barcode storage error"
+      }
+
+      if (barcodeStorageError) {
+        toast.error("Roll saved, but barcode storage failed", {
+          description: barcodeStorageError,
+        })
+      } else {
+        toast.success(isEdit ? "Roll updated successfully" : "Roll added successfully")
       }
 
       onSuccess?.()
