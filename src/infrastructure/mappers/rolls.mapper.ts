@@ -2,13 +2,16 @@ import type { Database } from "@/src/infrastructure/models/database.types"
 import {
   Length,
   PricePerArea,
+  type CreateRoll,
   type Roll,
   type RollSourceType,
   type RollStatus,
+  type UpdateRoll,
 } from "@/src/entities"
 
 type RollRow = Database["public"]["Tables"]["rolls"]["Row"]
 type RollInsert = Database["public"]["Tables"]["rolls"]["Insert"]
+type RollUpdate = Database["public"]["Tables"]["rolls"]["Update"]
 
 const ROLL_STATUSES: readonly RollStatus[] = ["active", "depleted", "reserved"]
 const ROLL_SOURCE_TYPES: readonly RollSourceType[] = ["received", "offcut"]
@@ -104,4 +107,59 @@ export function mapRollToRow(roll: Roll): RollInsert {
     updated_by: roll.updatedBy,
     deleted_at: roll.deletedAt,
   }
+}
+
+/**
+ * Map a `CreateRoll` input to an Insert payload. Excludes id and audit
+ * columns so the DB's defaults (gen_random_uuid, now(), auth.uid()) fill them.
+ */
+export function mapCreateRollToInsert(input: CreateRoll): RollInsert {
+  return {
+    tenant_id: input.tenantId,
+    material_type_id: input.materialTypeId,
+    supplier_id: input.supplierId,
+    source_type: input.sourceType,
+    parent_roll_id: input.parentRollId,
+    source_cut_history_id: input.sourceCutHistoryId,
+    width_mm: input.width.mm,
+    length_mm: input.length.mm,
+    remaining_length_mm: input.remainingLength.mm,
+    thickness_mm: input.thickness.mm,
+    color: input.color,
+    location: input.location,
+    date_received: input.dateReceived,
+    cost_per_sqm_cents: input.costPerArea?.centsPerSqm ?? null,
+    status: input.status,
+    notes: input.notes,
+    qr_generated_at: input.qrGeneratedAt,
+  }
+}
+
+/**
+ * Map an `UpdateRoll` patch to a Supabase Update payload. Only fields the
+ * caller explicitly set are included — `undefined` means "don't change".
+ * Pass `costPerArea: null` to clear the price.
+ */
+export function mapUpdateRollToUpdate(patch: UpdateRoll): RollUpdate {
+  const update: RollUpdate = {}
+  if (patch.tenantId !== undefined) update.tenant_id = patch.tenantId
+  if (patch.materialTypeId !== undefined) update.material_type_id = patch.materialTypeId
+  if (patch.supplierId !== undefined) update.supplier_id = patch.supplierId
+  if (patch.sourceType !== undefined) update.source_type = patch.sourceType
+  if (patch.parentRollId !== undefined) update.parent_roll_id = patch.parentRollId
+  if (patch.sourceCutHistoryId !== undefined) update.source_cut_history_id = patch.sourceCutHistoryId
+  if (patch.width !== undefined) update.width_mm = patch.width.mm
+  if (patch.length !== undefined) update.length_mm = patch.length.mm
+  if (patch.remainingLength !== undefined) update.remaining_length_mm = patch.remainingLength.mm
+  if (patch.thickness !== undefined) update.thickness_mm = patch.thickness.mm
+  if (patch.color !== undefined) update.color = patch.color
+  if (patch.location !== undefined) update.location = patch.location
+  if (patch.dateReceived !== undefined) update.date_received = patch.dateReceived
+  if (patch.costPerArea !== undefined) {
+    update.cost_per_sqm_cents = patch.costPerArea?.centsPerSqm ?? null
+  }
+  if (patch.status !== undefined) update.status = patch.status
+  if (patch.notes !== undefined) update.notes = patch.notes
+  if (patch.qrGeneratedAt !== undefined) update.qr_generated_at = patch.qrGeneratedAt
+  return update
 }

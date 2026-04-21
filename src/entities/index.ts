@@ -13,7 +13,13 @@ export type {
   UpdateMaterialSupplier,
   MaterialSupplierWithDetails,
 } from "./material-supplier"
-export type { Roll, RollSourceType, RollStatus } from "./roll"
+export type {
+  CreateRoll,
+  Roll,
+  RollSourceType,
+  RollStatus,
+  UpdateRoll,
+} from "./roll"
 export type { PriceHistory } from "./price-history"
 export type {
   ReorderRule,

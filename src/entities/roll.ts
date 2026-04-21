@@ -4,6 +4,9 @@ import type { AuditFields, SoftDeletable } from "./shared"
 export type RollStatus = "active" | "depleted" | "reserved"
 export type RollSourceType = "received" | "offcut"
 
+export type CreateRoll = Omit<Roll, "id" | keyof AuditFields | keyof SoftDeletable>
+export type UpdateRoll = Partial<CreateRoll>
+
 export interface Roll extends AuditFields, SoftDeletable {
   id: string
   tenantId: string

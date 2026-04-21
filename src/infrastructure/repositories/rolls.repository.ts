@@ -1,7 +1,16 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
-import type { Roll, MaterialType } from "@/src/entities"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import type { CreateRoll, Roll, UpdateRoll } from "@/src/entities"
 import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+import {
+  mapCreateRollToInsert,
+  mapRowToRoll,
+  mapUpdateRollToUpdate,
+} from "@/src/infrastructure/mappers/rolls.mapper"
+
+// TODO: resolve currency per-tenant via tenant_settings.default_currency or
+// via a join on suppliers.currency. For now, all PricePerArea VOs on Roll
+// are constructed in USD. Single-currency tenants are unaffected.
+const DEFAULT_CURRENCY = "USD"
 
 export class RollsRepository implements IRollsRepository {
   async getAllRolls(): Promise<Roll[]> {
@@ -9,9 +18,8 @@ export class RollsRepository implements IRollsRepository {
       .from("rolls")
       .select("*")
       .order("created_at", { ascending: false })
-
     if (error) throw error
-    return data as Roll[]
+    return (data ?? []).map((row) => mapRowToRoll(row, DEFAULT_CURRENCY))
   }
 
   async getActiveRolls(): Promise<Roll[]> {
@@ -19,113 +27,114 @@ export class RollsRepository implements IRollsRepository {
       .from("rolls")
       .select("*")
       .eq("status", "active")
-      .order("material_type", { ascending: true })
-
+      .order("created_at", { ascending: false })
     if (error) throw error
-    return data as Roll[]
+    return (data ?? []).map((row) => mapRowToRoll(row, DEFAULT_CURRENCY))
   }
 
   async getRollById(id: string): Promise<Roll> {
     const { data, error } = await supabase.from("rolls").select("*").eq("id", id).single()
-
     if (error) throw error
-    return data as Roll
+    return mapRowToRoll(data, DEFAULT_CURRENCY)
   }
 
-  async addRoll(roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">): Promise<Roll> {
-    const user_id = await getCurrentUserId()
+  async addRoll(input: CreateRoll): Promise<Roll> {
     const { data, error } = await supabase
       .from("rolls")
-      .insert([{ ...roll, user_id }])
+      .insert(mapCreateRollToInsert(input))
       .select()
       .single()
-
     if (error) throw error
-    return data as Roll
+    return mapRowToRoll(data, DEFAULT_CURRENCY)
   }
 
-  async updateRoll(id: string, updates: Partial<Roll>): Promise<Roll> {
+  async updateRoll(id: string, patch: UpdateRoll): Promise<Roll> {
     const { data, error } = await supabase
       .from("rolls")
-      .update(updates)
+      .update(mapUpdateRollToUpdate(patch))
       .eq("id", id)
       .select()
       .single()
-
     if (error) throw error
-    return data as Roll
+    return mapRowToRoll(data, DEFAULT_CURRENCY)
   }
 
   async markAsDepleted(id: string): Promise<Roll> {
-    return this.updateRoll(id, { status: "depleted" })
+    const { data, error } = await supabase
+      .from("rolls")
+      .update({ status: "depleted" })
+      .eq("id", id)
+      .select()
+      .single()
+    if (error) throw error
+    return mapRowToRoll(data, DEFAULT_CURRENCY)
   }
 
   async markRollDepleted(id: string): Promise<Roll> {
     const { data, error } = await supabase
       .from("rolls")
-      .update({ status: "depleted", remaining_length: 0 })
+      .update({ status: "depleted", remaining_length_mm: 0 })
       .eq("id", id)
       .select()
       .single()
-
     if (error) throw error
-    return data as Roll
+    return mapRowToRoll(data, DEFAULT_CURRENCY)
   }
 
   async getInventoryValue(): Promise<number> {
     const { data, error } = await supabase
       .from("rolls")
-      .select("width, remaining_length, cost_per_sqft")
+      .select("width_mm, remaining_length_mm, cost_per_sqm_cents")
       .eq("status", "active")
-
+      .is("deleted_at", null)
     if (error) throw error
     if (!data || data.length === 0) return 0
-
-    return data.reduce((sum, roll) => {
-      const sqft = (roll.width * roll.remaining_length) / 144
-      return sum + sqft * (roll.cost_per_sqft ?? 0)
+    return data.reduce((sum, row) => {
+      const sqm = (row.width_mm * row.remaining_length_mm) / 1_000_000
+      const cents = sqm * (row.cost_per_sqm_cents ?? 0)
+      return sum + cents / 100
     }, 0)
   }
 
   async searchRolls(query: string): Promise<Roll[]> {
+    const needle = `%${query}%`
     const { data, error } = await supabase
       .from("rolls")
       .select("*")
-      .or(
-        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`
-      )
+      .or(`color.ilike.${needle},location.ilike.${needle},notes.ilike.${needle}`)
       .order("created_at", { ascending: false })
-
     if (error) throw error
-    return data as Roll[]
+    return (data ?? []).map((row) => mapRowToRoll(row, DEFAULT_CURRENCY))
   }
 
   async getLowStockCount(): Promise<number> {
     try {
       const { data: materialTypes, error: mtError } = await supabase
         .from("material_types")
-        .select("name, min_stock_alert")
-
+        .select("id, min_stock_sqm")
+        .not("min_stock_sqm", "is", null)
       if (mtError) throw mtError
       if (!materialTypes || materialTypes.length === 0) return 0
 
       const { data: rolls, error: rollError } = await supabase
         .from("rolls")
-        .select("material_type, width, remaining_length")
+        .select("material_type_id, width_mm, remaining_length_mm")
         .eq("status", "active")
-
+        .is("deleted_at", null)
       if (rollError) throw rollError
 
-      const stockLevels = new Map<string, number>()
-      rolls?.forEach((roll) => {
-        const sqft = (roll.width * roll.remaining_length) / 144
-        const current = stockLevels.get(roll.material_type) ?? 0
-        stockLevels.set(roll.material_type, current + sqft)
+      const stockSqmByMaterial = new Map<string, number>()
+      rolls?.forEach((r) => {
+        const sqm = (r.width_mm * r.remaining_length_mm) / 1_000_000
+        stockSqmByMaterial.set(
+          r.material_type_id,
+          (stockSqmByMaterial.get(r.material_type_id) ?? 0) + sqm
+        )
       })
 
       return materialTypes.reduce((count, mt) => {
-        const currentStock = stockLevels.get(mt.name) ?? 0
-        return currentStock < (mt.min_stock_alert ?? 0) ? count + 1 : count
+        const current = stockSqmByMaterial.get(mt.id) ?? 0
+        return current < (mt.min_stock_sqm ?? 0) ? count + 1 : count
       }, 0)
     } catch (_error) {
       return 0
@@ -134,7 +143,6 @@ export class RollsRepository implements IRollsRepository {
 
   async deleteRoll(id: string): Promise<void> {
     const { error } = await supabase.from("rolls").delete().eq("id", id)
-
     if (error) throw error
   }
 
@@ -144,9 +152,8 @@ export class RollsRepository implements IRollsRepository {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(limit)
-
     if (error) throw error
-    return data as Roll[]
+    return (data ?? []).map((row) => mapRowToRoll(row, DEFAULT_CURRENCY))
   }
 
   async getRecentlyUpdatedRolls(limit: number): Promise<Roll[]> {
@@ -155,46 +162,40 @@ export class RollsRepository implements IRollsRepository {
       .select("*")
       .order("updated_at", { ascending: false })
       .limit(limit)
-
     if (error) throw error
-    return data as Roll[]
+    return (data ?? []).map((row) => mapRowToRoll(row, DEFAULT_CURRENCY))
   }
 
-  async existsByMaterialType(materialTypeName: string): Promise<boolean> {
+  async existsByMaterialTypeId(materialTypeId: string): Promise<boolean> {
     const { data, error } = await supabase
       .from("rolls")
       .select("id")
-      .eq("material_type", materialTypeName)
+      .eq("material_type_id", materialTypeId)
       .limit(1)
-
     if (error) throw error
     return (data?.length ?? 0) > 0
   }
 
   async getRollMaterialTypeMap(): Promise<Map<string, string>> {
-    const { data, error } = await supabase.from("rolls").select("id, material_type")
-
+    const { data, error } = await supabase.from("rolls").select("id, material_type_id")
     if (error) throw error
     const map = new Map<string, string>()
-    data?.forEach((r) => map.set(r.id, r.material_type))
+    data?.forEach((r) => map.set(r.id, r.material_type_id))
     return map
   }
 
   async bulkAddRolls(
-    rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
+    inputs: CreateRoll[],
     batchSize = 50
   ): Promise<{ imported: number; total: number }> {
-    const user_id = await getCurrentUserId()
     let imported = 0
-
-    for (let i = 0; i < rolls.length; i += batchSize) {
-      const batch = rolls.slice(i, i + batchSize).map((roll) => ({ ...roll, user_id }))
+    for (let i = 0; i < inputs.length; i += batchSize) {
+      const batch = inputs.slice(i, i + batchSize).map(mapCreateRollToInsert)
       const { error } = await supabase.from("rolls").insert(batch)
       if (error) throw error
       imported += batch.length
     }
-
-    return { imported, total: rolls.length }
+    return { imported, total: inputs.length }
   }
 
   async getInventoryGrowthPercentage(): Promise<number> {
@@ -203,39 +204,27 @@ export class RollsRepository implements IRollsRepository {
         .from("rolls")
         .select("created_at")
         .eq("status", "active")
-
+        .is("deleted_at", null)
       if (error) throw error
       if (!data || data.length === 0) return 0
-
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      const recentRolls = data.filter((roll) => new Date(roll.created_at) > oneWeekAgo).length
-
-      return (recentRolls / data.length) * 100
+      const recent = data.filter((r) => new Date(r.created_at) > oneWeekAgo).length
+      return (recent / data.length) * 100
     } catch (_error) {
       return 0
     }
   }
 
-  async getThicknessesByMaterialType(materialType: string): Promise<number[]> {
+  async getThicknessesByMaterialTypeId(materialTypeId: string): Promise<number[]> {
     const { data, error } = await supabase
       .from("rolls")
-      .select("thickness")
+      .select("thickness_mm")
       .eq("status", "active")
-      .eq("material_type", materialType)
-
+      .eq("material_type_id", materialTypeId)
     if (error) throw error
-    return [...new Set(data?.map((r) => r.thickness))].sort((a, b) => a - b)
-  }
-
-  // Cross-domain convenience method — prefer materialTypeRepository.getAll() in new code
-  async getMaterialTypes(): Promise<MaterialType[]> {
-    const { data, error } = await supabase
-      .from("material_types")
-      .select("*")
-      .order("name", { ascending: true })
-
-    if (error) throw error
-    return data as MaterialType[]
+    const unique = new Set<number>()
+    data?.forEach((r) => unique.add(r.thickness_mm))
+    return [...unique].sort((a, b) => a - b)
   }
 }
 
