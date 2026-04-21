@@ -14,8 +14,12 @@ use SampleEval::{Clear, Collision, Invalid};
 #[derive(Clone, Debug, PartialEq, Copy)]
 pub enum SampleEval {
     /// No collisions occur.
-    Clear { loss: f32 },
-    Collision { loss: f32 },
+    Clear {
+        loss: f32,
+    },
+    Collision {
+        loss: f32,
+    },
     Invalid,
 }
 
@@ -34,9 +38,7 @@ impl Ord for SampleEval {
             (Collision { .. }, Clear { .. }) => Ordering::Greater,
             (Clear { .. }, Collision { .. }) => Ordering::Less,
             (Collision { loss: l1 }, Collision { loss: l2 })
-            | (Clear { loss: l1 }, Clear { loss: l2 }) => {
-                FPA(*l1).partial_cmp(&FPA(*l2)).unwrap()
-            }
+            | (Clear { loss: l1 }, Clear { loss: l2 }) => FPA(*l1).partial_cmp(&FPA(*l2)).unwrap(),
         }
     }
 }

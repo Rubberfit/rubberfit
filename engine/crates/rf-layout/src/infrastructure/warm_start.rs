@@ -1,5 +1,5 @@
 // engine/crates/rf-layout/src/infrastructure/warm_start.rs
-use crate::domain::{Bin, Part, PackError};
+use crate::domain::{Bin, PackError, Part};
 use rf_geom::domain::Point2D;
 
 /// Greedy bottom-left seeding: for each item, stack vertically starting at y=0.
@@ -435,7 +435,10 @@ fn greedy_vertical_stack(
         }
         overflow += part.quantity - placed_this_part;
     }
-    Ok(SeedResult { placements, overflow })
+    Ok(SeedResult {
+        placements,
+        overflow,
+    })
 }
 
 /// 2D bbox-grid packer for homogeneous single-shape bins.
@@ -451,11 +454,7 @@ fn greedy_vertical_stack(
 /// them.
 ///
 /// Deterministic: pure arithmetic, row-major scan, no RNG.
-fn greedy_2d_grid(
-    bin: &Bin,
-    part: &Part,
-    clearance: f64,
-) -> Result<SeedResult, PackError> {
+fn greedy_2d_grid(bin: &Bin, part: &Part, clearance: f64) -> Result<SeedResult, PackError> {
     let bbox = rf_geom::application::bbox_of(&part.polygon).map_err(|source| {
         PackError::InvalidPolygon {
             shape_id: part.shape_id.clone(),
@@ -499,19 +498,17 @@ fn greedy_2d_grid(
             polygon: part
                 .polygon
                 .iter()
-                .map(|p| {
-                    Point2D::new(
-                        p.x - bbox.0.x + x_visible,
-                        y_visible + (p.y - bbox.0.y),
-                    )
-                })
+                .map(|p| Point2D::new(p.x - bbox.0.x + x_visible, y_visible + (p.y - bbox.0.y)))
                 .collect(),
             width: w,
             height: h,
         });
     }
 
-    Ok(SeedResult { placements, overflow })
+    Ok(SeedResult {
+        placements,
+        overflow,
+    })
 }
 
 #[cfg(test)]
@@ -537,7 +534,13 @@ mod tests {
     }
 
     fn bin(w: f64, h: f64) -> Bin {
-        Bin { bin_id: "b1".into(), width: w, height: h, kind: BinKind::Fresh, priority: None }
+        Bin {
+            bin_id: "b1".into(),
+            width: w,
+            height: h,
+            kind: BinKind::Fresh,
+            priority: None,
+        }
     }
 
     #[test]
@@ -668,8 +671,16 @@ mod tests {
         let result = greedy_bottom_left(&b, &[offset_part], 0.0).unwrap();
         assert_eq!(result.placements.len(), 1);
         let p = &result.placements[0];
-        let min_x = p.polygon.iter().map(|pt| pt.x).fold(f64::INFINITY, f64::min);
-        let min_y = p.polygon.iter().map(|pt| pt.y).fold(f64::INFINITY, f64::min);
+        let min_x = p
+            .polygon
+            .iter()
+            .map(|pt| pt.x)
+            .fold(f64::INFINITY, f64::min);
+        let min_y = p
+            .polygon
+            .iter()
+            .map(|pt| pt.y)
+            .fold(f64::INFINITY, f64::min);
         assert!((min_x - 0.0).abs() < 1e-9);
         assert!((min_y - 0.0).abs() < 1e-9);
     }
@@ -752,7 +763,11 @@ mod tests {
         let b = bin(12.0, 23.0);
         let items = vec![rect_part("r", 2, 10.0, 10.0)];
         let r = greedy_bottom_left(&b, &items, 1.0).unwrap();
-        assert_eq!(r.placements.len(), 1, "conservative probe rejects the second copy");
+        assert_eq!(
+            r.placements.len(),
+            1,
+            "conservative probe rejects the second copy"
+        );
         assert_eq!(r.overflow, 1);
     }
 }

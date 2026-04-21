@@ -12,7 +12,9 @@ pub struct Polygon {
 impl Polygon {
     pub fn new(points: Vec<Point2D>) -> Result<Self, GeomError> {
         if points.len() < 3 {
-            return Err(GeomError::PolygonTooFewVertices { count: points.len() });
+            return Err(GeomError::PolygonTooFewVertices {
+                count: points.len(),
+            });
         }
         Ok(Self { points })
     }
@@ -43,10 +45,18 @@ impl Polygon {
         let mut min = self.points[0];
         let mut max = self.points[0];
         for p in &self.points[1..] {
-            if p.x < min.x { min.x = p.x; }
-            if p.y < min.y { min.y = p.y; }
-            if p.x > max.x { max.x = p.x; }
-            if p.y > max.y { max.y = p.y; }
+            if p.x < min.x {
+                min.x = p.x;
+            }
+            if p.y < min.y {
+                min.y = p.y;
+            }
+            if p.x > max.x {
+                max.x = p.x;
+            }
+            if p.y > max.y {
+                max.y = p.y;
+            }
         }
         (min, max)
     }
@@ -62,13 +72,17 @@ mod tests {
             Point2D::new(1.0, 0.0),
             Point2D::new(1.0, 1.0),
             Point2D::new(0.0, 1.0),
-        ]).unwrap()
+        ])
+        .unwrap()
     }
 
     #[test]
     fn rejects_fewer_than_three_vertices() {
         let r = Polygon::new(vec![Point2D::new(0.0, 0.0), Point2D::new(1.0, 0.0)]);
-        assert!(matches!(r, Err(GeomError::PolygonTooFewVertices { count: 2 })));
+        assert!(matches!(
+            r,
+            Err(GeomError::PolygonTooFewVertices { count: 2 })
+        ));
     }
 
     #[test]

@@ -489,9 +489,16 @@ mod tests {
         };
         let via_direct = optimize_single(asn.per_bin[0].clone(), cfg).unwrap();
 
-        assert_eq!(via_multi.per_bin[0].placements.len(), via_direct.placements.len());
+        assert_eq!(
+            via_multi.per_bin[0].placements.len(),
+            via_direct.placements.len()
+        );
         // Per-placement identity: bit-identical bin_id + (x, y) pairs.
-        for (a, b) in via_multi.per_bin[0].placements.iter().zip(via_direct.placements.iter()) {
+        for (a, b) in via_multi.per_bin[0]
+            .placements
+            .iter()
+            .zip(via_direct.placements.iter())
+        {
             assert_eq!(a.shape_id, b.shape_id);
             assert_eq!(a.bin_id, b.bin_id);
             assert!((a.x - b.x).abs() < 1e-9);
@@ -534,7 +541,14 @@ mod tests {
                 .map(|b| {
                     b.placements
                         .iter()
-                        .map(|p| (p.shape_id.clone(), p.bin_id.clone(), p.x.to_bits(), p.y.to_bits()))
+                        .map(|p| {
+                            (
+                                p.shape_id.clone(),
+                                p.bin_id.clone(),
+                                p.x.to_bits(),
+                                p.y.to_bits(),
+                            )
+                        })
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>()
@@ -551,9 +565,17 @@ mod tests {
         let total_requested: u32 = req.items.iter().map(|p| p.quantity).sum();
         let asn = ffd_assign(&req.bins, &req.items, 0.0).unwrap();
         let refined = optimize_multi(asn, &req).unwrap();
-        let placed: u32 = refined.per_bin.iter().map(|b| b.placements.len() as u32).sum();
+        let placed: u32 = refined
+            .per_bin
+            .iter()
+            .map(|b| b.placements.len() as u32)
+            .sum();
         let spilled: u32 = refined.overflow.iter().map(|(_, n)| *n).sum();
-        assert_eq!(placed + spilled, total_requested, "cardinality must be preserved");
+        assert_eq!(
+            placed + spilled,
+            total_requested,
+            "cardinality must be preserved"
+        );
     }
 
     #[test]
@@ -584,7 +606,7 @@ mod tests {
             vec![
                 bin("A", 30.0, 30.0),
                 bin("B", 30.0, 30.0),
-                bin("C", 5.0, 5.0),       // too small for any item
+                bin("C", 5.0, 5.0), // too small for any item
             ],
             vec![rect_part("r", 2, 10.0, 10.0)],
         );

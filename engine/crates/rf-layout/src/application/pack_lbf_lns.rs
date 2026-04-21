@@ -23,8 +23,8 @@
 // two-phase plan that this file implements.
 
 use crate::application::{
-    pack_lbf_with_config, polish_placements, polish_score, try_cross_bin_moveout,
-    PackLbfConfig, PolishConfig,
+    pack_lbf_with_config, polish_placements, polish_score, try_cross_bin_moveout, PackLbfConfig,
+    PolishConfig,
 };
 use crate::domain::{Bin, BinResult, PackError, PackRequest, PackResult, Placement};
 use crate::infrastructure::jagua_adapter::to_jagua_instance;
@@ -130,7 +130,7 @@ pub fn pack_lbf_lns_with_config(
             clearance: request.clearance,
             items: sub_items,
             operator_profile: request.operator_profile.clone(),
-            mode: request.mode.clone(),
+            mode: request.mode,
             time_budget_ms: request.time_budget_ms,
             improvement_budget_ms: request.improvement_budget_ms,
             seed: request.seed,
@@ -256,7 +256,10 @@ fn pack_lbf_lns_single_bin(
         .iter()
         .enumerate()
         .filter_map(|(item_id, part)| {
-            let placed = placed_by_shape.get(part.shape_id.as_str()).copied().unwrap_or(0);
+            let placed = placed_by_shape
+                .get(part.shape_id.as_str())
+                .copied()
+                .unwrap_or(0);
             let remaining = part.quantity.saturating_sub(placed);
             if remaining > 0 {
                 Some((item_id, remaining))
@@ -298,8 +301,11 @@ fn pack_lbf_lns_single_bin(
 
     // Build a single-bin BPInstance for the grow-separate loop — the
     // separator operates on one layout at a time.
-    let single_bin_instance =
-        to_jagua_instance(std::slice::from_ref(target_bin), &request.items, request.clearance)?;
+    let single_bin_instance = to_jagua_instance(
+        std::slice::from_ref(target_bin),
+        &request.items,
+        request.clearance,
+    )?;
 
     // Reconstruct the target bin's current LayoutSnapshot from LBF's
     // placements. Separator needs a fresh Layout seeded from existing
@@ -324,10 +330,7 @@ fn pack_lbf_lns_single_bin(
                     ))
                 })?;
             let item = single_bin_instance.item(item_id);
-            let ext_dt = DTransformation::new(
-                p.rotation_rad as f32,
-                (p.x as f32, p.y as f32),
-            );
+            let ext_dt = DTransformation::new(p.rotation_rad as f32, (p.x as f32, p.y as f32));
             // ext_to_int conversion happens in replay pipeline; we are
             // placing in EXTERNAL-coord frame by composing jagua's
             // pre_transform inverse manually.
@@ -352,22 +355,23 @@ fn pack_lbf_lns_single_bin(
             let item = single_bin_instance.item(*id);
             item.shape_cd.bbox.width() * item.shape_cd.bbox.height()
         };
-        area(b).partial_cmp(&area(a)).unwrap_or(std::cmp::Ordering::Equal)
+        area(b)
+            .partial_cmp(&area(a))
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let mut remaining_qty: HashMap<usize, u32> =
-        remaining_copies.iter().copied().collect();
+    let mut remaining_qty: HashMap<usize, u32> = remaining_copies.iter().copied().collect();
 
     'outer: for item_id in order {
-        while *remaining_qty.get(&item_id).unwrap_or(&0) > 0
-            && growth_ops < cfg.max_growth_ops
-        {
+        while *remaining_qty.get(&item_id).unwrap_or(&0) > 0 && growth_ops < cfg.max_growth_ops {
             // Try up to `attempts_per_item` randomly-seeded placements
             // of this item. First valid resolution wins.
             let mut grew = false;
             for attempt in 0..cfg.attempts_per_item {
                 attempts_made += 1;
-                let seed = request.seed.unwrap_or(42)
+                let seed = request
+                    .seed
+                    .unwrap_or(42)
                     .wrapping_add(growth_ops as u64 * 1024)
                     .wrapping_add(attempt as u64);
 
@@ -410,8 +414,10 @@ fn pack_lbf_lns_single_bin(
         &current_snapshot,
         &single_bin_instance,
         started_at,
-        growth_ops,
-        attempts_made,
+        GrowthStats {
+            growth_ops,
+            attempts_made,
+        },
     )?;
 
     // Phase 3 — score-aware polish. Slides each bin's placements toward
@@ -439,12 +445,8 @@ fn polish_enabled() -> bool {
 ///   3. Run polish_placements toward (0, 0).
 ///   4. Compute post-polish score; keep only if it's strictly better.
 ///   5. Recompute this bin's BinResult stats from the polished placements.
-/// Then update top-level totals + overall_density.
-fn polish_pack_result(
-    mut result: PackResult,
-    bins: &[Bin],
-    clearance: f64,
-) -> PackResult {
+///   6. Update top-level totals + overall_density.
+fn polish_pack_result(mut result: PackResult, bins: &[Bin], clearance: f64) -> PackResult {
     let cfg = PolishConfig {
         clearance,
         ..PolishConfig::default()
@@ -605,10 +607,8 @@ fn attempt_grow(
     };
 
     let ext_dt = DTransformation::new(rot, (tx, ty));
-    let int_dt = jagua_rs::io::import::ext_to_int_transformation(
-        &ext_dt,
-        &item.shape_orig.pre_transform,
-    );
+    let int_dt =
+        jagua_rs::io::import::ext_to_int_transformation(&ext_dt, &item.shape_orig.pre_transform);
     layout.place_item(item, int_dt);
 
     // Run GLS: Separator + exploration_phase, small budget.
@@ -636,6 +636,12 @@ fn attempt_grow(
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct GrowthStats {
+    growth_ops: usize,
+    attempts_made: usize,
+}
+
 fn rebuild_pack_result(
     request: &PackRequest,
     lbf_result: &PackResult,
@@ -643,8 +649,7 @@ fn rebuild_pack_result(
     new_snapshot: &LayoutSnapshot,
     instance: &BPInstance,
     started_at: Instant,
-    growth_ops: usize,
-    attempts_made: usize,
+    growth_stats: GrowthStats,
 ) -> Result<PackResult, PackError> {
     let target_bin = &request.bins[target_bin_idx];
 
@@ -673,7 +678,12 @@ fn rebuild_pack_result(
             .collect();
 
         let (min_x, min_y, max_x, max_y) = polygon.iter().fold(
-            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ),
             |(mnx, mny, mxx, mxy), p| (mnx.min(p.x), mny.min(p.y), mxx.max(p.x), mxy.max(p.y)),
         );
 
@@ -760,7 +770,10 @@ fn rebuild_pack_result(
         .items
         .iter()
         .map(|r| {
-            let placed = placed_by_shape.get(r.shape_id.as_str()).copied().unwrap_or(0);
+            let placed = placed_by_shape
+                .get(r.shape_id.as_str())
+                .copied()
+                .unwrap_or(0);
             r.quantity.saturating_sub(placed)
         })
         .sum();
@@ -777,7 +790,10 @@ fn rebuild_pack_result(
 
     log::debug!(
         "[LNS] growth_ops={} attempts_made={} placed_count={} overflow={}",
-        growth_ops, attempts_made, placed_count, total_overflow
+        growth_stats.growth_ops,
+        growth_stats.attempts_made,
+        placed_count,
+        total_overflow
     );
 
     Ok(PackResult {

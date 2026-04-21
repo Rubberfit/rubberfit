@@ -72,10 +72,7 @@ impl CutHistoryPort for FakePort {
         Ok(self.item.clone())
     }
 
-    async fn list_favorites(
-        &self,
-        user_id: &UserId,
-    ) -> Result<Vec<CutHistoryEntry>, AppError> {
+    async fn list_favorites(&self, user_id: &UserId) -> Result<Vec<CutHistoryEntry>, AppError> {
         *self.observed_user.lock().unwrap() = Some(user_id.clone());
         Ok(self.favorites.clone())
     }
@@ -117,8 +114,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
 
     let n_b64 = b64url(public.n().to_bytes_be());
     let e_b64 = b64url(public.e().to_bytes_be());
@@ -205,10 +201,7 @@ fn test_cfg() -> ServerConfig {
     }
 }
 
-fn state_with_factory(
-    keys: &TestKeys,
-    factory: Arc<dyn CutHistoryPortFactory>,
-) -> Arc<AppState> {
+fn state_with_factory(keys: &TestKeys, factory: Arc<dyn CutHistoryPortFactory>) -> Arc<AppState> {
     Arc::new(AppState::with_cut_history_factory(
         jwks_cache(keys),
         SUPABASE_URL,
@@ -244,11 +237,7 @@ fn sample_entry(id: i64) -> CutHistoryEntry {
     }
 }
 
-async fn send(
-    router: axum::Router,
-    uri: &str,
-    token: Option<&str>,
-) -> axum::http::Response<Body> {
+async fn send(router: axum::Router, uri: &str, token: Option<&str>) -> axum::http::Response<Body> {
     let mut req = Request::builder().uri(uri);
     if let Some(tok) = token {
         req = req.header("authorization", format!("Bearer {tok}"));
@@ -266,9 +255,7 @@ async fn list_history_returns_entries_and_forwards_user_id() {
         history: vec![sample_entry(1), sample_entry(2)],
         ..Default::default()
     });
-    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory {
-        port: port.clone(),
-    });
+    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory { port: port.clone() });
     let state = state_with_factory(&keys, factory);
     let router = build_router_with_state(&test_cfg(), state);
     let token = sign_token(&keys, TEST_USER);
@@ -291,9 +278,7 @@ async fn list_history_returns_entries_and_forwards_user_id() {
 async fn list_history_parses_query_params_and_clamps_limit() {
     let keys = generate_test_keys();
     let port = Arc::new(FakePort::default());
-    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory {
-        port: port.clone(),
-    });
+    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory { port: port.clone() });
     let state = state_with_factory(&keys, factory);
     let router = build_router_with_state(&test_cfg(), state);
     let token = sign_token(&keys, TEST_USER);
@@ -317,9 +302,7 @@ async fn list_history_parses_query_params_and_clamps_limit() {
 async fn list_history_without_limit_gets_default_50() {
     let keys = generate_test_keys();
     let port = Arc::new(FakePort::default());
-    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory {
-        port: port.clone(),
-    });
+    let factory: Arc<dyn CutHistoryPortFactory> = Arc::new(FakeFactory { port: port.clone() });
     let state = state_with_factory(&keys, factory);
     let router = build_router_with_state(&test_cfg(), state);
     let token = sign_token(&keys, TEST_USER);

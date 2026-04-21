@@ -11,15 +11,15 @@
 
 use super::sample_eval::{SampleEval, SampleEvaluator};
 use super::specialized_pipeline::{
-    SpecializedHazardCollector, collect_poly_collisions_in_detector_custom,
+    collect_poly_collisions_in_detector_custom, SpecializedHazardCollector,
 };
 use super::tracker::CollisionTracker;
 use jagua_rs::collision_detection::hazards::collector::HazardCollector;
 use jagua_rs::entities::Item;
 use jagua_rs::entities::Layout;
 use jagua_rs::entities::PItemKey;
-use jagua_rs::geometry::DTransformation;
 use jagua_rs::geometry::primitives::SPolygon;
+use jagua_rs::geometry::DTransformation;
 
 pub struct SeparationEvaluator<'a> {
     layout: &'a Layout,

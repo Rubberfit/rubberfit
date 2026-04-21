@@ -4121,6 +4121,24 @@
           "status"
         ],
         "properties": {
+          "barcode_asset_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "barcode_format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "barcode_generated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "color": {
             "type": [
               "string",
@@ -4149,6 +4167,12 @@
           "id": {
             "type": "string"
           },
+          "is_offcut": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "length": {
             "type": "number",
             "format": "double"
@@ -4169,6 +4193,18 @@
             ]
           },
           "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_roll_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "part_number": {
             "type": [
               "string",
               "null"

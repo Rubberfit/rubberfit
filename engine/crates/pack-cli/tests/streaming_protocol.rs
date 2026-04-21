@@ -61,9 +61,17 @@ fn batch_mode_emits_single_packresult_line() {
     assert!(output.status.success(), "pack-cli failed: {:?}", output);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.trim().lines().collect();
-    assert_eq!(lines.len(), 1, "batch mode should emit exactly one line, got {}: {stdout}", lines.len());
+    assert_eq!(
+        lines.len(),
+        1,
+        "batch mode should emit exactly one line, got {}: {stdout}",
+        lines.len()
+    );
     let parsed: serde_json::Value = serde_json::from_str(lines[0]).expect("valid JSON");
-    assert!(parsed.get("placements").is_some(), "final line must be a PackResult (has placements)");
+    assert!(
+        parsed.get("placements").is_some(),
+        "final line must be a PackResult (has placements)"
+    );
 }
 
 #[test]
@@ -87,10 +95,18 @@ fn streaming_mode_emits_progress_then_packresult() {
         .unwrap();
     drop(child.stdin.take());
     let output = child.wait_with_output().expect("wait");
-    assert!(output.status.success(), "pack-cli --stream failed: {:?}", output);
+    assert!(
+        output.status.success(),
+        "pack-cli --stream failed: {:?}",
+        output
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.trim().lines().collect();
-    assert!(lines.len() >= 2, "streaming should emit >= 2 lines (progress + result), got {}", lines.len());
+    assert!(
+        lines.len() >= 2,
+        "streaming should emit >= 2 lines (progress + result), got {}",
+        lines.len()
+    );
 
     // First line is a progress frame (has iteration, no placements).
     let first: serde_json::Value = serde_json::from_str(lines[0]).expect("valid first JSON");
@@ -101,7 +117,8 @@ fn streaming_mode_emits_progress_then_packresult() {
     );
 
     // Last line is the PackResult (has placements).
-    let last: serde_json::Value = serde_json::from_str(lines[lines.len() - 1]).expect("valid last JSON");
+    let last: serde_json::Value =
+        serde_json::from_str(lines[lines.len() - 1]).expect("valid last JSON");
     assert!(
         last.get("placements").is_some(),
         "last line should be PackResult: {}",
@@ -144,7 +161,11 @@ fn streaming_mode_accepts_stdin_cancel_message() {
     }
     drop(child.stdin.take());
     let output = child.wait_with_output().expect("wait");
-    assert!(output.status.success(), "pack-cli --stream failed: {:?}", output);
+    assert!(
+        output.status.success(),
+        "pack-cli --stream failed: {:?}",
+        output
+    );
 
     // Verify the CLI produced a parseable result (cancel reader didn't
     // crash mid-flight).

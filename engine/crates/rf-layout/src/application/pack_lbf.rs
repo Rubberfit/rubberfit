@@ -23,8 +23,8 @@ use jagua_rs::io::export::int_to_ext_transformation;
 use jagua_rs::probs::bpp::entities::BPInstance;
 use lbf::config::LBFConfig;
 use lbf::opt::lbf_bpp::LBFOptimizerBP;
-use rand::SeedableRng;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use rf_geom::domain::Point2D;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -125,19 +125,14 @@ pub fn pack_lbf_with_config(
     let mut best_solution: Option<jagua_rs::probs::bpp::entities::BPSolution> = None;
     let mut best_placed: usize = 0;
     let mut best_density: f32 = 0.0;
-    let mut attempts_run: usize = 0;
-
-    for seed in seeds {
+    for (attempts_run, seed) in seeds.into_iter().enumerate() {
         // Deadline check — but always run the first attempt so the
         // caller gets a valid result even if the budget is too tight.
-        if attempts_run > 0
-            && deadline.is_some_and(|d| std::time::Instant::now() >= d)
-        {
+        if attempts_run > 0 && deadline.is_some_and(|d| std::time::Instant::now() >= d) {
             break;
         }
 
         let sol = run_single_lbf(&instance, seed, cfg.n_samples, cfg.ls_frac);
-        attempts_run += 1;
         let placed: usize = sol
             .layout_snapshots
             .values()
@@ -244,7 +239,10 @@ pub fn pack_lbf_with_config(
         .items
         .iter()
         .map(|r| {
-            let placed = placed_by_shape.get(r.shape_id.as_str()).copied().unwrap_or(0);
+            let placed = placed_by_shape
+                .get(r.shape_id.as_str())
+                .copied()
+                .unwrap_or(0);
             r.quantity.saturating_sub(placed)
         })
         .sum();
@@ -280,16 +278,18 @@ fn run_single_lbf(
     n_samples: usize,
     ls_frac: f32,
 ) -> jagua_rs::probs::bpp::entities::BPSolution {
-    let mut config = LBFConfig::default();
-    config.n_samples = n_samples;
-    config.ls_frac = ls_frac;
-    config.prng_seed = Some(seed);
     // Pre-simplification + concavity smoothing are jagua-rs knobs for
     // reducing CDE load. RF polygons come from user CSVs and already
     // match domain units exactly; we do not want surprising geometry
     // changes inside the solver.
-    config.poly_simpl_tolerance = None;
-    config.narrow_concavity_cutoff = None;
+    let config = LBFConfig {
+        n_samples,
+        ls_frac,
+        prng_seed: Some(seed),
+        poly_simpl_tolerance: None,
+        narrow_concavity_cutoff: None,
+        ..LBFConfig::default()
+    };
 
     let rng = SmallRng::seed_from_u64(seed);
     let mut opt = LBFOptimizerBP::new(instance.clone(), config, rng);
@@ -455,7 +455,10 @@ mod tests {
             vec![rect_part("rect-a", 3, 10.0, 5.0)],
         );
         let result = pack_lbf(req).unwrap();
-        assert_eq!(result.placed_count, 3, "all 3 rects should fit on a 48x96 bin");
+        assert_eq!(
+            result.placed_count, 3,
+            "all 3 rects should fit on a 48x96 bin"
+        );
         assert_eq!(result.overflow_count, 0);
         assert_eq!(result.per_bin.len(), 1);
         assert_eq!(result.per_bin[0].bin_id, "b1");

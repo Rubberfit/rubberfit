@@ -276,15 +276,13 @@ mod tests {
 
     #[test]
     fn accepts_https_base_url() {
-        let client =
-            PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
+        let client = PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
         assert_eq!(client.base_url, "https://project.supabase.co");
     }
 
     #[test]
     fn join_handles_absolute_paths() {
-        let client =
-            PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
+        let client = PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
         assert_eq!(
             client.join("/rest/v1/cuts?select=*"),
             "https://project.supabase.co/rest/v1/cuts?select=*"
@@ -293,8 +291,7 @@ mod tests {
 
     #[test]
     fn join_handles_relative_paths() {
-        let client =
-            PostgrestClient::new("https://project.supabase.co/", "key", "token").unwrap();
+        let client = PostgrestClient::new("https://project.supabase.co/", "key", "token").unwrap();
         assert_eq!(
             client.join("rest/v1/cuts"),
             "https://project.supabase.co/rest/v1/cuts"
@@ -303,8 +300,7 @@ mod tests {
 
     #[test]
     fn join_passes_through_absolute_urls() {
-        let client =
-            PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
+        let client = PostgrestClient::new("https://project.supabase.co", "key", "token").unwrap();
         assert_eq!(
             client.join("https://other.supabase.co/rest/v1/cuts"),
             "https://other.supabase.co/rest/v1/cuts"
@@ -315,8 +311,7 @@ mod tests {
     fn rejects_header_unsafe_apikey() {
         // HTTP forbids CR/LF in header values. reqwest's HeaderValue
         // parser rejects them; we surface that as our own error.
-        let err =
-            PostgrestClient::new("https://project.supabase.co", "key\nwith-newline", "token");
+        let err = PostgrestClient::new("https://project.supabase.co", "key\nwith-newline", "token");
         assert!(matches!(err, Err(PostgrestError::ApiError { .. })));
     }
 

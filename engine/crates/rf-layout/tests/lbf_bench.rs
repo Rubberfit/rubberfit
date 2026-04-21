@@ -16,8 +16,8 @@
 
 use rf_geom::domain::Point2D;
 use rf_layout::application::{
-    pack, pack_lbf, pack_lbf_lns, pack_lbf_lns_with_config, pack_lbf_with_config,
-    PackLbfConfig, PackLbfLnsConfig,
+    pack, pack_lbf, pack_lbf_lns, pack_lbf_lns_with_config, pack_lbf_with_config, PackLbfConfig,
+    PackLbfLnsConfig,
 };
 use rf_layout::domain::{Bin, BinKind, PackRequest, Part};
 use rf_layout::infrastructure::jagua_adapter::to_jagua_instance;
@@ -27,8 +27,8 @@ use rf_layout::infrastructure::warm_start::{
 
 use lbf::config::LBFConfig;
 use lbf::opt::lbf_bpp::LBFOptimizerBP;
-use rand::SeedableRng;
 use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use std::time::Instant;
 
 const FIXTURE: &[(u32, &str, f64, f64)] = &[
@@ -100,17 +100,19 @@ fn run_lbf(
     ls_frac: f32,
     seed: u64,
 ) -> (usize, f32, std::time::Duration) {
-    let instance = to_jagua_instance(std::slice::from_ref(bin), items, 0.0)
-        .expect("to_jagua_instance");
+    let instance =
+        to_jagua_instance(std::slice::from_ref(bin), items, 0.0).expect("to_jagua_instance");
 
-    let mut config = LBFConfig::default();
-    config.n_samples = n_samples;
-    config.ls_frac = ls_frac;
-    config.prng_seed = Some(seed);
     // Keep poly_simpl_tolerance small so we don't unintentionally degrade rect
     // geometry — our fixture is orthogonal rectangles with exact coordinates.
-    config.poly_simpl_tolerance = None;
-    config.narrow_concavity_cutoff = None;
+    let config = LBFConfig {
+        n_samples,
+        ls_frac,
+        prng_seed: Some(seed),
+        poly_simpl_tolerance: None,
+        narrow_concavity_cutoff: None,
+        ..LBFConfig::default()
+    };
 
     let rng = SmallRng::seed_from_u64(seed);
 
@@ -209,7 +211,10 @@ fn pack_lbf_lns_vs_pack_lbf_on_production_fixture() {
     let lbf_elapsed = lbf_start.elapsed();
     println!(
         "pack_lbf     : placed={}/{}  density={:.2}%  elapsed={:?}",
-        lbf_result.placed_count, total_copies, lbf_result.overall_density * 100.0, lbf_elapsed
+        lbf_result.placed_count,
+        total_copies,
+        lbf_result.overall_density * 100.0,
+        lbf_elapsed
     );
 
     // Phase 2 default config (10 LNS attempts, 200ms per grow)
@@ -293,7 +298,9 @@ fn pack_lbf_two_bin_fab_score_comparison() {
     for (i, b) in pack_result.per_bin.iter().enumerate() {
         println!(
             "  bin #{}: occupied_height={:.2}\"  efficiency={:.2}%",
-            i, b.occupied_height, b.efficiency * 100.0
+            i,
+            b.occupied_height,
+            b.efficiency * 100.0
         );
     }
 
@@ -310,7 +317,9 @@ fn pack_lbf_two_bin_fab_score_comparison() {
     for (i, b) in lbf_result.per_bin.iter().enumerate() {
         println!(
             "  bin #{}: occupied_height={:.2}\"  efficiency={:.2}%",
-            i, b.occupied_height, b.efficiency * 100.0
+            i,
+            b.occupied_height,
+            b.efficiency * 100.0
         );
     }
 }
@@ -329,21 +338,26 @@ fn bin_packing_auto_vs_bssf_on_production_fixture() {
     let bin = production_bin();
 
     for allow_rotation in [false, true] {
-        println!(
-            "\n[bin-packing Auto bench] rotation={}",
-            allow_rotation
-        );
+        println!("\n[bin-packing Auto bench] rotation={}", allow_rotation);
         let items = production_items(allow_rotation);
         let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
 
-        for strategy in [PackerStrategy::Bssf, PackerStrategy::BottomLeft, PackerStrategy::Auto] {
+        for strategy in [
+            PackerStrategy::Bssf,
+            PackerStrategy::BottomLeft,
+            PackerStrategy::Auto,
+        ] {
             let start = Instant::now();
             let result = greedy_rectangle_pack_with_strategy(&bin, &items, 0.0, strategy);
             let elapsed = start.elapsed();
             match result {
                 Ok(r) => println!(
                     "  {:<12?}: placed={}/{}, overflow={}, elapsed={:?}",
-                    strategy, r.placements.len(), total_copies, r.overflow, elapsed
+                    strategy,
+                    r.placements.len(),
+                    total_copies,
+                    r.overflow,
+                    elapsed
                 ),
                 Err(e) => println!("  {:<12?}: ERROR {}", strategy, e),
             }
@@ -446,20 +460,34 @@ fn lbf_on_irregular_trapezoid_fixture() {
         difficulty: None,
     };
     let items = vec![
-        trapezoid("trap-a", 2, &[(0.0, 0.0), (10.0, 0.0), (8.0, 4.0), (2.0, 4.0)]),
-        trapezoid("trap-b", 2, &[(0.0, 0.0), (8.0, 0.0), (6.0, 5.0), (2.0, 5.0)]),
-        trapezoid("trap-c", 2, &[(0.0, 0.0), (8.0, 0.0), (8.0, 3.0), (0.0, 3.0)]),
+        trapezoid(
+            "trap-a",
+            2,
+            &[(0.0, 0.0), (10.0, 0.0), (8.0, 4.0), (2.0, 4.0)],
+        ),
+        trapezoid(
+            "trap-b",
+            2,
+            &[(0.0, 0.0), (8.0, 0.0), (6.0, 5.0), (2.0, 5.0)],
+        ),
+        trapezoid(
+            "trap-c",
+            2,
+            &[(0.0, 0.0), (8.0, 0.0), (8.0, 3.0), (0.0, 3.0)],
+        ),
     ];
     let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
 
-    let instance = to_jagua_instance(std::slice::from_ref(&bin), &items, 0.125)
-        .expect("trapezoid instance");
+    let instance =
+        to_jagua_instance(std::slice::from_ref(&bin), &items, 0.125).expect("trapezoid instance");
 
-    let mut config = LBFConfig::default();
-    config.n_samples = 5000;
-    config.ls_frac = 0.2;
-    config.prng_seed = Some(42);
-    config.min_item_separation = Some(0.125);
+    let config = LBFConfig {
+        n_samples: 5000,
+        ls_frac: 0.2,
+        prng_seed: Some(42),
+        min_item_separation: Some(0.125),
+        ..LBFConfig::default()
+    };
 
     let start = Instant::now();
     let rng = SmallRng::seed_from_u64(42);
@@ -475,12 +503,12 @@ fn lbf_on_irregular_trapezoid_fixture() {
 
     println!(
         "\n[LBF trapezoid-mix] placed={}/{}, density={:.2}%, elapsed={:?}",
-        placed, total_copies, density * 100.0, elapsed
+        placed,
+        total_copies,
+        density * 100.0,
+        elapsed
     );
-    assert!(
-        placed > 0,
-        "LBF must place at least one trapezoid"
-    );
+    assert!(placed > 0, "LBF must place at least one trapezoid");
 }
 
 #[test]
@@ -497,13 +525,32 @@ fn lbf_on_irregular_cone_fixture() {
         priority: None,
     };
     let cone_vertices: Vec<Point2D> = [
-        (8.0, 0.0), (7.9316, 1.0442), (7.7274, 2.0706), (7.391, 3.0615),
-        (6.9282, 4.0), (6.3468, 4.8701), (5.6569, 5.6569), (4.8701, 6.3468),
-        (4.0, 6.9282), (3.0615, 7.391), (2.0706, 7.7274), (1.0442, 7.9316),
-        (0.0, 8.0), (0.0, 2.0), (0.2611, 1.9829), (0.5176, 1.9319),
-        (0.7654, 1.8478), (1.0, 1.7321), (1.2175, 1.5867), (1.4142, 1.4142),
-        (1.5867, 1.2175), (1.7321, 1.0), (1.8478, 0.7654), (1.9319, 0.5176),
-        (1.9829, 0.2611), (2.0, 0.0),
+        (8.0, 0.0),
+        (7.9316, 1.0442),
+        (7.7274, 2.0706),
+        (7.391, 3.0615),
+        (6.9282, 4.0),
+        (6.3468, 4.8701),
+        (5.6569, 5.6569),
+        (4.8701, 6.3468),
+        (4.0, 6.9282),
+        (3.0615, 7.391),
+        (2.0706, 7.7274),
+        (1.0442, 7.9316),
+        (0.0, 8.0),
+        (0.0, 2.0),
+        (0.2611, 1.9829),
+        (0.5176, 1.9319),
+        (0.7654, 1.8478),
+        (1.0, 1.7321),
+        (1.2175, 1.5867),
+        (std::f64::consts::SQRT_2, std::f64::consts::SQRT_2),
+        (1.5867, 1.2175),
+        (1.7321, 1.0),
+        (1.8478, 0.7654),
+        (1.9319, 0.5176),
+        (1.9829, 0.2611),
+        (2.0, 0.0),
     ]
     .iter()
     .map(|(x, y)| Point2D::new(*x, *y))
@@ -518,14 +565,16 @@ fn lbf_on_irregular_cone_fixture() {
         difficulty: None,
     }];
 
-    let instance = to_jagua_instance(std::slice::from_ref(&bin), &items, 0.125)
-        .expect("cone instance");
+    let instance =
+        to_jagua_instance(std::slice::from_ref(&bin), &items, 0.125).expect("cone instance");
 
-    let mut config = LBFConfig::default();
-    config.n_samples = 5000;
-    config.ls_frac = 0.2;
-    config.prng_seed = Some(42);
-    config.min_item_separation = Some(0.125);
+    let config = LBFConfig {
+        n_samples: 5000,
+        ls_frac: 0.2,
+        prng_seed: Some(42),
+        min_item_separation: Some(0.125),
+        ..LBFConfig::default()
+    };
 
     let start = Instant::now();
     let rng = SmallRng::seed_from_u64(42);
@@ -541,7 +590,9 @@ fn lbf_on_irregular_cone_fixture() {
 
     println!(
         "\n[LBF cone-array] placed={}/4, density={:.2}%, elapsed={:?}",
-        placed, density * 100.0, elapsed
+        placed,
+        density * 100.0,
+        elapsed
     );
     assert!(placed >= 1, "LBF must place at least one cone");
 }
@@ -573,7 +624,11 @@ fn lbf_multistart_with_rotation() {
         let (placed, density, elapsed) = run_lbf(&bin, &items, n_samples, 0.2, *seed);
         print!(
             "seed={:>2}: placed={}/{}, density={:.2}%, elapsed={:?}",
-            seed, placed, total_copies, density * 100.0, elapsed
+            seed,
+            placed,
+            total_copies,
+            density * 100.0,
+            elapsed
         );
         if placed > best_placed || (placed == best_placed && density > best_density) {
             best_placed = placed;
@@ -618,7 +673,12 @@ fn lbf_vs_bssf_on_production_fixture_with_rotation() {
             let (placed, density, elapsed) = run_lbf(&bin, &items, n_samples, 0.2, seed);
             println!(
                 "LBF n_samples={:<5} seed={}: placed={}/{}, density={:.2}%, elapsed={:?}",
-                n_samples, seed, placed, total_copies, density * 100.0, elapsed
+                n_samples,
+                seed,
+                placed,
+                total_copies,
+                density * 100.0,
+                elapsed
             );
         }
     }

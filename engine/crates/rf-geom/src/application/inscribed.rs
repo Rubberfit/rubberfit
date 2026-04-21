@@ -4,10 +4,7 @@ use crate::domain::{Point2D, Polygon, Rect};
 /// Find the largest axis-aligned inscribed rectangle inside a polygon.
 /// Uses a grid + histogram + monotonic stack (O(RC) time).
 /// `grid_step` controls grid density.
-pub fn largest_inscribed_rect(
-    polygon: &Polygon,
-    grid_step: f64,
-) -> Option<Rect> {
+pub fn largest_inscribed_rect(polygon: &Polygon, grid_step: f64) -> Option<Rect> {
     let (min, max) = polygon.bbox();
     if grid_step <= 0.0 || (max.x - min.x) < grid_step || (max.y - min.y) < grid_step {
         return None;
@@ -66,8 +63,7 @@ fn point_in_polygon(p: Point2D, polygon: &Polygon) -> bool {
     for i in 0..n {
         let pi = pts[i];
         let pj = pts[j];
-        if (pi.y > p.y) != (pj.y > p.y)
-            && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
+        if (pi.y > p.y) != (pj.y > p.y) && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
         {
             inside = !inside;
         }
@@ -83,7 +79,9 @@ fn largest_in_histogram(heights: &[usize]) -> Option<(usize, usize, usize, usize
     for i in 0..=heights.len() {
         let h = if i == heights.len() { 0 } else { heights[i] };
         while let Some(&top) = stack.last() {
-            if heights[top] <= h { break; }
+            if heights[top] <= h {
+                break;
+            }
             stack.pop();
             let c_lo = stack.last().map(|&s| s + 1).unwrap_or(0);
             let c_hi = i - 1;
@@ -108,7 +106,8 @@ mod tests {
             Point2D::new(10.0, 0.0),
             Point2D::new(10.0, 10.0),
             Point2D::new(0.0, 10.0),
-        ]).unwrap()
+        ])
+        .unwrap()
     }
 
     #[test]

@@ -85,6 +85,18 @@ pub struct Roll {
     pub remaining_length: f64,
     pub status: RollStatus,
     pub notes: Option<String>,
+    /// Human-readable unique identifier assigned by the DB trigger.
+    pub part_number: Option<String>,
+    /// Offcuts point back at the source roll; originals are NULL.
+    pub parent_roll_id: Option<RollId>,
+    /// Flags rows created as reusable offcuts.
+    pub is_offcut: Option<bool>,
+    /// Render format of the stored barcode artifact.
+    pub barcode_format: Option<String>,
+    /// Supabase Storage path of the generated barcode PNG.
+    pub barcode_asset_path: Option<String>,
+    /// When the current barcode asset was generated/uploaded.
+    pub barcode_generated_at: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
@@ -176,10 +188,7 @@ pub struct MaterialSupplier {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        rename(
-            serialize = "material_type",
-            deserialize = "material_type"
-        )
+        rename(serialize = "material_type", deserialize = "material_type")
     )]
     pub material_type: Option<MaterialType>,
     /// Embedded suppliers row when selected with embed syntax.
@@ -246,6 +255,12 @@ mod tests {
             remaining_length: 450.5,
             status: RollStatus::Active,
             notes: None,
+            part_number: Some("RF-000001".into()),
+            parent_roll_id: None,
+            is_offcut: Some(false),
+            barcode_format: Some("code128".into()),
+            barcode_asset_path: Some("user-1/roll-1/code128.png".into()),
+            barcode_generated_at: Some("2026-04-21T18:30:00Z".into()),
             created_at: Some("2026-03-15T10:00:00Z".into()),
             updated_at: Some("2026-04-10T12:00:00Z".into()),
         };

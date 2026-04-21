@@ -63,10 +63,7 @@ pub struct SupplierUpdate {
 
 #[async_trait]
 pub trait SupplierPort: Send + Sync {
-    async fn list(
-        &self,
-        filters: &SupplierFilters,
-    ) -> Result<Vec<Supplier>, AppError>;
+    async fn list(&self, filters: &SupplierFilters) -> Result<Vec<Supplier>, AppError>;
 
     async fn get(&self, id: &SupplierId) -> Result<Option<Supplier>, AppError>;
 
@@ -121,10 +118,7 @@ impl ListSuppliersUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        mut filters: SupplierFilters,
-    ) -> Result<Vec<Supplier>, AppError> {
+    pub async fn execute(&self, mut filters: SupplierFilters) -> Result<Vec<Supplier>, AppError> {
         // Clamp page size so a misconfigured caller can't drag the
         // whole table. 200 is the same ceiling ListCutHistoryUseCase
         // uses.
@@ -264,10 +258,7 @@ mod tests {
 
     #[async_trait]
     impl SupplierPort for FakePort {
-        async fn list(
-            &self,
-            _filters: &SupplierFilters,
-        ) -> Result<Vec<Supplier>, AppError> {
+        async fn list(&self, _filters: &SupplierFilters) -> Result<Vec<Supplier>, AppError> {
             Ok(self.rows.lock().unwrap().clone())
         }
         async fn get(&self, id: &SupplierId) -> Result<Option<Supplier>, AppError> {

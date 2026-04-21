@@ -57,10 +57,7 @@ pub struct ProgressEmitter {
 }
 
 impl ProgressEmitter {
-    pub fn new(
-        callback: Option<ProgressCallback>,
-        started_at: std::time::Instant,
-    ) -> Self {
+    pub fn new(callback: Option<ProgressCallback>, started_at: std::time::Instant) -> Self {
         Self {
             callback,
             started_at,
@@ -85,13 +82,7 @@ impl ProgressEmitter {
 
     /// Offer a new candidate frame. Emits only if strictly monotonic
     /// over `(placed_count, active_stock_density + 1e-6)`.
-    pub fn offer(
-        &mut self,
-        assignment: &FfdAssignment,
-        bins: &[Bin],
-        items: &[Part],
-        phase: &str,
-    ) {
+    pub fn offer(&mut self, assignment: &FfdAssignment, bins: &[Bin], items: &[Part], phase: &str) {
         if self.callback.is_none() || self.callbacks_disabled {
             return;
         }
@@ -163,11 +154,7 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 /// Compute `(total_placed_count, active_stock_density)` for a given
 /// assignment. `active_stock_density = sum_placed_area / sum_stock_of_
 /// non_empty_bins`.
-fn compute_progress_stats(
-    assignment: &FfdAssignment,
-    bins: &[Bin],
-    items: &[Part],
-) -> (u32, f64) {
+fn compute_progress_stats(assignment: &FfdAssignment, bins: &[Bin], items: &[Part]) -> (u32, f64) {
     // Pre-compute item area by shape_id for fast lookup.
     let mut area_by_shape: std::collections::HashMap<&str, f64> =
         std::collections::HashMap::with_capacity(items.len());
@@ -302,7 +289,11 @@ mod tests {
         emitter.offer(&assn, &bins, &items, "explore");
 
         let fired = calls.lock().unwrap();
-        assert_eq!(fired.len(), 1, "only baseline should emit on unchanged state");
+        assert_eq!(
+            fired.len(),
+            1,
+            "only baseline should emit on unchanged state"
+        );
     }
 
     #[test]
@@ -354,14 +345,19 @@ mod tests {
         let assn = FfdAssignment {
             per_bin: vec![
                 seed_with_one_placement(10.0, 10.0),
-                SeedResult { placements: vec![], overflow: 0 },
+                SeedResult {
+                    placements: vec![],
+                    overflow: 0,
+                },
             ],
             overflow: vec![],
         };
         let (placed, density) = compute_progress_stats(&assn, &bins, &items);
         assert_eq!(placed, 1);
         // active stock = only A's 100; placed_area = 100. density = 1.0.
-        assert!((density - 1.0).abs() < 1e-9,
-            "empty bin B should be excluded from denominator; got density={density}");
+        assert!(
+            (density - 1.0).abs() < 1e-9,
+            "empty bin B should be excluded from denominator; got density={density}"
+        );
     }
 }

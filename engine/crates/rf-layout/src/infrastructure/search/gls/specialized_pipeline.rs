@@ -21,15 +21,15 @@ use super::bit_reversal_iterator::BitReversalIterator;
 use super::quantify::{quantify_collision_poly_container, quantify_collision_poly_poly};
 use super::tracker::CollisionTracker;
 use float_cmp::approx_eq;
-use jagua_rs::collision_detection::CDEngine;
 use jagua_rs::collision_detection::hazards::collector::HazardCollector;
 use jagua_rs::collision_detection::hazards::{HazKey, HazardEntity};
 use jagua_rs::collision_detection::quadtree::QTHazPresence;
+use jagua_rs::collision_detection::CDEngine;
 use jagua_rs::entities::Layout;
 use jagua_rs::entities::PItemKey;
-use jagua_rs::geometry::DTransformation;
 use jagua_rs::geometry::geo_traits::TransformableFrom;
 use jagua_rs::geometry::primitives::SPolygon;
+use jagua_rs::geometry::DTransformation;
 use slotmap::SecondaryMap;
 use std::f32::consts::PI;
 
@@ -198,10 +198,8 @@ impl<'a> SpecializedHazardCollector<'a> {
                 loss * weight
             }
             HazardEntity::Exterior => {
-                let loss = quantify_collision_poly_container(
-                    shape,
-                    self.layout.container.outer_cd.bbox,
-                );
+                let loss =
+                    quantify_collision_poly_container(shape, self.layout.container.outer_cd.bbox);
                 let weight = self.ct.get_container_weight(self.current_pk);
                 loss * weight
             }

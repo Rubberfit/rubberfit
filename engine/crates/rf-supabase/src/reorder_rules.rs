@@ -57,7 +57,10 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
         // the bare `suppliers(*)` embed returns `null` for those,
         // which matches the domain type's `Option<Supplier>`.
         let query = [
-            ("select", "*,material_type:material_types(*),supplier:suppliers(*)"),
+            (
+                "select",
+                "*,material_type:material_types(*),supplier:suppliers(*)",
+            ),
             ("order", "created_at.desc"),
         ];
         self.client
@@ -66,13 +69,13 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
             .map_err(AppError::infrastructure)
     }
 
-    async fn get(
-        &self,
-        id: &ReorderRuleId,
-    ) -> Result<Option<ReorderRule>, AppError> {
+    async fn get(&self, id: &ReorderRuleId) -> Result<Option<ReorderRule>, AppError> {
         let id_filter = format!("eq.{}", id.0);
         let query = [
-            ("select", "*,material_type:material_types(*),supplier:suppliers(*)"),
+            (
+                "select",
+                "*,material_type:material_types(*),supplier:suppliers(*)",
+            ),
             ("id", id_filter.as_str()),
             ("limit", "1"),
         ];
@@ -84,10 +87,7 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
         Ok(rows.pop())
     }
 
-    async fn create(
-        &self,
-        new: &NewReorderRule,
-    ) -> Result<ReorderRule, AppError> {
+    async fn create(&self, new: &NewReorderRule) -> Result<ReorderRule, AppError> {
         let row = NewReorderRuleRow {
             material_type_id: &new.material_type_id.0,
             supplier_id: new.supplier_id.as_ref().map(|s| s.0.as_str()),
@@ -158,10 +158,7 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
             body.insert("active".into(), Value::Bool(v));
         }
         if let Some(v) = patch.notes.clone() {
-            body.insert(
-                "notes".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("notes".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
 
         if body.is_empty() {
@@ -172,11 +169,7 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
         let query = [("id", id_filter.as_str())];
         match self
             .client
-            .patch::<_, Vec<ReorderRule>>(
-                "/rest/v1/reorder_rules",
-                &query,
-                &Value::Object(body),
-            )
+            .patch::<_, Vec<ReorderRule>>("/rest/v1/reorder_rules", &query, &Value::Object(body))
             .await
         {
             Ok(mut rows) => Ok(rows.pop()),
@@ -184,17 +177,13 @@ impl ReorderRulePort for SupabaseReorderRuleRepository {
         }
     }
 
-    async fn touch_triggered_at(
-        &self,
-        id: &ReorderRuleId,
-    ) -> Result<(), AppError> {
+    async fn touch_triggered_at(&self, id: &ReorderRuleId) -> Result<(), AppError> {
         let id_filter = format!("eq.{}", id.0);
         let query = [("id", id_filter.as_str())];
         // Rust client clock — good enough for "last seen an
         // associated PO"; no ordering invariant hangs on it. DB
         // default on the column is NULL (never fired).
-        let now = chrono::Utc::now()
-            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
         let body = serde_json::json!({ "last_triggered_at": now });
         match self
             .client

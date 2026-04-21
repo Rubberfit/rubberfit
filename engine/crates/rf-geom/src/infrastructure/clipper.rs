@@ -3,8 +3,8 @@
 // Thin wrapper around the clipper2 crate. Exposes boolean / offset operations
 // in domain types so the rest of the codebase never sees clipper2.
 use clipper2::{
-    difference as clipper_difference, inflate, union as clipper_union, EndType, FillRule,
-    JoinType, Path, Paths, PointScaler,
+    difference as clipper_difference, inflate, union as clipper_union, EndType, FillRule, JoinType,
+    Path, Paths, PointScaler,
 };
 
 use crate::domain::{GeomError, Point2D, Polygon};
@@ -102,7 +102,12 @@ mod tests {
         let a = square(0.0, 0.0, 1.0);
         let b = square(5.0, 5.0, 1.0);
         let out = union(&a, &b).unwrap();
-        assert_eq!(out.len(), 2, "expected 2 disjoint polygons, got {}", out.len());
+        assert_eq!(
+            out.len(),
+            2,
+            "expected 2 disjoint polygons, got {}",
+            out.len()
+        );
         for p in &out {
             assert!(p.signed_area() > 0.0, "every returned polygon must be CCW");
         }

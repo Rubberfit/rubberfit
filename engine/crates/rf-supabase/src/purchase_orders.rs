@@ -16,9 +16,7 @@
 
 use async_trait::async_trait;
 use rf_application::error::AppError;
-use rf_application::procurement::{
-    NewPurchaseOrder, PurchaseOrderPort, PurchaseOrderUpdate,
-};
+use rf_application::procurement::{NewPurchaseOrder, PurchaseOrderPort, PurchaseOrderUpdate};
 use rf_domain::{PurchaseOrder, PurchaseOrderFilters, PurchaseOrderId, PurchaseOrderStatus};
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -71,10 +69,7 @@ struct NewPurchaseOrderRow<'a> {
 
 #[async_trait]
 impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
-    async fn list(
-        &self,
-        filters: &PurchaseOrderFilters,
-    ) -> Result<Vec<PurchaseOrder>, AppError> {
+    async fn list(&self, filters: &PurchaseOrderFilters) -> Result<Vec<PurchaseOrder>, AppError> {
         let mut query: Vec<(String, String)> = vec![
             ("select".into(), "*".into()),
             ("order".into(), "created_at.desc".into()),
@@ -112,24 +107,19 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
         if let Some(offset) = filters.offset {
             query.push(("offset".into(), offset.to_string()));
         }
-        let pairs: Vec<(&str, &str)> =
-            query.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let pairs: Vec<(&str, &str)> = query
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
         self.client
             .get::<Vec<PurchaseOrder>>("/rest/v1/purchase_orders", &pairs)
             .await
             .map_err(AppError::infrastructure)
     }
 
-    async fn get(
-        &self,
-        id: &PurchaseOrderId,
-    ) -> Result<Option<PurchaseOrder>, AppError> {
+    async fn get(&self, id: &PurchaseOrderId) -> Result<Option<PurchaseOrder>, AppError> {
         let id_filter = format!("eq.{}", id.0);
-        let query = [
-            ("select", "*"),
-            ("id", id_filter.as_str()),
-            ("limit", "1"),
-        ];
+        let query = [("select", "*"), ("id", id_filter.as_str()), ("limit", "1")];
         let mut rows: Vec<PurchaseOrder> = self
             .client
             .get::<Vec<PurchaseOrder>>("/rest/v1/purchase_orders", &query)
@@ -234,10 +224,7 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
             );
         }
         if let Some(v) = patch.notes.clone() {
-            body.insert(
-                "notes".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("notes".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
 
         if body.is_empty() {
@@ -289,10 +276,7 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
                 // here because approved_at is narrative, not an
                 // ordering invariant; the UNIQUE PK + RLS scoping
                 // cover the real correctness story.
-                body.insert(
-                    "approved_at".into(),
-                    Value::String(now_iso()),
-                );
+                body.insert("approved_at".into(), Value::String(now_iso()));
             }
             PurchaseOrderStatus::Ordered => {
                 // Stamp order_date only if not already set. A
@@ -317,13 +301,12 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
                     .get("/rest/v1/purchase_orders", &current_query)
                     .await
                     .map_err(AppError::infrastructure)?;
-                let already_set =
-                    rows.first().map(|r| r.order_date.is_some()).unwrap_or(false);
+                let already_set = rows
+                    .first()
+                    .map(|r| r.order_date.is_some())
+                    .unwrap_or(false);
                 if !already_set {
-                    body.insert(
-                        "order_date".into(),
-                        Value::String(today_iso_date()),
-                    );
+                    body.insert("order_date".into(), Value::String(today_iso_date()));
                 }
             }
             PurchaseOrderStatus::Cancelled
@@ -341,9 +324,7 @@ impl PurchaseOrderPort for SupabasePurchaseOrderRepository {
                 // either. Surface as a conflict so the HTTP layer
                 // returns a 409 if an internal caller slips past
                 // the use-case guard.
-                return Err(AppError::Conflict(
-                    "RECEIVED_REQUIRES_RECEIVE_FLOW".into(),
-                ));
+                return Err(AppError::Conflict("RECEIVED_REQUIRES_RECEIVE_FLOW".into()));
             }
         }
 

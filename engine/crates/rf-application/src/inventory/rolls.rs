@@ -66,11 +66,7 @@ pub trait RollPort: Send + Sync {
 
     async fn create(&self, new: &NewRoll) -> Result<Roll, AppError>;
 
-    async fn update(
-        &self,
-        id: &RollId,
-        patch: &RollUpdate,
-    ) -> Result<Option<Roll>, AppError>;
+    async fn update(&self, id: &RollId, patch: &RollUpdate) -> Result<Option<Roll>, AppError>;
 
     async fn delete(&self, id: &RollId) -> Result<bool, AppError>;
 }
@@ -118,13 +114,11 @@ fn validate_depletion(
 ) -> Result<(), AppError> {
     const EPSILON: f64 = 0.001;
     match (status, remaining_length) {
-        (Some(RollStatus::Depleted), Some(len)) if len > EPSILON => {
-            Err(AppError::InvalidInput(
-                "INVALID_DEPLETION_STATE: status=depleted requires remaining_length \
+        (Some(RollStatus::Depleted), Some(len)) if len > EPSILON => Err(AppError::InvalidInput(
+            "INVALID_DEPLETION_STATE: status=depleted requires remaining_length \
                  <= 0.001 in the same request"
-                    .into(),
-            ))
-        }
+                .into(),
+        )),
         (Some(RollStatus::Depleted), None) => Err(AppError::InvalidInput(
             "INVALID_DEPLETION_STATE: status=depleted requires an explicit \
              remaining_length=0 in the same request so the DB trigger fires"
@@ -207,11 +201,7 @@ impl UpdateRollUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        id: RollId,
-        mut patch: RollUpdate,
-    ) -> Result<Roll, AppError> {
+    pub async fn execute(&self, id: RollId, mut patch: RollUpdate) -> Result<Roll, AppError> {
         if let Some(name) = patch.material_type.as_deref() {
             validate_material_type_name(name)?;
             patch.material_type = Some(name.trim().to_string());
@@ -272,10 +262,7 @@ mod tests {
 
     #[async_trait]
     impl RollPort for FakePort {
-        async fn list(
-            &self,
-            _filters: &RollFilters,
-        ) -> Result<Vec<Roll>, AppError> {
+        async fn list(&self, _filters: &RollFilters) -> Result<Vec<Roll>, AppError> {
             Ok(self.rows.lock().unwrap().clone())
         }
         async fn get(&self, id: &RollId) -> Result<Option<Roll>, AppError> {
@@ -292,10 +279,7 @@ mod tests {
             *n += 1;
             let r = Roll {
                 id: RollId(format!("roll-{}", *n)),
-                material_type_id: new
-                    .material_type_id
-                    .clone()
-                    .map(rf_domain::MaterialTypeId),
+                material_type_id: new.material_type_id.clone().map(rf_domain::MaterialTypeId),
                 material_type: new.material_type.clone(),
                 width: new.width,
                 length: new.length,
@@ -308,17 +292,19 @@ mod tests {
                 remaining_length: new.remaining_length,
                 status: new.status.unwrap_or(RollStatus::Active),
                 notes: new.notes.clone(),
+                part_number: Some(format!("RF-{:06}", *n)),
+                parent_roll_id: None,
+                is_offcut: Some(false),
+                barcode_format: Some("code128".into()),
+                barcode_asset_path: None,
+                barcode_generated_at: None,
                 created_at: Some("2026-04-19T00:00:00Z".into()),
                 updated_at: Some("2026-04-19T00:00:00Z".into()),
             };
             self.rows.lock().unwrap().push(r.clone());
             Ok(r)
         }
-        async fn update(
-            &self,
-            id: &RollId,
-            patch: &RollUpdate,
-        ) -> Result<Option<Roll>, AppError> {
+        async fn update(&self, id: &RollId, patch: &RollUpdate) -> Result<Option<Roll>, AppError> {
             let mut g = self.rows.lock().unwrap();
             for row in g.iter_mut() {
                 if row.id == *id {

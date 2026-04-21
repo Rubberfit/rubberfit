@@ -15,7 +15,7 @@ use jagua_rs::entities::Item;
 use jagua_rs::geometry::geo_enums::RotationRange;
 use jagua_rs::geometry::geo_traits::TransformableFrom;
 use jagua_rs::geometry::primitives::Rect;
-use jagua_rs::geometry::{DTransformation, Transformation, normalize_rotation};
+use jagua_rs::geometry::{normalize_rotation, DTransformation, Transformation};
 use ordered_float::OrderedFloat;
 use rand::prelude::IndexedRandom;
 use rand::{Rng, RngExt};

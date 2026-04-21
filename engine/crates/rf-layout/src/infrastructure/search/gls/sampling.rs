@@ -17,12 +17,12 @@ use super::consts::{
     PRE_REFINE_CD_R_STEPS, PRE_REFINE_CD_TL_RATIOS, SND_REFINE_CD_R_STEPS, SND_REFINE_CD_TL_RATIOS,
     UNIQUE_SAMPLE_THRESHOLD,
 };
-use super::coord_descent::{CDConfig, refine_coord_desc};
+use super::coord_descent::{refine_coord_desc, CDConfig};
 use super::sample_eval::{SampleEval, SampleEvaluator};
 use super::uniform_sampler::UniformBBoxSampler;
 use jagua_rs::entities::{Item, Layout, PItemKey};
-use jagua_rs::geometry::DTransformation;
 use jagua_rs::geometry::geo_enums::RotationRange;
+use jagua_rs::geometry::DTransformation;
 use log::debug;
 use rand::Rng;
 

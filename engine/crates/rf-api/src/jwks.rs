@@ -106,7 +106,9 @@ impl JwksCache {
         self.refresh().await?;
         self.lookup_cached(kid)
             .await?
-            .ok_or_else(|| JwksError::UnknownKid { kid: kid.to_string() })
+            .ok_or_else(|| JwksError::UnknownKid {
+                kid: kid.to_string(),
+            })
     }
 
     async fn lookup_cached(&self, kid: &str) -> Result<Option<DecodingKey>, JwksError> {

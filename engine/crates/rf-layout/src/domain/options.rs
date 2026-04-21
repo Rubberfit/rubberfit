@@ -36,7 +36,10 @@ pub struct SearchOptions {
 impl std::fmt::Debug for SearchOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SearchOptions")
-            .field("progress_callback", &self.progress_callback.as_ref().map(|_| "<callback>"))
+            .field(
+                "progress_callback",
+                &self.progress_callback.as_ref().map(|_| "<callback>"),
+            )
             .field("cancel_token", &self.cancel_token.is_some())
             .finish()
     }

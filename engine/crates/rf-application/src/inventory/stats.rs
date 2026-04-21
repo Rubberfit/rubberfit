@@ -35,11 +35,11 @@ pub struct InventoryValueUseCase {
 }
 
 impl InventoryValueUseCase {
-    pub fn new(
-        rolls: Arc<dyn RollPort>,
-        material_types: Arc<dyn MaterialTypePort>,
-    ) -> Self {
-        Self { rolls, material_types }
+    pub fn new(rolls: Arc<dyn RollPort>, material_types: Arc<dyn MaterialTypePort>) -> Self {
+        Self {
+            rolls,
+            material_types,
+        }
     }
 
     pub async fn execute(&self) -> Result<f64, AppError> {
@@ -78,11 +78,11 @@ pub struct LowStockCountUseCase {
 }
 
 impl LowStockCountUseCase {
-    pub fn new(
-        rolls: Arc<dyn RollPort>,
-        material_types: Arc<dyn MaterialTypePort>,
-    ) -> Self {
-        Self { rolls, material_types }
+    pub fn new(rolls: Arc<dyn RollPort>, material_types: Arc<dyn MaterialTypePort>) -> Self {
+        Self {
+            rolls,
+            material_types,
+        }
     }
 
     pub async fn execute(&self) -> Result<u64, AppError> {
@@ -158,7 +158,11 @@ impl InventoryGrowthUseCase {
         }
 
         let growth = if last_week == 0 {
-            if this_week > 0 { 100.0 } else { 0.0 }
+            if this_week > 0 {
+                100.0
+            } else {
+                0.0
+            }
         } else {
             (this_week as f64 - last_week as f64) / last_week as f64 * 100.0
         };
@@ -218,10 +222,7 @@ impl RecentRollsUseCase {
         Self { rolls }
     }
 
-    pub async fn execute(
-        &self,
-        limit: u32,
-    ) -> Result<Vec<rf_domain::Roll>, AppError> {
+    pub async fn execute(&self, limit: u32) -> Result<Vec<rf_domain::Roll>, AppError> {
         let bounded = limit.min(200);
         let filters = RollFilters {
             status: Some(RollStatus::Active),
@@ -244,19 +245,13 @@ mod tests {
 
     #[async_trait]
     impl RollPort for FakeRolls {
-        async fn list(
-            &self,
-            _filters: &RollFilters,
-        ) -> Result<Vec<Roll>, AppError> {
+        async fn list(&self, _filters: &RollFilters) -> Result<Vec<Roll>, AppError> {
             Ok(self.0.lock().unwrap().clone())
         }
         async fn get(&self, _: &RollId) -> Result<Option<Roll>, AppError> {
             Ok(None)
         }
-        async fn create(
-            &self,
-            _: &crate::inventory::NewRoll,
-        ) -> Result<Roll, AppError> {
+        async fn create(&self, _: &crate::inventory::NewRoll) -> Result<Roll, AppError> {
             unreachable!()
         }
         async fn update(
@@ -276,10 +271,7 @@ mod tests {
         async fn list(&self) -> Result<Vec<MaterialType>, AppError> {
             Ok(self.0.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            _: &MaterialTypeId,
-        ) -> Result<Option<MaterialType>, AppError> {
+        async fn get(&self, _: &MaterialTypeId) -> Result<Option<MaterialType>, AppError> {
             Ok(None)
         }
         async fn create(
@@ -316,6 +308,12 @@ mod tests {
             remaining_length: len,
             status: RollStatus::Active,
             notes: None,
+            part_number: None,
+            parent_roll_id: None,
+            is_offcut: Some(false),
+            barcode_format: Some("code128".into()),
+            barcode_asset_path: None,
+            barcode_generated_at: None,
             created_at: Some("2026-04-10T12:00:00Z".into()),
             updated_at: None,
         }
@@ -324,7 +322,11 @@ mod tests {
     #[tokio::test]
     async fn inventory_value_uses_roll_cost_first() {
         let rolls = Arc::new(FakeRolls(Mutex::new(vec![roll(
-            "r", "mt", 48.0, 300.0, Some(3.0),
+            "r",
+            "mt",
+            48.0,
+            300.0,
+            Some(3.0),
         )])));
         let mts = Arc::new(FakeMts(Mutex::new(vec![MaterialType {
             id: MaterialTypeId("mt".into()),

@@ -27,8 +27,12 @@ fn project(p: &Polygon, axis: Point2D) -> (f64, f64) {
     let mut max = f64::NEG_INFINITY;
     for pt in p.points() {
         let d = pt.x * axis.x + pt.y * axis.y;
-        if d < min { min = d; }
-        if d > max { max = d; }
+        if d < min {
+            min = d;
+        }
+        if d > max {
+            max = d;
+        }
     }
     (min, max)
 }
@@ -43,22 +47,32 @@ mod tests {
             Point2D::new(ox + size, oy),
             Point2D::new(ox + size, oy + size),
             Point2D::new(ox, oy + size),
-        ]).unwrap()
+        ])
+        .unwrap()
     }
 
     #[test]
     fn overlapping_squares_overlap() {
-        assert!(sat_overlap(&square_at(0.0, 0.0, 10.0), &square_at(5.0, 5.0, 10.0)));
+        assert!(sat_overlap(
+            &square_at(0.0, 0.0, 10.0),
+            &square_at(5.0, 5.0, 10.0)
+        ));
     }
 
     #[test]
     fn disjoint_squares_do_not_overlap() {
-        assert!(!sat_overlap(&square_at(0.0, 0.0, 10.0), &square_at(20.0, 0.0, 10.0)));
+        assert!(!sat_overlap(
+            &square_at(0.0, 0.0, 10.0),
+            &square_at(20.0, 0.0, 10.0)
+        ));
     }
 
     #[test]
     fn touching_squares_do_not_overlap() {
         // Edge-adjacent squares: strict overlap is false
-        assert!(!sat_overlap(&square_at(0.0, 0.0, 10.0), &square_at(10.0, 0.0, 10.0)));
+        assert!(!sat_overlap(
+            &square_at(0.0, 0.0, 10.0),
+            &square_at(10.0, 0.0, 10.0)
+        ));
     }
 }

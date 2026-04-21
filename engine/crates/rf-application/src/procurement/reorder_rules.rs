@@ -51,15 +51,9 @@ pub struct ReorderRuleUpdate {
 pub trait ReorderRulePort: Send + Sync {
     async fn list(&self) -> Result<Vec<ReorderRule>, AppError>;
 
-    async fn get(
-        &self,
-        id: &ReorderRuleId,
-    ) -> Result<Option<ReorderRule>, AppError>;
+    async fn get(&self, id: &ReorderRuleId) -> Result<Option<ReorderRule>, AppError>;
 
-    async fn create(
-        &self,
-        new: &NewReorderRule,
-    ) -> Result<ReorderRule, AppError>;
+    async fn create(&self, new: &NewReorderRule) -> Result<ReorderRule, AppError>;
 
     async fn update(
         &self,
@@ -71,10 +65,7 @@ pub trait ReorderRulePort: Send + Sync {
     /// create-reorder-PO flow in Task 7; kept on the port so the
     /// reorder→PO use case doesn't need a separate rule mutation
     /// surface.
-    async fn touch_triggered_at(
-        &self,
-        id: &ReorderRuleId,
-    ) -> Result<(), AppError>;
+    async fn touch_triggered_at(&self, id: &ReorderRuleId) -> Result<(), AppError>;
 
     async fn delete(&self, id: &ReorderRuleId) -> Result<bool, AppError>;
 }
@@ -129,10 +120,7 @@ impl GetReorderRuleUseCase {
     pub fn new(port: Arc<dyn ReorderRulePort>) -> Self {
         Self { port }
     }
-    pub async fn execute(
-        &self,
-        id: ReorderRuleId,
-    ) -> Result<ReorderRule, AppError> {
+    pub async fn execute(&self, id: ReorderRuleId) -> Result<ReorderRule, AppError> {
         match self.port.get(&id).await? {
             Some(r) => Ok(r),
             None => Err(AppError::NotFound),
@@ -149,10 +137,7 @@ impl CreateReorderRuleUseCase {
     pub fn new(port: Arc<dyn ReorderRulePort>) -> Self {
         Self { port }
     }
-    pub async fn execute(
-        &self,
-        new: NewReorderRule,
-    ) -> Result<ReorderRule, AppError> {
+    pub async fn execute(&self, new: NewReorderRule) -> Result<ReorderRule, AppError> {
         if new.material_type_id.0.trim().is_empty() {
             return Err(AppError::InvalidInput(
                 "material_type_id is required".into(),
@@ -279,10 +264,7 @@ mod tests {
         async fn list(&self) -> Result<Vec<ReorderRule>, AppError> {
             Ok(self.rows.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            id: &ReorderRuleId,
-        ) -> Result<Option<ReorderRule>, AppError> {
+        async fn get(&self, id: &ReorderRuleId) -> Result<Option<ReorderRule>, AppError> {
             Ok(self
                 .rows
                 .lock()
@@ -291,10 +273,7 @@ mod tests {
                 .find(|r| r.id == *id)
                 .cloned())
         }
-        async fn create(
-            &self,
-            new: &NewReorderRule,
-        ) -> Result<ReorderRule, AppError> {
+        async fn create(&self, new: &NewReorderRule) -> Result<ReorderRule, AppError> {
             let r = self.mint(new);
             self.rows.lock().unwrap().push(r.clone());
             Ok(r)
@@ -321,10 +300,7 @@ mod tests {
             }
             Ok(None)
         }
-        async fn touch_triggered_at(
-            &self,
-            id: &ReorderRuleId,
-        ) -> Result<(), AppError> {
+        async fn touch_triggered_at(&self, id: &ReorderRuleId) -> Result<(), AppError> {
             let mut guard = self.rows.lock().unwrap();
             for r in guard.iter_mut() {
                 if r.id == *id {
@@ -429,10 +405,7 @@ mod tests {
     #[tokio::test]
     async fn delete_missing_returns_not_found() {
         let uc = DeleteReorderRuleUseCase::new(Arc::new(FakePort::default()));
-        let err = uc
-            .execute(ReorderRuleId("gone".into()))
-            .await
-            .unwrap_err();
+        let err = uc.execute(ReorderRuleId("gone".into())).await.unwrap_err();
         assert!(matches!(err, AppError::NotFound));
     }
 }

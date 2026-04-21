@@ -62,15 +62,9 @@ pub trait MaterialSupplierPort: Send + Sync {
         filters: &MaterialSupplierFilters,
     ) -> Result<Vec<MaterialSupplier>, AppError>;
 
-    async fn get(
-        &self,
-        id: &MaterialSupplierId,
-    ) -> Result<Option<MaterialSupplier>, AppError>;
+    async fn get(&self, id: &MaterialSupplierId) -> Result<Option<MaterialSupplier>, AppError>;
 
-    async fn create(
-        &self,
-        new: &NewMaterialSupplier,
-    ) -> Result<MaterialSupplier, AppError>;
+    async fn create(&self, new: &NewMaterialSupplier) -> Result<MaterialSupplier, AppError>;
 
     async fn update(
         &self,
@@ -112,10 +106,7 @@ fn validate_lead_time(days: Option<i32>) -> Result<(), AppError> {
     Ok(())
 }
 
-fn validate_date_range(
-    effective: Option<&str>,
-    expiration: Option<&str>,
-) -> Result<(), AppError> {
+fn validate_date_range(effective: Option<&str>, expiration: Option<&str>) -> Result<(), AppError> {
     // The DB has a CHECK (expiration > effective); we pre-validate
     // here so the 400 error has a human message. String comparison is
     // safe for ISO-8601 `YYYY-MM-DD` since each component is
@@ -163,10 +154,7 @@ impl GetMaterialSupplierUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        id: MaterialSupplierId,
-    ) -> Result<MaterialSupplier, AppError> {
+    pub async fn execute(&self, id: MaterialSupplierId) -> Result<MaterialSupplier, AppError> {
         match self.port.get(&id).await? {
             Some(ms) => Ok(ms),
             None => Err(AppError::NotFound),
@@ -184,10 +172,7 @@ impl CreateMaterialSupplierUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        new: NewMaterialSupplier,
-    ) -> Result<MaterialSupplier, AppError> {
+    pub async fn execute(&self, new: NewMaterialSupplier) -> Result<MaterialSupplier, AppError> {
         validate_cost(new.cost_per_sqft)?;
         validate_non_negative(new.minimum_order_sqft, "minimum_order_sqft")?;
         validate_lead_time(new.lead_time_days)?;
@@ -280,10 +265,7 @@ mod tests {
         ) -> Result<Vec<MaterialSupplier>, AppError> {
             Ok(self.rows.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            id: &MaterialSupplierId,
-        ) -> Result<Option<MaterialSupplier>, AppError> {
+        async fn get(&self, id: &MaterialSupplierId) -> Result<Option<MaterialSupplier>, AppError> {
             Ok(self
                 .rows
                 .lock()
@@ -292,10 +274,7 @@ mod tests {
                 .find(|r| r.id == *id)
                 .cloned())
         }
-        async fn create(
-            &self,
-            new: &NewMaterialSupplier,
-        ) -> Result<MaterialSupplier, AppError> {
+        async fn create(&self, new: &NewMaterialSupplier) -> Result<MaterialSupplier, AppError> {
             if *self.duplicate.lock().unwrap() {
                 return Err(AppError::conflict("DUPLICATE_PAIR"));
             }
@@ -333,10 +312,7 @@ mod tests {
                 .find(|r| r.id == *id)
                 .cloned())
         }
-        async fn delete(
-            &self,
-            id: &MaterialSupplierId,
-        ) -> Result<bool, AppError> {
+        async fn delete(&self, id: &MaterialSupplierId) -> Result<bool, AppError> {
             let mut g = self.rows.lock().unwrap();
             let len = g.len();
             g.retain(|r| r.id != *id);

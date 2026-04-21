@@ -36,14 +36,14 @@
 //      `(snapshot, ct_snapshot)` unconditionally -- downstream Task 6
 //      explore.rs branches on this distinction.
 
-use super::sampling::{SampleConfig, search_placement};
+use super::sampling::{search_placement, SampleConfig};
 use super::sep_evaluator::SeparationEvaluator;
 use super::tracker::{CTSnapshot, CollisionTracker};
 use itertools::Itertools;
 use jagua_rs::entities::{Instance, Layout, LayoutSnapshot, PItemKey};
 use jagua_rs::geometry::DTransformation;
 use jagua_rs::probs::bpp::entities::BPInstance;
-use log::{Level, debug, log};
+use log::{debug, log, Level};
 use ordered_float::OrderedFloat;
 use rand::prelude::SliceRandom;
 use rand::{RngExt, SeedableRng};
@@ -561,11 +561,7 @@ mod tests {
         (instance, layout)
     }
 
-    fn build_separator(
-        instance: BPInstance,
-        layout: Layout,
-        config: SeparatorConfig,
-    ) -> Separator {
+    fn build_separator(instance: BPInstance, layout: Layout, config: SeparatorConfig) -> Separator {
         let rng = Xoshiro256PlusPlus::seed_from_u64(SEED);
         Separator::new(instance, layout, rng, config)
     }

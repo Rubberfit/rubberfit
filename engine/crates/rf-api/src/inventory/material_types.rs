@@ -19,8 +19,7 @@ use axum::Json;
 use rf_application::error::AppError;
 use rf_application::inventory::{
     CreateMaterialTypeUseCase, DeleteMaterialTypeUseCase, GetMaterialTypeUseCase,
-    ListMaterialTypesUseCase, MaterialTypeUpdate, NewMaterialType,
-    UpdateMaterialTypeUseCase,
+    ListMaterialTypesUseCase, MaterialTypeUpdate, NewMaterialType, UpdateMaterialTypeUseCase,
 };
 use rf_domain::{MaterialType, MaterialTypeId};
 use serde::{Deserialize, Serialize};

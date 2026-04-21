@@ -70,7 +70,10 @@ fn assignment_from_state(
         .map(|(i, counts)| {
             let final_items = materialize_parts(counts, items);
             if final_items.is_empty() {
-                Ok(SeedResult { placements: vec![], overflow: 0 })
+                Ok(SeedResult {
+                    placements: vec![],
+                    overflow: 0,
+                })
             } else {
                 greedy_bottom_left(&bins[i], &final_items, clearance)
             }
@@ -84,7 +87,10 @@ fn assignment_from_state(
         .collect();
     overflow_rows.sort_by(|a, b| a.0.cmp(&b.0));
 
-    Ok(FfdAssignment { per_bin, overflow: overflow_rows })
+    Ok(FfdAssignment {
+        per_bin,
+        overflow: overflow_rows,
+    })
 }
 
 /// Extract `(AssignmentState, OverflowState)` from an existing
@@ -312,7 +318,9 @@ pub fn swap_two(
         Some((_, new_state)) => {
             #[cfg(debug_assertions)]
             assert_per_shape_conservation(&new_state, &overflow, items);
-            Ok(Some(assignment_from_state(&new_state, &overflow, bins, items, clearance)?))
+            Ok(Some(assignment_from_state(
+                &new_state, &overflow, bins, items, clearance,
+            )?))
         }
         None => Ok(None),
     }
@@ -383,7 +391,9 @@ pub fn migrate(
         if after > before {
             #[cfg(debug_assertions)]
             assert_per_shape_conservation(&trial, &overflow, items);
-            return Ok(Some(assignment_from_state(&trial, &overflow, bins, items, clearance)?));
+            return Ok(Some(assignment_from_state(
+                &trial, &overflow, bins, items, clearance,
+            )?));
         }
     }
 
@@ -501,7 +511,9 @@ pub fn unload_lightest_bin(
     if after > before {
         #[cfg(debug_assertions)]
         assert_per_shape_conservation(&shadow, &overflow, items);
-        Ok(Some(assignment_from_state(&shadow, &overflow, bins, items, clearance)?))
+        Ok(Some(assignment_from_state(
+            &shadow, &overflow, bins, items, clearance,
+        )?))
     } else {
         Ok(None)
     }
@@ -552,9 +564,7 @@ pub fn consolidate_tail_bin(
     items: &[Part],
     clearance: f64,
 ) -> OpResult {
-    use crate::infrastructure::warm_start::{
-        greedy_rectangle_pack_with_strategy, PackerStrategy,
-    };
+    use crate::infrastructure::warm_start::{greedy_rectangle_pack_with_strategy, PackerStrategy};
 
     // K_MAX bumped from Codex's initial 6 → 12. Bench showed K=1 was
     // the best commit in the narrow variant because the BSSF receiver
@@ -639,7 +649,10 @@ pub fn consolidate_tail_bin(
     // `concentration` is the existing lex score's second term.
     let baseline_tail = tail_free[source_idx];
     let baseline_conc = score_state(&state, bins, &areas).1;
-    let baseline_closed = state.iter().filter(|c| c.is_empty() || c.values().all(|q| *q == 0)).count() as u32;
+    let baseline_closed = state
+        .iter()
+        .filter(|c| c.is_empty() || c.values().all(|q| *q == 0))
+        .count() as u32;
 
     let mut best_shadow: Option<AssignmentState> = None;
     let mut best_tail: f64 = baseline_tail;
@@ -738,8 +751,10 @@ pub fn consolidate_tail_bin(
                 .map(|p| p.y + p.height)
                 .fold(0.0_f64, f64::max);
         let shadow_conc = score_state(&shadow, bins, &areas).1;
-        let shadow_closed =
-            shadow.iter().filter(|c| c.values().all(|q| *q == 0)).count() as u32;
+        let shadow_closed = shadow
+            .iter()
+            .filter(|c| c.values().all(|q| *q == 0))
+            .count() as u32;
 
         // Lex acceptance: closed_bins > best_closed, else tail > best_tail + eps,
         // else tail ~= best_tail and conc > best_conc.
@@ -775,8 +790,8 @@ pub fn consolidate_tail_bin(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::ffd::ffd_assign;
+    use super::*;
     use crate::domain::{Bin, BinKind, Part};
     use rf_geom::domain::Point2D;
 
@@ -834,7 +849,10 @@ mod tests {
         // A has one 10x10, B has one 25x25. Swap would put 25x25 on A
         // (20x20 bin) → infeasible.
         let bins_spec = vec![bin("A", 20.0, 20.0), bin("B", 30.0, 30.0)];
-        let items = vec![rect_part("small", 1, 10.0, 10.0), rect_part("big", 1, 25.0, 25.0)];
+        let items = vec![
+            rect_part("small", 1, 10.0, 10.0),
+            rect_part("big", 1, 25.0, 25.0),
+        ];
         let (asn, bs, it) = assignment_with(bins_spec, items);
         let out = swap_two(&asn, 0, 1, &bs, &it, 0.0).unwrap();
         assert!(out.is_none(), "infeasible swap must return None");
@@ -872,7 +890,12 @@ mod tests {
             Some(a) => a
                 .per_bin
                 .iter()
-                .map(|b| b.placements.iter().map(|p| p.shape_id.clone()).collect::<Vec<_>>())
+                .map(|b| {
+                    b.placements
+                        .iter()
+                        .map(|p| p.shape_id.clone())
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>(),
             None => vec![],
         };
@@ -931,15 +954,24 @@ mod tests {
         let bins_spec = vec![bin("A", 15.0, 15.0), bin("B", 30.0, 30.0)];
         let items = vec![rect_part("s", 3, 5.0, 5.0)];
         let (asn, bs, it) = assignment_with(bins_spec, items);
-        let before_placed: u32 =
-            asn.per_bin.iter().map(|b| b.placements.len() as u32).sum::<u32>()
-                + asn.overflow.iter().map(|(_, n)| *n).sum::<u32>();
+        let before_placed: u32 = asn
+            .per_bin
+            .iter()
+            .map(|b| b.placements.len() as u32)
+            .sum::<u32>()
+            + asn.overflow.iter().map(|(_, n)| *n).sum::<u32>();
         let out = migrate(&asn, 0, 1, None, &bs, &it, 0.0).unwrap();
         if let Some(new) = out {
-            let after_placed: u32 =
-                new.per_bin.iter().map(|b| b.placements.len() as u32).sum::<u32>()
-                    + new.overflow.iter().map(|(_, n)| *n).sum::<u32>();
-            assert_eq!(before_placed, after_placed, "migrate leaked or duplicated items");
+            let after_placed: u32 = new
+                .per_bin
+                .iter()
+                .map(|b| b.placements.len() as u32)
+                .sum::<u32>()
+                + new.overflow.iter().map(|(_, n)| *n).sum::<u32>();
+            assert_eq!(
+                before_placed, after_placed,
+                "migrate leaked or duplicated items"
+            );
         }
     }
 
@@ -961,7 +993,11 @@ mod tests {
         let out = unload_lightest_bin(&asn, &bs, &it, 0.0).unwrap();
         let new = out.expect("lightest bin should unload");
         assert_eq!(new.per_bin[0].placements.len(), 0, "A should be empty");
-        assert_eq!(new.per_bin[1].placements.len(), 2, "B should have both items");
+        assert_eq!(
+            new.per_bin[1].placements.len(),
+            2,
+            "B should have both items"
+        );
     }
 
     #[test]
@@ -981,12 +1017,18 @@ mod tests {
         // never Err. And any Some result preserves cardinality.
         let out = unload_lightest_bin(&asn, &bs, &it, 0.0).unwrap();
         if let Some(new) = out {
-            let before_n: u32 =
-                asn.per_bin.iter().map(|b| b.placements.len() as u32).sum::<u32>()
-                    + asn.overflow.iter().map(|(_, n)| *n).sum::<u32>();
-            let after_n: u32 =
-                new.per_bin.iter().map(|b| b.placements.len() as u32).sum::<u32>()
-                    + new.overflow.iter().map(|(_, n)| *n).sum::<u32>();
+            let before_n: u32 = asn
+                .per_bin
+                .iter()
+                .map(|b| b.placements.len() as u32)
+                .sum::<u32>()
+                + asn.overflow.iter().map(|(_, n)| *n).sum::<u32>();
+            let after_n: u32 = new
+                .per_bin
+                .iter()
+                .map(|b| b.placements.len() as u32)
+                .sum::<u32>()
+                + new.overflow.iter().map(|(_, n)| *n).sum::<u32>();
             assert_eq!(before_n, after_n);
         }
     }
@@ -1017,7 +1059,12 @@ mod tests {
             Some(a) => a
                 .per_bin
                 .iter()
-                .map(|b| b.placements.iter().map(|p| (p.shape_id.clone(), p.bin_id.clone())).collect::<Vec<_>>())
+                .map(|b| {
+                    b.placements
+                        .iter()
+                        .map(|p| (p.shape_id.clone(), p.bin_id.clone()))
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>(),
             None => vec![],
         };
@@ -1042,8 +1089,11 @@ mod tests {
         .iter()
         .flatten()
         {
-            let placed: u32 =
-                op_result.per_bin.iter().map(|b| b.placements.len() as u32).sum();
+            let placed: u32 = op_result
+                .per_bin
+                .iter()
+                .map(|b| b.placements.len() as u32)
+                .sum();
             let spilled: u32 = op_result.overflow.iter().map(|(_, n)| *n).sum();
             assert_eq!(placed + spilled, total_requested, "conservation violated");
         }

@@ -144,11 +144,7 @@ impl RollPort for SupabaseRollRepository {
         }
     }
 
-    async fn update(
-        &self,
-        id: &RollId,
-        patch: &RollUpdate,
-    ) -> Result<Option<Roll>, AppError> {
+    async fn update(&self, id: &RollId, patch: &RollUpdate) -> Result<Option<Roll>, AppError> {
         let mut body = Map::new();
         if let Some(v) = patch.material_type_id.clone() {
             body.insert(
@@ -175,10 +171,7 @@ impl RollPort for SupabaseRollRepository {
             }
         }
         if let Some(v) = patch.color.clone() {
-            body.insert(
-                "color".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("color".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
         if let Some(v) = patch.location.clone() {
             body.insert(
@@ -215,10 +208,7 @@ impl RollPort for SupabaseRollRepository {
             body.insert("status".into(), Value::String(status_str(s).into()));
         }
         if let Some(v) = patch.notes.clone() {
-            body.insert(
-                "notes".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("notes".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
 
         if body.is_empty() {

@@ -36,11 +36,11 @@
 // BasicTerminator is only polled at outer strike loop, so the ceiling
 // accounts for a single strike cycle).
 
+use rf_geom::domain::Point2D;
 use rf_layout::application::pack;
 use rf_layout::domain::{Bin, BinKind, PackMode, PackRequest, Part};
-use rf_layout::infrastructure::warm_start::SeedResult;
 use rf_layout::infrastructure::search::{optimize, OptimizerConfig};
-use rf_geom::domain::Point2D;
+use rf_layout::infrastructure::warm_start::SeedResult;
 use std::time::Instant;
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,10 @@ fn fixtures() -> Vec<Fixture> {
         Fixture {
             name: "two_different_rects",
             bin: bin("b", 48.0, 96.0),
-            parts: vec![rect_part("small", 2, 10.0, 5.0), rect_part("big", 1, 24.0, 20.0)],
+            parts: vec![
+                rect_part("small", 2, 10.0, 5.0),
+                rect_part("big", 1, 24.0, 20.0),
+            ],
         },
         Fixture {
             name: "tight_fit_two_squares",
@@ -143,10 +146,9 @@ fn fixtures() -> Vec<Fixture> {
 // ---------------------------------------------------------------------------
 
 fn warm_start_and_optimize(f: &Fixture, seed: u64) -> (SeedResult, SeedResult) {
-    let ws_seed = rf_layout::infrastructure::warm_start::greedy_bottom_left(
-        &f.bin, &f.parts, 0.125,
-    )
-    .unwrap_or_else(|e| panic!("warm_start failed on {}: {:?}", f.name, e));
+    let ws_seed =
+        rf_layout::infrastructure::warm_start::greedy_bottom_left(&f.bin, &f.parts, 0.125)
+            .unwrap_or_else(|e| panic!("warm_start failed on {}: {:?}", f.name, e));
 
     let cfg = OptimizerConfig {
         time_budget_ms: 500,
@@ -166,7 +168,12 @@ fn warm_start_and_optimize(f: &Fixture, seed: u64) -> (SeedResult, SeedResult) {
 
 fn bbox_of(poly: &[Point2D]) -> (f64, f64, f64, f64) {
     poly.iter().fold(
-        (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        (
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ),
         |(mnx, mny, mxx, mxy), p| (mnx.min(p.x), mny.min(p.y), mxx.max(p.x), mxy.max(p.y)),
     )
 }
@@ -388,8 +395,7 @@ fn timing_fast_mode_under_ceiling() {
             items: f.parts.clone(),
             ..req_base()
         };
-        let _ = pack(req)
-            .unwrap_or_else(|e| panic!("pack failed on {}: {:?}", f.name, e));
+        let _ = pack(req).unwrap_or_else(|e| panic!("pack failed on {}: {:?}", f.name, e));
     }
     let elapsed = start.elapsed();
     assert!(

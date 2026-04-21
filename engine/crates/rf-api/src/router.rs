@@ -65,8 +65,7 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         .route("/cuts/favorites", get(cuts::list_favorites))
         .route(
             "/inventory/material-types",
-            get(inventory::list_material_types)
-                .post(inventory::create_material_type),
+            get(inventory::list_material_types).post(inventory::create_material_type),
         )
         .route(
             "/inventory/material-types/{id}",
@@ -86,8 +85,7 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         )
         .route(
             "/inventory/material-suppliers",
-            get(inventory::list_material_suppliers)
-                .post(inventory::create_material_supplier),
+            get(inventory::list_material_suppliers).post(inventory::create_material_supplier),
         )
         .route(
             "/inventory/material-suppliers/{id}",
@@ -131,8 +129,7 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         .route("/po/tax/preview", get(procurement::tax_preview))
         .route(
             "/po",
-            get(procurement::list_purchase_orders)
-                .post(procurement::create_purchase_order),
+            get(procurement::list_purchase_orders).post(procurement::create_purchase_order),
         )
         .route(
             "/po/{id}",
@@ -166,8 +163,7 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         )
         .route(
             "/reorder-rules",
-            get(procurement::list_reorder_rules)
-                .post(procurement::create_reorder_rule),
+            get(procurement::list_reorder_rules).post(procurement::create_reorder_rule),
         )
         .route(
             "/reorder-rules/{id}",
@@ -198,10 +194,12 @@ pub fn build_router_with_state(cfg: &ServerConfig, state: Arc<AppState>) -> Rout
         )
         .route(
             "/po/{po_id}/items/{item_id}",
-            axum::routing::put(procurement::update_po_item)
-                .delete(procurement::delete_po_item),
+            axum::routing::put(procurement::update_po_item).delete(procurement::delete_po_item),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), jwt_middleware))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            jwt_middleware,
+        ))
         .with_state(state);
 
     let public = build_public_router();
@@ -218,9 +216,7 @@ pub fn build_public_router() -> Router {
         .route("/openapi.json", get(openapi::openapi_json))
 }
 
-async fn whoami_placeholder(
-    request: axum::extract::Request,
-) -> axum::Json<serde_json::Value> {
+async fn whoami_placeholder(request: axum::extract::Request) -> axum::Json<serde_json::Value> {
     // Handlers use `crate::require_auth` to reach the AuthContext;
     // this route exists so the test suite can confirm the middleware
     // forwards a valid JWT's claims into the request extensions.
@@ -246,7 +242,10 @@ fn apply_middleware(router: Router, cfg: &ServerConfig) -> Router {
     // response path.
     let request_id_header = http::HeaderName::from_static(REQUEST_ID_HEADER);
     let middleware = ServiceBuilder::new()
-        .layer(SetRequestIdLayer::new(request_id_header.clone(), UuidRequestId))
+        .layer(SetRequestIdLayer::new(
+            request_id_header.clone(),
+            UuidRequestId,
+        ))
         .layer(PropagateRequestIdLayer::new(request_id_header))
         .layer(TraceLayer::new_for_http());
 

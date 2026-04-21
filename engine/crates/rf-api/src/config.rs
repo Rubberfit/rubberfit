@@ -52,9 +52,13 @@ impl ServerConfig {
         F: Fn(&str) -> Option<String>,
     {
         let bind_str = lookup("RF_API_BIND").unwrap_or_else(|| "127.0.0.1:8080".to_string());
-        let bind_addr = bind_str
-            .parse::<SocketAddr>()
-            .map_err(|source| ConfigError::InvalidBind { value: bind_str, source })?;
+        let bind_addr =
+            bind_str
+                .parse::<SocketAddr>()
+                .map_err(|source| ConfigError::InvalidBind {
+                    value: bind_str,
+                    source,
+                })?;
 
         let timeout_ms = lookup("RF_API_TIMEOUT_MS")
             .map(|v| v.parse::<u64>())
@@ -130,11 +134,8 @@ mod tests {
 
     #[test]
     fn invalid_timeout_errors() {
-        let err = ServerConfig::from_lookup(lookup_from(&[(
-            "RF_API_TIMEOUT_MS",
-            "not-a-number",
-        )]))
-        .expect_err("should reject non-numeric timeout");
+        let err = ServerConfig::from_lookup(lookup_from(&[("RF_API_TIMEOUT_MS", "not-a-number")]))
+            .expect_err("should reject non-numeric timeout");
         assert!(matches!(err, ConfigError::InvalidTimeout(_)));
     }
 
@@ -147,7 +148,10 @@ mod tests {
         .unwrap();
         match cfg.cors_mode {
             CorsMode::AllowList(origins) => {
-                assert_eq!(origins, vec!["https://rema.app", "https://staging.rema.app"]);
+                assert_eq!(
+                    origins,
+                    vec!["https://rema.app", "https://staging.rema.app"]
+                );
             }
             other => panic!("expected AllowList, got {other:?}"),
         }
@@ -161,8 +165,7 @@ mod tests {
 
     #[test]
     fn cors_whitespace_only_list_falls_back_to_permissive() {
-        let cfg =
-            ServerConfig::from_lookup(lookup_from(&[("RF_API_CORS", "  ,  ,  ")])).unwrap();
+        let cfg = ServerConfig::from_lookup(lookup_from(&[("RF_API_CORS", "  ,  ,  ")])).unwrap();
         assert_eq!(cfg.cors_mode, CorsMode::Permissive);
     }
 

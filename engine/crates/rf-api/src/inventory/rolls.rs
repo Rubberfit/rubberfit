@@ -20,8 +20,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    CreateRollUseCase, DeleteRollUseCase, GetMaterialTypeUseCase, GetRollUseCase,
-    ListRollsUseCase, NewRoll, RollUpdate, UpdateRollUseCase,
+    CreateRollUseCase, DeleteRollUseCase, GetMaterialTypeUseCase, GetRollUseCase, ListRollsUseCase,
+    NewRoll, RollUpdate, UpdateRollUseCase,
 };
 use rf_domain::{MaterialTypeId, Roll, RollFilters, RollId, RollStatus};
 use serde::{Deserialize, Serialize};
@@ -54,6 +54,18 @@ pub struct RollDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub part_number: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_roll_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_offcut: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barcode_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barcode_asset_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub barcode_generated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
@@ -84,6 +96,12 @@ impl From<Roll> for RollDto {
             remaining_length: r.remaining_length,
             status: status_to_str(r.status).to_string(),
             notes: r.notes,
+            part_number: r.part_number,
+            parent_roll_id: r.parent_roll_id.map(|id| id.0),
+            is_offcut: r.is_offcut,
+            barcode_format: r.barcode_format,
+            barcode_asset_path: r.barcode_asset_path,
+            barcode_generated_at: r.barcode_generated_at,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -201,7 +219,10 @@ async fn lookup_material_type_name(
         .material_types(auth)
         .map_err(ApiError::App)?;
     let uc = GetMaterialTypeUseCase::new(port);
-    match uc.execute(MaterialTypeId(material_type_id.to_string())).await {
+    match uc
+        .execute(MaterialTypeId(material_type_id.to_string()))
+        .await
+    {
         Ok(mt) => Ok(mt.name),
         Err(AppError::NotFound) => Err(ApiError::App(AppError::InvalidInput(format!(
             "unknown material_type_id {material_type_id:?}"
@@ -386,10 +407,7 @@ pub async fn update_roll(
         .rolls(&auth)
         .map_err(ApiError::App)?;
     let uc = UpdateRollUseCase::new(port);
-    let r = uc
-        .execute(RollId(id), patch)
-        .await
-        .map_err(ApiError::App)?;
+    let r = uc.execute(RollId(id), patch).await.map_err(ApiError::App)?;
     Ok(Json(r.into()))
 }
 

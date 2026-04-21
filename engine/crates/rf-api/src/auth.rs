@@ -16,24 +16,20 @@ use jsonwebtoken::{decode, decode_header, Algorithm, Validation};
 
 use rf_application::cuts::CutHistoryPort;
 use rf_application::error::AppError;
-use rf_application::inventory::{
-    MaterialSupplierPort, MaterialTypePort, RollPort, SupplierPort,
-};
+use rf_application::inventory::{MaterialSupplierPort, MaterialTypePort, RollPort, SupplierPort};
 use rf_application::notifications::NotificationPort;
 use rf_application::procurement::{
-    CreateReorderPoPort, CsvImportPort, PurchaseOrderItemPort, PurchaseOrderPort,
-    ReceivePort, ReorderRulePort, SuggestionReadsPort,
+    CreateReorderPoPort, CsvImportPort, PurchaseOrderItemPort, PurchaseOrderPort, ReceivePort,
+    ReorderRulePort, SuggestionReadsPort,
 };
 use rf_application::tax::TaxPort;
 use rf_supabase::{
-    HttpTaxProxy, PostgrestClient, PostgrestError,
-    SupabaseCreateReorderPoRepository, SupabaseCsvImportRepository,
-    SupabaseCutHistoryRepository, SupabaseMaterialSupplierRepository,
+    HttpTaxProxy, PostgrestClient, PostgrestError, SupabaseCreateReorderPoRepository,
+    SupabaseCsvImportRepository, SupabaseCutHistoryRepository, SupabaseMaterialSupplierRepository,
     SupabaseMaterialTypeRepository, SupabaseNotificationRepository,
     SupabasePurchaseOrderItemRepository, SupabasePurchaseOrderRepository,
-    SupabaseReceiveRepository, SupabaseReorderRuleRepository,
-    SupabaseRollRepository, SupabaseSuggestionReads,
-    SupabaseSupplierRepository,
+    SupabaseReceiveRepository, SupabaseReorderRuleRepository, SupabaseRollRepository,
+    SupabaseSuggestionReads, SupabaseSupplierRepository,
 };
 
 use crate::jwks::{JwksCache, JwksError, SupabaseClaims};
@@ -54,25 +50,16 @@ pub trait CutHistoryPortFactory: Send + Sync {
 /// Tests inject a fake that returns in-memory ports; the
 /// production impl is [`SupabaseInventoryFactory`].
 pub trait InventoryPortFactory: Send + Sync {
-    fn material_types(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError>;
+    fn material_types(&self, auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError>;
 
-    fn suppliers(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError>;
+    fn suppliers(&self, auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError>;
 
     fn material_suppliers(
         &self,
         auth: &AuthContext,
     ) -> Result<Arc<dyn MaterialSupplierPort>, AppError>;
 
-    fn rolls(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError>;
+    fn rolls(&self, auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError>;
 }
 
 /// Factory for procurement ports (S3c). Grouping PurchaseOrder +
@@ -83,49 +70,31 @@ pub trait InventoryPortFactory: Send + Sync {
 /// Each call builds a fresh PostgrestClient scoped to the caller's
 /// JWT so RLS stays per-request.
 pub trait ProcurementPortFactory: Send + Sync {
-    fn purchase_orders(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn PurchaseOrderPort>, AppError>;
+    fn purchase_orders(&self, auth: &AuthContext) -> Result<Arc<dyn PurchaseOrderPort>, AppError>;
 
-    fn po_items(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError>;
+    fn po_items(&self, auth: &AuthContext) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError>;
 
     /// Notification side-effect sink. Status-transition (approve),
     /// receive, and reorder→PO use cases call through this. Mirrors
     /// the TS service's notification-on-approve / notification-on-
     /// receive / notification-on-manual-reorder side effects ported
     /// in S3c.
-    fn notifications(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn NotificationPort>, AppError>;
+    fn notifications(&self, auth: &AuthContext) -> Result<Arc<dyn NotificationPort>, AppError>;
 
     /// Tax proxy. S3c keeps the TS tax service as source of truth
     /// and proxies calculation requests over HTTP (S3c Task 4).
     /// Returns `Infrastructure` if `TAX_PROXY_BASE` isn't configured
     /// — operators see a clear startup-config error instead of a
     /// mysterious 500 on the first tax preview call.
-    fn tax(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn TaxPort>, AppError>;
+    fn tax(&self, auth: &AuthContext) -> Result<Arc<dyn TaxPort>, AppError>;
 
     /// Receive-flow RPC client (S3c Task 5). The
     /// `receive_purchase_order` Postgres function owns the
     /// transaction; this port is a thin forwarder.
-    fn receive(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn ReceivePort>, AppError>;
+    fn receive(&self, auth: &AuthContext) -> Result<Arc<dyn ReceivePort>, AppError>;
 
     /// Reorder-rule CRUD (S3c Task 6).
-    fn reorder_rules(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn ReorderRulePort>, AppError>;
+    fn reorder_rules(&self, auth: &AuthContext) -> Result<Arc<dyn ReorderRulePort>, AppError>;
 
     /// Read-side port for the reorder-suggestion generator
     /// (S3c Task 6). Spans `rolls`, `cuts`,
@@ -149,10 +118,7 @@ pub trait ProcurementPortFactory: Send + Sync {
     /// material_types by name (auto-creating missing ones) and
     /// batch-inserts rolls with a per-row fallback on CHECK
     /// violations.
-    fn csv_import(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn CsvImportPort>, AppError>;
+    fn csv_import(&self, auth: &AuthContext) -> Result<Arc<dyn CsvImportPort>, AppError>;
 }
 
 /// Production factory — builds a request-scoped PostgrestClient and
@@ -186,10 +152,7 @@ pub struct SupabaseInventoryFactory {
 }
 
 impl InventoryPortFactory for SupabaseInventoryFactory {
-    fn material_types(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+    fn material_types(&self, auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -198,10 +161,7 @@ impl InventoryPortFactory for SupabaseInventoryFactory {
         Ok(Arc::new(SupabaseMaterialTypeRepository::new(client)))
     }
 
-    fn suppliers(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+    fn suppliers(&self, auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -222,10 +182,7 @@ impl InventoryPortFactory for SupabaseInventoryFactory {
         Ok(Arc::new(SupabaseMaterialSupplierRepository::new(client)))
     }
 
-    fn rolls(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError> {
+    fn rolls(&self, auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -249,10 +206,7 @@ pub struct SupabaseProcurementFactory {
 }
 
 impl ProcurementPortFactory for SupabaseProcurementFactory {
-    fn purchase_orders(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn PurchaseOrderPort>, AppError> {
+    fn purchase_orders(&self, auth: &AuthContext) -> Result<Arc<dyn PurchaseOrderPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -261,10 +215,7 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         Ok(Arc::new(SupabasePurchaseOrderRepository::new(client)))
     }
 
-    fn po_items(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError> {
+    fn po_items(&self, auth: &AuthContext) -> Result<Arc<dyn PurchaseOrderItemPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -273,10 +224,7 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         Ok(Arc::new(SupabasePurchaseOrderItemRepository::new(client)))
     }
 
-    fn notifications(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn NotificationPort>, AppError> {
+    fn notifications(&self, auth: &AuthContext) -> Result<Arc<dyn NotificationPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -285,24 +233,17 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         Ok(Arc::new(SupabaseNotificationRepository::new(client)))
     }
 
-    fn tax(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn TaxPort>, AppError> {
+    fn tax(&self, auth: &AuthContext) -> Result<Arc<dyn TaxPort>, AppError> {
         let base = self.tax_proxy_base.as_deref().ok_or_else(|| {
             AppError::Infrastructure(
-                "TAX_PROXY_BASE is not configured; tax preview unavailable"
-                    .into(),
+                "TAX_PROXY_BASE is not configured; tax preview unavailable".into(),
             )
         })?;
         let proxy = HttpTaxProxy::new(base.to_string(), auth.raw_jwt.clone())?;
         Ok(Arc::new(proxy))
     }
 
-    fn receive(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn ReceivePort>, AppError> {
+    fn receive(&self, auth: &AuthContext) -> Result<Arc<dyn ReceivePort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -311,10 +252,7 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         Ok(Arc::new(SupabaseReceiveRepository::new(client)))
     }
 
-    fn reorder_rules(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn ReorderRulePort>, AppError> {
+    fn reorder_rules(&self, auth: &AuthContext) -> Result<Arc<dyn ReorderRulePort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -347,10 +285,7 @@ impl ProcurementPortFactory for SupabaseProcurementFactory {
         Ok(Arc::new(SupabaseCreateReorderPoRepository::new(client)))
     }
 
-    fn csv_import(
-        &self,
-        auth: &AuthContext,
-    ) -> Result<Arc<dyn CsvImportPort>, AppError> {
+    fn csv_import(&self, auth: &AuthContext) -> Result<Arc<dyn CsvImportPort>, AppError> {
         let client = build_client(
             self.supabase_url.as_ref(),
             self.publishable_key.as_ref(),
@@ -365,8 +300,7 @@ fn build_client(
     publishable_key: &str,
     user_jwt: &str,
 ) -> Result<PostgrestClient, AppError> {
-    PostgrestClient::new(supabase_url, publishable_key, user_jwt)
-        .map_err(AppError::infrastructure)
+    PostgrestClient::new(supabase_url, publishable_key, user_jwt).map_err(AppError::infrastructure)
 }
 
 /// Shared HTTP-layer state — passed into the auth middleware via
@@ -424,11 +358,10 @@ impl AppState {
                 supabase_url: Arc::from(base.clone()),
                 publishable_key: Arc::from(key.clone()),
             });
-        let inventory_factory: Arc<dyn InventoryPortFactory> =
-            Arc::new(SupabaseInventoryFactory {
-                supabase_url: Arc::from(base.clone()),
-                publishable_key: Arc::from(key.clone()),
-            });
+        let inventory_factory: Arc<dyn InventoryPortFactory> = Arc::new(SupabaseInventoryFactory {
+            supabase_url: Arc::from(base.clone()),
+            publishable_key: Arc::from(key.clone()),
+        });
         let procurement_factory: Arc<dyn ProcurementPortFactory> =
             Arc::new(SupabaseProcurementFactory {
                 supabase_url: Arc::from(base.clone()),
@@ -481,11 +414,10 @@ impl AppState {
     ) -> Self {
         let base = supabase_url.into();
         let key = supabase_publishable_key.into();
-        let inventory_factory: Arc<dyn InventoryPortFactory> =
-            Arc::new(SupabaseInventoryFactory {
-                supabase_url: Arc::from(base.clone()),
-                publishable_key: Arc::from(key.clone()),
-            });
+        let inventory_factory: Arc<dyn InventoryPortFactory> = Arc::new(SupabaseInventoryFactory {
+            supabase_url: Arc::from(base.clone()),
+            publishable_key: Arc::from(key.clone()),
+        });
         let procurement_factory: Arc<dyn ProcurementPortFactory> =
             Arc::new(SupabaseProcurementFactory {
                 supabase_url: Arc::from(base.clone()),
@@ -599,12 +531,11 @@ async fn verify(state: &AppState, token: &str) -> Result<SupabaseClaims, AuthErr
     // across session types (authenticated vs anon mobile clients).
     validation.validate_aud = false;
 
-    let data = decode::<SupabaseClaims>(token, &key, &validation)
-        .map_err(|e| match e.kind() {
-            jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::Expired,
-            jsonwebtoken::errors::ErrorKind::InvalidIssuer => AuthError::WrongIssuer,
-            _ => AuthError::Invalid,
-        })?;
+    let data = decode::<SupabaseClaims>(token, &key, &validation).map_err(|e| match e.kind() {
+        jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::Expired,
+        jsonwebtoken::errors::ErrorKind::InvalidIssuer => AuthError::WrongIssuer,
+        _ => AuthError::Invalid,
+    })?;
     Ok(data.claims)
 }
 

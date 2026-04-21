@@ -21,8 +21,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::procurement::{
-    CreateReorderPurchaseOrderUseCase, ReorderPoItem, ReorderPoMode,
-    ReorderPoReceipt,
+    CreateReorderPurchaseOrderUseCase, ReorderPoItem, ReorderPoMode, ReorderPoReceipt,
 };
 use rf_domain::{ReorderRuleId, SupplierId};
 use serde::{Deserialize, Serialize};
@@ -309,12 +308,8 @@ async fn run_use_case(
         .procurement_factory
         .notifications(auth)
         .map_err(ApiError::App)?;
-    let use_case = CreateReorderPurchaseOrderUseCase::new(
-        rpc_port,
-        po_port,
-        rule_port,
-        notifications,
-    );
+    let use_case =
+        CreateReorderPurchaseOrderUseCase::new(rpc_port, po_port, rule_port, notifications);
     use_case
         .execute(mode, rule_ids, supplier_id, items, actor)
         .await

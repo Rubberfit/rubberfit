@@ -19,10 +19,10 @@
 //! the caller layer, matching how `SUPABASE_URL` is handled.
 
 use async_trait::async_trait;
+use reqwest::{Client, StatusCode, Url};
 use rf_application::error::AppError;
 use rf_application::tax::{TaxCalculation, TaxPort};
 use rf_domain::SupplierId;
-use reqwest::{Client, StatusCode, Url};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -56,10 +56,7 @@ impl HttpTaxProxy {
     /// via the path literal. `user_jwt` is the bearer token the
     /// auth middleware accepted upstream — we forward it verbatim
     /// to the TS route so the user-facing auth story is unchanged.
-    pub fn new(
-        base_url: impl Into<String>,
-        user_jwt: impl Into<String>,
-    ) -> Result<Self, AppError> {
+    pub fn new(base_url: impl Into<String>, user_jwt: impl Into<String>) -> Result<Self, AppError> {
         let http = Client::builder()
             // Tax lookup is synchronous on the PO write path — a
             // hung TS process would block every POST /api/v2/po.
@@ -123,10 +120,7 @@ impl TaxPort for HttpTaxProxy {
 
         match resp.status() {
             s if s.is_success() => {
-                let body: TsTaxCalculation = resp
-                    .json()
-                    .await
-                    .map_err(AppError::infrastructure)?;
+                let body: TsTaxCalculation = resp.json().await.map_err(AppError::infrastructure)?;
                 Ok(TaxCalculation {
                     tax_amount: body.tax_amount,
                     tax_rate: body.tax_rate,

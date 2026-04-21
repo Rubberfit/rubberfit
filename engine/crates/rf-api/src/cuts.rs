@@ -13,9 +13,7 @@ use axum::extract::{Path, Query, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use rf_application::cuts::{
-    GetCutHistoryItemUseCase, ListCutHistoryUseCase, ListFavoritesUseCase,
-};
+use rf_application::cuts::{GetCutHistoryItemUseCase, ListCutHistoryUseCase, ListFavoritesUseCase};
 use rf_application::error::AppError;
 use rf_domain::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};
 use serde::{Deserialize, Serialize};

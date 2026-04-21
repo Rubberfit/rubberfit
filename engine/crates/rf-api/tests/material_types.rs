@@ -25,8 +25,8 @@ use rf_api::{
 use rf_application::cuts::CutHistoryPort;
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierPort, MaterialTypePort, MaterialTypeUpdate, NewMaterialType,
-    RollPort, SupplierPort,
+    MaterialSupplierPort, MaterialTypePort, MaterialTypeUpdate, NewMaterialType, RollPort,
+    SupplierPort,
 };
 use rf_domain::{MaterialType, MaterialTypeId};
 use rsa::pkcs1::EncodeRsaPrivateKey;
@@ -129,17 +129,11 @@ struct FakeInventoryFactory {
 }
 
 impl InventoryPortFactory for FakeInventoryFactory {
-    fn material_types(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+    fn material_types(&self, _auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError> {
         Ok(self.port.clone())
     }
 
-    fn suppliers(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+    fn suppliers(&self, _auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError> {
         Err(AppError::infrastructure("suppliers not used in this test"))
     }
     fn material_suppliers(
@@ -150,10 +144,7 @@ impl InventoryPortFactory for FakeInventoryFactory {
             "material_suppliers not used in this test",
         ))
     }
-    fn rolls(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError> {
+    fn rolls(&self, _auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError> {
         Err(AppError::infrastructure("rolls not used in this test"))
     }
 }
@@ -188,8 +179,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
     let n_b64 = b64url(public.n().to_bytes_be());
     let e_b64 = b64url(public.e().to_bytes_be());
     let jwk = Jwk {
@@ -274,12 +264,8 @@ fn test_cfg() -> ServerConfig {
     }
 }
 
-fn state_with_factory(
-    keys: &TestKeys,
-    port: Arc<FakeMaterialTypePort>,
-) -> Arc<AppState> {
-    let inv_factory: Arc<dyn InventoryPortFactory> =
-        Arc::new(FakeInventoryFactory { port });
+fn state_with_factory(keys: &TestKeys, port: Arc<FakeMaterialTypePort>) -> Arc<AppState> {
+    let inv_factory: Arc<dyn InventoryPortFactory> = Arc::new(FakeInventoryFactory { port });
     Arc::new(AppState::with_factories(
         jwks_cache(keys),
         SUPABASE_URL,
@@ -524,10 +510,7 @@ async fn update_modifies_and_returns_row() {
     let json: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json.get("default_cost").and_then(Value::as_f64), Some(5.25));
     // The row in the fake reflects the change too.
-    assert_eq!(
-        port.rows.lock().unwrap()[0].default_cost,
-        Some(5.25)
-    );
+    assert_eq!(port.rows.lock().unwrap()[0].default_cost, Some(5.25));
 }
 
 #[tokio::test]

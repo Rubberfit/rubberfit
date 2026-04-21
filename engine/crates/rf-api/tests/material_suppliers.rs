@@ -21,8 +21,8 @@ use rf_api::{
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate,
-    MaterialTypePort, NewMaterialSupplier, RollPort, SupplierPort,
+    MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate, MaterialTypePort,
+    NewMaterialSupplier, RollPort, SupplierPort,
 };
 use rf_domain::{
     MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Supplier, SupplierId,
@@ -56,10 +56,7 @@ impl MaterialSupplierPort for FakeMaterialSupplierPort {
         *self.observed_filters.lock().unwrap() = Some(filters.clone());
         Ok(self.rows.lock().unwrap().clone())
     }
-    async fn get(
-        &self,
-        id: &MaterialSupplierId,
-    ) -> Result<Option<MaterialSupplier>, AppError> {
+    async fn get(&self, id: &MaterialSupplierId) -> Result<Option<MaterialSupplier>, AppError> {
         Ok(self
             .rows
             .lock()
@@ -68,10 +65,7 @@ impl MaterialSupplierPort for FakeMaterialSupplierPort {
             .find(|r| r.id == *id)
             .cloned())
     }
-    async fn create(
-        &self,
-        new: &NewMaterialSupplier,
-    ) -> Result<MaterialSupplier, AppError> {
+    async fn create(&self, new: &NewMaterialSupplier) -> Result<MaterialSupplier, AppError> {
         if *self.duplicate.lock().unwrap() {
             return Err(AppError::conflict("DUPLICATE_PAIR"));
         }
@@ -131,18 +125,12 @@ struct FakeInventoryFactory {
 }
 
 impl InventoryPortFactory for FakeInventoryFactory {
-    fn material_types(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+    fn material_types(&self, _auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError> {
         Err(AppError::infrastructure(
             "material_types not used in ms tests",
         ))
     }
-    fn suppliers(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+    fn suppliers(&self, _auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError> {
         Err(AppError::infrastructure("suppliers not used in ms tests"))
     }
     fn material_suppliers(
@@ -151,10 +139,7 @@ impl InventoryPortFactory for FakeInventoryFactory {
     ) -> Result<Arc<dyn MaterialSupplierPort>, AppError> {
         Ok(self.ms_port.clone())
     }
-    fn rolls(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError> {
+    fn rolls(&self, _auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError> {
         Err(AppError::infrastructure("rolls not used in ms tests"))
     }
 }
@@ -186,8 +171,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
     let n_b64 = b64url(public.n().to_bytes_be());
     let e_b64 = b64url(public.e().to_bytes_be());
     let jwk = Jwk {
@@ -350,7 +334,10 @@ async fn list_forwards_filters() {
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let f = port.observed_filters.lock().unwrap().clone().unwrap();
-    assert_eq!(f.material_type_id.as_ref().map(|m| m.0.as_str()), Some("mt-9"));
+    assert_eq!(
+        f.material_type_id.as_ref().map(|m| m.0.as_str()),
+        Some("mt-9")
+    );
     assert_eq!(f.supplier_id.as_ref().map(|s| s.0.as_str()), Some("sup-3"));
     assert_eq!(f.active, Some(true));
     assert_eq!(f.limit, Some(50));
@@ -421,7 +408,10 @@ async fn create_returns_201() {
     assert_eq!(resp.status(), StatusCode::CREATED);
     let body = resp.into_body().collect().await.unwrap().to_bytes();
     let json: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json.get("cost_per_sqft").and_then(Value::as_f64), Some(3.15));
+    assert_eq!(
+        json.get("cost_per_sqft").and_then(Value::as_f64),
+        Some(3.15)
+    );
     assert_eq!(port.rows.lock().unwrap().len(), 1);
 }
 

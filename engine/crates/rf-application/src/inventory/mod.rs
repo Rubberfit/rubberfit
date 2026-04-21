@@ -18,15 +18,13 @@ pub mod stats;
 pub mod suppliers;
 
 pub use stats::{
-    InventoryGrowthUseCase, InventoryValueUseCase, LowStockCountUseCase,
-    RecentRollsUseCase,
+    InventoryGrowthUseCase, InventoryValueUseCase, LowStockCountUseCase, RecentRollsUseCase,
 };
 
 pub use material_suppliers::{
-    CreateMaterialSupplierUseCase, DeleteMaterialSupplierUseCase,
-    GetMaterialSupplierUseCase, ListMaterialSuppliersUseCase,
-    MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate,
-    NewMaterialSupplier, UpdateMaterialSupplierUseCase,
+    CreateMaterialSupplierUseCase, DeleteMaterialSupplierUseCase, GetMaterialSupplierUseCase,
+    ListMaterialSuppliersUseCase, MaterialSupplierFilters, MaterialSupplierPort,
+    MaterialSupplierUpdate, NewMaterialSupplier, UpdateMaterialSupplierUseCase,
 };
 pub use material_types::{
     CreateMaterialTypeUseCase, DeleteMaterialTypeUseCase, GetMaterialTypeUseCase,
@@ -34,11 +32,10 @@ pub use material_types::{
     UpdateMaterialTypeUseCase,
 };
 pub use rolls::{
-    CreateRollUseCase, DeleteRollUseCase, GetRollUseCase, ListRollsUseCase,
-    NewRoll, RollPort, RollUpdate, UpdateRollUseCase,
+    CreateRollUseCase, DeleteRollUseCase, GetRollUseCase, ListRollsUseCase, NewRoll, RollPort,
+    RollUpdate, UpdateRollUseCase,
 };
 pub use suppliers::{
-    CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase,
-    ListSuppliersUseCase, NewSupplier, SupplierPort, SupplierUpdate,
-    UpdateSupplierUseCase,
+    CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase, ListSuppliersUseCase,
+    NewSupplier, SupplierPort, SupplierUpdate, UpdateSupplierUseCase,
 };

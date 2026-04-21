@@ -47,8 +47,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
 
     // Convert the public exponent + modulus to base64url for the JWK.
     let n_b64 = b64url(public.n().to_bytes_be());
@@ -73,8 +72,7 @@ fn generate_test_keys() -> TestKeys {
     };
     // Self-consistency: make sure we can convert the JWK back into a
     // DecodingKey — guards against bad base64 padding during setup.
-    let _ =
-        jsonwebtoken::DecodingKey::from_jwk(&jwk).expect("jwk must convert to decoding key");
+    let _ = jsonwebtoken::DecodingKey::from_jwk(&jwk).expect("jwk must convert to decoding key");
     // Touch the PEM-like encoding too (used by HS test assertions
     // that compare spki encoding stability).
     let _ = public

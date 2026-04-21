@@ -39,10 +39,7 @@ impl SupabasePurchaseOrderItemRepository {
         Self { client }
     }
 
-    async fn next_line_number(
-        &self,
-        po_id: &PurchaseOrderId,
-    ) -> Result<i32, AppError> {
+    async fn next_line_number(&self, po_id: &PurchaseOrderId) -> Result<i32, AppError> {
         // Narrow projection — pull only `line_number` so the read is
         // cheap, ordered desc + limit 1 for the current max.
         #[derive(Deserialize)]
@@ -110,16 +107,9 @@ impl PurchaseOrderItemPort for SupabasePurchaseOrderItemRepository {
             .map_err(AppError::infrastructure)
     }
 
-    async fn get(
-        &self,
-        id: &PurchaseOrderItemId,
-    ) -> Result<Option<PurchaseOrderItem>, AppError> {
+    async fn get(&self, id: &PurchaseOrderItemId) -> Result<Option<PurchaseOrderItem>, AppError> {
         let id_filter = format!("eq.{}", id.0);
-        let query = [
-            ("select", "*"),
-            ("id", id_filter.as_str()),
-            ("limit", "1"),
-        ];
+        let query = [("select", "*"), ("id", id_filter.as_str()), ("limit", "1")];
         let mut rows: Vec<PurchaseOrderItem> = self
             .client
             .get::<Vec<PurchaseOrderItem>>("/rest/v1/purchase_order_items", &query)
@@ -151,10 +141,7 @@ impl PurchaseOrderItemPort for SupabasePurchaseOrderItemRepository {
         };
         match self
             .client
-            .post::<_, Vec<PurchaseOrderItem>>(
-                "/rest/v1/purchase_order_items",
-                &row,
-            )
+            .post::<_, Vec<PurchaseOrderItem>>("/rest/v1/purchase_order_items", &row)
             .await
         {
             Ok(mut rows) => rows
@@ -198,10 +185,7 @@ impl PurchaseOrderItemPort for SupabasePurchaseOrderItemRepository {
             write_nullable_number(&mut body, "thickness", v)?;
         }
         if let Some(v) = patch.color.clone() {
-            body.insert(
-                "color".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("color".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
         if let Some(v) = patch.quantity_sqft {
             write_finite_number(&mut body, "quantity_sqft", v)?;
@@ -210,10 +194,7 @@ impl PurchaseOrderItemPort for SupabasePurchaseOrderItemRepository {
             write_finite_number(&mut body, "unit_cost", v)?;
         }
         if let Some(v) = patch.notes.clone() {
-            body.insert(
-                "notes".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("notes".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
 
         if body.is_empty() {
@@ -241,10 +222,7 @@ impl PurchaseOrderItemPort for SupabasePurchaseOrderItemRepository {
         let query = [("id", id_filter.as_str())];
         match self
             .client
-            .delete::<Vec<PurchaseOrderItem>>(
-                "/rest/v1/purchase_order_items",
-                &query,
-            )
+            .delete::<Vec<PurchaseOrderItem>>("/rest/v1/purchase_order_items", &query)
             .await
         {
             Ok(rows) => Ok(!rows.is_empty()),
@@ -260,14 +238,9 @@ fn round_cents(v: f64) -> f64 {
 /// Insert a finite f64 as a JSON Number, error on NaN / Infinity.
 /// Used for fields the use case has already validated as positive
 /// + finite; an error here means the invariant slipped.
-fn write_finite_number(
-    body: &mut Map<String, Value>,
-    field: &str,
-    v: f64,
-) -> Result<(), AppError> {
-    let n = serde_json::Number::from_f64(v).ok_or_else(|| {
-        AppError::InvalidInput(format!("{field} must be a finite number"))
-    })?;
+fn write_finite_number(body: &mut Map<String, Value>, field: &str, v: f64) -> Result<(), AppError> {
+    let n = serde_json::Number::from_f64(v)
+        .ok_or_else(|| AppError::InvalidInput(format!("{field} must be a finite number")))?;
     body.insert(field.into(), Value::Number(n));
     Ok(())
 }

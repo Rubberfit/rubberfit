@@ -25,7 +25,7 @@
 // never regresses (we accept moves only on strict improvement).
 
 use crate::application::polish::{polish_placements, PolishConfig};
-use crate::domain::{Bin, BinResult, PackResult, Placement};
+use crate::domain::{Bin, PackResult, Placement};
 use rf_geom::domain::Point2D;
 use std::collections::HashMap;
 
@@ -98,8 +98,6 @@ fn find_best_move(
                 continue;
             }
             let src_bin = &bins[src_bin_idx];
-            let dst_bin = &bins[dst_bin_idx];
-
             // Every placement currently on the source bin is a
             // candidate. We iterate by index so we can rebuild
             // the simulated `Placement` vec cheaply per trial.
@@ -107,9 +105,15 @@ fn find_best_move(
                 if placement.bin_id != src_bin.bin_id {
                     continue;
                 }
-                let Some(simulated_occ) =
-                    simulate_move_occupied(result, bins, src_bin_idx, dst_bin_idx, pi, clearance, polish_cfg)
-                else {
+                let Some(simulated_occ) = simulate_move_occupied(
+                    result,
+                    bins,
+                    src_bin_idx,
+                    dst_bin_idx,
+                    pi,
+                    clearance,
+                    polish_cfg,
+                ) else {
                     continue;
                 };
                 let improvement = baseline_occ - simulated_occ;
@@ -242,15 +246,17 @@ fn apply_move(
     let (dst_placements, other_placements): (Vec<_>, Vec<_>) =
         dst_placements.into_iter().partition(|p| p.bin_id == dst_id);
 
-    let src_polished = polish_placements(&src_placements, src_bin.width, src_bin.height, polish_cfg);
-    let dst_polished = polish_placements(&dst_placements, dst_bin.width, dst_bin.height, polish_cfg);
+    let src_polished =
+        polish_placements(&src_placements, src_bin.width, src_bin.height, polish_cfg);
+    let dst_polished =
+        polish_placements(&dst_placements, dst_bin.width, dst_bin.height, polish_cfg);
 
     // Rebuild the placements list (order doesn't matter — consumers
     // identify placements by bin_id and shape_id).
     result.placements = src_polished
         .into_iter()
-        .chain(dst_polished.into_iter())
-        .chain(other_placements.into_iter())
+        .chain(dst_polished)
+        .chain(other_placements)
         .collect();
 
     // Update per_bin stats for src + dst.
@@ -270,17 +276,31 @@ fn apply_move(
             .map(|p| polygon_bbox(&p.polygon))
             .fold(
                 (f64::INFINITY, f64::INFINITY, 0.0_f64, 0.0_f64),
-                |(mnx, mny, mxx, mxy), (a, b, c, d)| (mnx.min(a), mny.min(b), mxx.max(c), mxy.max(d)),
+                |(mnx, mny, mxx, mxy), (a, b, c, d)| {
+                    (mnx.min(a), mny.min(b), mxx.max(c), mxy.max(d))
+                },
             );
         let stock_area = bin.width * bin.height;
         let waste_area = (stock_area - used_area).max(0.0);
-        let efficiency = if stock_area > 0.0 { used_area / stock_area } else { 0.0 };
+        let efficiency = if stock_area > 0.0 {
+            used_area / stock_area
+        } else {
+            0.0
+        };
 
         if let Some(br) = result.per_bin.iter_mut().find(|b| b.bin_id == bin.bin_id) {
             br.used_area = used_area;
             br.waste_area = waste_area;
-            br.occupied_width = if this_bin_placements.is_empty() { bin.width } else { max_x };
-            br.occupied_height = if this_bin_placements.is_empty() { bin.height } else { max_y };
+            br.occupied_width = if this_bin_placements.is_empty() {
+                bin.width
+            } else {
+                max_x
+            };
+            br.occupied_height = if this_bin_placements.is_empty() {
+                bin.height
+            } else {
+                max_y
+            };
             br.efficiency = efficiency;
             br.scrap_ratio = 1.0 - efficiency;
         }
@@ -343,7 +363,12 @@ fn relocate_placement(src: &Placement, new_bin_id: &str, tx: f64, ty: f64) -> Pl
 
 fn polygon_bbox(poly: &[Point2D]) -> (f64, f64, f64, f64) {
     poly.iter().fold(
-        (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+        (
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ),
         |(mnx, mny, mxx, mxy), v| (mnx.min(v.x), mny.min(v.y), mxx.max(v.x), mxy.max(v.y)),
     )
 }
@@ -412,7 +437,11 @@ mod tests {
             waste_area: waste,
             occupied_width: occ_w,
             occupied_height: occ_h,
-            efficiency: if used + waste > 0.0 { used / (used + waste) } else { 0.0 },
+            efficiency: if used + waste > 0.0 {
+                used / (used + waste)
+            } else {
+                0.0
+            },
             scrap_ratio: 1.0 - (used / (used + waste)).max(0.0),
         }
     }
@@ -481,7 +510,11 @@ mod tests {
             .find(|b| b.bin_id == "A")
             .unwrap()
             .occupied_height;
-        assert!(a_occ < 50.0, "bin A occupied_height should drop well below 50, got {}", a_occ);
+        assert!(
+            a_occ < 50.0,
+            "bin A occupied_height should drop well below 50, got {}",
+            a_occ
+        );
     }
 
     #[test]
@@ -514,9 +547,11 @@ mod tests {
         // Items should remain on their original bins.
         for p in &out.placements {
             assert_eq!(
-                p.shape_id, p.bin_id.to_lowercase(),
+                p.shape_id,
+                p.bin_id.to_lowercase(),
                 "item '{}' should still be on bin '{}'",
-                p.shape_id, p.bin_id
+                p.shape_id,
+                p.bin_id
             );
         }
     }

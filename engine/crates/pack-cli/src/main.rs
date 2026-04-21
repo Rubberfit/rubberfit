@@ -197,9 +197,7 @@ fn write_packresult_line(stdout_mutex: &Arc<Mutex<io::Stdout>>, result: &PackRes
             return ExitCode::FAILURE;
         }
     };
-    if out.write_all(s.as_bytes()).is_err()
-        || out.write_all(b"\n").is_err()
-        || out.flush().is_err()
+    if out.write_all(s.as_bytes()).is_err() || out.write_all(b"\n").is_err() || out.flush().is_err()
     {
         eprintln!("pack-cli: failed to write stdout");
         return ExitCode::FAILURE;

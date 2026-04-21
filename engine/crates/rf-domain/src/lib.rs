@@ -22,8 +22,8 @@ pub mod procurement;
 
 pub use cut::{CutHistoryEntry, CutHistoryFilters, CutHistoryId, UserId};
 pub use inventory::{
-    MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Roll, RollFilters,
-    RollId, RollStatus, Supplier, SupplierFilters, SupplierId,
+    MaterialSupplier, MaterialSupplierId, MaterialType, MaterialTypeId, Roll, RollFilters, RollId,
+    RollStatus, Supplier, SupplierFilters, SupplierId,
 };
 pub use procurement::{
     CsvImportRow, PurchaseOrder, PurchaseOrderFilters, PurchaseOrderId, PurchaseOrderItem,

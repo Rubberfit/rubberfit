@@ -44,15 +44,13 @@ pub mod terminator;
 pub use multi::optimize_multi;
 pub use progress::{PackProgress, ProgressCallback};
 
-use crate::domain::{Bin, Part, PackError};
+use crate::domain::{Bin, PackError, Part};
 use crate::infrastructure::jagua_adapter;
 use crate::infrastructure::search::gls::compress::compression_phase;
 use crate::infrastructure::search::gls::explore::{
     exploration_phase, ExplorationConfig, ExplorationOutcome,
 };
-use crate::infrastructure::search::gls::separator::{
-    NoopListener, Separator, SeparatorConfig,
-};
+use crate::infrastructure::search::gls::separator::{NoopListener, Separator, SeparatorConfig};
 use crate::infrastructure::search::terminator::BasicTerminator;
 use crate::infrastructure::warm_start::{SeedPlacement, SeedResult};
 use jagua_rs::entities::{Instance, Layout, LayoutSnapshot, PlacedItem};
@@ -213,9 +211,7 @@ pub fn fixed_bin_sparrow_repack(
     clearance: f64,
     config: FixedBinRepackConfig,
 ) -> Result<SeedResult, PackError> {
-    use crate::infrastructure::warm_start::{
-        greedy_rectangle_pack_with_strategy, PackerStrategy,
-    };
+    use crate::infrastructure::warm_start::{greedy_rectangle_pack_with_strategy, PackerStrategy};
 
     // Baseline. We never return worse than this.
     let bssf_baseline =
@@ -256,8 +252,12 @@ pub fn fixed_bin_sparrow_repack(
     {
         attempts += 1;
 
-        let remaining = deadline.saturating_duration_since(Instant::now()).as_millis() as u64;
-        let slots_left = FIXED_BIN_REPACK_MAX_ATTEMPTS.saturating_sub(attempts - 1).max(1) as u64;
+        let remaining = deadline
+            .saturating_duration_since(Instant::now())
+            .as_millis() as u64;
+        let slots_left = FIXED_BIN_REPACK_MAX_ATTEMPTS
+            .saturating_sub(attempts - 1)
+            .max(1) as u64;
         let per_attempt_budget = (remaining / slots_left).max(config.min_attempt_budget_ms);
 
         let (overlap_seed, subset_items) =
@@ -309,11 +309,12 @@ enum RepackOutcome {
 fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
     let mut shape_meta: Vec<(usize, f64, &str)> = Vec::with_capacity(items.len());
     for (idx, part) in items.iter().enumerate() {
-        let bbox =
-            rf_geom::application::bbox_of(&part.polygon).map_err(|source| PackError::InvalidPolygon {
+        let bbox = rf_geom::application::bbox_of(&part.polygon).map_err(|source| {
+            PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
-            })?;
+            }
+        })?;
         let area = (bbox.1.x - bbox.0.x) * (bbox.1.y - bbox.0.y);
         shape_meta.push((idx, area, part.shape_id.as_str()));
     }
@@ -360,9 +361,7 @@ fn build_overlap_seed(
     clearance: f64,
     take_n: usize,
 ) -> Result<(SeedResult, Vec<Part>), PackError> {
-    use crate::infrastructure::warm_start::{
-        greedy_rectangle_pack_with_strategy, PackerStrategy,
-    };
+    use crate::infrastructure::warm_start::{greedy_rectangle_pack_with_strategy, PackerStrategy};
 
     // Step 1: BSSF feasible base.
     let bssf = greedy_rectangle_pack_with_strategy(bin, items, clearance, PackerStrategy::Bssf)?;
@@ -428,11 +427,12 @@ fn build_overlap_seed(
         }
 
         let part = &items[shape_idx];
-        let bbox =
-            rf_geom::application::bbox_of(&part.polygon).map_err(|source| PackError::InvalidPolygon {
+        let bbox = rf_geom::application::bbox_of(&part.polygon).map_err(|source| {
+            PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
-            })?;
+            }
+        })?;
         let w = bbox.1.x - bbox.0.x;
         let h = bbox.1.y - bbox.0.y;
 
@@ -509,11 +509,8 @@ fn run_repack_attempt(
     budget_ms: u64,
     seed: Option<u64>,
 ) -> Result<RepackOutcome, PackError> {
-    let instance = jagua_adapter::to_jagua_instance(
-        std::slice::from_ref(bin),
-        subset_items,
-        clearance,
-    )?;
+    let instance =
+        jagua_adapter::to_jagua_instance(std::slice::from_ref(bin), subset_items, clearance)?;
 
     let container = instance.container(0).clone();
     let mut layout = Layout::new(container);
@@ -577,14 +574,12 @@ fn replay_seed_into_layout(
     }
 
     for placement in &seed.placements {
-        let item_id = *shape_to_item_id
-            .get(&placement.shape_id)
-            .ok_or_else(|| {
-                PackError::EngineFailed(format!(
-                    "seed placement references unknown shape_id '{}'",
-                    placement.shape_id
-                ))
-            })?;
+        let item_id = *shape_to_item_id.get(&placement.shape_id).ok_or_else(|| {
+            PackError::EngineFailed(format!(
+                "seed placement references unknown shape_id '{}'",
+                placement.shape_id
+            ))
+        })?;
         let item = instance.item(item_id);
 
         // Codex Task-9 fix: SeedPlacement stores EXTERNAL coordinates
@@ -648,7 +643,12 @@ fn snapshot_to_seed(
             .collect();
 
         let (min_x, min_y, max_x, max_y) = polygon.iter().fold(
-            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ),
             |(mnx, mny, mxx, mxy), p| (mnx.min(p.x), mny.min(p.y), mxx.max(p.x), mxy.max(p.y)),
         );
         let width = (max_x - min_x).max(0.0);
@@ -735,7 +735,10 @@ mod tests {
     fn two_square_seed(offsets: &[(f32, f32)]) -> (Bin, Vec<Part>, SeedResult) {
         let bin = big_bin();
         let parts = vec![square_part("a", 10.0), square_part("b", 10.0)];
-        assert!(offsets.len() == 2, "two_square_seed is hardcoded for exactly 2 squares");
+        assert!(
+            offsets.len() == 2,
+            "two_square_seed is hardcoded for exactly 2 squares"
+        );
         let shape_ids = ["a", "b"];
         let placements = offsets
             .iter()
@@ -924,7 +927,11 @@ mod tests {
                 .collect()
         };
 
-        assert_eq!(key(&out1), key(&out2), "seed=42 must produce identical output");
+        assert_eq!(
+            key(&out1),
+            key(&out2),
+            "seed=42 must produce identical output"
+        );
     }
 
     #[test]
@@ -964,10 +971,13 @@ mod tests {
 
         // Verify shape preservation: 10x10 bbox in external space.
         let (min_x, min_y, max_x, max_y) = p.polygon.iter().fold(
-            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-            |(mnx, mny, mxx, mxy), pt| {
-                (mnx.min(pt.x), mny.min(pt.y), mxx.max(pt.x), mxy.max(pt.y))
-            },
+            (
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ),
+            |(mnx, mny, mxx, mxy), pt| (mnx.min(pt.x), mny.min(pt.y), mxx.max(pt.x), mxy.max(pt.y)),
         );
         let w = max_x - min_x;
         let h = max_y - min_y;
@@ -980,9 +990,10 @@ mod tests {
         // centre-then-translate contract. If snapshot_to_seed skipped
         // int_to_ext_transformation and applied pi.d_transf directly
         // to the ORIGINAL polygon, the centroid would land at (15, 25).
-        let (cx, cy) = p.polygon.iter().fold((0.0, 0.0), |(sx, sy), pt| {
-            (sx + pt.x, sy + pt.y)
-        });
+        let (cx, cy) = p
+            .polygon
+            .iter()
+            .fold((0.0, 0.0), |(sx, sy), pt| (sx + pt.x, sy + pt.y));
         let n = p.polygon.len() as f64;
         let (cx, cy) = (cx / n, cy / n);
         assert!(

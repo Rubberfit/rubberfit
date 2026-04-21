@@ -25,11 +25,10 @@ pub use auth::{
 };
 pub use cuts::{ApiError, CutHistoryDto, ListHistoryQuery};
 pub use inventory::{
-    CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateRollBody,
-    CreateSupplierBody, ListMaterialSuppliersQuery, ListRollsQuery,
-    ListSuppliersQuery, MaterialSupplierDto, MaterialTypeDto, RollDto, SupplierDto,
-    UpdateMaterialSupplierBody, UpdateMaterialTypeBody, UpdateRollBody,
-    UpdateSupplierBody,
+    CreateMaterialSupplierBody, CreateMaterialTypeBody, CreateRollBody, CreateSupplierBody,
+    ListMaterialSuppliersQuery, ListRollsQuery, ListSuppliersQuery, MaterialSupplierDto,
+    MaterialTypeDto, RollDto, SupplierDto, UpdateMaterialSupplierBody, UpdateMaterialTypeBody,
+    UpdateRollBody, UpdateSupplierBody,
 };
 pub use jwks::{HttpJwksFetcher, JwksCache, JwksError, JwksFetcher, SupabaseClaims};
 pub use openapi::ApiDoc;

@@ -23,8 +23,7 @@ fn every_fixture_packs_without_error() {
         let content = fs::read_to_string(path).expect("read fixture");
         let request: PackRequest = serde_json::from_str(&content)
             .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e));
-        let result = pack(request)
-            .unwrap_or_else(|e| panic!("pack {}: {}", path.display(), e));
+        let result = pack(request).unwrap_or_else(|e| panic!("pack {}: {}", path.display(), e));
         assert!(
             result.placed_count > 0 || result.overflow_count > 0,
             "{}: nothing placed AND no overflow — suspicious",

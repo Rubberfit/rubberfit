@@ -151,7 +151,11 @@ impl CoordinateDescent {
 
         // Determine the step size multiplier depending on whether the new
         // evaluation is better or worse.
-        let m = if better { CD_STEP_SUCCESS } else { CD_STEP_FAIL };
+        let m = if better {
+            CD_STEP_SUCCESS
+        } else {
+            CD_STEP_FAIL
+        };
 
         // Apply the step size multiplier to the relevant steps for the current axis.
         match self.axis {

@@ -65,10 +65,7 @@ pub trait PurchaseOrderItemPort: Send + Sync {
         po_id: &PurchaseOrderId,
     ) -> Result<Vec<PurchaseOrderItem>, AppError>;
 
-    async fn get(
-        &self,
-        id: &PurchaseOrderItemId,
-    ) -> Result<Option<PurchaseOrderItem>, AppError>;
+    async fn get(&self, id: &PurchaseOrderItemId) -> Result<Option<PurchaseOrderItem>, AppError>;
 
     /// Create a line item. The adapter computes the next
     /// `line_number` inside a single-statement upsert (or a single
@@ -108,7 +105,9 @@ fn validate_positive_opt(v: Option<f64>, field: &str) -> Result<(), AppError> {
 fn validate_description(description: &str) -> Result<(), AppError> {
     let trimmed = description.trim();
     if trimmed.is_empty() {
-        return Err(AppError::InvalidInput("description must not be blank".into()));
+        return Err(AppError::InvalidInput(
+            "description must not be blank".into(),
+        ));
     }
     Ok(())
 }
@@ -231,11 +230,7 @@ mod tests {
     }
 
     impl FakePort {
-        fn mint(
-            &self,
-            po_id: &PurchaseOrderId,
-            new: &NewPurchaseOrderItem,
-        ) -> PurchaseOrderItem {
+        fn mint(&self, po_id: &PurchaseOrderId, new: &NewPurchaseOrderItem) -> PurchaseOrderItem {
             let mut id_guard = self.next_id.lock().unwrap();
             *id_guard += 1;
             let line_number = self
@@ -328,8 +323,7 @@ mod tests {
                     }
                     if let Some(c) = patch.unit_cost {
                         item.unit_cost = c;
-                        item.line_total =
-                            (item.quantity_sqft * c * 100.0).round() / 100.0;
+                        item.line_total = (item.quantity_sqft * c * 100.0).round() / 100.0;
                     }
                     return Ok(Some(item.clone()));
                 }
@@ -475,10 +469,7 @@ mod tests {
             .await
             .unwrap();
         let list = ListPurchaseOrderItemsUseCase::new(port);
-        let po1 = list
-            .execute(PurchaseOrderId("po-1".into()))
-            .await
-            .unwrap();
+        let po1 = list.execute(PurchaseOrderId("po-1".into())).await.unwrap();
         assert_eq!(po1.len(), 1);
     }
 }

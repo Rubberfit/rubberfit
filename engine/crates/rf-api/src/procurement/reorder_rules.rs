@@ -12,14 +12,11 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::procurement::{
-    CreateReorderRuleUseCase, DeleteReorderRuleUseCase,
-    GenerateReorderSuggestionsUseCase, GetReorderRuleUseCase,
-    ListReorderRulesUseCase, NewReorderRule, ReorderRuleUpdate,
+    CreateReorderRuleUseCase, DeleteReorderRuleUseCase, GenerateReorderSuggestionsUseCase,
+    GetReorderRuleUseCase, ListReorderRulesUseCase, NewReorderRule, ReorderRuleUpdate,
     SuggestionOptions, UpdateReorderRuleUseCase,
 };
-use rf_domain::{
-    MaterialTypeId, ReorderRule, ReorderRuleId, ReorderSuggestion, SupplierId,
-};
+use rf_domain::{MaterialTypeId, ReorderRule, ReorderRuleId, ReorderSuggestion, SupplierId};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 

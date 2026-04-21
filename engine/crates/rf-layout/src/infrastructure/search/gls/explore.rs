@@ -39,15 +39,15 @@
 //      at bottom of this file — Layout-generic, no retyping.
 //   10. FMT logging helper replaced with inline `{:.4}` format specs.
 
-use super::separator::{SeparatorConfig, SolutionListener, Terminator};
 use super::separator::{SeparateOutcome, Separator};
+use super::separator::{SeparatorConfig, SolutionListener, Terminator};
 use super::uniform_sampler::convert_sample_to_closest_feasible;
 use float_cmp::approx_eq;
 use itertools::Itertools;
 use jagua_rs::collision_detection::hazards::HazardEntity;
 use jagua_rs::entities::{Instance, Layout, LayoutSnapshot, PItemKey};
-use jagua_rs::geometry::DTransformation;
 use jagua_rs::geometry::geo_traits::CollidesWith;
+use jagua_rs::geometry::DTransformation;
 use log::{debug, info, warn};
 use ordered_float::OrderedFloat;
 use rand::prelude::IteratorRandom;
@@ -419,8 +419,8 @@ mod tests {
     use crate::infrastructure::search::gls::separator::{NoopListener, NoopTerminator};
     use jagua_rs::entities::Instance as InstanceTrait;
     use jagua_rs::probs::bpp::entities::BPInstance;
-    use rand_xoshiro::Xoshiro256PlusPlus;
     use rand::SeedableRng;
+    use rand_xoshiro::Xoshiro256PlusPlus;
     use rf_geom::domain::Point2D;
 
     const SEED: u64 = 42;

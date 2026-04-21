@@ -16,8 +16,7 @@ fn fixture_dir() -> PathBuf {
 
 fn load_request(path: &std::path::Path) -> PackRequest {
     let content = fs::read_to_string(path).expect("read fixture");
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e))
 }
 
 #[test]
@@ -36,10 +35,8 @@ fn pack_lbf_lns_does_not_regress_vs_pack_lbf() {
         let name = path.file_stem().unwrap().to_string_lossy().to_string();
         let request = load_request(path);
 
-        let lbf = pack_lbf(request.clone())
-            .unwrap_or_else(|e| panic!("pack_lbf {name}: {e}"));
-        let lns = pack_lbf_lns(request)
-            .unwrap_or_else(|e| panic!("pack_lbf_lns {name}: {e}"));
+        let lbf = pack_lbf(request.clone()).unwrap_or_else(|e| panic!("pack_lbf {name}: {e}"));
+        let lns = pack_lbf_lns(request).unwrap_or_else(|e| panic!("pack_lbf_lns {name}: {e}"));
 
         println!(
             "[lns parity] {:<24} lbf={:>3}/{:<3} lns={:>3}/{:<3}",

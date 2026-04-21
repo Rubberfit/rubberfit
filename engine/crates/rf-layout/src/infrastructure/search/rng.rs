@@ -13,8 +13,8 @@
 // rand 0.10) so non-seeded runs are statistically independent across
 // invocations.
 
-use rand::SeedableRng;
 use rand::rngs::SysRng;
+use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
 /// Build a seeded or entropy-backed xoshiro RNG.
@@ -27,8 +27,9 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 pub fn from_seed(seed: Option<u64>) -> Xoshiro256PlusPlus {
     match seed {
         Some(s) => Xoshiro256PlusPlus::seed_from_u64(s),
-        None => Xoshiro256PlusPlus::try_from_rng(&mut SysRng)
-            .expect("OS entropy source unavailable"),
+        None => {
+            Xoshiro256PlusPlus::try_from_rng(&mut SysRng).expect("OS entropy source unavailable")
+        }
     }
 }
 

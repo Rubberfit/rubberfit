@@ -7,8 +7,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase,
-    ListSuppliersUseCase, NewSupplier, SupplierUpdate, UpdateSupplierUseCase,
+    CreateSupplierUseCase, DeleteSupplierUseCase, GetSupplierUseCase, ListSuppliersUseCase,
+    NewSupplier, SupplierUpdate, UpdateSupplierUseCase,
 };
 use rf_domain::{Supplier, SupplierFilters, SupplierId};
 use serde::{Deserialize, Serialize};
@@ -257,7 +257,10 @@ pub async fn list_suppliers(
         .suppliers(auth)
         .map_err(ApiError::App)?;
     let use_case = ListSuppliersUseCase::new(port);
-    let rows = use_case.execute(params.into()).await.map_err(ApiError::App)?;
+    let rows = use_case
+        .execute(params.into())
+        .await
+        .map_err(ApiError::App)?;
     Ok(Json(rows.into_iter().map(SupplierDto::from).collect()))
 }
 

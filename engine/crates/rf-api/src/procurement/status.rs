@@ -46,9 +46,7 @@ fn parse_status(s: &str) -> Result<PurchaseOrderStatus, AppError> {
         "ordered" => Ok(PurchaseOrderStatus::Ordered),
         "received" => Ok(PurchaseOrderStatus::Received),
         "cancelled" => Ok(PurchaseOrderStatus::Cancelled),
-        other => Err(AppError::InvalidInput(format!(
-            "unknown status '{other}'"
-        ))),
+        other => Err(AppError::InvalidInput(format!("unknown status '{other}'"))),
     }
 }
 

@@ -4,7 +4,9 @@ use crate::domain::{GeomError, Point2D, Polygon};
 /// Andrew's monotone chain convex hull. Returns points in CCW order.
 pub fn convex_hull(points: &[Point2D]) -> Result<Polygon, GeomError> {
     if points.len() < 3 {
-        return Err(GeomError::PolygonTooFewVertices { count: points.len() });
+        return Err(GeomError::PolygonTooFewVertices {
+            count: points.len(),
+        });
     }
     let mut pts: Vec<Point2D> = points.to_vec();
     pts.sort_by(|a, b| {

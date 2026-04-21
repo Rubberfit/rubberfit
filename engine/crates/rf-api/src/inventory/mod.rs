@@ -11,8 +11,8 @@ pub mod stats;
 pub mod suppliers;
 
 pub use stats::{
-    inventory_growth, inventory_value, low_stock_count, recent_rolls,
-    InventoryGrowthDto, InventoryValueDto, LowStockCountDto, RecentRollsQuery,
+    inventory_growth, inventory_value, low_stock_count, recent_rolls, InventoryGrowthDto,
+    InventoryValueDto, LowStockCountDto, RecentRollsQuery,
 };
 
 pub use material_suppliers::{
@@ -21,16 +21,14 @@ pub use material_suppliers::{
     ListMaterialSuppliersQuery, MaterialSupplierDto, UpdateMaterialSupplierBody,
 };
 pub use material_types::{
-    create_material_type, delete_material_type, get_material_type,
-    list_material_types, update_material_type, CreateMaterialTypeBody,
-    MaterialTypeDto, UpdateMaterialTypeBody,
+    create_material_type, delete_material_type, get_material_type, list_material_types,
+    update_material_type, CreateMaterialTypeBody, MaterialTypeDto, UpdateMaterialTypeBody,
 };
 pub use rolls::{
-    create_roll, delete_roll, get_roll, list_rolls, update_roll, CreateRollBody,
-    ListRollsQuery, RollDto, UpdateRollBody,
+    create_roll, delete_roll, get_roll, list_rolls, update_roll, CreateRollBody, ListRollsQuery,
+    RollDto, UpdateRollBody,
 };
 pub use suppliers::{
-    create_supplier, delete_supplier, get_supplier, list_suppliers,
-    update_supplier, CreateSupplierBody, ListSuppliersQuery, SupplierDto,
-    UpdateSupplierBody,
+    create_supplier, delete_supplier, get_supplier, list_suppliers, update_supplier,
+    CreateSupplierBody, ListSuppliersQuery, SupplierDto, UpdateSupplierBody,
 };

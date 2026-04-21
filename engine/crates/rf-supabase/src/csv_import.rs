@@ -20,9 +20,7 @@ use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use rf_application::error::AppError;
-use rf_application::procurement::{
-    CsvImportPort, ImportReceipt, ImportRowError,
-};
+use rf_application::procurement::{CsvImportPort, ImportReceipt, ImportRowError};
 use rf_domain::CsvImportRow;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -67,10 +65,7 @@ impl SupabaseCsvImportRepository {
             .collect::<Vec<_>>()
             .join(",");
         let filter = format!("in.({})", joined);
-        let query = [
-            ("select", "id,name"),
-            ("name", filter.as_str()),
-        ];
+        let query = [("select", "id,name"), ("name", filter.as_str())];
         let existing: Vec<Row> = self
             .client
             .get("/rest/v1/material_types", &query)
@@ -98,8 +93,7 @@ impl SupabaseCsvImportRepository {
         struct NewRow<'a> {
             name: &'a str,
         }
-        let new_rows: Vec<NewRow<'_>> =
-            missing.iter().map(|n| NewRow { name: n }).collect();
+        let new_rows: Vec<NewRow<'_>> = missing.iter().map(|n| NewRow { name: n }).collect();
         match self
             .client
             .post::<_, Vec<Row>>("/rest/v1/material_types", &new_rows)
@@ -159,10 +153,7 @@ struct RollInsertRow<'a> {
 
 #[async_trait]
 impl CsvImportPort for SupabaseCsvImportRepository {
-    async fn insert_rows(
-        &self,
-        rows: &[CsvImportRow],
-    ) -> Result<ImportReceipt, AppError> {
+    async fn insert_rows(&self, rows: &[CsvImportRow]) -> Result<ImportReceipt, AppError> {
         if rows.is_empty() {
             return Ok(ImportReceipt {
                 imported: 0,
@@ -182,8 +173,7 @@ impl CsvImportPort for SupabaseCsvImportRepository {
             }
         }
         let names_vec: Vec<&str> = names.into_iter().collect();
-        let name_to_id =
-            self.resolve_material_types(&names_vec).await?;
+        let name_to_id = self.resolve_material_types(&names_vec).await?;
 
         // 2. Build the batch insert payload. Rows whose material
         //    still doesn't resolve (e.g. empty name that slipped

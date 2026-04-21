@@ -47,7 +47,7 @@ pub fn pack_with_options(
     let mut per_bin: Vec<BinResult> = Vec::new();
     let mut index_counters: HashMap<String, u32> = HashMap::new();
 
-    for (bin, seed) in request.bins.iter().zip(refined.per_bin.into_iter()) {
+    for (bin, seed) in request.bins.iter().zip(refined.per_bin) {
         let mut used_area = 0.0_f64;
         let mut occupied_width = 0.0_f64;
         let mut occupied_height = 0.0_f64;
@@ -65,8 +65,12 @@ pub fn pack_with_options(
             used_area += area;
 
             for v in &p.polygon {
-                if v.x > occupied_width { occupied_width = v.x; }
-                if v.y > occupied_height { occupied_height = v.y; }
+                if v.x > occupied_width {
+                    occupied_width = v.x;
+                }
+                if v.y > occupied_height {
+                    occupied_height = v.y;
+                }
             }
 
             placements.push(Placement {
@@ -95,8 +99,16 @@ pub fn pack_with_options(
             bin_id: bin.bin_id.clone(),
             used_area,
             waste_area,
-            occupied_width: if occupied_width > 0.0 { occupied_width } else { bin.width },
-            occupied_height: if occupied_height > 0.0 { occupied_height } else { bin.height },
+            occupied_width: if occupied_width > 0.0 {
+                occupied_width
+            } else {
+                bin.width
+            },
+            occupied_height: if occupied_height > 0.0 {
+                occupied_height
+            } else {
+                bin.height
+            },
             efficiency,
             scrap_ratio: 1.0 - efficiency,
         });
@@ -113,7 +125,10 @@ pub fn pack_with_options(
         .items
         .iter()
         .map(|r| {
-            let placed = placed_by_shape.get(r.shape_id.as_str()).copied().unwrap_or(0);
+            let placed = placed_by_shape
+                .get(r.shape_id.as_str())
+                .copied()
+                .unwrap_or(0);
             r.quantity.saturating_sub(placed)
         })
         .sum();
@@ -176,7 +191,13 @@ mod tests {
     }
 
     fn bin(id: &str, w: f64, h: f64) -> Bin {
-        Bin { bin_id: id.into(), width: w, height: h, kind: BinKind::Fresh, priority: None }
+        Bin {
+            bin_id: id.into(),
+            width: w,
+            height: h,
+            kind: BinKind::Fresh,
+            priority: None,
+        }
     }
 
     #[test]
@@ -245,7 +266,8 @@ mod tests {
             units: Default::default(),
         };
         let result = pack(req).unwrap();
-        let a_indices: Vec<u32> = result.placements
+        let a_indices: Vec<u32> = result
+            .placements
             .iter()
             .filter(|p| p.shape_id == "rect-a")
             .map(|p| p.instance_index)
@@ -254,7 +276,11 @@ mod tests {
         let mut sorted = a_indices.clone();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(a_indices.len(), sorted.len(), "instance_index must be globally unique per shape");
+        assert_eq!(
+            a_indices.len(),
+            sorted.len(),
+            "instance_index must be globally unique per shape"
+        );
     }
 
     #[test]
@@ -289,7 +315,10 @@ mod tests {
             units: Default::default(),
         };
         let result = pack(req).unwrap();
-        assert!(result.run_time_ms.is_some(), "run_time_ms must be populated");
+        assert!(
+            result.run_time_ms.is_some(),
+            "run_time_ms must be populated"
+        );
         assert!(result.overall_density > 0.0);
         assert!(result.overall_density <= 1.0);
     }
@@ -334,10 +363,7 @@ mod tests {
     #[test]
     fn multi_bin_overflow_rollover() {
         let req = PackRequest {
-            bins: vec![
-                bin("b1", 20.0, 10.0),
-                bin("b2", 20.0, 10.0),
-            ],
+            bins: vec![bin("b1", 20.0, 10.0), bin("b2", 20.0, 10.0)],
             clearance: 0.0, // items exactly fill bin width; clearance tested elsewhere
             items: vec![rect_part("rect-a", 3, 20.0, 5.0)], // 2 fit on b1, 1 spills to b2
             operator_profile: None,

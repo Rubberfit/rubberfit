@@ -21,8 +21,7 @@ use rf_api::{
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierPort, MaterialTypePort, NewSupplier, RollPort, SupplierPort,
-    SupplierUpdate,
+    MaterialSupplierPort, MaterialTypePort, NewSupplier, RollPort, SupplierPort, SupplierUpdate,
 };
 use rf_domain::{Supplier, SupplierFilters, SupplierId};
 use rsa::pkcs1::EncodeRsaPrivateKey;
@@ -49,10 +48,7 @@ struct FakeSupplierPort {
 
 #[async_trait]
 impl SupplierPort for FakeSupplierPort {
-    async fn list(
-        &self,
-        filters: &SupplierFilters,
-    ) -> Result<Vec<Supplier>, AppError> {
+    async fn list(&self, filters: &SupplierFilters) -> Result<Vec<Supplier>, AppError> {
         *self.observed_filters.lock().unwrap() = Some(filters.clone());
         Ok(self.rows.lock().unwrap().clone())
     }
@@ -136,18 +132,12 @@ struct FakeInventoryFactory {
 }
 
 impl InventoryPortFactory for FakeInventoryFactory {
-    fn material_types(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+    fn material_types(&self, _auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError> {
         Err(AppError::infrastructure(
             "material_types not used in supplier tests",
         ))
     }
-    fn suppliers(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+    fn suppliers(&self, _auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError> {
         Ok(self.suppliers.clone())
     }
     fn material_suppliers(
@@ -158,10 +148,7 @@ impl InventoryPortFactory for FakeInventoryFactory {
             "material_suppliers not used in supplier tests",
         ))
     }
-    fn rolls(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError> {
+    fn rolls(&self, _auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError> {
         Err(AppError::infrastructure("rolls not used in supplier tests"))
     }
 }
@@ -193,8 +180,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
     let n_b64 = b64url(public.n().to_bytes_be());
     let e_b64 = b64url(public.e().to_bytes_be());
     let jwk = Jwk {
@@ -279,10 +265,7 @@ fn test_cfg() -> ServerConfig {
     }
 }
 
-fn state_with_supplier_port(
-    keys: &TestKeys,
-    port: Arc<FakeSupplierPort>,
-) -> Arc<AppState> {
+fn state_with_supplier_port(keys: &TestKeys, port: Arc<FakeSupplierPort>) -> Arc<AppState> {
     let inv_factory: Arc<dyn InventoryPortFactory> =
         Arc::new(FakeInventoryFactory { suppliers: port });
     Arc::new(AppState::with_factories(
@@ -321,7 +304,14 @@ async fn list_requires_auth() {
     let port = Arc::new(FakeSupplierPort::default());
     let state = state_with_supplier_port(&keys, port);
     let router = build_router_with_state(&test_cfg(), state);
-    let resp = send(router, Method::GET, "/api/v2/inventory/suppliers", None, None).await;
+    let resp = send(
+        router,
+        Method::GET,
+        "/api/v2/inventory/suppliers",
+        None,
+        None,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 

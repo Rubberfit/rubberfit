@@ -26,12 +26,10 @@ use rf_api::{
 };
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierPort, MaterialTypePort, MaterialTypeUpdate, NewMaterialType,
-    NewRoll, RollPort, RollUpdate, SupplierPort,
+    MaterialSupplierPort, MaterialTypePort, MaterialTypeUpdate, NewMaterialType, NewRoll, RollPort,
+    RollUpdate, SupplierPort,
 };
-use rf_domain::{
-    MaterialType, MaterialTypeId, Roll, RollFilters, RollId, RollStatus,
-};
+use rf_domain::{MaterialType, MaterialTypeId, Roll, RollFilters, RollId, RollStatus};
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use rsa::pkcs8::LineEnding;
 use rsa::traits::PublicKeyParts;
@@ -72,10 +70,7 @@ impl RollPort for FakeRollPort {
         *n += 1;
         let r = Roll {
             id: RollId(format!("roll-{}", *n)),
-            material_type_id: new
-                .material_type_id
-                .clone()
-                .map(MaterialTypeId),
+            material_type_id: new.material_type_id.clone().map(MaterialTypeId),
             material_type: new.material_type.clone(),
             width: new.width,
             length: new.length,
@@ -88,17 +83,19 @@ impl RollPort for FakeRollPort {
             remaining_length: new.remaining_length,
             status: new.status.unwrap_or(RollStatus::Active),
             notes: new.notes.clone(),
+            part_number: Some(format!("RF-{:06}", *n)),
+            parent_roll_id: None,
+            is_offcut: Some(false),
+            barcode_format: Some("code128".into()),
+            barcode_asset_path: None,
+            barcode_generated_at: None,
             created_at: Some("2026-04-19T00:00:00Z".into()),
             updated_at: Some("2026-04-19T00:00:00Z".into()),
         };
         self.rows.lock().unwrap().push(r.clone());
         Ok(r)
     }
-    async fn update(
-        &self,
-        id: &RollId,
-        patch: &RollUpdate,
-    ) -> Result<Option<Roll>, AppError> {
+    async fn update(&self, id: &RollId, patch: &RollUpdate) -> Result<Option<Roll>, AppError> {
         let mut g = self.rows.lock().unwrap();
         for row in g.iter_mut() {
             if row.id == *id {
@@ -146,10 +143,7 @@ impl MaterialTypePort for FakeMaterialTypePort {
     async fn list(&self) -> Result<Vec<MaterialType>, AppError> {
         Ok(vec![])
     }
-    async fn get(
-        &self,
-        id: &MaterialTypeId,
-    ) -> Result<Option<MaterialType>, AppError> {
+    async fn get(&self, id: &MaterialTypeId) -> Result<Option<MaterialType>, AppError> {
         Ok(self
             .lookup
             .lock()
@@ -166,10 +160,7 @@ impl MaterialTypePort for FakeMaterialTypePort {
                 updated_at: None,
             }))
     }
-    async fn create(
-        &self,
-        _new: &NewMaterialType,
-    ) -> Result<MaterialType, AppError> {
+    async fn create(&self, _new: &NewMaterialType) -> Result<MaterialType, AppError> {
         Err(AppError::infrastructure("create not used in roll tests"))
     }
     async fn update(
@@ -190,28 +181,21 @@ struct FakeInventoryFactory {
 }
 
 impl InventoryPortFactory for FakeInventoryFactory {
-    fn material_types(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn MaterialTypePort>, AppError> {
+    fn material_types(&self, _auth: &AuthContext) -> Result<Arc<dyn MaterialTypePort>, AppError> {
         Ok(self.material_types.clone())
     }
-    fn suppliers(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn SupplierPort>, AppError> {
+    fn suppliers(&self, _auth: &AuthContext) -> Result<Arc<dyn SupplierPort>, AppError> {
         Err(AppError::infrastructure("suppliers not used in roll tests"))
     }
     fn material_suppliers(
         &self,
         _auth: &AuthContext,
     ) -> Result<Arc<dyn MaterialSupplierPort>, AppError> {
-        Err(AppError::infrastructure("material_suppliers not used in roll tests"))
+        Err(AppError::infrastructure(
+            "material_suppliers not used in roll tests",
+        ))
     }
-    fn rolls(
-        &self,
-        _auth: &AuthContext,
-    ) -> Result<Arc<dyn RollPort>, AppError> {
+    fn rolls(&self, _auth: &AuthContext) -> Result<Arc<dyn RollPort>, AppError> {
         Ok(self.rolls.clone())
     }
 }
@@ -247,8 +231,7 @@ fn generate_test_keys() -> TestKeys {
     let private_pem = private
         .to_pkcs1_pem(LineEnding::LF)
         .expect("encode private PEM");
-    let encoding =
-        EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
+    let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).expect("load encoding key");
     let n_b64 = b64url(public.n().to_bytes_be());
     let e_b64 = b64url(public.e().to_bytes_be());
     let jwk = Jwk {
@@ -338,8 +321,10 @@ fn state(
     rolls: Arc<FakeRollPort>,
     material_types: Arc<FakeMaterialTypePort>,
 ) -> Arc<AppState> {
-    let inv_factory: Arc<dyn InventoryPortFactory> =
-        Arc::new(FakeInventoryFactory { rolls, material_types });
+    let inv_factory: Arc<dyn InventoryPortFactory> = Arc::new(FakeInventoryFactory {
+        rolls,
+        material_types,
+    });
     Arc::new(AppState::with_factories(
         jwks_cache(keys),
         SUPABASE_URL,
@@ -564,6 +549,12 @@ async fn update_depletion_with_zero_length_succeeds() {
         remaining_length: 50.0,
         status: RollStatus::Active,
         notes: None,
+        part_number: Some("RF-000001".into()),
+        parent_roll_id: None,
+        is_offcut: Some(false),
+        barcode_format: Some("code128".into()),
+        barcode_asset_path: None,
+        barcode_generated_at: None,
         created_at: None,
         updated_at: None,
     });
@@ -605,6 +596,12 @@ async fn get_returns_entity() {
         remaining_length: 500.0,
         status: RollStatus::Active,
         notes: None,
+        part_number: Some("RF-000009".into()),
+        parent_roll_id: None,
+        is_offcut: Some(false),
+        barcode_format: Some("code128".into()),
+        barcode_asset_path: None,
+        barcode_generated_at: None,
         created_at: None,
         updated_at: None,
     });
@@ -666,6 +663,12 @@ async fn delete_204_on_success() {
         remaining_length: 1.0,
         status: RollStatus::Active,
         notes: None,
+        part_number: Some("RF-000010".into()),
+        parent_roll_id: None,
+        is_offcut: Some(false),
+        barcode_format: Some("code128".into()),
+        barcode_asset_path: None,
+        barcode_generated_at: None,
         created_at: None,
         updated_at: None,
     });

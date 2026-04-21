@@ -1,11 +1,9 @@
 // engine/crates/rf-layout/src/infrastructure/jagua_adapter.rs
-use crate::domain::{Bin, Part, PackError};
+use crate::domain::{Bin, PackError, Part};
 
 use jagua_rs::collision_detection::CDEConfig;
 use jagua_rs::geometry::fail_fast::SPSurrogateConfig;
-use jagua_rs::io::ext_repr::{
-    ExtContainer, ExtItem as BaseExtItem, ExtSPolygon, ExtShape,
-};
+use jagua_rs::io::ext_repr::{ExtContainer, ExtItem as BaseExtItem, ExtSPolygon, ExtShape};
 use jagua_rs::io::import::Importer;
 use jagua_rs::probs::bpp::entities::BPInstance;
 use jagua_rs::probs::bpp::io::ext_repr::{ExtBPInstance, ExtBin, ExtItem as BpExtItem};
@@ -16,14 +14,16 @@ use jagua_rs::probs::bpp::io::import_instance;
 /// upstream rather than silently producing NaN/inf geometry.
 fn finite_f32(x: f64, context: &str) -> Result<f32, PackError> {
     if !x.is_finite() {
-        return Err(PackError::EngineFailed(
-            format!("non-finite coordinate in {}: {}", context, x)
-        ));
+        return Err(PackError::EngineFailed(format!(
+            "non-finite coordinate in {}: {}",
+            context, x
+        )));
     }
     if x.abs() > f32::MAX as f64 {
-        return Err(PackError::EngineFailed(
-            format!("coordinate out of f32 range in {}: {}", context, x)
-        ));
+        return Err(PackError::EngineFailed(format!(
+            "coordinate out of f32 range in {}: {}",
+            context, x
+        )));
     }
     Ok(x as f32)
 }
@@ -50,9 +50,10 @@ pub fn to_jagua_instance(
         return Err(PackError::NoItems);
     }
     if clearance < 0.0 {
-        return Err(PackError::EngineFailed(
-            format!("negative clearance: {}", clearance)
-        ));
+        return Err(PackError::EngineFailed(format!(
+            "negative clearance: {}",
+            clearance
+        )));
     }
 
     // Sensible defaults taken from lbf (the reference binary in jagua-rs 0.7.1).
@@ -76,9 +77,9 @@ pub fn to_jagua_instance(
 
     let importer = Importer::new(
         cde_config,
-        None,               // poly_simpl_tolerance: leave shapes exact
+        None,                // poly_simpl_tolerance: leave shapes exact
         min_item_separation, // min_item_separation = our clearance
-        None,               // narrow_concavity_cutoff: off
+        None,                // narrow_concavity_cutoff: off
     );
 
     // Build external representation (jagua's public input shape). IDs must be
@@ -200,7 +201,10 @@ mod tests {
         let bins = vec![test_bin()];
         let items = vec![test_rect_part()];
         let r = to_jagua_instance(&bins, &items, 0.125);
-        assert!(r.is_ok(), "conversion should succeed for a valid simple rect");
+        assert!(
+            r.is_ok(),
+            "conversion should succeed for a valid simple rect"
+        );
     }
 
     #[test]
@@ -261,6 +265,9 @@ mod tests {
         let mut part = test_rect_part();
         part.allow_rotation = false;
         let r = to_jagua_instance(&bins, &[part], 0.125);
-        assert!(r.is_ok(), "allow_rotation=false should convert cleanly (single fixed angle)");
+        assert!(
+            r.is_ok(),
+            "allow_rotation=false should convert cleanly (single fixed angle)"
+        );
     }
 }

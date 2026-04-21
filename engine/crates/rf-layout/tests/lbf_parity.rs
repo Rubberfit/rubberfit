@@ -27,8 +27,7 @@ fn fixture_dir() -> PathBuf {
 
 fn load_request(path: &std::path::Path) -> PackRequest {
     let content = fs::read_to_string(path).expect("read fixture");
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("parse {}: {}", path.display(), e))
 }
 
 #[test]
@@ -48,11 +47,9 @@ fn lbf_does_not_regress_vs_pack_on_any_fixture() {
 
         let request = load_request(path);
 
-        let pack_result = pack(request.clone())
-            .unwrap_or_else(|e| panic!("pack {name}: {e}"));
+        let pack_result = pack(request.clone()).unwrap_or_else(|e| panic!("pack {name}: {e}"));
 
-        let lbf_result = pack_lbf(request)
-            .unwrap_or_else(|e| panic!("pack_lbf {name}: {e}"));
+        let lbf_result = pack_lbf(request).unwrap_or_else(|e| panic!("pack_lbf {name}: {e}"));
 
         println!(
             "[parity] {:<24} pack={:>3}/{:<3} lbf={:>3}/{:<3}",
@@ -124,7 +121,10 @@ fn lbf_deterministic_across_runs() {
             assert!(
                 (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6,
                 "coord drift on {fixture}: ({},{}) vs ({},{})",
-                a.x, a.y, b.x, b.y
+                a.x,
+                a.y,
+                b.x,
+                b.y
             );
         }
     }

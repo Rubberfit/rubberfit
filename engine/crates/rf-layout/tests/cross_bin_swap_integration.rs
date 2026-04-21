@@ -39,7 +39,10 @@ fn bin(id: &str, w: f64, h: f64) -> Bin {
 }
 
 fn total_items(a: &FfdAssignment) -> u32 {
-    a.per_bin.iter().map(|b| b.placements.len() as u32).sum::<u32>()
+    a.per_bin
+        .iter()
+        .map(|b| b.placements.len() as u32)
+        .sum::<u32>()
         + a.overflow.iter().map(|(_, n)| *n).sum::<u32>()
 }
 
@@ -114,10 +117,7 @@ fn operators_compose_preserving_invariants() {
 #[test]
 fn determinism_under_repeated_runs() {
     let bins_spec = vec![bin("A", 40.0, 40.0), bin("B", 40.0, 40.0)];
-    let items = vec![
-        rect_part("a", 2, 15.0, 15.0),
-        rect_part("b", 1, 10.0, 10.0),
-    ];
+    let items = vec![rect_part("a", 2, 15.0, 15.0), rect_part("b", 1, 10.0, 10.0)];
 
     let run = || {
         let asn = ffd_assign(&bins_spec, &items, 0.0).unwrap();
@@ -135,11 +135,22 @@ fn determinism_under_repeated_runs() {
             .map(|b| {
                 b.placements
                     .iter()
-                    .map(|p| (p.shape_id.clone(), p.bin_id.clone(), p.x.to_bits(), p.y.to_bits()))
+                    .map(|p| {
+                        (
+                            p.shape_id.clone(),
+                            p.bin_id.clone(),
+                            p.x.to_bits(),
+                            p.y.to_bits(),
+                        )
+                    })
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>()
     };
 
-    assert_eq!(run(), run(), "bit-identical outputs expected under fixed inputs");
+    assert_eq!(
+        run(),
+        run(),
+        "bit-identical outputs expected under fixed inputs"
+    );
 }

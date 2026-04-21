@@ -10,7 +10,7 @@ npm run dev              # Next.js dev server
 npm run build            # Production build (prebuild hook rebuilds the Rust engine)
 npm run start            # Production server
 
-# Code quality (run both before committing)
+# Code quality (run before committing)
 npm run typecheck        # tsc --noEmit — must be zero errors
 npm run lint             # ESLint — must be zero errors, zero warnings
 npm run lint:fix         # Auto-fix lint issues
@@ -28,7 +28,9 @@ npm run fmt:rust         # cargo fmt --all
 npm run clippy:rust      # cargo clippy (-D warnings)
 ```
 
-Tests live in `tests/` (Vitest) and `engine/crates/*/tests/` (cargo). Pre-commit verification runs `typecheck` + `lint` + `test`.
+Tests live in `tests/` (Vitest) and `engine/crates/*/tests/` (cargo). The GitHub `Code Quality` workflow is one workflow with two jobs: `web quality` (Prettier + ESLint + TypeScript) and `rust quality` (`rustfmt --check` + `clippy -D warnings`).
+
+Pre-commit verification runs `typecheck` + `lint` + `format:check` + `fmt:rust` + `clippy:rust` + `test`.
 
 ## Architecture
 

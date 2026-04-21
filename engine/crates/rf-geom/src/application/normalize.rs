@@ -12,10 +12,18 @@ pub fn bbox_of(points: &[Point2D]) -> Result<(Point2D, Point2D), GeomError> {
     let mut min = points[0];
     let mut max = points[0];
     for p in &points[1..] {
-        if p.x < min.x { min.x = p.x; }
-        if p.y < min.y { min.y = p.y; }
-        if p.x > max.x { max.x = p.x; }
-        if p.y > max.y { max.y = p.y; }
+        if p.x < min.x {
+            min.x = p.x;
+        }
+        if p.y < min.y {
+            min.y = p.y;
+        }
+        if p.x > max.x {
+            max.x = p.x;
+        }
+        if p.y > max.y {
+            max.y = p.y;
+        }
     }
     Ok((min, max))
 }
@@ -23,7 +31,9 @@ pub fn bbox_of(points: &[Point2D]) -> Result<(Point2D, Point2D), GeomError> {
 /// Normalize a polygon to CCW winding with min-corner at (0, 0).
 pub fn normalize_polygon(points: Vec<Point2D>) -> Result<Polygon, GeomError> {
     if points.len() < 3 {
-        return Err(GeomError::PolygonTooFewVertices { count: points.len() });
+        return Err(GeomError::PolygonTooFewVertices {
+            count: points.len(),
+        });
     }
     let min_x = points.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
     let min_y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);

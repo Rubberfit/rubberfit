@@ -24,8 +24,8 @@
 use super::consts::{GLS_WEIGHT_DECAY, GLS_WEIGHT_MAX_INC_RATIO, GLS_WEIGHT_MIN_INC_RATIO};
 use super::pair_matrix::PairMatrix;
 use super::quantify::{quantify_collision_poly_container, quantify_collision_poly_poly};
-use jagua_rs::collision_detection::hazards::HazardEntity;
 use jagua_rs::collision_detection::hazards::collector::{BasicHazardCollector, HazardCollector};
+use jagua_rs::collision_detection::hazards::HazardEntity;
 use jagua_rs::entities::{Layout, PItemKey};
 use slotmap::SecondaryMap;
 
@@ -275,4 +275,3 @@ impl CTEntry {
         self.weight * self.loss
     }
 }
-

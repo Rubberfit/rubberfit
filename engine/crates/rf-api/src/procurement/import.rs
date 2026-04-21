@@ -20,8 +20,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::procurement::{
-    ImportCsvBytesUseCase, ImportReceipt, ImportReviewedRowsUseCase,
-    ImportRowError,
+    ImportCsvBytesUseCase, ImportReceipt, ImportReviewedRowsUseCase, ImportRowError,
 };
 use rf_domain::{CsvImportRow, MaterialTypeId};
 use serde::{Deserialize, Serialize};
@@ -139,8 +138,7 @@ pub async fn import_rolls_json(
     let incoming: ImportRollsBody = serde_json::from_slice(&bytes)
         .map_err(|e| ApiError::App(AppError::InvalidInput(format!("invalid JSON: {e}"))))?;
 
-    let rows: Vec<CsvImportRow> =
-        incoming.rows.into_iter().map(CsvImportRow::from).collect();
+    let rows: Vec<CsvImportRow> = incoming.rows.into_iter().map(CsvImportRow::from).collect();
 
     let port = state
         .procurement_factory

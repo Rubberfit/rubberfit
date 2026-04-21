@@ -11,8 +11,7 @@
 use async_trait::async_trait;
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate,
-    NewMaterialSupplier,
+    MaterialSupplierFilters, MaterialSupplierPort, MaterialSupplierUpdate, NewMaterialSupplier,
 };
 use rf_domain::{MaterialSupplier, MaterialSupplierId};
 use serde::Serialize;
@@ -24,8 +23,7 @@ const PG_UNIQUE_VIOLATION: &str = "23505";
 const PG_FK_VIOLATION: &str = "23503";
 const PG_CHECK_VIOLATION: &str = "23514";
 
-const SELECT_WITH_EMBEDS: &str =
-    "*,material_type:material_types(*),supplier:suppliers(*)";
+const SELECT_WITH_EMBEDS: &str = "*,material_type:material_types(*),supplier:suppliers(*)";
 
 pub struct SupabaseMaterialSupplierRepository {
     client: PostgrestClient,
@@ -68,7 +66,10 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
     ) -> Result<Vec<MaterialSupplier>, AppError> {
         let mut query: Vec<(String, String)> = vec![
             ("select".into(), SELECT_WITH_EMBEDS.into()),
-            ("order".into(), "preferred_supplier.desc,cost_per_sqft.asc".into()),
+            (
+                "order".into(),
+                "preferred_supplier.desc,cost_per_sqft.asc".into(),
+            ),
         ];
         if let Some(mt) = filters.material_type_id.as_ref() {
             query.push(("material_type_id".into(), format!("eq.{}", mt.0)));
@@ -95,10 +96,7 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
             .map_err(AppError::infrastructure)
     }
 
-    async fn get(
-        &self,
-        id: &MaterialSupplierId,
-    ) -> Result<Option<MaterialSupplier>, AppError> {
+    async fn get(&self, id: &MaterialSupplierId) -> Result<Option<MaterialSupplier>, AppError> {
         let id_filter = format!("eq.{}", id.0);
         let query = [
             ("select", SELECT_WITH_EMBEDS),
@@ -113,10 +111,7 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
         Ok(rows.pop())
     }
 
-    async fn create(
-        &self,
-        new: &NewMaterialSupplier,
-    ) -> Result<MaterialSupplier, AppError> {
+    async fn create(&self, new: &NewMaterialSupplier) -> Result<MaterialSupplier, AppError> {
         let row = NewMaterialSupplierRow {
             material_type_id: &new.material_type_id.0,
             supplier_id: &new.supplier_id.0,
@@ -136,10 +131,7 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
         // response. GETs after the fact will include them.
         match self
             .client
-            .post::<_, Vec<MaterialSupplier>>(
-                "/rest/v1/material_suppliers",
-                &row,
-            )
+            .post::<_, Vec<MaterialSupplier>>("/rest/v1/material_suppliers", &row)
             .await
         {
             Ok(mut rows) => rows
@@ -187,10 +179,7 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
             body.insert("active".into(), Value::Bool(b));
         }
         if let Some(v) = patch.notes.clone() {
-            body.insert(
-                "notes".into(),
-                v.map(Value::String).unwrap_or(Value::Null),
-            );
+            body.insert("notes".into(), v.map(Value::String).unwrap_or(Value::Null));
         }
         if let Some(v) = patch.effective_date.clone() {
             body.insert(
@@ -228,10 +217,7 @@ impl MaterialSupplierPort for SupabaseMaterialSupplierRepository {
         let query = [("id", id_filter.as_str())];
         match self
             .client
-            .delete::<Vec<MaterialSupplier>>(
-                "/rest/v1/material_suppliers",
-                &query,
-            )
+            .delete::<Vec<MaterialSupplier>>("/rest/v1/material_suppliers", &query)
             .await
         {
             Ok(rows) => Ok(!rows.is_empty()),

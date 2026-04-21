@@ -62,11 +62,7 @@ struct QueueRow<'a> {
 }
 
 impl SupabaseNotificationRepository {
-    async fn write_in_app(
-        &self,
-        title: String,
-        description: Option<&str>,
-    ) -> Result<(), AppError> {
+    async fn write_in_app(&self, title: String, description: Option<&str>) -> Result<(), AppError> {
         let row = InAppRow {
             kind: "system_alert",
             title,
@@ -129,11 +125,7 @@ impl SupabaseNotificationRepository {
             .write_in_app(in_app_title.clone(), Some(&in_app_description))
             .await;
         let queue = self
-            .write_queue_broadcast(
-                queue_type,
-                in_app_title,
-                in_app_description,
-            )
+            .write_queue_broadcast(queue_type, in_app_title, in_app_description)
             .await;
         match (in_app, queue) {
             (Ok(()), Ok(())) => Ok(()),
@@ -152,17 +144,13 @@ impl NotificationPort for SupabaseNotificationRepository {
         // used in S3b's material_suppliers adapter; keeping it
         // simple for now rather than threading a name onto the
         // domain type or adding a fan-out query.
-        let description =
-            format!("Purchase order {} has been approved.", po.po_number);
+        let description = format!("Purchase order {} has been approved.", po.po_number);
         self.broadcast(title, description, "po_approved").await
     }
 
     async fn send_po_received(&self, po: &PurchaseOrder) -> Result<(), AppError> {
         let title = format!("PO {} received", po.po_number);
-        let description = format!(
-            "Purchase order {} has been marked received.",
-            po.po_number
-        );
+        let description = format!("Purchase order {} has been marked received.", po.po_number);
         self.broadcast(title, description, "delivery_received")
             .await
     }

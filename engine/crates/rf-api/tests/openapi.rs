@@ -66,16 +66,12 @@ async fn openapi_json_is_public_and_well_formed() {
 fn committed_spec_matches_generated_spec() {
     use rf_api::openapi::build_doc;
 
-    let committed = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/openapi.json"
-    ))
-    .expect(
-        "committed openapi.json should exist next to Cargo.toml — \
+    let committed = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/openapi.json"))
+        .expect(
+            "committed openapi.json should exist next to Cargo.toml — \
          did you run `npm run openapi:dump`?",
-    );
-    let generated = serde_json::to_string_pretty(&build_doc())
-        .expect("serialize generated spec");
+        );
+    let generated = serde_json::to_string_pretty(&build_doc()).expect("serialize generated spec");
 
     // Normalise trailing whitespace — `println!` in the dump bin adds
     // a newline, `to_string_pretty` does not. Accept both.

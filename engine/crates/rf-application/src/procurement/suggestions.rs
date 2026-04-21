@@ -24,9 +24,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rf_domain::{
-    MaterialTypeId, ReorderRule, ReorderSuggestion, SupplierId, Urgency,
-};
+use rf_domain::{MaterialTypeId, ReorderRule, ReorderSuggestion, SupplierId, Urgency};
 
 use crate::error::AppError;
 use crate::procurement::reorder_rules::ReorderRulePort;
@@ -87,19 +85,13 @@ pub trait SuggestionReadsPort: Send + Sync {
     async fn material_type_facts(
         &self,
         ids: &[MaterialTypeId],
-    ) -> Result<
-        HashMap<MaterialTypeId, (String, Option<f64>)>,
-        AppError,
-    >;
+    ) -> Result<HashMap<MaterialTypeId, (String, Option<f64>)>, AppError>;
 
     /// Resolve a supplier id back to a display name. Used only when
     /// a rule explicitly pins a supplier that doesn't also appear
     /// in `material_supplier_quotes` (rare, but possible if the
     /// material-supplier link was deleted after the rule was set).
-    async fn supplier_name(
-        &self,
-        id: &SupplierId,
-    ) -> Result<Option<String>, AppError>;
+    async fn supplier_name(&self, id: &SupplierId) -> Result<Option<String>, AppError>;
 }
 
 /// Options for the suggestion generator. `include_pending` is the
@@ -163,8 +155,7 @@ fn optimal_order_quantity(avg_daily_usage: f64, unit_cost: f64) -> Option<f64> {
     let annual_demand = avg_daily_usage * 365.0;
     let holding_cost = unit_cost * 0.25;
     let ordering_cost = 50.0;
-    let eoq =
-        ((2.0 * annual_demand * ordering_cost) / holding_cost).sqrt();
+    let eoq = ((2.0 * annual_demand * ordering_cost) / holding_cost).sqrt();
     // Round to nearest 100, clamp to 100 minimum — TS behavior.
     Some(((eoq / 100.0).round() * 100.0).max(100.0))
 }
@@ -282,10 +273,7 @@ pub struct GenerateReorderSuggestionsUseCase {
 }
 
 impl GenerateReorderSuggestionsUseCase {
-    pub fn new(
-        rules: Arc<dyn ReorderRulePort>,
-        reads: Arc<dyn SuggestionReadsPort>,
-    ) -> Self {
+    pub fn new(rules: Arc<dyn ReorderRulePort>, reads: Arc<dyn SuggestionReadsPort>) -> Self {
         Self { rules, reads }
     }
 
@@ -297,16 +285,12 @@ impl GenerateReorderSuggestionsUseCase {
         // Filter out inactive rules early so we don't waste a read
         // on stock / pending / quotes for materials nobody asked to
         // reorder.
-        let active: Vec<&ReorderRule> =
-            rules.iter().filter(|r| r.active).collect();
+        let active: Vec<&ReorderRule> = rules.iter().filter(|r| r.active).collect();
         if active.is_empty() {
             return Ok(Vec::new());
         }
 
-        let ids: Vec<MaterialTypeId> = active
-            .iter()
-            .map(|r| r.material_type_id.clone())
-            .collect();
+        let ids: Vec<MaterialTypeId> = active.iter().map(|r| r.material_type_id.clone()).collect();
 
         let stock = self.reads.current_stock_sqft(&ids).await?;
         let avg_daily = self.reads.average_daily_usage_sqft().await?;
@@ -317,10 +301,7 @@ impl GenerateReorderSuggestionsUseCase {
         let mut out: Vec<ReorderSuggestion> = Vec::with_capacity(active.len());
         for rule in active {
             let current = stock.get(&rule.material_type_id).copied().unwrap_or(0.0);
-            let pending_qty = pending
-                .get(&rule.material_type_id)
-                .copied()
-                .unwrap_or(0.0);
+            let pending_qty = pending.get(&rule.material_type_id).copied().unwrap_or(0.0);
             let has_pending = pending_qty > 0.0;
             if has_pending && !opts.include_pending {
                 // Suppressed by default — operator opts in with
@@ -360,8 +341,7 @@ impl GenerateReorderSuggestionsUseCase {
                 .get(&rule.material_type_id)
                 .cloned()
                 .unwrap_or_else(|| ("Unknown".to_string(), None));
-            let per_sqft =
-                cost_per_sqft(supplier_id.as_ref(), qs, default_cost);
+            let per_sqft = cost_per_sqft(supplier_id.as_ref(), qs, default_cost);
 
             let base_suggested = suggested_quantity(
                 current,
@@ -400,12 +380,14 @@ impl GenerateReorderSuggestionsUseCase {
 
         // Sort by days_until_stockout ascending (most urgent first).
         // Nones go last. Matches TS sort.
-        out.sort_by(|a, b| match (a.days_until_stockout, b.days_until_stockout) {
-            (Some(x), Some(y)) => x.cmp(&y),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        });
+        out.sort_by(
+            |a, b| match (a.days_until_stockout, b.days_until_stockout) {
+                (Some(x), Some(y)) => x.cmp(&y),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            },
+        );
         Ok(out)
     }
 }
@@ -450,8 +432,7 @@ mod tests {
     fn suggested_quantity_caps_at_max_stock() {
         // current 400 + reorder_quantity 1000 = 1400 > max 1200
         // → cap at 1200 - 400 = 800.
-        let q =
-            suggested_quantity(400.0, 500.0, 1000.0, Some(1200.0), 0.0, 0.0);
+        let q = suggested_quantity(400.0, 500.0, 1000.0, Some(1200.0), 0.0, 0.0);
         assert_eq!(q, 800.0);
     }
 
@@ -469,8 +450,7 @@ mod tests {
         // Rounded to nearest 100 → 1200. Rule quantity 500 loses to
         // 1200; 1200 wins as the base. No critical-stock bump
         // (stock 400 > 0.25 * 500 = 125).
-        let q =
-            suggested_quantity(400.0, 500.0, 500.0, None, 100.0, 10.0);
+        let q = suggested_quantity(400.0, 500.0, 500.0, None, 100.0, 10.0);
         assert_eq!(q, 1200.0);
     }
 
@@ -512,10 +492,7 @@ mod tests {
         }
     }
 
-    fn rule_with_supplier(
-        mt: &str,
-        sup: Option<&str>,
-    ) -> ReorderRule {
+    fn rule_with_supplier(mt: &str, sup: Option<&str>) -> ReorderRule {
         ReorderRule {
             id: ReorderRuleId("rr-1".into()),
             material_type_id: MaterialTypeId(mt.into()),
@@ -625,10 +602,7 @@ mod tests {
         async fn material_supplier_quotes(
             &self,
             ids: &[MaterialTypeId],
-        ) -> Result<
-            HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>>,
-            AppError,
-        > {
+        ) -> Result<HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>>, AppError> {
             let guard = self.quotes.lock().unwrap();
             Ok(ids
                 .iter()
@@ -638,20 +612,14 @@ mod tests {
         async fn material_type_facts(
             &self,
             ids: &[MaterialTypeId],
-        ) -> Result<
-            HashMap<MaterialTypeId, (String, Option<f64>)>,
-            AppError,
-        > {
+        ) -> Result<HashMap<MaterialTypeId, (String, Option<f64>)>, AppError> {
             let guard = self.facts.lock().unwrap();
             Ok(ids
                 .iter()
                 .filter_map(|id| guard.get(id).map(|v| (id.clone(), v.clone())))
                 .collect())
         }
-        async fn supplier_name(
-            &self,
-            _id: &SupplierId,
-        ) -> Result<Option<String>, AppError> {
+        async fn supplier_name(&self, _id: &SupplierId) -> Result<Option<String>, AppError> {
             Ok(None)
         }
     }
@@ -666,10 +634,7 @@ mod tests {
         async fn list(&self) -> Result<Vec<ReorderRule>, AppError> {
             Ok(self.rows.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            _: &ReorderRuleId,
-        ) -> Result<Option<ReorderRule>, AppError> {
+        async fn get(&self, _: &ReorderRuleId) -> Result<Option<ReorderRule>, AppError> {
             Ok(None)
         }
         async fn create(
@@ -685,10 +650,7 @@ mod tests {
         ) -> Result<Option<ReorderRule>, AppError> {
             unreachable!()
         }
-        async fn touch_triggered_at(
-            &self,
-            _: &ReorderRuleId,
-        ) -> Result<(), AppError> {
+        async fn touch_triggered_at(&self, _: &ReorderRuleId) -> Result<(), AppError> {
             Ok(())
         }
         async fn delete(&self, _: &ReorderRuleId) -> Result<bool, AppError> {
@@ -720,7 +682,11 @@ mod tests {
         rules.rows.lock().unwrap().push(rule);
 
         let reads = Arc::new(FakeReads::default());
-        reads.stock.lock().unwrap().insert(MaterialTypeId("mt-1".into()), 100.0);
+        reads
+            .stock
+            .lock()
+            .unwrap()
+            .insert(MaterialTypeId("mt-1".into()), 100.0);
         *reads.avg_daily.lock().unwrap() = 10.0;
         reads.quotes.lock().unwrap().insert(
             MaterialTypeId("mt-1".into()),
@@ -732,10 +698,7 @@ mod tests {
         );
 
         let uc = GenerateReorderSuggestionsUseCase::new(rules, reads);
-        let out = uc
-            .execute(SuggestionOptions::default())
-            .await
-            .unwrap();
+        let out = uc.execute(SuggestionOptions::default()).await.unwrap();
         assert_eq!(out.len(), 1);
         let s = &out[0];
         assert_eq!(s.material_name, "Neoprene");
@@ -755,10 +718,18 @@ mod tests {
     #[tokio::test]
     async fn pending_po_suppresses_rule_by_default() {
         let rules = Arc::new(FakeRules::default());
-        rules.rows.lock().unwrap().push(rule_with_supplier("mt-1", None));
+        rules
+            .rows
+            .lock()
+            .unwrap()
+            .push(rule_with_supplier("mt-1", None));
 
         let reads = Arc::new(FakeReads::default());
-        reads.stock.lock().unwrap().insert(MaterialTypeId("mt-1".into()), 50.0);
+        reads
+            .stock
+            .lock()
+            .unwrap()
+            .insert(MaterialTypeId("mt-1".into()), 50.0);
         reads
             .pending
             .lock()
@@ -778,10 +749,18 @@ mod tests {
     #[tokio::test]
     async fn include_pending_opt_in_shows_suppressed_rule() {
         let rules = Arc::new(FakeRules::default());
-        rules.rows.lock().unwrap().push(rule_with_supplier("mt-1", None));
+        rules
+            .rows
+            .lock()
+            .unwrap()
+            .push(rule_with_supplier("mt-1", None));
 
         let reads = Arc::new(FakeReads::default());
-        reads.stock.lock().unwrap().insert(MaterialTypeId("mt-1".into()), 50.0);
+        reads
+            .stock
+            .lock()
+            .unwrap()
+            .insert(MaterialTypeId("mt-1".into()), 50.0);
         reads
             .pending
             .lock()
@@ -808,7 +787,11 @@ mod tests {
     #[tokio::test]
     async fn above_reorder_point_is_not_suggested() {
         let rules = Arc::new(FakeRules::default());
-        rules.rows.lock().unwrap().push(rule_with_supplier("mt-1", None));
+        rules
+            .rows
+            .lock()
+            .unwrap()
+            .push(rule_with_supplier("mt-1", None));
 
         let reads = Arc::new(FakeReads::default());
         // Stock 600 > reorder_point 500 → no trigger.
@@ -864,14 +847,16 @@ mod tests {
             .lock()
             .unwrap()
             .insert(MaterialTypeId("mt-2".into()), 50.0);
-        reads.facts.lock().unwrap().insert(
-            MaterialTypeId("mt-1".into()),
-            ("A".to_string(), Some(1.0)),
-        );
-        reads.facts.lock().unwrap().insert(
-            MaterialTypeId("mt-2".into()),
-            ("B".to_string(), Some(1.0)),
-        );
+        reads
+            .facts
+            .lock()
+            .unwrap()
+            .insert(MaterialTypeId("mt-1".into()), ("A".to_string(), Some(1.0)));
+        reads
+            .facts
+            .lock()
+            .unwrap()
+            .insert(MaterialTypeId("mt-2".into()), ("B".to_string(), Some(1.0)));
         *reads.avg_daily.lock().unwrap() = 10.0;
 
         let uc = GenerateReorderSuggestionsUseCase::new(rules, reads);

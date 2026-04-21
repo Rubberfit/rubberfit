@@ -103,7 +103,9 @@ pub const THOROUGH_MS: u64 = 30_000;
 
 impl PackRequest {
     pub fn resolved_time_budget_ms(&self) -> u64 {
-        if let Some(ms) = self.time_budget_ms { return ms; }
+        if let Some(ms) = self.time_budget_ms {
+            return ms;
+        }
         match self.mode {
             Some(PackMode::Fast) => FAST_MS,
             Some(PackMode::Thorough) => THOROUGH_MS,
@@ -163,7 +165,13 @@ mod tests {
 
     #[test]
     fn bin_kind_serializes_as_lowercase() {
-        let b = Bin { bin_id: "x".into(), width: 1.0, height: 1.0, kind: BinKind::Remnant, priority: None };
+        let b = Bin {
+            bin_id: "x".into(),
+            width: 1.0,
+            height: 1.0,
+            kind: BinKind::Remnant,
+            priority: None,
+        };
         let json = serde_json::to_string(&b).unwrap();
         assert!(json.contains("\"kind\":\"remnant\""));
     }

@@ -89,10 +89,7 @@ impl ReceivePort for SupabaseReceiveRepository {
         };
         match self
             .client
-            .post::<_, ReceiveRpcResponse>(
-                "/rest/v1/rpc/receive_purchase_order",
-                &body,
-            )
+            .post::<_, ReceiveRpcResponse>("/rest/v1/rpc/receive_purchase_order", &body)
             .await
         {
             Ok(resp) => Ok(ReceiveReceipt {
@@ -121,14 +118,10 @@ fn map_receive_error(err: PostgrestError) -> AppError {
     let code = err.pg_code();
     match code {
         Some(PG_UNIQUE_VIOLATION) => return AppError::conflict("DUPLICATE_VALUE"),
-        Some(PG_FK_VIOLATION) => {
-            return AppError::conflict("FK_VIOLATION_PARENT_MISSING")
-        }
+        Some(PG_FK_VIOLATION) => return AppError::conflict("FK_VIOLATION_PARENT_MISSING"),
         Some(PG_CHECK_VIOLATION) => return AppError::conflict("CHECK_VIOLATION"),
         Some(PG_PO_NOT_FOUND) => return AppError::conflict("PO_NOT_FOUND"),
-        Some(PG_PO_ALREADY_RECEIVED) => {
-            return AppError::conflict("PO_ALREADY_RECEIVED")
-        }
+        Some(PG_PO_ALREADY_RECEIVED) => return AppError::conflict("PO_ALREADY_RECEIVED"),
         Some(PG_PO_NOT_ORDERABLE) => {
             // Echo the source status back to the UI so the dialog
             // can say "move the PO to ordered first" rather than
@@ -136,8 +129,8 @@ fn map_receive_error(err: PostgrestError) -> AppError {
             // `PO_NOT_ORDERABLE (status=<src>)` — extract the
             // parenthesized suffix only to avoid trailing
             // PostgREST context.
-            let suffix = extract_parens_suffix(&err.to_string(), "PO_NOT_ORDERABLE")
-                .unwrap_or_default();
+            let suffix =
+                extract_parens_suffix(&err.to_string(), "PO_NOT_ORDERABLE").unwrap_or_default();
             return AppError::conflict(format!("PO_NOT_ORDERABLE{suffix}"));
         }
         Some(PG_PO_ITEM_NOT_FOUND) => {
@@ -145,8 +138,8 @@ fn map_receive_error(err: PostgrestError) -> AppError {
             // parenthesized item_id so a client switch on
             // `code.startsWith("PO_ITEM_NOT_FOUND")` can read out
             // the id with a cheap regex.
-            let suffix = extract_parens_suffix(&err.to_string(), "PO_ITEM_NOT_FOUND")
-                .unwrap_or_default();
+            let suffix =
+                extract_parens_suffix(&err.to_string(), "PO_ITEM_NOT_FOUND").unwrap_or_default();
             return AppError::conflict(format!("PO_ITEM_NOT_FOUND{suffix}"));
         }
         _ => {}

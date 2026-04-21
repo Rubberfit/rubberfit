@@ -126,10 +126,7 @@ impl ReceivePurchaseOrderUseCase {
             }
         }
 
-        let receipt = self
-            .receive_port
-            .receive(&po_id, &items, &user_id)
-            .await?;
+        let receipt = self.receive_port.receive(&po_id, &items, &user_id).await?;
 
         // Fire the PO-received notification only on a FULL receipt.
         // Partial receipts (at least one item still short on
@@ -180,11 +177,10 @@ mod tests {
             items: &[ReceiveItem],
             user_id: &str,
         ) -> Result<ReceiveReceipt, AppError> {
-            self.calls.lock().unwrap().push((
-                po_id.0.clone(),
-                items.to_vec(),
-                user_id.to_string(),
-            ));
+            self.calls
+                .lock()
+                .unwrap()
+                .push((po_id.0.clone(), items.to_vec(), user_id.to_string()));
             if let Some(err) = self.error.lock().unwrap().take() {
                 return Err(err);
             }
@@ -216,10 +212,7 @@ mod tests {
         ) -> Result<Vec<PurchaseOrder>, AppError> {
             unreachable!()
         }
-        async fn get(
-            &self,
-            _: &PurchaseOrderId,
-        ) -> Result<Option<PurchaseOrder>, AppError> {
+        async fn get(&self, _: &PurchaseOrderId) -> Result<Option<PurchaseOrder>, AppError> {
             Ok(self.row.lock().unwrap().clone())
         }
         async fn generate_number(&self) -> Result<String, AppError> {
@@ -259,16 +252,10 @@ mod tests {
 
     #[async_trait]
     impl NotificationPort for FakeNotifier {
-        async fn send_po_approved(
-            &self,
-            _po: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_approved(&self, _po: &PurchaseOrder) -> Result<(), AppError> {
             Ok(())
         }
-        async fn send_po_received(
-            &self,
-            po: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_received(&self, po: &PurchaseOrder) -> Result<(), AppError> {
             self.received.lock().unwrap().push(po.id.0.clone());
             Ok(())
         }
@@ -372,11 +359,7 @@ mod tests {
         let po = Arc::new(FakePo::default());
         *po.row.lock().unwrap() = Some(fake_po("po-1"));
         let notifier = Arc::new(FakeNotifier::default());
-        let uc = ReceivePurchaseOrderUseCase::new(
-            receive.clone(),
-            po,
-            notifier.clone(),
-        );
+        let uc = ReceivePurchaseOrderUseCase::new(receive.clone(), po, notifier.clone());
         uc.execute(
             PurchaseOrderId("po-1".into()),
             vec![ReceiveItem {
@@ -409,11 +392,7 @@ mod tests {
         let po = Arc::new(FakePo::default());
         *po.row.lock().unwrap() = Some(fake_po("po-1"));
         let notifier = Arc::new(FakeNotifier::default());
-        let uc = ReceivePurchaseOrderUseCase::new(
-            receive,
-            po,
-            notifier.clone(),
-        );
+        let uc = ReceivePurchaseOrderUseCase::new(receive, po, notifier.clone());
         let r = uc
             .execute(
                 PurchaseOrderId("po-1".into()),
@@ -436,8 +415,7 @@ mod tests {
     #[tokio::test]
     async fn surfaces_rpc_error() {
         let receive = Arc::new(FakeReceive::default());
-        *receive.error.lock().unwrap() =
-            Some(AppError::Conflict("PO_ALREADY_RECEIVED".into()));
+        *receive.error.lock().unwrap() = Some(AppError::Conflict("PO_ALREADY_RECEIVED".into()));
         let uc = ReceivePurchaseOrderUseCase::new(
             receive,
             Arc::new(FakePo::default()),

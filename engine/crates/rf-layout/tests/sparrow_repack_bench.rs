@@ -96,8 +96,13 @@ fn sparrow_repack_vs_bssf_on_production_fixture() {
     let bin = production_bin();
     let items = production_items();
     let total_copies: u32 = items.iter().map(|p| p.quantity).sum();
-    println!("\nfixture: {} unique parts, {} total copies, bin {}x{}",
-        items.len(), total_copies, bin.width, bin.height);
+    println!(
+        "\nfixture: {} unique parts, {} total copies, bin {}x{}",
+        items.len(),
+        total_copies,
+        bin.width,
+        bin.height
+    );
 
     // --- Baseline: current BSSF dispatcher.
     let bssf_start = Instant::now();

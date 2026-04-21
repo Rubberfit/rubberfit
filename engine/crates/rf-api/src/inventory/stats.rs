@@ -8,8 +8,7 @@ use std::sync::Arc;
 use axum::extract::{Query, Request, State};
 use axum::Json;
 use rf_application::inventory::{
-    InventoryGrowthUseCase, InventoryValueUseCase, LowStockCountUseCase,
-    RecentRollsUseCase,
+    InventoryGrowthUseCase, InventoryValueUseCase, LowStockCountUseCase, RecentRollsUseCase,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};

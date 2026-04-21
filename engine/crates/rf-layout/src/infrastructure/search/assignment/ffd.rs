@@ -197,7 +197,10 @@ fn build_trial_items(
 /// per the counts map. Preserves all non-quantity Part fields from the
 /// originals. Sorted by `shape_id` for deterministic emission (§3.6
 /// Codex sign-off fix).
-pub(crate) fn materialize_parts(counts: &HashMap<String, u32>, original_items: &[Part]) -> Vec<Part> {
+pub(crate) fn materialize_parts(
+    counts: &HashMap<String, u32>,
+    original_items: &[Part],
+) -> Vec<Part> {
     // Collect sorted shape_ids for deterministic iteration.
     let mut shape_ids: Vec<&String> = counts.keys().filter(|_| true).collect();
     shape_ids.sort();
@@ -337,11 +340,7 @@ mod tests {
             rect_part("b", 2, 15.0, 15.0), // 2 instances, none fit after first
         ];
         let out = ffd_assign(&bins, &items, 0.0).unwrap();
-        let placed: u32 = out
-            .per_bin
-            .iter()
-            .map(|b| b.placements.len() as u32)
-            .sum();
+        let placed: u32 = out.per_bin.iter().map(|b| b.placements.len() as u32).sum();
         let spilled: u32 = out.overflow.iter().map(|(_, n)| *n).sum();
         assert_eq!(placed + spilled, 3 + 2, "no items lost or duplicated");
     }

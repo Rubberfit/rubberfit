@@ -113,9 +113,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
         let mut totals: HashMap<MaterialTypeId, f64> = HashMap::new();
         for row in rows {
             if let Some(mt_id) = row.material_type_id {
-                let entry = totals
-                    .entry(MaterialTypeId(mt_id))
-                    .or_insert(0.0);
+                let entry = totals.entry(MaterialTypeId(mt_id)).or_insert(0.0);
                 // sqft = width_in × length_in / 144
                 *entry += row.width * row.remaining_length / 144.0;
             }
@@ -140,10 +138,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
             .get("/rest/v1/cuts", &query)
             .await
             .map_err(AppError::infrastructure)?;
-        let total = rows
-            .pop()
-            .and_then(|r| r.sum_sqft_used)
-            .unwrap_or(0.0);
+        let total = rows.pop().and_then(|r| r.sum_sqft_used).unwrap_or(0.0);
         Ok(total / 90.0)
     }
 
@@ -191,8 +186,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
     async fn material_supplier_quotes(
         &self,
         ids: &[MaterialTypeId],
-    ) -> Result<HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>>, AppError>
-    {
+    ) -> Result<HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>>, AppError> {
         if ids.is_empty() {
             return Ok(HashMap::new());
         }
@@ -210,8 +204,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
             .get("/rest/v1/material_suppliers", &query)
             .await
             .map_err(AppError::infrastructure)?;
-        let mut out: HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>> =
-            HashMap::new();
+        let mut out: HashMap<MaterialTypeId, Vec<MaterialSupplierQuote>> = HashMap::new();
         for row in rows {
             let quote = MaterialSupplierQuote {
                 supplier_id: SupplierId(row.supplier_id),
@@ -234,10 +227,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
             return Ok(HashMap::new());
         }
         let filter = in_list(ids);
-        let query = [
-            ("select", "id,name,default_cost"),
-            ("id", filter.as_str()),
-        ];
+        let query = [("select", "id,name,default_cost"), ("id", filter.as_str())];
         let rows: Vec<MaterialFactsRow> = self
             .client
             .get("/rest/v1/material_types", &query)
@@ -249,10 +239,7 @@ impl SuggestionReadsPort for SupabaseSuggestionReads {
             .collect())
     }
 
-    async fn supplier_name(
-        &self,
-        id: &SupplierId,
-    ) -> Result<Option<String>, AppError> {
+    async fn supplier_name(&self, id: &SupplierId) -> Result<Option<String>, AppError> {
         let id_filter = format!("eq.{}", id.0);
         let query = [
             ("select", "name"),

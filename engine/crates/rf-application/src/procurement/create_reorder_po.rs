@@ -137,9 +137,7 @@ impl CreateReorderPurchaseOrderUseCase {
         }
         for item in &items {
             if item.rule_id.0.trim().is_empty() {
-                return Err(AppError::InvalidInput(
-                    "item rule_id is required".into(),
-                ));
+                return Err(AppError::InvalidInput("item rule_id is required".into()));
             }
             if !item.quantity_sqft.is_finite() || item.quantity_sqft <= 0.0 {
                 return Err(AppError::InvalidInput(
@@ -201,9 +199,7 @@ impl CreateReorderPurchaseOrderUseCase {
             // Pick in S3d alongside the auto-reorder worker design.
             let first_rule_id = &receipt.rule_ids[0];
             if let Some(rule) = self.rule_port.get(first_rule_id).await? {
-                if let Err(err) =
-                    self.notifications.send_reorder_po_created(&po, &rule).await
-                {
+                if let Err(err) = self.notifications.send_reorder_po_created(&po, &rule).await {
                     tracing::warn!(
                         po_id = %po.id.0,
                         po_number = %po.po_number,
@@ -261,18 +257,20 @@ mod tests {
             if let Some(err) = self.error.lock().unwrap().take() {
                 return Err(err);
             }
-            Ok(self.next.lock().unwrap().take().unwrap_or(ReorderPoReceipt {
-                po_id: PurchaseOrderId("po-new".into()),
-                po_number: "PO-26-0001".into(),
-                supplier_id: supplier_id.clone(),
-                items_count: items.len() as i32,
-                subtotal: items
-                    .iter()
-                    .map(|i| i.quantity_sqft * i.unit_cost)
-                    .sum(),
-                rule_ids: rule_ids.to_vec(),
-                bulk,
-            }))
+            Ok(self
+                .next
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or(ReorderPoReceipt {
+                    po_id: PurchaseOrderId("po-new".into()),
+                    po_number: "PO-26-0001".into(),
+                    supplier_id: supplier_id.clone(),
+                    items_count: items.len() as i32,
+                    subtotal: items.iter().map(|i| i.quantity_sqft * i.unit_cost).sum(),
+                    rule_ids: rule_ids.to_vec(),
+                    bulk,
+                }))
         }
     }
 
@@ -289,10 +287,7 @@ mod tests {
         ) -> Result<Vec<PurchaseOrder>, AppError> {
             unreachable!()
         }
-        async fn get(
-            &self,
-            _: &PurchaseOrderId,
-        ) -> Result<Option<PurchaseOrder>, AppError> {
+        async fn get(&self, _: &PurchaseOrderId) -> Result<Option<PurchaseOrder>, AppError> {
             Ok(self.row.lock().unwrap().clone())
         }
         async fn generate_number(&self) -> Result<String, AppError> {
@@ -335,10 +330,7 @@ mod tests {
         async fn list(&self) -> Result<Vec<ReorderRule>, AppError> {
             unreachable!()
         }
-        async fn get(
-            &self,
-            _: &ReorderRuleId,
-        ) -> Result<Option<ReorderRule>, AppError> {
+        async fn get(&self, _: &ReorderRuleId) -> Result<Option<ReorderRule>, AppError> {
             Ok(self.row.lock().unwrap().clone())
         }
         async fn create(
@@ -354,10 +346,7 @@ mod tests {
         ) -> Result<Option<ReorderRule>, AppError> {
             unreachable!()
         }
-        async fn touch_triggered_at(
-            &self,
-            _: &ReorderRuleId,
-        ) -> Result<(), AppError> {
+        async fn touch_triggered_at(&self, _: &ReorderRuleId) -> Result<(), AppError> {
             Ok(())
         }
         async fn delete(&self, _: &ReorderRuleId) -> Result<bool, AppError> {
@@ -372,16 +361,10 @@ mod tests {
 
     #[async_trait]
     impl NotificationPort for FakeNotifier {
-        async fn send_po_approved(
-            &self,
-            _: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_approved(&self, _: &PurchaseOrder) -> Result<(), AppError> {
             Ok(())
         }
-        async fn send_po_received(
-            &self,
-            _: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_received(&self, _: &PurchaseOrder) -> Result<(), AppError> {
             Ok(())
         }
         async fn send_reorder_po_created(
@@ -602,8 +585,7 @@ mod tests {
     #[tokio::test]
     async fn rpc_error_surfaces() {
         let (rpc, _, _, _, uc) = new_uc();
-        *rpc.error.lock().unwrap() =
-            Some(AppError::Conflict("RULE_INACTIVE".into()));
+        *rpc.error.lock().unwrap() = Some(AppError::Conflict("RULE_INACTIVE".into()));
         let err = uc
             .execute(
                 ReorderPoMode::Row,

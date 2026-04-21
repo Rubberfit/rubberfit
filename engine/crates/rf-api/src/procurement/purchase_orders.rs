@@ -14,8 +14,7 @@ use axum::Json;
 use rf_application::error::AppError;
 use rf_application::procurement::{
     CreatePurchaseOrderUseCase, DeletePurchaseOrderUseCase, GetPurchaseOrderUseCase,
-    ListPurchaseOrdersUseCase, NewPurchaseOrder, PurchaseOrderUpdate,
-    UpdatePurchaseOrderUseCase,
+    ListPurchaseOrdersUseCase, NewPurchaseOrder, PurchaseOrderUpdate, UpdatePurchaseOrderUseCase,
 };
 use rf_domain::{
     PurchaseOrder, PurchaseOrderFilters, PurchaseOrderId, PurchaseOrderStatus, SupplierId,
@@ -122,9 +121,7 @@ fn parse_status(s: &str) -> Result<PurchaseOrderStatus, AppError> {
         "ordered" => Ok(PurchaseOrderStatus::Ordered),
         "received" => Ok(PurchaseOrderStatus::Received),
         "cancelled" => Ok(PurchaseOrderStatus::Cancelled),
-        other => Err(AppError::InvalidInput(format!(
-            "unknown status '{other}'"
-        ))),
+        other => Err(AppError::InvalidInput(format!("unknown status '{other}'"))),
     }
 }
 

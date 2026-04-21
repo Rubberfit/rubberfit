@@ -61,7 +61,10 @@ mod tests {
 
     #[test]
     fn n_zero_is_empty() {
-        assert_eq!(BitReversalIterator::new(0).collect::<Vec<_>>(), Vec::<usize>::new());
+        assert_eq!(
+            BitReversalIterator::new(0).collect::<Vec<_>>(),
+            Vec::<usize>::new()
+        );
     }
 
     #[test]

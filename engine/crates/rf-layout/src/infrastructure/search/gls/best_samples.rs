@@ -61,12 +61,7 @@ impl BestSamples {
                             .samples
                             .iter()
                             .filter(|(d, _)| {
-                                dtransfs_are_similar(
-                                    *d,
-                                    dt,
-                                    self.unique_thresh,
-                                    self.unique_thresh,
-                                )
+                                dtransfs_are_similar(*d, dt, self.unique_thresh, self.unique_thresh)
                             })
                             .all(|(_, sim_eval)| eval < *sim_eval);
 

@@ -71,15 +71,9 @@ pub struct PurchaseOrderUpdate {
 
 #[async_trait]
 pub trait PurchaseOrderPort: Send + Sync {
-    async fn list(
-        &self,
-        filters: &PurchaseOrderFilters,
-    ) -> Result<Vec<PurchaseOrder>, AppError>;
+    async fn list(&self, filters: &PurchaseOrderFilters) -> Result<Vec<PurchaseOrder>, AppError>;
 
-    async fn get(
-        &self,
-        id: &PurchaseOrderId,
-    ) -> Result<Option<PurchaseOrder>, AppError>;
+    async fn get(&self, id: &PurchaseOrderId) -> Result<Option<PurchaseOrder>, AppError>;
 
     /// Mint a PO number from the `generate_po_number()` Postgres RPC.
     /// Kept on the port (vs. a raw adapter call at the handler layer)
@@ -212,10 +206,7 @@ impl CreatePurchaseOrderUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        new: NewPurchaseOrder,
-    ) -> Result<PurchaseOrder, AppError> {
+    pub async fn execute(&self, new: NewPurchaseOrder) -> Result<PurchaseOrder, AppError> {
         validate_non_negative(new.tax_amount, "tax_amount")?;
         validate_non_negative(new.shipping_cost, "shipping_cost")?;
         validate_iso_date_opt(&new.order_date, "order_date")?;
@@ -297,10 +288,7 @@ impl UpdatePurchaseOrderUseCase {
 /// Both error bodies carry `allowedTargets: [...]` in their JSON
 /// details so the UI can show the operator what they CAN do without
 /// another round-trip.
-fn validate_transition(
-    from: PurchaseOrderStatus,
-    to: PurchaseOrderStatus,
-) -> Result<(), AppError> {
+fn validate_transition(from: PurchaseOrderStatus, to: PurchaseOrderStatus) -> Result<(), AppError> {
     let allowed: Vec<&str> = from
         .allowed_targets_from()
         .iter()
@@ -337,11 +325,11 @@ pub struct UpdatePurchaseOrderStatusUseCase {
 }
 
 impl UpdatePurchaseOrderStatusUseCase {
-    pub fn new(
-        port: Arc<dyn PurchaseOrderPort>,
-        notifications: Arc<dyn NotificationPort>,
-    ) -> Self {
-        Self { port, notifications }
+    pub fn new(port: Arc<dyn PurchaseOrderPort>, notifications: Arc<dyn NotificationPort>) -> Self {
+        Self {
+            port,
+            notifications,
+        }
     }
 
     pub async fn execute(
@@ -464,10 +452,7 @@ mod tests {
         ) -> Result<Vec<PurchaseOrder>, AppError> {
             Ok(self.by_id.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            id: &PurchaseOrderId,
-        ) -> Result<Option<PurchaseOrder>, AppError> {
+        async fn get(&self, id: &PurchaseOrderId) -> Result<Option<PurchaseOrder>, AppError> {
             Ok(self
                 .by_id
                 .lock()
@@ -558,17 +543,11 @@ mod tests {
 
     #[async_trait]
     impl NotificationPort for FakeNotifier {
-        async fn send_po_approved(
-            &self,
-            po: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_approved(&self, po: &PurchaseOrder) -> Result<(), AppError> {
             self.approved.lock().unwrap().push(po.id.0.clone());
             Ok(())
         }
-        async fn send_po_received(
-            &self,
-            _po: &PurchaseOrder,
-        ) -> Result<(), AppError> {
+        async fn send_po_received(&self, _po: &PurchaseOrder) -> Result<(), AppError> {
             Ok(())
         }
         async fn send_reorder_po_created(
@@ -639,8 +618,7 @@ mod tests {
         match err {
             AppError::ConflictWithDetails(code, details) => {
                 assert_eq!(code, "RECEIVED_REQUIRES_RECEIVE_FLOW");
-                let allowed =
-                    details.get("allowedTargets").unwrap().as_array().unwrap();
+                let allowed = details.get("allowedTargets").unwrap().as_array().unwrap();
                 assert!(
                     allowed.is_empty(),
                     "CREATE has no source state, so allowedTargets is empty"
@@ -765,10 +743,8 @@ mod tests {
         // INVALID_STATE_TRANSITION branch and never reach the
         // received-specific branch. Testing via Ordered exercises
         // the guard that terminates received regardless of source.
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port.clone(),
-            Arc::new(FakeNotifier::default()),
-        );
+        let uc =
+            UpdatePurchaseOrderStatusUseCase::new(port.clone(), Arc::new(FakeNotifier::default()));
         // Drive to Ordered via Pending → Approved → Ordered first.
         uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
             .await
@@ -786,12 +762,10 @@ mod tests {
         match err {
             AppError::ConflictWithDetails(code, details) => {
                 assert_eq!(code, "RECEIVED_REQUIRES_RECEIVE_FLOW");
-                let allowed =
-                    details.get("allowedTargets").unwrap().as_array().unwrap();
+                let allowed = details.get("allowedTargets").unwrap().as_array().unwrap();
                 // Ordered.allowed_targets_from() = [cancelled] — UI
                 // can show this list after the 409.
-                let allowed_strs: Vec<&str> =
-                    allowed.iter().map(|v| v.as_str().unwrap()).collect();
+                let allowed_strs: Vec<&str> = allowed.iter().map(|v| v.as_str().unwrap()).collect();
                 assert_eq!(allowed_strs, vec!["cancelled"]);
             }
             other => panic!("expected ConflictWithDetails, got {other:?}"),
@@ -802,10 +776,8 @@ mod tests {
     async fn status_rejects_illegal_transition_with_allowed_list() {
         let port = Arc::new(FakePort::default());
         let po = create_draft(&port).await;
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port.clone(),
-            Arc::new(FakeNotifier::default()),
-        );
+        let uc =
+            UpdatePurchaseOrderStatusUseCase::new(port.clone(), Arc::new(FakeNotifier::default()));
         // Draft → Ordered is illegal (Draft.allowed_targets_from()
         // = [Pending, Cancelled]).
         let err = uc
@@ -836,10 +808,7 @@ mod tests {
         let port = Arc::new(FakePort::default());
         let notifier = Arc::new(FakeNotifier::default());
         let po = create_draft(&port).await;
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port.clone(),
-            notifier.clone(),
-        );
+        let uc = UpdatePurchaseOrderStatusUseCase::new(port.clone(), notifier.clone());
         uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
             .await
             .unwrap();
@@ -863,10 +832,8 @@ mod tests {
     async fn ordered_transition_stamps_order_date() {
         let port = Arc::new(FakePort::default());
         let po = create_draft(&port).await;
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port.clone(),
-            Arc::new(FakeNotifier::default()),
-        );
+        let uc =
+            UpdatePurchaseOrderStatusUseCase::new(port.clone(), Arc::new(FakeNotifier::default()));
         uc.execute(po.id.clone(), PurchaseOrderStatus::Pending, None)
             .await
             .unwrap();
@@ -885,10 +852,7 @@ mod tests {
         let port = Arc::new(FakePort::default());
         let notifier = Arc::new(FakeNotifier::default());
         let po = create_draft(&port).await;
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port.clone(),
-            notifier.clone(),
-        );
+        let uc = UpdatePurchaseOrderStatusUseCase::new(port.clone(), notifier.clone());
         // Draft → Draft is a no-op; returns current row, does NOT
         // fire notifications.
         let out = uc
@@ -902,10 +866,7 @@ mod tests {
     #[tokio::test]
     async fn status_update_on_missing_returns_not_found() {
         let port = Arc::new(FakePort::default());
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port,
-            Arc::new(FakeNotifier::default()),
-        );
+        let uc = UpdatePurchaseOrderStatusUseCase::new(port, Arc::new(FakeNotifier::default()));
         let err = uc
             .execute(
                 PurchaseOrderId("missing".into()),
@@ -932,10 +893,7 @@ mod tests {
             let mut guard = port.by_id.lock().unwrap();
             guard[0].status = PurchaseOrderStatus::Received;
         }
-        let uc = UpdatePurchaseOrderStatusUseCase::new(
-            port,
-            Arc::new(FakeNotifier::default()),
-        );
+        let uc = UpdatePurchaseOrderStatusUseCase::new(port, Arc::new(FakeNotifier::default()));
         let err = uc
             .execute(po.id, PurchaseOrderStatus::Cancelled, None)
             .await

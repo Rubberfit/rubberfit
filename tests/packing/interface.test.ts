@@ -6,7 +6,7 @@ import {
   PACKING_TOKENS,
 } from "@/src/application/services/packing.service.interface"
 import type {
-  PackRequest, PackResult, PackProgress,
+  PackRequest, PackResult,
 } from "@/src/application/packing/types"
 
 describe("IPackingService", () => {

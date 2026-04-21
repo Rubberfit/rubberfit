@@ -80,10 +80,7 @@ pub async fn tax_preview(
             "subtotal must be a finite non-negative number".into(),
         )));
     }
-    let tax = state
-        .procurement_factory
-        .tax(auth)
-        .map_err(ApiError::App)?;
+    let tax = state.procurement_factory.tax(auth).map_err(ApiError::App)?;
     let calc = tax
         .calculate_po_tax(&SupplierId(q.supplier_id), q.subtotal)
         .await

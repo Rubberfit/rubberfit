@@ -34,10 +34,7 @@ pub trait CutHistoryPort: Send + Sync {
         cut_id: CutHistoryId,
     ) -> Result<Option<CutHistoryEntry>, AppError>;
 
-    async fn list_favorites(
-        &self,
-        user_id: &UserId,
-    ) -> Result<Vec<CutHistoryEntry>, AppError>;
+    async fn list_favorites(&self, user_id: &UserId) -> Result<Vec<CutHistoryEntry>, AppError>;
 }
 
 /// Use case: list cut history for the calling user.
@@ -106,10 +103,7 @@ impl ListFavoritesUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        user_id: &UserId,
-    ) -> Result<Vec<CutHistoryEntry>, AppError> {
+    pub async fn execute(&self, user_id: &UserId) -> Result<Vec<CutHistoryEntry>, AppError> {
         self.port.list_favorites(user_id).await
     }
 }

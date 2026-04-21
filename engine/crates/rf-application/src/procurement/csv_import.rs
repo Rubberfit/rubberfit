@@ -53,10 +53,7 @@ pub struct ImportReceipt {
 /// insert error and records it in the receipt.
 #[async_trait]
 pub trait CsvImportPort: Send + Sync {
-    async fn insert_rows(
-        &self,
-        rows: &[CsvImportRow],
-    ) -> Result<ImportReceipt, AppError>;
+    async fn insert_rows(&self, rows: &[CsvImportRow]) -> Result<ImportReceipt, AppError>;
 }
 
 /// Parse a CSV byte buffer into `CsvImportRow`s. Simple
@@ -73,9 +70,7 @@ pub trait CsvImportPort: Send + Sync {
 /// returns a pair: the successfully-parsed rows AND the accumulated
 /// errors. The caller (use case) decides whether to proceed with
 /// the partial set or fail.
-pub fn parse_csv_bytes(
-    bytes: &[u8],
-) -> Result<(Vec<CsvImportRow>, Vec<ImportRowError>), AppError> {
+pub fn parse_csv_bytes(bytes: &[u8]) -> Result<(Vec<CsvImportRow>, Vec<ImportRowError>), AppError> {
     let text = std::str::from_utf8(bytes)
         .map_err(|e| AppError::InvalidInput(format!("CSV is not valid UTF-8: {e}")))?;
     let mut lines = text.trim().lines();
@@ -96,15 +91,12 @@ pub fn parse_csv_bytes(
     let material_type_col = pos("material_type").ok_or_else(|| {
         AppError::InvalidInput("CSV must include a `material_type` column".into())
     })?;
-    let width_col = pos("width").ok_or_else(|| {
-        AppError::InvalidInput("CSV must include a `width` column".into())
-    })?;
-    let length_col = pos("length").ok_or_else(|| {
-        AppError::InvalidInput("CSV must include a `length` column".into())
-    })?;
-    let thickness_col = pos("thickness").ok_or_else(|| {
-        AppError::InvalidInput("CSV must include a `thickness` column".into())
-    })?;
+    let width_col = pos("width")
+        .ok_or_else(|| AppError::InvalidInput("CSV must include a `width` column".into()))?;
+    let length_col = pos("length")
+        .ok_or_else(|| AppError::InvalidInput("CSV must include a `length` column".into()))?;
+    let thickness_col = pos("thickness")
+        .ok_or_else(|| AppError::InvalidInput("CSV must include a `thickness` column".into()))?;
 
     let mut rows: Vec<CsvImportRow> = Vec::new();
     let mut errors: Vec<ImportRowError> = Vec::new();
@@ -120,11 +112,7 @@ pub fn parse_csv_bytes(
         if values.len() != headers.len() {
             errors.push(ImportRowError {
                 row_number,
-                message: format!(
-                    "expected {} columns, got {}",
-                    headers.len(),
-                    values.len()
-                ),
+                message: format!("expected {} columns, got {}", headers.len(), values.len()),
             });
             continue;
         }
@@ -170,14 +158,15 @@ pub fn parse_csv_bytes(
 
         // Optional fields. cost_per_sqft parses as f64; others as
         // plain strings.
-        let cost_per_sqft = pos("cost_per_sqft")
-            .and_then(|i| {
-                let raw = values.get(i)?.trim();
-                if raw.is_empty() {
-                    return None;
-                }
-                raw.parse::<f64>().ok().filter(|v| v.is_finite() && *v >= 0.0)
-            });
+        let cost_per_sqft = pos("cost_per_sqft").and_then(|i| {
+            let raw = values.get(i)?.trim();
+            if raw.is_empty() {
+                return None;
+            }
+            raw.parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite() && *v >= 0.0)
+        });
         let color = optional_string(&values, pos("color"));
         let location = optional_string(&values, pos("location"));
         let supplier = optional_string(&values, pos("supplier"));
@@ -223,10 +212,7 @@ impl ImportReviewedRowsUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        rows: Vec<CsvImportRow>,
-    ) -> Result<ImportReceipt, AppError> {
+    pub async fn execute(&self, rows: Vec<CsvImportRow>) -> Result<ImportReceipt, AppError> {
         if rows.is_empty() {
             return Err(AppError::InvalidInput(
                 "rows must include at least one entry".into(),
@@ -252,10 +238,7 @@ impl ImportCsvBytesUseCase {
         Self { port }
     }
 
-    pub async fn execute(
-        &self,
-        bytes: &[u8],
-    ) -> Result<ImportReceipt, AppError> {
+    pub async fn execute(&self, bytes: &[u8]) -> Result<ImportReceipt, AppError> {
         let (rows, parse_errors) = parse_csv_bytes(bytes)?;
         if rows.is_empty() {
             // All rows failed to parse — surface that as a
@@ -346,10 +329,7 @@ mod tests {
 
     #[async_trait]
     impl CsvImportPort for FakePort {
-        async fn insert_rows(
-            &self,
-            rows: &[CsvImportRow],
-        ) -> Result<ImportReceipt, AppError> {
+        async fn insert_rows(&self, rows: &[CsvImportRow]) -> Result<ImportReceipt, AppError> {
             self.seen.lock().unwrap().push(rows.to_vec());
             Ok(self.next.lock().unwrap().take().unwrap_or(ImportReceipt {
                 imported: rows.len(),
@@ -367,8 +347,7 @@ mod tests {
 
     #[test]
     fn parse_rejects_missing_required_column() {
-        let err = parse_csv_bytes(b"material_type,width\nNeoprene,48")
-            .unwrap_err();
+        let err = parse_csv_bytes(b"material_type,width\nNeoprene,48").unwrap_err();
         assert!(
             matches!(err, AppError::InvalidInput(ref msg) if msg.contains("length")),
             "expected message to mention the missing length column, got {err:?}"
@@ -503,5 +482,4 @@ mod tests {
         assert_eq!(r.skipped, 1);
         assert_eq!(r.errors.len(), 1);
     }
-
 }

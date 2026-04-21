@@ -59,10 +59,7 @@ struct NewSupplierRow<'a> {
 
 #[async_trait]
 impl SupplierPort for SupabaseSupplierRepository {
-    async fn list(
-        &self,
-        filters: &SupplierFilters,
-    ) -> Result<Vec<Supplier>, AppError> {
+    async fn list(&self, filters: &SupplierFilters) -> Result<Vec<Supplier>, AppError> {
         let mut query: Vec<(String, String)> = vec![
             ("select".into(), "*".into()),
             // Preferred first, then alphabetical — matches the
@@ -203,10 +200,7 @@ impl SupplierPort for SupabaseSupplierRepository {
 
 fn set_str(body: &mut Map<String, Value>, key: &str, field: Option<Option<String>>) {
     if let Some(v) = field {
-        body.insert(
-            key.into(),
-            v.map(Value::String).unwrap_or(Value::Null),
-        );
+        body.insert(key.into(), v.map(Value::String).unwrap_or(Value::Null));
     }
 }
 

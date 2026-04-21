@@ -101,7 +101,18 @@ mod tests {
     #[test]
     fn distinct_pairs_map_to_distinct_slots() {
         let mut m = PairMatrix::new(5);
-        let pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)];
+        let pairs = [
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (2, 3),
+            (2, 4),
+            (3, 4),
+        ];
         for (k, p) in pairs.iter().enumerate() {
             m[*p].loss = k as f32 + 1.0;
         }

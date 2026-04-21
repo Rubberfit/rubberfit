@@ -7,9 +7,7 @@
 
 use async_trait::async_trait;
 use rf_application::error::AppError;
-use rf_application::procurement::{
-    CreateReorderPoPort, ReorderPoItem, ReorderPoReceipt,
-};
+use rf_application::procurement::{CreateReorderPoPort, ReorderPoItem, ReorderPoReceipt};
 use rf_domain::{PurchaseOrderId, ReorderRuleId, SupplierId};
 use serde::{Deserialize, Serialize};
 
@@ -72,10 +70,7 @@ impl CreateReorderPoPort for SupabaseCreateReorderPoRepository {
         };
         match self
             .client
-            .post::<_, RpcResponse>(
-                "/rest/v1/rpc/create_reorder_purchase_order",
-                &body,
-            )
+            .post::<_, RpcResponse>("/rest/v1/rpc/create_reorder_purchase_order", &body)
             .await
         {
             Ok(resp) => Ok(ReorderPoReceipt {
@@ -95,33 +90,29 @@ impl CreateReorderPoPort for SupabaseCreateReorderPoRepository {
 fn map_rpc_error(err: PostgrestError) -> AppError {
     match err.pg_code() {
         Some(PG_UNIQUE_VIOLATION) => AppError::conflict("DUPLICATE_VALUE"),
-        Some(PG_FK_VIOLATION) => {
-            AppError::conflict("FK_VIOLATION_PARENT_MISSING")
-        }
+        Some(PG_FK_VIOLATION) => AppError::conflict("FK_VIOLATION_PARENT_MISSING"),
         Some(PG_CHECK_VIOLATION) => AppError::conflict("CHECK_VIOLATION"),
         Some(PG_RULE_NOT_FOUND) => {
             // Echo the count suffix (`RULE_NOT_FOUND (requested=N, found=M)`)
             // so the UI can report which rules went missing between
             // the suggestion fetch and the create call.
-            let suffix = extract_parens_suffix(&err.to_string(), "RULE_NOT_FOUND")
-                .unwrap_or_default();
+            let suffix =
+                extract_parens_suffix(&err.to_string(), "RULE_NOT_FOUND").unwrap_or_default();
             AppError::conflict(format!("RULE_NOT_FOUND{suffix}"))
         }
         Some(PG_RULE_INACTIVE) => {
-            let suffix = extract_parens_suffix(&err.to_string(), "RULE_INACTIVE")
-                .unwrap_or_default();
+            let suffix =
+                extract_parens_suffix(&err.to_string(), "RULE_INACTIVE").unwrap_or_default();
             AppError::conflict(format!("RULE_INACTIVE{suffix}"))
         }
         Some(PG_SUPPLIER_NOT_FOUND) => {
             let suffix =
-                extract_parens_suffix(&err.to_string(), "SUPPLIER_NOT_FOUND")
-                    .unwrap_or_default();
+                extract_parens_suffix(&err.to_string(), "SUPPLIER_NOT_FOUND").unwrap_or_default();
             AppError::conflict(format!("SUPPLIER_NOT_FOUND{suffix}"))
         }
         Some(PG_DUPLICATE_RULE_IDS) => {
             let suffix =
-                extract_parens_suffix(&err.to_string(), "DUPLICATE_RULE_IDS")
-                    .unwrap_or_default();
+                extract_parens_suffix(&err.to_string(), "DUPLICATE_RULE_IDS").unwrap_or_default();
             AppError::conflict(format!("DUPLICATE_RULE_IDS{suffix}"))
         }
         _ => AppError::infrastructure(err),
@@ -214,10 +205,7 @@ mod tests {
 
     #[test]
     fn check_violation_takes_precedence_over_message() {
-        let err = api_err(
-            r#"{"message":"RULE_INACTIVE","code":"23514"}"#,
-            "23514",
-        );
+        let err = api_err(r#"{"message":"RULE_INACTIVE","code":"23514"}"#, "23514");
         match map_rpc_error(err) {
             AppError::Conflict(code) => assert_eq!(code, "CHECK_VIOLATION"),
             other => panic!("expected Conflict, got {other:?}"),

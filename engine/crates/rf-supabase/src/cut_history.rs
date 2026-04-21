@@ -77,18 +77,12 @@ impl CutHistoryPort for SupabaseCutHistoryRepository {
         Ok(rows.pop())
     }
 
-    async fn list_favorites(
-        &self,
-        _user_id: &UserId,
-    ) -> Result<Vec<CutHistoryEntry>, AppError> {
+    async fn list_favorites(&self, _user_id: &UserId) -> Result<Vec<CutHistoryEntry>, AppError> {
         // PostgREST embed syntax: follow the FK on cut_history_favorites
         // back to the referenced `cut_history` row and return THAT.
         // We request the joined resource directly, not the favorite
         // rows themselves.
-        let query = [
-            ("select", "cut_history(*)"),
-            ("order", "created_at.desc"),
-        ];
+        let query = [("select", "cut_history(*)"), ("order", "created_at.desc")];
         #[derive(serde::Deserialize)]
         struct FavoriteJoin {
             cut_history: Option<CutHistoryEntry>,

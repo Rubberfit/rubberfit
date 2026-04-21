@@ -140,7 +140,10 @@ fn progress_callback_fires_baseline_frame() {
         !collected.is_empty(),
         "progress callback must fire at least the baseline frame"
     );
-    assert_eq!(collected[0].iteration, 0, "baseline frame must be iteration=0");
+    assert_eq!(
+        collected[0].iteration, 0,
+        "baseline frame must be iteration=0"
+    );
 }
 
 #[test]

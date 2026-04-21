@@ -214,10 +214,7 @@ mod tests {
         async fn list(&self) -> Result<Vec<MaterialType>, AppError> {
             Ok(self.by_id.lock().unwrap().clone())
         }
-        async fn get(
-            &self,
-            id: &MaterialTypeId,
-        ) -> Result<Option<MaterialType>, AppError> {
+        async fn get(&self, id: &MaterialTypeId) -> Result<Option<MaterialType>, AppError> {
             Ok(self
                 .by_id
                 .lock()
@@ -226,10 +223,7 @@ mod tests {
                 .find(|m| m.id == *id)
                 .cloned())
         }
-        async fn create(
-            &self,
-            new: &NewMaterialType,
-        ) -> Result<MaterialType, AppError> {
+        async fn create(&self, new: &NewMaterialType) -> Result<MaterialType, AppError> {
             if *self.duplicate_name.lock().unwrap() {
                 return Err(AppError::conflict("DUPLICATE_NAME"));
             }

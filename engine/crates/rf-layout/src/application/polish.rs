@@ -23,7 +23,6 @@
 // for the full research + ranked options that led here.
 
 use crate::domain::Placement;
-use rf_geom::domain::Point2D;
 
 /// Axis-aligned bounding box of a placement's polygon in world coords.
 /// `Placement.x / .y` are the jagua rotation-origin translation (not
@@ -33,12 +32,15 @@ fn placement_bbox(p: &Placement) -> (f64, f64, f64, f64) {
     if p.polygon.is_empty() {
         return (p.x, p.y, p.x + p.width, p.y + p.height);
     }
-    p.polygon
-        .iter()
-        .fold(
-            (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-            |(mnx, mny, mxx, mxy), v| (mnx.min(v.x), mny.min(v.y), mxx.max(v.x), mxy.max(v.y)),
-        )
+    p.polygon.iter().fold(
+        (
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ),
+        |(mnx, mny, mxx, mxy), v| (mnx.min(v.x), mny.min(v.y), mxx.max(v.x), mxy.max(v.y)),
+    )
 }
 
 /// Minimum reusable offcut: 11.5" × 12" in either orientation.
@@ -243,7 +245,7 @@ fn max_slide_toward_origin_delta(
                 if idx == item_idx {
                     continue;
                 }
-                let (ox_min, oy_min, ox_max, oy_max) = placement_bbox(other);
+                let (_, oy_min, ox_max, oy_max) = placement_bbox(other);
                 // Strict y-overlap: equal edges don't overlap.
                 if oy_max <= iy_min + 1e-9 || oy_min >= iy_max - 1e-9 {
                     continue;
@@ -261,7 +263,7 @@ fn max_slide_toward_origin_delta(
                 if idx == item_idx {
                     continue;
                 }
-                let (ox_min, oy_min, ox_max, oy_max) = placement_bbox(other);
+                let (ox_min, _, ox_max, oy_max) = placement_bbox(other);
                 if ox_max <= ix_min + 1e-9 || ox_min >= ix_max - 1e-9 {
                     continue;
                 }
@@ -314,8 +316,8 @@ impl Default for PolishConfig {
 /// 37-part production fixture.
 pub fn polish_placements(
     placements: &[Placement],
-    bin_width: f64,
-    bin_height: f64,
+    _bin_width: f64,
+    _bin_height: f64,
     cfg: &PolishConfig,
 ) -> Vec<Placement> {
     let mut placed = placements.to_vec();
@@ -427,7 +429,8 @@ mod tests {
         assert!(
             score.largest_reusable_area >= expected_right - 1.0,
             "largest reusable should be >= {}, got {}",
-            expected_right, score.largest_reusable_area
+            expected_right,
+            score.largest_reusable_area
         );
     }
 
@@ -438,7 +441,10 @@ mod tests {
         //   B at (50, 5) — y-overlaps A but shifted right
         // Sliding B left should land at x=10 (A's right edge), i.e.,
         // slide delta = 50 - 10 = 40.
-        let placements = vec![rect("a", 0.0, 0.0, 10.0, 10.0), rect("b", 50.0, 5.0, 10.0, 10.0)];
+        let placements = vec![
+            rect("a", 0.0, 0.0, 10.0, 10.0),
+            rect("b", 50.0, 5.0, 10.0, 10.0),
+        ];
         let dx = max_slide_toward_origin_delta(&placements, 1, Axis::X, 0.0);
         assert!((dx - 40.0).abs() < 1e-6, "expected delta=40, got {}", dx);
     }
@@ -447,7 +453,10 @@ mod tests {
     fn slide_left_free_path_reaches_zero() {
         // B has no y-overlap with A, can slide all the way to x=0.
         // B starts at x=50, so delta = 50.
-        let placements = vec![rect("a", 0.0, 50.0, 10.0, 10.0), rect("b", 50.0, 0.0, 10.0, 10.0)];
+        let placements = vec![
+            rect("a", 0.0, 50.0, 10.0, 10.0),
+            rect("b", 50.0, 0.0, 10.0, 10.0),
+        ];
         let dx = max_slide_toward_origin_delta(&placements, 1, Axis::X, 0.0);
         assert!((dx - 50.0).abs() < 1e-6, "expected delta=50, got {}", dx);
     }
@@ -455,14 +464,27 @@ mod tests {
     #[test]
     fn polish_compacts_grid_toward_origin() {
         // Two rects placed with a gap. After polish, should be adjacent.
-        let placements = vec![rect("a", 20.0, 20.0, 10.0, 10.0), rect("b", 50.0, 20.0, 10.0, 10.0)];
+        let placements = vec![
+            rect("a", 20.0, 20.0, 10.0, 10.0),
+            rect("b", 50.0, 20.0, 10.0, 10.0),
+        ];
         let cfg = PolishConfig::default();
         let polished = polish_placements(&placements, 100.0, 100.0, &cfg);
         // "a" should slide to (0, 0); "b" should slide to (10, 0).
         let a = polished.iter().find(|p| p.shape_id == "a").unwrap();
         let b = polished.iter().find(|p| p.shape_id == "b").unwrap();
-        assert!(a.x.abs() < 0.1 && a.y.abs() < 0.1, "a at ({}, {}) — expected near origin", a.x, a.y);
-        assert!(b.x < 15.0 && b.y.abs() < 0.1, "b at ({}, {}) — expected near (10, 0)", b.x, b.y);
+        assert!(
+            a.x.abs() < 0.1 && a.y.abs() < 0.1,
+            "a at ({}, {}) — expected near origin",
+            a.x,
+            a.y
+        );
+        assert!(
+            b.x < 15.0 && b.y.abs() < 0.1,
+            "b at ({}, {}) — expected near (10, 0)",
+            b.x,
+            b.y
+        );
     }
 
     #[test]
@@ -470,7 +492,15 @@ mod tests {
         // 10 rects in an 80×80 bin, placed with gaps. Polish should
         // preserve non-overlap throughout.
         let placements: Vec<Placement> = (0..10)
-            .map(|i| rect(&format!("r{i}"), (i as f64) * 7.0, (i as f64) * 7.0, 5.0, 5.0))
+            .map(|i| {
+                rect(
+                    &format!("r{i}"),
+                    (i as f64) * 7.0,
+                    (i as f64) * 7.0,
+                    5.0,
+                    5.0,
+                )
+            })
             .collect();
         let polished = polish_placements(&placements, 80.0, 80.0, &PolishConfig::default());
         // Pairwise overlap check.

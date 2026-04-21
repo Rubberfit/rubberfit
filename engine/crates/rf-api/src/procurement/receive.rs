@@ -129,8 +129,7 @@ pub async fn receive_purchase_order(
     let incoming: ReceivePurchaseOrderBody = serde_json::from_slice(&bytes)
         .map_err(|e| ApiError::App(AppError::InvalidInput(format!("invalid JSON: {e}"))))?;
 
-    let items: Vec<ReceiveItem> =
-        incoming.items.into_iter().map(ReceiveItem::from).collect();
+    let items: Vec<ReceiveItem> = incoming.items.into_iter().map(ReceiveItem::from).collect();
 
     let receive_port = state
         .procurement_factory
@@ -145,8 +144,7 @@ pub async fn receive_purchase_order(
         .notifications(&auth)
         .map_err(ApiError::App)?;
 
-    let use_case =
-        ReceivePurchaseOrderUseCase::new(receive_port, po_port, notifications);
+    let use_case = ReceivePurchaseOrderUseCase::new(receive_port, po_port, notifications);
     let receipt = use_case
         .execute(PurchaseOrderId(id), items, actor)
         .await

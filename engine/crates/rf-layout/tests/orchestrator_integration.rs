@@ -38,10 +38,7 @@ fn small_multi_bin_request() -> PackRequest {
     PackRequest {
         bins: vec![bin("A", 40.0, 40.0), bin("B", 40.0, 40.0)],
         clearance: 0.0,
-        items: vec![
-            rect_part("a", 2, 15.0, 15.0),
-            rect_part("b", 1, 10.0, 10.0),
-        ],
+        items: vec![rect_part("a", 2, 15.0, 15.0), rect_part("b", 1, 10.0, 10.0)],
         operator_profile: None,
         mode: Some(PackMode::Fast),
         time_budget_ms: Some(300),
@@ -62,7 +59,8 @@ fn pack_multi_bin_small_fixture() {
         "cardinality preserved across FFD + optimize_multi"
     );
     // Instance indices must be globally unique per shape.
-    let mut seen: std::collections::HashMap<(String, u32), usize> = std::collections::HashMap::new();
+    let mut seen: std::collections::HashMap<(String, u32), usize> =
+        std::collections::HashMap::new();
     for p in &result.placements {
         let prev = seen.insert((p.shape_id.clone(), p.instance_index), 1);
         assert!(

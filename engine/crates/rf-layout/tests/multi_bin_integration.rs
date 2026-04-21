@@ -33,8 +33,7 @@ fn fixture_path(name: &str) -> PathBuf {
 fn load_request(fixture: &str) -> PackRequest {
     let content = fs::read_to_string(fixture_path(fixture))
         .unwrap_or_else(|e| panic!("read fixture {fixture}: {e}"));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("parse fixture {fixture}: {e}"))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("parse fixture {fixture}: {e}"))
 }
 
 #[test]
@@ -52,7 +51,10 @@ fn multi_sheet_remnant_packs_successfully() {
     );
 
     // Density sanity: placements happen, density in [0, 1].
-    assert!(result.placed_count > 0, "nothing placed on multi-sheet-remnant");
+    assert!(
+        result.placed_count > 0,
+        "nothing placed on multi-sheet-remnant"
+    );
     assert!(result.overall_density >= 0.0 && result.overall_density <= 1.0);
 
     // Two-bin structure preserved in per_bin output (orchestrator

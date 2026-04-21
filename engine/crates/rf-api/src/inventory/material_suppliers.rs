@@ -11,10 +11,9 @@ use axum::http::StatusCode;
 use axum::Json;
 use rf_application::error::AppError;
 use rf_application::inventory::{
-    CreateMaterialSupplierUseCase, DeleteMaterialSupplierUseCase,
-    GetMaterialSupplierUseCase, ListMaterialSuppliersUseCase,
-    MaterialSupplierFilters, MaterialSupplierUpdate, NewMaterialSupplier,
-    UpdateMaterialSupplierUseCase,
+    CreateMaterialSupplierUseCase, DeleteMaterialSupplierUseCase, GetMaterialSupplierUseCase,
+    ListMaterialSuppliersUseCase, MaterialSupplierFilters, MaterialSupplierUpdate,
+    NewMaterialSupplier, UpdateMaterialSupplierUseCase,
 };
 use rf_domain::{MaterialSupplier, MaterialSupplierId, MaterialTypeId, SupplierId};
 use serde::{Deserialize, Serialize};
@@ -209,7 +208,10 @@ pub async fn list_material_suppliers(
         .material_suppliers(auth)
         .map_err(ApiError::App)?;
     let use_case = ListMaterialSuppliersUseCase::new(port);
-    let rows = use_case.execute(params.into()).await.map_err(ApiError::App)?;
+    let rows = use_case
+        .execute(params.into())
+        .await
+        .map_err(ApiError::App)?;
     Ok(Json(
         rows.into_iter().map(MaterialSupplierDto::from).collect(),
     ))
