@@ -72,14 +72,21 @@ temp/
 docs/superpowers/plans/
 
 # Per-session Claude Code scratch — handoffs, research, worktrees,
-# and any new S5+ plan drafts. Historical archives under archive/
-# that are already tracked stay tracked; this just prevents NEW
-# plan/research files from sneaking into commits.
+# roadmaps, and per-sprint plan drafts (S5+). All local-only: never
+# commit these. Keeps public log focused on shipped code.
 .claude/handoff/
 .claude/research/
 .claude/worktrees/
 .claude/tmp/
 .claude/scratch/
+.claude/roadmap*
+ROADMAP.md
+roadmap.md
+ROADMAP/
+roadmap/
+**/ROADMAP.md
+**/roadmap.md
+**/roadmap/
 
 # TypeScript
 *.tsbuildinfo
