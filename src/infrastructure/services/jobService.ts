@@ -7,3 +7,6 @@ export type {
   CreateJobRollAllocationInput,
   JobMaterialSufficiency,
 } from "@/src/infrastructure/repositories/jobs.repository"
+
+export { uploadJobPdf, JOB_PDF_SHARE_TTL_SECONDS } from "./jobPdfShareService"
+export type { JobPdfShareResult } from "./jobPdfShareService"

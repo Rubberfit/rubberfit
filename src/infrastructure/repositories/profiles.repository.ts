@@ -5,6 +5,7 @@ import type {
   ProfileUpdateResult,
   AvatarUploadResult,
   BucketResult,
+  SelfDeleteResult,
 } from "@/src/application/repositories/profiles.repository.interface"
 
 export class ProfileRepository implements IProfileRepository {
@@ -58,6 +59,30 @@ export class ProfileRepository implements IProfileRepository {
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to upload avatar",
+      }
+    }
+  }
+
+  async requestSelfDelete(userId: string): Promise<SelfDeleteResult> {
+    try {
+      // Soft-delete: flip is_deleted on the caller's own profile
+      // row. RLS forces `user_id = auth.uid()` so this update only
+      // touches the current user — admins restoring deleted users
+      // use the admin API path, not this one.
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_deleted: true })
+        .eq("id", userId)
+      if (error) {
+        console.error("self-delete failed:", error)
+        return { success: false, error: error.message }
+      }
+      return { success: true }
+    } catch (error) {
+      console.error("self-delete failed:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to delete account",
       }
     }
   }

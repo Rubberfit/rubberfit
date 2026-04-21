@@ -576,9 +576,25 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
 
 export function downloadJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): void {
   const doc = buildJobPdf(job, opts)
+  doc.save(jobPdfFileName(job))
+}
+
+/** Base file name used for both local downloads and bucket uploads. */
+export function jobPdfFileName(job: JobFullDetail): string {
   const jobRef = job.job_number ?? job.id
   const customer = job.customer_name
     ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}`
     : ""
-  doc.save(`${jobRef}${customer}.pdf`)
+  return `${jobRef}${customer}.pdf`
+}
+
+/**
+ * Blob output of the job PDF — for uploading to storage and
+ * sharing via signed URL rather than a forced download.
+ */
+export function buildJobPdfBlob(
+  job: JobFullDetail,
+  opts: BuildJobPdfOptions = {}
+): Blob {
+  return buildJobPdf(job, opts).output("blob")
 }

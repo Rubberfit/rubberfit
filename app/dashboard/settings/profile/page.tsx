@@ -11,6 +11,7 @@ import { ProfileCard } from "./_components/profile-card"
 import { SecurityCard } from "./_components/security-card"
 import { MfaCard } from "./_components/mfa-card"
 import { AccountInfoCard } from "./_components/account-info-card"
+import { DeleteAccountCard } from "./_components/delete-account-card"
 
 export default function ProfileSettingsPage() {
   const { user, updatePassword } = useAuth()
@@ -171,6 +172,8 @@ export default function ProfileSettingsPage() {
       <MfaCard />
 
       <AccountInfoCard user={user} />
+
+      <DeleteAccountCard />
     </PageShell>
   )
 }

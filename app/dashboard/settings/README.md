@@ -29,8 +29,12 @@ Notifications tab here is preferences only.
 ## Subdirectories
 
 - **general/** -- GeneralSettingsCards + SystemSettingsCards.
-- **profile/** -- ProfileCard + SecurityCard + AccountInfoCard
-  (moved from the removed `/dashboard/account` in S4 Task 10).
+- **profile/** -- ProfileCard + SecurityCard + MfaCard +
+  AccountInfoCard + DeleteAccountCard (moved from the removed
+  `/dashboard/account` in S4 Task 10). Self-serve account deletion
+  lives at the bottom as a danger-zone card; soft-deletes via
+  `profiles.is_deleted` and signs the user out. The callback /
+  login paths reject deleted profiles.
 - **materials/** -- Material-type configuration surface (existing).
 - **notifications/** -- Preferences stub. Backend wiring to
   `notification_preferences` deferred to S6 tech-debt pass.

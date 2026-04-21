@@ -64,7 +64,13 @@ delete / parts / assignees / PDF export all happen inline.
   internal cut history view).
 - **job-pdf.ts** -- jsPDF builder. Receipt-style: customer +
   company header, roster, parts, allocated rolls, totals.
-  **No cut layouts.**
+  **No cut layouts.** Exports `buildJobPdfBlob` for
+  share-link uploads and `jobPdfFileName` for consistent naming.
+- **job-share-link-dialog.tsx** -- "Share link" action on the
+  drawer. Builds the PDF client-side, uploads to the private
+  `job-pdfs` bucket via `uploadJobPdf`, and displays a copyable
+  7-day signed URL the operator can send to the customer. No
+  recipient login required during the TTL window.
 
 ## Backend
 
@@ -81,7 +87,10 @@ delete / parts / assignees / PDF export all happen inline.
   re-exports `jobsRepository` from
   `@/src/infrastructure/repositories/jobs.repository.ts`. Handles
   jobs CRUD, parts CRUD, assignees CRUD, allocations CRUD,
-  sufficiency computation, linked-PO + linked-cut listing.
+  sufficiency computation, linked-PO + linked-cut listing. Also
+  re-exports `uploadJobPdf` from
+  `@/src/infrastructure/services/jobPdfShareService.ts` for the
+  signed-URL share flow.
 
 ## Tests
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Download, Edit, Scissors, Trash2 } from "lucide-react"
+import { Download, Edit, Scissors, Share2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -40,6 +40,7 @@ import { JobCutsPanel } from "./job-cuts-panel"
 import { JobPartsPanel } from "./job-parts-panel"
 import { JobPurchaseOrdersPanel } from "./job-purchase-orders-panel"
 import { JobRosterPanel } from "./job-roster-panel"
+import { JobShareLinkDialog } from "./job-share-link-dialog"
 import { JobSufficiencyPanel } from "./job-sufficiency-panel"
 import { downloadJobPdf } from "./job-pdf"
 
@@ -103,6 +104,7 @@ export function JobDetailDrawer({
   const [linkedCuts, setLinkedCuts] = useState<CutHistory[]>([])
   const [loading, setLoading] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const load = useCallback(
     async (id: string) => {
@@ -246,6 +248,14 @@ export function JobDetailDrawer({
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => setShareOpen(true)}
+                  >
+                    <Share2 className="size-3.5" />
+                    Share link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       onEdit?.(job)
                       onOpenChange(false)
@@ -290,6 +300,14 @@ export function JobDetailDrawer({
           )}
         </SheetContent>
       </Sheet>
+
+      {job && (
+        <JobShareLinkDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          job={job}
+        />
+      )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
