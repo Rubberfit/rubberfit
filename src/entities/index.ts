@@ -29,7 +29,7 @@ export type {
 } from "./reorder-rule"
 export type { TaxRate, TaxRateSource } from "./tax-rate"
 
-export type { Cut } from "./cut"
+export type { CreateCut, Cut, UpdateCut } from "./cut"
 export type { CutHistory } from "./cut-history"
 export type { CutHistorySelection } from "./cut-history-selection"
 export type { CutFavorite } from "./cut-favorite"

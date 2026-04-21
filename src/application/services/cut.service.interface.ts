@@ -1,9 +1,9 @@
-import type { Cut, Roll } from "@/src/entities"
+import type { CreateCut, Cut, Roll } from "@/src/entities"
 
 export interface WasteStats {
   averageWastePercentage: number
-  totalWasteSqft: number
-  totalMaterialUsed: number
+  totalWasteSqmm: number
+  totalMaterialUsedSqmm: number
 }
 
 export interface WasteTrend {
@@ -12,11 +12,11 @@ export interface WasteTrend {
 }
 
 export interface CutRollInfo {
-  material_type: string
-  location: string
-  cost_per_sqft?: number
-  width?: number
-  thickness?: number
+  materialTypeName: string | null
+  location: string | null
+  costPerSqmCents?: number | null
+  widthMm?: number
+  thicknessMm?: number
 }
 
 export interface CutWithRoll extends Cut {
@@ -24,21 +24,21 @@ export interface CutWithRoll extends Cut {
 }
 
 export interface OptimizeCutRequirements {
-  materialType: string
-  width: number
-  length: number
+  materialTypeId: string
+  widthMm: number
+  lengthMm: number
   quantity: number
-  thickness?: number
+  thicknessMm?: number
 }
 
 export interface OptimizeCutRecommendation {
   roll: Roll
-  total_length_needed: number
-  material_used_sqft: number
-  waste_sqft: number
-  waste_percentage: number
-  remaining_length_after: number
-  remaining_value_after: number
+  totalLengthNeededMm: number
+  materialUsedSqmm: number
+  wasteSqmm: number
+  wastePercentage: number
+  remainingLengthAfterMm: number
+  remainingValueCents: number
   score: number
 }
 
@@ -48,14 +48,14 @@ export interface OptimizeCutResult {
 }
 
 export interface ICutService {
-  recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">): Promise<Cut>
+  recordCut(input: CreateCut): Promise<Cut>
   getCutHistory(limit?: number): Promise<Cut[]>
   getCutsByRoll(rollId: string): Promise<Cut[]>
   getCutsThisWeek(): Promise<Cut[]>
   getCutsThisMonth(): Promise<Cut[]>
   getWasteStats(): Promise<WasteStats>
   getAllCuts(): Promise<Cut[]>
-  getTotalMaterialUsedThisWeek(): Promise<number>
+  getTotalMaterialUsedThisWeekSqmm(): Promise<number>
   getCutsGrowthPercentage(): Promise<number>
   getCutsByDateRange(from: Date, to: Date): Promise<Cut[]>
   getMonthlyWastePercentages(): Promise<{ waste_percentage: number }[]>
