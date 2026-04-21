@@ -26,6 +26,10 @@ export const TOKENS = {
   ITaxApiService: Symbol("ITaxApiService"),
   IVisionExtractionService: Symbol("IVisionExtractionService"),
 
+  // Admin portal services
+  IUserManagementService: Symbol("IUserManagementService"),
+  IHealthAlertService: Symbol("IHealthAlertService"),
+
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
   IUpdatePurchaseOrderUseCase: Symbol("IUpdatePurchaseOrderUseCase"),

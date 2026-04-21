@@ -9,13 +9,8 @@ Main dashboard layout, navigation, and shared components. All authenticated page
 
 ## \_components/
 
-Shared components used across multiple dashboard pages.
+Shared components used across multiple dashboard pages. Roll-specific components (table, form dialog, form fields, CSV upload) moved to `inventory/_components/` in the Jobs-phase inventory pass — they were only ever used by the inventory surface, and keeping them here forced cross-directory relative imports from supplier selection and a split fetch path between the page and the table. See `inventory/README.md` for the new layout.
 
-- **inventory-table.tsx** -- Roll inventory data table with sorting, filtering, and inline actions
-- **inventory-search.tsx** -- Search input with 300ms debounce for filtering inventory
-- **roll-form-dialog.tsx** -- Dialog for adding/editing a roll (Zod-validated form)
-- **roll-form-fields.tsx** -- Form fields shared by roll create/edit forms
-- **csv-upload.tsx** -- Drag-and-drop CSV upload for bulk roll import
 - **material-summary-chart.tsx** -- Recharts bar chart showing material type distribution
 - **waste-trend-chart.tsx** -- Recharts line chart showing waste percentage over time
 - **dashboard-summary-cards.tsx** -- KPI `StatCard` row for the Operations Overview: Active Rolls, Cuts This Week (with growth trend), Material Waste (with improvement trend), Inventory Value. Sparklines wired from `getWasteTrendByWeek` + `getCutsThisWeek` per-day aggregation. Rewritten in S4 Task 5 to consume the pattern library.
@@ -49,4 +44,5 @@ Shared components used across multiple dashboard pages.
 - **analytics/** -- Consolidated Analytics shell (S4 Task 9). Nested `/dashboard/analytics/{waste,waste-comparison,usage,costs,trends,reports}` routes under a shared `layout.tsx` that renders the tab strip. Pre-S4 top-level paths (`/dashboard/waste`, `/dashboard/costs`, etc.) 308-redirect into this subtree via `next.config.mjs`. See `analytics/README.md` for the sub-page list.
 - **notifications/** -- Notification center with activity feed
 - **settings/** -- Consolidated settings (S4 Task 10). Tabs for General / Profile & account / Materials / Notifications under a shared `layout.tsx`. Absorbs the prior `/dashboard/account` route; legacy URL 308-redirects to `/settings/profile`.
+- **security/** -- Customer-facing Trust & Security FAQ surface. Grounded in the codebase (RLS coverage, append-only admin audit log, zero-analytics package.json, middleware gates). Ungated nav entry so invited IT/procurement reviewers on a viewer seat can read it directly. See `security/README.md`.
 - **procurement/** -- Procurement-specific PO views

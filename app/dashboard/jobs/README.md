@@ -1,0 +1,91 @@
+# jobs/
+
+Customer-ordered cut projects. One `jobs` row per project, plus
+`job_parts` rows for the line items, `job_assignees` for the
+shop roster, and `job_roll_allocations` for earmarked inventory.
+Customer info (`customer_name`, `customer_email`,
+`customer_phone`, `customer_po_number`) lives inline on the job
+row — no separate customers table by design.
+
+Cut history links back via `cut_history.job_id` /
+`cut_history.job_part_id`. Purchase orders link back via
+`purchase_orders.job_id`. All nullable so legacy + general-cutter
+flows still work unchanged.
+
+## No detail route
+
+There is **no `/dashboard/jobs/[id]` page**. The detail view is a
+right-docked drawer that opens on row click — same pattern the
+inventory list uses. Keeps the operator on one surface; edits /
+delete / parts / assignees / PDF export all happen inline.
+
+## Files
+
+- **page.tsx** -- Jobs list. PageShell (dense) + PageHeader with
+  "New job" action; ViewToolbar search across job number, name,
+  customer, PO; table with status badge + due date; each row
+  opens `JobDetailDrawer`. Per-row kebab menu also has Edit +
+  Delete so nothing depends on the drawer being healthy.
+
+## \_components/
+
+- **job-detail-drawer.tsx** -- Right-docked shadcn Sheet that
+  opens on row click. Fetches job + parts + assignees +
+  allocations + sufficiency + POs + cuts in parallel via
+  `Promise.allSettled` (never blanks on one failed secondary
+  query). Header has Edit / Delete / Export PDF. Body renders
+  the six domain panels below.
+- **job-form-dialog.tsx** -- Zod-validated create / edit dialog.
+  Create mode triggers the drawer to auto-open on success (so the
+  operator lands on the parts + sufficiency view without clicking
+  back in).
+- **job-parts-panel.tsx** -- Parts table + "Add part" dialog.
+  Dimensions × quantity × material, inline sqft totals.
+- **job-sufficiency-panel.tsx** -- Per-material needed / available
+  / shortfall readout against active inventory rolls. Green
+  "Covered" or red "Shortfall" + "Create PO" button per row.
+  Match is on material name (lowercased); width feasibility and
+  already-allocated rolls not yet subtracted — tracked as a
+  hardening follow-up.
+- **job-roster-panel.tsx** -- Lead + worker assignees. One lead
+  per job enforced via a DB partial unique index.
+- **job-allocations-panel.tsx** -- Earmarked rolls (selector
+  filters active rolls not already allocated to this job).
+  Allocations are informational; real consumption still happens
+  via cut_history.
+- **job-purchase-orders-panel.tsx** -- POs with `job_id` pointing
+  at this job. Status badge mirrors the PO list palette.
+- **job-cuts-panel.tsx** -- cut_history rows linked to this job;
+  metric summary + PDF deep-link when available. No layout
+  thumbnails (per the customer-facing rule — layouts stay in the
+  internal cut history view).
+- **job-pdf.ts** -- jsPDF builder. Receipt-style: customer +
+  company header, roster, parts, allocated rolls, totals.
+  **No cut layouts.**
+
+## Backend
+
+- **Migrations:**
+  - `20260420000004_create_jobs_tables.sql` -- jobs + job_parts +
+    `J-000001`-style sequence + trigger. Adds `job_id` /
+    `job_part_id` nullable columns on `cut_history`.
+  - `20260420000005_job_assignees_and_roll_allocations.sql` --
+    job_assignees (lead + workers, DB-enforced one lead) +
+    job_roll_allocations (earmarked inventory).
+  - `20260420000006_purchase_orders_job_link.sql` --
+    `purchase_orders.job_id` nullable FK.
+- **Service:** `@/src/infrastructure/services/jobService`
+  re-exports `jobsRepository` from
+  `@/src/infrastructure/repositories/jobs.repository.ts`. Handles
+  jobs CRUD, parts CRUD, assignees CRUD, allocations CRUD,
+  sufficiency computation, linked-PO + linked-cut listing.
+
+## Coming next
+
+- Hardening the sufficiency check: width feasibility (a 48"-wide
+  part shouldn't pass against 24"-wide rolls), and subtracting
+  already-allocated length from availability to prevent
+  double-counting across jobs.
+- Pre-fill the PO creator when the "Create PO" button fires —
+  currently it just passes query params that the creator doesn't
+  yet read.

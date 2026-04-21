@@ -100,10 +100,45 @@ export async function GET(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("roles")
+      .select("roles, is_deleted")
       .eq("id", user.id)
       .maybeSingle()
+
+    if (profile?.is_deleted) {
+      await supabase.auth.signOut()
+      const loginParams = new URLSearchParams()
+      loginParams.set(
+        "error",
+        "This account has been deactivated. Please contact your administrator."
+      )
+      return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    }
+
     roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
+
+    // MFA enforcement for OAuth: the email+password login form
+    // challenges inline, but OAuth hands us a fresh session with no
+    // mid-flow prompt opportunity. Check assurance-level server-side
+    // and reroute aal1 sessions through the dedicated challenge page.
+    try {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      if (aal?.nextLevel === "aal2" && aal?.currentLevel !== "aal2") {
+        const finalTarget = resolvePostAuthRedirect(roles, requestedPath)
+        const challengeParams = new URLSearchParams()
+        challengeParams.set("redirectTo", finalTarget)
+        return redirectWithCookies(
+          requestUrl,
+          "/mfa-challenge",
+          pendingCookies,
+          challengeParams
+        )
+      }
+    } catch (err) {
+      // MFA probe failure on the server is non-fatal — a password-
+      // alone session is strictly weaker than enforced aal2, but
+      // blocking an unenrolled user would be worse.
+      console.error("[callback] MFA probe failed:", err)
+    }
   }
 
   return redirectWithCookies(

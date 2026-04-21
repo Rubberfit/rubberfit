@@ -8,6 +8,7 @@ export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-ty
 import type {
   NestingVisualizerProps,
   SimplePartPreview,
+  RectLikePreview,
   MultiSheetResult,
   PreviewItem,
   SimpleCutMetrics,
@@ -244,6 +245,13 @@ export default function NestingVisualizer({
 
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
 
+  // Caller explicitly passed an empty `simpleParts` array — i.e.
+  // "render the sheet chrome but nothing's placed yet". We short-
+  // circuit the preview pipeline with a synthetic empty preview so
+  // the same downstream renderer is used whether cuts are placed
+  // or not. Keeps the engine layout identical in both states.
+  const isEmptySheet = simpleParts !== undefined && simpleParts.length === 0
+
   const activeSimpleSpecs = useMemo(() => {
     if (simpleParts && simpleParts.length > 0) return simpleParts
     if (simplePart) return [simplePart]
@@ -257,10 +265,45 @@ export default function NestingVisualizer({
     ]
   }, [simpleParts, simplePart, defaultQty, defaultCutWidth, defaultCutHeight])
 
+  const emptyPreview = useMemo<RectLikePreview | null>(() => {
+    if (!isEmptySheet) return null
+    const stockArea = defaultRollWidth * defaultRollLength
+    return {
+      renderShape: "rect",
+      strategyName: "Empty sheet",
+      strategyNote: "No cuts placed yet",
+      placementMode: "origin",
+      wasteMode: "bands",
+      cutPlanTitle: "",
+      cutSteps: [],
+      requestedUnits: 0,
+      unitsCompleted: 0,
+      overflowUnits: 0,
+      piecesShown: 0,
+      piecesPerUnit: 0,
+      usedArea: 0,
+      wasteArea: stockArea,
+      wastePct: 100,
+      reusableArea: stockArea,
+      scrapArea: 0,
+      occupiedWidth: 0,
+      occupiedHeight: 0,
+      items: [],
+      offcutBands: [
+        { x: 0, y: 0, width: defaultRollWidth, height: defaultRollLength },
+      ],
+      scrapBands: [],
+      placements: [],
+      label: "",
+      fabricationScore: 0,
+    }
+  }, [isEmptySheet, defaultRollWidth, defaultRollLength])
+
   // First paint runs the sync generator so the UI is never empty while workers warm up.
   // For cone/trapezoid specs an async refinement runs on the worker pool and replaces
   // this value when ready (effect below).
   const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
+    if (isEmptySheet) return emptyPreview
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
           defaultRollWidth,
@@ -278,6 +321,8 @@ export default function NestingVisualizer({
           defaultQty
         )
   }, [
+    isEmptySheet,
+    emptyPreview,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -313,6 +358,7 @@ export default function NestingVisualizer({
   } | null>(null)
 
   useEffect(() => {
+    if (isEmptySheet) return // nothing to refine on a blank sheet
     const key = asyncPreviewKey
     let cancelled = false
 
@@ -430,9 +476,24 @@ export default function NestingVisualizer({
   useEffect(() => {
     if (!onMetricsChange || !baseSimplePreview) return
     try {
+      // Per-piece offcut geometry. Both the single-sheet preview
+      // and multi-sheet aggregator expose `offcutBands` already,
+      // filtered to only the *reusable* rectangles (scrap bands
+      // are partitioned out upstream). We project them into the
+      // metrics contract so the cut-recording route can spawn one
+      // inventory row per piece.
+      const bandToPiece = (band: { width: number; height: number }) => ({
+        widthIn: Number(band.width.toFixed(4)),
+        lengthIn: Number(band.height.toFixed(4)),
+        areaSqft: Number(((band.width * band.height) / 144).toFixed(4)),
+      })
+
       let metrics: SimpleCutMetrics
       if (multiSheet && multiSheet.sheets.length > 1) {
         const totalPieces = multiSheet.sheets.reduce((sum, s) => sum + s.preview.piecesShown, 0)
+        const offcutPieces = multiSheet.sheets.flatMap((s) =>
+          s.preview.offcutBands.map(bandToPiece)
+        )
         metrics = {
           partsCompleted: multiSheet.totalUnitsCompleted,
           cutPieces: totalPieces,
@@ -440,6 +501,7 @@ export default function NestingVisualizer({
           reusableOffsetSqFt: multiSheet.totalReusableArea / 144,
           scrapSqFt: multiSheet.totalScrapArea / 144,
           fabScore: multiSheet.avgFabScore / 100,
+          offcutPieces,
         }
       } else {
         const rawScore =
@@ -452,6 +514,7 @@ export default function NestingVisualizer({
           reusableOffsetSqFt: baseSimplePreview.reusableArea / 144,
           scrapSqFt: baseSimplePreview.scrapArea / 144,
           fabScore: rawScore / 100,
+          offcutPieces: baseSimplePreview.offcutBands.map(bandToPiece),
         }
       }
       onMetricsChange(metrics)

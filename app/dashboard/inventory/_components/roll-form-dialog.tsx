@@ -70,7 +70,6 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
     },
   })
 
-  // Fetch material types on mount.
   useEffect(() => {
     const fetchMaterialTypes = async () => {
       try {
@@ -84,7 +83,6 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
     fetchMaterialTypes()
   }, [])
 
-  // Reset form when roll changes or dialog opens
   useEffect(() => {
     if (roll) {
       form.reset({
@@ -142,10 +140,6 @@ export function RollFormDialog({ open, onOpenChange, roll, onSuccess }: RollForm
         toast.success("Roll updated successfully")
       } else {
         if (!materialTypeId) {
-          // v2 needs material_type_id; on legacy this is still a
-          // soft contract (column is nullable) but we enforce it
-          // uniformly so the cutover doesn't produce rows missing
-          // the FK.
           throw new Error(
             "Select a material type from the dropdown (unknown name)"
           )

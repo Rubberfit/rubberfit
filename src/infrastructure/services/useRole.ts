@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { DEFAULT_ROLES, type AppRole, type Permission } from "@/src/application/permissions"
 import {
@@ -33,12 +33,13 @@ export function useRole(): UseRoleReturn {
   const [email, setEmail] = useState<string | null>(null)
   const [fullName, setFullName] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const hasLoaded = useRef(false)
 
   useEffect(() => {
     let mounted = true
 
     const fetchRoles = async () => {
-      setIsLoading(true)
+      if (!hasLoaded.current) setIsLoading(true)
       try {
         const {
           data: { session },
@@ -50,6 +51,7 @@ export function useRole(): UseRoleReturn {
             setUserId(null)
             setEmail(null)
             setFullName(null)
+            hasLoaded.current = true
             setIsLoading(false)
           }
           return
@@ -57,7 +59,7 @@ export function useRole(): UseRoleReturn {
 
         const { data: profile, error } = await supabase
           .from("profiles")
-          .select("roles, full_name, email")
+          .select("roles, full_name, email, is_deleted")
           .eq("id", session.user.id)
           .single()
 
@@ -65,18 +67,24 @@ export function useRole(): UseRoleReturn {
           if (error || !profile) {
             // Profile missing — treat as member until synced
             setRoles([...DEFAULT_ROLES])
+          } else if (profile.is_deleted) {
+            // Deactivated account — sign out immediately
+            await supabase.auth.signOut()
+            return
           } else {
             setRoles((profile.roles ?? [...DEFAULT_ROLES]) as AppRole[])
             setFullName(profile.full_name ?? null)
             setEmail(profile.email ?? session.user.email ?? null)
           }
           setUserId(session.user.id)
+          hasLoaded.current = true
           setIsLoading(false)
         }
       } catch (err) {
         console.error("[useRole] Failed to fetch roles:", err)
         if (mounted) {
           setRoles([...DEFAULT_ROLES])
+          hasLoaded.current = true
           setIsLoading(false)
         }
       }

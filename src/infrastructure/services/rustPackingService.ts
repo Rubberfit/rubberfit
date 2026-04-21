@@ -10,16 +10,49 @@ import { injectable } from "tsyringe"
 //
 // `loadChildProcess` is memoized so repeated pack calls don't pay
 // the import resolution cost more than once.
+//
+// Next 16 + Turbopack started *statically* analysing even the
+// `await import("node:…")` form below — tripping the runtime with
+// `__turbopack_context__.x is not a function` when the module is
+// reached from a client chunk. We hide the specifier behind
+// `new Function("s", "return import(s)")` so the bundler can't
+// pattern-match it; the actual import only fires when a real Node
+// runtime calls into the service.
 let cachedChildProcess: typeof import("node:child_process") | null = null
+const nodeImport = new Function("specifier", "return import(specifier)") as (
+  specifier: string
+) => Promise<unknown>
+
+/**
+ * Thrown when `pack()` is invoked from a browser context. The NFP
+ * optimizer hook catches this and surfaces "NFP Error" on the
+ * visualizer so the sync preview keeps rendering — the Rust
+ * refinement simply doesn't run. No console noise, no unhandled
+ * rejection from `node:child_process` failing to resolve.
+ */
+class PackingServerOnlyError extends Error {
+  constructor() {
+    super("RustPackingService is server-only — browser callers skip the Rust refinement.")
+    this.name = "PackingServerOnlyError"
+  }
+}
+
 async function loadChildProcess(): Promise<
   typeof import("node:child_process")
 > {
   if (cachedChildProcess) return cachedChildProcess
-  // Dynamic import — Turbopack leaves this alone for client chunks
-  // because the specifier is resolved at runtime, not statically.
-  // In a real browser the import resolution will throw (no `node:*`
-  // scheme); in Node and vitest+happy-dom it resolves fine.
-  cachedChildProcess = await import("node:child_process")
+  // Browser short-circuit. Keeps the Function() wrapper past
+  // Turbopack's static analysis above, but rejects cleanly before
+  // attempting the `node:` import — the browser has no scheme for
+  // it and the previous behaviour was a cryptic
+  // `error loading dynamically imported module: node:child_process`
+  // landing in the user's dev overlay every keystroke.
+  if (typeof window !== "undefined") {
+    throw new PackingServerOnlyError()
+  }
+  cachedChildProcess = (await nodeImport(
+    "node:child_process"
+  )) as typeof import("node:child_process")
   return cachedChildProcess
 }
 import type {

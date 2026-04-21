@@ -48,6 +48,11 @@ function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
   return {
     id: dto.id,
     user_id: dto.user_id ?? null,
+    // Rust DTO doesn't carry roll_id / job_id / job_part_id yet;
+    // legacy + v2 rows default to null.
+    roll_id: null,
+    job_id: null,
+    job_part_id: null,
     material_id: dto.material_id,
     part_id: dto.part_id,
     cut_length: dto.cut_length,

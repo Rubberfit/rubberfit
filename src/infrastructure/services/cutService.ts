@@ -10,6 +10,7 @@ import type {
 } from "@/src/application/services/cut.service.interface"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
+import { startOfWeek, endOfWeek, subWeeks } from "date-fns"
 
 export type { WasteStats, WasteTrend, CutWithRoll, OptimizeCutRequirements, OptimizeCutResult }
 
@@ -188,22 +189,29 @@ export class CutService implements ICutService {
 
   async getCutsGrowthPercentage(): Promise<number> {
     try {
+      // Align with the dashboard card, which reports cuts in the current
+      // calendar week (Mon → Sun). Using a rolling 7-day window here made
+      // the card show "0 cuts / +83% vs last week" early Monday morning,
+      // because the two queries disagreed on where "this week" starts.
       const now = new Date()
-      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+      const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+      const thisWeekEnd   = endOfWeek(now,   { weekStartsOn: 1 })
+      const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+      const lastWeekEnd   = endOfWeek(subWeeks(now, 1),   { weekStartsOn: 1 })
 
       const { data: thisWeek, error: thisWeekError } = await supabase
         .from("cuts")
         .select("id")
-        .gte("created_at", oneWeekAgo.toISOString())
+        .gte("created_at", thisWeekStart.toISOString())
+        .lte("created_at", thisWeekEnd.toISOString())
 
       if (thisWeekError) throw thisWeekError
 
       const { data: lastWeek, error: lastWeekError } = await supabase
         .from("cuts")
         .select("id")
-        .gte("created_at", twoWeeksAgo.toISOString())
-        .lt("created_at", oneWeekAgo.toISOString())
+        .gte("created_at", lastWeekStart.toISOString())
+        .lte("created_at", lastWeekEnd.toISOString())
 
       if (lastWeekError) throw lastWeekError
 

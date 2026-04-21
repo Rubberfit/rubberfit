@@ -57,6 +57,19 @@ export interface ScoredStrategy extends Strategy {
   reasons: { p: "p" | "w" | "f"; t: string }[]
 }
 
+/**
+ * One reusable offcut rectangle extracted from the sheet. Emitted
+ * alongside the aggregate metrics so downstream consumers (e.g.
+ * the cut-recording route) can spawn one inventory row per piece
+ * instead of one aggregate strip. Dims in inches.
+ */
+export interface OffcutPieceMetric {
+  widthIn: number
+  lengthIn: number
+  /** Convenience square-footage so consumers don't redo /144. */
+  areaSqft: number
+}
+
 export interface SimpleCutMetrics {
   partsCompleted: number
   cutPieces: number
@@ -64,6 +77,12 @@ export interface SimpleCutMetrics {
   reusableOffsetSqFt: number
   scrapSqFt: number
   fabScore: number
+  /**
+   * Per-piece offcut geometry. Empty when the layout has no
+   * reusable offcut. Across multi-sheet layouts this is the
+   * union of every sheet's reusable bands.
+   */
+  offcutPieces: OffcutPieceMetric[]
 }
 
 export interface NestingVisualizerProps {

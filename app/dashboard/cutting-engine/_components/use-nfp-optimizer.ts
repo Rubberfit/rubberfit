@@ -160,8 +160,18 @@ export function useNfpOptimizer(
         })
         .catch((err: unknown) => {
           if (!mounted) return
-          console.error("[NFP] Packing service error:", err)
-          setNfpError((err as Error).message)
+          // `PackingServerOnlyError` is the expected browser short-
+          // circuit — the Rust refinement is server-only and the sync
+          // preview handles rendering. Treat it as a non-event so the
+          // dev overlay stays clean.
+          const isServerOnly =
+            err instanceof Error && err.name === "PackingServerOnlyError"
+          if (!isServerOnly) {
+            console.error("[NFP] Packing service error:", err)
+            setNfpError((err as Error).message)
+          } else {
+            setNfpError(null)
+          }
           setOptimizedResult(null)
           setOptimizedItems(null)
           setPlacementView(null)

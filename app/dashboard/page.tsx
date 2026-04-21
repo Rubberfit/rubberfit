@@ -131,7 +131,7 @@ export default function DashboardPage() {
         const recentActivity = buildActivityFeed(recentCutsData, recentRollsData)
 
         const wasteSparkline = wasteTrendData.map((w) => w.wastePercentage)
-        const cutsSparkline = buildCutsPerDaySeries(cutsThisWeekData)
+        const cutsSparkline = buildCutsPerDaySeries(cutsLast90d)
 
         const recentCuts = buildRecentCutsRows(recentCutsData)
 
@@ -315,14 +315,21 @@ function buildActivityFeed(
   return activity.slice(0, 8)
 }
 
-function buildCutsPerDaySeries(cutsThisWeek: Cut[]): number[] {
-  const perDay = new Array(7).fill(0) as number[]
-  for (const cut of cutsThisWeek) {
-    const d = new Date(cut.created_at)
-    const dow = (d.getDay() + 6) % 7
-    perDay[dow] += 1
+function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
+  // Rolling last-7-day buckets (oldest → newest). Using calendar-week
+  // buckets meant cuts only ever landed in today's slot this early on
+  // Monday, producing a spike-then-flat sparkline. A rolling window
+  // incorporates the previous 6 days so the trend line actually moves.
+  const now = Date.now()
+  const buckets = new Array(7).fill(0) as number[]
+  const DAY_MS = 86_400_000
+  for (const cut of cutsLast90d) {
+    const daysAgo = Math.floor((now - new Date(cut.created_at).getTime()) / DAY_MS)
+    if (daysAgo >= 0 && daysAgo < 7) {
+      buckets[6 - daysAgo] += 1
+    }
   }
-  return perDay
+  return buckets
 }
 
 /**

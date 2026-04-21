@@ -38,6 +38,10 @@ import {
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import { CutLoader } from "./_components/cut-loader"
+import { RollLoader } from "./_components/roll-loader"
+import { JobLoader } from "./_components/job-loader"
+import type { JobFullDetail, Roll } from "@/src/infrastructure/models/supabase"
+import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 
 // Constants
 
@@ -77,6 +81,25 @@ export default function CutPlannerPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection | null>(null)
   const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+  /**
+   * Set when the engine is opened via `?loadRoll=<id>` so the
+   * eventual cut record can be tied back to a specific inventory
+   * roll. Cleared automatically by the `setStock` wrapper below
+   * when the operator edits stock dimensions manually — once the
+   * dims no longer match the loaded roll, we can't honestly claim
+   * the cut came from it.
+   */
+  const [sourceRollId, setSourceRollId] = useState<string | null>(null)
+  /**
+   * Set when the engine is opened via `?loadJob=<id>` from a job's
+   * drawer. Stamped onto `cut_history.job_id` when the operator
+   * presses Cut, so the job detail drawer's "Cuts recorded" panel
+   * picks up the record.
+   */
+  const [sourceJob, setSourceJob] = useState<Pick<
+    JobFullDetail,
+    "id" | "job_number" | "name" | "customer_name"
+  > | null>(null)
 
   // Pack-gate: the Graph card doesn't mount the NestingVisualizer
   // until the operator presses **Pack**. Any change to parts,
@@ -222,6 +245,56 @@ export default function CutPlannerPage() {
     [materialTypes]
   )
 
+  // ── Load a job into the engine ────────────────────────────────────────────
+  // Invoked by `?loadJob=<id>` — stashes the job id so the next
+  // cut stamps `cut_history.job_id`, and drops a banner so the
+  // operator knows which project they're cutting for. Parts are NOT
+  // auto-loaded into the nesting surface (jobs parts can be many
+  // different dimensions; the operator picks per cut). The loader
+  // just tags subsequent cuts to the job.
+  const handleLoadJob = useCallback(
+    (job: JobFullDetail) => {
+      setSourceJob({
+        id: job.id,
+        job_number: job.job_number,
+        name: job.name,
+        customer_name: job.customer_name,
+      })
+      toast.success(`Cutting for ${job.job_number ?? "job"}`, {
+        description: job.customer_name
+          ? `${job.name} · ${job.customer_name}`
+          : job.name,
+      })
+    },
+    []
+  )
+
+  // ── Load a roll as a blank sheet (no parts, no cuts) ──────────────────────
+  // Invoked by `?loadRoll=<id>` — the inventory detail drawer deep-links
+  // here so the user can start a fresh cut with the roll's dimensions
+  // already filled in. Also stashes the roll id so the eventual
+  // cut_history insert can link back (see `handleRecordCut`).
+  const handleLoadRoll = useCallback(
+    (roll: Roll) => {
+      const matched = materialTypes.find((mt) => mt.name === roll.material_type)
+      setStock({
+        width: roll.width,
+        length: roll.remaining_length > 0 ? roll.remaining_length : roll.length,
+        thickness: roll.thickness,
+        material: roll.material_type,
+        costPerSqft: roll.cost_per_sqft ?? undefined,
+        materialTypeId: matched?.id,
+      })
+      setSourceRollId(roll.id)
+      toast.success(`Loaded ${roll.material_type}`, {
+        description: `${roll.width}″ × ${
+          roll.remaining_length > 0 ? roll.remaining_length : roll.length
+        }″ ready in the engine`,
+      })
+    },
+    [materialTypes]
+  )
+
   // ── Other handlers ────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
@@ -343,9 +416,47 @@ export default function CutPlannerPage() {
           : `${stock.width}" × ${stock.length}"`) ||
         "Unknown"
 
+      // Resolve the source roll: explicit link (opened from the
+      // inventory drawer via ?loadRoll) takes precedence; otherwise
+      // auto-pick the oldest active roll matching the selected
+      // material so the cut consumes from inventory FIFO. If no
+      // material is selected the engine runs as a "general cutter"
+      // — the cut records without a roll link and nothing is
+      // decremented.
+      let resolvedRollId = sourceRollId
+      if (!resolvedRollId && stock.materialTypeId) {
+        try {
+          const candidates = await rollsSdk.list({
+            status: "active",
+            material_type_id: stock.materialTypeId,
+          })
+          const sorted = [...(candidates ?? [])].sort((a, b) => {
+            const da = a.date_received ? Date.parse(a.date_received) : 0
+            const db = b.date_received ? Date.parse(b.date_received) : 0
+            return da - db
+          })
+          resolvedRollId = sorted[0]?.id ?? null
+        } catch {
+          // Non-fatal — cut still saves without a roll link.
+        }
+      }
+
+      // Per-piece offcut geometry from the engine. Each element
+      // becomes its own inventory row on the server so operators
+      // can scan / consume them individually. Empty array is fine
+      // (no reusable offcut) — server just skips the spawn loop.
+      const offcutPieces =
+        cutMetrics?.offcutPieces?.map((p) => ({
+          width_in: p.widthIn,
+          length_in: p.lengthIn,
+        })) ?? []
+
       const payload = {
         material_id: materialId,
         part_id: partId,
+        roll_id: resolvedRollId,
+        job_id: sourceJob?.id ?? null,
+        offcut_pieces: offcutPieces,
         cut_width: stock.width,
         cut_length: stock.length,
         cut_thickness: stock.thickness,
@@ -375,9 +486,40 @@ export default function CutPlannerPage() {
       })
 
       if (!response.ok) {
-        const text = await response.text()
-        console.error("Failed to record cut:", text)
-        toast.error("Failed to save cut to history")
+        // Read the body as text first so we see *something* even
+        // when the server returns the Next.js default HTML error
+        // page (e.g. when an unhandled throw bypasses our JSON
+        // response). Then try to parse as JSON for the structured
+        // `{ error, detail, code }` case.
+        const rawText = await response.text()
+        let detail: string | undefined
+        let code: string | undefined
+        try {
+          const payload = JSON.parse(rawText) as {
+            error?: string
+            detail?: string
+            code?: string
+          }
+          detail = payload.detail ?? payload.error
+          code = payload.code
+        } catch {
+          // Not JSON — surface the raw text (truncated) so we can
+          // at least see what the server actually sent.
+          detail = rawText.slice(0, 200) || `HTTP ${response.status}`
+        }
+        console.error("Failed to record cut:", {
+          status: response.status,
+          rawText: rawText.slice(0, 500),
+          detail,
+          code,
+        })
+        toast.error("Failed to save cut to history", {
+          description: detail
+            ? code
+              ? `${detail} (${code})`
+              : detail
+            : `HTTP ${response.status}`,
+        })
       } else {
         const { data: savedCut } = (await response.json()) as { data: CutHistory }
         toast.success("Cut recorded!")
@@ -422,6 +564,33 @@ export default function CutPlannerPage() {
   // Render
   return (
     <div className="space-y-6">
+      <RollLoader onLoad={handleLoadRoll} />
+      <JobLoader onLoad={handleLoadJob} />
+      {sourceJob && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
+            {" — "}
+            {sourceJob.name}
+            {sourceJob.customer_name ? (
+              <span className="text-blue-700 dark:text-blue-400">
+                {" · "}
+                {sourceJob.customer_name}
+              </span>
+            ) : null}
+            . This cut will link back to the job's Cuts Recorded panel.
+          </span>
+          <button
+            type="button"
+            aria-label="Clear job"
+            onClick={() => setSourceJob(null)}
+            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <CutLoader
         onLoad={(cut) => {
           handleLoadCut(cut)
@@ -590,15 +759,36 @@ export default function CutPlannerPage() {
           </Card>
         </>
       ) : (
-        <Card className="border border-dashed border-slate-300 bg-slate-50/60 shadow-sm dark:bg-slate-700/50">
-          <CardContent className="flex min-h-40 flex-col items-center justify-center gap-2 py-10 text-center">
-            <Shapes className="h-6 w-6 text-slate-400" />
-            <div className="text-base font-semibold text-slate-900 dark:text-slate-300">
-              Choose a part type and standard size
+        // Empty-state: same `NestingVisualizer` used once a part is
+        // picked, but with an explicit empty `simpleParts` so the
+        // visualizer short-circuits the preview pipeline and renders
+        // the stock chrome with no placed pieces. Guarantees the
+        // layout doesn't swap out when a cut is added or removed.
+        <Card className="border border-slate-200 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <LayoutLabel />
+                4. Graph
+              </CardTitle>
             </div>
-            <div className="max-w-xl text-sm text-slate-600 dark:text-slate-400">
-              Start with the part selection above. Once a standard size is picked, the amount of
-              cuts and graph preview will appear underneath.
+            <CardDescription>
+              The loaded stock sheet — no cuts placed yet. Pick a part above to start
+              nesting onto it; the layout stays put.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NestingVisualizer
+              defaultRollWidth={stock.width}
+              defaultRollLength={stock.length}
+              defaultCutWidth={Math.max(1, stock.width / 4)}
+              defaultCutHeight={Math.max(1, stock.length / 8)}
+              defaultQty={0}
+              simpleParts={[]}
+            />
+            <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+              <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>Pick a preset or upload a cut list to start nesting parts onto this sheet.</span>
             </div>
           </CardContent>
         </Card>

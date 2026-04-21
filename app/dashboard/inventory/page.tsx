@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Download, FileText } from "lucide-react"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Plus, Download, FileText, Printer } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/app/contexts/AuthContext"
@@ -14,32 +15,47 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
-import {
-  PageHeader,
-  PageShell,
-  ViewToolbar,
-} from "@/app/components/patterns"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
-import { CSVUpload } from "../_components/csv-upload"
-import { InventoryTable } from "../_components/inventory-table"
-import { RollFormDialog } from "../_components/roll-form-dialog"
+import { CSVUpload } from "./_components/csv-upload"
+import { InventoryTable } from "./_components/inventory-table"
+import { RollFormDialog } from "./_components/roll-form-dialog"
+import { downloadRollLabelPdf } from "./_components/roll-label-pdf"
 
-export default function InventoryPage() {
+function InventoryPageInner() {
   const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [refreshKey, setRefreshKey] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const readOnlyInventory = isRestrictedCutter(user?.roles)
 
+  // `?scan=<part_number>` lands here after someone scans a printed
+  // QR label with their phone (see `app/r/[partNumber]/page.tsx`).
+  // Held in local state so we can keep the URL clean after the
+  // drawer opens for the matching roll.
+  const scanFromUrl = searchParams.get("scan")
+  const [scanTarget, setScanTarget] = useState<string | null>(scanFromUrl)
+  const scanToastRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (scanFromUrl && scanToastRef.current !== scanFromUrl) {
+      scanToastRef.current = scanFromUrl
+      toast.message("Opening scanned roll…", {
+        description: `Looking up ${scanFromUrl}`,
+      })
+    }
+  }, [scanFromUrl])
+
   const { can, isLoading } = useRole()
   const canManageRolls = can("manageRolls")
 
-  const handleUploadComplete = () => setRefreshKey((prev) => prev + 1)
-  const handleAddSuccess = () => setRefreshKey((prev) => prev + 1)
+  const bumpRefresh = () => setRefreshKey((prev) => prev + 1)
 
   const handleExportCSV = async () => {
     try {
@@ -52,6 +68,21 @@ export default function InventoryPage() {
     } catch (error) {
       console.error("Error exporting inventory:", error)
       toast.error("Failed to export inventory")
+    }
+  }
+
+  const handlePrintAllLabels = async () => {
+    try {
+      const list = await rollsSdk.list({ status: "active" })
+      if (!list || list.length === 0) {
+        toast.error("No active rolls to label")
+        return
+      }
+      downloadRollLabelPdf(list)
+      toast.success(`Labels generated for ${list.length} roll${list.length === 1 ? "" : "s"}`)
+    } catch (error) {
+      console.error("Error generating labels:", error)
+      toast.error("Failed to generate labels")
     }
   }
 
@@ -89,15 +120,12 @@ export default function InventoryPage() {
   return (
     <PageShell variant="dense">
       <PageHeader
-        crumbs={[
-          { label: "Operations", href: "/dashboard" },
-          { label: "Inventory" },
-        ]}
+        crumbs={[{ label: "Operations", href: "/dashboard" }, { label: "Inventory" }]}
         title="Inventory"
         subtitle={
           readOnlyInventory
             ? "View current rubber roll inventory"
-            : "Rubber rolls in stock. Track, import, and manage material inventory."
+            : "Rubber rolls in stock. Click any roll to preview the sheet and jump into the cutting engine."
         }
         actions={
           <>
@@ -117,6 +145,10 @@ export default function InventoryPage() {
                   <FileText className="size-3.5" />
                   Generate PDF Report
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePrintAllLabels}>
+                  <Printer className="size-3.5" />
+                  Print all active labels
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             {canManageRolls && (
@@ -129,21 +161,28 @@ export default function InventoryPage() {
         }
       />
 
-      {canManageRolls && <CSVUpload onUploadComplete={handleUploadComplete} />}
+      {canManageRolls && <CSVUpload onUploadComplete={bumpRefresh} />}
 
-      <Card className="overflow-hidden p-0">
+      <Card className="overflow-hidden p-0 gap-0">
         <ViewToolbar
           searchPlaceholder="Search rolls, material, location…"
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
         />
-        <div className="p-0">
-          <InventoryTable
-            onRefresh={refreshKey}
-            searchQuery={searchQuery}
-            canManageRolls={canManageRolls}
-          />
-        </div>
+        <InventoryTable
+          refreshKey={refreshKey}
+          searchQuery={searchQuery}
+          canManageRolls={canManageRolls}
+          onMutated={bumpRefresh}
+          scanPartNumber={scanTarget ?? undefined}
+          onScanResolved={() => {
+            // Consume the one-shot scan target so a refresh doesn't
+            // re-open the drawer, and clean the URL so the short
+            // path stays usable as a bookmark.
+            setScanTarget(null)
+            router.replace("/dashboard/inventory")
+          }}
+        />
       </Card>
 
       {canManageRolls && (
@@ -151,9 +190,18 @@ export default function InventoryPage() {
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
           roll={null}
-          onSuccess={handleAddSuccess}
+          onSuccess={bumpRefresh}
         />
       )}
     </PageShell>
+  )
+}
+
+export default function InventoryPage() {
+  // `useSearchParams` requires a Suspense boundary in Next 16.
+  return (
+    <Suspense fallback={null}>
+      <InventoryPageInner />
+    </Suspense>
   )
 }

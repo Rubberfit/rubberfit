@@ -9,6 +9,12 @@ import { toast } from "sonner"
 import { csvService } from "@/src/infrastructure/services/csvService"
 import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 
+/**
+ * Quick CSV upload card mounted on the inventory landing page.
+ * A fuller three-step wizard lives at `/dashboard/inventory/import/`
+ * for larger ingests; this card is the one-click path for the common
+ * "drop a CSV" flow.
+ */
 export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [isUploading, setIsUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
@@ -95,7 +101,6 @@ export function CSVUpload({ onUploadComplete }: { onUploadComplete?: () => void 
   const handleDownloadTemplate = () => {
     try {
       csvService.downloadTemplate()
-      // Small delay before showing toast to ensure download starts
       setTimeout(() => {
         toast.success("Template downloaded", {
           description: "Check your downloads folder for rubber_rolls_template.csv",

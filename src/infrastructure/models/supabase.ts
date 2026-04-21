@@ -92,6 +92,20 @@ export interface Roll {
   remaining_length: number
   status: "active" | "depleted" | "reserved"
   notes?: string
+  /**
+   * Points at the source roll when this row is a reusable offcut
+   * spawned by a cut operation. Null on purchased / original rolls.
+   */
+  parent_roll_id?: string | null
+  /** Flags reusable-offcut rows so inventory UI can badge them. */
+  is_offcut?: boolean
+  /**
+   * Human-readable unique identifier (RF-000001, RF-000002, …)
+   * assigned by a DB trigger on insert. Shared namespace across
+   * originals and offcuts; suitable for barcode labels and
+   * shop-floor scanning.
+   */
+  part_number?: string
   created_at: string
   updated_at: string
 }
@@ -213,6 +227,8 @@ export interface PurchaseOrder {
   approved_at?: string
   auto_generated: boolean
   reorder_rule_id?: string
+  /** Job this PO was raised for, when the operator came from the job sufficiency check. */
+  job_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -305,6 +321,24 @@ export interface NotificationQueue {
   updated_at: string
 }
 
+// User profile — mirrors the `profiles` table shape so admin and
+// auth layers have a single typed handle on it.
+export interface UserProfile {
+  id: string
+  email: string | null
+  full_name: string | null
+  avatar_url: string | null
+  roles: string[] | null
+  super_admin: boolean | null
+  is_deleted: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+export type UpdateUserProfile = Partial<
+  Pick<UserProfile, "full_name" | "email" | "roles" | "is_deleted" | "super_admin" | "avatar_url">
+>
+
 // Extended types for joins and computed fields
 export interface MaterialSupplierWithDetails extends MaterialSupplier {
   material_type?: MaterialType
@@ -390,6 +424,24 @@ export interface PartCustomDimensions {
 export interface CutHistory {
   id: number
   user_id: string | null
+  /**
+   * Inventory roll that sourced this cut, if the engine was
+   * opened via `?loadRoll=<id>`. Null for legacy cuts and for
+   * cuts where the operator set stock dimensions manually.
+   */
+  roll_id: string | null
+  /**
+   * Job this cut fulfilled, if the engine was opened via
+   * `?loadJob=<id>` from a job drawer. Null for general-cutter
+   * flows and pre-jobs-feature cuts.
+   */
+  job_id: string | null
+  /**
+   * Specific job_part this cut corresponds to, when the operator
+   * picks a line item. Null when the cut is tied to the job as a
+   * whole but not a particular part row.
+   */
+  job_part_id: string | null
   material_id: number
   part_id: number
   cut_length: number
@@ -414,6 +466,102 @@ export interface CutHistory {
   cut_date: string
   created_at: string
   updated_at: string
+}
+
+export interface RollReusableOffcutSummary {
+  roll_id: string
+  cut_count: number
+  total_used_sqft: number
+  total_reusable_sqft: number
+  total_scrap_sqft: number
+  last_cut_at: string | null
+}
+
+export type JobStatus =
+  | "draft"
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+
+export interface Job {
+  id: string
+  user_id: string
+  /** Auto-assigned by the `jobs_assign_number` trigger (J-000001, …). */
+  job_number: string
+  name: string
+  description: string | null
+  /** Customer info lives inline on the job — no separate customers table. */
+  customer_name: string | null
+  customer_email: string | null
+  customer_phone: string | null
+  customer_po_number: string | null
+  status: JobStatus
+  due_date: string | null
+  completed_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobPart {
+  id: string
+  user_id: string
+  job_id: string
+  material_type_id: string | null
+  material_type: string | null
+  /** Customer-supplied part number for this line item, not our internal roll barcode. */
+  part_number: string | null
+  description: string | null
+  width: number
+  length: number
+  thickness: number | null
+  quantity: number
+  unit_price: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobWithParts extends Job {
+  parts: JobPart[]
+}
+
+export type JobAssigneeRole = "lead" | "worker"
+
+export interface JobAssignee {
+  id: string
+  user_id: string
+  job_id: string
+  name: string
+  role: JobAssigneeRole
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobRollAllocation {
+  id: string
+  user_id: string
+  job_id: string
+  roll_id: string
+  allocated_length: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Join shape used by the job detail page + PDF export. */
+export interface JobRollAllocationWithRoll extends JobRollAllocation {
+  roll: Pick<
+    Roll,
+    "id" | "part_number" | "material_type" | "width" | "length" | "remaining_length" | "location"
+  > | null
+}
+
+export interface JobFullDetail extends JobWithParts {
+  assignees: JobAssignee[]
+  allocations: JobRollAllocationWithRoll[]
 }
 
 export interface CutHistoryWithProfile extends CutHistory {

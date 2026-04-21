@@ -1,6 +1,6 @@
 "use client"
 
-import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot } from "lucide-react"
+import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot, ShieldCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
@@ -32,8 +32,10 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
-  const { signOut } = useAuth()
+  const { signOut, user: authUser } = useAuth()
   const router = useRouter()
+
+  const isAdminPanelVisible = authUser?.isSuperAdmin === true
 
   const handleSignOut = async () => {
     try {
@@ -110,6 +112,17 @@ export function NavUser({
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            {isAdminPanelVisible && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => router.push("/admin")}>
+                    <ShieldCheck />
+                    Admin Panel
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />

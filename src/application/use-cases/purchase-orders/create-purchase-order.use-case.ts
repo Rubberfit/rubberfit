@@ -25,6 +25,13 @@ export interface CreatePurchaseOrderInput {
   billingAddress?: string
   notes?: string
   shippingCost?: number
+  /**
+   * Optional job this PO was raised for — set when the operator
+   * came from the job sufficiency panel's "Create PO" deep-link.
+   * Persists on `purchase_orders.job_id` so the job drawer's
+   * linked-POs panel can pick it up.
+   */
+  jobId?: string
   items: CreatePurchaseOrderItemInput[]
 }
 
@@ -63,6 +70,7 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
       billing_address: input.billingAddress,
       notes: input.notes,
       auto_generated: false,
+      job_id: input.jobId,
     })
 
     if (!po) throw new Error("Failed to create purchase order")

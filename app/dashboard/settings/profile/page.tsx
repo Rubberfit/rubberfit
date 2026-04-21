@@ -9,6 +9,7 @@ import { PageHeader, PageShell } from "@/app/components/patterns"
 
 import { ProfileCard } from "./_components/profile-card"
 import { SecurityCard } from "./_components/security-card"
+import { MfaCard } from "./_components/mfa-card"
 import { AccountInfoCard } from "./_components/account-info-card"
 
 export default function ProfileSettingsPage() {
@@ -166,6 +167,8 @@ export default function ProfileSettingsPage() {
         onPasswordDataChange={setPasswordData}
         onPasswordChange={handlePasswordChange}
       />
+
+      <MfaCard />
 
       <AccountInfoCard user={user} />
     </PageShell>

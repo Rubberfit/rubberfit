@@ -8,6 +8,8 @@ import {
   type LucideIcon,
   Settings,
   BarChart3,
+  ShieldCheck,
+  ClipboardList,
 } from "lucide-react"
 import type { Permission } from "@/src/application/permissions"
 
@@ -54,15 +56,15 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/inventory",
         icon: Package,
         requiredPermission: "viewInventory",
+        // Simplified to two sub-items. "Reorder Rules" was the third
+        // entry; its logic now lives inside the Purchase Orders
+        // surface (suggestion → PO one-click flow), so the separate
+        // nav item was redundant. Route still exists for direct
+        // links, just not promoted in the sidebar.
         subItems: [
           {
             title: "Current Stock",
             url: "/dashboard/inventory",
-          },
-          {
-            title: "Reorder Rules",
-            url: "/dashboard/inventory/reorder",
-            requiredPermission: "manageRolls",
           },
           {
             title: "Purchase Orders",
@@ -70,6 +72,11 @@ export const sidebarItems: NavGroup[] = [
             requiredPermission: "manageRolls",
           },
         ],
+      },
+      {
+        title: "Jobs",
+        url: "/dashboard/jobs",
+        icon: ClipboardList,
       },
       {
         title: "Cutting Engine",
@@ -187,6 +194,20 @@ export const sidebarItems: NavGroup[] = [
             url: "/dashboard/settings/notifications",
           },
         ],
+      },
+    ],
+  },
+  {
+    id: 4,
+    label: "Q&A",
+    items: [
+      {
+        // Intentionally ungated — IT / procurement reviewers invited as
+        // viewers should be able to read the Trust & Security surface
+        // directly without being handed an elevated account.
+        title: "Security",
+        url: "/dashboard/security",
+        icon: ShieldCheck,
       },
     ],
   },

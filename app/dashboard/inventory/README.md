@@ -2,9 +2,23 @@
 
 Inventory management pages for viewing, adding, importing, and managing rubber rolls. Absorbs material catalog management (`materials/`) as of S4 Task 3 — the prior top-level `/dashboard/materials/*` routes 308-redirect here via `next.config.mjs`.
 
+The Jobs-phase pass relocated all roll-specific UI out of `dashboard/_components/` into a colocated `_components/` dir here (see the list below) and introduced the detail drawer + engine deep-link.
+
 ## Files
 
-- **page.tsx** -- Main inventory page. S4 Task 6 polished: `PageShell` (dense variant) + `PageHeader` with crumbs + actions + `ViewToolbar` search above the `InventoryTable`. CSV upload card still appears above the table for roll-manage roles. Export dropdown (CSV + PDF) and Add Roll actions in the header.
+- **page.tsx** -- Main inventory page. `PageShell` (dense variant) + `PageHeader` with crumbs + actions + `ViewToolbar` search above the `InventoryTable`. CSV upload card appears above the table for roll-manage roles. Export dropdown (CSV + PDF) and Add Roll actions in the header. Uses `useRolls` via the table; export handlers run their own SDK call because the summary totals are easier to compute against a freshly-fetched list.
+
+## \_components/
+
+Roll-specific components, colocated with the page they serve.
+
+- **use-rolls.ts** -- `useRolls(searchQuery)` hook — single fetch source for the inventory list. Returns `{ rolls, loading, error, refresh }`. Consumers call `refresh()` when they mutate; the page doesn't have to juggle a numeric refresh key.
+- **inventory-table.tsx** -- Rolls list. Row click opens `RollDetailDrawer`; each row renders via `InventoryRow`. Delete and deplete both use the shared `AlertDialog`; `window.confirm` was replaced in this pass. Kept under the ESLint `max-lines-per-function` budget by pushing row rendering into `inventory-row.tsx`.
+- **inventory-row.tsx** -- One row of the inventory table. Isolates the kebab-menu + its action dropdown so action clicks don't double-fire the row's open handler.
+- **roll-form-dialog.tsx** -- Zod-validated add / edit dialog. Wraps `RollFormFields` in a shadcn `Dialog`. Looks up `material_type_id` from the material-type list before submitting so the Rust API's FK requirement is satisfied.
+- **roll-form-fields.tsx** -- Shared form body used by both create and edit modes. The supplier dropdown is `SupplierSelect` from `materials/suppliers/_components/supplier-selection` (imported with the `@/app/…` absolute path now that the form has a stable home).
+- **csv-upload.tsx** -- Drag-and-drop CSV upload card for quick bulk imports. The full three-step wizard still lives at `inventory/import/`.
+- **roll-detail-drawer.tsx** -- Right-docked shadcn `Sheet` that opens on row click. Surfaces the shared `StockSheet` (imported from `cutting-engine/_components/stock-sheet.tsx` — same visual language the engine uses), a three-tile metrics row (% remaining, available sqft, current value), roll metadata, and two actions: Edit (opens `RollFormDialog`) and Open in engine (deep-links via `?loadRoll=<id>`). Also fetches child offcuts (rows where `parent_roll_id = this.id`) and lists them so each spawned offcut is clickable/scannable from the parent's drawer.
 
 ## Subdirectories
 

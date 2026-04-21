@@ -22,7 +22,7 @@ import { Input } from "@/app/components/ui/input"
 import { Textarea } from "@/app/components/ui/textarea"
 
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
-import { SupplierSelect } from "../inventory/materials/suppliers/_components/supplier-selection"
+import { SupplierSelect } from "@/app/dashboard/inventory/materials/suppliers/_components/supplier-selection"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import type { rollFormSchema } from "./roll-form-dialog"
 
@@ -38,7 +38,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Material Type */}
         <FormField
           control={form.control}
           name="material_type"
@@ -64,7 +63,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Color */}
         <FormField
           control={form.control}
           name="color"
@@ -79,7 +77,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Width */}
         <FormField
           control={form.control}
           name="width"
@@ -94,7 +91,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Length */}
         <FormField
           control={form.control}
           name="length"
@@ -109,7 +105,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Thickness */}
         <FormField
           control={form.control}
           name="thickness"
@@ -124,7 +119,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Remaining Length (only for edit) */}
         {isEdit && (
           <FormField
             control={form.control}
@@ -142,7 +136,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           />
         )}
 
-        {/* Location */}
         <FormField
           control={form.control}
           name="location"
@@ -157,7 +150,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Date Received */}
         <FormField
           control={form.control}
           name="date_received"
@@ -172,7 +164,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Supplier */}
         <FormField
           control={form.control}
           name="supplier"
@@ -200,7 +191,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
           )}
         />
 
-        {/* Cost per sqft */}
         <FormField
           control={form.control}
           name="cost_per_sqft"
@@ -216,7 +206,6 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
         />
       </div>
 
-      {/* Notes */}
       <FormField
         control={form.control}
         name="notes"

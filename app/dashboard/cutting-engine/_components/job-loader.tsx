@@ -1,0 +1,61 @@
+"use client"
+
+import { Suspense, useEffect, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { toast } from "sonner"
+
+import { jobService } from "@/src/infrastructure/services/jobService"
+import type { JobFullDetail } from "@/src/infrastructure/models/supabase"
+
+/**
+ * Deep-link handler for the "run this job in the engine" flow
+ * — mirrors `RollLoader` / `CutLoader` but for jobs. Fires the
+ * `onLoad` callback with the full job payload so the engine page
+ * can stash the job id (stamped onto each cut's `job_id` column)
+ * and surface a banner showing which job the operator is cutting
+ * for. URL is stripped after load so a refresh doesn't re-fire.
+ *
+ * URL contract: `/dashboard/cutting-engine?loadJob=<id>`.
+ */
+
+interface JobLoaderProps {
+  onLoad: (job: JobFullDetail) => void
+}
+
+function JobLoaderInner({ onLoad }: JobLoaderProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const loadJobId = searchParams.get("loadJob")
+  const didFetch = useRef(false)
+
+  useEffect(() => {
+    if (!loadJobId || didFetch.current) return
+    didFetch.current = true
+
+    jobService
+      .getFull(loadJobId)
+      .then((job) => {
+        if (!job) {
+          toast.error("Could not find that job")
+          return
+        }
+        onLoad(job)
+      })
+      .catch(() => {
+        toast.error("Could not load job")
+      })
+      .finally(() => {
+        router.replace("/dashboard/cutting-engine")
+      })
+  }, [loadJobId, router, onLoad])
+
+  return null
+}
+
+export function JobLoader(props: JobLoaderProps) {
+  return (
+    <Suspense fallback={null}>
+      <JobLoaderInner {...props} />
+    </Suspense>
+  )
+}

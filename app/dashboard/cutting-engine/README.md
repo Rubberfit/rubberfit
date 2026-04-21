@@ -46,6 +46,8 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `preset-part-type-selector.tsx` | Part type button grid (extracted from PresetDimensionSelector)                                                    |
 | `preset-template-grid.tsx`      | Template grid with per-card quantity spinners (±, capped at 99)                                                   |
 | `preset-selection-summary.tsx`  | Part 3 summary table — selected templates with dimensions and area                                                |
+| `cut-loader.tsx`                | Deep-link loader — `?loadCut=<id>` fetches a cut history row and restores stock + parts in the engine            |
+| `roll-loader.tsx`               | Deep-link loader — `?loadRoll=<id>` fetches an inventory roll and pre-fills stock dimensions (no parts)           |
 
 ### Math & Algorithms
 

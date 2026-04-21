@@ -35,6 +35,9 @@ function makeV1Row(): CutHistory {
   return {
     id: 42,
     user_id: "user-abc",
+    roll_id: null,
+    job_id: null,
+    job_part_id: null,
     material_id: 7,
     part_id: 1,
     cut_length: 96.0,

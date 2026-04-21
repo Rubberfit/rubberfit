@@ -71,12 +71,15 @@
   --color-info-bg: var(--info-bg);
   --color-info-border: var(--info-border);
 
-  /* Charts — categorical 1..5 + semantic */
+  /* Charts — categorical 1..8 + semantic */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
   --color-chart-positive: var(--success);
   --color-chart-negative: var(--danger);
   --color-chart-warning: var(--warning);
@@ -146,6 +149,9 @@
   --chart-3: oklch(0.74 0.16 75);  /* amber */
   --chart-4: oklch(0.6 0.21 20);   /* rose */
   --chart-5: oklch(0.56 0.2 295);  /* violet */
+  --chart-6: oklch(0.68 0.17 200); /* cyan */
+  --chart-7: oklch(0.7 0.15 120);  /* lime */
+  --chart-8: oklch(0.65 0.2 340);  /* magenta */
 
   /* Sidebar */
   --sidebar: oklch(0.985 0 0);
@@ -241,6 +247,9 @@
   --chart-3: oklch(0.82 0.15 75);  /* amber */
   --chart-4: oklch(0.7 0.2 20);    /* rose */
   --chart-5: oklch(0.66 0.19 295); /* violet */
+  --chart-6: oklch(0.78 0.16 200); /* cyan */
+  --chart-7: oklch(0.8 0.15 120);  /* lime */
+  --chart-8: oklch(0.74 0.19 340); /* magenta */
 
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);

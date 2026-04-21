@@ -130,7 +130,8 @@ export function usePOActions({
     formData: POFormData,
     setIsCreating: (v: boolean) => void,
     setIsCreateDialogOpen: (v: boolean) => void,
-    setFormData: (v: POFormData) => void
+    setFormData: (v: POFormData) => void,
+    jobId?: string
   ) => {
     if (!validatePOFormData(formData)) return
 
@@ -145,6 +146,7 @@ export function usePOActions({
         fetchTaxDetailsForPO,
         setIsCreateDialogOpen,
         setFormData,
+        jobId,
       })
     } catch (error) {
       console.error("Error creating purchase order:", error)
