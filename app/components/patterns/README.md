@@ -47,6 +47,28 @@ No TanStack Table dependency is introduced. Server-side
 pagination and faceted filters are out of scope until a
 surface demonstrates the need.
 
+## Components (S5 A0.4 — shipped)
+
+| Component          | Purpose                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| `WorkspaceColumn`  | Column primitive for three-column editor surfaces. `column: "left" \| "center" \| "right"` picks width (fixed ~320 / fluid / fixed ~340). `scroll: "y"` opts into vertical overflow for panel content. |
+| `WorkspaceRow`     | Horizontal wrapper holding three `WorkspaceColumn` children. Owns the column gap + responsive collapse behaviour in one place.                                                                         |
+
+`PageShell` gained a `workspace` variant (no max-width, no
+container chrome, fills the viewport). Cutting engine and any
+future three-column editor surface (free-roam CAD, side-by-side
+viewers) use these together:
+
+```tsx
+<PageShell variant="workspace">
+  <WorkspaceRow>
+    <WorkspaceColumn column="left" scroll="y">{/* parts queue */}</WorkspaceColumn>
+    <WorkspaceColumn column="center">{/* Konva stage */}</WorkspaceColumn>
+    <WorkspaceColumn column="right" scroll="y">{/* strategy + results */}</WorkspaceColumn>
+  </WorkspaceRow>
+</PageShell>
+```
+
 ## Error code registry
 
 Service layers that return structured `{ code, message }` errors

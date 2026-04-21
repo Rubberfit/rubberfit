@@ -47,3 +47,10 @@ export {
   type SortState,
   type TableDensity,
 } from "./data-table"
+
+// S5 A0.4 — workspace / three-column editor layout
+export {
+  WorkspaceColumn,
+  WorkspaceRow,
+  type WorkspaceColumnProps,
+} from "./workspace-column"

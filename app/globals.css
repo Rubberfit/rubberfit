@@ -46,6 +46,21 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+
+  /* S5 — Konva + free-roam accent token set. Distinct from the
+   * shadcn baseline `--accent` tint: these expose the four sides
+   * of an accent-tinted element (fill, border, muted fill, text/
+   * stroke) so Konva can resolve them at runtime via the
+   * CSS-var helper. Swappable per-user via `<html data-accent="…">`. */
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-border: var(--accent-border);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-fg: var(--accent-fg);
+
+  /* S5 — explicit alias so A4's dim-label renderer can reference
+   * a stable `--color-text-muted` name without knowing the
+   * underlying shadcn token. */
+  --color-text-muted: var(--muted-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
@@ -133,6 +148,21 @@
   --muted-foreground: oklch(0.552 0.016 285.938);
   --accent: oklch(0.92 0.05 265);
   --accent-foreground: oklch(0.45 0.31 265);
+
+  /* S5 accent ramp — the active (hue-selectable) accent token set.
+   * Default is indigo, matching `--primary`. User flips between
+   * the five hues via the Tweaks panel → `<html data-accent="…">`.
+   * Each set carries four values:
+   *   bg     — soft fill tint for accent surfaces / Konva part fills
+   *   border — stroke / hairline border
+   *   muted  — mid-tint fill for hover / selected states
+   *   fg     — dark text / active stroke
+   * Persistence lives in `localStorage` (`rubberfit.prefs.accent.v1`).
+   */
+  --accent-bg: oklch(0.96 0.03 265);
+  --accent-border: oklch(0.72 0.17 265);
+  --accent-muted: oklch(0.88 0.08 265);
+  --accent-fg: oklch(0.45 0.31 265);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
   --border-subtle: oklch(0.955 0.003 286.32);
@@ -233,6 +263,14 @@
   --muted-foreground: oklch(0.705 0.015 286.067);
   --accent: oklch(0.35 0.15 265);
   --accent-foreground: oklch(0.95 0 0);
+
+  /* S5 accent ramp — dark-mode defaults (indigo). Lightness
+   * reduced + chroma preserved so accent tints remain readable
+   * against the dark `--background`. */
+  --accent-bg: oklch(0.26 0.08 265);
+  --accent-border: oklch(0.52 0.18 265);
+  --accent-muted: oklch(0.36 0.12 265);
+  --accent-fg: oklch(0.75 0.16 265);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --border-subtle: oklch(1 0 0 / 6%);
@@ -304,6 +342,33 @@
   --color-border-secondary: var(--border);
   --color-border-tertiary: var(--border-subtle);
   --svg-bg: var(--card);
+}
+
+/* S5 accent ramp — dark-mode hue overrides, one block per hue.
+ * Mirrors the light-theme ramp above with reduced-lightness variants. */
+.dark[data-accent="teal"] {
+  --accent-bg: oklch(0.26 0.06 195);
+  --accent-border: oklch(0.52 0.15 195);
+  --accent-muted: oklch(0.36 0.10 195);
+  --accent-fg: oklch(0.78 0.14 195);
+}
+.dark[data-accent="red"] {
+  --accent-bg: oklch(0.26 0.08 25);
+  --accent-border: oklch(0.52 0.18 25);
+  --accent-muted: oklch(0.36 0.12 25);
+  --accent-fg: oklch(0.78 0.18 25);
+}
+.dark[data-accent="magenta"] {
+  --accent-bg: oklch(0.26 0.08 330);
+  --accent-border: oklch(0.52 0.18 330);
+  --accent-muted: oklch(0.36 0.12 330);
+  --accent-fg: oklch(0.76 0.18 330);
+}
+.dark[data-accent="green"] {
+  --accent-bg: oklch(0.26 0.06 148);
+  --accent-border: oklch(0.48 0.14 148);
+  --accent-muted: oklch(0.34 0.10 148);
+  --accent-fg: oklch(0.78 0.14 148);
 }
 
 @layer base {
