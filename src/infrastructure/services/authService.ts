@@ -36,18 +36,41 @@ function getUserAuthProvider(user: SupabaseUser): string | undefined {
 
 async function getProfileRoles(userId: string): Promise<string[]> {
   try {
-    const { data, error } = await supabase
+    // Platform admins get `admin` across the board — this matches the RLS
+    // bypass in `auth_is_platform_admin()` and gives the user admin-level
+    // UI permissions regardless of tenant membership.
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("roles")
+      .select("is_platform_admin")
       .eq("id", userId)
       .maybeSingle()
 
-    if (error) {
-      console.error("Error loading profile roles:", error)
+    if (profileError) {
+      console.error("Error loading profile:", profileError)
       return normalizeRoles()
     }
 
-    return normalizeRoles(data?.roles)
+    if (profile?.is_platform_admin) {
+      return normalizeRoles(["admin"])
+    }
+
+    // Otherwise, aggregate roles across all of the user's active
+    // memberships. Multi-tenant role resolution (per-tenant scoping) is a
+    // later iteration — for now, the union is sufficient for permission
+    // checks in the UI.
+    const { data: memberships, error: membershipError } = await supabase
+      .from("memberships")
+      .select("roles")
+      .eq("profile_id", userId)
+      .is("deleted_at", null)
+
+    if (membershipError) {
+      console.error("Error loading memberships:", membershipError)
+      return normalizeRoles()
+    }
+
+    const aggregated = (memberships ?? []).flatMap((m) => m.roles ?? [])
+    return normalizeRoles(aggregated.length > 0 ? aggregated : undefined)
   } catch (error) {
     console.error("Error loading profile roles:", error)
     return normalizeRoles()
