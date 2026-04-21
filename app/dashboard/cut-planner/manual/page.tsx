@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
+import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import type { Roll } from "@/src/entities"
 import { RollSelectorTable, ConfirmCutDialog } from "./_components/roll-selector"
 import { CutRequirementsForm } from "./_components/cut-requirements-form"
@@ -17,6 +18,7 @@ interface CutRequest {
 
 export default function ManualCutPlannerPage() {
   const [rolls, setRolls] = useState<Roll[]>([])
+  const [materialTypes, setMaterialTypes] = useState<{ id: string; name: string }[]>([])
   const [selectedRoll, setSelectedRoll] = useState<Roll | null>(null)
   const [loading, setLoading] = useState(true)
   const [confirmDialog, setConfirmDialog] = useState(false)
@@ -45,16 +47,25 @@ export default function ManualCutPlannerPage() {
     },
   })
 
+  const materialTypesById = useMemo(
+    () => new Map(materialTypes.map((m) => [m.id, m.name])),
+    [materialTypes]
+  )
+
   const fetchRolls = useCallback(async () => {
     try {
       setLoading(true)
-      const activeRolls = await rollService.getActiveRolls()
+      const [activeRolls, mtNames] = await Promise.all([
+        rollService.getActiveRolls(),
+        materialTypeRepository.getNames(),
+      ])
       setRolls(activeRolls)
+      setMaterialTypes(mtNames)
       if (activeRolls.length > 0) {
         setRollRanges({
-          minWidth: Math.min(...activeRolls.map((r) => r.width)),
-          maxWidth: Math.max(...activeRolls.map((r) => r.width)),
-          maxLength: Math.max(...activeRolls.map((r) => r.remaining_length)),
+          minWidth: Math.min(...activeRolls.map((r) => r.width.toInches())),
+          maxWidth: Math.max(...activeRolls.map((r) => r.width.toInches())),
+          maxLength: Math.max(...activeRolls.map((r) => r.remainingLength.toInches())),
         })
       }
     } catch (error) {
@@ -74,7 +85,9 @@ export default function ManualCutPlannerPage() {
     if (values.width && values.length && values.quantity) {
       const totalLengthNeeded = values.length * values.quantity
       const materialUsedSqft = (values.width * totalLengthNeeded) / 144
-      const totalConsumedSqft = (roll.width * totalLengthNeeded) / 144
+      const rollWidthIn = roll.width.toInches()
+      const rollRemainingIn = roll.remainingLength.toInches()
+      const totalConsumedSqft = (rollWidthIn * totalLengthNeeded) / 144
       const wasteSqft = totalConsumedSqft - materialUsedSqft
       const wastePercentage = totalConsumedSqft > 0 ? (wasteSqft / totalConsumedSqft) * 100 : 0
 
@@ -84,8 +97,8 @@ export default function ManualCutPlannerPage() {
         totalConsumedSqft,
         wasteSqft,
         wastePercentage,
-        remainingAfter: roll.remaining_length - totalLengthNeeded,
-        canFit: roll.width >= values.width && roll.remaining_length >= totalLengthNeeded,
+        remainingAfter: rollRemainingIn - totalLengthNeeded,
+        canFit: rollWidthIn >= values.width && rollRemainingIn >= totalLengthNeeded,
       })
     }
   }
@@ -102,17 +115,19 @@ export default function ManualCutPlannerPage() {
     }
 
     const totalLengthNeeded = data.length * data.quantity
+    const rollWidthIn = selectedRoll.width.toInches()
+    const rollRemainingIn = selectedRoll.remainingLength.toInches()
 
-    if (selectedRoll.width < data.width) {
+    if (rollWidthIn < data.width) {
       toast.error(
-        `Roll width (${selectedRoll.width}") is less than requested width (${data.width}")`
+        `Roll width (${rollWidthIn.toFixed(2)}") is less than requested width (${data.width}")`
       )
       return
     }
 
-    if (selectedRoll.remaining_length < totalLengthNeeded) {
+    if (rollRemainingIn < totalLengthNeeded) {
       toast.error(
-        `Not enough material. Need ${totalLengthNeeded}", but only ${selectedRoll.remaining_length}" available`
+        `Not enough material. Need ${totalLengthNeeded}", but only ${rollRemainingIn.toFixed(2)}" available`
       )
       return
     }
@@ -193,6 +208,7 @@ export default function ManualCutPlannerPage() {
           onSelectRoll={selectRoll}
           wasteCalculation={wasteCalculation}
           form={form}
+          materialTypesById={materialTypesById}
         />
       </div>
 
@@ -204,6 +220,7 @@ export default function ManualCutPlannerPage() {
         formValues={form.getValues()}
         processing={processing}
         onConfirm={confirmCut}
+        materialTypesById={materialTypesById}
       />
     </div>
   )

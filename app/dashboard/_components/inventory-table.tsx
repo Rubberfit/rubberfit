@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { rollService } from "@/src/infrastructure/services/rollService"
+import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import {
   Table,
   TableBody,
@@ -26,31 +27,44 @@ import { Trash2, Edit } from "lucide-react"
 import { toast } from "sonner"
 import { RollFormDialog } from "./roll-form-dialog"
 import type { Roll } from "@/src/entities"
+import { formatLength } from "@/app/lib/units"
+import { useUnitSystem } from "@/app/providers/unit-system-provider"
 
 interface InventoryTableProps {
   onRefresh?: number
   searchQuery?: string
-  canManageRolls?: boolean // ← add this
+  canManageRolls?: boolean
 }
 
 export function InventoryTable({
   onRefresh,
   searchQuery = "",
-  canManageRolls = false, // ← default to false (deny by default)
+  canManageRolls = false,
 }: InventoryTableProps) {
   const readOnly = !canManageRolls
+  const unitSystem = useUnitSystem()
   const [rolls, setRolls] = useState<Roll[]>([])
+  const [materialTypes, setMaterialTypes] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [editingRoll, setEditingRoll] = useState<Roll | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [depleteDialogOpen, setDepleteDialogOpen] = useState(false)
   const [rollToDeplete, setRollToDeplete] = useState<string | null>(null)
 
+  const materialTypesById = useMemo(
+    () => new Map(materialTypes.map((m) => [m.id, m.name])),
+    [materialTypes]
+  )
+
   const fetchRolls = useCallback(async (query: string = "") => {
     try {
       setLoading(true)
-      const data = query ? await rollService.searchRolls(query) : await rollService.getAllRolls()
+      const [data, mtNames] = await Promise.all([
+        query ? rollService.searchRolls(query) : rollService.getAllRolls(),
+        materialTypeRepository.getNames(),
+      ])
       setRolls(data || [])
+      setMaterialTypes(mtNames)
     } catch (error: unknown) {
       console.error("Error fetching rolls:", error)
       const message = error instanceof Error ? error.message : undefined
@@ -136,18 +150,21 @@ export function InventoryTable({
               <TableHead>Location</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date Received</TableHead>
-              {/* Only show Actions column header if user can manage */}
               {canManageRolls && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {rolls.map((roll) => (
               <TableRow key={roll.id}>
-                <TableCell className="font-medium">{roll.material_type}</TableCell>
-                <TableCell>
-                  {roll.width}" × {roll.length}" × {roll.thickness}"
+                <TableCell className="font-medium">
+                  {materialTypesById.get(roll.materialTypeId) ?? "Unknown"}
                 </TableCell>
-                <TableCell>{roll.remaining_length}"</TableCell>
+                <TableCell>
+                  {formatLength(roll.width, unitSystem)} ×{" "}
+                  {formatLength(roll.length, unitSystem)} ×{" "}
+                  {formatLength(roll.thickness, unitSystem)}
+                </TableCell>
+                <TableCell>{formatLength(roll.remainingLength, unitSystem)}</TableCell>
                 <TableCell>{roll.location || "-"}</TableCell>
                 <TableCell>
                   <Badge
@@ -163,10 +180,9 @@ export function InventoryTable({
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {roll.date_received ? new Date(roll.date_received).toLocaleDateString() : "-"}
+                  {roll.dateReceived ? new Date(roll.dateReceived).toLocaleDateString() : "-"}
                 </TableCell>
 
-                {/* Actions cell — only renders for admin and manager */}
                 {canManageRolls && (
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -194,7 +210,6 @@ export function InventoryTable({
         </Table>
       </div>
 
-      {/* Edit Dialog — only mounts if user can manage */}
       {canManageRolls && (
         <RollFormDialog
           open={editDialogOpen}
@@ -204,7 +219,6 @@ export function InventoryTable({
         />
       )}
 
-      {/* Deplete Confirmation Dialog — only mounts if user can manage */}
       {canManageRolls && (
         <AlertDialog open={depleteDialogOpen} onOpenChange={setDepleteDialogOpen}>
           <AlertDialogContent>

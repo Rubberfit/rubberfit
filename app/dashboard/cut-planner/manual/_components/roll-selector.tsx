@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog"
 import type { Roll } from "@/src/entities"
+import { formatLength } from "@/app/lib/units"
+import { useUnitSystem } from "@/app/providers/unit-system-provider"
 import { UseFormReturn } from "react-hook-form"
 
 interface CutRequest {
@@ -45,9 +47,23 @@ interface RollSelectorProps {
   onSelectRoll: (roll: Roll) => void
   wasteCalculation: WasteCalculation | null
   form: UseFormReturn<CutRequest>
+  materialTypesById: Map<string, string>
 }
 
-export function RollSelectorTable({ rolls, selectedRoll, onSelectRoll }: RollSelectorProps) {
+function materialNameOf(
+  roll: Roll,
+  materialTypesById: Map<string, string>
+): string {
+  return materialTypesById.get(roll.materialTypeId) ?? "Unknown"
+}
+
+export function RollSelectorTable({
+  rolls,
+  selectedRoll,
+  onSelectRoll,
+  materialTypesById,
+}: RollSelectorProps) {
+  const unitSystem = useUnitSystem()
   return (
     <Card className="lg:col-span-2">
       <CardHeader>
@@ -74,13 +90,17 @@ export function RollSelectorTable({ rolls, selectedRoll, onSelectRoll }: RollSel
                 const isSelected = selectedRoll?.id === roll.id
                 return (
                   <TableRow key={roll.id} className={isSelected ? "bg-blue-50" : ""}>
-                    <TableCell>{roll.material_type}</TableCell>
+                    <TableCell>{materialNameOf(roll, materialTypesById)}</TableCell>
                     <TableCell>
-                      {roll.width}" x {roll.length}" x {roll.thickness}"
+                      {formatLength(roll.width, unitSystem)} ×{" "}
+                      {formatLength(roll.length, unitSystem)} ×{" "}
+                      {formatLength(roll.thickness, unitSystem)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={roll.remaining_length < 50 ? "destructive" : "default"}>
-                        {roll.remaining_length}"
+                      <Badge
+                        variant={roll.remainingLength.toInches() < 50 ? "destructive" : "default"}
+                      >
+                        {formatLength(roll.remainingLength, unitSystem)}
                       </Badge>
                     </TableCell>
                     <TableCell>{roll.location || "-"}</TableCell>
@@ -107,16 +127,23 @@ export function RollSelectorTable({ rolls, selectedRoll, onSelectRoll }: RollSel
 interface SelectedRollInfoProps {
   selectedRoll: Roll
   wasteCalculation: WasteCalculation
+  materialTypesById: Map<string, string>
 }
 
-export function SelectedRollInfo({ selectedRoll, wasteCalculation }: SelectedRollInfoProps) {
+export function SelectedRollInfo({
+  selectedRoll,
+  wasteCalculation,
+  materialTypesById,
+}: SelectedRollInfoProps) {
+  const unitSystem = useUnitSystem()
   return (
     <div className="p-4 bg-muted rounded-lg space-y-2">
       <div className="font-medium">Selected Roll</div>
       <div className="text-sm space-y-1">
-        <div>{selectedRoll.material_type}</div>
+        <div>{materialNameOf(selectedRoll, materialTypesById)}</div>
         <div>
-          {selectedRoll.width}" x {selectedRoll.remaining_length}"
+          {formatLength(selectedRoll.width, unitSystem)} ×{" "}
+          {formatLength(selectedRoll.remainingLength, unitSystem)}
         </div>
         <div>Location: {selectedRoll.location || "Unknown"}</div>
       </div>
@@ -149,6 +176,7 @@ interface ConfirmCutDialogProps {
   formValues: CutRequest
   processing: boolean
   onConfirm: () => void
+  materialTypesById: Map<string, string>
 }
 
 export function ConfirmCutDialog({
@@ -159,6 +187,7 @@ export function ConfirmCutDialog({
   formValues,
   processing,
   onConfirm,
+  materialTypesById,
 }: ConfirmCutDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,7 +203,8 @@ export function ConfirmCutDialog({
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Roll:</span>
                 <span className="text-sm font-medium">
-                  {selectedRoll.material_type} ({selectedRoll.location || "No location"})
+                  {materialNameOf(selectedRoll, materialTypesById)} (
+                  {selectedRoll.location || "No location"})
                 </span>
               </div>
               <div className="flex justify-between">
