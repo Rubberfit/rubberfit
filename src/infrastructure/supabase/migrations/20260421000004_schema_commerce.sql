@@ -133,6 +133,7 @@ CREATE TABLE invoices (
   due_date            date,
   status              varchar(20) NOT NULL DEFAULT 'draft'
                       CHECK (status IN ('draft', 'sent', 'paid', 'overdue', 'void')),
+  currency            char(3) NOT NULL DEFAULT 'USD',
   subtotal_cents      bigint NOT NULL DEFAULT 0 CHECK (subtotal_cents >= 0),
   tax_cents           bigint NOT NULL DEFAULT 0 CHECK (tax_cents >= 0),
   discount_cents      bigint NOT NULL DEFAULT 0 CHECK (discount_cents >= 0),
@@ -158,6 +159,8 @@ CREATE TABLE invoices (
 
 COMMENT ON COLUMN invoices.balance_cents IS
   'Outstanding balance (total_cents - paid_cents). Kept as a column for query perf; app should keep it in sync with paid_cents.';
+COMMENT ON COLUMN invoices.currency IS
+  'Currency for this invoice (ISO 4217). Stamped at creation; immutable. All *_cents fields on this row are in this currency.';
 
 
 -- ─── jobs ──────────────────────────────────────────────────────────────────
@@ -207,6 +210,7 @@ CREATE TABLE purchase_orders (
   order_date                date,
   requested_delivery_date   date,
   actual_delivery_date      date,
+  currency                  char(3) NOT NULL DEFAULT 'USD',
   subtotal_cents            bigint NOT NULL DEFAULT 0 CHECK (subtotal_cents >= 0),
   tax_amount_cents          bigint NOT NULL DEFAULT 0 CHECK (tax_amount_cents >= 0),
   shipping_cost_cents       bigint NOT NULL DEFAULT 0 CHECK (shipping_cost_cents >= 0),
@@ -231,6 +235,8 @@ CREATE TABLE purchase_orders (
 
 COMMENT ON COLUMN purchase_orders.reorder_rule_id IS
   'If auto_generated = true, the reorder_rules row that triggered this PO. SET NULL on rule delete to preserve history.';
+COMMENT ON COLUMN purchase_orders.currency IS
+  'Currency for this PO (ISO 4217). Line items inherit from here. Stamped at creation; immutable.';
 
 
 -- ─── purchase_order_items ──────────────────────────────────────────────────

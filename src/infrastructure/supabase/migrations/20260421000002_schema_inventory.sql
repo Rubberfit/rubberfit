@@ -61,6 +61,7 @@ CREATE TABLE suppliers (
   tax_rate             numeric(5,4)
                        CHECK (tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 1)),
   tax_exempt           boolean NOT NULL DEFAULT false,
+  currency             char(3) NOT NULL DEFAULT 'USD',
   payment_terms        varchar(200),
   shipping_cost_cents  bigint CHECK (shipping_cost_cents IS NULL OR shipping_cost_cents >= 0),
   rating               smallint CHECK (rating IS NULL OR (rating BETWEEN 1 AND 5)),
@@ -84,6 +85,8 @@ COMMENT ON COLUMN suppliers.tax_id IS
   'External tax registration number (e.g., EIN). Free-form string, not an FK.';
 COMMENT ON COLUMN suppliers.tax_rate IS
   'Local tax-rate override (0..1). NULL means "use tenant/jurisdiction default from tax_rates".';
+COMMENT ON COLUMN suppliers.currency IS
+  'Currency this supplier bills in (ISO 4217). Drives shipping_cost_cents, material_suppliers.cost_per_sqm_cents, and derived price_history entries.';
 
 
 -- ─── supplier_contacts ─────────────────────────────────────────────────────
