@@ -1,6 +1,6 @@
 "use client"
 
-import type { MaterialType, Supplier, MaterialSupplier } from "@/src/infrastructure/models/database.types"
+import type { MaterialType, Supplier, MaterialSupplier } from "@/src/entities"
 import { MaterialSupplierPreferences } from "./material-supplier-preferences"
 import { MaterialSupplierSelectionSection } from "./material-supplier-selection-section"
 import { MaterialSupplierPricingSection } from "./material-supplier-pricing-section"

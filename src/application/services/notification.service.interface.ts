@@ -1,7 +1,7 @@
 import type {
   NotificationPreferences,
   NotificationQueue,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface NotificationParams {
   userIdentifier: string

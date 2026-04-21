@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/app/components/ui/form"
 import { Scissors } from "lucide-react"
-import type { Roll } from "@/src/infrastructure/models/database.types"
+import type { Roll } from "@/src/entities"
 import { SelectedRollInfo } from "./roll-selector"
 import type { UseFormReturn } from "react-hook-form"
 

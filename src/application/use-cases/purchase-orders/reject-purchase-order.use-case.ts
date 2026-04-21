@@ -2,7 +2,7 @@ import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
-import type { PurchaseOrder } from "@/src/infrastructure/models/database.types"
+import type { PurchaseOrder } from "@/src/entities"
 import { TOKENS } from "@/di/tokens"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 

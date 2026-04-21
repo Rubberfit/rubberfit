@@ -3,7 +3,7 @@ import type {
   ReorderRuleWithDetails,
   CreateReorderRule,
   UpdateReorderRule,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface IReorderRulesRepository {
   findById(id: string): Promise<ReorderRule | null>

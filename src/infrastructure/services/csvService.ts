@@ -1,5 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
-import type { Roll } from "@/src/infrastructure/models/database.types"
+import type { Roll } from "@/src/entities"
 import type { ICsvService, CSVRow } from "@/src/application/services/csv.service.interface"
 import "reflect-metadata"
 import { injectable } from "tsyringe"

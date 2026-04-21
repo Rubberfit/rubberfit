@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import type { MaterialType } from "@/src/infrastructure/models/database.types"
+import type { MaterialType } from "@/src/entities"
 
 export interface StockConfig {
   width: number

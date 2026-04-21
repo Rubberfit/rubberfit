@@ -2,7 +2,7 @@ import { supabase } from "@/src/infrastructure/models/supabase-context"
 import type {
   PriceHistory,
   MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
   IPriceHistoryService,

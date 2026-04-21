@@ -1,5 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
-import type { Roll, MaterialType } from "@/src/infrastructure/models/database.types"
+import type { Roll, MaterialType } from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
 

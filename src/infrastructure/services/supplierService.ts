@@ -7,7 +7,7 @@ import type {
   UpdateSupplier,
   CreateMaterialSupplier,
   UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { priceHistoryService } from "./priceHistoryService"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"

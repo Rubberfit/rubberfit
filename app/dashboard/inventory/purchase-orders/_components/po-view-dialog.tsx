@@ -16,7 +16,7 @@ import {
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import {

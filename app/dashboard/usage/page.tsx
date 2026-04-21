@@ -6,7 +6,7 @@ import { format, subMonths } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import type { MaterialType } from "@/src/infrastructure/models/database.types"
+import type { MaterialType } from "@/src/entities"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 import { UsageTrendChart } from "./_components/usage-trend-chart"

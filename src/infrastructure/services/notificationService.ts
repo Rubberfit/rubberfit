@@ -2,7 +2,7 @@ import { supabase } from "@/src/infrastructure/models/supabase-context"
 import type {
   NotificationPreferences,
   NotificationQueue,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { emailService } from "./emailService"
 import { notificationRepository } from "@/src/infrastructure/repositories/notifications.repository"

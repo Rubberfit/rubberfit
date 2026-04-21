@@ -1,4 +1,4 @@
-import type { NotificationQueue } from "@/src/infrastructure/models/database.types"
+import type { NotificationQueue } from "@/src/entities"
 
 export interface EmailOptions {
   to: string | string[]

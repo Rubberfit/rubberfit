@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
-import type { Roll } from "@/src/infrastructure/models/database.types"
+import type { Roll } from "@/src/entities"
 import { RollSelectorTable, ConfirmCutDialog } from "./_components/roll-selector"
 import { CutRequirementsForm } from "./_components/cut-requirements-form"
 

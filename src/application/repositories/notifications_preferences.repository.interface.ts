@@ -2,7 +2,7 @@ import type {
   NotificationPreferences,
   CreateNotificationPreferences,
   UpdateNotificationPreferences,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface INotificationPreferencesRepository {
   findByUserId(userId: string): Promise<NotificationPreferences | null>

@@ -1,4 +1,4 @@
-import type { Roll } from "@/src/infrastructure/models/database.types"
+import type { Roll } from "@/src/entities"
 
 export interface CSVRow {
   material_type: string

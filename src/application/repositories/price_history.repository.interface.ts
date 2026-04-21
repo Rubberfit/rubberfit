@@ -1,4 +1,4 @@
-import type { PriceHistory } from "@/src/infrastructure/models/database.types"
+import type { PriceHistory } from "@/src/entities"
 
 export interface IPriceHistoryRepository {
   findById(id: string): Promise<PriceHistory | null>

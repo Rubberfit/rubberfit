@@ -8,7 +8,7 @@ import type {
   UpdateSupplier,
   CreateMaterialSupplier,
   UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 interface SupplierState {
   // Data

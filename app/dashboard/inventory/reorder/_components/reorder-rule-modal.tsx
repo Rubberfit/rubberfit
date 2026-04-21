@@ -17,7 +17,7 @@ import {
   type Supplier,
   type CreateReorderRule,
   type UpdateReorderRule,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { ReorderRuleFormFields } from "./reorder-rule-form-fields"
 

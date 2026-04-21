@@ -1,5 +1,16 @@
 import type { Area, Length, Money, PricePerArea } from "./value-objects"
 import type { AuditFields, SoftDeletable } from "./shared"
+import type { MaterialType } from "./material-type"
+
+export type CreatePurchaseOrderItem = Omit<
+  PurchaseOrderItem,
+  "id" | keyof AuditFields | keyof SoftDeletable
+>
+export type UpdatePurchaseOrderItem = Partial<CreatePurchaseOrderItem>
+
+export interface PurchaseOrderItemWithDetails extends PurchaseOrderItem {
+  materialType: MaterialType
+}
 
 export interface PurchaseOrderItem extends AuditFields, SoftDeletable {
   id: string

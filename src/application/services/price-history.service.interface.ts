@@ -1,7 +1,7 @@
 import type {
   MaterialSupplierWithDetails,
   PriceHistory,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface PriceComparison {
   suppliers: MaterialSupplierWithDetails[]

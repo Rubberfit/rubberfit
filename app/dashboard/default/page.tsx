@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/database.types"
+import { type Roll, type Cut, type MaterialType } from "@/src/entities"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"

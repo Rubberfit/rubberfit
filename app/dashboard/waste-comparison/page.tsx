@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { Calendar } from "lucide-react"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import type { Cut } from "@/src/infrastructure/models/database.types"
+import type { Cut } from "@/src/entities"
 import { format, subDays, startOfMonth } from "date-fns"
 
 import { ComparisonSummaryCards } from "./_components/comparison-summary-cards"

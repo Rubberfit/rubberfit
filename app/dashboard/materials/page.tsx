@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Database, Package, DollarSign, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
-import { type MaterialType } from "@/src/infrastructure/models/database.types"
+import { type MaterialType } from "@/src/entities"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"

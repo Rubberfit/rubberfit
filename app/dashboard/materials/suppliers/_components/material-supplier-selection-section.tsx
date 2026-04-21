@@ -2,7 +2,7 @@
 
 import { Package } from "lucide-react"
 
-import type { MaterialType, Supplier, MaterialSupplier } from "@/src/infrastructure/models/database.types"
+import type { MaterialType, Supplier, MaterialSupplier } from "@/src/entities"
 import { Input } from "@/app/components/ui/input"
 import {
   FormControl,

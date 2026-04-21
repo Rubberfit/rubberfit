@@ -2,7 +2,7 @@ import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
-import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/database.types"
+import type { PurchaseOrderWithDetails } from "@/src/entities"
 import { TOKENS } from "@/di/tokens"
 
 export interface CreatePurchaseOrderItemInput {

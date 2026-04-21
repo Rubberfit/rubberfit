@@ -3,7 +3,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderWithDetails,
   Roll,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
   POReceiptItem,

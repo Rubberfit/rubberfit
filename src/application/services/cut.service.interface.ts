@@ -1,4 +1,4 @@
-import type { Cut, Roll } from "@/src/infrastructure/models/database.types"
+import type { Cut, Roll } from "@/src/entities"
 
 export interface WasteStats {
   averageWastePercentage: number

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { type MaterialType } from "@/src/infrastructure/models/database.types"
+import { type MaterialType } from "@/src/entities"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 
 export function PricingTrends() {

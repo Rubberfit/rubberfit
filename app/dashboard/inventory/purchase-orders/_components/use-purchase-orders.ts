@@ -8,7 +8,7 @@ import type {
   PurchaseOrderWithDetails,
   Supplier,
   MaterialType,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 import { type TaxDetails } from "./po-tax-helpers"
 import { usePOFormState } from "./use-po-form-state"

@@ -3,7 +3,7 @@ import type {
   MaterialType,
   ReorderRuleWithDetails,
   Supplier,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 

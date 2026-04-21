@@ -8,7 +8,7 @@ import {
   type MaterialType,
   type MaterialSupplierWithDetails,
   type Supplier,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import {

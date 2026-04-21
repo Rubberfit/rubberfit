@@ -2,7 +2,7 @@ import type {
   CreateReorderRule,
   ReorderRuleWithDetails,
   UpdateReorderRule,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface ReorderSuggestion {
   materialTypeId: string

@@ -16,7 +16,7 @@ import { Switch } from "@/app/components/ui/switch"
 import { Progress } from "@/app/components/ui/progress"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { toast } from "sonner"
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
+import type { ReorderRuleWithDetails } from "@/src/entities"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 
 export interface EditableRule {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Star } from "lucide-react"
 import { format } from "date-fns"
 
-import { type CutHistory } from "@/src/infrastructure/models/database.types"
+import { type CutHistory } from "@/src/entities"
 import {
   Select,
   SelectContent,

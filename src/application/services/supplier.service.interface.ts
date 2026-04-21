@@ -6,7 +6,7 @@ import type {
   Supplier,
   UpdateMaterialSupplier,
   UpdateSupplier,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface ISupplierService {
   getAllSuppliers(): Promise<Supplier[]>

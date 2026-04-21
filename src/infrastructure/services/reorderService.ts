@@ -3,7 +3,7 @@ import type {
   ReorderRuleWithDetails,
   CreateReorderRule,
   UpdateReorderRule,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
 import type {

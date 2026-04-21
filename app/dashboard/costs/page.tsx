@@ -5,7 +5,7 @@ import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/dashboard/_hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import type { MaterialType } from "@/src/infrastructure/models/database.types"
+import type { MaterialType } from "@/src/entities"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { Button } from "@/app/components/ui/button"
 import {

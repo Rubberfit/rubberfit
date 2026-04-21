@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory } from "@/src/infrastructure/models/database.types"
+import type { CutHistory } from "@/src/entities"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

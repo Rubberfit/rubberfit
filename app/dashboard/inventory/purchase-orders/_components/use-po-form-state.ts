@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { format, addDays } from "date-fns"
 
-import { type PurchaseOrderWithDetails, type Supplier } from "@/src/infrastructure/models/database.types"
+import { type PurchaseOrderWithDetails, type Supplier } from "@/src/entities"
 
 import {
   type TaxDetails,

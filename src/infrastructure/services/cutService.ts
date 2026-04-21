@@ -1,5 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase-context"
-import type { Cut } from "@/src/infrastructure/models/database.types"
+import type { Cut } from "@/src/entities"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
   ICutService,

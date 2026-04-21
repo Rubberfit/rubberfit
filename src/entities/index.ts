@@ -2,11 +2,25 @@ export type { AuditFields, CreatedOnly, SoftDeletable } from "./shared"
 export * from "./value-objects"
 
 export type { MaterialType } from "./material-type"
-export type { Supplier } from "./supplier"
-export type { MaterialSupplier } from "./material-supplier"
+export type {
+  Supplier,
+  CreateSupplier,
+  UpdateSupplier,
+} from "./supplier"
+export type {
+  MaterialSupplier,
+  CreateMaterialSupplier,
+  UpdateMaterialSupplier,
+  MaterialSupplierWithDetails,
+} from "./material-supplier"
 export type { Roll, RollSourceType, RollStatus } from "./roll"
 export type { PriceHistory } from "./price-history"
-export type { ReorderRule } from "./reorder-rule"
+export type {
+  ReorderRule,
+  CreateReorderRule,
+  UpdateReorderRule,
+  ReorderRuleWithDetails,
+} from "./reorder-rule"
 export type { TaxRate, TaxRateSource } from "./tax-rate"
 
 export type { Cut } from "./cut"
@@ -18,5 +32,31 @@ export type { BillingInterval, Plan, PlanCode } from "./plan"
 export type { Project, ProjectStatus } from "./project"
 export type { ProjectMaterial } from "./project-material"
 export type { Invoice, InvoiceStatus } from "./invoice"
-export type { PurchaseOrder, PurchaseOrderStatus } from "./purchase-order"
-export type { PurchaseOrderItem } from "./purchase-order-item"
+export type {
+  PurchaseOrder,
+  PurchaseOrderStatus,
+  CreatePurchaseOrder,
+  UpdatePurchaseOrder,
+  PurchaseOrderWithDetails,
+} from "./purchase-order"
+export type {
+  PurchaseOrderItem,
+  CreatePurchaseOrderItem,
+  UpdatePurchaseOrderItem,
+  PurchaseOrderItemWithDetails,
+} from "./purchase-order-item"
+
+export type {
+  NotificationQueue,
+  NotificationQueuePriority,
+  NotificationQueueStatus,
+  NotificationQueueType,
+  CreateNotificationQueue,
+  UpdateNotificationQueue,
+} from "./notification-queue"
+export type {
+  NotificationPreferences,
+  CreateNotificationPreferences,
+  UpdateNotificationPreferences,
+} from "./notification-preferences"
+export type { PartCustomDimensions } from "./part-custom-dimensions"

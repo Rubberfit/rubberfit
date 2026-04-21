@@ -18,7 +18,7 @@ import {
   handleCreateBulkPO,
 } from "./reorder-po-handlers"
 import type { ReorderSuggestion } from "./reorder-suggestions"
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/database.types"
+import type { ReorderRuleWithDetails } from "@/src/entities"
 
 function getUrgencyBadge(level: string) {
   switch (level) {

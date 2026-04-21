@@ -1,6 +1,12 @@
 import type { Money, Percentage } from "./value-objects"
 import type { AuditFields, SoftDeletable } from "./shared"
 
+export type CreateSupplier = Omit<
+  Supplier,
+  "id" | keyof AuditFields | keyof SoftDeletable
+>
+export type UpdateSupplier = Partial<CreateSupplier>
+
 export interface Supplier extends AuditFields, SoftDeletable {
   id: string
   tenantId: string

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-import type { CutHistory } from "@/src/infrastructure/models/database.types"
+import type { CutHistory } from "@/src/entities"
 
 interface UseCutHistoryAnalyticsParams {
   from: Date

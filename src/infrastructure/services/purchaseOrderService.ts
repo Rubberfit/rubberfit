@@ -7,7 +7,7 @@ import type {
   UpdatePurchaseOrder,
   CreatePurchaseOrderItem,
   UpdatePurchaseOrderItem,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"

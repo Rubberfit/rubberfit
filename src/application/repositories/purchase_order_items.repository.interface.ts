@@ -3,7 +3,7 @@ import type {
   PurchaseOrderItemWithDetails,
   CreatePurchaseOrderItem,
   UpdatePurchaseOrderItem,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface IPurchaseOrderItemsRepository {
   findById(id: string): Promise<PurchaseOrderItem | null>

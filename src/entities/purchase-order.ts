@@ -1,5 +1,18 @@
 import type { Money } from "./value-objects"
 import type { AuditFields, SoftDeletable } from "./shared"
+import type { Supplier } from "./supplier"
+import type { PurchaseOrderItemWithDetails } from "./purchase-order-item"
+
+export type CreatePurchaseOrder = Omit<
+  PurchaseOrder,
+  "id" | keyof AuditFields | keyof SoftDeletable
+>
+export type UpdatePurchaseOrder = Partial<CreatePurchaseOrder>
+
+export interface PurchaseOrderWithDetails extends PurchaseOrder {
+  supplier: Supplier
+  items: PurchaseOrderItemWithDetails[]
+}
 
 export type PurchaseOrderStatus =
   | "draft"

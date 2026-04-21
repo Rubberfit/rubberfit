@@ -6,7 +6,7 @@ import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import { Badge } from "@/app/components/ui/badge"
 import { Plus, Trash2, Calculator, Package } from "lucide-react"
-import type { MaterialType } from "@/src/infrastructure/models/database.types"
+import type { MaterialType } from "@/src/entities"
 import {
   Select,
   SelectContent,

@@ -1,4 +1,4 @@
-import type { Cut } from "@/src/infrastructure/models/database.types"
+import type { Cut } from "@/src/entities"
 
 export interface ICutsRepository {
   findById(id: string): Promise<Cut | null>

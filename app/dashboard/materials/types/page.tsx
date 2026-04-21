@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Plus, Upload, ChevronDown } from "lucide-react"
 
-import { type MaterialType } from "@/src/infrastructure/models/database.types"
+import { type MaterialType } from "@/src/entities"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"

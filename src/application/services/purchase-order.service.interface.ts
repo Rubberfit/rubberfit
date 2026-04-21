@@ -7,7 +7,7 @@ import type {
   Roll,
   UpdatePurchaseOrder,
   UpdatePurchaseOrderItem,
-} from "@/src/infrastructure/models/database.types"
+} from "@/src/entities"
 
 export interface POReceiptItem {
   itemId: string

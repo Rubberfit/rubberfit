@@ -1,7 +1,7 @@
 "use client"
 
 import { DollarSign, Clock, ShoppingCart } from "lucide-react"
-import type { MaterialType } from "@/src/infrastructure/models/database.types"
+import type { MaterialType } from "@/src/entities"
 import { Input } from "@/app/components/ui/input"
 import {
   FormControl,
