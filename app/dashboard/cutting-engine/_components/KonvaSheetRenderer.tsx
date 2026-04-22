@@ -6,6 +6,8 @@ import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 
 // ── Colour palette (index by specIndex mod length) ───────────────────────────
 
+// Part palette stays vibrant — these fills sit on the dark stone sheet so
+// saturated primaries read as clearly separate parts.
 const PART_FILLS = [
   "#3b82f6", // blue-500
   "#ef4444", // red-500
@@ -17,12 +19,20 @@ const PART_FILLS = [
   "#f97316", // orange-500
 ]
 
-const OFFCUT_FILL = "rgba(219, 234, 254, 0.55)" // blue-100 semi-transparent
-const OFFCUT_STROKE = "#93c5fd" // blue-300
-const SHEET_FILL = "#f5f5f4" // stone-100
-const SHEET_STROKE = "#a8a29e" // stone-400
-const GRID_STROKE = "#e7e5e4" // stone-200
+// Match the legacy SVG visualizer's color semantics exactly:
+//   stock  = dark stone,   amber offcut = reusable,   red = scrap/waste.
+const SHEET_FILL = "#242420"
+const SHEET_STROKE = "#78716c" // stone-500
+const GRID_STROKE = "rgba(120,113,108,0.22)"
+
+const OFFCUT_FILL = "rgba(245,158,11,0.18)" // amber-500 @ 18%
+const OFFCUT_STROKE = "rgba(245,158,11,0.55)"
+
+const SCRAP_FILL = "rgba(239,68,68,0.18)" // red-500 @ 18%
+const SCRAP_STROKE = "rgba(239,68,68,0.55)"
+
 const LABEL_FILL = "#ffffff"
+const LABEL_STROKE = "rgba(0,0,0,0.55)"
 
 // ── Shape renderers ──────────────────────────────────────────────────────────
 
@@ -48,6 +58,9 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
           text={part.label}
           fontSize={Math.max(9, Math.min(14, pw / 3))}
           fill={LABEL_FILL}
+          stroke={LABEL_STROKE}
+          strokeWidth={2}
+          fillAfterStrokeEnabled
           fontStyle="bold"
           align="center"
           verticalAlign="middle"
@@ -71,6 +84,9 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
           text={part.label}
           fontSize={Math.max(9, Math.min(14, pw / 3))}
           fill={LABEL_FILL}
+          stroke={LABEL_STROKE}
+          strokeWidth={2}
+          fillAfterStrokeEnabled
           fontStyle="bold"
           align="center"
           verticalAlign="middle"
@@ -101,12 +117,20 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
   )
 }
 
-function OffcutShape({ region, scale }: { region: LayoutRegion; scale: number }) {
+function RegionShape({
+  region,
+  scale,
+  fill,
+  stroke,
+}: {
+  region: LayoutRegion
+  scale: number
+  fill: string
+  stroke: string
+}) {
   if (region.polygon && region.polygon.length >= 3) {
     const points = region.polygon.flatMap((pt) => [pt.x * scale, pt.y * scale])
-    return (
-      <Line points={points} closed fill={OFFCUT_FILL} stroke={OFFCUT_STROKE} strokeWidth={0.5} />
-    )
+    return <Line points={points} closed fill={fill} stroke={stroke} strokeWidth={0.5} />
   }
   return (
     <Rect
@@ -114,8 +138,8 @@ function OffcutShape({ region, scale }: { region: LayoutRegion; scale: number })
       y={region.y * scale}
       width={region.width * scale}
       height={region.height * scale}
-      fill={OFFCUT_FILL}
-      stroke={OFFCUT_STROKE}
+      fill={fill}
+      stroke={stroke}
       strokeWidth={0.5}
     />
   )
@@ -205,9 +229,26 @@ export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRend
             {/* Grid */}
             <GridLines sheetW={layout.sheetWidth} sheetL={layout.sheetLength} scale={scale} />
 
-            {/* Offcuts */}
+            {/* Offcuts (reusable — amber) */}
             {layout.offcuts.map((region, i) => (
-              <OffcutShape key={`offcut-${i}`} region={region} scale={scale} />
+              <RegionShape
+                key={`offcut-${i}`}
+                region={region}
+                scale={scale}
+                fill={OFFCUT_FILL}
+                stroke={OFFCUT_STROKE}
+              />
+            ))}
+
+            {/* Scrap (waste — red) */}
+            {layout.scrap.map((region, i) => (
+              <RegionShape
+                key={`scrap-${i}`}
+                region={region}
+                scale={scale}
+                fill={SCRAP_FILL}
+                stroke={SCRAP_STROKE}
+              />
             ))}
 
             {/* Parts */}

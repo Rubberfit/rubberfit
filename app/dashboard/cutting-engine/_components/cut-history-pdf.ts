@@ -60,8 +60,12 @@ const PART_FILLS_RGB: RGB[] = [
   [20, 184, 166], // teal-500
   [249, 115, 22], // orange-500
 ]
-const OFFCUT_RGB: RGB = [219, 234, 254] // blue-100
-const OFFCUT_STROKE_RGB: RGB = [147, 197, 253] // blue-300
+// Paper-friendly semantic palette: amber for reusable offcut, red for scrap.
+// Matches the Konva on-screen convention (which uses darker background).
+const OFFCUT_RGB: RGB = [254, 243, 199] // amber-100
+const OFFCUT_STROKE_RGB: RGB = [245, 158, 11] // amber-500
+const SCRAP_RGB: RGB = [254, 226, 226] // red-100
+const SCRAP_STROKE_RGB: RGB = [239, 68, 68] // red-500
 const SHEET_FILL_RGB: RGB = [245, 245, 244] // stone-100
 const SHEET_STROKE_RGB: RGB = [168, 162, 158] // stone-400
 
@@ -320,9 +324,14 @@ function renderLayoutToDoc(
     doc.line(ox, oy + gy * scale, ox + drawW, oy + gy * scale)
   }
 
-  // Offcuts (semi-transparent blue)
+  // Reusable offcut (amber)
   for (const region of layout.offcuts) {
     drawRegion(doc, region, ox, oy, scale, OFFCUT_RGB, OFFCUT_STROKE_RGB)
+  }
+
+  // Scrap / waste (red)
+  for (const region of layout.scrap) {
+    drawRegion(doc, region, ox, oy, scale, SCRAP_RGB, SCRAP_STROKE_RGB)
   }
 
   // Parts
