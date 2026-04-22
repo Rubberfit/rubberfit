@@ -13,10 +13,7 @@ import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "@/src/application/vision/types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
-import {
-  STOCK_PRESETS,
-  type StockConfig,
-} from "./_components/stock-preview-configurator"
+import { STOCK_PRESETS, type StockConfig } from "./_components/stock-preview-configurator"
 import {
   getRequestedSqFt,
   getDefaultCutDirection,
@@ -42,6 +39,8 @@ import { PartsQueuePanel, type PartsFilter } from "./_components/parts-queue-pan
 import { CanvasToolbar } from "./_components/canvas-toolbar"
 import { StrategyResultsPanel } from "./_components/strategy-results-panel"
 import { TweaksPanel } from "./_components/tweaks-panel"
+import KonvaSheetRenderer from "./_components/KonvaSheetRenderer"
+import type { LayoutModel } from "./_components/layout-model"
 
 // Constants
 
@@ -95,6 +94,12 @@ export default function CutPlannerPage() {
     "id" | "job_number" | "name" | "customer_name"
   > | null>(null)
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
+  const [layouts, setLayouts] = useState<LayoutModel[]>([])
+
+  const hasSelectedTemplates = presetParts.length + uploadedParts.length > 0
+  useEffect(() => {
+    if (!hasSelectedTemplates) setLayouts([])
+  }, [hasSelectedTemplates])
 
   // Pack-gate: the Graph card doesn't mount the NestingVisualizer
   // until the operator presses **Pack**. Any change to parts,
@@ -247,22 +252,17 @@ export default function CutPlannerPage() {
   // auto-loaded into the nesting surface (jobs parts can be many
   // different dimensions; the operator picks per cut). The loader
   // just tags subsequent cuts to the job.
-  const handleLoadJob = useCallback(
-    (job: JobFullDetail) => {
-      setSourceJob({
-        id: job.id,
-        job_number: job.job_number,
-        name: job.name,
-        customer_name: job.customer_name,
-      })
-      toast.success(`Cutting for ${job.job_number ?? "job"}`, {
-        description: job.customer_name
-          ? `${job.name} · ${job.customer_name}`
-          : job.name,
-      })
-    },
-    []
-  )
+  const handleLoadJob = useCallback((job: JobFullDetail) => {
+    setSourceJob({
+      id: job.id,
+      job_number: job.job_number,
+      name: job.name,
+      customer_name: job.customer_name,
+    })
+    toast.success(`Cutting for ${job.job_number ?? "job"}`, {
+      description: job.customer_name ? `${job.name} · ${job.customer_name}` : job.name,
+    })
+  }, [])
 
   // ── Load a roll as a blank sheet (no parts, no cuts) ──────────────────────
   // Invoked by `?loadRoll=<id>` — the inventory detail drawer deep-links
@@ -509,11 +509,7 @@ export default function CutPlannerPage() {
           code,
         })
         toast.error("Failed to save cut to history", {
-          description: detail
-            ? code
-              ? `${detail} (${code})`
-              : detail
-            : `HTTP ${response.status}`,
+          description: detail ? (code ? `${detail} (${code})` : detail) : `HTTP ${response.status}`,
         })
       } else {
         const { data: savedCut } = (await response.json()) as { data: CutHistory }
@@ -534,7 +530,8 @@ export default function CutPlannerPage() {
             cutMetrics,
             selectedTemplate,
             selectedTemplates,
-            pdfTagMap
+            pdfTagMap,
+            layouts
           )
         } catch (err) {
           console.error("PDF generation failed:", err)
@@ -554,6 +551,9 @@ export default function CutPlannerPage() {
     safeQuantity,
     cutMetrics,
     tagMap,
+    layouts,
+    sourceRollId,
+    sourceJob?.id,
   ])
 
   // Render
@@ -600,7 +600,8 @@ export default function CutPlannerPage() {
             <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="flex-1 text-xs">
-                Cut loaded from history — adjust and click <strong>Cut</strong> to record a new entry.
+                Cut loaded from history — adjust and click <strong>Cut</strong> to record a new
+                entry.
               </span>
               <button
                 type="button"
@@ -642,18 +643,62 @@ export default function CutPlannerPage() {
         <WorkspaceColumn column="center">
           <div className="flex flex-col h-full">
             <CanvasToolbar />
-            <div className="flex-1 min-h-0 overflow-auto p-4">
+            <div className="flex-1 min-h-0 overflow-auto p-4 relative">
               {selectedTemplates.length > 0 && selectedTemplate ? (
-                <NestingVisualizer
-                  defaultRollWidth={stock.width}
-                  defaultRollLength={stock.length}
-                  defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                  defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                  defaultQty={safeQuantity}
-                  onMetricsChange={setCutMetrics}
-                  simpleParts={nestingSimpleParts}
-                  simplePart={nestingSimplePart}
-                />
+                <>
+                  {/* NestingVisualizer stays mounted off-screen so TS NFP
+                      computation and the async worker refinement continue
+                      to run. It emits the LayoutModel[] that Konva renders.
+                      Positioned absolutely with non-zero size so any internal
+                      DOM-measurement paths still see real dimensions. */}
+                  <div
+                    aria-hidden
+                    role="presentation"
+                    className="absolute pointer-events-none opacity-0"
+                    style={{
+                      left: -9999,
+                      top: 0,
+                      width: Math.max(stock.width, stock.length) * 10,
+                      height: Math.min(stock.width, stock.length) * 10,
+                    }}
+                  >
+                    <NestingVisualizer
+                      defaultRollWidth={stock.width}
+                      defaultRollLength={stock.length}
+                      defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
+                      defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
+                      defaultQty={safeQuantity}
+                      onMetricsChange={setCutMetrics}
+                      onLayoutChange={setLayouts}
+                      simpleParts={nestingSimpleParts}
+                      simplePart={nestingSimplePart}
+                    />
+                  </div>
+                  {layouts.length > 0 ? (
+                    <div className="flex flex-col gap-4 h-full">
+                      {layouts.map((layout, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 min-h-[240px] rounded-md border border-border/40 bg-background overflow-hidden"
+                        >
+                          {layouts.length > 1 && (
+                            <div className="px-3 py-1.5 border-b border-border/40 bg-muted/40">
+                              <span className="text-xs font-medium text-foreground">
+                                Sheet {i + 1} of {layouts.length}
+                              </span>
+                            </div>
+                          )}
+                          <KonvaSheetRenderer layout={layout} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                      <Shapes className="h-10 w-10 opacity-20 animate-pulse" />
+                      <p className="text-sm">Computing layout…</p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
                   <Shapes className="h-10 w-10 opacity-20" />

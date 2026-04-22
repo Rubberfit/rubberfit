@@ -8,6 +8,7 @@ import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import { PART_OPTIONS } from "./preset-template-data"
+import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,22 @@ const GRAY_500: RGB = [107, 114, 128]
 const GRAY_200: RGB = [229, 231, 235]
 const GRAY_50: RGB = [249, 250, 251]
 const WHITE: RGB = [255, 255, 255]
+
+// Must stay in sync with KonvaSheetRenderer's PART_FILLS so screen and PDF match.
+const PART_FILLS_RGB: RGB[] = [
+  [59, 130, 246], // blue-500
+  [239, 68, 68], // red-500
+  [34, 197, 94], // green-500
+  [245, 158, 11], // amber-500
+  [139, 92, 246], // violet-500
+  [236, 72, 153], // pink-500
+  [20, 184, 166], // teal-500
+  [249, 115, 22], // orange-500
+]
+const OFFCUT_RGB: RGB = [219, 234, 254] // blue-100
+const OFFCUT_STROKE_RGB: RGB = [147, 197, 253] // blue-300
+const SHEET_FILL_RGB: RGB = [245, 245, 244] // stone-100
+const SHEET_STROKE_RGB: RGB = [168, 162, 158] // stone-400
 
 // ── Logo Loader ──────────────────────────────────────────────────────────────
 
@@ -263,6 +280,162 @@ function addCutLegend(doc: jsPDF, tagMap: Map<string, string>, y: number): numbe
   return y
 }
 
+// ── Vector Layout Rendering ──────────────────────────────────────────────────
+
+/**
+ * Draw a single LayoutModel into a rectangle on the PDF page using jsPDF
+ * vector primitives (rect / ellipse / lines). Coordinates on `layout` are in
+ * inches; this function scales them to fit within `w × h` mm on the page.
+ */
+function renderLayoutToDoc(
+  doc: jsPDF,
+  layout: LayoutModel,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): void {
+  const sheetW = layout.sheetWidth
+  const sheetL = layout.sheetLength
+  if (sheetW <= 0 || sheetL <= 0) return
+  const scale = Math.min(w / sheetW, h / sheetL)
+  const drawW = sheetW * scale
+  const drawH = sheetL * scale
+  const ox = x + (w - drawW) / 2
+  const oy = y + (h - drawH) / 2
+
+  // Sheet background
+  doc.setFillColor(...SHEET_FILL_RGB)
+  doc.setDrawColor(...SHEET_STROKE_RGB)
+  doc.setLineWidth(0.3)
+  doc.rect(ox, oy, drawW, drawH, "FD")
+
+  // Grid (12" intervals)
+  doc.setDrawColor(...GRAY_200)
+  doc.setLineWidth(0.1)
+  for (let gx = 12; gx < sheetW; gx += 12) {
+    doc.line(ox + gx * scale, oy, ox + gx * scale, oy + drawH)
+  }
+  for (let gy = 12; gy < sheetL; gy += 12) {
+    doc.line(ox, oy + gy * scale, ox + drawW, oy + gy * scale)
+  }
+
+  // Offcuts (semi-transparent blue)
+  for (const region of layout.offcuts) {
+    drawRegion(doc, region, ox, oy, scale, OFFCUT_RGB, OFFCUT_STROKE_RGB)
+  }
+
+  // Parts
+  for (const part of layout.parts) {
+    const fill = PART_FILLS_RGB[part.specIndex % PART_FILLS_RGB.length]
+    drawPart(doc, part, ox, oy, scale, fill)
+  }
+}
+
+function drawRegion(
+  doc: jsPDF,
+  region: LayoutRegion,
+  ox: number,
+  oy: number,
+  scale: number,
+  fill: RGB,
+  stroke: RGB
+): void {
+  doc.setFillColor(...fill)
+  doc.setDrawColor(...stroke)
+  doc.setLineWidth(0.15)
+  if (region.polygon && region.polygon.length >= 3) {
+    drawPolygon(doc, region.polygon, ox, oy, scale, "FD")
+    return
+  }
+  doc.rect(
+    ox + region.x * scale,
+    oy + region.y * scale,
+    region.width * scale,
+    region.height * scale,
+    "FD"
+  )
+}
+
+function drawPart(
+  doc: jsPDF,
+  part: PlacedPart,
+  ox: number,
+  oy: number,
+  scale: number,
+  fill: RGB
+): void {
+  doc.setFillColor(...fill)
+  doc.setDrawColor(255, 255, 255)
+  doc.setLineWidth(0.2)
+
+  const px = ox + part.x * scale
+  const py = oy + part.y * scale
+  const pw = part.width * scale
+  const ph = part.height * scale
+  const cx = px + pw / 2
+  const cy = py + ph / 2
+
+  if (part.renderShape === "circle" && part.diameter != null) {
+    const r = (part.diameter / 2) * scale
+    doc.ellipse(cx, cy, r, r, "FD")
+  } else if (part.polygon && part.polygon.length >= 3) {
+    drawPolygon(doc, part.polygon, ox, oy, scale, "FD")
+  } else {
+    doc.rect(px, py, pw, ph, "FD")
+  }
+
+  // Label
+  const labelFontPt = Math.max(5, Math.min(10, Math.min(pw, ph) / 3))
+  doc.setFontSize(labelFontPt)
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.text(part.label, cx, cy + labelFontPt / 4, { align: "center" })
+}
+
+function drawPolygon(
+  doc: jsPDF,
+  polygon: Array<{ x: number; y: number }>,
+  ox: number,
+  oy: number,
+  scale: number,
+  style: "F" | "FD" | "S"
+): void {
+  if (polygon.length < 3) return
+  const first = polygon[0]
+  const segments = polygon.slice(1).map((pt, i) => {
+    const prev = polygon[i]
+    return [(pt.x - prev.x) * scale, (pt.y - prev.y) * scale] as [number, number]
+  })
+  doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], style, true)
+}
+
+async function addLayoutDiagrams(doc: jsPDF, layouts: LayoutModel[], y: number): Promise<number> {
+  // Match the aspect ratio of the legacy SVG path: CONTENT_W wide, scaled proportionally.
+  for (let i = 0; i < layouts.length; i++) {
+    const layout = layouts[i]
+    const sheetAspect = layout.sheetLength / layout.sheetWidth
+    const imgW = CONTENT_W
+    const imgH = imgW * sheetAspect
+
+    y = checkNewPage(doc, y, imgH + 12)
+
+    if (layouts.length > 1) {
+      doc.setFillColor(...BRAND)
+      doc.rect(MARGIN, y - 1, 2, 6, "F")
+      doc.setFontSize(10)
+      doc.setTextColor(...GRAY_900)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Roll ${i + 1} of ${layouts.length}`, MARGIN + 5, y + 3)
+      y += 8
+    }
+
+    renderLayoutToDoc(doc, layout, MARGIN, y, imgW, imgH)
+    y += imgH + 6
+  }
+  return y
+}
+
 async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number): Promise<number> {
   for (let i = 0; i < svgElements.length; i++) {
     const svg = svgElements[i]
@@ -421,12 +594,19 @@ export async function buildAndUploadCutPdf(
   cutMetrics: SimpleCutMetrics | null,
   selectedTemplate: PartTemplate | undefined,
   selectedTemplates: PartTemplate[],
-  tags: Map<string, string>
+  tags: Map<string, string>,
+  layouts?: LayoutModel[]
 ) {
-  const svgElements = Array.from(document.querySelectorAll<SVGSVGElement>("[data-sheet-svg]"))
-  if (svgElements.length === 0) return
+  // Prefer vector layout diagrams when available — fall back to legacy DOM SVG
+  // scraping only when called without layouts (e.g. very old call sites).
+  const useVector = layouts && layouts.length > 0
+  const svgElements = useVector
+    ? []
+    : Array.from(document.querySelectorAll<SVGSVGElement>("[data-sheet-svg]"))
+  const rollCount = useVector ? layouts.length : svgElements.length
+  if (rollCount === 0) return
 
-  const totalStockSqFt = ((stock.width * stock.length) / 144) * svgElements.length
+  const totalStockSqFt = ((stock.width * stock.length) / 144) * rollCount
   const reusablePct =
     totalStockSqFt > 0 ? ((cutMetrics?.reusableOffsetSqFt ?? 0) / totalStockSqFt) * 100 : 0
   const scrapPct = totalStockSqFt > 0 ? ((cutMetrics?.scrapSqFt ?? 0) / totalStockSqFt) * 100 : 0
@@ -443,7 +623,7 @@ export async function buildAndUploadCutPdf(
     tagMap: tags,
     partsCompleted: cutMetrics?.partsCompleted ?? 0,
     cutPieces: cutMetrics?.cutPieces ?? 0,
-    rollCount: svgElements.length,
+    rollCount,
     materialUsedSqFt: cutMetrics?.materialUsedSqFt ?? 0,
     reusableOffcutSqFt: cutMetrics?.reusableOffsetSqFt ?? 0,
     reusableOffcutPct: reusablePct,
@@ -453,17 +633,19 @@ export async function buildAndUploadCutPdf(
     cutDate: new Date().toISOString(),
   }
 
-  const pdfBlob = await generateCutPdf(svgElements, pdfData)
+  const pdfBlob = await generateCutPdf({ svgElements, layouts: layouts ?? [], data: pdfData })
   const { data: authData } = await supabase.auth.getUser()
   if (authData.user) {
     await uploadCutPdf(cutId, authData.user.id, pdfBlob)
   }
 }
 
-export async function generateCutPdf(
-  svgElements: SVGSVGElement[],
+export async function generateCutPdf(args: {
+  svgElements: SVGSVGElement[]
+  layouts: LayoutModel[]
   data: CutPdfData
-): Promise<Blob> {
+}): Promise<Blob> {
+  const { svgElements, layouts, data } = args
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
 
   doc.setProperties({
@@ -477,7 +659,12 @@ export async function generateCutPdf(
   let y = addHeader(doc, data, logo)
   y = addSummaryCards(doc, data, y)
   y = addCutLegend(doc, data.tagMap, y)
-  y = await addDiagrams(doc, svgElements, y)
+  // Vector path when layouts are provided, raster fallback otherwise.
+  if (layouts.length > 0) {
+    y = await addLayoutDiagrams(doc, layouts, y)
+  } else {
+    y = await addDiagrams(doc, svgElements, y)
+  }
   y = addMetrics(doc, data, y)
   addAdhesives(doc, data, y)
   addFooter(doc)

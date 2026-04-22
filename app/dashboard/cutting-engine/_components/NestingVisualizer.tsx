@@ -5,6 +5,8 @@ import { useState, useEffect, useId, useMemo } from "react"
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
 
+import { fromPreviewToLayoutModel, type LayoutModel } from "./layout-model"
+
 import type {
   NestingVisualizerProps,
   SimplePartPreview,
@@ -128,8 +130,7 @@ function buildMultiSheet(
 ): MultiSheetResult | null {
   if (!basePreview) return null
 
-  const allTrapezoids =
-    specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
+  const allTrapezoids = specs.length > 1 && specs.every((s) => s.partType === "trapezoid")
   // Mixed cone/trapezoid (with at least one cone) uses the mixed-NFP path
   // via generateMultiPartPreview — overflow sheets regenerate through the same
   // function so each sheet's layout uses NFP rotation, not AABB shelf packing.
@@ -240,7 +241,8 @@ export default function NestingVisualizer({
   simpleParts,
   onMetricsChange,
   onTagMapChange,
-}: NestingVisualizerProps) {
+  onLayoutChange,
+}: NestingVisualizerProps & { onLayoutChange?: (layouts: LayoutModel[]) => void }) {
   const patternSeed = useId().replace(/:/g, "")
 
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
@@ -289,9 +291,7 @@ export default function NestingVisualizer({
       occupiedWidth: 0,
       occupiedHeight: 0,
       items: [],
-      offcutBands: [
-        { x: 0, y: 0, width: defaultRollWidth, height: defaultRollLength },
-      ],
+      offcutBands: [{ x: 0, y: 0, width: defaultRollWidth, height: defaultRollLength }],
       scrapBands: [],
       placements: [],
       label: "",
@@ -521,13 +521,7 @@ export default function NestingVisualizer({
     } catch (_error) {
       // metrics computation failure must not break the visualizer
     }
-  }, [
-    baseSimplePreview,
-    multiSheet,
-    onMetricsChange,
-    defaultRollWidth,
-    defaultRollLength,
-  ])
+  }, [baseSimplePreview, multiSheet, onMetricsChange, defaultRollWidth, defaultRollLength])
 
   useEffect(() => {
     if (onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)
@@ -563,9 +557,32 @@ export default function NestingVisualizer({
       defaultQty
     )
 
-  const preview = shouldRotate
-    ? rotateSimplePartPreview(rawPreview, defaultRollLength)
-    : rawPreview
+  const preview = shouldRotate ? rotateSimplePartPreview(rawPreview, defaultRollLength) : rawPreview
+
+  // Emit LayoutModel[] after each layout update so Konva renderer and PDF
+  // can use post-rotation coordinates without re-deriving them.
+  useEffect(() => {
+    if (!onLayoutChange) return
+    const displayW = shouldRotate ? defaultRollLength : defaultRollWidth
+    const displayL = shouldRotate ? defaultRollWidth : defaultRollLength
+    if (rotatedMultiSheet && rotatedMultiSheet.sheets.length > 1) {
+      onLayoutChange(
+        rotatedMultiSheet.sheets.map((sheet) =>
+          fromPreviewToLayoutModel(sheet.preview, displayW, displayL, tagMap)
+        )
+      )
+    } else {
+      onLayoutChange([fromPreviewToLayoutModel(preview, displayW, displayL, tagMap)])
+    }
+  }, [
+    onLayoutChange,
+    preview,
+    rotatedMultiSheet,
+    shouldRotate,
+    defaultRollWidth,
+    defaultRollLength,
+    tagMap,
+  ])
 
   return (
     <NestingVizSimpleMode
