@@ -177,6 +177,13 @@ interface RecordCutBody {
   fab_score: number
   stock_label?: string | null
   cost_per_sqft?: number | null
+  /**
+   * Which cutting-engine surface produced this cut. `auto` (default)
+   * = pack-cli layout from Auto-nest; `manual` = Free-roam canvas
+   * placement. Omitting defaults to `auto` — the DB column has
+   * `DEFAULT 'auto'`.
+   */
+  source?: "auto" | "manual"
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -272,8 +279,7 @@ export async function POST(request: NextRequest) {
 
   const rollId =
     typeof body.roll_id === "string" && UUID_RE.test(body.roll_id) ? body.roll_id : null
-  const jobId =
-    typeof body.job_id === "string" && UUID_RE.test(body.job_id) ? body.job_id : null
+  const jobId = typeof body.job_id === "string" && UUID_RE.test(body.job_id) ? body.job_id : null
 
   // Only include roll_id in the insert payload when the column is
   // populated — Supabase will reject the insert if the column
@@ -313,6 +319,10 @@ export async function POST(request: NextRequest) {
         ? r2(body.cost_per_sqft)
         : null,
     pdf_url: null,
+    // Surface provenance: `auto` (default) = pack-cli via Auto-nest;
+    // `manual` = Free-roam canvas. DB column has DEFAULT 'auto' so
+    // old callers that don't send this still classify correctly.
+    source: body.source === "manual" ? "manual" : "auto",
   }
 
   const { data, error } = await db.from("cut_history").insert(insert).select().single()
@@ -471,14 +481,8 @@ export async function POST(request: NextRequest) {
         const cutsRows = (cutsResult.data ?? []) as Array<{ parts_completed: number }>
         const jobRow = jobResult.data as { status: string } | null
         const needed = partsRows.reduce((sum, p) => sum + (p.quantity ?? 0), 0)
-        const completed = cutsRows.reduce(
-          (sum, c) => sum + (c.parts_completed ?? 0),
-          0
-        )
-        if (
-          jobRow &&
-          JobsRepository.shouldAutoComplete(needed, completed, jobRow.status)
-        ) {
+        const completed = cutsRows.reduce((sum, c) => sum + (c.parts_completed ?? 0), 0)
+        if (jobRow && JobsRepository.shouldAutoComplete(needed, completed, jobRow.status)) {
           const { error: jobUpdErr } = await db
             .from("jobs")
             .update({

@@ -62,6 +62,7 @@ function makeV1Row(): CutHistory {
     cut_date: "2026-04-15T14:30:00Z",
     created_at: "2026-04-15T14:30:05Z",
     updated_at: "2026-04-15T14:30:05Z",
+    source: "auto",
   }
 }
 

@@ -86,6 +86,10 @@ function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
     cut_date: dto.cut_date ?? dto.created_at ?? new Date(0).toISOString(),
     created_at: dto.created_at ?? new Date(0).toISOString(),
     updated_at: dto.updated_at ?? new Date(0).toISOString(),
+    // Rust DTO exposes `source` post-C12 migration. Pre-migration
+    // rows deserialize as undefined; default to "auto" to match the
+    // DB column default.
+    source: dto.source === "manual" ? "manual" : "auto",
   }
 }
 
@@ -97,9 +101,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await res.json()) as T
 }
 
-export async function listCutHistory(
-  opts: ListHistoryOptions = {}
-): Promise<CutHistory[]> {
+export async function listCutHistory(opts: ListHistoryOptions = {}): Promise<CutHistory[]> {
   if (useRustBackend()) {
     const params = new URLSearchParams()
     if (opts.limit !== undefined) params.set("limit", String(opts.limit))
@@ -121,9 +123,7 @@ export async function listCutHistory(
   if (opts.from) params.set("from", opts.from)
   if (opts.to) params.set("to", opts.to)
   if (opts.userId) params.set("userId", opts.userId)
-  const res = await fetchJson<{ data: CutHistory[] }>(
-    `/api/cuts/history?${params.toString()}`
-  )
+  const res = await fetchJson<{ data: CutHistory[] }>(`/api/cuts/history?${params.toString()}`)
   return res.data
 }
 

@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import type { PartTemplate } from "../_components/PresetDimensionSelector"
 import type { StockConfig } from "../_components/stock-preview-configurator"
-import type { SimpleCutMetrics } from "../_components/nesting-visualizer-types"
 import type { SimpleCutDirection } from "../_components/NestingVisualizer"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
@@ -79,17 +78,13 @@ export default function FreeRoamPage() {
   const [stock] = useState<StockConfig>(DEFAULT_STOCK)
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
   const [customCutRatioInput, setCustomCutRatioInput] = useState("")
-  const [cutMetrics] = useState<SimpleCutMetrics | null>(null)
-  const [isRecordingCut] = useState(false)
   const [cutListRefreshKey, setCutListRefreshKey] = useState(0)
 
-  const handleRecordCut = () => {
-    // Wired in C12 alongside the DB migration that tags manual
-    // placements. For now the Cut button is only shown once parts
-    // are placed, which will follow when the canvas lands in C11.
-    toast.message("Manual cut recording lands in C12.")
-    setCutListRefreshKey((k) => k + 1)
-  }
+  // Recording state + fetch lives inside FreeRoamContent (it has the
+  // derived metrics that the payload needs). Page just bumps the
+  // refresh key when a cut lands so the RecordedCutSelect dropdown
+  // refreshes.
+  const handleCutRecorded = () => setCutListRefreshKey((k) => k + 1)
 
   const handleLoadCut = (_cut: CutHistory) => {
     // Loading a previously-recorded cut into the Free-roam canvas
@@ -123,11 +118,12 @@ export default function FreeRoamPage() {
         setCustomCutRatioInput={setCustomCutRatioInput}
         customCutRatios={undefined}
         requestedSqFt={0}
-        cutMetrics={cutMetrics}
-        onRecordCut={handleRecordCut}
-        isRecordingCut={isRecordingCut}
+        cutMetrics={null}
+        onRecordCut={() => {}}
+        isRecordingCut={false}
         refreshKey={cutListRefreshKey}
         onLoadCut={handleLoadCut}
+        onCutRecorded={handleCutRecorded}
       />
     </PageShell>
   )

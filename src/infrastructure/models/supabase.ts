@@ -473,6 +473,15 @@ export interface CutHistory {
   stock_label: string | null
   cost_per_sqft: number | null
   pdf_url: string | null
+  /**
+   * Which cutting-engine surface recorded this cut:
+   *  - `auto`   — pack-cli computed the layout (Auto-nest tab)
+   *  - `manual` — operator authored the layout on the Free-roam canvas
+   *
+   * Defaulted to `auto` in the DB so rows pre-dating the migration
+   * and any caller that hasn't been updated read as auto-nest.
+   */
+  source: "auto" | "manual"
   cut_date: string
   created_at: string
   updated_at: string

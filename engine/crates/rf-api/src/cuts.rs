@@ -87,6 +87,10 @@ pub struct CutHistoryDto {
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    /// `auto` | `manual` — which cutting-engine surface recorded this
+    /// cut. Pre-migration rows can still omit this field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 impl From<CutHistoryEntry> for CutHistoryDto {
@@ -114,6 +118,7 @@ impl From<CutHistoryEntry> for CutHistoryDto {
             cut_date: e.cut_date,
             created_at: e.created_at,
             updated_at: e.updated_at,
+            source: e.source,
         }
     }
 }

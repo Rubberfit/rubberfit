@@ -3187,6 +3187,13 @@
             "type": "number",
             "format": "double"
           },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`auto` | `manual` — which cutting-engine surface recorded this\ncut. Pre-migration rows can still omit this field."
+          },
           "updated_at": {
             "type": [
               "string",

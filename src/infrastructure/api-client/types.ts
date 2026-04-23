@@ -684,6 +684,11 @@ export interface components {
             reusable_offset_sqft: number;
             /** Format: double */
             scrap_sqft: number;
+            /**
+             * @description `auto` | `manual` — which cutting-engine surface recorded this
+             *     cut. Pre-migration rows can still omit this field.
+             */
+            source?: string | null;
             updated_at?: string | null;
             user_id?: string | null;
         };

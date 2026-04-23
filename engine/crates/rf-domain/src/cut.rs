@@ -53,6 +53,12 @@ pub struct CutHistoryEntry {
     pub cut_date: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+    /// Which cutting-engine surface recorded this cut — `auto` (Auto-nest
+    /// / pack-cli) or `manual` (Free-roam drag/drop). Optional on the
+    /// domain so pre-migration rows still deserialize cleanly; the DB
+    /// default is `'auto'`.
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 /// Query filters for `list_history`. Pagination + a couple of

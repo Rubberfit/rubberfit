@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { toast } from "sonner"
 import { Polygon, Vector, testPolygonPolygon } from "sat"
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
 import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
@@ -222,11 +223,25 @@ interface FreeRoamContentProps {
   setCustomCutRatioInput: (v: string) => void
   customCutRatios: number[] | undefined
   requestedSqFt: number
+  /**
+   * Ignored by the Free-roam surface — it derives metrics live from
+   * the placements state. Kept in the prop shape so callers that
+   * also drive the Auto-nest surface don't need a separate shape.
+   */
   cutMetrics: SimpleCutMetrics | null
+  /**
+   * Ignored. Free-roam owns its own record-cut lifecycle (it has
+   * the placements state + derived metrics that the operation needs).
+   * Left in the prop shape for signature consistency.
+   */
   onRecordCut: () => void
+  /** Ignored; Free-roam tracks its own recording state. */
   isRecordingCut: boolean
   refreshKey: number
   onLoadCut: (cut: CutHistory) => void
+  /** Fires after a manual cut is successfully recorded so the parent
+   *  can bump any RecordedCutSelect refreshKey / re-fetch side effects. */
+  onCutRecorded?: () => void
 }
 
 export default function FreeRoamContent({
@@ -241,15 +256,14 @@ export default function FreeRoamContent({
   setCustomCutRatioInput,
   customCutRatios,
   requestedSqFt,
-  cutMetrics,
-  onRecordCut,
-  isRecordingCut,
   refreshKey,
   onLoadCut,
+  onCutRecorded,
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
   const [placements, setPlacements] = useState<ManualPlacement[]>([])
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null)
+  const [isRecordingCut, setIsRecordingCut] = useState(false)
 
   // Tag map — A / B / C / … per template so the canvas labels match
   // the parts queue. Uses partNumber when set (e.g. RF-000042), else
@@ -346,6 +360,62 @@ export default function FreeRoamContent({
       offcutPieces: [],
     }
   }, [placements, parts, stock])
+
+  // Record a manual-placement cut. Payload matches /api/cuts/history's
+  // shape but with `source: 'manual'` so analytics / history UI can
+  // distinguish from Auto-nest cuts. The route's DB column defaults
+  // to `auto`, so there's a hard backstop if this ever degrades to
+  // a plain POST without the field.
+  const handleRecordCut = useCallback(async () => {
+    if (isRecordingCut) return
+    if (!derivedMetrics || (derivedMetrics.partsCompleted ?? 0) === 0) {
+      toast.error("Place at least one part before recording")
+      return
+    }
+    setIsRecordingCut(true)
+    try {
+      const payload = {
+        material_id: 0,
+        part_id: 1, // PART_ID_TO_TYPE[1] = "rectangle" (generic)
+        roll_id: null,
+        job_id: null,
+        offcut_pieces: [],
+        cut_length: stock.length,
+        cut_width: stock.width,
+        cut_thickness: stock.thickness,
+        cut_amount: derivedMetrics.partsCompleted,
+        parts_completed: derivedMetrics.partsCompleted,
+        cut_pieces: derivedMetrics.cutPieces,
+        material_used_sqft: derivedMetrics.materialUsedSqFt,
+        reusable_offset_sqft: derivedMetrics.reusableOffsetSqFt,
+        scrap_sqft: derivedMetrics.scrapSqFt,
+        fab_score: derivedMetrics.fabScore,
+        stock_label: null,
+        cost_per_sqft: stock.costPerSqft ?? null,
+        source: "manual" as const,
+      }
+      const res = await fetch("/api/cuts/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        toast.error("Failed to record manual cut", {
+          description: text.slice(0, 200) || `HTTP ${res.status}`,
+        })
+        return
+      }
+      toast.success("Manual cut recorded")
+      onCutRecorded?.()
+    } catch (err) {
+      toast.error("Failed to record manual cut", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setIsRecordingCut(false)
+    }
+  }, [derivedMetrics, isRecordingCut, onCutRecorded, stock])
 
   // Keyboard shortcuts for the selected placement.
   //   Delete / Backspace — remove from canvas
@@ -471,8 +541,8 @@ export default function FreeRoamContent({
             setCustomCutRatioInput={setCustomCutRatioInput}
             customCutRatios={customCutRatios}
             requestedSqFt={requestedSqFt}
-            cutMetrics={derivedMetrics ?? cutMetrics}
-            onRecordCut={onRecordCut}
+            cutMetrics={derivedMetrics}
+            onRecordCut={handleRecordCut}
             isRecordingCut={isRecordingCut}
             refreshKey={refreshKey}
             onLoadCut={onLoadCut}

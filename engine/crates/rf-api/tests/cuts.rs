@@ -234,6 +234,7 @@ fn sample_entry(id: i64) -> CutHistoryEntry {
         cut_date: Some("2026-04-01T00:00:00Z".into()),
         created_at: None,
         updated_at: None,
+        source: Some("auto".into()),
     }
 }
 
