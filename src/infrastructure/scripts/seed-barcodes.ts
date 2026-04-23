@@ -65,6 +65,7 @@ interface SeedRoll {
   material_type: string
   width: number
   length: number
+  thickness: number
   remaining_length: number
   cost_per_sqft: number
   location: string
@@ -79,6 +80,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "EPDM 60A Black",
     width: 48,
     length: 120,
+    thickness: 0.5,
     remaining_length: 96,
     cost_per_sqft: 3.25,
     location: "Bay-1",
@@ -89,6 +91,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "Nitrile NBR-70",
     width: 60,
     length: 96,
+    thickness: 0.375,
     remaining_length: 62,
     cost_per_sqft: 4.1,
     location: "Bay-2",
@@ -99,6 +102,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "Neoprene CR-65",
     width: 36,
     length: 144,
+    thickness: 0.25,
     remaining_length: 14,
     cost_per_sqft: 3.75,
     location: "Bay-3",
@@ -109,6 +113,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "Silicone VMQ-60",
     width: 48,
     length: 72,
+    thickness: 0.125,
     remaining_length: 72,
     cost_per_sqft: 6.5,
     location: "Bay-4",
@@ -119,6 +124,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "Viton FKM-75",
     width: 36,
     length: 72,
+    thickness: 0.125,
     remaining_length: 0,
     cost_per_sqft: 14.2,
     location: "Bay-4",
@@ -129,6 +135,7 @@ const SEED_ROLLS: SeedRoll[] = [
     material_type: "EPDM 60A Black",
     width: 18,
     length: 48,
+    thickness: 0.5,
     remaining_length: 48,
     cost_per_sqft: 3.25,
     location: "Bay-1",
@@ -196,8 +203,13 @@ async function seedBarcodeRolls(userId: string): Promise<void> {
     return
   }
 
+  // Explicit false for is_offcut: supabase-js omits undefined keys,
+  // but the `rolls.is_offcut` column is NOT NULL and the default is
+  // only applied when the column is absent from the statement — which
+  // it won't be if we spread a partial object through supabase-js.
   const rows = SEED_ROLLS.map((roll) => ({
     ...roll,
+    is_offcut: roll.is_offcut ?? false,
     user_id: userId,
     date_received: roll.date_received ?? new Date().toISOString(),
   }))
