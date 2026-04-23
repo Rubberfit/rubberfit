@@ -1,16 +1,17 @@
 "use client"
 
-import { useState } from "react"
-import { Shapes } from "lucide-react"
+import { useMemo, useState } from "react"
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
 import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutDirection } from "./NestingVisualizer"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
+import type { LayoutModel } from "./layout-model"
 import { PartsQueuePanel, type PartsFilter } from "./parts-queue-panel"
 import { CanvasToolbar } from "./canvas-toolbar"
 import { StrategyResultsPanel } from "./strategy-results-panel"
+import KonvaSheetRenderer from "./KonvaSheetRenderer"
 
 /**
  * Free-roam tab content — three-column CAD-style workspace. Phase A
@@ -63,6 +64,26 @@ export default function FreeRoamContent({
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
 
+  // Empty LayoutModel renders just the sheet + grid. Placements come
+  // online in C11b (click-to-add) and C11c (drag interactions).
+  const emptyLayout = useMemo<LayoutModel>(
+    () => ({
+      sheetWidth: stock.width,
+      sheetLength: stock.length,
+      parts: [],
+      offcuts: [],
+      scrap: [],
+      placedCount: 0,
+      overflowCount: 0,
+      usedAreaSqFt: 0,
+      reusableAreaSqFt: 0,
+      scrapAreaSqFt: 0,
+      fabScore: 0,
+      source: "ts-nfp",
+    }),
+    [stock.width, stock.length]
+  )
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
       <WorkspaceRow className="min-h-[560px]">
@@ -77,17 +98,15 @@ export default function FreeRoamContent({
         <WorkspaceColumn column="center">
           <div className="flex h-full flex-col">
             <CanvasToolbar />
-            <div className="flex flex-1 items-center justify-center bg-muted/20 p-8 text-center text-muted-foreground">
-              <div className="flex max-w-sm flex-col items-center gap-3">
-                <Shapes className="h-12 w-12 opacity-30" aria-hidden="true" />
-                <p className="text-sm">
-                  Free-roam canvas coming online in C11 — drag parts from the queue, snap to grid,
-                  rotate with R, commit the layout as a cut.
-                </p>
-                <p className="text-[11px] text-muted-foreground/80">
-                  Stock: {stock.width}″ × {stock.length}″ × {stock.thickness}″
-                </p>
-              </div>
+            <div className="relative flex-1 bg-muted/10">
+              <KonvaSheetRenderer layout={emptyLayout} />
+              {parts.length === 0 && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+                  <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+                    Add parts from the queue to start. Drag &amp; drop lands in C11b.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </WorkspaceColumn>
