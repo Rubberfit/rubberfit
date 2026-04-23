@@ -211,14 +211,30 @@ export default function FreeRoamContent({
       setPlacements((prev) =>
         prev.map((p) => {
           if (p.id !== partId) return p
-          // Clamp to sheet bounds so a heavy drag doesn't fling the
-          // part off-sheet. Snap to grid + collision land in C11d.
           const template = parts.find((t) => t.id === p.templateId)
           const partW = template?.width ?? template?.diameter ?? 12
           const partH = template?.length ?? template?.height ?? template?.diameter ?? 12
-          const clampedX = Math.max(0, Math.min(stock.width - partW, xIn))
-          const clampedY = Math.max(0, Math.min(stock.length - partH, yIn))
-          return { ...p, x: clampedX, y: clampedY }
+
+          // Snap to grid — rounds to the nearest SNAP_STEP inch on
+          // drag end so placement stays orderly without fighting the
+          // operator mid-drag. Edge snap: within SNAP_EDGE inches of
+          // either border, clamp flush to that border instead of
+          // rounding to a grid step (the grid rarely hits exactly on
+          // the corner).
+          const SNAP_STEP = 1
+          const SNAP_EDGE = 0.25
+          const maxX = stock.width - partW
+          const maxY = stock.length - partH
+
+          const snapAxis = (v: number, max: number) => {
+            if (v < SNAP_EDGE) return 0
+            if (v > max - SNAP_EDGE) return Math.max(0, max)
+            return Math.round(v / SNAP_STEP) * SNAP_STEP
+          }
+
+          const snappedX = Math.max(0, Math.min(maxX, snapAxis(xIn, maxX)))
+          const snappedY = Math.max(0, Math.min(maxY, snapAxis(yIn, maxY)))
+          return { ...p, x: snappedX, y: snappedY }
         })
       )
     },

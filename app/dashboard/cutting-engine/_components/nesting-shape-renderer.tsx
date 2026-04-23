@@ -91,9 +91,9 @@ function PolygonShape({
         y={coords.py + coords.ph / 2}
         textAnchor="middle"
         dominantBaseline="middle"
-        fill="#e7e5e4"
+        fill="#111827"
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
+        fontWeight="700"
       >
         {tagLetter ?? item.label}
       </text>
@@ -352,9 +352,9 @@ function RectShape({
         x={coords.px + coords.pw / 2}
         y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
         textAnchor="middle"
-        fill="#e7e5e4"
+        fill="#111827"
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
+        fontWeight="700"
       >
         {tagLetter ?? item.label}
       </text>

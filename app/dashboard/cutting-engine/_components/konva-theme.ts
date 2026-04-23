@@ -42,8 +42,11 @@ const LIGHT: KonvaThemeTokens = {
   offcutStroke: "#f59e0b", // amber-500
   scrapFill: "#fef2f2", // red-50
   scrapStroke: "#ef4444", // red-500
-  labelFill: "#ffffff",
-  labelStroke: "rgba(0,0,0,0.55)",
+  // Tag labels are dark with a subtle white halo so they stay
+  // legible against both vibrant part fills AND the light sheet
+  // background when a label happens to overflow its part.
+  labelFill: "#111827", // gray-900
+  labelStroke: "rgba(255,255,255,0.85)",
   partStroke: "#ffffff",
 }
 
