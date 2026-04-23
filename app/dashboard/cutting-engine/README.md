@@ -4,6 +4,13 @@ The Cutting Engine is the core feature of Rubberfit. It calculates optimal layou
 
 Renamed from "Cut Planner" (and briefly "Nesting Engine") in S4 Task 8. Batch and Manual sub-modes were deleted in the same task — the single-job flow is the only surface. Legacy `/dashboard/cut-planner*` and `/dashboard/nesting-engine*` URLs both 308-redirect here via `next.config.mjs`.
 
+**Two surfaces** as of S5:
+
+- `/dashboard/cutting-engine` — **Auto nest** (this directory). Preset/custom part selection + stock config above a classic vertical layout → `NestingVisualizer` computes the optimal packing.
+- `/dashboard/cutting-engine/free-roam` — **Free roam** (in `free-roam/`). CAD-style three-column workspace for manual part placement. Drags onto the sheet, snaps to grid, same amber/red semantics. See `_components/free-roam-content.tsx` for the shell.
+
+Both surfaces share the same packing engine (`pack-cli`) and waste/offcut semantics. They differ in UX intent: Auto nest = fast automated preview; Free roam = manual CAD-like authoring.
+
 ## Flow
 
 User selects a part type (preset or custom), enters dimensions, sets quantity, and sees a real-time Konva preview of the nested layout on the selected stock. Supports rectangles, circles, cylinders, cones, trapezoids, and annular sectors. The Pack call resolves `IPackingService` from the TSyringe container; the Rust `pack-cli` binary runs the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). See `engine.ltx` for the algorithm writeup.

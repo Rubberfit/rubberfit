@@ -83,6 +83,16 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/cutting-engine",
         icon: Scissors,
         requiredPermission: "accessCutPlanner",
+        subItems: [
+          {
+            title: "Auto nest",
+            url: "/dashboard/cutting-engine",
+          },
+          {
+            title: "Free roam",
+            url: "/dashboard/cutting-engine/free-roam",
+          },
+        ],
       },
       {
         title: "Cut History",

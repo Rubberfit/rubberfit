@@ -67,24 +67,146 @@ interface Command {
 }
 
 const COMMANDS: ReadonlyArray<Command> = [
-  { id: "nav.dashboard", group: "Go to", icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", chord: "d" },
-  { id: "nav.cutting-engine", group: "Go to", icon: Scissors, label: "Cutting Engine", href: "/dashboard/cutting-engine", chord: "n", requiredPermission: "accessCutPlanner" },
-  { id: "nav.history", group: "Go to", icon: History, label: "Cut History", href: "/dashboard/history", chord: "h", requiredPermission: "viewCutHistory" },
-  { id: "nav.inventory", group: "Go to", icon: Package, label: "Inventory", href: "/dashboard/inventory", chord: "i", requiredPermission: "viewInventory" },
-  { id: "nav.pos", group: "Go to", icon: ShoppingCart, label: "Purchase Orders", href: "/dashboard/inventory/purchase-orders", chord: "p", requiredPermission: "manageRolls" },
-  { id: "nav.suppliers", group: "Go to", icon: Truck, label: "Suppliers", href: "/dashboard/inventory/materials/suppliers", requiredPermission: "manageSuppliers" },
-  { id: "nav.analytics", group: "Go to", icon: BarChart3, label: "Analytics", href: "/dashboard/analytics/waste", chord: "a", requiredPermission: "accessAnalytics" },
-  { id: "nav.reports", group: "Go to", icon: FileText, label: "Reports", href: "/dashboard/analytics/reports", requiredPermission: "viewReports" },
-  { id: "nav.notifications", group: "Go to", icon: Bell, label: "Notifications", href: "/dashboard/notifications" },
+  {
+    id: "nav.dashboard",
+    group: "Go to",
+    icon: LayoutDashboard,
+    label: "Dashboard",
+    href: "/dashboard",
+    chord: "d",
+  },
+  {
+    id: "nav.cutting-engine",
+    group: "Go to",
+    icon: Scissors,
+    label: "Cutting Engine — Auto nest",
+    href: "/dashboard/cutting-engine",
+    chord: "n",
+    requiredPermission: "accessCutPlanner",
+  },
+  {
+    id: "nav.cutting-engine-free-roam",
+    group: "Go to",
+    icon: Scissors,
+    label: "Cutting Engine — Free roam",
+    href: "/dashboard/cutting-engine/free-roam",
+    requiredPermission: "accessCutPlanner",
+  },
+  {
+    id: "nav.history",
+    group: "Go to",
+    icon: History,
+    label: "Cut History",
+    href: "/dashboard/history",
+    chord: "h",
+    requiredPermission: "viewCutHistory",
+  },
+  {
+    id: "nav.inventory",
+    group: "Go to",
+    icon: Package,
+    label: "Inventory",
+    href: "/dashboard/inventory",
+    chord: "i",
+    requiredPermission: "viewInventory",
+  },
+  {
+    id: "nav.pos",
+    group: "Go to",
+    icon: ShoppingCart,
+    label: "Purchase Orders",
+    href: "/dashboard/inventory/purchase-orders",
+    chord: "p",
+    requiredPermission: "manageRolls",
+  },
+  {
+    id: "nav.suppliers",
+    group: "Go to",
+    icon: Truck,
+    label: "Suppliers",
+    href: "/dashboard/inventory/materials/suppliers",
+    requiredPermission: "manageSuppliers",
+  },
+  {
+    id: "nav.analytics",
+    group: "Go to",
+    icon: BarChart3,
+    label: "Analytics",
+    href: "/dashboard/analytics/waste",
+    chord: "a",
+    requiredPermission: "accessAnalytics",
+  },
+  {
+    id: "nav.reports",
+    group: "Go to",
+    icon: FileText,
+    label: "Reports",
+    href: "/dashboard/analytics/reports",
+    requiredPermission: "viewReports",
+  },
+  {
+    id: "nav.notifications",
+    group: "Go to",
+    icon: Bell,
+    label: "Notifications",
+    href: "/dashboard/notifications",
+  },
 
-  { id: "act.new-po", group: "Actions", icon: Plus, label: "Create purchase order", href: "/dashboard/inventory/purchase-orders?action=new", requiredPermission: "manageRolls" },
-  { id: "act.new-roll", group: "Actions", icon: Plus, label: "Add inventory roll", href: "/dashboard/inventory?action=add-roll", requiredPermission: "manageRolls" },
-  { id: "act.import-csv", group: "Actions", icon: Upload, label: "Import rolls from CSV", href: "/dashboard/inventory/import", requiredPermission: "manageRolls" },
-  { id: "act.plan-cut", group: "Actions", icon: Scissors, label: "Plan a cut", href: "/dashboard/cutting-engine", requiredPermission: "createCut" },
+  {
+    id: "act.new-po",
+    group: "Actions",
+    icon: Plus,
+    label: "Create purchase order",
+    href: "/dashboard/inventory/purchase-orders?action=new",
+    requiredPermission: "manageRolls",
+  },
+  {
+    id: "act.new-roll",
+    group: "Actions",
+    icon: Plus,
+    label: "Add inventory roll",
+    href: "/dashboard/inventory?action=add-roll",
+    requiredPermission: "manageRolls",
+  },
+  {
+    id: "act.import-csv",
+    group: "Actions",
+    icon: Upload,
+    label: "Import rolls from CSV",
+    href: "/dashboard/inventory/import",
+    requiredPermission: "manageRolls",
+  },
+  {
+    id: "act.plan-cut",
+    group: "Actions",
+    icon: Scissors,
+    label: "Plan a cut",
+    href: "/dashboard/cutting-engine",
+    requiredPermission: "createCut",
+  },
 
-  { id: "settings.profile", group: "Settings", icon: Users, label: "Profile & account", href: "/dashboard/settings/profile" },
-  { id: "settings.general", group: "Settings", icon: Settings, label: "General settings", href: "/dashboard/settings/general", requiredPermission: "manageUsers" },
-  { id: "settings.notifications", group: "Settings", icon: Bell, label: "Notification preferences", href: "/dashboard/settings/notifications" },
+  {
+    id: "settings.profile",
+    group: "Settings",
+    icon: Users,
+    label: "Profile & account",
+    href: "/dashboard/settings/profile",
+  },
+  {
+    id: "settings.general",
+    group: "Settings",
+    icon: Settings,
+    label: "General settings",
+    href: "/dashboard/settings/general",
+    requiredPermission: "manageUsers",
+  },
+  {
+    id: "settings.notifications",
+    group: "Settings",
+    icon: Bell,
+    label: "Notification preferences",
+    href: "/dashboard/settings/notifications",
+  },
 ]
 
 const CHORD_WINDOW_MS = 1200
@@ -124,9 +246,7 @@ export function SearchDialog() {
       // Skip chord capture when typing in an editable field.
       const target = e.target as HTMLElement | null
       const isEditable =
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable
 
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
