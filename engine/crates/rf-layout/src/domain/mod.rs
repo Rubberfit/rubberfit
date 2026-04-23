@@ -7,7 +7,8 @@ pub mod result;
 pub use errors::PackError;
 pub use options::SearchOptions;
 pub use request::{
-    Bin, BinKind, GrainAxis, OperatorProfile, PackMode, PackRequest, Part, ShapeSpec, UnitSystem,
+    Bin, BinKind, GrainAxis, OperatorProfile, PackEngine, PackMode, PackRequest, Part, ShapeSpec,
+    UnitSystem,
 };
 pub use request::{BALANCED_MS, FAST_MS, THOROUGH_MS};
 pub use result::{BinResult, PackResult, Placement};

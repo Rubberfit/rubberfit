@@ -76,6 +76,22 @@ pub enum PackMode {
     Thorough,
 }
 
+/// Which backend engine pack-cli should dispatch to.
+///
+/// - `Default` → `pack_lbf_lns`: polygon-aware LBF + LNS refinement.
+/// - `Lbf`     → constructive LBF only.
+/// - `Legacy`  → pre-Phase-3 `pack()` path; benches / debug only.
+///
+/// Request-level takes priority; when absent, pack-cli reads the
+/// `RF_ENGINE` environment variable, then falls back to `Default`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PackEngine {
+    Default,
+    Lbf,
+    Legacy,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PackRequest {
@@ -87,6 +103,8 @@ pub struct PackRequest {
     pub operator_profile: Option<OperatorProfile>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub mode: Option<PackMode>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub engine: Option<PackEngine>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub time_budget_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none", default)]

@@ -16,7 +16,28 @@
 use rf_layout::application::pack::{pack, pack_with_options};
 use rf_layout::application::pack_lbf::pack_lbf;
 use rf_layout::application::pack_lbf_lns::pack_lbf_lns;
-use rf_layout::domain::{PackRequest, PackResult, SearchOptions};
+use rf_layout::domain::{PackEngine, PackRequest, PackResult, SearchOptions};
+
+/// Resolve which backend to dispatch to.
+///
+/// Priority:
+///   1. `request.engine` (in-band, request-level)
+///   2. `RF_ENGINE` environment variable — `"legacy"` / `"lbf"` /
+///      anything else (incl. unset) → `Default`
+///
+/// Request-level wins so the client can choose per-request without
+/// needing control of the server's env. Env var is kept as a legacy
+/// escape hatch + CI knob.
+fn resolve_engine(request: &PackRequest) -> PackEngine {
+    if let Some(e) = request.engine {
+        return e;
+    }
+    match std::env::var("RF_ENGINE").as_deref() {
+        Ok("legacy") => PackEngine::Legacy,
+        Ok("lbf") => PackEngine::Lbf,
+        _ => PackEngine::Default,
+    }
+}
 use rf_layout::infrastructure::search::progress::ProgressCallback;
 use serde_json::Deserializer;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -51,13 +72,13 @@ fn run_batch() -> ExitCode {
     };
     // Engine selection. Default is pack_lbf_lns + polish (the Phase 3
     // pipeline): polygon-aware LBF constructive → density-changing LNS
-    // → score-aware polish. The legacy pack() path is retained behind
-    // `RF_ENGINE=legacy` as an escape hatch; `RF_ENGINE=lbf` skips
-    // LNS. Both are primarily for benches and debugging.
-    let result = match std::env::var("RF_ENGINE").as_deref() {
-        Ok("legacy") => pack(request),
-        Ok("lbf") => pack_lbf(request),
-        _ => pack_lbf_lns(request),
+    // → score-aware polish. Legacy + LBF-only paths remain for benches
+    // and debug. Request-level `engine` wins over the `RF_ENGINE` env
+    // var so clients can pick per-request without server restart.
+    let result = match resolve_engine(&request) {
+        PackEngine::Legacy => pack(request),
+        PackEngine::Lbf => pack_lbf(request),
+        PackEngine::Default => pack_lbf_lns(request),
     };
     match result {
         Ok(result) => write_json_line(&result),

@@ -428,6 +428,7 @@ mod tests {
             items,
             operator_profile: None,
             mode: Some(PackMode::Fast),
+            engine: None,
             time_budget_ms: None,
             improvement_budget_ms: None,
             seed: Some(42),

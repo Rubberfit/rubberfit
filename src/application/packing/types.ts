@@ -26,6 +26,19 @@ export interface Bin {
   priority?: number
 }
 
+/**
+ * pack-cli backend engine selector.
+ *
+ * - `default` — `pack_lbf_lns`: polygon-aware LBF + LNS refinement
+ *   (Phase 3 pipeline, production default).
+ * - `lbf` — constructive LBF only, no LNS. Faster, lower density.
+ * - `legacy` — pre-Phase-3 `pack()`. Retained for benches + debug.
+ *
+ * Omitting falls back to the `RF_ENGINE` env var server-side,
+ * then to `default`.
+ */
+export type PackEngine = "default" | "lbf" | "legacy"
+
 export interface PackRequest {
   bins: Bin[]
   clearance: number
@@ -35,6 +48,7 @@ export interface PackRequest {
     maxDifficulty: number
   }
   mode?: "fast" | "balanced" | "thorough"
+  engine?: PackEngine
   timeBudgetMs?: number
   improvementBudgetMs?: number
   seed?: number
