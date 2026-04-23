@@ -206,6 +206,25 @@ export default function FreeRoamContent({
     [placements, parts, stock, tagByTemplateId]
   )
 
+  const handlePartDragEnd = useCallback(
+    (partId: string, xIn: number, yIn: number) => {
+      setPlacements((prev) =>
+        prev.map((p) => {
+          if (p.id !== partId) return p
+          // Clamp to sheet bounds so a heavy drag doesn't fling the
+          // part off-sheet. Snap to grid + collision land in C11d.
+          const template = parts.find((t) => t.id === p.templateId)
+          const partW = template?.width ?? template?.diameter ?? 12
+          const partH = template?.length ?? template?.height ?? template?.diameter ?? 12
+          const clampedX = Math.max(0, Math.min(stock.width - partW, xIn))
+          const clampedY = Math.max(0, Math.min(stock.length - partH, yIn))
+          return { ...p, x: clampedX, y: clampedY }
+        })
+      )
+    },
+    [parts, stock.width, stock.length]
+  )
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
       <WorkspaceRow className="min-h-[560px]">
@@ -223,7 +242,7 @@ export default function FreeRoamContent({
           <div className="flex h-full flex-col">
             <CanvasToolbar />
             <div className="relative flex-1 bg-muted/10">
-              <KonvaSheetRenderer layout={layout} />
+              <KonvaSheetRenderer layout={layout} onPartDragEnd={handlePartDragEnd} />
               {parts.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
@@ -233,8 +252,8 @@ export default function FreeRoamContent({
               ) : placements.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Click a part in the queue to place an instance. Drag / snap / rotate land in
-                    C11c.
+                    Click a part in the queue to place an instance. Drag to move. Snap + collision
+                    land in C11d.
                   </div>
                 </div>
               ) : null}

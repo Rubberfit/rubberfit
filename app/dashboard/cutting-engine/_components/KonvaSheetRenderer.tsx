@@ -1,9 +1,17 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import type { KonvaEventObject } from "konva/lib/Node"
 import { Stage, Layer, Rect, Circle, Line, Text, Group } from "react-konva"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
+
+/**
+ * Callback when a draggable part finishes moving. Coordinates are
+ * in SHEET INCHES (not pixels) so callers don't need to know the
+ * canvas scale. Only fires when `draggable` is enabled.
+ */
+type PartDragEnd = (partId: string, xIn: number, yIn: number) => void
 
 // ── Shape renderers ──────────────────────────────────────────────────────────
 
@@ -12,87 +20,74 @@ function PartShape({
   scale,
   fill,
   theme,
+  draggable,
+  onDragEnd,
 }: {
   part: PlacedPart
   scale: number
   fill: string
   theme: KonvaThemeTokens
+  draggable: boolean
+  onDragEnd?: PartDragEnd
 }) {
-  const px = part.x * scale
-  const py = part.y * scale
   const pw = part.width * scale
   const ph = part.height * scale
-  const cx = px + pw / 2
-  const cy = py + ph / 2
 
+  // Outer Group sits at the part's top-left in pixel space. Children
+  // render in that group's local frame (origin = part top-left), so
+  // dragging the group moves everything — shape + label — as a unit.
+  // On drag end we convert group-position back to sheet inches before
+  // firing the callback.
+  const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
+    if (!onDragEnd) return
+    onDragEnd(part.id, e.target.x() / scale, e.target.y() / scale)
+  }
+
+  let body: React.ReactNode
   if (part.renderShape === "circle" && part.diameter != null) {
     const r = (part.diameter / 2) * scale
-    return (
-      <Group>
-        <Circle x={cx} y={cy} radius={r} fill={fill} stroke={theme.partStroke} strokeWidth={1} />
-        <Text
-          x={cx - pw / 2}
-          y={cy - 8}
-          width={pw}
-          height={16}
-          text={part.label}
-          fontSize={Math.max(9, Math.min(14, pw / 3))}
-          fill={theme.labelFill}
-          stroke={theme.labelStroke}
-          strokeWidth={2}
-          fillAfterStrokeEnabled
-          fontStyle="bold"
-          align="center"
-          verticalAlign="middle"
-          listening={false}
-        />
-      </Group>
+    body = (
+      <Circle
+        x={pw / 2}
+        y={ph / 2}
+        radius={r}
+        fill={fill}
+        stroke={theme.partStroke}
+        strokeWidth={1}
+      />
     )
-  }
-
-  if (part.polygon && part.polygon.length >= 3) {
-    const points = part.polygon.flatMap((pt) => [pt.x * scale, pt.y * scale])
-    return (
-      <Group>
-        <Line points={points} closed fill={fill} stroke={theme.partStroke} strokeWidth={1} />
-        <Text
-          x={cx - pw / 2}
-          y={cy - 8}
-          width={pw}
-          height={16}
-          text={part.label}
-          fontSize={Math.max(9, Math.min(14, pw / 3))}
-          fill={theme.labelFill}
-          stroke={theme.labelStroke}
-          strokeWidth={2}
-          fillAfterStrokeEnabled
-          fontStyle="bold"
-          align="center"
-          verticalAlign="middle"
-          listening={false}
-        />
-      </Group>
-    )
-  }
-
-  return (
-    <Group>
+  } else if (part.polygon && part.polygon.length >= 3) {
+    // Polygon points are absolute sheet coords — translate them to
+    // the group's local frame (part top-left) so dragging the group
+    // moves the polygon with it.
+    const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
+    body = <Line points={points} closed fill={fill} stroke={theme.partStroke} strokeWidth={1} />
+  } else {
+    body = (
       <Rect
-        x={px}
-        y={py}
+        x={0}
+        y={0}
         width={pw}
         height={ph}
         fill={fill}
         stroke={theme.partStroke}
         strokeWidth={1}
       />
+    )
+  }
+
+  const fontSize = Math.max(9, Math.min(14, Math.min(pw, ph) / 3))
+
+  return (
+    <Group x={part.x * scale} y={part.y * scale} draggable={draggable} onDragEnd={handleDragEnd}>
+      {body}
       <Text
-        x={px}
-        y={cy - 8}
+        x={0}
+        y={ph / 2 - fontSize}
         width={pw}
-        height={16}
+        height={fontSize * 2}
         text={part.label}
-        fontSize={Math.max(9, Math.min(14, Math.min(pw, ph) / 3))}
+        fontSize={fontSize}
         fill={theme.labelFill}
         stroke={theme.labelStroke}
         strokeWidth={2}
@@ -181,9 +176,19 @@ function GridLines({
 interface KonvaSheetRendererProps {
   layout: LayoutModel
   className?: string
+  /**
+   * When set, each rendered part is draggable; the callback fires on
+   * drag end with the new position in sheet inches. Omitting the
+   * prop leaves the canvas read-only (Auto-nest Graph surface).
+   */
+  onPartDragEnd?: PartDragEnd
 }
 
-export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRendererProps) {
+export default function KonvaSheetRenderer({
+  layout,
+  className,
+  onPartDragEnd,
+}: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const theme = useKonvaTheme()
@@ -263,6 +268,8 @@ export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRend
                 scale={scale}
                 fill={theme.partFills[part.specIndex % theme.partFills.length]}
                 theme={theme}
+                draggable={typeof onPartDragEnd === "function"}
+                onDragEnd={onPartDragEnd}
               />
             ))}
           </Layer>
