@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   getLocalStorageValue,
   removeLocalStorageValue,
@@ -28,6 +28,16 @@ import {
   templateFitsStock,
   formatInches,
 } from "./preset-utils"
+import type {
+  SelectionPreset,
+  PresetTemplateSnapshot,
+} from "./selection-presets"
+import {
+  loadSelectionPresets,
+  saveSelectionPresets,
+  findMatchingTemplate,
+  templateFromDims,
+} from "./selection-presets"
 
 /** Mirrors PartCustomDimensions from the infrastructure layer — kept local to
  *  avoid coupling this component file to the database model. */
@@ -43,128 +53,32 @@ interface DimensionSet {
   arcDegrees?: number
 }
 
-export interface LoadedSelection {
-  /** Part type tab to switch to */
+interface LoadedSelectionEntry {
   partType: SupportedPartType
-  /** Labels from part_selected_size_text — used to match PART_TEMPLATES by label */
   labels: string[]
-  /** Increment to force the effect to re-run even when partType + labels are identical */
-  nonce: number
-  /**
-   * Explicit per-template dimension data from part_custom_dimensions.
-   * Legacy fallback: only used when prebuiltTemplates is absent or empty.
-   */
   customDimensions?: DimensionSet[]
-  /**
-   * Fully-constructed PartTemplates for every size text that was recorded with
-   * the cut.  The selector matches built-in presets by label first; anything
-   * unmatched is created as a custom template from this array and auto-checked.
-   * Index 0 also pre-fills the custom-size form so the user can inspect / tweak
-   * it and optionally save it as a permanent preset.
-   */
-  prebuiltTemplates?: PartTemplate[]
+  quantityPerIndex?: number[]
 }
 
-/** Returns the first template whose dimensions exactly match the stored dimension set. */
-function findMatchingTemplate(
-  templates: PartTemplate[],
-  dims: DimensionSet,
+export interface LoadedSelection {
+  /** Primary part type tab to activate — kept for backward compat (= first entry's type). */
   partType: SupportedPartType
-): PartTemplate | null {
-  return (
-    templates.find((t) => {
-      if (t.partType !== partType) return false
-      switch (partType) {
-        case "rectangle":
-          return t.width === dims.width && t.length === dims.length
-        case "cylinder":
-          return t.diameter === dims.diameter && t.height === dims.height
-        case "cone":
-          return (
-            t.innerRadius === dims.innerRadius &&
-            t.outerRadius === dims.outerRadius &&
-            t.arcDegrees === dims.arcDegrees
-          )
-        case "trapezoid":
-          return (
-            t.topWidth === dims.topWidth &&
-            t.bottomWidth === dims.bottomWidth &&
-            t.height === dims.height
-          )
-        default:
-          return false
-      }
-    }) ?? null
-  )
+  /** Labels for single-type legacy fallback. */
+  labels: string[]
+  /** Increment to force the effect to re-run even when partType + labels are identical. */
+  nonce: number
+  /** Explicit dimension data — single-type legacy path. */
+  customDimensions?: DimensionSet[]
+  /** Fully-constructed PartTemplates (single-type legacy path). */
+  prebuiltTemplates?: PartTemplate[]
+  /** Quantity overrides for the single-type legacy path, parallel to labels. */
+  quantityPerIndex?: number[]
+  /** NEW: multi-type entries — when present, supersedes the single-type fields above
+   *  for template resolution. `partType` / `labels` are still used as fallbacks. */
+  multiTypeEntries?: LoadedSelectionEntry[]
 }
 
-/** Build a PartTemplate directly from stored dimensions — same ID/label
- *  format as buildCustomTemplate() so identical templates deduplicate. */
-function templateFromDims(partType: SupportedPartType, dims: DimensionSet): PartTemplate | null {
-  switch (partType) {
-    case "rectangle": {
-      if (dims.width == null || dims.length == null) return null
-      return {
-        id: `custom-rectangle-${dims.width}-${dims.length}`,
-        partType,
-        label: `${dims.width}" × ${dims.length}"`,
-        summary: "Custom rectangular cut",
-        quantity: 1,
-        category: "custom",
-        isCustom: true,
-        width: dims.width,
-        length: dims.length,
-      }
-    }
-    case "cylinder": {
-      if (dims.diameter == null || dims.height == null) return null
-      return {
-        id: `custom-cylinder-${dims.diameter}-${dims.height}`,
-        partType,
-        label: `Ø${dims.diameter}" × ${dims.height}"`,
-        summary: "Custom cylinder wrap",
-        quantity: 1,
-        category: "custom",
-        isCustom: true,
-        diameter: dims.diameter,
-        height: dims.height,
-      }
-    }
-    case "cone": {
-      if (dims.arcDegrees == null || dims.innerRadius == null || dims.outerRadius == null)
-        return null
-      return {
-        id: `custom-cone-${dims.innerRadius}-${dims.outerRadius}-${dims.arcDegrees}`,
-        partType,
-        label: `${dims.arcDegrees}° • R${dims.innerRadius}" to R${dims.outerRadius}"`,
-        summary: "Custom cone spread",
-        quantity: 1,
-        category: "custom",
-        isCustom: true,
-        arcDegrees: dims.arcDegrees,
-        innerRadius: dims.innerRadius,
-        outerRadius: dims.outerRadius,
-      }
-    }
-    case "trapezoid": {
-      if (dims.topWidth == null || dims.bottomWidth == null || dims.height == null) return null
-      return {
-        id: `custom-trapezoid-${dims.topWidth}-${dims.bottomWidth}-${dims.height}`,
-        partType,
-        label: `${dims.topWidth}" / ${dims.bottomWidth}" × ${dims.height}"`,
-        summary: "Custom hopper panel",
-        quantity: 1,
-        category: "custom",
-        isCustom: true,
-        topWidth: dims.topWidth,
-        bottomWidth: dims.bottomWidth,
-        height: dims.height,
-      }
-    }
-    default:
-      return null
-  }
-}
+// ── localStorage helpers ──────────────────────────────────────────────────────
 
 function hydrateCustomTemplates(
   raw: string
@@ -208,6 +122,13 @@ export function usePresetState(
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map())
 
+  // ── Active selection — unifies external prop + internal preset loads ────────
+  const [activeSelection, setActiveSelection] = useState<LoadedSelection | null>(null)
+
+  // ── Selection presets ──────────────────────────────────────────────────────
+  const [selectionPresets, setSelectionPresets] = useState<SelectionPreset[]>([])
+
+  // Load persisted custom templates on mount
   useEffect(() => {
     let raw = getLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
     if (!raw) {
@@ -223,16 +144,30 @@ export function usePresetState(
       removeLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY)
       return
     }
-    // Defer to avoid React state updates during the initial render phase
     queueMicrotask(() => {
       setCustomTemplates(result.hydrated)
       setNextCustomId(result.maxId + 1)
     })
   }, [])
 
+  // Persist custom templates whenever they change
   useEffect(() => {
     setLocalStorageValue(CUSTOM_TEMPLATE_STORAGE_KEY, JSON.stringify(customTemplates))
   }, [customTemplates])
+
+  // Load persisted selection presets on mount
+  useEffect(() => {
+    setSelectionPresets(loadSelectionPresets())
+  }, [])
+
+  // Sync external loadedSelection into activeSelection
+  useEffect(() => {
+    if (loadedSelection) {
+      setActiveSelection(loadedSelection)
+    }
+  }, [loadedSelection])
+
+  // ── Derived state ──────────────────────────────────────────────────────────
 
   const sizeOptions = useMemo(
     () => [
@@ -313,127 +248,144 @@ export function usePresetState(
     0
   )
 
-  // Effect: respond to an external load trigger (e.g. loading a recorded cut)
-  useEffect(() => {
-    if (!loadedSelection) return
-    const { partType, labels, customDimensions } = loadedSelection
+  // ── Load effect — responds to activeSelection (external prop or preset load) ─
 
-    setSelectedPart(partType)
+  useEffect(() => {
+    if (!activeSelection) return
+
+    // Normalize: build a unified entries list from either multi-type or legacy fields
+    const entries: LoadedSelectionEntry[] =
+      activeSelection.multiTypeEntries && activeSelection.multiTypeEntries.length > 0
+        ? activeSelection.multiTypeEntries
+        : [
+            {
+              partType: activeSelection.partType,
+              labels: activeSelection.labels,
+              customDimensions: activeSelection.customDimensions,
+              quantityPerIndex: activeSelection.quantityPerIndex,
+            },
+          ]
+
+    setSelectedPart(entries[0]?.partType ?? "rectangle")
     setFilter("all")
     setEditingCustomId(null)
 
-    if (customDimensions && customDimensions.length > 0) {
-      // ── Path A: explicit dimension data is available ───────────────────────
-      // For each stored dimension set, first try to match an existing preset or
-      // saved custom template.  Only create a new custom button when there is
-      // truly no match.
-      const builtinForType = PART_TEMPLATES.filter((t) => t.partType === partType)
+    setCustomTemplates((prev) => {
+      const next = { ...prev }
+      const allIdsToCheck: string[] = []
+      const allQtyOverrides: [string, number][] = []
 
-      setCustomTemplates((prev) => {
-        const existingCustom = prev[partType]
+      for (const entry of entries) {
+        const { partType, labels, customDimensions, quantityPerIndex } = entry
+        const builtinForType = PART_TEMPLATES.filter((t) => t.partType === partType)
+        const existingCustom = next[partType]
         const allForType = [...builtinForType, ...existingCustom]
-
-        const idsToCheck: string[] = []
-        const toAdd: PartTemplate[] = []
         const seenIds = new Set(allForType.map((t) => t.id))
+        const entryIds: string[] = []
+        const toAdd: PartTemplate[] = []
 
-        for (const dims of customDimensions) {
-          const match = findMatchingTemplate(allForType, dims, partType)
-          if (match) {
-            // Existing preset or custom template — just check it.
-            idsToCheck.push(match.id)
-          } else {
-            // No match — build a new custom template.
-            const newTemplate = templateFromDims(partType, dims)
-            if (newTemplate && !seenIds.has(newTemplate.id)) {
-              toAdd.push(newTemplate)
-              seenIds.add(newTemplate.id)
-              allForType.push(newTemplate) // visible to subsequent loop iterations
+        if (customDimensions && customDimensions.length > 0) {
+          for (const dims of customDimensions) {
+            const match = findMatchingTemplate(allForType, dims, partType)
+            if (match) {
+              entryIds.push(match.id)
+            } else {
+              const newTemplate = templateFromDims(partType, dims)
+              if (newTemplate && !seenIds.has(newTemplate.id)) {
+                toAdd.push(newTemplate)
+                seenIds.add(newTemplate.id)
+                allForType.push(newTemplate)
+              }
+              if (newTemplate) entryIds.push(newTemplate.id)
             }
-            if (newTemplate) idsToCheck.push(newTemplate.id)
           }
+        } else {
+          // Label fallback (legacy records without stored dimensions)
+          const matched = allForType
+            .filter((t) => labels.includes(t.label))
+            .map((t) => t.id)
+          entryIds.push(...matched)
         }
 
-        // Schedule downstream state updates after this batch lands.
-        queueMicrotask(() => {
-          if (idsToCheck.length === 0) {
-            suppressNextApplyRef.current = true
-            setChecked(new Set())
-            return
-          }
-          setChecked(new Set(idsToCheck))
+        allIdsToCheck.push(...entryIds)
 
-          // Pre-fill the custom-size form with index 0's values so the user can
-          // inspect / tweak the primary size and optionally save it as a preset.
-          const d = customDimensions[0]
-          if (d) {
-            setCustomDrafts((prev) => {
-              switch (partType) {
-                case "rectangle":
-                  return {
-                    ...prev,
-                    rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") },
-                  }
-                case "cylinder":
-                  return {
-                    ...prev,
-                    cylinder: {
-                      diameter: String(d.diameter ?? ""),
-                      height: String(d.height ?? ""),
-                    },
-                  }
-                case "cone":
-                  return {
-                    ...prev,
-                    cone: {
-                      innerRadius: String(d.innerRadius ?? ""),
-                      outerRadius: String(d.outerRadius ?? ""),
-                      arcDegrees: String(d.arcDegrees ?? ""),
-                    },
-                  }
-                case "trapezoid":
-                  return {
-                    ...prev,
-                    trapezoid: {
-                      topWidth: String(d.topWidth ?? ""),
-                      bottomWidth: String(d.bottomWidth ?? ""),
-                      height: String(d.height ?? ""),
-                    },
-                  }
-                default:
-                  return prev
-              }
-            })
-          }
-        })
+        // Collect quantity overrides
+        if (quantityPerIndex) {
+          entryIds.forEach((id, i) => {
+            const qty = quantityPerIndex[i]
+            if (qty !== undefined && qty > 1) {
+              allQtyOverrides.push([id, qty])
+            }
+          })
+        }
 
-        if (toAdd.length === 0) return prev
-        return { ...prev, [partType]: [...existingCustom, ...toAdd] }
+        if (toAdd.length > 0) {
+          next[partType] = [...existingCustom, ...toAdd]
+        }
+      }
+
+      queueMicrotask(() => {
+        if (allIdsToCheck.length === 0) {
+          suppressNextApplyRef.current = true
+          setChecked(new Set())
+          return
+        }
+        setChecked(new Set(allIdsToCheck))
+
+        if (allQtyOverrides.length > 0) {
+          setQuantities(new Map(allQtyOverrides))
+        }
+
+        // Pre-fill custom form with first entry's first dimension
+        const firstEntry = entries[0]
+        if (firstEntry?.customDimensions?.[0]) {
+          const d = firstEntry.customDimensions[0]
+          const pt = firstEntry.partType
+          setCustomDrafts((prev) => {
+            switch (pt) {
+              case "rectangle":
+                return {
+                  ...prev,
+                  rectangle: { width: String(d.width ?? ""), length: String(d.length ?? "") },
+                }
+              case "cylinder":
+                return {
+                  ...prev,
+                  cylinder: {
+                    diameter: String(d.diameter ?? ""),
+                    height: String(d.height ?? ""),
+                  },
+                }
+              case "cone":
+                return {
+                  ...prev,
+                  cone: {
+                    innerRadius: String(d.innerRadius ?? ""),
+                    outerRadius: String(d.outerRadius ?? ""),
+                    arcDegrees: String(d.arcDegrees ?? ""),
+                  },
+                }
+              case "trapezoid":
+                return {
+                  ...prev,
+                  trapezoid: {
+                    topWidth: String(d.topWidth ?? ""),
+                    bottomWidth: String(d.bottomWidth ?? ""),
+                    height: String(d.height ?? ""),
+                  },
+                }
+              default:
+                return prev
+            }
+          })
+        }
       })
-    } else {
-      // ── Path B: no stored dimensions — fall back to label matching ─────────
-      // Match against both built-in presets AND the user's saved custom templates.
-      setCustomTemplates((prev) => {
-        const existingCustom = prev[partType]
-        const allForType = [
-          ...PART_TEMPLATES.filter((t) => t.partType === partType),
-          ...existingCustom,
-        ]
-        const matchedIds = new Set(
-          allForType.filter((t) => labels.includes(t.label)).map((t) => t.id)
-        )
-        queueMicrotask(() => {
-          if (matchedIds.size === 0) {
-            // No preset match — suppress the next onApply so we don't wipe caller state
-            suppressNextApplyRef.current = true
-          }
-          setChecked(matchedIds)
-        })
-        return prev
-      })
-    }
-  }, [loadedSelection])
 
+      return next
+    })
+  }, [activeSelection])
+
+  // Notify parent when selected templates change
   useEffect(() => {
     if (suppressNextApplyRef.current) {
       suppressNextApplyRef.current = false
@@ -441,6 +393,94 @@ export function usePresetState(
     }
     onApply?.(selectedTemplates)
   }, [onApply, selectedTemplates])
+
+  // ── Preset management ──────────────────────────────────────────────────────
+
+  /** Save the current selection (all checked templates + quantities) as a named preset. */
+  const saveCurrentAsPreset = useCallback(
+    (name: string): boolean => {
+      if (!name.trim() || selectedTemplates.length === 0) return false
+      const snapshot: PresetTemplateSnapshot[] = selectedTemplates.map((t) => ({
+        id: t.id,
+        partType: t.partType as SupportedPartType,
+        label: t.label,
+        summary: t.summary,
+        category: t.category,
+        quantity: quantities.get(t.id) ?? t.quantity,
+        isCustom: t.isCustom,
+        width: t.width,
+        length: t.length,
+        diameter: t.diameter,
+        height: t.height,
+        topWidth: t.topWidth,
+        bottomWidth: t.bottomWidth,
+        innerRadius: t.innerRadius,
+        outerRadius: t.outerRadius,
+        arcDegrees: t.arcDegrees,
+      }))
+      const newPreset: SelectionPreset = {
+        id: `preset-${Date.now()}`,
+        name: name.trim(),
+        createdAt: new Date().toISOString(),
+        templates: snapshot,
+      }
+      const updated = [...selectionPresets, newPreset]
+      setSelectionPresets(updated)
+      saveSelectionPresets(updated)
+      return true
+    },
+    [selectedTemplates, quantities, selectionPresets]
+  )
+
+  /** Delete a saved preset by ID. */
+  const deletePreset = useCallback(
+    (presetId: string) => {
+      const updated = selectionPresets.filter((p) => p.id !== presetId)
+      setSelectionPresets(updated)
+      saveSelectionPresets(updated)
+    },
+    [selectionPresets]
+  )
+
+  /** Load a saved preset — restores all part types, sizes, and quantities. */
+  const loadPreset = useCallback((preset: SelectionPreset) => {
+    // Group template snapshots by part type to build multiTypeEntries
+    const byType = new Map<SupportedPartType, PresetTemplateSnapshot[]>()
+    for (const t of preset.templates) {
+      const arr = byType.get(t.partType) ?? []
+      arr.push(t)
+      byType.set(t.partType, arr)
+    }
+    const firstType = preset.templates[0]?.partType ?? "rectangle"
+
+    const multiTypeEntries: LoadedSelectionEntry[] = Array.from(byType.entries()).map(
+      ([partType, temps]) => ({
+        partType,
+        labels: temps.map((t) => t.label),
+        customDimensions: temps.map((t) => ({
+          width: t.width,
+          length: t.length,
+          diameter: t.diameter,
+          height: t.height,
+          topWidth: t.topWidth,
+          bottomWidth: t.bottomWidth,
+          innerRadius: t.innerRadius,
+          outerRadius: t.outerRadius,
+          arcDegrees: t.arcDegrees,
+        })),
+        quantityPerIndex: temps.map((t) => t.quantity),
+      })
+    )
+
+    setActiveSelection({
+      partType: firstType,
+      labels: preset.templates.map((t) => t.label),
+      nonce: Date.now(),
+      multiTypeEntries,
+    })
+  }, [])
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handlePartChange = (partType: SupportedPartType) => {
     setSelectedPart(partType)
@@ -610,6 +650,12 @@ export function usePresetState(
     savedCustomCount,
     quantities,
     selectionCounts,
+    // Preset management
+    selectionPresets,
+    saveCurrentAsPreset,
+    deletePreset,
+    loadPreset,
+    // Handlers
     handlePartChange,
     handleToggle,
     handleQuantityChange,

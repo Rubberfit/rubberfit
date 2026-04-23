@@ -12,7 +12,7 @@ import { PART_OPTIONS } from "./preset-template-data"
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface CutPdfData {
-  cutId: number
+  cutId: string
   stockWidth: number
   stockLength: number
   stockThickness: number
@@ -416,7 +416,7 @@ function addFooter(doc: jsPDF): void {
 
 // eslint-disable-next-line complexity
 export async function buildAndUploadCutPdf(
-  cutId: number,
+  cutId: string,
   stock: StockConfig,
   cutMetrics: SimpleCutMetrics | null,
   selectedTemplate: PartTemplate | undefined,

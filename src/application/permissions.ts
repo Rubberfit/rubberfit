@@ -2,6 +2,15 @@ export type AppRole = "admin" | "cutter" | "manager" | "member" | "supervisor" |
 
 export const DEFAULT_ROLES = ["member"] as const satisfies readonly AppRole[]
 
+export const ALL_ROLES = [
+  "admin",
+  "cutter",
+  "manager",
+  "member",
+  "supervisor",
+  "viewer",
+] as const satisfies readonly AppRole[]
+
 export const PERMISSIONS = {
   // Inventory
   viewInventory: ["admin", "manager", "supervisor", "cutter", "member", "viewer"],
@@ -64,4 +73,5 @@ export const ROUTE_PERMISSIONS = {
 
   // Settings & Users
   "/dashboard/settings": "manageUsers",
+  "/dashboard/users": "manageUsers",
 } as const satisfies Record<string, Permission>

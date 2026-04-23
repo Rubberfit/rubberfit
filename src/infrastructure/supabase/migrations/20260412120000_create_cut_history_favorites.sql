@@ -3,9 +3,9 @@
 -- Favorites are private to each user (RLS scoped to user_id).
 
 CREATE TABLE IF NOT EXISTS cut_history_favorites (
-  id              SERIAL PRIMARY KEY,
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  cut_history_id  INT  NOT NULL REFERENCES cut_history(id) ON DELETE CASCADE,
+  cut_history_id  UUID NOT NULL REFERENCES cut_history(id) ON DELETE CASCADE,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (user_id, cut_history_id)
 );

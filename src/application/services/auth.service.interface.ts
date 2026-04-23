@@ -7,6 +7,7 @@ export interface AuthUser {
   avatar?: string
   roles: string[]
   authProvider?: string
+  isSuperAdmin?: boolean
   createdAt: string
 }
 

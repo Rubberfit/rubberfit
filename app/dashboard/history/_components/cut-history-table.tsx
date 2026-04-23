@@ -32,9 +32,9 @@ interface CutHistoryTableProps {
   loading: boolean
   totalColSpan: number
   canDelete: boolean
-  onToggleFavorite: (id: number) => void
-  onDeleteRequest: (cutId: number) => void
-  onReopen: (cutId: number) => void
+  onToggleFavorite: (id: string) => void
+  onDeleteRequest: (cutId: string) => void
+  onReopen: (cutId: string) => void
 }
 
 // Component
