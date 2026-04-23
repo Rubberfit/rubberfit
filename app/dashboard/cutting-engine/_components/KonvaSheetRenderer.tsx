@@ -3,41 +3,21 @@
 import { useEffect, useRef, useState } from "react"
 import { Stage, Layer, Rect, Circle, Line, Text, Group } from "react-konva"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
-
-// ── Colour palette (index by specIndex mod length) ───────────────────────────
-
-// Part palette stays vibrant — these fills sit on the dark stone sheet so
-// saturated primaries read as clearly separate parts.
-const PART_FILLS = [
-  "#3b82f6", // blue-500
-  "#ef4444", // red-500
-  "#22c55e", // green-500
-  "#f59e0b", // amber-500
-  "#8b5cf6", // violet-500
-  "#ec4899", // pink-500
-  "#14b8a6", // teal-500
-  "#f97316", // orange-500
-]
-
-// Match the legacy SVG visualizer's color semantics exactly:
-//   stock  = dark stone,   amber offcut = reusable,   red = scrap/waste.
-const SHEET_FILL = "#242420"
-const SHEET_STROKE = "#78716c" // stone-500
-const GRID_STROKE = "rgba(120,113,108,0.22)"
-
-const OFFCUT_FILL = "rgba(245,158,11,0.18)" // amber-500 @ 18%
-const OFFCUT_STROKE = "rgba(245,158,11,0.55)"
-
-const SCRAP_FILL = "rgba(239,68,68,0.18)" // red-500 @ 18%
-const SCRAP_STROKE = "rgba(239,68,68,0.55)"
-
-const LABEL_FILL = "#ffffff"
-const LABEL_STROKE = "rgba(0,0,0,0.55)"
+import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
 
 // ── Shape renderers ──────────────────────────────────────────────────────────
 
-function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
-  const fill = PART_FILLS[part.specIndex % PART_FILLS.length]
+function PartShape({
+  part,
+  scale,
+  fill,
+  theme,
+}: {
+  part: PlacedPart
+  scale: number
+  fill: string
+  theme: KonvaThemeTokens
+}) {
   const px = part.x * scale
   const py = part.y * scale
   const pw = part.width * scale
@@ -49,7 +29,7 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
     const r = (part.diameter / 2) * scale
     return (
       <Group>
-        <Circle x={cx} y={cy} radius={r} fill={fill} stroke="white" strokeWidth={1} />
+        <Circle x={cx} y={cy} radius={r} fill={fill} stroke={theme.partStroke} strokeWidth={1} />
         <Text
           x={cx - pw / 2}
           y={cy - 8}
@@ -57,8 +37,8 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
           height={16}
           text={part.label}
           fontSize={Math.max(9, Math.min(14, pw / 3))}
-          fill={LABEL_FILL}
-          stroke={LABEL_STROKE}
+          fill={theme.labelFill}
+          stroke={theme.labelStroke}
           strokeWidth={2}
           fillAfterStrokeEnabled
           fontStyle="bold"
@@ -70,12 +50,11 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
     )
   }
 
-  // Polygon-based shapes (trapezoid, sector, or any non-rect with a polygon)
   if (part.polygon && part.polygon.length >= 3) {
     const points = part.polygon.flatMap((pt) => [pt.x * scale, pt.y * scale])
     return (
       <Group>
-        <Line points={points} closed fill={fill} stroke="white" strokeWidth={1} />
+        <Line points={points} closed fill={fill} stroke={theme.partStroke} strokeWidth={1} />
         <Text
           x={cx - pw / 2}
           y={cy - 8}
@@ -83,8 +62,8 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
           height={16}
           text={part.label}
           fontSize={Math.max(9, Math.min(14, pw / 3))}
-          fill={LABEL_FILL}
-          stroke={LABEL_STROKE}
+          fill={theme.labelFill}
+          stroke={theme.labelStroke}
           strokeWidth={2}
           fillAfterStrokeEnabled
           fontStyle="bold"
@@ -96,10 +75,17 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
     )
   }
 
-  // Fallback: plain rectangle
   return (
     <Group>
-      <Rect x={px} y={py} width={pw} height={ph} fill={fill} stroke="white" strokeWidth={1} />
+      <Rect
+        x={px}
+        y={py}
+        width={pw}
+        height={ph}
+        fill={fill}
+        stroke={theme.partStroke}
+        strokeWidth={1}
+      />
       <Text
         x={px}
         y={cy - 8}
@@ -107,7 +93,10 @@ function PartShape({ part, scale }: { part: PlacedPart; scale: number }) {
         height={16}
         text={part.label}
         fontSize={Math.max(9, Math.min(14, Math.min(pw, ph) / 3))}
-        fill={LABEL_FILL}
+        fill={theme.labelFill}
+        stroke={theme.labelStroke}
+        strokeWidth={2}
+        fillAfterStrokeEnabled
         fontStyle="bold"
         align="center"
         verticalAlign="middle"
@@ -147,7 +136,17 @@ function RegionShape({
 
 // ── Grid lines (12" intervals) ───────────────────────────────────────────────
 
-function GridLines({ sheetW, sheetL, scale }: { sheetW: number; sheetL: number; scale: number }) {
+function GridLines({
+  sheetW,
+  sheetL,
+  scale,
+  stroke,
+}: {
+  sheetW: number
+  sheetL: number
+  scale: number
+  stroke: string
+}) {
   const vLines: number[] = []
   for (let x = 12; x < sheetW; x += 12) vLines.push(x)
   const hLines: number[] = []
@@ -159,7 +158,7 @@ function GridLines({ sheetW, sheetL, scale }: { sheetW: number; sheetL: number; 
         <Line
           key={`v${x}`}
           points={[x * scale, 0, x * scale, sheetL * scale]}
-          stroke={GRID_STROKE}
+          stroke={stroke}
           strokeWidth={0.5}
           listening={false}
         />
@@ -168,7 +167,7 @@ function GridLines({ sheetW, sheetL, scale }: { sheetW: number; sheetL: number; 
         <Line
           key={`h${y}`}
           points={[0, y * scale, sheetW * scale, y * scale]}
-          stroke={GRID_STROKE}
+          stroke={stroke}
           strokeWidth={0.5}
           listening={false}
         />
@@ -187,6 +186,7 @@ interface KonvaSheetRendererProps {
 export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  const theme = useKonvaTheme()
 
   useEffect(() => {
     const el = containerRef.current
@@ -206,7 +206,6 @@ export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRend
 
   const stageW = Math.round(layout.sheetWidth * scale)
   const stageH = Math.round(layout.sheetLength * scale)
-  // Center the sheet within the container
   const offsetX = Math.max(0, (size.w - stageW) / 2)
   const offsetY = Math.max(0, (size.h - stageH) / 2)
 
@@ -221,39 +220,50 @@ export default function KonvaSheetRenderer({ layout, className }: KonvaSheetRend
               y={0}
               width={stageW}
               height={stageH}
-              fill={SHEET_FILL}
-              stroke={SHEET_STROKE}
+              fill={theme.sheetFill}
+              stroke={theme.sheetStroke}
               strokeWidth={1}
             />
 
             {/* Grid */}
-            <GridLines sheetW={layout.sheetWidth} sheetL={layout.sheetLength} scale={scale} />
+            <GridLines
+              sheetW={layout.sheetWidth}
+              sheetL={layout.sheetLength}
+              scale={scale}
+              stroke={theme.grid}
+            />
 
-            {/* Offcuts (reusable — amber) */}
+            {/* Reusable offcut — amber */}
             {layout.offcuts.map((region, i) => (
               <RegionShape
                 key={`offcut-${i}`}
                 region={region}
                 scale={scale}
-                fill={OFFCUT_FILL}
-                stroke={OFFCUT_STROKE}
+                fill={theme.offcutFill}
+                stroke={theme.offcutStroke}
               />
             ))}
 
-            {/* Scrap (waste — red) */}
+            {/* Scrap / waste — red */}
             {layout.scrap.map((region, i) => (
               <RegionShape
                 key={`scrap-${i}`}
                 region={region}
                 scale={scale}
-                fill={SCRAP_FILL}
-                stroke={SCRAP_STROKE}
+                fill={theme.scrapFill}
+                stroke={theme.scrapStroke}
               />
             ))}
 
             {/* Parts */}
             {layout.parts.map((part) => (
-              <PartShape key={part.id} part={part} scale={scale} />
+              <PartShape
+                key={part.id}
+                part={part}
+                scale={scale}
+                fill={theme.partFills[part.specIndex % theme.partFills.length]}
+                theme={theme}
+              />
             ))}
           </Layer>
         </Stage>
