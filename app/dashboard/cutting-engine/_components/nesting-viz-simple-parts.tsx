@@ -245,6 +245,13 @@ export function SimpleModeMetrics({
 }) {
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
   const displayScore = isMultiSheet ? multiSheet!.avgFabScore : fabScore.score
+  // Fab score is only meaningful when material has been fabricated.
+  // An empty sheet would otherwise render "40/100" from the seam-count
+  // (0 seams = perfect) and reusable-ratio (all-waste-is-reusable)
+  // components, which is misleading — nothing has been scored.
+  const hasFabrication = isMultiSheet
+    ? (multiSheet?.totalUnitsCompleted ?? 0) > 0
+    : displayPreview.piecesShown > 0
 
   return (
     <div className="grid gap-3 border-t border-border bg-background px-4 py-4 md:grid-cols-6">
@@ -301,14 +308,16 @@ export function SimpleModeMetrics({
         </div>
         <div
           className={`mt-1 text-2xl font-semibold ${
-            displayScore >= 80
-              ? "text-green-600"
-              : displayScore >= 60
-                ? "text-amber-600"
-                : "text-red-600"
+            !hasFabrication
+              ? "text-muted-foreground"
+              : displayScore >= 80
+                ? "text-green-600"
+                : displayScore >= 60
+                  ? "text-amber-600"
+                  : "text-red-600"
           }`}
         >
-          {displayScore}/100
+          {hasFabrication ? `${displayScore}/100` : "—"}
         </div>
       </div>
     </div>
