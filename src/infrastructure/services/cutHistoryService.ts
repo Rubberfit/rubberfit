@@ -32,7 +32,7 @@ export const addCutHistory = async (cut: {
 }
 
 // Delete a cut history entry
-export const deleteCutHistory = async (id: number) => {
+export const deleteCutHistory = async (id: string) => {
   const { error } = await supabase.from("cut_history").delete().eq("id", id)
 
   if (error) throw error
@@ -40,7 +40,7 @@ export const deleteCutHistory = async (id: number) => {
 
 // Upload a PDF blob for a cut history entry to Supabase Storage
 export async function uploadCutPdf(
-  cutId: number,
+  cutId: string,
   userId: string,
   pdfBlob: Blob
 ): Promise<string | null> {

@@ -356,7 +356,7 @@ export interface PartCustomDimensions {
 }
 
 export interface CutHistory {
-  id: number
+  id: string
   user_id: string | null
   material_id: number
   part_id: number
@@ -386,6 +386,13 @@ export interface CutHistory {
 
 export interface CutHistoryWithProfile extends CutHistory {
   profiles: { full_name: string | null; roles: string[] | null } | null
+}
+
+export interface CutHistoryFavorite {
+  id: string
+  user_id: string
+  cut_history_id: string
+  created_at: string | null
 }
 
 export interface UserProfile {

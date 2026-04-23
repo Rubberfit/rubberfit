@@ -47,14 +47,14 @@ export function useCutHistory() {
   const canDelete = isAdmin || isManager
 
   const [cuts, setCuts] = useState<CutHistoryRow[]>([])
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [users, setUsers] = useState<User[]>([])
   // undefined = not yet initialized (wait for userId from useRole)
   const [selectedUserId, setSelectedUserId] = useState<string | null | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; cutId: number | null }>({
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; cutId: string | null }>({
     open: false,
     cutId: null,
   })
@@ -84,9 +84,9 @@ export function useCutHistory() {
           `/api/cuts/history?limit=100&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${userParam}`
         )
 
-        let favSet = new Set<number>()
+        let favSet = new Set<string>()
         try {
-          const favRes = await fetchJson<{ data: number[] }>("/api/cuts/favorites")
+          const favRes = await fetchJson<{ data: string[] }>("/api/cuts/favorites")
           favSet = new Set(favRes.data)
         } catch (_err) {
           // silently ignore — favorites table may not be migrated yet
@@ -145,7 +145,7 @@ export function useCutHistory() {
 
   // Toggle favorite
   const handleToggleFavorite = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       const wasOn = favoriteIds.has(id)
 
       // Optimistic update
@@ -215,7 +215,7 @@ export function useCutHistory() {
 
   // Navigate to cut planner
   const handleReopen = useCallback(
-    (cutId: number) => {
+    (cutId: string) => {
       router.push(`/dashboard/cut-planner?loadCut=${cutId}`)
     },
     [router]
