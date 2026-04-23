@@ -96,7 +96,7 @@ export class RollsRepository implements IRollsRepository {
       .from("rolls")
       .select("*")
       .or(
-        `material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`
+        `part_number.ilike.%${query}%,material_type.ilike.%${query}%,color.ilike.%${query}%,location.ilike.%${query}%,supplier.ilike.%${query}%,notes.ilike.%${query}%`
       )
       .order("created_at", { ascending: false })
 
@@ -212,7 +212,9 @@ export class RollsRepository implements IRollsRepository {
       if (!data || data.length === 0) return 0
 
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      const recentRolls = data.filter((roll: { created_at: string }) => new Date(roll.created_at) > oneWeekAgo).length
+      const recentRolls = data.filter(
+        (roll: { created_at: string }) => new Date(roll.created_at) > oneWeekAgo
+      ).length
 
       return (recentRolls / data.length) * 100
     } catch (_error) {

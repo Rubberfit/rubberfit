@@ -172,7 +172,7 @@ function InventoryPageInner() {
 
       <Card className="overflow-hidden p-0 gap-0">
         <ViewToolbar
-          searchPlaceholder="Search rolls, material, location…"
+          searchPlaceholder="Search part #, material, location…"
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
         />

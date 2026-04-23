@@ -83,9 +83,9 @@ impl RollPort for SupabaseRollRepository {
             query.push((
                 "or".into(),
                 format!(
-                    "(material_type.ilike.*{term}*,color.ilike.*{term}*,\
-                     location.ilike.*{term}*,supplier.ilike.*{term}*,\
-                     notes.ilike.*{term}*)"
+                    "(part_number.ilike.*{term}*,material_type.ilike.*{term}*,\
+                     color.ilike.*{term}*,location.ilike.*{term}*,\
+                     supplier.ilike.*{term}*,notes.ilike.*{term}*)"
                 ),
             ));
         }
