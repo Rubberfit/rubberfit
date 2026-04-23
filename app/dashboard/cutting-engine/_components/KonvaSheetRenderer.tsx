@@ -13,6 +13,9 @@ import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
  */
 type PartDragEnd = (partId: string, xIn: number, yIn: number) => void
 
+/** Callback when a part is clicked. Fires before any drag. */
+type PartClick = (partId: string) => void
+
 // ── Shape renderers ──────────────────────────────────────────────────────────
 
 function PartShape({
@@ -21,14 +24,18 @@ function PartShape({
   fill,
   theme,
   draggable,
+  selected,
   onDragEnd,
+  onClick,
 }: {
   part: PlacedPart
   scale: number
   fill: string
   theme: KonvaThemeTokens
   draggable: boolean
+  selected: boolean
   onDragEnd?: PartDragEnd
+  onClick?: PartClick
 }) {
   const pw = part.width * scale
   const ph = part.height * scale
@@ -43,6 +50,10 @@ function PartShape({
     onDragEnd(part.id, e.target.x() / scale, e.target.y() / scale)
   }
 
+  const selectedStroke = "#3b82f6" // blue-500 — visible against any vibrant part fill
+  const stroke = selected ? selectedStroke : theme.partStroke
+  const strokeWidth = selected ? 2 : 1
+
   let body: React.ReactNode
   if (part.renderShape === "circle" && part.diameter != null) {
     const r = (part.diameter / 2) * scale
@@ -52,16 +63,13 @@ function PartShape({
         y={ph / 2}
         radius={r}
         fill={fill}
-        stroke={theme.partStroke}
-        strokeWidth={1}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
       />
     )
   } else if (part.polygon && part.polygon.length >= 3) {
-    // Polygon points are absolute sheet coords — translate them to
-    // the group's local frame (part top-left) so dragging the group
-    // moves the polygon with it.
     const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
-    body = <Line points={points} closed fill={fill} stroke={theme.partStroke} strokeWidth={1} />
+    body = <Line points={points} closed fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
   } else {
     body = (
       <Rect
@@ -70,8 +78,8 @@ function PartShape({
         width={pw}
         height={ph}
         fill={fill}
-        stroke={theme.partStroke}
-        strokeWidth={1}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
       />
     )
   }
@@ -79,7 +87,14 @@ function PartShape({
   const fontSize = Math.max(9, Math.min(14, Math.min(pw, ph) / 3))
 
   return (
-    <Group x={part.x * scale} y={part.y * scale} draggable={draggable} onDragEnd={handleDragEnd}>
+    <Group
+      x={part.x * scale}
+      y={part.y * scale}
+      draggable={draggable}
+      onDragEnd={handleDragEnd}
+      onMouseDown={() => onClick?.(part.id)}
+      onTap={() => onClick?.(part.id)}
+    >
       {body}
       <Text
         x={0}
@@ -182,12 +197,21 @@ interface KonvaSheetRendererProps {
    * prop leaves the canvas read-only (Auto-nest Graph surface).
    */
   onPartDragEnd?: PartDragEnd
+  /** Currently-selected part id — renders with a highlight stroke. */
+  selectedPartId?: string | null
+  /** Fires when a part is clicked / tapped. */
+  onPartClick?: PartClick
+  /** Fires when the empty sheet (not a part) is clicked. Useful for clearing selection. */
+  onSheetClick?: () => void
 }
 
 export default function KonvaSheetRenderer({
   layout,
   className,
   onPartDragEnd,
+  selectedPartId,
+  onPartClick,
+  onSheetClick,
 }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -219,7 +243,7 @@ export default function KonvaSheetRenderer({
       {scale > 0 && (
         <Stage width={size.w} height={size.h} style={{ display: "block" }}>
           <Layer x={offsetX} y={offsetY}>
-            {/* Sheet background */}
+            {/* Sheet background — clicking clears selection */}
             <Rect
               x={0}
               y={0}
@@ -228,6 +252,8 @@ export default function KonvaSheetRenderer({
               fill={theme.sheetFill}
               stroke={theme.sheetStroke}
               strokeWidth={1}
+              onMouseDown={() => onSheetClick?.()}
+              onTap={() => onSheetClick?.()}
             />
 
             {/* Grid */}
@@ -269,7 +295,9 @@ export default function KonvaSheetRenderer({
                 fill={theme.partFills[part.specIndex % theme.partFills.length]}
                 theme={theme}
                 draggable={typeof onPartDragEnd === "function"}
+                selected={selectedPartId === part.id}
                 onDragEnd={onPartDragEnd}
+                onClick={onPartClick}
               />
             ))}
           </Layer>

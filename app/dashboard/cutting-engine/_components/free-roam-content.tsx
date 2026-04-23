@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
 import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./PresetDimensionSelector"
@@ -150,6 +150,7 @@ export default function FreeRoamContent({
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
   const [placements, setPlacements] = useState<ManualPlacement[]>([])
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null)
 
   // Tag map — A / B / C / … per template so the canvas labels match
   // the parts queue. Uses partNumber when set (e.g. RF-000042), else
@@ -206,6 +207,24 @@ export default function FreeRoamContent({
     [placements, parts, stock, tagByTemplateId]
   )
 
+  // Delete key removes the currently-selected placement. Guarded
+  // against typing in inputs (role=textbox, editable elements) so
+  // the operator doesn't lose work while entering part dimensions.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (selectedPartId == null) return
+      if (e.key !== "Delete" && e.key !== "Backspace") return
+      const t = e.target as HTMLElement | null
+      const editable = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable
+      if (editable) return
+      e.preventDefault()
+      setPlacements((prev) => prev.filter((p) => p.id !== selectedPartId))
+      setSelectedPartId(null)
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [selectedPartId])
+
   const handlePartDragEnd = useCallback(
     (partId: string, xIn: number, yIn: number) => {
       setPlacements((prev) =>
@@ -258,7 +277,13 @@ export default function FreeRoamContent({
           <div className="flex h-full flex-col">
             <CanvasToolbar />
             <div className="relative flex-1 bg-muted/10">
-              <KonvaSheetRenderer layout={layout} onPartDragEnd={handlePartDragEnd} />
+              <KonvaSheetRenderer
+                layout={layout}
+                onPartDragEnd={handlePartDragEnd}
+                selectedPartId={selectedPartId}
+                onPartClick={setSelectedPartId}
+                onSheetClick={() => setSelectedPartId(null)}
+              />
               {parts.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
@@ -268,8 +293,8 @@ export default function FreeRoamContent({
               ) : placements.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Click a part in the queue to place an instance. Drag to move. Snap + collision
-                    land in C11d.
+                    Click a part in the queue to place. Drag to move · click to select · Delete to
+                    remove.
                   </div>
                 </div>
               ) : null}
