@@ -46,6 +46,18 @@ import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
+import dynamic from "next/dynamic"
+
+// Lazy-load the Free-roam CAD shell — Konva + react-konva are only
+// needed on this tab and would otherwise bloat the Auto-nest bundle.
+const FreeRoamContent = dynamic(() => import("./_components/free-roam-content"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center text-sm text-muted-foreground">
+      Loading free-roam workspace…
+    </div>
+  ),
+})
 
 // Constants
 
@@ -825,32 +837,27 @@ function CutPlannerPageInner() {
           )}
         </TabsContent>
 
-        <TabsContent value="free-roam" className="space-y-6">
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <Shapes className="h-4 w-4 text-slate-500" />
-                Free-roam nester
-                <Badge variant="secondary" className="ml-2 text-[10px]">
-                  Coming soon
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                CAD-style manual placement. Drag parts onto the sheet, rotate them, snap to grid,
-                and record the layout as a cut — same reusable-offcut (amber) and waste (red)
-                semantics as Auto nest. Shared parts queue + stock with Auto nest; placements stay
-                per tab.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
-                <Shapes className="h-12 w-12 opacity-30" aria-hidden="true" />
-                <p className="max-w-md text-sm">
-                  The free-roam canvas is being built. Check back as C5 — C11 land.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="free-roam" className="space-y-4">
+          <FreeRoamContent
+            parts={selectedTemplates}
+            stock={stock}
+            materialTypes={materialTypes}
+            activeStockPreset={activeStockPreset ?? null}
+            selectedTemplate={selectedTemplate}
+            selectedTemplates={selectedTemplates}
+            safeQuantity={safeQuantity}
+            cutDirection={cutDirection}
+            setCutDirection={setCutDirection}
+            customCutRatioInput={customCutRatioInput}
+            setCustomCutRatioInput={setCustomCutRatioInput}
+            customCutRatios={customCutRatios}
+            requestedSqFt={requestedSqFt}
+            cutMetrics={cutMetrics}
+            onRecordCut={handleRecordCut}
+            isRecordingCut={isRecordingCut}
+            refreshKey={cutListRefreshKey}
+            onLoadCut={handleLoadCut}
+          />
         </TabsContent>
       </Tabs>
     </div>
