@@ -1,7 +1,7 @@
 -- Create cut_history table for tracking cut operations
 CREATE TABLE IF NOT EXISTS cut_history (
   -- User ID
-  id                            SERIAL PRIMARY KEY,
+  id                            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                       UUID REFERENCES auth.users(id) ON DELETE SET NULL,
 
   -- Material and cut details
