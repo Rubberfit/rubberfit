@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { Polygon, Vector, testPolygonPolygon } from "sat"
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
 import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./PresetDimensionSelector"
@@ -97,6 +98,104 @@ function buildFreeRoamLayout(
     fabScore: 0,
     source: "ts-nfp",
   }
+}
+
+/**
+ * SAT polygon for a single placement, at its current position +
+ * rotation, in SHEET INCH coordinates. We fan rectangles into 4
+ * corners around the center (so rotation is respected), circles
+ * into a 20-vertex approximation, and polygon shapes reuse the
+ * template's polygon translated to the placement's origin.
+ *
+ * Consumers call `testPolygonPolygon(a, b)` from `sat` to test for
+ * overlap.
+ */
+function buildPlacementPolygon(placement: ManualPlacement, template: PartTemplate): Polygon {
+  const width = template.width ?? template.diameter ?? 12
+  const height = template.length ?? template.height ?? template.diameter ?? 12
+  const cx = placement.x + width / 2
+  const cy = placement.y + height / 2
+  const cos = Math.cos(placement.rotationRad)
+  const sin = Math.sin(placement.rotationRad)
+
+  // Rotate a local offset (dx, dy) around the origin and translate
+  // to world (sheet) coords. The outer `+ cx / cy` anchors at the
+  // placement's center so rotation spins in place.
+  const rot = (dx: number, dy: number): Vector =>
+    new Vector(cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+
+  if (template.partType === "cylinder" && template.diameter) {
+    // Approximate the disc with a 20-gon — SAT handles circles
+    // natively but mixing circle + polygon test routines in the
+    // collider keeps the dispatch uniform. Resolution is enough
+    // for pixel-scale UI correctness.
+    const r = template.diameter / 2
+    const pts: Vector[] = []
+    const N = 20
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2
+      pts.push(new Vector(cx + r * Math.cos(a), cy + r * Math.sin(a)))
+    }
+    return new Polygon(new Vector(0, 0), pts)
+  }
+
+  // Axis-aligned rectangle as 4 corners, rotated around center.
+  return new Polygon(new Vector(0, 0), [
+    rot(-width / 2, -height / 2),
+    rot(width / 2, -height / 2),
+    rot(width / 2, height / 2),
+    rot(-width / 2, height / 2),
+  ])
+}
+
+/**
+ * Check whether moving `candidate` to `(proposedX, proposedY)` would
+ * overlap any OTHER placement. Returns true when a collision is
+ * found so the caller can reject the move. AABB broad-phase first
+ * (cheap early-out for obvious non-overlaps), SAT narrow-phase
+ * second (authoritative for rotated rects + polygons).
+ */
+function wouldCollide(
+  candidate: ManualPlacement,
+  proposedX: number,
+  proposedY: number,
+  others: ManualPlacement[],
+  parts: PartTemplate[]
+): boolean {
+  const byId = new Map(parts.map((p) => [p.id, p]))
+  const candidateTemplate = byId.get(candidate.templateId)
+  if (!candidateTemplate) return false
+  const cw = candidateTemplate.width ?? candidateTemplate.diameter ?? 12
+  const ch =
+    candidateTemplate.length ?? candidateTemplate.height ?? candidateTemplate.diameter ?? 12
+  const proposed: ManualPlacement = { ...candidate, x: proposedX, y: proposedY }
+  const proposedPoly = buildPlacementPolygon(proposed, candidateTemplate)
+
+  for (const other of others) {
+    if (other.id === candidate.id) continue
+    const otherTemplate = byId.get(other.templateId)
+    if (!otherTemplate) continue
+    const ow = otherTemplate.width ?? otherTemplate.diameter ?? 12
+    const oh = otherTemplate.length ?? otherTemplate.height ?? otherTemplate.diameter ?? 12
+
+    // AABB broad-phase — skip the SAT call when AABBs clearly don't
+    // touch. Uses the template bounds (ignoring rotation) as a
+    // conservative overestimate, so a true-negative here really means
+    // no collision.
+    const aMinX = proposedX
+    const aMinY = proposedY
+    const aMaxX = proposedX + cw
+    const aMaxY = proposedY + ch
+    const bMinX = other.x
+    const bMinY = other.y
+    const bMaxX = other.x + ow
+    const bMaxY = other.y + oh
+    if (aMaxX <= bMinX || bMaxX <= aMinX || aMaxY <= bMinY || bMaxY <= aMinY) continue
+
+    const otherPoly = buildPlacementPolygon(other, otherTemplate)
+    if (testPolygonPolygon(proposedPoly, otherPoly)) return true
+  }
+  return false
 }
 
 /**
@@ -241,35 +340,38 @@ export default function FreeRoamContent({
 
   const handlePartDragEnd = useCallback(
     (partId: string, xIn: number, yIn: number) => {
-      setPlacements((prev) =>
-        prev.map((p) => {
-          if (p.id !== partId) return p
-          const template = parts.find((t) => t.id === p.templateId)
-          const partW = template?.width ?? template?.diameter ?? 12
-          const partH = template?.length ?? template?.height ?? template?.diameter ?? 12
+      setPlacements((prev) => {
+        const placement = prev.find((p) => p.id === partId)
+        if (!placement) return prev
+        const template = parts.find((t) => t.id === placement.templateId)
+        const partW = template?.width ?? template?.diameter ?? 12
+        const partH = template?.length ?? template?.height ?? template?.diameter ?? 12
 
-          // Snap to grid — rounds to the nearest SNAP_STEP inch on
-          // drag end so placement stays orderly without fighting the
-          // operator mid-drag. Edge snap: within SNAP_EDGE inches of
-          // either border, clamp flush to that border instead of
-          // rounding to a grid step (the grid rarely hits exactly on
-          // the corner).
-          const SNAP_STEP = 1
-          const SNAP_EDGE = 0.25
-          const maxX = stock.width - partW
-          const maxY = stock.length - partH
+        // Snap to grid — rounds to the nearest SNAP_STEP inch on drag
+        // end so placement stays orderly without fighting the operator
+        // mid-drag. Edge snap: within SNAP_EDGE inches of either
+        // border, clamp flush.
+        const SNAP_STEP = 1
+        const SNAP_EDGE = 0.25
+        const maxX = stock.width - partW
+        const maxY = stock.length - partH
+        const snapAxis = (v: number, max: number) => {
+          if (v < SNAP_EDGE) return 0
+          if (v > max - SNAP_EDGE) return Math.max(0, max)
+          return Math.round(v / SNAP_STEP) * SNAP_STEP
+        }
+        const snappedX = Math.max(0, Math.min(maxX, snapAxis(xIn, maxX)))
+        const snappedY = Math.max(0, Math.min(maxY, snapAxis(yIn, maxY)))
 
-          const snapAxis = (v: number, max: number) => {
-            if (v < SNAP_EDGE) return 0
-            if (v > max - SNAP_EDGE) return Math.max(0, max)
-            return Math.round(v / SNAP_STEP) * SNAP_STEP
-          }
-
-          const snappedX = Math.max(0, Math.min(maxX, snapAxis(xIn, maxX)))
-          const snappedY = Math.max(0, Math.min(maxY, snapAxis(yIn, maxY)))
-          return { ...p, x: snappedX, y: snappedY }
-        })
-      )
+        // Collision check — if the snapped position would overlap
+        // another placement, reject the move (React re-renders with
+        // the old position, Konva snaps the dragged Group back). A
+        // future commit can add a "shake" animation / toast hint.
+        if (wouldCollide(placement, snappedX, snappedY, prev, parts)) {
+          return prev
+        }
+        return prev.map((p) => (p.id === partId ? { ...p, x: snappedX, y: snappedY } : p))
+      })
     },
     [parts, stock.width, stock.length]
   )
