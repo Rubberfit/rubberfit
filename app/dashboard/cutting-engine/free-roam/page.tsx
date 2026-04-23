@@ -39,11 +39,43 @@ const DEFAULT_STOCK: StockConfig = {
   thickness: 0.5,
 }
 
+// Sample parts seeded so the operator has something to click-place
+// on a fresh visit. Replaced by real part entry (CSV upload + manual
+// dialog) in a later commit.
+const SEED_PARTS: PartTemplate[] = [
+  {
+    id: "seed-rect-24x12",
+    label: '24" × 12"',
+    summary: "Rectangle",
+    partType: "rectangle",
+    width: 24,
+    length: 12,
+    quantity: 4,
+  } as PartTemplate,
+  {
+    id: "seed-rect-18x18",
+    label: '18" × 18"',
+    summary: "Rectangle",
+    partType: "rectangle",
+    width: 18,
+    length: 18,
+    quantity: 2,
+  } as PartTemplate,
+  {
+    id: "seed-disc-10",
+    label: '⌀ 10"',
+    summary: "Disc",
+    partType: "cylinder",
+    diameter: 10,
+    quantity: 3,
+  } as PartTemplate,
+]
+
 export default function FreeRoamPage() {
   // Free-roam owns its own state — no sharing with the Auto-nest
   // surface. Parts are added via the queue panel inside the
   // workspace (CSV upload + manual entry in future commits).
-  const [parts] = useState<PartTemplate[]>([])
+  const [parts] = useState<PartTemplate[]>(SEED_PARTS)
   const [stock] = useState<StockConfig>(DEFAULT_STOCK)
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
   const [customCutRatioInput, setCustomCutRatioInput] = useState("")

@@ -1,17 +1,103 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
 import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutDirection } from "./NestingVisualizer"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
-import type { LayoutModel } from "./layout-model"
+import type { LayoutModel, PlacedPart, RenderShape } from "./layout-model"
 import { PartsQueuePanel, type PartsFilter } from "./parts-queue-panel"
 import { CanvasToolbar } from "./canvas-toolbar"
 import { StrategyResultsPanel } from "./strategy-results-panel"
 import KonvaSheetRenderer from "./KonvaSheetRenderer"
+
+/** Single placement on the Free-roam canvas. Position is in sheet inches. */
+interface ManualPlacement {
+  /** Unique instance id. */
+  id: string
+  /** References a `PartTemplate.id` in the parts queue. */
+  templateId: string
+  x: number
+  y: number
+  rotationRad: number
+}
+
+function templateToRenderShape(type: string): RenderShape {
+  switch (type) {
+    case "cylinder":
+      return "circle"
+    case "cone":
+      return "sector"
+    case "trapezoid":
+      return "trapezoid"
+    default:
+      return "rect"
+  }
+}
+
+/**
+ * Build the LayoutModel the Konva renderer consumes from the current
+ * parts queue + manual placements. Templates are looked up once;
+ * placements missing a template (e.g. after template deletion) are
+ * skipped rather than throwing — the operator doesn't need a stack
+ * trace for a detached placement.
+ */
+function buildFreeRoamLayout(
+  placements: ManualPlacement[],
+  parts: PartTemplate[],
+  stock: StockConfig,
+  tagByTemplateId: Map<string, string>
+): LayoutModel {
+  const byId = new Map(parts.map((p) => [p.id, p]))
+  let specIndex = 0
+  const indexByTemplate = new Map<string, number>()
+  const mappedParts: PlacedPart[] = []
+  for (const placement of placements) {
+    const template = byId.get(placement.templateId)
+    if (!template) continue
+    if (!indexByTemplate.has(template.id)) {
+      indexByTemplate.set(template.id, specIndex++)
+    }
+    const idx = indexByTemplate.get(template.id) ?? 0
+    const width = template.width ?? template.diameter ?? 12
+    const height = template.length ?? template.height ?? template.diameter ?? 12
+    mappedParts.push({
+      id: placement.id,
+      shapeId: template.id,
+      partNumber: template.partNumber,
+      label: tagByTemplateId.get(template.id) ?? template.label,
+      renderShape: templateToRenderShape(template.partType),
+      specIndex: idx,
+      x: placement.x,
+      y: placement.y,
+      rotationRad: placement.rotationRad,
+      width,
+      height,
+      diameter: template.diameter,
+      topWidth: template.topWidth,
+      bottomWidth: template.bottomWidth,
+      innerRadius: template.innerRadius,
+      outerRadius: template.outerRadius,
+      arcDegrees: template.arcDegrees,
+    })
+  }
+  return {
+    sheetWidth: stock.width,
+    sheetLength: stock.length,
+    parts: mappedParts,
+    offcuts: [],
+    scrap: [],
+    placedCount: mappedParts.length,
+    overflowCount: 0,
+    usedAreaSqFt: 0,
+    reusableAreaSqFt: 0,
+    scrapAreaSqFt: 0,
+    fabScore: 0,
+    source: "ts-nfp",
+  }
+}
 
 /**
  * Free-roam tab content — three-column CAD-style workspace. Phase A
@@ -63,25 +149,61 @@ export default function FreeRoamContent({
   onLoadCut,
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
+  const [placements, setPlacements] = useState<ManualPlacement[]>([])
 
-  // Empty LayoutModel renders just the sheet + grid. Placements come
-  // online in C11b (click-to-add) and C11c (drag interactions).
-  const emptyLayout = useMemo<LayoutModel>(
-    () => ({
-      sheetWidth: stock.width,
-      sheetLength: stock.length,
-      parts: [],
-      offcuts: [],
-      scrap: [],
-      placedCount: 0,
-      overflowCount: 0,
-      usedAreaSqFt: 0,
-      reusableAreaSqFt: 0,
-      scrapAreaSqFt: 0,
-      fabScore: 0,
-      source: "ts-nfp",
-    }),
-    [stock.width, stock.length]
+  // Tag map — A / B / C / … per template so the canvas labels match
+  // the parts queue. Uses partNumber when set (e.g. RF-000042), else
+  // generated letters in selection order.
+  const tagByTemplateId = useMemo(() => {
+    const map = new Map<string, string>()
+    let fallbackIdx = 0
+    for (const part of parts) {
+      if (part.partNumber) {
+        map.set(part.id, part.partNumber)
+      } else {
+        let n = fallbackIdx++
+        let tag = ""
+        do {
+          tag = String.fromCharCode(65 + (n % 26)) + tag
+          n = Math.floor(n / 26) - 1
+        } while (n >= 0)
+        map.set(part.id, tag)
+      }
+    }
+    return map
+  }, [parts])
+
+  const placedCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const p of placements) {
+      counts[p.templateId] = (counts[p.templateId] ?? 0) + 1
+    }
+    return counts
+  }, [placements])
+
+  const handleAddInstance = useCallback(
+    (part: PartTemplate) => {
+      setPlacements((prev) => [
+        ...prev,
+        {
+          id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          templateId: part.id,
+          // Seed new instances at the sheet origin; drag to move
+          // lands in C11c. Small rightward offset per new instance so
+          // back-to-back clicks don't stack invisibly on top of each
+          // other.
+          x: Math.min(stock.width - 1, prev.length * 2),
+          y: 0,
+          rotationRad: 0,
+        },
+      ])
+    },
+    [stock.width]
+  )
+
+  const layout = useMemo(
+    () => buildFreeRoamLayout(placements, parts, stock, tagByTemplateId),
+    [placements, parts, stock, tagByTemplateId]
   )
 
   return (
@@ -92,6 +214,8 @@ export default function FreeRoamContent({
             parts={parts}
             activeFilter={partsFilter}
             onFilterChange={setPartsFilter}
+            placedCounts={placedCounts}
+            onAddInstance={handleAddInstance}
           />
         </WorkspaceColumn>
 
@@ -99,14 +223,21 @@ export default function FreeRoamContent({
           <div className="flex h-full flex-col">
             <CanvasToolbar />
             <div className="relative flex-1 bg-muted/10">
-              <KonvaSheetRenderer layout={emptyLayout} />
-              {parts.length === 0 && (
+              <KonvaSheetRenderer layout={layout} />
+              {parts.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Add parts from the queue to start. Drag &amp; drop lands in C11b.
+                    Add parts from the queue to start.
                   </div>
                 </div>
-              )}
+              ) : placements.length === 0 ? (
+                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+                  <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+                    Click a part in the queue to place an instance. Drag / snap / rotate land in
+                    C11c.
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </WorkspaceColumn>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Circle, Square, Triangle, Minus } from "lucide-react"
+import { Circle, Plus, Square, Triangle, Minus } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import type { PartTemplate } from "./PresetDimensionSelector"
 
@@ -10,6 +10,15 @@ interface PartsQueuePanelProps {
   parts: PartTemplate[]
   activeFilter: PartsFilter
   onFilterChange: (f: PartsFilter) => void
+  /** Per-template placed count, keyed by `template.id`. Defaults to 0. */
+  placedCounts?: Record<string, number>
+  /**
+   * Click handler that adds one instance of the given template to
+   * the canvas. When set, each row becomes a clickable button with
+   * a + icon. When omitted, rows are non-interactive (Auto-nest
+   * surface uses the panel read-only).
+   */
+  onAddInstance?: (part: PartTemplate) => void
 }
 
 const FILTERS: Array<{ key: PartsFilter; label: string }> = [
@@ -57,9 +66,16 @@ function filterParts(parts: PartTemplate[], filter: PartsFilter): PartTemplate[]
   }
 }
 
-export function PartsQueuePanel({ parts, activeFilter, onFilterChange }: PartsQueuePanelProps) {
+export function PartsQueuePanel({
+  parts,
+  activeFilter,
+  onFilterChange,
+  placedCounts,
+  onAddInstance,
+}: PartsQueuePanelProps) {
   const totalCount = parts.reduce((sum, p) => sum + p.quantity, 0)
   const visible = filterParts(parts, activeFilter)
+  const interactive = typeof onAddInstance === "function"
 
   return (
     <div className="flex flex-col h-full">
@@ -103,18 +119,15 @@ export function PartsQueuePanel({ parts, activeFilter, onFilterChange }: PartsQu
         ) : (
           <ul className="divide-y divide-border/40">
             {visible.map((part) => {
-              const placed = 0 // A1: no packing results yet
+              const placed = placedCounts?.[part.id] ?? 0
               const total = part.quantity
               const allPlaced = placed >= total
               const anyPlaced = placed > 0
 
-              return (
-                <li
-                  key={part.id}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
-                >
+              const body = (
+                <>
                   <span className="text-muted-foreground">{shapeIcon(part.partType)}</span>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="text-xs font-medium text-foreground truncate">{part.label}</p>
                     <p className="text-[11px] text-muted-foreground truncate">{partDims(part)}</p>
                   </div>
@@ -130,6 +143,31 @@ export function PartsQueuePanel({ parts, activeFilter, onFilterChange }: PartsQu
                   >
                     {placed}/{total}
                   </span>
+                  {interactive && (
+                    <Plus
+                      aria-hidden
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                    />
+                  )}
+                </>
+              )
+
+              return (
+                <li key={part.id} className="divide-y-0">
+                  {interactive ? (
+                    <button
+                      type="button"
+                      onClick={() => onAddInstance?.(part)}
+                      className="group flex w-full items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40 focus-visible:bg-muted/60 focus-visible:outline-none"
+                      aria-label={`Add instance of ${part.label}`}
+                    >
+                      {body}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors">
+                      {body}
+                    </div>
+                  )}
                 </li>
               )
             })}
