@@ -40,15 +40,20 @@ function PartShape({
   const pw = part.width * scale
   const ph = part.height * scale
 
-  // Outer Group sits at the part's top-left in pixel space. Children
-  // render in that group's local frame (origin = part top-left), so
-  // dragging the group moves everything — shape + label — as a unit.
-  // On drag end we convert group-position back to sheet inches before
-  // firing the callback.
+  // Outer Group pivots around the part's CENTER so rotation pivots
+  // there too (users expect a part to spin in place, not swing around
+  // its top-left corner). Using Konva's offset pattern: the group's
+  // `x/y` represents the position of the pivot point in world space,
+  // and `offsetX/Y` sets where that pivot sits in the group's local
+  // frame. Children still render from local (0,0) = part top-left.
+  //
+  // On drag end, `e.target.x()` is the new pivot (= center) in world
+  // pixels; subtract the offset to get the top-left back out.
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     if (!onDragEnd) return
-    onDragEnd(part.id, e.target.x() / scale, e.target.y() / scale)
+    onDragEnd(part.id, (e.target.x() - pw / 2) / scale, (e.target.y() - ph / 2) / scale)
   }
+  const rotationDeg = (part.rotationRad * 180) / Math.PI
 
   const selectedStroke = "#3b82f6" // blue-500 — visible against any vibrant part fill
   const stroke = selected ? selectedStroke : theme.partStroke
@@ -88,8 +93,11 @@ function PartShape({
 
   return (
     <Group
-      x={part.x * scale}
-      y={part.y * scale}
+      x={part.x * scale + pw / 2}
+      y={part.y * scale + ph / 2}
+      offsetX={pw / 2}
+      offsetY={ph / 2}
+      rotation={rotationDeg}
       draggable={draggable}
       onDragEnd={handleDragEnd}
       onMouseDown={() => onClick?.(part.id)}

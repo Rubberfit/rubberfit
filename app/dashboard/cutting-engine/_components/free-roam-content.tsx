@@ -207,19 +207,33 @@ export default function FreeRoamContent({
     [placements, parts, stock, tagByTemplateId]
   )
 
-  // Delete key removes the currently-selected placement. Guarded
-  // against typing in inputs (role=textbox, editable elements) so
-  // the operator doesn't lose work while entering part dimensions.
+  // Keyboard shortcuts for the selected placement.
+  //   Delete / Backspace — remove from canvas
+  //   R                  — rotate 90° clockwise
+  // All guarded against editable-element targets so the operator
+  // doesn't lose work while typing part dimensions.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (selectedPartId == null) return
-      if (e.key !== "Delete" && e.key !== "Backspace") return
       const t = e.target as HTMLElement | null
       const editable = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable
       if (editable) return
-      e.preventDefault()
-      setPlacements((prev) => prev.filter((p) => p.id !== selectedPartId))
-      setSelectedPartId(null)
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault()
+        setPlacements((prev) => prev.filter((p) => p.id !== selectedPartId))
+        setSelectedPartId(null)
+        return
+      }
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault()
+        setPlacements((prev) =>
+          prev.map((p) =>
+            p.id === selectedPartId
+              ? { ...p, rotationRad: (p.rotationRad + Math.PI / 2) % (Math.PI * 2) }
+              : p
+          )
+        )
+      }
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
@@ -293,8 +307,8 @@ export default function FreeRoamContent({
               ) : placements.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                   <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Click a part in the queue to place. Drag to move · click to select · Delete to
-                    remove.
+                    Click a part to place · drag to move · click to select · R to rotate · Delete to
+                    remove
                   </div>
                 </div>
               ) : null}
