@@ -43,6 +43,9 @@ import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
 import type { JobFullDetail, Roll } from "@/src/infrastructure/models/supabase"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
 // Constants
 
@@ -69,8 +72,21 @@ function LayoutLabel() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+type TabValue = "auto" | "free-roam"
+
 // eslint-disable-next-line max-lines-per-function
-export default function CutPlannerPage() {
+function CutPlannerPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab: TabValue = searchParams.get("tab") === "free-roam" ? "free-roam" : "auto"
+  const handleTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value === "auto") params.delete("tab")
+    else params.set("tab", value)
+    const query = params.toString()
+    router.replace(`/dashboard/cutting-engine${query ? `?${query}` : ""}`)
+  }
+
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
@@ -709,92 +725,143 @@ export default function CutPlannerPage() {
         loadedSelection={loadedSelection}
       />
 
-      {selectedTemplates.length > 0 && selectedTemplate ? (
-        <>
-          <CutConfigCard
-            selectedTemplate={selectedTemplate}
-            selectedTemplates={selectedTemplates}
-            safeQuantity={safeQuantity}
-            cutDirection={cutDirection}
-            setCutDirection={setCutDirection}
-            customCutRatioInput={customCutRatioInput}
-            setCustomCutRatioInput={setCustomCutRatioInput}
-            customCutRatios={customCutRatios}
-            requestedSqFt={requestedSqFt}
-          />
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="auto">Auto nest</TabsTrigger>
+          <TabsTrigger value="free-roam">
+            Free roam
+            <Badge variant="secondary" className="ml-2 text-[10px]">
+              Beta
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
 
+        <TabsContent value="auto" className="space-y-6">
+          {selectedTemplates.length > 0 && selectedTemplate ? (
+            <>
+              <CutConfigCard
+                selectedTemplate={selectedTemplate}
+                selectedTemplates={selectedTemplates}
+                safeQuantity={safeQuantity}
+                cutDirection={cutDirection}
+                setCutDirection={setCutDirection}
+                customCutRatioInput={customCutRatioInput}
+                setCustomCutRatioInput={setCustomCutRatioInput}
+                customCutRatios={customCutRatios}
+                requestedSqFt={requestedSqFt}
+              />
+
+              <Card className="border border-slate-200 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <LayoutLabel />
+                      4. Graph
+                    </CardTitle>
+                    {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                      <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
+                        <Scissors className="mr-1.5 h-4 w-4" />
+                        {isRecordingCut ? "Recording…" : "Cut"}
+                      </Button>
+                    )}
+                  </div>
+                  <CardDescription>
+                    The graph starts from rectangular stock and shows the actual cut pieces placed
+                    on that stock, with reusable offcut in amber and waste in red.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent>
+                  <NestingVisualizer
+                    defaultRollWidth={stock.width}
+                    defaultRollLength={stock.length}
+                    defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
+                    defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
+                    defaultQty={safeQuantity}
+                    onMetricsChange={setCutMetrics}
+                    onLayoutChange={setLayouts}
+                    simpleParts={nestingSimpleParts}
+                    simplePart={nestingSimplePart}
+                  />
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            // Empty-state: same `NestingVisualizer` used once a part is
+            // picked, but with an explicit empty `simpleParts` so the
+            // visualizer short-circuits the preview pipeline and renders
+            // the stock chrome with no placed pieces. Guarantees the
+            // layout doesn't swap out when a cut is added or removed.
+            <Card className="border border-slate-200 shadow-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                    <LayoutLabel />
+                    4. Graph
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  The loaded stock sheet — no cuts placed yet. Pick a part above to start nesting
+                  onto it; the layout stays put.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <NestingVisualizer
+                  defaultRollWidth={stock.width}
+                  defaultRollLength={stock.length}
+                  defaultCutWidth={Math.max(1, stock.width / 4)}
+                  defaultCutHeight={Math.max(1, stock.length / 8)}
+                  defaultQty={0}
+                  simpleParts={[]}
+                />
+                <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                  <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                  <span>
+                    Pick a preset or upload a cut list to start nesting parts onto this sheet.
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="free-roam" className="space-y-6">
           <Card className="border border-slate-200 shadow-sm">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <LayoutLabel />
-                  4. Graph
-                </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
-              </div>
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <Shapes className="h-4 w-4 text-slate-500" />
+                Free-roam nester
+                <Badge variant="secondary" className="ml-2 text-[10px]">
+                  Coming soon
+                </Badge>
+              </CardTitle>
               <CardDescription>
-                The graph starts from rectangular stock and shows the actual cut pieces placed on
-                that stock, with reusable offcut in amber and waste in red.
+                CAD-style manual placement. Drag parts onto the sheet, rotate them, snap to grid,
+                and record the layout as a cut — same reusable-offcut (amber) and waste (red)
+                semantics as Auto nest. Shared parts queue + stock with Auto nest; placements stay
+                per tab.
               </CardDescription>
             </CardHeader>
-
             <CardContent>
-              <NestingVisualizer
-                defaultRollWidth={stock.width}
-                defaultRollLength={stock.length}
-                defaultCutWidth={selectedTemplate.width ?? selectedTemplate.diameter ?? 24}
-                defaultCutHeight={selectedTemplate.length ?? selectedTemplate.height ?? 24}
-                defaultQty={safeQuantity}
-                onMetricsChange={setCutMetrics}
-                onLayoutChange={setLayouts}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
-              />
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+                <Shapes className="h-12 w-12 opacity-30" aria-hidden="true" />
+                <p className="max-w-md text-sm">
+                  The free-roam canvas is being built. Check back as C5 — C11 land.
+                </p>
+              </div>
             </CardContent>
           </Card>
-        </>
-      ) : (
-        // Empty-state: same `NestingVisualizer` used once a part is
-        // picked, but with an explicit empty `simpleParts` so the
-        // visualizer short-circuits the preview pipeline and renders
-        // the stock chrome with no placed pieces. Guarantees the
-        // layout doesn't swap out when a cut is added or removed.
-        <Card className="border border-slate-200 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <LayoutLabel />
-                4. Graph
-              </CardTitle>
-            </div>
-            <CardDescription>
-              The loaded stock sheet — no cuts placed yet. Pick a part above to start nesting onto
-              it; the layout stays put.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <NestingVisualizer
-              defaultRollWidth={stock.width}
-              defaultRollLength={stock.length}
-              defaultCutWidth={Math.max(1, stock.width / 4)}
-              defaultCutHeight={Math.max(1, stock.length / 8)}
-              defaultQty={0}
-              simpleParts={[]}
-            />
-            <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
-              <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                Pick a preset or upload a cut list to start nesting parts onto this sheet.
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+export default function CutPlannerPage() {
+  // `useSearchParams` requires a Suspense boundary in Next 16.
+  return (
+    <Suspense fallback={null}>
+      <CutPlannerPageInner />
+    </Suspense>
   )
 }
