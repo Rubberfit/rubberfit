@@ -306,6 +306,47 @@ export default function FreeRoamContent({
     [placements, parts, stock, tagByTemplateId]
   )
 
+  /**
+   * Derived metrics from the current manual placements. Uses the
+   * simplest decomposition: every in^2 on the sheet is either
+   * "used" (sum of placed-part areas, discs counted by π·r² so a
+   * square bounding box isn't over-counted) or "reusable offcut"
+   * (everything else). Scrap is 0 here — a future commit can
+   * carve out truly-small leftover slivers via clipper and classify
+   * them. Fab score = raw material efficiency (used / stock).
+   */
+  const derivedMetrics = useMemo<SimpleCutMetrics | null>(() => {
+    if (placements.length === 0) return null
+    const byId = new Map(parts.map((p) => [p.id, p]))
+    const totalSheetSqIn = stock.width * stock.length
+    let usedSqIn = 0
+    for (const p of placements) {
+      const template = byId.get(p.templateId)
+      if (!template) continue
+      if (template.partType === "cylinder" && template.diameter) {
+        const r = template.diameter / 2
+        usedSqIn += Math.PI * r * r
+      } else {
+        const w = template.width ?? template.diameter ?? 0
+        const h = template.length ?? template.height ?? template.diameter ?? 0
+        usedSqIn += w * h
+      }
+    }
+    const usedSqFt = usedSqIn / 144
+    const totalSqFt = totalSheetSqIn / 144
+    const reusableSqFt = Math.max(0, totalSqFt - usedSqFt)
+    const efficiency = totalSqFt > 0 ? usedSqIn / totalSheetSqIn : 0
+    return {
+      partsCompleted: placements.length,
+      cutPieces: placements.length,
+      materialUsedSqFt: Number(usedSqFt.toFixed(4)),
+      reusableOffsetSqFt: Number(reusableSqFt.toFixed(4)),
+      scrapSqFt: 0,
+      fabScore: efficiency, // 0..1 normalized, multiplied *100 at display
+      offcutPieces: [],
+    }
+  }, [placements, parts, stock])
+
   // Keyboard shortcuts for the selected placement.
   //   Delete / Backspace — remove from canvas
   //   R                  — rotate 90° clockwise
@@ -430,7 +471,7 @@ export default function FreeRoamContent({
             setCustomCutRatioInput={setCustomCutRatioInput}
             customCutRatios={customCutRatios}
             requestedSqFt={requestedSqFt}
-            cutMetrics={cutMetrics}
+            cutMetrics={derivedMetrics ?? cutMetrics}
             onRecordCut={onRecordCut}
             isRecordingCut={isRecordingCut}
             refreshKey={refreshKey}
