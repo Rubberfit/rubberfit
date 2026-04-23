@@ -156,7 +156,10 @@ function SheetSvg({
     dragRef.current = null
   }, [])
 
-  const resetZoom = React.useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }) }, [])
+  const resetZoom = React.useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [])
 
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
@@ -164,7 +167,7 @@ function SheetSvg({
   return (
     <div className="group relative">
       {/* Zoom controls — visible on hover */}
-      <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border border-border/60 bg-background/90 px-2 py-1 opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100">
         <button
           type="button"
           onClick={() => {
@@ -174,18 +177,18 @@ function SheetSvg({
               return nz
             })
           }}
-          className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-white hover:bg-white/20"
+          className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-foreground hover:bg-muted"
           aria-label="Zoom out"
         >
           −
         </button>
-        <span className="min-w-[3ch] text-center text-[10px] font-medium text-stone-300">
+        <span className="min-w-[3ch] text-center text-[10px] font-medium text-muted-foreground">
           {Math.round(zoom * 100)}%
         </span>
         <button
           type="button"
           onClick={() => setZoom((z) => Math.min(8, +(z * 1.5).toFixed(2)))}
-          className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-white hover:bg-white/20"
+          className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-foreground hover:bg-muted"
           aria-label="Zoom in"
         >
           +
@@ -194,7 +197,7 @@ function SheetSvg({
           <button
             type="button"
             onClick={resetZoom}
-            className="ml-1 rounded px-1.5 py-0.5 text-[10px] text-stone-300 hover:bg-white/20"
+            className="ml-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
           >
             Reset
           </button>
@@ -202,7 +205,7 @@ function SheetSvg({
       </div>
 
       {isMultiSheet && (
-        <div className="mb-1 text-center text-xs font-medium text-stone-400">
+        <div className="mb-1 text-center text-xs font-medium text-muted-foreground">
           Sheet {sheet.sheetIndex + 1} of {totalSheets}
           {sheet.isPartial ? " (partial)" : ""}
         </div>
@@ -230,13 +233,13 @@ function SheetSvg({
           x={layout.viewWidth / 2}
           y="34"
           textAnchor="middle"
-          fill="#ffffff"
+          fill="#111827"
           fontSize="20"
           fontWeight="700"
         >
           {"Rubber Sheet Nesting Layout"}
         </text>
-        <text x={layout.viewWidth / 2} y="60" textAnchor="middle" fill="#f5f5f4" fontSize="12">
+        <text x={layout.viewWidth / 2} y="60" textAnchor="middle" fill="#4b5563" fontSize="12">
           {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
@@ -488,10 +491,10 @@ export default function NestingVizSimpleMode({
       />
 
       {legendEntries.length > 0 && (
-        <div className="flex flex-wrap gap-3 border-b border-border bg-[#1b1b19] px-4 py-2.5 text-xs text-stone-300">
+        <div className="flex flex-wrap gap-3 border-b border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
           {legendEntries.map((entry) => (
             <span key={entry.tag} className="flex items-center gap-1.5">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-stone-700 text-[10px] font-bold text-stone-50">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
                 {entry.tag}
               </span>
               <span>{entry.label}</span>
@@ -501,7 +504,7 @@ export default function NestingVizSimpleMode({
       )}
 
       <div
-        className={`bg-[#232320] px-2 py-4 sm:px-4 ${isMultiSheet ? "flex flex-col gap-6 md:grid-cols-2" : "overflow-x-auto"}`}
+        className={`bg-card px-2 py-4 sm:px-4 ${isMultiSheet ? "flex flex-col gap-6 md:grid-cols-2" : "overflow-x-auto"}`}
       >
         {sheets.map((sheet) => (
           <SheetSvg

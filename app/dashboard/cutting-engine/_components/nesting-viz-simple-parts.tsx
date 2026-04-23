@@ -103,12 +103,14 @@ export function SimpleModeHeader({
   )
 
   return (
-    <div className="border-b border-border bg-[#1b1b19] px-4 py-3">
+    <div className="border-b border-border bg-muted/30 px-4 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-sm font-semibold text-stone-50">{"Rubber Sheet Nesting Layout"}</div>
-          <div className="text-xs text-stone-300">{previewTitle}</div>
-          <div className="mt-1 text-xs text-stone-400">{layoutNote}</div>
+          <div className="text-sm font-semibold text-foreground">
+            {"Rubber Sheet Nesting Layout"}
+          </div>
+          <div className="text-xs text-muted-foreground">{previewTitle}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{layoutNote}</div>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-3 py-1 font-medium text-sky-300">
@@ -182,8 +184,8 @@ export function SimpleModePatternDefs({
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        <rect width="18" height="18" fill="#242420" />
-        <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(120,113,108,0.22)" strokeWidth="1.5" />
+        <rect width="18" height="18" fill="#f5f5f4" />
+        <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(120,113,108,0.18)" strokeWidth="1.5" />
       </pattern>
       <pattern
         id={offcutPatternId}
@@ -192,8 +194,8 @@ export function SimpleModePatternDefs({
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        <rect width="14" height="14" fill="#332c1f" />
-        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(245,158,11,0.5)" strokeWidth="2" />
+        <rect width="14" height="14" fill="#fef3c7" />
+        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(245,158,11,0.55)" strokeWidth="2" />
       </pattern>
       <pattern
         id={wastePatternId}
@@ -202,8 +204,8 @@ export function SimpleModePatternDefs({
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        <rect width="14" height="14" fill="#312726" />
-        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(239,68,68,0.5)" strokeWidth="2" />
+        <rect width="14" height="14" fill="#fef2f2" />
+        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(239,68,68,0.55)" strokeWidth="2" />
       </pattern>
       <pattern
         id={usablePatternId}
@@ -212,11 +214,11 @@ export function SimpleModePatternDefs({
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(-32)"
       >
-        <rect width="18" height="18" fill="#2f3426" />
-        <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(132,204,22,0.45)" strokeWidth="2" />
+        <rect width="18" height="18" fill="#f0fdf4" />
+        <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(34,197,94,0.55)" strokeWidth="2" />
       </pattern>
       <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-        <path d="M0,0 L8,4 L0,8 Z" fill="#d6d3d1" />
+        <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />
       </marker>
     </defs>
   )
@@ -447,13 +449,13 @@ export function SimpleModeOffcutLabels({
             x={centerX}
             y={centerY}
             textAnchor="middle"
-            fill="#d6d3d1"
-            fontWeight="500"
+            fill="#78350f"
+            fontWeight="600"
           >
             <tspan x={centerX} dy={-dimsSize * 0.6} fontSize={titleSize}>
               Reusable offcut
             </tspan>
-            <tspan x={centerX} dy={titleSize + dimsSize * 0.3} fontSize={dimsSize} fill="#fbbf24">
+            <tspan x={centerX} dy={titleSize + dimsSize * 0.3} fontSize={dimsSize} fill="#b45309">
               {dims}
             </tspan>
           </text>

@@ -24,7 +24,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
             : layout.surfaceX + layout.surfacePxW
         }
         y2={layout.rowLabelY}
-        stroke="#d6d3d1"
+        stroke="#57534e"
         strokeWidth="1.5"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
@@ -37,7 +37,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         }
         y={layout.rowLabelY + 24}
         textAnchor="middle"
-        fill="#e7e5e4"
+        fill="#374151"
         fontSize="14"
         fontWeight="600"
       >
@@ -53,7 +53,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
             ? layout.localBlankY + layout.localBlankH
             : layout.surfaceY + layout.surfacePxH
         }
-        stroke="#d6d3d1"
+        stroke="#57534e"
         strokeWidth="1.5"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
@@ -66,7 +66,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
             : layout.surfaceY + layout.surfacePxH / 2
         }
         textAnchor="middle"
-        fill="#e7e5e4"
+        fill="#374151"
         fontSize="14"
         fontWeight="600"
         transform={`rotate(90 ${layout.colLabelX + 26} ${layout.shapeFirstView ? layout.localBlankY + layout.localBlankH / 2 : layout.surfaceY + layout.surfacePxH / 2})`}
