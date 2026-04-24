@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MousePointer2, Hand, Ruler, RotateCcw, Grid3x3, Plus, Minus } from "lucide-react"
+import { Grid3x3, Hand, Minus, MousePointer2, Plus, RotateCcw, Ruler } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 
 type Tool = "select" | "pan" | "measure" | "reset"
@@ -22,11 +22,21 @@ interface CanvasToolbarProps {
    *  multi-sheet handler, or pass an informational callback (e.g.
    *  toast "coming soon") when multi-sheet isn't implemented yet. */
   onAddSheet?: () => void
+  /** Current grid visibility. Parent owns the state so the renderer
+   *  can read the same value. */
+  showGrid: boolean
+  onShowGridChange: (visible: boolean) => void
 }
 
-export function CanvasToolbar({ zoom, onZoomChange, onResetView, onAddSheet }: CanvasToolbarProps) {
+export function CanvasToolbar({
+  zoom,
+  onZoomChange,
+  onResetView,
+  onAddSheet,
+  showGrid,
+  onShowGridChange,
+}: CanvasToolbarProps) {
   const [activeTool, setActiveTool] = useState<Tool>("select")
-  const [showGrid, setShowGrid] = useState(true)
 
   const tools: Array<{ key: Tool; icon: React.ReactNode; label: string }> = [
     { key: "select", icon: <MousePointer2 className="h-4 w-4" />, label: "Select" },
@@ -77,7 +87,7 @@ export function CanvasToolbar({ zoom, onZoomChange, onResetView, onAddSheet }: C
         type="button"
         aria-label="Toggle grid"
         title="Toggle grid"
-        onClick={() => setShowGrid((v) => !v)}
+        onClick={() => onShowGridChange(!showGrid)}
         className={cn(
           "rounded p-1.5 transition-colors border border-border/60",
           showGrid

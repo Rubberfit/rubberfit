@@ -71,11 +71,12 @@ export default function FreeRoamContent({
     [parts, onPartsChange]
   )
 
-  // Canvas toolbar state — lifted here so `KonvaSheetRenderer` and the
-  // toolbar share one source of truth. `Reset view` sends zoom back
-  // to 100 (fit-to-container).
+  // Canvas toolbar state — lifted here so `KonvaSheetRenderer` and
+  // the toolbar share one source of truth. Reset returns zoom to
+  // fit-to-container and restores the grid.
   const [zoomPct, setZoomPct] = useState(100)
-  const handleResetView = useCallback(() => setZoomPct(100), [])
+  const [showGrid, setShowGrid] = useState(true)
+  const handleResetView = useCallback(() => void (setZoomPct(100), setShowGrid(true)), [])
   const handleAddSheet = useCallback(() => {
     toast.message("Multi-sheet layouts", {
       description: "Coming in a later commit — the current sheet is the only one for now.",
@@ -236,6 +237,8 @@ export default function FreeRoamContent({
             <CanvasToolbar
               zoom={zoomPct}
               onZoomChange={setZoomPct}
+              showGrid={showGrid}
+              onShowGridChange={setShowGrid}
               onResetView={handleResetView}
               onAddSheet={handleAddSheet}
             />
@@ -249,6 +252,7 @@ export default function FreeRoamContent({
                 onSheetClick={handleSheetClick}
                 defaultFill="offcut"
                 zoomPct={zoomPct}
+                showGrid={showGrid}
               />
               {parts.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">

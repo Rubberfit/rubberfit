@@ -32,6 +32,7 @@ function PartShape({
   theme,
   draggable,
   selected,
+  realistic,
   onDragEnd,
   onDragMove,
   onClick,
@@ -42,6 +43,13 @@ function PartShape({
   theme: KonvaThemeTokens
   draggable: boolean
   selected: boolean
+  /**
+   * When true, parts render with a drop shadow + rounded corners so
+   * they read as physical chunks of material on the sheet. Enabled
+   * on the Free-roam CAD surface; Auto-nest keeps the flat look so
+   * the nest preview stays crisp at every scale.
+   */
+  realistic: boolean
   onDragEnd?: PartDragEnd
   onDragMove?: PartDragMove
   onClick?: PartClick
@@ -72,6 +80,24 @@ function PartShape({
   const stroke = selected ? selectedStroke : theme.partStroke
   const strokeWidth = selected ? 2 : 1
 
+  // Shared shadow props — dropped onto each body shape so the part
+  // reads as a physical chunk of material lifted off the sheet.
+  // Shadow follows the shape's outline (not the bbox), which is why
+  // the props live on the body, not the wrapping Group.
+  const shadowProps = realistic
+    ? {
+        shadowColor: "rgba(15, 23, 42, 0.35)", // slate-900 @ 35%
+        shadowBlur: 6,
+        shadowOffsetX: 0,
+        shadowOffsetY: 2,
+        shadowOpacity: 1,
+      }
+    : {}
+  // Rounded corners only on the Rect fallback path — softens the
+  // CAD sticker look without distorting shapes that carry their
+  // own vertex list.
+  const cornerRadius = realistic ? Math.min(pw, ph) * 0.03 : 0
+
   // Dispatch order:
   //   1. Konva native primitives when the shape has one (Circle,
   //      Ellipse, Ring) — exact geometry, crisp hit-testing, no
@@ -92,6 +118,7 @@ function PartShape({
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        {...shadowProps}
       />
     )
   } else if (part.renderShape === "ellipse") {
@@ -104,6 +131,7 @@ function PartShape({
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        {...shadowProps}
       />
     )
   } else if (part.renderShape === "ring" && part.innerRadius != null && part.outerRadius != null) {
@@ -116,11 +144,21 @@ function PartShape({
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        {...shadowProps}
       />
     )
   } else if (part.polygon && part.polygon.length >= 3) {
     const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
-    body = <Line points={points} closed fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+    body = (
+      <Line
+        points={points}
+        closed
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        {...shadowProps}
+      />
+    )
   } else {
     body = (
       <Rect
@@ -128,9 +166,11 @@ function PartShape({
         y={0}
         width={pw}
         height={ph}
+        cornerRadius={cornerRadius}
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        {...shadowProps}
       />
     )
   }
@@ -282,6 +322,8 @@ interface KonvaSheetRendererProps {
    * clipped — pan support lands with the Hand tool later.
    */
   zoomPct?: number
+  /** Render the 12" grid. Default true. */
+  showGrid?: boolean
 }
 
 export default function KonvaSheetRenderer({
@@ -294,6 +336,7 @@ export default function KonvaSheetRenderer({
   onSheetClick,
   defaultFill = "sheet",
   zoomPct = 100,
+  showGrid = true,
 }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -346,13 +389,15 @@ export default function KonvaSheetRenderer({
               onTap={() => onSheetClick?.()}
             />
 
-            {/* Grid */}
-            <GridLines
-              sheetW={layout.sheetWidth}
-              sheetL={layout.sheetLength}
-              scale={scale}
-              stroke={theme.grid}
-            />
+            {/* Grid — hidden when the toolbar toggle is off */}
+            {showGrid && (
+              <GridLines
+                sheetW={layout.sheetWidth}
+                sheetL={layout.sheetLength}
+                scale={scale}
+                stroke={theme.grid}
+              />
+            )}
 
             {/* Reusable offcut — amber. When the sheet background
                 is already amber (Free-roam surface), these would be
@@ -392,6 +437,7 @@ export default function KonvaSheetRenderer({
                 theme={theme}
                 draggable={typeof onPartDragEnd === "function"}
                 selected={selectedPartId === part.id}
+                realistic={defaultFill === "offcut"}
                 onDragEnd={onPartDragEnd}
                 onDragMove={onPartDragMove}
                 onClick={onPartClick}
