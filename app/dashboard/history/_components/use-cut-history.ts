@@ -48,14 +48,14 @@ export function useCutHistory() {
   const canDelete = isAdmin || isManager
 
   const [cuts, setCuts] = useState<CutHistoryRow[]>([])
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [users, setUsers] = useState<User[]>([])
   // undefined = not yet initialized (wait for userId from useRole)
   const [selectedUserId, setSelectedUserId] = useState<string | null | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; cutId: number | null }>({
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; cutId: string | null }>({
     open: false,
     cutId: null,
   })
@@ -91,7 +91,7 @@ export function useCutHistory() {
             limit: 100,
             userId: forUserId ?? undefined,
           }),
-          listFavoriteIds().catch(() => ({ ids: new Set<number>() })),
+          listFavoriteIds().catch(() => ({ ids: new Set<string>() })),
         ])
 
         const merged: CutHistoryRow[] = rows
@@ -147,7 +147,7 @@ export function useCutHistory() {
 
   // Toggle favorite
   const handleToggleFavorite = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       const wasOn = favoriteIds.has(id)
 
       // Optimistic update
@@ -220,7 +220,7 @@ export function useCutHistory() {
   // manual layouts re-hydrate onto the CAD canvas instead of landing
   // on the preset picker (which can't represent free placements).
   const handleReopen = useCallback(
-    (cutId: number) => {
+    (cutId: string) => {
       const cut = cuts.find((c) => c.id === cutId)
       const target =
         cut?.source === "manual"

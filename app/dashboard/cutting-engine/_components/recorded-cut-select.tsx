@@ -74,11 +74,11 @@ function RecordedCutSelectImpl({
       try {
         const [histResult, favResult] = await Promise.allSettled([
           fetchJson<{ data: CutHistory[] }>("/api/cuts/history?limit=50"),
-          fetchJson<{ data: number[] }>("/api/cuts/favorites"),
+          fetchJson<{ data: string[] }>("/api/cuts/favorites"),
         ])
 
         const history = histResult.status === "fulfilled" ? (histResult.value.data ?? []) : []
-        const favIds = new Set<number>(favResult.status === "fulfilled" ? favResult.value.data : [])
+        const favIds = new Set<string>(favResult.status === "fulfilled" ? favResult.value.data : [])
 
         // Client-side `source` filter — the legacy API doesn't accept
         // a query param for it, so filter here. Cheap relative to the
@@ -113,7 +113,7 @@ function RecordedCutSelectImpl({
   // rapidly updates state in response to a selection.
   const handleValueChange = useCallback(
     (value: string) => {
-      const cut = cuts.find((c) => c.id === Number(value))
+      const cut = cuts.find((c) => c.id === value)
       if (cut) onLoad(cut)
     },
     [cuts, onLoad]

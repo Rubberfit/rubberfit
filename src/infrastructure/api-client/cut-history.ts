@@ -46,7 +46,10 @@ function useRustBackend(): boolean {
 
 function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
   return {
-    id: dto.id,
+    // v2 DTO still types id as `number` (openapi codegen lagging on
+    // the string/UUID migration); stringify so consumers can treat
+    // the id uniformly with the native Postgres UUID rows.
+    id: String(dto.id),
     user_id: dto.user_id ?? null,
     // Rust DTO doesn't carry roll_id / job_id / job_part_id yet;
     // legacy + v2 rows default to null.
@@ -136,17 +139,20 @@ export async function listCutHistory(opts: ListHistoryOptions = {}): Promise<Cut
 export interface FavoritesResult {
   /**
    * The set of cut-history ids favorited by the caller. The hook
-   * uses this as a lookup, not a list of rows.
+   * uses this as a lookup, not a list of rows. IDs are GUID strings
+   * post-migration to UUID primary keys.
    */
-  ids: Set<number>
+  ids: Set<string>
 }
 
 export async function listFavoriteIds(): Promise<FavoritesResult> {
   if (useRustBackend()) {
     // v2 returns the full favorite entries; the hook only needs ids.
+    // v2 DTO still types id as number — stringify to match the
+    // UUID-string migration on the v1 path.
     const rows = await fetchJson<CutHistoryDto[]>("/api/v2/cuts/favorites")
-    return { ids: new Set(rows.map((r) => r.id)) }
+    return { ids: new Set(rows.map((r) => String(r.id))) }
   }
-  const res = await fetchJson<{ data: number[] }>("/api/cuts/favorites")
+  const res = await fetchJson<{ data: string[] }>("/api/cuts/favorites")
   return { ids: new Set(res.data) }
 }

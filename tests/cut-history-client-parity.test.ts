@@ -33,7 +33,7 @@ type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
 function makeV1Row(): CutHistory {
   return {
-    id: 42,
+    id: "42",
     user_id: "user-abc",
     roll_id: null,
     job_id: null,
@@ -208,11 +208,11 @@ describe("cut-history client — v1/v2 parity", () => {
 
   it("listFavoriteIds returns v1 id list unchanged with flag OFF", async () => {
     global.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ data: [1, 2, 3] }), { status: 200 })
+      async () => new Response(JSON.stringify({ data: ["1", "2", "3"] }), { status: 200 })
     ) as unknown as typeof fetch
 
     const result = await listFavoriteIds()
-    expect([...result.ids].sort((a, b) => a - b)).toEqual([1, 2, 3])
+    expect([...result.ids].sort()).toEqual(["1", "2", "3"])
   })
 
   it("listFavoriteIds extracts ids from v2 full entries with flag ON", async () => {
@@ -224,7 +224,9 @@ describe("cut-history client — v1/v2 parity", () => {
     global.fetch = fetchSpy as unknown as typeof fetch
 
     const result = await listFavoriteIds()
-    expect([...result.ids].sort((a, b) => a - b)).toEqual([42, 100])
+    // Dto.id is still number on the v2 OpenAPI type; the client
+    // stringifies it so consumers see a consistent UUID-string set.
+    expect([...result.ids].sort()).toEqual(["100", "42"])
     expect(fetchSpy.mock.calls[0][0]).toBe("/api/v2/cuts/favorites")
   })
 

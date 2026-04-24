@@ -332,7 +332,10 @@ export interface NotificationQueue {
 }
 
 // User profile — mirrors the `profiles` table shape so admin and
-// auth layers have a single typed handle on it.
+// auth layers have a single typed handle on it. `last_sign_in_at`
+// is an admin-surface addition: mirrored from `auth.users` into
+// `profiles` via a DB trigger so the admin users table can sort
+// by activity without a separate auth call.
 export interface UserProfile {
   id: string
   email: string | null
@@ -341,6 +344,7 @@ export interface UserProfile {
   roles: string[] | null
   super_admin: boolean | null
   is_deleted: boolean | null
+  last_sign_in_at: string | null
   created_at: string
   updated_at: string
 }
@@ -432,7 +436,7 @@ export interface PartCustomDimensions {
 }
 
 export interface CutHistory {
-  id: number
+  id: string
   user_id: string | null
   /**
    * Inventory roll that sourced this cut, if the engine was
@@ -646,3 +650,11 @@ export interface JobFullDetail extends JobWithParts {
 export interface CutHistoryWithProfile extends CutHistory {
   profiles: { full_name: string | null; roles: string[] | null } | null
 }
+
+export interface CutHistoryFavorite {
+  id: string
+  user_id: string
+  cut_history_id: string
+  created_at: string | null
+}
+

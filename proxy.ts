@@ -1,12 +1,13 @@
 import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextRequest } from "next/server"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
 import {
   getRequiredPermission,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
+import type { Session } from "@supabase/supabase-js"
 
 interface ProfileRow {
   super_admin: boolean | null
@@ -77,7 +78,7 @@ export async function proxy(request: NextRequest) {
     loginUrl.searchParams.set("redirectTo", target)
     return redirectWithCookies(loginUrl, pendingCookies)
   }
-
+ 
   const requiredPermission = getRequiredPermission(pathname)
 
   if (requiredPermission) {
@@ -91,6 +92,17 @@ export async function proxy(request: NextRequest) {
 
     if (!hasPermission(userRoles, requiredPermission)) {
       return redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
+    }
+  } 
+  if (pathname.startsWith("/admin")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("super_admin")
+      .eq("id", user.id)
+      .single<ProfileRow>()
+
+    if (!profile?.super_admin) {
+      return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
     }
   }
 

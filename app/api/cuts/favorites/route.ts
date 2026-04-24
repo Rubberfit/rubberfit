@@ -4,7 +4,7 @@ import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 
 /** GET /api/cuts/favorites
  *  Returns the list of cut_history_id values the current user has favorited.
- *  Response: { data: number[] }
+ *  Response: { data: string[] }
  */
 export async function GET(request: NextRequest) {
   //  Authenticate caller
@@ -44,17 +44,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: [] })
   }
 
-  const ids = (data ?? []).map((row) => (row as { cut_history_id: number }).cut_history_id)
+  const ids = (data ?? []).map((row) => (row as { cut_history_id: string }).cut_history_id)
   return NextResponse.json({ data: ids })
 }
 
 interface ToggleBody {
-  cut_history_id: number
+  cut_history_id: string
 }
 
 /** POST /api/cuts/favorites
  *  Toggles a favorite: adds if absent, removes if present.
- *  Body: { cut_history_id: number }
+ *  Body: { cut_history_id: string }
  *  Response: { isFavorite: boolean }
  */
 export async function POST(request: NextRequest) {
@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
 
   const { cut_history_id } = body
 
-  if (typeof cut_history_id !== "number") {
-    return NextResponse.json({ error: "cut_history_id must be a number" }, { status: 400 })
+  if (typeof cut_history_id !== "string") {
+    return NextResponse.json({ error: "cut_history_id must be a string" }, { status: 400 })
   }
 
   // Check if the favorite already exists

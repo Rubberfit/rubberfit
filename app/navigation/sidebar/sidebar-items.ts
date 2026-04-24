@@ -10,6 +10,7 @@ import {
   BarChart3,
   ShieldCheck,
   ClipboardList,
+  Users,
 } from "lucide-react"
 import type { Permission } from "@/src/application/permissions"
 
@@ -178,6 +179,12 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/analytics/reports",
         icon: FileText,
         requiredPermission: "viewReports",
+      },
+      {
+        title: "Users",
+        url: "/dashboard/users",
+        icon: Users,
+        requiredPermission: "manageUsers",
       },
       {
         title: "Settings",
