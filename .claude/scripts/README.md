@@ -4,7 +4,7 @@ Automation scripts for Claude Code sessions. Checked in so they run consistently
 
 ## `openclaw-triage-issue.sh`
 
-Triage ONE GitHub issue via OpenClaw (Qwen2.5-Coder 32B). Refines the description, recommends labels, estimates story points (Fibonacci) and priority (P0-P3).
+Triage ONE GitHub issue via OpenClaw (Kimi K2.6 cloud, bound to the `triage` agent). Refines the description, recommends labels, estimates story points (Fibonacci) and priority (P0-P3), and posts a triage comment with area-of-codebase / suggested approach / risks notes.
 
 ```bash
 # Preview only — nothing applied (default)
@@ -22,11 +22,11 @@ Triage ONE GitHub issue via OpenClaw (Qwen2.5-Coder 32B). Refines the descriptio
 - Labels — additive only (existing human-applied labels preserved). Adds recommended labels + `pts-N` + `prio-pN`.
 - Trail comment — `🦞 Triaged via OpenClaw: pts-5, prio-p2. <rationale>` for audit.
 
-**Runtime:** ~2-3 min per issue on qwen2.5-coder:32b (partial CPU offload on the 4070 Ti Super).
+**Runtime:** ~20-40s per issue on kimi-k2.6:cloud.
 
 **Requirements:**
-- `OLLAMA_HOST` env var set (e.g. `http://192.168.50.68:11434`).
 - OpenClaw gateway running (`openclaw gateway status`).
+- `triage` agent bound to `ollama/kimi-k2.6:cloud` (`openclaw agents list` to verify).
 - `gh` authenticated with `repo` scope.
 - `jq`, `python3` on PATH.
 
@@ -45,9 +45,7 @@ Run the single-issue triage in preview-only mode across all open issues (or a li
 .claude/scripts/openclaw-triage-batch.sh --state all
 ```
 
-**Runtime:** `issues × ~3 min`. 30 issues ≈ 70 min. Safe to let run unattended — nothing is mutated until you manually apply suggestions.
-
-**Tip:** during the batch run, Ollama will keep `qwen2.5-coder:32b` loaded in GPU VRAM. If you need to game mid-run, `openclaw gateway stop` halts the batch cleanly; restart later and only unfinished issues need re-running.
+**Runtime:** `issues × ~30s`. 30 issues ≈ 15 min. Safe to let run unattended — nothing is mutated until you manually apply suggestions.
 
 ## Label taxonomy
 
