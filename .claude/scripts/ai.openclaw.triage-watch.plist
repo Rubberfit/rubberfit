@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.openclaw.triage-watch</string>
+
+  <!--
+    Poll for new GitHub issues every 15 minutes and auto-triage via
+    Kimi K2.6 through OpenClaw.
+
+    Install (per-user; Mac must be awake for this to fire):
+      cp .claude/scripts/ai.openclaw.triage-watch.plist ~/Library/LaunchAgents/
+      # edit `WorkingDirectory` below if your clone is elsewhere
+      launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.openclaw.triage-watch.plist
+      launchctl kickstart -k gui/$UID/ai.openclaw.triage-watch
+
+    Uninstall:
+      launchctl bootout gui/$UID/ai.openclaw.triage-watch
+      rm ~/Library/LaunchAgents/ai.openclaw.triage-watch.plist
+
+    Logs: /tmp/openclaw/triage-watch.log
+    State: ~/.openclaw/state/triage-last-seen.txt
+  -->
+
+  <key>WorkingDirectory</key>
+  <string>/Users/danielmartinezjulio/Work/arc and anchor/rema-portal</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>.claude/scripts/openclaw-triage-watch.sh</string>
+  </array>
+
+  <!-- Fire every 15 minutes. -->
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <!-- First run happens 2 min after agent load to let the machine settle. -->
+  <key>ThrottleInterval</key>
+  <integer>120</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <!-- Inherit the user's login shell so PATH picks up gh/jq/openclaw
+       installed via Homebrew/Herd. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/Users/danielmartinezjulio/Library/Application Support/Herd/config/nvm/versions/node/v22.14.0/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/openclaw/triage-watch.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/openclaw/triage-watch.stderr.log</string>
+</dict>
+</plist>

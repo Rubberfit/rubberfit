@@ -47,6 +47,30 @@ Run the single-issue triage in preview-only mode across all open issues (or a li
 
 **Runtime:** `issues × ~30s`. 30 issues ≈ 15 min. Safe to let run unattended — nothing is mutated until you manually apply suggestions.
 
+## `openclaw-triage-watch.sh` + `ai.openclaw.triage-watch.plist`
+
+Poll-based auto-triage for **newly created** issues. Runs every 15 minutes via LaunchAgent, calls `openclaw-triage-issue.sh <N> --yes` on each issue created after the watermark. Bootstraps the watermark to the moment of first run — existing issues are never retroactively triaged.
+
+State file: `~/.openclaw/state/triage-last-seen.txt` (single line, UTC ISO-8601)
+Logs: `/tmp/openclaw/triage-watch.log`
+
+```bash
+# One-time install (per-user)
+cp .claude/scripts/ai.openclaw.triage-watch.plist ~/Library/LaunchAgents/
+# edit WorkingDirectory in the plist if your clone path differs
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.openclaw.triage-watch.plist
+launchctl kickstart -k gui/$UID/ai.openclaw.triage-watch
+
+# Status / uninstall
+launchctl list | grep openclaw
+launchctl bootout gui/$UID/ai.openclaw.triage-watch
+rm ~/Library/LaunchAgents/ai.openclaw.triage-watch.plist
+```
+
+Bot-authored issues (dependabot, renovate, coderabbitai, github-actions, anything `*[bot]`) are skipped — their bodies are already structured and triaging them adds noise.
+
+**First-run behavior:** script writes the current UTC timestamp to the state file and exits. Nothing pre-existing gets touched. Bugs / old issues stay as they were.
+
 ## Label taxonomy
 
 Story points are applied as labels `pts-1`, `pts-2`, `pts-3`, `pts-5`, `pts-8`, `pts-13` (Fibonacci).
