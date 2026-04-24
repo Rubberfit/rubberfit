@@ -48,8 +48,10 @@
        installed via Homebrew/Herd. -->
   <key>EnvironmentVariables</key>
   <dict>
+    <!-- Herd's nvm node path MUST come before /usr/local/bin — the
+         latter has a stale node 22.13.1 which openclaw (>=22.14.0) rejects. -->
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/Users/danielmartinezjulio/Library/Application Support/Herd/config/nvm/versions/node/v22.14.0/bin:/usr/bin:/bin</string>
+    <string>/Users/danielmartinezjulio/Library/Application Support/Herd/config/nvm/versions/node/v22.14.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
 
   <key>StandardOutPath</key>

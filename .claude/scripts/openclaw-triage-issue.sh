@@ -103,7 +103,13 @@ trap 'rm -f "$PROMPT_FILE"' EXIT
 echo "=== Triaging issue #$ISSUE_NUM: $ISSUE_TITLE ==="
 echo "Asking OpenClaw (Kimi K2.6 via the 'triage' agent — typically 15-40s)..."
 
-RESPONSE=$(openclaw agent --agent triage --message "$(cat "$PROMPT_FILE")" --json 2>/dev/null || echo '{"status":"error"}')
+OPENCLAW_ERR=$(mktemp -t openclaw-err.XXXXXX)
+RESPONSE=$(openclaw agent --agent triage --message "$(cat "$PROMPT_FILE")" --json 2>"$OPENCLAW_ERR" || echo '{"status":"error"}')
+if [ "$(echo "$RESPONSE" | jq -r '.status // "error"')" != "ok" ]; then
+  echo "openclaw stderr:" >&2
+  cat "$OPENCLAW_ERR" >&2
+fi
+rm -f "$OPENCLAW_ERR"
 
 STATUS=$(echo "$RESPONSE" | jq -r '.status // "error"')
 if [ "$STATUS" != "ok" ]; then
@@ -198,12 +204,82 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
   exit 0
 fi
 
-ALL_LABELS_CSV="$LABELS_NEW"
-[ -n "$PTS_LABEL" ] && ALL_LABELS_CSV="$ALL_LABELS_CSV,$PTS_LABEL"
-[ -n "$PRIO_LABEL" ] && ALL_LABELS_CSV="$ALL_LABELS_CSV,$PRIO_LABEL"
-
+# Labels: kinds only — points and priority go into the Project's
+# native fields (see apply_project_fields below), not the label list.
 gh issue edit "$ISSUE_NUM" --body "$IMPROVED" >/dev/null
-gh issue edit "$ISSUE_NUM" --add-label "$ALL_LABELS_CSV" >/dev/null
+[ -n "$LABELS_NEW" ] && gh issue edit "$ISSUE_NUM" --add-label "$LABELS_NEW" >/dev/null
+
+# ── Project field apply ─────────────────────────────────────────────────
+# Write the Fibonacci points + priority into the "Rema Project" (v2)
+# native Story Points / Priority fields instead of stashing them as
+# labels. Pattern:
+#   1. Look up the issue's GraphQL node id
+#   2. Add it to the project (no-op if it's already an item) and grab
+#      the item id
+#   3. Set the Priority + Story Points single-select fields
+# Option ids are fetched live so a project-admin reshape doesn't
+# silently rot the mapping.
+PROJECT_ID="PVT_kwDOD7DDt84BUM5C"
+PRIO_FIELD_ID="PVTSSF_lADOD7DDt84BUM5CzhBWq1s"
+PTS_FIELD_ID="PVTSSF_lADOD7DDt84BUM5CzhBWwGs"
+
+if [ -n "$PTS_LABEL" ] || [ -n "$PRIO_LABEL" ]; then
+  OPTIONS_JSON=$(gh api graphql -f query='query($pid:ID!, $ptsId:ID!) {
+    prio: node(id: $pid) {
+      ... on ProjectV2SingleSelectField { options { id name } }
+    }
+    pts: node(id: $ptsId) {
+      ... on ProjectV2SingleSelectField { options { id name } }
+    }
+  }' -F pid="$PRIO_FIELD_ID" -F ptsId="$PTS_FIELD_ID" 2>/dev/null || echo '{}')
+  # Override: the GraphQL alias shadows the outer "node" by field id,
+  # so fetch each explicitly.
+  PRIO_OPTS=$(gh api graphql -f query='query($id:ID!) {
+    node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } }
+  }' -F id="$PRIO_FIELD_ID" --jq '.data.node.options')
+  PTS_OPTS=$(gh api graphql -f query='query($id:ID!) {
+    node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } }
+  }' -F id="$PTS_FIELD_ID" --jq '.data.node.options')
+
+  # Map "prio-p1" → "P1" → option id
+  PRIO_NAME=$(printf '%s' "$PRIO_LABEL" | sed -E 's/^prio-p([0-9])$/P\1/')
+  PRIO_OPT_ID=$(printf '%s' "$PRIO_OPTS" | jq -r --arg n "$PRIO_NAME" '.[] | select(.name == $n) | .id')
+
+  # Map "pts-5" → "5" → option id
+  PTS_NAME=$(printf '%s' "$PTS_LABEL" | sed -E 's/^pts-//')
+  PTS_OPT_ID=$(printf '%s' "$PTS_OPTS" | jq -r --arg n "$PTS_NAME" '.[] | select(.name == $n) | .id')
+
+  # Need the issue's node id to add it to the project.
+  ISSUE_NODE_ID=$(gh api "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/issues/$ISSUE_NUM" --jq .node_id)
+
+  # Add to project (idempotent — re-adding returns the existing item).
+  ITEM_ID=$(gh api graphql -f query='mutation($p:ID!, $c:ID!) {
+    addProjectV2ItemById(input: {projectId: $p, contentId: $c}) { item { id } }
+  }' -F p="$PROJECT_ID" -F c="$ISSUE_NODE_ID" --jq '.data.addProjectV2ItemById.item.id' 2>/dev/null || true)
+
+  if [ -n "$ITEM_ID" ]; then
+    if [ -n "$PRIO_OPT_ID" ]; then
+      gh api graphql -f query='mutation($p:ID!, $i:ID!, $f:ID!, $o:String!) {
+        updateProjectV2ItemFieldValue(input: {
+          projectId: $p, itemId: $i, fieldId: $f,
+          value: {singleSelectOptionId: $o}
+        }) { projectV2Item { id } }
+      }' -F p="$PROJECT_ID" -F i="$ITEM_ID" -F f="$PRIO_FIELD_ID" -F o="$PRIO_OPT_ID" >/dev/null 2>&1 || \
+        echo "warning: failed to set Priority on project item" >&2
+    fi
+    if [ -n "$PTS_OPT_ID" ]; then
+      gh api graphql -f query='mutation($p:ID!, $i:ID!, $f:ID!, $o:String!) {
+        updateProjectV2ItemFieldValue(input: {
+          projectId: $p, itemId: $i, fieldId: $f,
+          value: {singleSelectOptionId: $o}
+        }) { projectV2Item { id } }
+      }' -F p="$PROJECT_ID" -F i="$ITEM_ID" -F f="$PTS_FIELD_ID" -F o="$PTS_OPT_ID" >/dev/null 2>&1 || \
+        echo "warning: failed to set Story Points on project item" >&2
+    fi
+  else
+    echo "warning: could not add issue #$ISSUE_NUM to project — pts/prio not applied" >&2
+  fi
+fi
 
 # Post a substantive triage comment: headline + rationale + technical notes.
 # Kept inside one comment so the issue timeline shows a single audit entry

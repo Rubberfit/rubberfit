@@ -19,6 +19,15 @@
 
 set -euo pipefail
 
+# LaunchAgent runs under `bash -lc`, which sources the user's login
+# shell init and prepends /usr/local/bin via path_helper. That dir
+# has a stale node 22.13.1 which openclaw (>=22.14.0) rejects. Force
+# the Herd nvm node to the front so openclaw picks up 22.14.0.
+NVM_NODE="/Users/danielmartinezjulio/Library/Application Support/Herd/config/nvm/versions/node/v22.14.0/bin"
+if [ -d "$NVM_NODE" ]; then
+  export PATH="$NVM_NODE:$PATH"
+fi
+
 REPO_SLUG="${OPENCLAW_TRIAGE_REPO:-Arc-and-Anchor/rema-portal}"
 STATE_DIR="${OPENCLAW_TRIAGE_STATE_DIR:-$HOME/.openclaw/state}"
 STATE_FILE="$STATE_DIR/triage-last-seen.txt"

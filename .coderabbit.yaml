@@ -85,7 +85,11 @@ issue_enrichment:
     auto_planning:
       enabled: false
   labeling:
-    auto_apply_labels: true
+    # Disabled 2026-04-24 — OpenClaw triage (.claude/scripts/openclaw-triage-watch.sh)
+    # now owns auto-labeling for newly-created issues via Kimi K2.6. Letting
+    # CodeRabbit also apply labels caused duplicates + unwanted tags like
+    # `request` and `intern` re-appearing on OpenClaw-triaged issues.
+    auto_apply_labels: false
     labeling_instructions:
       - label: request
         instructions: Apply when the issue is clearly client-requested work or a stakeholder asks for a new change.
