@@ -1,4 +1,6 @@
 import type { SimplePartType } from "./NestingVisualizer"
+import type { RenderShape } from "./layout-model"
+import type { Point2D } from "@/nesting/types"
 import {
   CYLINDER_TEMPLATES,
   CONE_TEMPLATES,
@@ -28,6 +30,21 @@ export interface PartTemplate {
   arcDegrees?: number
   isCustom?: boolean
   partNumber?: string
+  /**
+   * Optional renderer override, used by Free-roam's shape library.
+   * When present, the canvas uses this instead of deriving a shape
+   * family from `partType`. Existing Auto-nest templates leave this
+   * undefined and continue to dispatch off `partType`.
+   */
+  renderShape?: RenderShape
+  /**
+   * Optional local-coords polygon (bbox anchored at 0, 0). Shape
+   * library templates (triangle, n-gon, star, ring, ellipse, etc.)
+   * populate this so Free-roam's collision / waste / render paths
+   * don't need a partType case for every new shape. Ignored by the
+   * Auto-nest pipeline.
+   */
+  polygon?: Point2D[]
 }
 
 export type RectangleDraft = { width: string; length: string }

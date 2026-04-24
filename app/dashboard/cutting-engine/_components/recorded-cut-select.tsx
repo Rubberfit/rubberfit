@@ -22,6 +22,15 @@ interface CutHistoryRow extends CutHistory {
 interface RecordedCutSelectProps {
   onLoad: (cut: CutHistory) => void
   refreshKey?: number
+  /**
+   * When set, only cuts with a matching `source` appear in the
+   * dropdown. Free-roam passes `"manual"` so the Saved-layouts list
+   * only surfaces manually-authored layouts; Auto-nest omits the prop
+   * to show both (matches pre-C13b behavior).
+   */
+  sourceFilter?: "manual" | "auto"
+  /** Placeholder override — defaults to "Load previous cut…". */
+  placeholder?: string
 }
 
 const PART_LABELS: Record<number, string> = {
@@ -44,7 +53,12 @@ function buildOptionLabel(cut: CutHistory): string {
   return `${part} — ${stock} ×${cut.cut_amount} — ${date}`
 }
 
-export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectProps) {
+export function RecordedCutSelect({
+  onLoad,
+  refreshKey = 0,
+  sourceFilter,
+  placeholder,
+}: RecordedCutSelectProps) {
   const [cuts, setCuts] = useState<CutHistoryRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -60,7 +74,12 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
         const history = histResult.status === "fulfilled" ? (histResult.value.data ?? []) : []
         const favIds = new Set<number>(favResult.status === "fulfilled" ? favResult.value.data : [])
 
-        const merged = history
+        // Client-side `source` filter — the legacy API doesn't accept
+        // a query param for it, so filter here. Cheap relative to the
+        // network cost; list is capped at 50 rows anyway.
+        const filtered = sourceFilter ? history.filter((c) => c.source === sourceFilter) : history
+
+        const merged = filtered
           .map((c) => ({ ...c, isFavorite: favIds.has(c.id) }))
           .sort((a, b) => {
             if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
@@ -76,7 +95,7 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
     }
 
     load()
-  }, [refreshKey])
+  }, [refreshKey, sourceFilter])
 
   const favorites = cuts.filter((c) => c.isFavorite)
   const recent = cuts.filter((c) => !c.isFavorite)
@@ -92,7 +111,11 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
       <SelectTrigger className="w-72">
         <SelectValue
           placeholder={
-            isLoading ? "Loading cuts…" : isEmpty ? "No recorded cuts yet" : "Load previous cut…"
+            isLoading
+              ? "Loading cuts…"
+              : isEmpty
+                ? "No recorded cuts yet"
+                : (placeholder ?? "Load previous cut…")
           }
         />
       </SelectTrigger>

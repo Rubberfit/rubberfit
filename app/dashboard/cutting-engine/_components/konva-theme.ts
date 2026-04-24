@@ -40,7 +40,11 @@ const LIGHT: KonvaThemeTokens = {
   grid: "rgba(120,113,108,0.15)",
   offcutFill: "#fef3c7", // amber-100
   offcutStroke: "#f59e0b", // amber-500
-  scrapFill: "#fef2f2", // red-50
+  // Scrap was red-50 (#fef2f2) — nearly invisible on a white sheet.
+  // Switched to a translucent red-500 so it reads clearly against
+  // both amber (Free-roam default) and stone-100 (Auto-nest default)
+  // backgrounds without obliterating any part under it.
+  scrapFill: "rgba(239,68,68,0.28)",
   scrapStroke: "#ef4444", // red-500
   // Tag labels are dark with a subtle white halo so they stay
   // legible against both vibrant part fills AND the light sheet
@@ -66,27 +70,32 @@ const DARK: KonvaThemeTokens = {
 /**
  * Part fills — index by specIndex mod length. Kept in sync with the
  * cut-history PDF palette so saved PDFs match the on-screen colors.
+ *
+ * Red and amber are deliberately excluded: red is reserved for scrap
+ * overlays and amber for reusable offcut. A blue part sitting next
+ * to a red part used to look like "part vs. waste", which it wasn't —
+ * now every part color is clearly distinct from both classifications.
  */
 export const PART_FILLS_LIGHT = [
-  "#3b82f6",
-  "#ef4444",
-  "#22c55e",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
+  "#3b82f6", // blue-500
+  "#8b5cf6", // violet-500
+  "#22c55e", // green-500
+  "#ec4899", // pink-500
+  "#14b8a6", // teal-500
+  "#6366f1", // indigo-500
+  "#06b6d4", // cyan-500
+  "#d946ef", // fuchsia-500
 ]
 
 export const PART_FILLS_DARK = [
-  "#60a5fa",
-  "#f87171",
-  "#4ade80",
-  "#fbbf24",
-  "#a78bfa",
-  "#f472b6",
-  "#2dd4bf",
-  "#fb923c",
+  "#60a5fa", // blue-400
+  "#a78bfa", // violet-400
+  "#4ade80", // green-400
+  "#f472b6", // pink-400
+  "#2dd4bf", // teal-400
+  "#818cf8", // indigo-400
+  "#22d3ee", // cyan-400
+  "#e879f9", // fuchsia-400
 ]
 
 /**

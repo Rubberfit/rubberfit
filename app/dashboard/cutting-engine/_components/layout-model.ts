@@ -1,7 +1,32 @@
 import type { SimplePartPreview, OffcutBand, PreviewItem } from "./nesting-visualizer-types"
 import type { SimpleCutDirection } from "./nesting-visualizer-types"
 
-export type RenderShape = "rect" | "circle" | "trapezoid" | "sector"
+/**
+ * Shape-family dispatch for the Konva renderer + PDF renderer.
+ *
+ * - Primitives that map to a Konva native shape: `rect`, `circle`,
+ *   `ellipse`, `ring`.
+ * - Primitives that Konva doesn't ship but we compose from a vertex
+ *   array: `trapezoid`, `sector`, `triangle`, `ngon`, `star`, and the
+ *   generic escape-hatch `polygon`. All of these require
+ *   `PlacedPart.polygon` to be populated at template-create time.
+ *
+ * Renderer dispatch lives in `KonvaSheetRenderer.PartShape`. Any
+ * shape in this union that does NOT have a first-class Konva
+ * primitive falls through to the polygon `<Line closed points>`
+ * path, then to `<Rect>` as a last-resort fallback.
+ */
+export type RenderShape =
+  | "rect"
+  | "circle"
+  | "ellipse"
+  | "ring"
+  | "trapezoid"
+  | "sector"
+  | "triangle"
+  | "ngon"
+  | "star"
+  | "polygon"
 
 export interface PlacedPart {
   id: string
@@ -67,11 +92,16 @@ function bandToRegion(b: OffcutBand): LayoutRegion {
   return { x: b.x, y: b.y, width: b.width, height: b.height, polygon: b.polygon }
 }
 
+// Map the PreviewItem.renderShape strings (from the Auto-nest
+// NestingVisualizer pipeline) onto our RenderShape union. Keep this
+// narrow — new shapes added for Free-roam's shape library don't
+// need to round-trip through the Auto-nest preview path; they come
+// in via `PartTemplate` → manual placements instead.
 const RENDER_SHAPE_MAP: Record<string, RenderShape> = {
+  rect: "rect",
   circle: "circle",
   trapezoid: "trapezoid",
   sector: "sector",
-  rect: "rect",
 }
 
 function itemToPlacedPart(

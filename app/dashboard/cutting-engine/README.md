@@ -91,6 +91,31 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types            |
 | `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion |
 
+### Free-roam (Manual CAD Placement)
+
+CAD-style three-column workspace — parts queue left, Konva canvas center, Saved-layouts rail right. Adaptive amber/red regions recompute on every drag via rAF throttling + Clipper polygon ops. Red overlay is a single unioned polygon (no compounding alpha where crescent + thin-strip signals overlap).
+
+| File                                 | Purpose                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `free-roam-content.tsx`              | Three-column shell. Owns stock / zoom / selection state, wires the hooks, renders Konva surface.                           |
+| `KonvaSheetRenderer.tsx`             | Konva surface. Renders parts, offcuts, scrap, grid. Supports drag-move callback, `defaultFill` override, `zoomPct` scaling. |
+| `layout-model.ts`                    | `LayoutModel`, `PlacedPart`, `LayoutRegion`, `RenderShape` union. Normaliser converts Auto-nest previews into this shape.  |
+| `konva-theme.ts`                     | Light / dark palette resolution. Part fills deliberately exclude red + amber to avoid collisions with scrap / offcut fills. |
+| `canvas-toolbar.tsx`                 | Tool cluster + zoom controls + sheet tabs. Lift-state design — parent owns `zoom` so the renderer reads the same value.    |
+| `free-roam-layout.ts`                | Builds `LayoutModel` from placements. Honors template `renderShape` + `polygon` overrides before falling back to partType. |
+| `free-roam-collision.ts`             | SAT polygon + rotated-AABB broad-phase collision. `wouldCollide` rejects drops that would overlap another placement.        |
+| `free-roam-regions.ts`               | Adaptive waste compute — per-part crescents ∪ thin-strip inscribed rects, unioned via Clipper so the red layer is uniform.  |
+| `free-roam-metrics.ts`               | Sheet-area decomposition: used / scrap / reusable (remainder). Scrap area reads polygon area when present.                 |
+| `free-roam-saved-layouts-rail.tsx`   | Right-column rail. Stock editor + Saved-layouts dropdown (filtered to `source='manual'`) + results breakdown + Cut button.  |
+| `free-roam-stock-editor.tsx`         | W × L × T inputs for the sheet dimensions.                                                                                 |
+| `free-roam-add-shape-dialog.tsx`     | Two-step shape picker + dimension form. Backed by the shape registry.                                                       |
+| `shape-registry.ts`                  | tldraw-style tagged registry of shapes (rect, square, circle, ring, ellipse, triangle, n-gon, star) + `validateDimensions`. |
+| `results-breakdown.tsx`              | Shared utilization / reusable / waste card used by both Auto-nest and Free-roam rails.                                     |
+| `use-free-roam-placements.ts`        | Placement state hook + keyboard shortcuts (R rotates part OR sheet, Delete removes part).                                  |
+| `use-drag-snapshot.ts`               | rAF-throttled drag snapshot. Pointer-move events coalesce into one state update per animation frame.                        |
+| `use-record-manual-cut.ts`           | POSTs a manual cut to `/api/cuts/history` with `source: "manual"`. Owns its own `isRecordingCut` flag.                      |
+| `recorded-cut-select.tsx`            | Cut-history dropdown. Accepts an optional `sourceFilter` — Free-roam passes `"manual"` so saved layouts are filtered.       |
+
 ### Types
 
 | File                          | Purpose                                                                                 |

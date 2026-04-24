@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { KonvaEventObject } from "konva/lib/Node"
-import { Stage, Layer, Rect, Circle, Line, Text, Group } from "react-konva"
+import { Stage, Layer, Rect, Circle, Ellipse, Ring, Line, Text, Group } from "react-konva"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
 
@@ -12,6 +12,13 @@ import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
  * canvas scale. Only fires when `draggable` is enabled.
  */
 type PartDragEnd = (partId: string, xIn: number, yIn: number) => void
+
+/**
+ * Callback fired continuously during drag. Coordinates are in SHEET
+ * INCHES. Callers should throttle downstream work (e.g. via rAF) —
+ * this fires at pointer-move rate.
+ */
+type PartDragMove = (partId: string, xIn: number, yIn: number) => void
 
 /** Callback when a part is clicked. Fires before any drag. */
 type PartClick = (partId: string) => void
@@ -26,6 +33,7 @@ function PartShape({
   draggable,
   selected,
   onDragEnd,
+  onDragMove,
   onClick,
 }: {
   part: PlacedPart
@@ -35,6 +43,7 @@ function PartShape({
   draggable: boolean
   selected: boolean
   onDragEnd?: PartDragEnd
+  onDragMove?: PartDragMove
   onClick?: PartClick
 }) {
   const pw = part.width * scale
@@ -53,12 +62,25 @@ function PartShape({
     if (!onDragEnd) return
     onDragEnd(part.id, (e.target.x() - pw / 2) / scale, (e.target.y() - ph / 2) / scale)
   }
+  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
+    if (!onDragMove) return
+    onDragMove(part.id, (e.target.x() - pw / 2) / scale, (e.target.y() - ph / 2) / scale)
+  }
   const rotationDeg = (part.rotationRad * 180) / Math.PI
 
   const selectedStroke = "#3b82f6" // blue-500 — visible against any vibrant part fill
   const stroke = selected ? selectedStroke : theme.partStroke
   const strokeWidth = selected ? 2 : 1
 
+  // Dispatch order:
+  //   1. Konva native primitives when the shape has one (Circle,
+  //      Ellipse, Ring) — exact geometry, crisp hit-testing, no
+  //      polygon-approximation artifacts.
+  //   2. Polygon-as-Line (closed) for any shape that carries a
+  //      precomputed vertex array (trapezoid, sector, triangle,
+  //      n-gon, star, custom polygon).
+  //   3. Axis-aligned Rect as last-resort fallback so a broken
+  //      template still renders something at the right bbox.
   let body: React.ReactNode
   if (part.renderShape === "circle" && part.diameter != null) {
     const r = (part.diameter / 2) * scale
@@ -67,6 +89,30 @@ function PartShape({
         x={pw / 2}
         y={ph / 2}
         radius={r}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    )
+  } else if (part.renderShape === "ellipse") {
+    body = (
+      <Ellipse
+        x={pw / 2}
+        y={ph / 2}
+        radiusX={pw / 2}
+        radiusY={ph / 2}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    )
+  } else if (part.renderShape === "ring" && part.innerRadius != null && part.outerRadius != null) {
+    body = (
+      <Ring
+        x={pw / 2}
+        y={ph / 2}
+        innerRadius={part.innerRadius * scale}
+        outerRadius={part.outerRadius * scale}
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
@@ -99,6 +145,7 @@ function PartShape({
       offsetY={ph / 2}
       rotation={rotationDeg}
       draggable={draggable}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onMouseDown={() => onClick?.(part.id)}
       onTap={() => onClick?.(part.id)}
@@ -205,21 +252,48 @@ interface KonvaSheetRendererProps {
    * prop leaves the canvas read-only (Auto-nest Graph surface).
    */
   onPartDragEnd?: PartDragEnd
+  /**
+   * Fires continuously during drag — pointer-move rate. Use for
+   * adaptive offcut/waste recomputation; callers should rAF-throttle
+   * anything expensive (e.g. Clipper polygon diffs).
+   */
+  onPartDragMove?: PartDragMove
   /** Currently-selected part id — renders with a highlight stroke. */
   selectedPartId?: string | null
   /** Fires when a part is clicked / tapped. */
   onPartClick?: PartClick
   /** Fires when the empty sheet (not a part) is clicked. Useful for clearing selection. */
   onSheetClick?: () => void
+  /**
+   * Controls the sheet's default background color. `"sheet"` (default)
+   * uses the neutral sheet fill — the Auto-nest look where offcut /
+   * scrap regions render on top as classified overlays. `"offcut"`
+   * paints the sheet in the reusable amber color, so any area not
+   * covered by a part or a scrap overlay is visually classified as
+   * reusable by default — matches the Free-roam semantic where an
+   * empty sheet IS one big reusable offcut.
+   */
+  defaultFill?: "sheet" | "offcut"
+  /**
+   * User zoom percentage applied on top of the auto-fit scale.
+   * 100 = fit-to-container (default); 200 = 2× that fit. Values
+   * outside [25, 400] are clamped by the toolbar before they reach
+   * this prop. Content that overflows the stage at high zoom is
+   * clipped — pan support lands with the Hand tool later.
+   */
+  zoomPct?: number
 }
 
 export default function KonvaSheetRenderer({
   layout,
   className,
   onPartDragEnd,
+  onPartDragMove,
   selectedPartId,
   onPartClick,
   onSheetClick,
+  defaultFill = "sheet",
+  zoomPct = 100,
 }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -236,10 +310,15 @@ export default function KonvaSheetRenderer({
     return () => ro.disconnect()
   }, [])
 
-  const scale =
+  // Auto-fit: the largest scale at which the sheet fits inside the
+  // container (with a small inset so the sheet isn't flush with the
+  // chrome). User zoom is applied on top — zoomPct=100 matches the
+  // historical behavior, zoomPct=200 renders at 2× auto-fit, etc.
+  const autoFitScale =
     size.w > 0 && size.h > 0
       ? Math.min(size.w / layout.sheetWidth, size.h / layout.sheetLength) * 0.96
       : 0
+  const scale = autoFitScale * (zoomPct / 100)
 
   const stageW = Math.round(layout.sheetWidth * scale)
   const stageH = Math.round(layout.sheetLength * scale)
@@ -251,13 +330,16 @@ export default function KonvaSheetRenderer({
       {scale > 0 && (
         <Stage width={size.w} height={size.h} style={{ display: "block" }}>
           <Layer x={offsetX} y={offsetY}>
-            {/* Sheet background — clicking clears selection */}
+            {/* Sheet background — clicking clears selection. Fill
+                tracks `defaultFill`: the Auto-nest surface stays
+                neutral grey, the Free-roam surface paints amber so
+                any uncovered area is visually reusable by default. */}
             <Rect
               x={0}
               y={0}
               width={stageW}
               height={stageH}
-              fill={theme.sheetFill}
+              fill={defaultFill === "offcut" ? theme.offcutFill : theme.sheetFill}
               stroke={theme.sheetStroke}
               strokeWidth={1}
               onMouseDown={() => onSheetClick?.()}
@@ -272,16 +354,22 @@ export default function KonvaSheetRenderer({
               stroke={theme.grid}
             />
 
-            {/* Reusable offcut — amber */}
-            {layout.offcuts.map((region, i) => (
-              <RegionShape
-                key={`offcut-${i}`}
-                region={region}
-                scale={scale}
-                fill={theme.offcutFill}
-                stroke={theme.offcutStroke}
-              />
-            ))}
+            {/* Reusable offcut — amber. When the sheet background
+                is already amber (Free-roam surface), these would be
+                amber on amber; their strokes would add visible
+                rectangle outlines around every classified region,
+                which reads as busy noise rather than information.
+                Skip them — the background carries the semantic. */}
+            {defaultFill !== "offcut" &&
+              layout.offcuts.map((region, i) => (
+                <RegionShape
+                  key={`offcut-${i}`}
+                  region={region}
+                  scale={scale}
+                  fill={theme.offcutFill}
+                  stroke={theme.offcutStroke}
+                />
+              ))}
 
             {/* Scrap / waste — red */}
             {layout.scrap.map((region, i) => (
@@ -305,6 +393,7 @@ export default function KonvaSheetRenderer({
                 draggable={typeof onPartDragEnd === "function"}
                 selected={selectedPartId === part.id}
                 onDragEnd={onPartDragEnd}
+                onDragMove={onPartDragMove}
                 onClick={onPartClick}
               />
             ))}

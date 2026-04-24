@@ -1,273 +1,124 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Polygon, Vector, testPolygonPolygon } from "sat"
+
 import { WorkspaceColumn, WorkspaceRow } from "@/app/components/patterns/workspace-column"
-import type { CutHistory, MaterialType } from "@/src/infrastructure/models/supabase"
+import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
-import type { SimpleCutDirection } from "./NestingVisualizer"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
-import type { LayoutModel, PlacedPart, RenderShape } from "./layout-model"
 import { PartsQueuePanel, type PartsFilter } from "./parts-queue-panel"
 import { CanvasToolbar } from "./canvas-toolbar"
-import { StrategyResultsPanel } from "./strategy-results-panel"
 import KonvaSheetRenderer from "./KonvaSheetRenderer"
+import { buildFreeRoamLayout } from "./free-roam-layout"
+import { deriveManualMetrics } from "./free-roam-metrics"
+import { useFreeRoamPlacements } from "./use-free-roam-placements"
+import { FreeRoamSavedLayoutsRail } from "./free-roam-saved-layouts-rail"
+import { computeAdaptiveRegions } from "./free-roam-regions"
+import { useDragSnapshot } from "./use-drag-snapshot"
+import { useRecordManualCut } from "./use-record-manual-cut"
+import { FreeRoamAddShapeDialog } from "./free-roam-add-shape-dialog"
 
-/** Single placement on the Free-roam canvas. Position is in sheet inches. */
-interface ManualPlacement {
-  /** Unique instance id. */
-  id: string
-  /** References a `PartTemplate.id` in the parts queue. */
-  templateId: string
-  x: number
-  y: number
-  rotationRad: number
-}
-
-function templateToRenderShape(type: string): RenderShape {
-  switch (type) {
-    case "cylinder":
-      return "circle"
-    case "cone":
-      return "sector"
-    case "trapezoid":
-      return "trapezoid"
-    default:
-      return "rect"
-  }
-}
-
-/**
- * Build the LayoutModel the Konva renderer consumes from the current
- * parts queue + manual placements. Templates are looked up once;
- * placements missing a template (e.g. after template deletion) are
- * skipped rather than throwing — the operator doesn't need a stack
- * trace for a detached placement.
- */
-function buildFreeRoamLayout(
-  placements: ManualPlacement[],
-  parts: PartTemplate[],
-  stock: StockConfig,
-  tagByTemplateId: Map<string, string>
-): LayoutModel {
-  const byId = new Map(parts.map((p) => [p.id, p]))
-  let specIndex = 0
-  const indexByTemplate = new Map<string, number>()
-  const mappedParts: PlacedPart[] = []
-  for (const placement of placements) {
-    const template = byId.get(placement.templateId)
-    if (!template) continue
-    if (!indexByTemplate.has(template.id)) {
-      indexByTemplate.set(template.id, specIndex++)
-    }
-    const idx = indexByTemplate.get(template.id) ?? 0
-    const width = template.width ?? template.diameter ?? 12
-    const height = template.length ?? template.height ?? template.diameter ?? 12
-    mappedParts.push({
-      id: placement.id,
-      shapeId: template.id,
-      partNumber: template.partNumber,
-      label: tagByTemplateId.get(template.id) ?? template.label,
-      renderShape: templateToRenderShape(template.partType),
-      specIndex: idx,
-      x: placement.x,
-      y: placement.y,
-      rotationRad: placement.rotationRad,
-      width,
-      height,
-      diameter: template.diameter,
-      topWidth: template.topWidth,
-      bottomWidth: template.bottomWidth,
-      innerRadius: template.innerRadius,
-      outerRadius: template.outerRadius,
-      arcDegrees: template.arcDegrees,
-    })
-  }
-  return {
-    sheetWidth: stock.width,
-    sheetLength: stock.length,
-    parts: mappedParts,
-    offcuts: [],
-    scrap: [],
-    placedCount: mappedParts.length,
-    overflowCount: 0,
-    usedAreaSqFt: 0,
-    reusableAreaSqFt: 0,
-    scrapAreaSqFt: 0,
-    fabScore: 0,
-    source: "ts-nfp",
-  }
-}
-
-/**
- * SAT polygon for a single placement, at its current position +
- * rotation, in SHEET INCH coordinates. We fan rectangles into 4
- * corners around the center (so rotation is respected), circles
- * into a 20-vertex approximation, and polygon shapes reuse the
- * template's polygon translated to the placement's origin.
- *
- * Consumers call `testPolygonPolygon(a, b)` from `sat` to test for
- * overlap.
- */
-function buildPlacementPolygon(placement: ManualPlacement, template: PartTemplate): Polygon {
-  const width = template.width ?? template.diameter ?? 12
-  const height = template.length ?? template.height ?? template.diameter ?? 12
-  const cx = placement.x + width / 2
-  const cy = placement.y + height / 2
-  const cos = Math.cos(placement.rotationRad)
-  const sin = Math.sin(placement.rotationRad)
-
-  // Rotate a local offset (dx, dy) around the origin and translate
-  // to world (sheet) coords. The outer `+ cx / cy` anchors at the
-  // placement's center so rotation spins in place.
-  const rot = (dx: number, dy: number): Vector =>
-    new Vector(cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
-
-  if (template.partType === "cylinder" && template.diameter) {
-    // Approximate the disc with a 20-gon — SAT handles circles
-    // natively but mixing circle + polygon test routines in the
-    // collider keeps the dispatch uniform. Resolution is enough
-    // for pixel-scale UI correctness.
-    const r = template.diameter / 2
-    const pts: Vector[] = []
-    const N = 20
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2
-      pts.push(new Vector(cx + r * Math.cos(a), cy + r * Math.sin(a)))
-    }
-    return new Polygon(new Vector(0, 0), pts)
-  }
-
-  // Axis-aligned rectangle as 4 corners, rotated around center.
-  return new Polygon(new Vector(0, 0), [
-    rot(-width / 2, -height / 2),
-    rot(width / 2, -height / 2),
-    rot(width / 2, height / 2),
-    rot(-width / 2, height / 2),
-  ])
-}
-
-/**
- * Check whether moving `candidate` to `(proposedX, proposedY)` would
- * overlap any OTHER placement. Returns true when a collision is
- * found so the caller can reject the move. AABB broad-phase first
- * (cheap early-out for obvious non-overlaps), SAT narrow-phase
- * second (authoritative for rotated rects + polygons).
- */
-function wouldCollide(
-  candidate: ManualPlacement,
-  proposedX: number,
-  proposedY: number,
-  others: ManualPlacement[],
-  parts: PartTemplate[]
-): boolean {
-  const byId = new Map(parts.map((p) => [p.id, p]))
-  const candidateTemplate = byId.get(candidate.templateId)
-  if (!candidateTemplate) return false
-  const cw = candidateTemplate.width ?? candidateTemplate.diameter ?? 12
-  const ch =
-    candidateTemplate.length ?? candidateTemplate.height ?? candidateTemplate.diameter ?? 12
-  const proposed: ManualPlacement = { ...candidate, x: proposedX, y: proposedY }
-  const proposedPoly = buildPlacementPolygon(proposed, candidateTemplate)
-
-  for (const other of others) {
-    if (other.id === candidate.id) continue
-    const otherTemplate = byId.get(other.templateId)
-    if (!otherTemplate) continue
-    const ow = otherTemplate.width ?? otherTemplate.diameter ?? 12
-    const oh = otherTemplate.length ?? otherTemplate.height ?? otherTemplate.diameter ?? 12
-
-    // AABB broad-phase — skip the SAT call when AABBs clearly don't
-    // touch. Uses the template bounds (ignoring rotation) as a
-    // conservative overestimate, so a true-negative here really means
-    // no collision.
-    const aMinX = proposedX
-    const aMinY = proposedY
-    const aMaxX = proposedX + cw
-    const aMaxY = proposedY + ch
-    const bMinX = other.x
-    const bMinY = other.y
-    const bMaxX = other.x + ow
-    const bMaxY = other.y + oh
-    if (aMaxX <= bMinX || bMaxX <= aMinX || aMaxY <= bMinY || bMaxY <= aMinY) continue
-
-    const otherPoly = buildPlacementPolygon(other, otherTemplate)
-    if (testPolygonPolygon(proposedPoly, otherPoly)) return true
-  }
-  return false
-}
-
-/**
- * Free-roam tab content — three-column CAD-style workspace. Phase A
- * is the scaffold: shared parts queue on the left, canvas placeholder
- * in the center, strategy + results panel on the right. Drag / drop,
- * snap, and real algorithm wiring land in C9 — C11.
- *
- * Parts + stock are shared with the Auto nest tab (owned by the
- * cutting-engine page). Placements will be per-tab once the canvas
- * is wired.
- */
 interface FreeRoamContentProps {
   parts: PartTemplate[]
+  /** Fires when the operator adds a new shape from the registry. */
+  onPartsChange: (parts: PartTemplate[]) => void
   stock: StockConfig
-  materialTypes: MaterialType[]
-  activeStockPreset: string | null
-  selectedTemplate: PartTemplate | null
-  selectedTemplates: PartTemplate[]
-  safeQuantity: number
-  cutDirection: SimpleCutDirection
-  setCutDirection: (d: SimpleCutDirection) => void
-  customCutRatioInput: string
-  setCustomCutRatioInput: (v: string) => void
-  customCutRatios: number[] | undefined
-  requestedSqFt: number
-  /**
-   * Ignored by the Free-roam surface — it derives metrics live from
-   * the placements state. Kept in the prop shape so callers that
-   * also drive the Auto-nest surface don't need a separate shape.
-   */
-  cutMetrics: SimpleCutMetrics | null
-  /**
-   * Ignored. Free-roam owns its own record-cut lifecycle (it has
-   * the placements state + derived metrics that the operation needs).
-   * Left in the prop shape for signature consistency.
-   */
-  onRecordCut: () => void
-  /** Ignored; Free-roam tracks its own recording state. */
-  isRecordingCut: boolean
+  onStockChange: (stock: StockConfig) => void
   refreshKey: number
   onLoadCut: (cut: CutHistory) => void
-  /** Fires after a manual cut is successfully recorded so the parent
-   *  can bump any RecordedCutSelect refreshKey / re-fetch side effects. */
+  /**
+   * Fires after a manual cut is recorded so the parent can bump any
+   * `refreshKey` / re-fetch side effects (the Saved-layouts dropdown
+   * uses this to refresh).
+   */
   onCutRecorded?: () => void
 }
 
+/**
+ * Free-roam tab content — CAD-style manual placement workspace. Three
+ * columns: parts queue on the left, Konva canvas in the center, Saved
+ * layouts rail on the right. State (placements, selection, keyboard
+ * shortcuts) is owned by `useFreeRoamPlacements`; the derived layout
+ * + metrics flow out as pure `useMemo`s. Stock mutations are pushed
+ * back to the parent (the page owns canonical state).
+ */
 export default function FreeRoamContent({
   parts,
+  onPartsChange,
   stock,
-  selectedTemplate,
-  selectedTemplates,
-  safeQuantity,
-  cutDirection,
-  setCutDirection,
-  customCutRatioInput,
-  setCustomCutRatioInput,
-  customCutRatios,
-  requestedSqFt,
+  onStockChange,
   refreshKey,
   onLoadCut,
   onCutRecorded,
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
-  const [placements, setPlacements] = useState<ManualPlacement[]>([])
-  const [selectedPartId, setSelectedPartId] = useState<string | null>(null)
-  const [isRecordingCut, setIsRecordingCut] = useState(false)
+  const [addShapeOpen, setAddShapeOpen] = useState(false)
+  const handleAddShape = useCallback(
+    (template: PartTemplate) => {
+      onPartsChange([...parts, template])
+      toast.success(`${template.label} added to queue`)
+    },
+    [parts, onPartsChange]
+  )
+  // Canvas toolbar state — lifted here so `KonvaSheetRenderer` and the
+  // toolbar share one source of truth. `Reset view` sends zoom back
+  // to 100 (fit-to-container).
+  const [zoomPct, setZoomPct] = useState(100)
+  const handleResetView = useCallback(() => setZoomPct(100), [])
+  const handleAddSheet = useCallback(() => {
+    toast.message("Multi-sheet layouts", {
+      description: "Coming in a later commit — the current sheet is the only one for now.",
+    })
+  }, [])
+
+  // Flip the sheet in place — swaps W ↔ L. Placements keep their
+  // absolute coordinates; a part that ends up outside the new bounds
+  // is the operator's to drag back. Fires from the hook's R-key
+  // handler when nothing is selected.
+  const handleRotateSheet = useCallback(() => {
+    onStockChange({ ...stock, width: stock.length, length: stock.width })
+  }, [stock, onStockChange])
+
+  const {
+    placements,
+    placedCounts,
+    selectedPartId,
+    setSelectedPartId,
+    handleAddInstance,
+    handlePartDragEnd,
+  } = useFreeRoamPlacements(parts, stock, { onRotateSheet: handleRotateSheet })
+
+  // Drop focus from any text input in the rail (stock editor, etc.)
+  // when the canvas is interacted with. Otherwise the `keydown`
+  // handler in the placements hook sees `e.target` as an INPUT,
+  // treats it as an editable surface, and skips R / Delete shortcuts
+  // — rotation silently no-ops the first time the operator touches
+  // the canvas after editing stock dimensions.
+  const blurIfEditable = () => {
+    const active = document.activeElement as HTMLElement | null
+    if (
+      active &&
+      (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)
+    ) {
+      active.blur()
+    }
+  }
+  const handlePartClick = useCallback(
+    (partId: string) => {
+      blurIfEditable()
+      setSelectedPartId(partId)
+    },
+    [setSelectedPartId]
+  )
+  const handleSheetClick = useCallback(() => {
+    blurIfEditable()
+    setSelectedPartId(null)
+  }, [setSelectedPartId])
 
   // Tag map — A / B / C / … per template so the canvas labels match
-  // the parts queue. Uses partNumber when set (e.g. RF-000042), else
-  // generated letters in selection order.
+  // the parts queue. Uses partNumber when set, else generated letters.
   const tagByTemplateId = useMemo(() => {
     const map = new Map<string, string>()
     let fallbackIdx = 0
@@ -287,205 +138,61 @@ export default function FreeRoamContent({
     return map
   }, [parts])
 
-  const placedCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const p of placements) {
-      counts[p.templateId] = (counts[p.templateId] ?? 0) + 1
-    }
-    return counts
-  }, [placements])
+  // Konva moves the dragged <Group> itself — the VISUAL is handled
+  // without a React re-render. For reactive downstream (amber / red
+  // regions) we need the live position; `useDragSnapshot` rAF-throttles
+  // it so Clipper diffs don't run on every pointer-move.
+  const {
+    snapshot: dragSnapshot,
+    onDragMove: handlePartDragMove,
+    onDragEnd: clearDragSnapshot,
+  } = useDragSnapshot()
 
-  const handleAddInstance = useCallback(
-    (part: PartTemplate) => {
-      setPlacements((prev) => [
-        ...prev,
-        {
-          id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          templateId: part.id,
-          // Seed new instances at the sheet origin; drag to move
-          // lands in C11c. Small rightward offset per new instance so
-          // back-to-back clicks don't stack invisibly on top of each
-          // other.
-          x: Math.min(stock.width - 1, prev.length * 2),
-          y: 0,
-          rotationRad: 0,
-        },
-      ])
-    },
-    [stock.width]
-  )
-
-  const layout = useMemo(
-    () => buildFreeRoamLayout(placements, parts, stock, tagByTemplateId),
-    [placements, parts, stock, tagByTemplateId]
-  )
-
-  /**
-   * Derived metrics from the current manual placements. Uses the
-   * simplest decomposition: every in^2 on the sheet is either
-   * "used" (sum of placed-part areas, discs counted by π·r² so a
-   * square bounding box isn't over-counted) or "reusable offcut"
-   * (everything else). Scrap is 0 here — a future commit can
-   * carve out truly-small leftover slivers via clipper and classify
-   * them. Fab score = raw material efficiency (used / stock).
-   */
-  const derivedMetrics = useMemo<SimpleCutMetrics | null>(() => {
-    if (placements.length === 0) return null
-    const byId = new Map(parts.map((p) => [p.id, p]))
-    const totalSheetSqIn = stock.width * stock.length
-    let usedSqIn = 0
-    for (const p of placements) {
-      const template = byId.get(p.templateId)
-      if (!template) continue
-      if (template.partType === "cylinder" && template.diameter) {
-        const r = template.diameter / 2
-        usedSqIn += Math.PI * r * r
-      } else {
-        const w = template.width ?? template.diameter ?? 0
-        const h = template.length ?? template.height ?? template.diameter ?? 0
-        usedSqIn += w * h
-      }
-    }
-    const usedSqFt = usedSqIn / 144
-    const totalSqFt = totalSheetSqIn / 144
-    const reusableSqFt = Math.max(0, totalSqFt - usedSqFt)
-    const efficiency = totalSqFt > 0 ? usedSqIn / totalSheetSqIn : 0
-    return {
-      partsCompleted: placements.length,
-      cutPieces: placements.length,
-      materialUsedSqFt: Number(usedSqFt.toFixed(4)),
-      reusableOffsetSqFt: Number(reusableSqFt.toFixed(4)),
-      scrapSqFt: 0,
-      fabScore: efficiency, // 0..1 normalized, multiplied *100 at display
-      offcutPieces: [],
-    }
-  }, [placements, parts, stock])
-
-  // Record a manual-placement cut. Payload matches /api/cuts/history's
-  // shape but with `source: 'manual'` so analytics / history UI can
-  // distinguish from Auto-nest cuts. The route's DB column defaults
-  // to `auto`, so there's a hard backstop if this ever degrades to
-  // a plain POST without the field.
-  const handleRecordCut = useCallback(async () => {
-    if (isRecordingCut) return
-    if (!derivedMetrics || (derivedMetrics.partsCompleted ?? 0) === 0) {
-      toast.error("Place at least one part before recording")
-      return
-    }
-    setIsRecordingCut(true)
-    try {
-      const payload = {
-        material_id: 0,
-        part_id: 1, // PART_ID_TO_TYPE[1] = "rectangle" (generic)
-        roll_id: null,
-        job_id: null,
-        offcut_pieces: [],
-        cut_length: stock.length,
-        cut_width: stock.width,
-        cut_thickness: stock.thickness,
-        cut_amount: derivedMetrics.partsCompleted,
-        parts_completed: derivedMetrics.partsCompleted,
-        cut_pieces: derivedMetrics.cutPieces,
-        material_used_sqft: derivedMetrics.materialUsedSqFt,
-        reusable_offset_sqft: derivedMetrics.reusableOffsetSqFt,
-        scrap_sqft: derivedMetrics.scrapSqFt,
-        fab_score: derivedMetrics.fabScore,
-        stock_label: null,
-        cost_per_sqft: stock.costPerSqft ?? null,
-        source: "manual" as const,
-      }
-      const res = await fetch("/api/cuts/history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const text = await res.text()
-        toast.error("Failed to record manual cut", {
-          description: text.slice(0, 200) || `HTTP ${res.status}`,
-        })
-        return
-      }
-      toast.success("Manual cut recorded")
-      onCutRecorded?.()
-    } catch (err) {
-      toast.error("Failed to record manual cut", {
-        description: err instanceof Error ? err.message : undefined,
-      })
-    } finally {
-      setIsRecordingCut(false)
-    }
-  }, [derivedMetrics, isRecordingCut, onCutRecorded, stock])
-
-  // Keyboard shortcuts for the selected placement.
-  //   Delete / Backspace — remove from canvas
-  //   R                  — rotate 90° clockwise
-  // All guarded against editable-element targets so the operator
-  // doesn't lose work while typing part dimensions.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (selectedPartId == null) return
-      const t = e.target as HTMLElement | null
-      const editable = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable
-      if (editable) return
-      if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault()
-        setPlacements((prev) => prev.filter((p) => p.id !== selectedPartId))
-        setSelectedPartId(null)
-        return
-      }
-      if (e.key === "r" || e.key === "R") {
-        e.preventDefault()
-        setPlacements((prev) =>
-          prev.map((p) =>
-            p.id === selectedPartId
-              ? { ...p, rotationRad: (p.rotationRad + Math.PI / 2) % (Math.PI * 2) }
-              : p
-          )
-        )
-      }
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-  }, [selectedPartId])
-
-  const handlePartDragEnd = useCallback(
+  const handlePartDragEndWrapped = useCallback(
     (partId: string, xIn: number, yIn: number) => {
-      setPlacements((prev) => {
-        const placement = prev.find((p) => p.id === partId)
-        if (!placement) return prev
-        const template = parts.find((t) => t.id === placement.templateId)
-        const partW = template?.width ?? template?.diameter ?? 12
-        const partH = template?.length ?? template?.height ?? template?.diameter ?? 12
-
-        // Snap to grid — rounds to the nearest SNAP_STEP inch on drag
-        // end so placement stays orderly without fighting the operator
-        // mid-drag. Edge snap: within SNAP_EDGE inches of either
-        // border, clamp flush.
-        const SNAP_STEP = 1
-        const SNAP_EDGE = 0.25
-        const maxX = stock.width - partW
-        const maxY = stock.length - partH
-        const snapAxis = (v: number, max: number) => {
-          if (v < SNAP_EDGE) return 0
-          if (v > max - SNAP_EDGE) return Math.max(0, max)
-          return Math.round(v / SNAP_STEP) * SNAP_STEP
-        }
-        const snappedX = Math.max(0, Math.min(maxX, snapAxis(xIn, maxX)))
-        const snappedY = Math.max(0, Math.min(maxY, snapAxis(yIn, maxY)))
-
-        // Collision check — if the snapped position would overlap
-        // another placement, reject the move (React re-renders with
-        // the old position, Konva snaps the dragged Group back). A
-        // future commit can add a "shake" animation / toast hint.
-        if (wouldCollide(placement, snappedX, snappedY, prev, parts)) {
-          return prev
-        }
-        return prev.map((p) => (p.id === partId ? { ...p, x: snappedX, y: snappedY } : p))
-      })
+      clearDragSnapshot()
+      handlePartDragEnd(partId, xIn, yIn)
     },
-    [parts, stock.width, stock.length]
+    [clearDragSnapshot, handlePartDragEnd]
   )
+
+  // Effective placements = committed placements with the live drag
+  // snapshot substituted in for the actively-dragged part.
+  const effectivePlacements = useMemo(() => {
+    if (!dragSnapshot) return placements
+    return placements.map((p) =>
+      p.id === dragSnapshot.partId ? { ...p, x: dragSnapshot.x, y: dragSnapshot.y } : p
+    )
+  }, [placements, dragSnapshot])
+
+  // Regions — cheap enough to compute on every frame, so the same
+  // pass runs for both drag snapshots and committed placements.
+  const regions = useMemo(
+    () => computeAdaptiveRegions(effectivePlacements, parts, stock),
+    [effectivePlacements, parts, stock]
+  )
+
+  const layout = useMemo(() => {
+    const base = buildFreeRoamLayout(effectivePlacements, parts, stock, tagByTemplateId)
+    return { ...base, offcuts: regions.offcuts, scrap: regions.scrap }
+  }, [effectivePlacements, parts, stock, tagByTemplateId, regions])
+
+  // Metrics use the COMMITTED placements + regions computed from them,
+  // not the in-flight drag snapshot — the numbers shouldn't jitter
+  // while the operator is still choosing a position. On drop, both
+  // `placements` and `regions` update together and the breakdown
+  // re-reads the authoritative classification.
+  const committedRegions = useMemo(
+    () => (dragSnapshot ? computeAdaptiveRegions(placements, parts, stock) : regions),
+    [placements, parts, stock, dragSnapshot, regions]
+  )
+
+  const derivedMetrics = useMemo<SimpleCutMetrics | null>(
+    () => deriveManualMetrics(placements, parts, stock, committedRegions),
+    [placements, parts, stock, committedRegions]
+  )
+
+  const { isRecordingCut, recordCut } = useRecordManualCut(stock, derivedMetrics, onCutRecorded)
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
@@ -497,19 +204,28 @@ export default function FreeRoamContent({
             onFilterChange={setPartsFilter}
             placedCounts={placedCounts}
             onAddInstance={handleAddInstance}
+            onAddShape={() => setAddShapeOpen(true)}
           />
         </WorkspaceColumn>
 
         <WorkspaceColumn column="center">
           <div className="flex h-full flex-col">
-            <CanvasToolbar />
-            <div className="relative flex-1 bg-muted/10">
+            <CanvasToolbar
+              zoom={zoomPct}
+              onZoomChange={setZoomPct}
+              onResetView={handleResetView}
+              onAddSheet={handleAddSheet}
+            />
+            <div className="relative flex-1 bg-muted/10 overflow-hidden">
               <KonvaSheetRenderer
                 layout={layout}
-                onPartDragEnd={handlePartDragEnd}
+                onPartDragEnd={handlePartDragEndWrapped}
+                onPartDragMove={handlePartDragMove}
                 selectedPartId={selectedPartId}
-                onPartClick={setSelectedPartId}
-                onSheetClick={() => setSelectedPartId(null)}
+                onPartClick={handlePartClick}
+                onSheetClick={handleSheetClick}
+                defaultFill="offcut"
+                zoomPct={zoomPct}
               />
               {parts.length === 0 ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
@@ -530,25 +246,23 @@ export default function FreeRoamContent({
         </WorkspaceColumn>
 
         <WorkspaceColumn column="right" scroll="y">
-          <StrategyResultsPanel
+          <FreeRoamSavedLayoutsRail
             stock={stock}
-            selectedTemplate={selectedTemplate}
-            selectedTemplates={selectedTemplates}
-            safeQuantity={safeQuantity}
-            cutDirection={cutDirection}
-            setCutDirection={setCutDirection}
-            customCutRatioInput={customCutRatioInput}
-            setCustomCutRatioInput={setCustomCutRatioInput}
-            customCutRatios={customCutRatios}
-            requestedSqFt={requestedSqFt}
+            onStockChange={onStockChange}
             cutMetrics={derivedMetrics}
-            onRecordCut={handleRecordCut}
+            onRecordCut={recordCut}
             isRecordingCut={isRecordingCut}
             refreshKey={refreshKey}
             onLoadCut={onLoadCut}
           />
         </WorkspaceColumn>
       </WorkspaceRow>
+
+      <FreeRoamAddShapeDialog
+        open={addShapeOpen}
+        onOpenChange={setAddShapeOpen}
+        onAdd={handleAddShape}
+      />
     </div>
   )
 }

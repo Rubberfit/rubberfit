@@ -19,6 +19,13 @@ interface PartsQueuePanelProps {
    * surface uses the panel read-only).
    */
   onAddInstance?: (part: PartTemplate) => void
+  /**
+   * Click handler for the "+ Shape" button in the panel header. When
+   * set, the button renders and the operator can pick a shape from
+   * the registry (Free-roam). When omitted, the button is hidden
+   * (Auto-nest doesn't support ad-hoc shape addition yet).
+   */
+  onAddShape?: () => void
 }
 
 const FILTERS: Array<{ key: PartsFilter; label: string }> = [
@@ -72,6 +79,7 @@ export function PartsQueuePanel({
   onFilterChange,
   placedCounts,
   onAddInstance,
+  onAddShape,
 }: PartsQueuePanelProps) {
   const totalCount = parts.reduce((sum, p) => sum + p.quantity, 0)
   const visible = filterParts(parts, activeFilter)
@@ -83,9 +91,22 @@ export function PartsQueuePanel({
       <div className="px-4 pt-4 pb-2 border-b border-border/40">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-foreground">Parts queue</span>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {totalCount} part{totalCount !== 1 ? "s" : ""}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {totalCount} part{totalCount !== 1 ? "s" : ""}
+            </span>
+            {onAddShape && (
+              <button
+                type="button"
+                onClick={onAddShape}
+                className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/60"
+                aria-label="Add shape"
+              >
+                <Plus className="h-3 w-3" />
+                Shape
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter chips */}

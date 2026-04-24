@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import type { PartTemplate } from "../_components/PresetDimensionSelector"
 import type { StockConfig } from "../_components/stock-preview-configurator"
-import type { SimpleCutDirection } from "../_components/NestingVisualizer"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 /**
@@ -15,8 +14,8 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
  * own route so the pre-selection chrome (stock preview, preset
  * dimension selector, cut-list upload) that Auto nest requires is
  * absent — Free roam builds its own UI inside the three-column
- * workspace (parts added via the queue panel, stock sits in the
- * strategy/results panel, canvas is the CAD surface).
+ * workspace (parts added via the queue panel, stock editor lives in
+ * the Saved-layouts rail, canvas is the CAD surface).
  */
 
 // Lazy-load the CAD shell — Konva + react-konva are heavy and the
@@ -71,25 +70,16 @@ const SEED_PARTS: PartTemplate[] = [
 ]
 
 export default function FreeRoamPage() {
-  // Free-roam owns its own state — no sharing with the Auto-nest
-  // surface. Parts are added via the queue panel inside the
-  // workspace (CSV upload + manual entry in future commits).
-  const [parts] = useState<PartTemplate[]>(SEED_PARTS)
-  const [stock] = useState<StockConfig>(DEFAULT_STOCK)
-  const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
-  const [customCutRatioInput, setCustomCutRatioInput] = useState("")
+  const [parts, setParts] = useState<PartTemplate[]>(SEED_PARTS)
+  const [stock, setStock] = useState<StockConfig>(DEFAULT_STOCK)
   const [cutListRefreshKey, setCutListRefreshKey] = useState(0)
 
-  // Recording state + fetch lives inside FreeRoamContent (it has the
-  // derived metrics that the payload needs). Page just bumps the
-  // refresh key when a cut lands so the RecordedCutSelect dropdown
-  // refreshes.
   const handleCutRecorded = () => setCutListRefreshKey((k) => k + 1)
 
   const handleLoadCut = (_cut: CutHistory) => {
     // Loading a previously-recorded cut into the Free-roam canvas
-    // needs manual-placement reconstruction; wired alongside C12.
-    toast.message("Loading cuts into Free roam lands in C12.")
+    // needs manual-placement reconstruction; wired alongside C14.
+    toast.message("Loading cuts into Free roam lands in C14.")
   }
 
   return (
@@ -106,21 +96,9 @@ export default function FreeRoamPage() {
 
       <FreeRoamContent
         parts={parts}
+        onPartsChange={setParts}
         stock={stock}
-        materialTypes={[]}
-        activeStockPreset={null}
-        selectedTemplate={null}
-        selectedTemplates={parts}
-        safeQuantity={0}
-        cutDirection={cutDirection}
-        setCutDirection={setCutDirection}
-        customCutRatioInput={customCutRatioInput}
-        setCustomCutRatioInput={setCustomCutRatioInput}
-        customCutRatios={undefined}
-        requestedSqFt={0}
-        cutMetrics={null}
-        onRecordCut={() => {}}
-        isRecordingCut={false}
+        onStockChange={setStock}
         refreshKey={cutListRefreshKey}
         onLoadCut={handleLoadCut}
         onCutRecorded={handleCutRecorded}
