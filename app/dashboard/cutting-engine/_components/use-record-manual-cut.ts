@@ -3,14 +3,18 @@
 import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/supabase"
+import type { PartTemplate } from "./preset-template-data"
+import type { ManualPlacement } from "./free-roam-collision"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 
 /**
  * POSTs a manual cut to `/api/cuts/history` with `source: "manual"`
- * so the Saved-layouts dropdown + analytics can distinguish it from
- * Auto-nest cuts. Owns its own `isRecordingCut` flag for disabling
- * the button; errors surface via toast so the rail stays dumb.
+ * plus a `layout_json` snapshot of the placements + parts queue +
+ * stock so the Saved-layouts dropdown can re-hydrate the canvas when
+ * the operator picks the row. Owns its own `isRecordingCut` flag for
+ * disabling the button; errors surface via toast.
  *
  * The route's DB column defaults to `auto`, so a degraded payload
  * without `source` still wouldn't masquerade as a manual cut.
@@ -18,6 +22,8 @@ import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 export function useRecordManualCut(
   stock: StockConfig,
   cutMetrics: SimpleCutMetrics | null,
+  placements: ManualPlacement[],
+  parts: PartTemplate[],
   onCutRecorded?: () => void
 ): { isRecordingCut: boolean; recordCut: () => Promise<void> } {
   const [isRecordingCut, setIsRecordingCut] = useState(false)
@@ -41,6 +47,31 @@ export function useRecordManualCut(
       // The stock label is derived from the dimensions so the Saved
       // layouts dropdown has something human-readable to show.
       const stockLabel = `Manual ${stock.width}" × ${stock.length}" × ${stock.thickness}"`
+
+      // Snapshot everything needed to re-hydrate the canvas. `parts`
+      // is cast to `unknown[]` in the DB type because the column is
+      // a pass-through JSONB blob (the client owns the schema).
+      // Version the payload so a future shape change can detect old
+      // rows and migrate forward gracefully.
+      const layoutJson: CutHistoryLayoutJson = {
+        version: 1,
+        placements: placements.map((p) => ({
+          id: p.id,
+          templateId: p.templateId,
+          x: p.x,
+          y: p.y,
+          rotationRad: p.rotationRad,
+        })),
+        parts,
+        stock: {
+          width: stock.width,
+          length: stock.length,
+          thickness: stock.thickness,
+          material: stock.material,
+          costPerSqft: stock.costPerSqft ?? null,
+        },
+      }
+
       const payload = {
         material_id: 0,
         part_id: 1,
@@ -60,6 +91,7 @@ export function useRecordManualCut(
         stock_label: stockLabel,
         cost_per_sqft: stock.costPerSqft ?? null,
         source: "manual" as const,
+        layout_json: layoutJson,
       }
       const res = await fetch("/api/cuts/history", {
         method: "POST",
@@ -83,7 +115,7 @@ export function useRecordManualCut(
       setIsRecordingCut(false)
       recordingRef.current = false
     }
-  }, [cutMetrics, onCutRecorded, stock])
+  }, [cutMetrics, onCutRecorded, parts, placements, stock])
 
   return { isRecordingCut, recordCut }
 }

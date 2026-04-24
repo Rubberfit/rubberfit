@@ -18,7 +18,9 @@ import { FreeRoamSavedLayoutsRail } from "./free-roam-saved-layouts-rail"
 import { computeAdaptiveRegions } from "./free-roam-regions"
 import { useDragSnapshot } from "./use-drag-snapshot"
 import { useRecordManualCut } from "./use-record-manual-cut"
+import { useLoadManualCut } from "./use-load-manual-cut"
 import { FreeRoamAddShapeDialog } from "./free-roam-add-shape-dialog"
+import { CutLoader } from "./cut-loader"
 
 interface FreeRoamContentProps {
   parts: PartTemplate[]
@@ -27,7 +29,13 @@ interface FreeRoamContentProps {
   stock: StockConfig
   onStockChange: (stock: StockConfig) => void
   refreshKey: number
-  onLoadCut: (cut: CutHistory) => void
+  /**
+   * Optional hook fired after a saved cut is loaded — lets the parent
+   * react (e.g. surface a toast or analytics ping). The actual state
+   * restoration (placements, parts queue, stock) happens inside this
+   * component since it owns those setters.
+   */
+  onAfterLoadCut?: (cut: CutHistory) => void
   /**
    * Fires after a manual cut is recorded so the parent can bump any
    * `refreshKey` / re-fetch side effects (the Saved-layouts dropdown
@@ -50,7 +58,7 @@ export default function FreeRoamContent({
   stock,
   onStockChange,
   refreshKey,
-  onLoadCut,
+  onAfterLoadCut,
   onCutRecorded,
 }: FreeRoamContentProps) {
   const [partsFilter, setPartsFilter] = useState<PartsFilter>("all")
@@ -62,6 +70,7 @@ export default function FreeRoamContent({
     },
     [parts, onPartsChange]
   )
+
   // Canvas toolbar state — lifted here so `KonvaSheetRenderer` and the
   // toolbar share one source of truth. `Reset view` sends zoom back
   // to 100 (fit-to-container).
@@ -83,12 +92,20 @@ export default function FreeRoamContent({
 
   const {
     placements,
+    setPlacements,
     placedCounts,
     selectedPartId,
     setSelectedPartId,
     handleAddInstance,
     handlePartDragEnd,
   } = useFreeRoamPlacements(parts, stock, { onRotateSheet: handleRotateSheet })
+
+  const handleLoadCut = useLoadManualCut({
+    onPartsChange,
+    onStockChange,
+    setPlacements,
+    onAfterLoadCut,
+  })
 
   // Drop focus from any text input in the rail (stock editor, etc.)
   // when the canvas is interacted with. Otherwise the `keydown`
@@ -192,7 +209,13 @@ export default function FreeRoamContent({
     [placements, parts, stock, committedRegions]
   )
 
-  const { isRecordingCut, recordCut } = useRecordManualCut(stock, derivedMetrics, onCutRecorded)
+  const { isRecordingCut, recordCut } = useRecordManualCut(
+    stock,
+    derivedMetrics,
+    placements,
+    parts,
+    onCutRecorded
+  )
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
@@ -253,7 +276,7 @@ export default function FreeRoamContent({
             onRecordCut={recordCut}
             isRecordingCut={isRecordingCut}
             refreshKey={refreshKey}
-            onLoadCut={onLoadCut}
+            onLoadCut={handleLoadCut}
           />
         </WorkspaceColumn>
       </WorkspaceRow>
@@ -263,6 +286,13 @@ export default function FreeRoamContent({
         onOpenChange={setAddShapeOpen}
         onAdd={handleAddShape}
       />
+
+      {/* Deep-link loader — when the operator reopens a manual cut
+          from /dashboard/history, the history page routes them here
+          with `?loadCut=<id>`. This loader fetches the row and
+          hands it to the same load handler the Saved-layouts
+          dropdown uses, then strips the query param. */}
+      <CutLoader onLoad={handleLoadCut} returnPath="/dashboard/cutting-engine/free-roam" />
     </div>
   )
 }

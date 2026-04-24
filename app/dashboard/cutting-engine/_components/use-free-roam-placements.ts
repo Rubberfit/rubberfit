@@ -140,6 +140,7 @@ export function useFreeRoamPlacements(
 
   return {
     placements,
+    setPlacements,
     placedCounts,
     selectedPartId,
     setSelectedPartId,

@@ -90,6 +90,12 @@ function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
     // rows deserialize as undefined; default to "auto" to match the
     // DB column default.
     source: dto.source === "manual" ? "manual" : "auto",
+    // Rust DTO doesn't carry `layout_json` yet — widening the DTO is
+    // a follow-up, not a blocker. Until then, rows loaded via the v2
+    // path come back with `layout_json: null` and load-cut gracefully
+    // degrades to "no saved layout" messaging. Legacy TS route reads
+    // the column natively via `select('*')`.
+    layout_json: null,
   }
 }
 

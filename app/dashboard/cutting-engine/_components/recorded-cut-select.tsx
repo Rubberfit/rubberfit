@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { Star } from "lucide-react"
 import { format } from "date-fns"
 
@@ -50,10 +50,16 @@ function buildOptionLabel(cut: CutHistory): string {
   const part = PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`
   const stock = `${cut.cut_width}″×${cut.cut_length}″×${cut.cut_thickness}″`
   const date = format(new Date(cut.cut_date), "MMM d, yyyy")
-  return `${part} — ${stock} ×${cut.cut_amount} — ${date}`
+  // Prefix manual cuts so operators can distinguish them from
+  // auto-nest rows at a glance when the dropdown mixes both surfaces.
+  // Free-roam already filters to source='manual' via the sourceFilter
+  // prop — this prefix is the visible tag there too, making the
+  // label read as "⚙ Manual — ..." instead of just the part/stock.
+  const prefix = cut.source === "manual" ? "⚙ Manual — " : ""
+  return `${prefix}${part} — ${stock} ×${cut.cut_amount} — ${date}`
 }
 
-export function RecordedCutSelect({
+function RecordedCutSelectImpl({
   onLoad,
   refreshKey = 0,
   sourceFilter,
@@ -101,10 +107,17 @@ export function RecordedCutSelect({
   const recent = cuts.filter((c) => !c.isFavorite)
   const isEmpty = !isLoading && cuts.length === 0
 
-  function handleValueChange(value: string) {
-    const cut = cuts.find((c) => c.id === Number(value))
-    if (cut) onLoad(cut)
-  }
+  // Memoize so Radix Select doesn't see a new `onValueChange`
+  // identity on every parent re-render — helps avoid internal
+  // re-subscribes that can feed a re-render loop when the parent
+  // rapidly updates state in response to a selection.
+  const handleValueChange = useCallback(
+    (value: string) => {
+      const cut = cuts.find((c) => c.id === Number(value))
+      if (cut) onLoad(cut)
+    },
+    [cuts, onLoad]
+  )
 
   return (
     <Select onValueChange={handleValueChange} disabled={isLoading || isEmpty}>
@@ -151,3 +164,14 @@ export function RecordedCutSelect({
     </Select>
   )
 }
+
+// Memoized so a parent re-render storm (Auto-nest's `handleLoadCut`
+// cascade) doesn't thrash Radix Select's internal state tracking.
+// Props are shallow-compared — all three scalar props (`refreshKey`,
+// `sourceFilter`, `placeholder`) are stable, and callers are
+// responsible for wrapping `onLoad` in `useCallback`. Without the
+// memo, even stable props can't prevent the parent's render-per-setState
+// cascade from bubbling a re-render into this subtree, where the
+// Radix Trigger ends up as React's "hottest" component and trips
+// the 50-render sentinel.
+export const RecordedCutSelect = memo(RecordedCutSelectImpl)

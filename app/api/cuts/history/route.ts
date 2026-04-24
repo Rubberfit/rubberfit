@@ -184,6 +184,13 @@ interface RecordCutBody {
    * `DEFAULT 'auto'`.
    */
   source?: "auto" | "manual"
+  /**
+   * Free-roam layout snapshot — opaque JSON blob stored as-is. Only
+   * populated when `source === "manual"`. The server doesn't validate
+   * the schema; the client is the sole reader + writer. Older rows
+   * pre-dating the `layout_json` column return null from GET.
+   */
+  layout_json?: unknown
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -341,6 +348,11 @@ export async function POST(request: NextRequest) {
     // `manual` = Free-roam canvas. DB column has DEFAULT 'auto' so
     // old callers that don't send this still classify correctly.
     source: body.source === "manual" ? "manual" : "auto",
+    // Free-roam's canvas snapshot, stored verbatim as JSONB. Only
+    // meaningful for manual cuts — the client re-hydrates placements
+    // from this on load. Auto-nest callers don't send it; column is
+    // nullable so existing rows are untouched.
+    layout_json: body.source === "manual" && body.layout_json != null ? body.layout_json : null,
   }
 
   const { data, error } = await db.from("cut_history").insert(insert).select().single()

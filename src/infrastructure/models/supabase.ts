@@ -482,9 +482,36 @@ export interface CutHistory {
    * and any caller that hasn't been updated read as auto-nest.
    */
   source: "auto" | "manual"
+  /**
+   * Free-roam canvas snapshot, populated when `source = manual` so
+   * the Saved-layouts dropdown can re-load the layout onto the CAD
+   * surface. Null for auto-nest rows (their layout is recomputable
+   * from `part_custom_dimensions` + pack-cli) and for manual rows
+   * recorded before the `layout_json` column was added.
+   */
+  layout_json: CutHistoryLayoutJson | null
   cut_date: string
   created_at: string
   updated_at: string
+}
+
+export interface CutHistoryLayoutJson {
+  version: 1
+  placements: Array<{
+    id: string
+    templateId: string
+    x: number
+    y: number
+    rotationRad: number
+  }>
+  parts: unknown[]
+  stock: {
+    width: number
+    length: number
+    thickness: number
+    material?: string
+    costPerSqft?: number | null
+  }
 }
 
 export interface RollReusableOffcutSummary {

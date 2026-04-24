@@ -294,6 +294,25 @@ function CutPlannerPageInner() {
     [materialTypes]
   )
 
+  // CutLoader's `onLoad` needs a stable identity — otherwise the
+  // inline arrow creates a new function on every parent render, and
+  // CutLoader's effect (whose deps include `onLoad`) re-fires on
+  // every render. Combined with the preset-selector cascade that
+  // `handleLoadCut` kicks off, this feeds the >50-render sentinel.
+  // Manual cuts are intercepted here and bounced to Free-roam because
+  // Auto-nest's `handleLoadCut` can't meaningfully parse layout_json.
+  const handleCutLoaderLoad = useCallback(
+    (cut: CutHistory) => {
+      if (cut.source === "manual") {
+        window.location.href = `/dashboard/cutting-engine/free-roam?loadCut=${cut.id}`
+        return
+      }
+      handleLoadCut(cut)
+      setLoadedFromHistory(true)
+    },
+    [handleLoadCut]
+  )
+
   // ── Other handlers ────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
@@ -590,12 +609,7 @@ function CutPlannerPageInner() {
           </button>
         </div>
       )}
-      <CutLoader
-        onLoad={(cut) => {
-          handleLoadCut(cut)
-          setLoadedFromHistory(true)
-        }}
-      />
+      <CutLoader onLoad={handleCutLoaderLoad} />
 
       {loadedFromHistory && (
         <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">

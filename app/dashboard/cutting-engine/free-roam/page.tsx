@@ -2,12 +2,10 @@
 
 import dynamic from "next/dynamic"
 import { useState } from "react"
-import { toast } from "sonner"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import type { PartTemplate } from "../_components/PresetDimensionSelector"
 import type { StockConfig } from "../_components/stock-preview-configurator"
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 /**
  * Free-roam nester — CAD-style manual part placement. Lives on its
@@ -76,12 +74,6 @@ export default function FreeRoamPage() {
 
   const handleCutRecorded = () => setCutListRefreshKey((k) => k + 1)
 
-  const handleLoadCut = (_cut: CutHistory) => {
-    // Loading a previously-recorded cut into the Free-roam canvas
-    // needs manual-placement reconstruction; wired alongside C14.
-    toast.message("Loading cuts into Free roam lands in C14.")
-  }
-
   return (
     <PageShell variant="dense">
       <PageHeader
@@ -100,7 +92,6 @@ export default function FreeRoamPage() {
         stock={stock}
         onStockChange={setStock}
         refreshKey={cutListRefreshKey}
-        onLoadCut={handleLoadCut}
         onCutRecorded={handleCutRecorded}
       />
     </PageShell>

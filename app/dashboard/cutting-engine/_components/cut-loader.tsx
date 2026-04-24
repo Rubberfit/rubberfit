@@ -7,9 +7,16 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 interface CutLoaderProps {
   onLoad: (cut: CutHistory) => void
+  /**
+   * URL to navigate to after the load completes — used to strip the
+   * `?loadCut=` query param so a refresh doesn't re-fire the load.
+   * Defaults to the Auto-nest surface; Free-roam overrides to its
+   * own route so the URL stays clean there too.
+   */
+  returnPath?: string
 }
 
-function CutLoaderInner({ onLoad }: CutLoaderProps) {
+function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: CutLoaderProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const loadCutId = searchParams.get("loadCut")
@@ -29,9 +36,9 @@ function CutLoaderInner({ onLoad }: CutLoaderProps) {
         toast.error("Could not load cut record")
       })
       .finally(() => {
-        router.replace("/dashboard/cutting-engine")
+        router.replace(returnPath)
       })
-  }, [loadCutId, router, onLoad])
+  }, [loadCutId, router, onLoad, returnPath])
 
   return null
 }

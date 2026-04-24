@@ -82,9 +82,7 @@ export function useCutHistory() {
       setLoading(true)
       try {
         const fromIso = dateRange.from.toISOString()
-        const toIso = new Date(
-          new Date(dateRange.to).setHours(23, 59, 59, 999)
-        ).toISOString()
+        const toIso = new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)).toISOString()
 
         const [rows, favorites] = await Promise.all([
           listCutHistory({
@@ -217,12 +215,20 @@ export function useCutHistory() {
     }
   }, [deleteConfirm])
 
-  // Navigate to nesting engine
+  // Navigate back to the surface that produced the cut — Auto nest
+  // for `source: "auto"` rows, Free roam for `source: "manual"` so
+  // manual layouts re-hydrate onto the CAD canvas instead of landing
+  // on the preset picker (which can't represent free placements).
   const handleReopen = useCallback(
     (cutId: number) => {
-      router.push(`/dashboard/cutting-engine?loadCut=${cutId}`)
+      const cut = cuts.find((c) => c.id === cutId)
+      const target =
+        cut?.source === "manual"
+          ? `/dashboard/cutting-engine/free-roam?loadCut=${cutId}`
+          : `/dashboard/cutting-engine?loadCut=${cutId}`
+      router.push(target)
     },
-    [router]
+    [cuts, router]
   )
 
   // Derived
