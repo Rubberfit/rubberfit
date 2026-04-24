@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useId, useMemo } from "react"
+import { useState, useEffect, useId, useMemo, useRef } from "react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
@@ -473,6 +473,9 @@ export default function NestingVisualizer({
     [baseSimplePreview, multiSheet]
   )
 
+  // Dedup same-signature metrics emits (see `lastEmittedLayoutsSigRef`
+  // above for the full rationale — same pattern, same loop-avoidance).
+  const lastEmittedMetricsSigRef = useRef<string | null>(null)
   useEffect(() => {
     if (!onMetricsChange || !baseSimplePreview) return
     try {
@@ -517,6 +520,9 @@ export default function NestingVisualizer({
           offcutPieces: baseSimplePreview.offcutBands.map(bandToPiece),
         }
       }
+      const sig = JSON.stringify(metrics)
+      if (sig === lastEmittedMetricsSigRef.current) return
+      lastEmittedMetricsSigRef.current = sig
       onMetricsChange(metrics)
     } catch (_error) {
       // metrics computation failure must not break the visualizer
@@ -561,19 +567,30 @@ export default function NestingVisualizer({
 
   // Emit LayoutModel[] after each layout update so Konva renderer and PDF
   // can use post-rotation coordinates without re-deriving them.
+  //
+  // Dedup by serialised signature — one of the deps in this array
+  // churns identity on some render cycles (e.g. `tagMap` rebuilds
+  // when `selectedTemplates` identity cascades from a load), which
+  // with the unconditional `onLayoutChange(...)` below would schedule
+  // a setState in the parent every render → parent re-renders →
+  // effect re-fires → infinite loop. The ref holds the last-emitted
+  // JSON so structurally-identical emits are skipped even when the
+  // memoised inputs got new references.
+  const lastEmittedLayoutsSigRef = useRef<string | null>(null)
   useEffect(() => {
     if (!onLayoutChange) return
     const displayW = shouldRotate ? defaultRollLength : defaultRollWidth
     const displayL = shouldRotate ? defaultRollWidth : defaultRollLength
-    if (rotatedMultiSheet && rotatedMultiSheet.sheets.length > 1) {
-      onLayoutChange(
-        rotatedMultiSheet.sheets.map((sheet) =>
-          fromPreviewToLayoutModel(sheet.preview, displayW, displayL, tagMap)
-        )
-      )
-    } else {
-      onLayoutChange([fromPreviewToLayoutModel(preview, displayW, displayL, tagMap)])
-    }
+    const next =
+      rotatedMultiSheet && rotatedMultiSheet.sheets.length > 1
+        ? rotatedMultiSheet.sheets.map((sheet) =>
+            fromPreviewToLayoutModel(sheet.preview, displayW, displayL, tagMap)
+          )
+        : [fromPreviewToLayoutModel(preview, displayW, displayL, tagMap)]
+    const sig = JSON.stringify(next)
+    if (sig === lastEmittedLayoutsSigRef.current) return
+    lastEmittedLayoutsSigRef.current = sig
+    onLayoutChange(next)
   }, [
     onLayoutChange,
     preview,
