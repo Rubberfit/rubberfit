@@ -16,11 +16,7 @@ import {
   PACKING_TOKENS,
   type IPackingService,
 } from "@/src/application/services/packing.service.interface"
-import type {
-  PackRequest,
-  PackResult,
-  Part,
-} from "@/src/application/packing/types"
+import type { PackRequest, PackResult, Part } from "@/src/application/packing/types"
 import { buildPart } from "@/src/application/packing/buildPart"
 import { buildPackRequest } from "@/src/application/packing/buildPackRequest"
 import { buildPlacementView } from "@/src/application/packing/buildPlacementView"
@@ -124,7 +120,11 @@ export function useNfpOptimizer(
         mode: "fast",
       })
     } catch (err) {
-      setNfpError((err as Error).message)
+      // Defer to microtask so the error set doesn't land synchronously
+      // inside the same render commit that ran the effect (React 19's
+      // sync-setState-in-effect lint otherwise trips here).
+      const message = (err as Error).message
+      queueMicrotask(() => setNfpError(message))
       return
     }
 
@@ -164,8 +164,7 @@ export function useNfpOptimizer(
           // circuit — the Rust refinement is server-only and the sync
           // preview handles rendering. Treat it as a non-event so the
           // dev overlay stays clean.
-          const isServerOnly =
-            err instanceof Error && err.name === "PackingServerOnlyError"
+          const isServerOnly = err instanceof Error && err.name === "PackingServerOnlyError"
           if (!isServerOnly) {
             console.error("[NFP] Packing service error:", err)
             setNfpError((err as Error).message)
@@ -254,4 +253,3 @@ function packResultToNestingResult(
     source: "optimized",
   }
 }
-

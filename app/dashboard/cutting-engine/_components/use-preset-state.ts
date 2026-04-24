@@ -380,16 +380,18 @@ export function usePresetState(
       // Propagate per-template quantities from the loaded cut into
       // the quantities Map so multi-template cuts re-pack with the
       // original per-row counts (cut_history's scalar `cut_amount`
-      // can't represent them).
+      // can't represent them). Always reset the map on load — if we
+      // skip this when the payload has no perQty, stale counts from a
+      // previous load silently carry into the new selection.
       const perQty = loadedSelection.perTemplateQuantities
+      const nextQty = new Map<string, number>()
       if (perQty && perQty.length > 0) {
-        const nextQty = new Map<string, number>()
         idsToCheck.forEach((id, i) => {
           const q = perQty[i]
           if (Number.isFinite(q) && q > 1) nextQty.set(id, q)
         })
-        setQuantities(nextQty)
       }
+      setQuantities(nextQty)
 
       const d = customDimensions[0]
       if (d) {

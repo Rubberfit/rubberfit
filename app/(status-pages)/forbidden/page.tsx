@@ -8,7 +8,9 @@ export default function Forbidden403() {
   return (
     <div className="flex h-dvh flex-col items-center justify-center space-y-2 text-center">
       <h1 className="font-semibold text-2xl">Forbidden</h1>
-      <p className="text-muted-foreground">The page you are looking for could not be found.</p>
+      <p className="text-muted-foreground">
+        You don&apos;t have permission to access this page.
+      </p>
       <Link prefetch={false} replace href="/dashboard">
         <Button variant="outline">Go back home</Button>
       </Link>

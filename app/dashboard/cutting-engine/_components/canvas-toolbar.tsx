@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Grid3x3, Hand, Minus, MousePointer2, Plus, RotateCcw, Ruler } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 
-type Tool = "select" | "pan" | "measure" | "reset"
+export type CanvasTool = "select" | "pan" | "measure"
+type ToolKey = CanvasTool | "reset"
 
 /** Zoom range + step — matches most CAD surfaces (25 % to 400 %). */
 export const ZOOM_MIN = 25
@@ -26,6 +27,12 @@ interface CanvasToolbarProps {
    *  can read the same value. */
   showGrid: boolean
   onShowGridChange: (visible: boolean) => void
+  /** Controlled tool prop. If provided, the toolbar reflects this value
+   *  and emits `onToolChange`. Otherwise the toolbar manages its own
+   *  local state (uncontrolled). Without wiring the renderer can't
+   *  react to Select/Pan/Measure — the buttons would be pure theatre. */
+  tool?: CanvasTool
+  onToolChange?: (tool: CanvasTool) => void
 }
 
 export function CanvasToolbar({
@@ -35,24 +42,33 @@ export function CanvasToolbar({
   onAddSheet,
   showGrid,
   onShowGridChange,
+  tool,
+  onToolChange,
 }: CanvasToolbarProps) {
-  const [activeTool, setActiveTool] = useState<Tool>("select")
+  const [localTool, setLocalTool] = useState<CanvasTool>("select")
+  const activeTool = tool ?? localTool
 
-  const tools: Array<{ key: Tool; icon: React.ReactNode; label: string }> = [
+  const tools: Array<{ key: ToolKey; icon: React.ReactNode; label: string }> = [
     { key: "select", icon: <MousePointer2 className="h-4 w-4" />, label: "Select" },
     { key: "pan", icon: <Hand className="h-4 w-4" />, label: "Pan" },
     { key: "measure", icon: <Ruler className="h-4 w-4" />, label: "Measure" },
     { key: "reset", icon: <RotateCcw className="h-4 w-4" />, label: "Reset view" },
   ]
 
-  const handleToolClick = (key: Tool) => {
-    setActiveTool(key)
-    // Reset tool is an action, not a persistent mode — fire + revert
-    // to Select so the button doesn't stay visually locked.
+  const selectTool = (next: CanvasTool) => {
+    if (tool === undefined) setLocalTool(next)
+    onToolChange?.(next)
+  }
+
+  const handleToolClick = (key: ToolKey) => {
+    // Reset is a momentary action, not a persistent mode — fire the
+    // view reset and revert the active tool to Select.
     if (key === "reset") {
       onResetView?.()
-      setActiveTool("select")
+      selectTool("select")
+      return
     }
+    selectTool(key)
   }
 
   const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))

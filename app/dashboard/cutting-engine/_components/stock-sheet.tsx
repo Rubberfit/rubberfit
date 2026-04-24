@@ -91,9 +91,12 @@ function computeLayout(
   // inside the sheet is suppressed below when there's not enough
   // height for it.
   const aspect = width > 0 && length > 0 ? length / width : 1
-  let rectW = maxWidthPx - H_PAD * 2
-  let rectH = rectW / aspect
-  const maxRectH = maxHeightPx - V_PAD_TOP - V_PAD_BOTTOM
+  // Clamp against pathological small viewports (H_PAD ~ 28px, V_PAD
+  // ~ 30px each). Negative rectW/rectH would render an inverted SVG
+  // rect and trip the consumed overlay math downstream.
+  let rectW = Math.max(0, maxWidthPx - H_PAD * 2)
+  let rectH = aspect > 0 ? rectW / aspect : 0
+  const maxRectH = Math.max(0, maxHeightPx - V_PAD_TOP - V_PAD_BOTTOM)
   if (rectH > maxRectH) {
     rectH = maxRectH
     rectW = rectH * aspect
@@ -131,7 +134,14 @@ function WidthCallout({ layout, label }: { layout: SheetLayout; label: string })
         stroke={CALLOUT}
         strokeWidth="0.75"
       />
-      <line x1={rectX - 18} y1={rectY} x2={rectX - 10} y2={rectY} stroke={CALLOUT} strokeWidth="0.75" />
+      <line
+        x1={rectX - 18}
+        y1={rectY}
+        x2={rectX - 10}
+        y2={rectY}
+        stroke={CALLOUT}
+        strokeWidth="0.75"
+      />
       <line
         x1={rectX - 18}
         y1={rectY + rectH}
@@ -226,13 +236,7 @@ function LengthCallout({ layout, label }: { layout: SheetLayout; label: string }
   )
 }
 
-function MaterialChip({
-  layout,
-  label,
-}: {
-  layout: SheetLayout
-  label: string
-}) {
+function MaterialChip({ layout, label }: { layout: SheetLayout; label: string }) {
   const chipW = Math.max(48, label.length * 7 + 18)
   return (
     <g>
@@ -311,9 +315,7 @@ function UsageBar({
   const cleanRemaining = Number(remainingLength.toFixed(2))
   const cleanTotal = Number(totalLength.toFixed(2))
   const pct =
-    totalLength > 0
-      ? Math.max(0, Math.min(100, (remainingLength / totalLength) * 100))
-      : 0
+    totalLength > 0 ? Math.max(0, Math.min(100, (remainingLength / totalLength) * 100)) : 0
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3 text-xs">
@@ -365,22 +367,17 @@ export function StockSheet({
   const lengthLabel = `${Number(length.toFixed(2))}″`
 
   const consumedSqft =
-    remainingLength !== undefined && width > 0
-      ? ((length - remainingLength) * width) / 144
-      : 0
+    remainingLength !== undefined && width > 0 ? ((length - remainingLength) * width) / 144 : 0
   const reusableSqft = usage?.reusableSqft ?? 0
   const scrapSqft = usage?.scrapSqft ?? 0
   const reusableRatio = consumedSqft > 0 ? reusableSqft / consumedSqft : 0
   const scrapRatio = consumedSqft > 0 ? scrapSqft / consumedSqft : 0
   const showConsumed = layout.consumedW > 1
-  const showBar =
-    showUsageBar &&
-    remainingLength !== undefined &&
-    Number.isFinite(remainingLength)
+  const showBar = showUsageBar && remainingLength !== undefined && Number.isFinite(remainingLength)
 
   return (
     <div className={cn("flex w-full flex-col gap-3", className)}>
-      <div className="rounded-md border bg-[#1c1c1a] p-2 shadow-sm">
+      <div className="rounded-md border bg-card p-2 shadow-sm dark:bg-stone-950">
         <svg
           viewBox={`0 0 ${layout.svgW} ${layout.svgH}`}
           role="img"
@@ -428,9 +425,7 @@ export function StockSheet({
           <LengthCallout layout={layout} label={lengthLabel} />
         </svg>
       </div>
-      {showBar && (
-        <UsageBar remainingLength={remainingLength as number} totalLength={length} />
-      )}
+      {showBar && <UsageBar remainingLength={remainingLength as number} totalLength={length} />}
     </div>
   )
 }

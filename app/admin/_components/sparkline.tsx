@@ -2,7 +2,6 @@ type EndpointStatus = "operational" | "degraded" | "down" | "unknown"
 
 interface SparklineProps {
   status: EndpointStatus
-  avgResponseMs: number | null
   height?: number
   data?: number[]
 }
@@ -33,7 +32,13 @@ export function Sparkline({ status, height = 40, data }: SparklineProps) {
           const jitter = Math.sin(i * 1.3) * 12 + Math.cos(i * 0.7) * 8
           return Math.max(4, Math.min(H - 4, base + jitter))
         })
-  const polyline = pts.map((y, i) => `${(i / (pts.length - 1)) * W},${y}`).join(" ")
+  // `pts.length - 1` divides by zero for a single-point series — fall
+  // back to centering the one point on the X-axis so the chart still
+  // renders instead of emitting NaN / Infinity in the polyline.
+  const polyline =
+    pts.length === 1
+      ? `${W / 2},${pts[0]}`
+      : pts.map((y, i) => `${(i / (pts.length - 1)) * W},${y}`).join(" ")
   const fillPts = `0,${H} ${polyline} ${W},${H}`
   const { stroke, fill } = SPARKLINE_COLORS[status]
 

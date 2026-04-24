@@ -24,6 +24,12 @@ export interface EntityRowProps extends Omit<React.ComponentProps<"div">, "title
   metadata?: React.ReactNode
   /** Trailing actions (kebab menu, delete button, etc.). */
   trailing?: React.ReactNode
+  /**
+   * Render as an anchor. When both `href` and `onActivate` are set
+   * the callback fires on click (before navigation) — useful for
+   * analytics / optimistic state updates. Pass either one or the
+   * other if you want pure navigation OR pure handler semantics.
+   */
   href?: string
   onActivate?: () => void
   hideChevron?: boolean
@@ -85,12 +91,25 @@ export function EntityRow({
   )
 
   if (href) {
+    // Forward onActivate via an onClick handler on the anchor so
+    // callers that pass both get both behaviours (analytics hook +
+    // navigation). Earlier revision silently dropped `onActivate`
+    // when `href` was present — flagged by CodeRabbit.
+    const handleAnchorClick = onActivate
+      ? (e: React.MouseEvent<HTMLAnchorElement>) => {
+          onActivate()
+          if (props.onClick) props.onClick(e as unknown as React.MouseEvent<HTMLDivElement>)
+        }
+      : (props.onClick as unknown as React.MouseEventHandler<HTMLAnchorElement> | undefined)
+    const { onClick: _ignored, ...anchorProps } = props
+    void _ignored
     return (
       <a
         href={href}
         data-slot="entity-row"
         className={rowClasses}
-        {...(props as React.ComponentProps<"a">)}
+        onClick={handleAnchorClick}
+        {...(anchorProps as React.ComponentProps<"a">)}
       >
         {content}
       </a>

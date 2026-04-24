@@ -176,56 +176,67 @@ export async function generateReport(
   reportTemplates: ReportTemplate[],
   reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"
 ) {
+  // Report template lookup fails synchronously before any network
+  // work — no wrap needed; the caller decides how to surface it.
+  const report = reportTemplates.find((r) => r.id === reportId)
+  if (!report) throw new Error("Report template not found")
+
   // Simulate report generation delay
   await new Promise((resolve) => setTimeout(resolve, 2000))
 
   const { startDate, endDate } = getDateRange(reportPeriod)
-
-  // Fetch data via service layer
-  const cuts = await cutService.getCutsByDateRangeWithRolls(startDate, endDate)
-  const rolls = await rollService.getAllRolls()
-  const materialTypes = await materialTypeService.getAll()
-
-  // Generate report content based on type
-  const report = reportTemplates.find((r) => r.id === reportId)
-  if (!report) throw new Error("Report template not found")
-
-  const materialBreakdown = buildMaterialBreakdown(
-    rolls as unknown as Array<Record<string, unknown>> | null
-  )
-
-  const reportData = {
-    reportName: report.name,
-    period: reportPeriod,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    generatedAt: new Date().toISOString(),
-    data: {
-      cuts: cuts || [],
-      rolls: rolls || [],
-      materialTypes: materialTypes || [],
-    },
-    summary: {
-      totalCuts: (cuts || []).length,
-      totalMaterialUsed: (cuts || []).reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0),
-      averageWaste:
-        (cuts || []).length > 0
-          ? (cuts || []).reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
-            (cuts || []).length
-          : 0,
-      totalInventoryValue: (rolls || []).reduce(
-        (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
-        0
-      ),
-    },
-    materialBreakdown,
-  }
-
-  // Generate PDF report
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
-  const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
 
-  await exportPdfService.generatePDFReport(report.name, htmlContent)
+  // Wrap the service + export calls so a single failing upstream
+  // (Supabase timeout, PDF generator crash) surfaces a concrete
+  // error toast instead of an unhandled promise rejection. The
+  // caller's UI also clears its "generating" state on throw.
+  try {
+    const [cuts, rolls, materialTypes] = await Promise.all([
+      cutService.getCutsByDateRangeWithRolls(startDate, endDate),
+      rollService.getAllRolls(),
+      materialTypeService.getAll(),
+    ])
 
-  toast.success(`${periodLabel} ${report.name} generated successfully`)
+    const materialBreakdown = buildMaterialBreakdown(
+      rolls as unknown as Array<Record<string, unknown>> | null
+    )
+
+    const reportData = {
+      reportName: report.name,
+      period: reportPeriod,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      generatedAt: new Date().toISOString(),
+      data: {
+        cuts: cuts || [],
+        rolls: rolls || [],
+        materialTypes: materialTypes || [],
+      },
+      summary: {
+        totalCuts: (cuts || []).length,
+        totalMaterialUsed: (cuts || []).reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0),
+        averageWaste:
+          (cuts || []).length > 0
+            ? (cuts || []).reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
+              (cuts || []).length
+            : 0,
+        totalInventoryValue: (rolls || []).reduce(
+          (sum, roll) =>
+            sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
+          0
+        ),
+      },
+      materialBreakdown,
+    }
+
+    const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
+    await exportPdfService.generatePDFReport(report.name, htmlContent)
+
+    toast.success(`${periodLabel} ${report.name} generated successfully`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    toast.error(`Failed to generate ${periodLabel} ${report.name}: ${message}`)
+    throw error
+  }
 }

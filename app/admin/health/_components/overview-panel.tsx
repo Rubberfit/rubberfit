@@ -159,7 +159,7 @@ export function OverviewPanel({ services, incidents, isLoading, isRunning, lastC
                   {svc.status.charAt(0) + svc.status.slice(1).toLowerCase()}
                 </span>
               </div>
-              <Sparkline status={STATUS_SPARKLINE[svc.status]} avgResponseMs={null} height={36} data={svc.sparklineData} />
+              <Sparkline status={STATUS_SPARKLINE[svc.status]} height={36} data={svc.sparklineData} />
               <div className="grid grid-cols-3 gap-2 pt-1 border-t border-zinc-800">
                 <div>
                   <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Uptime</p>

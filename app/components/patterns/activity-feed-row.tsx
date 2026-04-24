@@ -41,16 +41,15 @@ export function ActivityFeedRow({
       className={cn("flex items-start gap-3 pb-4 last:pb-0", className)}
       {...props}
     >
-      <div className="relative flex flex-col items-center">
+      {/* Connector column stretches to the row height via self-stretch
+          (`items-start` on the parent), so `grow` on the vertical line
+          now actually fills the available height instead of collapsing
+          to 0 when the row content is short. */}
+      <div className="relative flex flex-col items-center self-stretch">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground [&_svg]:size-3.5">
           {icon}
         </span>
-        {!isLast && (
-          <span
-            aria-hidden="true"
-            className="mt-1 w-px grow bg-border"
-          />
-        )}
+        {!isLast && <span aria-hidden="true" className="mt-1 w-px grow bg-border" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">

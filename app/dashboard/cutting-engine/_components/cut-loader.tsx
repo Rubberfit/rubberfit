@@ -20,11 +20,14 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
   const searchParams = useSearchParams()
   const router = useRouter()
   const loadCutId = searchParams.get("loadCut")
-  const didFetch = useRef(false)
+  // Id-keyed guard: the boolean flag pattern silently swallowed
+  // subsequent deep links within the same mount, so consecutive
+  // `?loadCut=` links appeared to do nothing after the first.
+  const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!loadCutId || didFetch.current) return
-    didFetch.current = true
+    if (!loadCutId || lastLoadedIdRef.current === loadCutId) return
+    lastLoadedIdRef.current = loadCutId
 
     fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
       .then(async (res) => {

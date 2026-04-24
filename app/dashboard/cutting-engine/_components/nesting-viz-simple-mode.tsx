@@ -233,13 +233,19 @@ function SheetSvg({
           x={layout.viewWidth / 2}
           y="34"
           textAnchor="middle"
-          fill="#111827"
+          className="fill-foreground"
           fontSize="20"
           fontWeight="700"
         >
           {"Rubber Sheet Nesting Layout"}
         </text>
-        <text x={layout.viewWidth / 2} y="60" textAnchor="middle" fill="#4b5563" fontSize="12">
+        <text
+          x={layout.viewWidth / 2}
+          y="60"
+          textAnchor="middle"
+          className="fill-muted-foreground"
+          fontSize="12"
+        >
           {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
@@ -257,7 +263,7 @@ function SheetSvg({
           width={layout.surfacePxW}
           height={layout.surfacePxH}
           fill={`url(#${sStockPat})`}
-          stroke="#d6d3d1"
+          className="stroke-border"
           strokeWidth="2"
         />
         <g clipPath={`url(#${sClip})`}>

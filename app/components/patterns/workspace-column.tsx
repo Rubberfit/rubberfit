@@ -52,11 +52,17 @@ export function WorkspaceColumn({
   scroll,
   ...props
 }: WorkspaceColumnProps) {
+  // Default to the canvas column so the caller picks up the
+  // `flex-1 min-w-0 overflow-hidden` width class instead of rendering
+  // a zero-width element when `column` is omitted. Earlier revision
+  // fell through to no class selection — flagged by CodeRabbit as a
+  // false-default.
+  const resolvedColumn = column ?? "center"
   return (
     <div
       data-slot="workspace-column"
-      data-column={column ?? "center"}
-      className={cn(workspaceColumnVariants({ column, scroll }), className)}
+      data-column={resolvedColumn}
+      className={cn(workspaceColumnVariants({ column: resolvedColumn, scroll }), className)}
       {...props}
     />
   )

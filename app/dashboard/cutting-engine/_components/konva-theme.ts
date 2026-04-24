@@ -76,7 +76,7 @@ const DARK: KonvaThemeTokens = {
  * to a red part used to look like "part vs. waste", which it wasn't —
  * now every part color is clearly distinct from both classifications.
  */
-export const PART_FILLS_LIGHT = [
+export const PART_FILLS_LIGHT: ReadonlyArray<string> = Object.freeze([
   "#3b82f6", // blue-500
   "#8b5cf6", // violet-500
   "#22c55e", // green-500
@@ -85,9 +85,9 @@ export const PART_FILLS_LIGHT = [
   "#6366f1", // indigo-500
   "#06b6d4", // cyan-500
   "#d946ef", // fuchsia-500
-]
+])
 
-export const PART_FILLS_DARK = [
+export const PART_FILLS_DARK: ReadonlyArray<string> = Object.freeze([
   "#60a5fa", // blue-400
   "#a78bfa", // violet-400
   "#4ade80", // green-400
@@ -96,7 +96,7 @@ export const PART_FILLS_DARK = [
   "#818cf8", // indigo-400
   "#22d3ee", // cyan-400
   "#e879f9", // fuchsia-400
-]
+])
 
 /**
  * Read `<html class="dark">` and return the matching palette. Subscribes
@@ -108,7 +108,17 @@ export const PART_FILLS_DARK = [
  */
 function subscribeToHtmlClass(callback: () => void): () => void {
   if (typeof document === "undefined") return () => {}
-  const obs = new MutationObserver(callback)
+  // Only re-notify when the `dark` class toggle actually flips. Any
+  // `class` mutation (e.g. sidebar-open, portal-overlay) on <html>
+  // would otherwise tear through every Konva consumer and trigger
+  // useSyncExternalStore snapshots that re-run downstream memoization.
+  let lastIsDark = readIsDark()
+  const obs = new MutationObserver(() => {
+    const next = readIsDark()
+    if (next === lastIsDark) return
+    lastIsDark = next
+    callback()
+  })
   obs.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["class"],

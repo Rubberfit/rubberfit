@@ -26,11 +26,14 @@ function JobLoaderInner({ onLoad }: JobLoaderProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const loadJobId = searchParams.get("loadJob")
-  const didFetch = useRef(false)
+  // Track which id we've already fetched so a second `?loadJob=`
+  // deep link within the same mount still fires. Using a boolean
+  // flag (earlier revision) silently dropped subsequent loads.
+  const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!loadJobId || didFetch.current) return
-    didFetch.current = true
+    if (!loadJobId || lastLoadedIdRef.current === loadJobId) return
+    lastLoadedIdRef.current = loadJobId
 
     jobService
       .getFull(loadJobId)

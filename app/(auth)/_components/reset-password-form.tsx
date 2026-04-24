@@ -22,6 +22,7 @@ import {
 import { Input } from "@/app/components/ui/input"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { supabase } from "@/src/infrastructure/models/supabase"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 const FormSchema = z
   .object({
@@ -116,7 +117,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!active || !session) {
         return
       }

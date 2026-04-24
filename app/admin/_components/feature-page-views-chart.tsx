@@ -7,7 +7,9 @@ const FEATURES = [
   { name: "Purchase Orders", views: 547 },
 ]
 
-const MAX = FEATURES[0].views
+// Don't assume FEATURES is pre-sorted — compute the max so a future
+// edit that appends or reorders entries still gives accurate bar widths.
+const MAX = Math.max(...FEATURES.map((f) => f.views), 1)
 
 export function FeaturePageViewsChart() {
   return (

@@ -62,10 +62,17 @@ export function UtilizationCard({
 }: UtilizationCardProps) {
   const [localPeriod, setLocalPeriod] = useState<"7d" | "30d" | "90d">("7d")
   const period = controlledPeriod ?? localPeriod
+  // The toggle is only a true affordance when the parent wires
+  // `onPeriodChange` so the underlying data can be refetched for the
+  // new window. Without that callback, flipping periods would just
+  // re-colour the highlight without changing the chart — disable the
+  // toggle entirely so users don't think it's broken.
+  const canToggle = typeof onPeriodChange === "function"
 
   const handlePeriodChange = (next: "7d" | "30d" | "90d") => {
+    if (!canToggle) return
     setLocalPeriod(next)
-    onPeriodChange?.(next)
+    onPeriodChange(next)
   }
 
   const colorLookup = useMemo(() => {
@@ -85,12 +92,14 @@ export function UtilizationCard({
             <button
               key={p}
               type="button"
+              disabled={!canToggle}
               onClick={() => handlePeriodChange(p)}
               className={cn(
                 "rounded px-2 py-1 font-medium transition-colors",
                 period === p
                   ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+                !canToggle && "cursor-not-allowed opacity-60"
               )}
             >
               {p}

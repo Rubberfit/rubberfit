@@ -29,11 +29,13 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const loadRollId = searchParams.get("loadRoll")
-  const didFetch = useRef(false)
+  // Id-keyed guard so a second deep link in the same mount still
+  // fetches. Boolean flag (earlier revision) silently ignored it.
+  const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!loadRollId || didFetch.current) return
-    didFetch.current = true
+    if (!loadRollId || lastLoadedIdRef.current === loadRollId) return
+    lastLoadedIdRef.current = loadRollId
 
     rollsSdk
       .get(loadRollId)

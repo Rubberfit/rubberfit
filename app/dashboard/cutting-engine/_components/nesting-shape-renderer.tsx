@@ -83,7 +83,7 @@ function PolygonShape({
       <polygon
         points={polyPoints}
         fill={`url(#${usablePatternId})`}
-        stroke="#84cc16"
+        className="stroke-lime-500 dark:stroke-lime-400"
         strokeWidth="1.5"
       />
       <text
@@ -91,7 +91,7 @@ function PolygonShape({
         y={coords.py + coords.ph / 2}
         textAnchor="middle"
         dominantBaseline="middle"
-        fill="#111827"
+        className="fill-foreground"
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
@@ -128,7 +128,13 @@ function CircleShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            className="fill-stone-900"
+          />
           <rect
             x={coords.px}
             y={coords.py}
@@ -145,7 +151,7 @@ function CircleShape({
             cy={cy}
             r={Math.max(r - 1, 0)}
             fill={`url(#${usablePatternId})`}
-            stroke="#84cc16"
+            className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
           />
           <text
@@ -153,7 +159,7 @@ function CircleShape({
             y={cy}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="#e7e5e4"
+            className="fill-stone-200"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -215,7 +221,13 @@ function SectorShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            className="fill-stone-900"
+          />
           <rect
             x={coords.px}
             y={coords.py}
@@ -230,7 +242,7 @@ function SectorShape({
           <path
             d={buildArcPath()}
             fill={`url(#${usablePatternId})`}
-            stroke="#84cc16"
+            className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
           />
           <text
@@ -238,7 +250,7 @@ function SectorShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="#e7e5e4"
+            className="fill-stone-200"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -289,7 +301,13 @@ function TrapezoidShape({
     <g key={index + 1}>
       {showBg && (
         <>
-          <rect x={coords.px} y={coords.py} width={coords.pw} height={coords.ph} fill="#1c1917" />
+          <rect
+            x={coords.px}
+            y={coords.py}
+            width={coords.pw}
+            height={coords.ph}
+            className="fill-stone-900"
+          />
           <rect
             x={coords.px}
             y={coords.py}
@@ -304,7 +322,7 @@ function TrapezoidShape({
           <path
             d={buildTrapPath()}
             fill={`url(#${usablePatternId})`}
-            stroke="#84cc16"
+            className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
           />
           <text
@@ -312,7 +330,7 @@ function TrapezoidShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            fill="#e7e5e4"
+            className="fill-stone-200"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -345,14 +363,14 @@ function RectShape({
         width={coords.pw}
         height={coords.ph}
         fill={`url(#${usablePatternId})`}
-        stroke="#84cc16"
+        className="stroke-lime-500 dark:stroke-lime-400"
         strokeWidth="1"
       />
       <text
         x={coords.px + coords.pw / 2}
         y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
         textAnchor="middle"
-        fill="#111827"
+        className="fill-foreground"
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >

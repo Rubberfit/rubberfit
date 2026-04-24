@@ -1,6 +1,6 @@
 # `.claude/scripts/`
 
-Local-only automation scripts. Not committed to the repo per `.gitignore` conventions (`.claude/` is session scratch).
+Automation scripts for Claude Code sessions. Checked in so they run consistently across machines; the transient scratch directories under `.claude/` (handoff, research, worktrees, tmp) are what `.gitignore` excludes.
 
 ## `openclaw-triage-issue.sh`
 
