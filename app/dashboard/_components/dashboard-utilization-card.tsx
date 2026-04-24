@@ -40,7 +40,7 @@ export interface UtilizationCardProps {
   className?: string
 }
 
-const palette = [
+const PALETTE = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
@@ -51,7 +51,7 @@ const palette = [
   "var(--chart-8)",
 ]
 
-const periods: Array<"7d" | "30d" | "90d"> = ["7d", "30d", "90d"]
+const PERIODS: Array<"7d" | "30d" | "90d"> = ["7d", "30d", "90d"]
 
 export function UtilizationCard({
   data,
@@ -67,10 +67,10 @@ export function UtilizationCard({
   // new window. Without that callback, flipping periods would just
   // re-colour the highlight without changing the chart — disable the
   // toggle entirely so users don't think it's broken.
-  const canToggle = typeof onPeriodChange === "function"
+  const isToggleEnabled = typeof onPeriodChange === "function"
 
   const handlePeriodChange = (next: "7d" | "30d" | "90d") => {
-    if (!canToggle) return
+    if (!isToggleEnabled) return
     setLocalPeriod(next)
     onPeriodChange(next)
   }
@@ -78,7 +78,7 @@ export function UtilizationCard({
   const colorLookup = useMemo(() => {
     const map: Record<string, string> = {}
     materials.forEach((m, i) => {
-      map[m] = palette[i % palette.length]
+      map[m] = PALETTE[i % PALETTE.length]
     })
     return map
   }, [materials])
@@ -88,18 +88,18 @@ export function UtilizationCard({
       <header className="flex items-center justify-between">
         <h3 className="font-semibold text-foreground text-sm">Utilization by material</h3>
         <div className="inline-flex rounded-md border bg-card p-0.5 text-xs">
-          {periods.map((p) => (
+          {PERIODS.map((p) => (
             <button
               key={p}
               type="button"
-              disabled={!canToggle}
+              disabled={!isToggleEnabled}
               onClick={() => handlePeriodChange(p)}
               className={cn(
                 "rounded px-2 py-1 font-medium transition-colors",
                 period === p
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:text-foreground",
-                !canToggle && "cursor-not-allowed opacity-60"
+                !isToggleEnabled && "cursor-not-allowed opacity-60"
               )}
             >
               {p}
@@ -136,10 +136,7 @@ export function UtilizationCard({
                 }}
                 cursor={{ fill: "var(--hover-overlay)" }}
               />
-              <Legend
-                iconType="square"
-                wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-              />
+              <Legend iconType="square" wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
               {materials.map((material) => (
                 <Bar
                   key={material}

@@ -26,21 +26,33 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
   const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!loadCutId || lastLoadedIdRef.current === loadCutId) return
+    if (!loadCutId) {
+      lastLoadedIdRef.current = null
+      return
+    }
+    if (lastLoadedIdRef.current === loadCutId) return
     lastLoadedIdRef.current = loadCutId
+    let cancelled = false
 
     fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`${res.status}`)
         const json = (await res.json()) as { data: CutHistory }
+        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
         onLoad(json.data)
       })
       .catch(() => {
+        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
         toast.error("Could not load cut record")
       })
       .finally(() => {
+        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
         router.replace(returnPath)
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [loadCutId, router, onLoad, returnPath])
 
   return null

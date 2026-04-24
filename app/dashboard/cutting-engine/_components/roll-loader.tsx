@@ -31,15 +31,24 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
   const loadRollId = searchParams.get("loadRoll")
   // Id-keyed guard so a second deep link in the same mount still
   // fetches. Boolean flag (earlier revision) silently ignored it.
+  // Reset when the param clears so the same id can be reopened later.
   const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!loadRollId || lastLoadedIdRef.current === loadRollId) return
+    if (!loadRollId) {
+      lastLoadedIdRef.current = null
+      return
+    }
+    if (lastLoadedIdRef.current === loadRollId) return
     lastLoadedIdRef.current = loadRollId
+    let cancelled = false
 
     rollsSdk
       .get(loadRollId)
       .then((roll) => {
+        // Drop stale wins: only honor the response if the param still
+        // points at the id we fetched.
+        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
         if (!roll) {
           toast.error("Could not find that roll")
           return
@@ -47,11 +56,17 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
         onLoad(roll)
       })
       .catch(() => {
+        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
         toast.error("Could not load roll")
       })
       .finally(() => {
+        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
         router.replace("/dashboard/cutting-engine")
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [loadRollId, router, onLoad])
 
   return null

@@ -70,7 +70,11 @@ export function useNfpOptimizer(
   )
 
   useEffect(() => {
-    if (!simpleMode) return
+    // Always reset — when Simple mode flips OFF we still need to drop
+    // the prior result so stale NFP layouts don't leak into the next
+    // surface. Early-returning when `!simpleMode` before this reset
+    // would leave the last `optimizedResult` / `optimizedItems` /
+    // `placementView` / `nfpError` alive after the mode change.
     queueMicrotask(() => {
       setOptimizedResult(null)
       setOptimizedItems(null)
@@ -78,6 +82,7 @@ export function useNfpOptimizer(
       setIsOptimizing(false)
       setNfpError(null)
     })
+    if (!simpleMode) return
 
     /*
       If the passed partType is a cone, cylinder or trapezoid, then the NFP solver does not

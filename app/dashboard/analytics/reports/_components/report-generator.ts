@@ -4,7 +4,6 @@ import { toast } from "sonner"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import type { ReportTemplate } from "./report-templates"
 
@@ -187,56 +186,48 @@ export async function generateReport(
   const { startDate, endDate } = getDateRange(reportPeriod)
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
 
-  // Wrap the service + export calls so a single failing upstream
-  // (Supabase timeout, PDF generator crash) surfaces a concrete
-  // error toast instead of an unhandled promise rejection. The
-  // caller's UI also clears its "generating" state on throw.
-  try {
-    const [cuts, rolls, materialTypes] = await Promise.all([
-      cutService.getCutsByDateRangeWithRolls(startDate, endDate),
-      rollService.getAllRolls(),
-      materialTypeService.getAll(),
-    ])
+  // The caller (reports/page.tsx) already wraps this in try/catch and
+  // shows a toast on failure — rethrowing is enough, we just need to
+  // preserve the single-layer error UI contract. `materialTypes` is not
+  // consumed by `buildHtmlContent`; skip the fetch so a material-type
+  // service outage doesn't fail the whole export.
+  const [cuts, rolls] = await Promise.all([
+    cutService.getCutsByDateRangeWithRolls(startDate, endDate),
+    rollService.getAllRolls(),
+  ])
 
-    const materialBreakdown = buildMaterialBreakdown(
-      rolls as unknown as Array<Record<string, unknown>> | null
-    )
+  const materialBreakdown = buildMaterialBreakdown(
+    rolls as unknown as Array<Record<string, unknown>> | null
+  )
 
-    const reportData = {
-      reportName: report.name,
-      period: reportPeriod,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      generatedAt: new Date().toISOString(),
-      data: {
-        cuts: cuts || [],
-        rolls: rolls || [],
-        materialTypes: materialTypes || [],
-      },
-      summary: {
-        totalCuts: (cuts || []).length,
-        totalMaterialUsed: (cuts || []).reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0),
-        averageWaste:
-          (cuts || []).length > 0
-            ? (cuts || []).reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
-              (cuts || []).length
-            : 0,
-        totalInventoryValue: (rolls || []).reduce(
-          (sum, roll) =>
-            sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
-          0
-        ),
-      },
-      materialBreakdown,
-    }
-
-    const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
-    await exportPdfService.generatePDFReport(report.name, htmlContent)
-
-    toast.success(`${periodLabel} ${report.name} generated successfully`)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    toast.error(`Failed to generate ${periodLabel} ${report.name}: ${message}`)
-    throw error
+  const reportData = {
+    reportName: report.name,
+    period: reportPeriod,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    generatedAt: new Date().toISOString(),
+    data: {
+      cuts: cuts || [],
+      rolls: rolls || [],
+    },
+    summary: {
+      totalCuts: (cuts || []).length,
+      totalMaterialUsed: (cuts || []).reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0),
+      averageWaste:
+        (cuts || []).length > 0
+          ? (cuts || []).reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
+            (cuts || []).length
+          : 0,
+      totalInventoryValue: (rolls || []).reduce(
+        (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
+        0
+      ),
+    },
+    materialBreakdown,
   }
+
+  const htmlContent = buildHtmlContent(reportData, periodLabel, startDate, endDate)
+  await exportPdfService.generatePDFReport(report.name, htmlContent)
+
+  toast.success(`${periodLabel} ${report.name} generated successfully`)
 }
