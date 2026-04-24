@@ -36,6 +36,11 @@ export function useRecordManualCut(
     recordingRef.current = true
     setIsRecordingCut(true)
     try {
+      // Manual cuts don't map to a STOCK_PRESET, so material_id is 0
+      // (the server treats 0 as a "no preset" sentinel on manual cuts).
+      // The stock label is derived from the dimensions so the Saved
+      // layouts dropdown has something human-readable to show.
+      const stockLabel = `Manual ${stock.width}" × ${stock.length}" × ${stock.thickness}"`
       const payload = {
         material_id: 0,
         part_id: 1,
@@ -52,7 +57,7 @@ export function useRecordManualCut(
         reusable_offset_sqft: cutMetrics.reusableOffsetSqFt,
         scrap_sqft: cutMetrics.scrapSqFt,
         fab_score: cutMetrics.fabScore,
-        stock_label: null,
+        stock_label: stockLabel,
         cost_per_sqft: stock.costPerSqft ?? null,
         source: "manual" as const,
       }

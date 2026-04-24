@@ -248,9 +248,18 @@ export async function POST(request: NextRequest) {
     fab_score,
   }
 
+  // Non-negative integers (>= 0, whole number). `material_id` uses
+  // 0 as a sentinel for "no STOCK_PRESET selected" — Free-roam never
+  // picks a preset (it edits W/L/T directly in the stock editor), and
+  // the Auto-nest fallback can emit 0 too when the user cleared the
+  // preset picker. Listings guard with `>= 1` before indexing into
+  // STOCK_PRESETS, so a 0 here is safe.
+  const nonNegativeIntFields: Record<string, unknown> = {
+    material_id,
+  }
+
   // Positive integers (>= 1, whole number)
   const positiveIntFields: Record<string, unknown> = {
-    material_id,
     part_id,
     cut_amount,
     parts_completed,
@@ -259,6 +268,15 @@ export async function POST(request: NextRequest) {
 
   for (const [key, val] of Object.entries(nonNegativeFields)) {
     if (typeof val !== "number" || !isFinite(val) || val < 0) {
+      return NextResponse.json(
+        { error: `Missing or invalid required field: ${key}` },
+        { status: 400 }
+      )
+    }
+  }
+
+  for (const [key, val] of Object.entries(nonNegativeIntFields)) {
+    if (typeof val !== "number" || !Number.isInteger(val) || val < 0) {
       return NextResponse.json(
         { error: `Missing or invalid required field: ${key}` },
         { status: 400 }
