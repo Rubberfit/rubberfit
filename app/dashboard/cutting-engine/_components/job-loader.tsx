@@ -38,14 +38,14 @@ function JobLoaderInner({ onLoad }: JobLoaderProps) {
     }
     if (lastLoadedIdRef.current === loadJobId) return
     lastLoadedIdRef.current = loadJobId
-    let cancelled = false
+    let isCancelled = false
 
     jobService
       .getFull(loadJobId)
       .then((job) => {
         // Stale-response guard — a previous id's resolve shouldn't
         // land after the user navigated or switched job deep links.
-        if (cancelled || lastLoadedIdRef.current !== loadJobId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadJobId) return
         if (!job) {
           toast.error("Could not find that job")
           return
@@ -53,16 +53,16 @@ function JobLoaderInner({ onLoad }: JobLoaderProps) {
         onLoad(job)
       })
       .catch((_error) => {
-        if (cancelled || lastLoadedIdRef.current !== loadJobId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadJobId) return
         toast.error("Could not load job")
       })
       .finally(() => {
-        if (cancelled || lastLoadedIdRef.current !== loadJobId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadJobId) return
         router.replace("/dashboard/cutting-engine")
       })
 
     return () => {
-      cancelled = true
+      isCancelled = true
     }
   }, [loadJobId, router, onLoad])
 

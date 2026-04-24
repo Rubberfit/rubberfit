@@ -41,14 +41,14 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
     }
     if (lastLoadedIdRef.current === loadRollId) return
     lastLoadedIdRef.current = loadRollId
-    let cancelled = false
+    let isCancelled = false
 
     rollsSdk
       .get(loadRollId)
       .then((roll) => {
         // Drop stale wins: only honor the response if the param still
         // points at the id we fetched.
-        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadRollId) return
         if (!roll) {
           toast.error("Could not find that roll")
           return
@@ -56,16 +56,16 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
         onLoad(roll)
       })
       .catch((_error) => {
-        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadRollId) return
         toast.error("Could not load roll")
       })
       .finally(() => {
-        if (cancelled || lastLoadedIdRef.current !== loadRollId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadRollId) return
         router.replace("/dashboard/cutting-engine")
       })
 
     return () => {
-      cancelled = true
+      isCancelled = true
     }
   }, [loadRollId, router, onLoad])
 

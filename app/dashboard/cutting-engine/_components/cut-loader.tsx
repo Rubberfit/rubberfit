@@ -32,13 +32,13 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
     }
     if (lastLoadedIdRef.current === loadCutId) return
     lastLoadedIdRef.current = loadCutId
-    let cancelled = false
+    let isCancelled = false
 
     fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`${res.status}`)
         const json = (await res.json()) as { data?: CutHistory }
-        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
         // An unexpected 2xx body (e.g. legacy `{ ok: true }` shape) would
         // pass `undefined` into onLoad and silently break restore. Throw
         // into the shared catch so the user sees the same error toast.
@@ -46,16 +46,16 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
         onLoad(json.data)
       })
       .catch((_error) => {
-        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
         toast.error("Could not load cut record")
       })
       .finally(() => {
-        if (cancelled || lastLoadedIdRef.current !== loadCutId) return
+        if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
         router.replace(returnPath)
       })
 
     return () => {
-      cancelled = true
+      isCancelled = true
     }
   }, [loadCutId, router, onLoad, returnPath])
 
