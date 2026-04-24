@@ -23,7 +23,7 @@ import { cn } from "@/app/lib/utils"
  * responsible for passing pre-aggregated data.
  *
  * If no data yet, falls back to an empty-state card instead
- * of a bare chart. Colors come from chart-1..5 tokens (Task 1).
+ * of a bare chart. Colors come from chart-1..8 tokens (Task 1).
  */
 
 export interface UtilizationDatum {
@@ -93,6 +93,7 @@ export function UtilizationCard({
               key={p}
               type="button"
               disabled={!isToggleEnabled}
+              aria-pressed={period === p}
               onClick={() => handlePeriodChange(p)}
               className={cn(
                 "rounded px-2 py-1 font-medium transition-colors",

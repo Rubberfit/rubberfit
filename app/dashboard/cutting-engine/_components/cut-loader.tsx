@@ -37,8 +37,12 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
     fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`${res.status}`)
-        const json = (await res.json()) as { data: CutHistory }
+        const json = (await res.json()) as { data?: CutHistory }
         if (cancelled || lastLoadedIdRef.current !== loadCutId) return
+        // An unexpected 2xx body (e.g. legacy `{ ok: true }` shape) would
+        // pass `undefined` into onLoad and silently break restore. Throw
+        // into the shared catch so the user sees the same error toast.
+        if (!json.data) throw new Error("missing payload.data")
         onLoad(json.data)
       })
       .catch(() => {
