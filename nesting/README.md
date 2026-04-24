@@ -176,25 +176,6 @@ export function extractMaximalFreeRects(
 export function classifyFreeRegion(region: FreeRegion): "reusable" | "scrap"
 ```
 
-### nfp-solver.ts
-
-Wraps the vendored Fit packer library for mixed-shape nesting. Converts `NestingInput` into Fit packer format, runs the GA-based optimizer, and converts results back to `NestingResult`.
-
-```typescript
-export class NFPSolver {
-  solve(
-    input: NestingInput,
-    callbacks: {
-      onProgress?: (result: NestingResult) => void
-      onComplete: (result: NestingResult) => void
-      onError?: (message: string) => void
-    }
-  ): () => void // returns cancel function
-
-  cancel(): void
-}
-```
-
 ## vendor/fit/
 
 Third-party nesting library (vendored). Implements the core NFP packing algorithm with a genetic algorithm optimizer.
