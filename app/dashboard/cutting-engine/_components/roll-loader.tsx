@@ -55,7 +55,7 @@ function RollLoaderInner({ onLoad }: RollLoaderProps) {
         }
         onLoad(roll)
       })
-      .catch(() => {
+      .catch((_error) => {
         if (cancelled || lastLoadedIdRef.current !== loadRollId) return
         toast.error("Could not load roll")
       })

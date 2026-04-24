@@ -52,7 +52,7 @@ function JobLoaderInner({ onLoad }: JobLoaderProps) {
         }
         onLoad(job)
       })
-      .catch(() => {
+      .catch((_error) => {
         if (cancelled || lastLoadedIdRef.current !== loadJobId) return
         toast.error("Could not load job")
       })

@@ -45,7 +45,7 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
         if (!json.data) throw new Error("missing payload.data")
         onLoad(json.data)
       })
-      .catch(() => {
+      .catch((_error) => {
         if (cancelled || lastLoadedIdRef.current !== loadCutId) return
         toast.error("Could not load cut record")
       })
