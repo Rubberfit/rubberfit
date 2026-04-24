@@ -8,7 +8,7 @@ on:
 
 jobs:
   lint:
-    name: web quality
+    name: lint
     runs-on: ubuntu-latest
     defaults:
       run:
