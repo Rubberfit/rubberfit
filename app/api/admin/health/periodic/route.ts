@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 
 interface UptimeRow {
   service_name:        string
@@ -42,24 +42,9 @@ function avg(nums: (number | null)[]): number {
 export async function GET(
   request: NextRequest
 ): Promise<NextResponse<PeriodicResponse | { error: string }>> {
-  const authClient = makeAuthClient(request)
-  if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
-
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const adminClient = makeAdminClient()
-  if (!adminClient) return NextResponse.json({ error: "Service role key not configured" }, { status: 500 })
-
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-  const roles = profile?.roles
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const guard = await requireAdmin(request)
+  if (!guard.ok) return guard.response
+  const { adminClient } = guard.ctx
 
   const [uptimeResult, checksResult] = await Promise.all([
     adminClient.rpc("get_all_endpoint_uptime"),

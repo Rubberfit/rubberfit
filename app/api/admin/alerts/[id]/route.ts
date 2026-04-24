@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 
 type Action = "acknowledge" | "resolve"
 
@@ -20,26 +20,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authClient = makeAuthClient(request)
-  if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
-
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const adminClient = makeAdminClient()
-  if (!adminClient) {
-    return NextResponse.json({ error: "Service role key not configured" }, { status: 500 })
-  }
-
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-  const roles = profile?.roles
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const guard = await requireAdmin(request)
+  if (!guard.ok) return guard.response
+  const { adminClient, userEmail, userId } = guard.ctx
 
   const { id } = await params
 
@@ -57,7 +40,7 @@ export async function PATCH(
   }
 
   const now = new Date().toISOString()
-  const actorEmail = user.email ?? ""
+  const actorEmail = userEmail ?? ""
   const { action } = body
 
   const update =
@@ -77,7 +60,7 @@ export async function PATCH(
 
   // Audit log
   await adminClient.schema("admin").from("admin_activity_log").insert({
-    actor_id: user.id,
+    actor_id: userId,
     actor_email: actorEmail,
     action: action === "acknowledge" ? "acknowledged_alert" : "resolved_alert",
     resource_type: "alert",

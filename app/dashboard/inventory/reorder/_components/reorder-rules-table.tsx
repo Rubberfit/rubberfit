@@ -17,7 +17,7 @@ import { Progress } from "@/app/components/ui/progress"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { toast } from "sonner"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 
 export interface EditableRule {
   id: string
@@ -88,7 +88,7 @@ async function saveRule(
   }
 
   try {
-    const response = await reorderService.updateReorderRule(ruleId, {
+    const response = await reorderRulesSdk.update(ruleId, {
       reorder_point: editedRule.reorderPoint,
       reorder_quantity: editedRule.reorderQuantity,
       max_stock_level: maxStock || undefined,
@@ -369,7 +369,7 @@ function RuleAutoReorderToggle({
       checked={ruleValue}
       onCheckedChange={async (checked) => {
         try {
-          const response = await reorderService.updateReorderRule(rule.id, {
+          const response = await reorderRulesSdk.update(rule.id, {
             auto_reorder: checked,
           })
           if (!response) throw new Error("Failed to update")

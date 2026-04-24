@@ -13,6 +13,8 @@ import {
   createResetPassword,
   createUpdatePassword,
   createSignInWithGoogle,
+  createCompleteMfaChallenge,
+  type SignInResult,
 } from "./auth-actions"
 
 interface AuthContextType {
@@ -22,7 +24,7 @@ interface AuthContextType {
     email: string,
     password: string,
     redirectTo?: string | null
-  ) => Promise<{ success: boolean; error?: string }>
+  ) => Promise<SignInResult>
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>
@@ -30,6 +32,15 @@ interface AuthContextType {
     password: string
   ) => Promise<{ success: boolean; error?: string; redirectTo?: string }>
   signInWithGoogle: (redirectTo?: string | null) => Promise<{ success: boolean; error?: string }>
+  /**
+   * Completes a login-time MFA challenge. Called by the login form's
+   * code-entry step after `signIn` returns `mfaRequired: true`.
+   */
+  completeMfaChallenge: (
+    factorId: string,
+    code: string,
+    redirectTo?: string | null
+  ) => Promise<{ success: boolean; error?: string }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -82,6 +93,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const resetPassword = useMemo(() => createResetPassword(), [])
   const updatePassword = useMemo(() => createUpdatePassword(setUser, setLoading), [])
   const signInWithGoogle = useMemo(() => createSignInWithGoogle(), [])
+  const completeMfaChallenge = useMemo(
+    () => createCompleteMfaChallenge(setUser, setLoading, router),
+    [router]
+  )
 
   const value: AuthContextType = {
     user,
@@ -92,6 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     resetPassword,
     updatePassword,
     signInWithGoogle,
+    completeMfaChallenge,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

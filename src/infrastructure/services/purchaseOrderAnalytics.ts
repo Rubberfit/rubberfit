@@ -2,15 +2,15 @@ import {
   supabase,
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-  type Roll,
 } from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type {
+  IPurchaseOrderService,
   POReceiptItem,
   POReceiptResult,
 } from "@/src/application/services/purchase-order.service.interface"
 import "reflect-metadata"
-import { injectable } from "tsyringe"
+import { injectable, inject } from "tsyringe"
+import { TOKENS } from "@/di/tokens"
 import type {
   IPurchaseOrderAnalyticsService,
   POAnalyticsStats,
@@ -18,113 +18,49 @@ import type {
 
 @injectable()
 export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsService {
-  // eslint-disable-next-line complexity
+  // Late-bound to avoid a constructor-level circular dependency with
+  // PurchaseOrderService: the service holds a reference to analytics (for
+  // stats/history/pending-deliveries), and analytics holds a reference back
+  // to the service so `receivePurchaseOrder` can delegate to the canonical
+  // implementation. The DI container resolves via `registerInstance`, so the
+  // `@inject` metadata here is used when analytics is constructed via the
+  // container; the module-level singleton below performs the back-assignment
+  // manually after both singletons exist.
+  private _purchaseOrderService: IPurchaseOrderService | undefined
+
+  constructor(
+    @inject(TOKENS.IPurchaseOrderService)
+    purchaseOrderService?: IPurchaseOrderService
+  ) {
+    this._purchaseOrderService = purchaseOrderService
+  }
+
+  setPurchaseOrderService(service: IPurchaseOrderService): void {
+    this._purchaseOrderService = service
+  }
+
+  private get purchaseOrderService(): IPurchaseOrderService {
+    if (!this._purchaseOrderService) {
+      throw new Error("PurchaseOrderAnalyticsService: purchaseOrderService has not been wired yet")
+    }
+    return this._purchaseOrderService
+  }
+
+  // Delegates to the canonical implementation on IPurchaseOrderService.
+  // The `updateStatus` callback is kept for interface compatibility but is
+  // unused — the service uses its own `updatePurchaseOrderStatus` internally.
   async receivePurchaseOrder(
     id: string,
     items: POReceiptItem[],
     receivedBy: string | undefined,
-    updateStatus: (
+    _updateStatus: (
       id: string,
       status: PurchaseOrder["status"],
       changedBy?: string,
       reason?: string
     ) => Promise<unknown>
   ): Promise<POReceiptResult> {
-    try {
-      const rollsCreated: Roll[] = []
-      const user_id = await getCurrentUserId()
-
-      for (const item of items) {
-        const { data: poItem, error: itemError } = await supabase
-          .from("purchase_order_items")
-          .select(
-            `
-            *,
-            material_type:material_types(*),
-            purchase_order:purchase_orders(supplier_id)
-          `
-          )
-          .eq("id", item.itemId)
-          .single()
-
-        if (itemError) throw itemError
-
-        const newQuantityReceived = (poItem.quantity_received || 0) + item.quantityReceived
-
-        await supabase
-          .from("purchase_order_items")
-          .update({
-            quantity_received: newQuantityReceived,
-            received_date: new Date().toISOString(),
-          })
-          .eq("id", item.itemId)
-
-        if (item.rollData && item.quantityReceived > 0) {
-          const { data: supplier } = await supabase
-            .from("suppliers")
-            .select("name")
-            .eq("id", poItem.purchase_order.supplier_id)
-            .single()
-
-          const { data: newRoll, error: rollError } = await supabase
-            .from("rolls")
-            .insert([
-              {
-                user_id,
-                material_type_id: poItem.material_type_id,
-                material_type: poItem.material_type.name,
-                width: item.rollData.width || poItem.width || 60,
-                length: item.rollData.length || item.quantityReceived,
-                thickness: item.rollData.thickness || poItem.thickness || 0.125,
-                color: item.rollData.color || poItem.color,
-                location: item.rollData.location || "Receiving",
-                date_received: new Date().toISOString(),
-                supplier: supplier?.name || "Unknown",
-                cost_per_sqft: poItem.unit_cost,
-                remaining_length: item.rollData.length || item.quantityReceived,
-                status: "active",
-                notes: `Received from PO ${id}`,
-              },
-            ])
-            .select()
-            .single()
-
-          if (rollError) throw rollError
-          if (newRoll) rollsCreated.push(newRoll)
-        }
-      }
-
-      const { data: allItems, error: checkError } = await supabase
-        .from("purchase_order_items")
-        .select("quantity_sqft, quantity_received")
-        .eq("purchase_order_id", id)
-
-      if (checkError) throw checkError
-
-      const fullyReceived = allItems?.every(
-        (item) => (item.quantity_received || 0) >= item.quantity_sqft
-      )
-
-      if (fullyReceived) {
-        await updateStatus(id, "received", receivedBy, "All items received")
-
-        await supabase
-          .from("purchase_orders")
-          .update({ actual_delivery_date: new Date().toISOString() })
-          .eq("id", id)
-      }
-
-      return {
-        purchaseOrderId: id,
-        itemsReceived: items.length,
-        rollsCreated,
-        partialReceipt: !fullyReceived,
-        completedAt: fullyReceived ? new Date().toISOString() : undefined,
-      }
-    } catch (error) {
-      console.error("Error receiving purchase order:", error)
-      throw error
-    }
+    return this.purchaseOrderService.receivePurchaseOrder(id, items, receivedBy)
   }
 
   async getPurchaseOrderStats(): Promise<POAnalyticsStats> {
@@ -141,7 +77,7 @@ export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsSer
       }
 
       if (data && data.length > 0) {
-        data.forEach((po) => {
+        data.forEach((po: Record<string, any>) => {
           stats.byStatus[po.status] = (stats.byStatus[po.status] || 0) + 1
           stats.totalValue += po.total_amount || 0
         })

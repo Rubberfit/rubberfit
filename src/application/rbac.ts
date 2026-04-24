@@ -7,16 +7,13 @@ import {
 const ELEVATED_ROLES = new Set<AppRole>(["admin", "manager", "supervisor"])
 
 const CUTTER_ALLOWED_EXACT_PATHS = new Set([
-  "/dashboard/cut-planner",
-  "/dashboard/cut-planner/batch",
-  "/dashboard/cut-planner/manual",
+  "/dashboard/cutting-engine",
   "/dashboard/inventory",
-  "/dashboard/history",
-  "/dashboard/account",
+  "/dashboard/settings/profile",
   "/dashboard/notifications",
 ])
 
-const CUTTER_ALLOWED_PREFIXES = ["/dashboard/cut-planner/"]
+const CUTTER_ALLOWED_PREFIXES = ["/dashboard/cutting-engine/"]
 
 export function normalizeRoles(roles?: string[] | null): AppRole[] {
   if (!Array.isArray(roles) || roles.length === 0) {
@@ -35,7 +32,7 @@ export function isRestrictedCutter(roles?: string[] | null): boolean {
 }
 
 export function getDefaultAuthorizedPath(roles?: string[] | null): string {
-  return isRestrictedCutter(roles) ? "/dashboard/cut-planner" : "/dashboard/default"
+  return isRestrictedCutter(roles) ? "/dashboard/cutting-engine" : "/dashboard"
 }
 
 export function canAccessPath(roles: string[] | null | undefined, pathname: string): boolean {

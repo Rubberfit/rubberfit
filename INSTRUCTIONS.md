@@ -495,9 +495,15 @@ try { ... } catch { }                   // always log or handle
 Before any change is considered done:
 
 ```bash
-npx tsc --noEmit          # 0 errors
-npx eslint src/            # 0 errors, 0 warnings
-npx prettier --check src/  # all files formatted
+npm run typecheck         # 0 errors
+npm run lint              # 0 errors, 0 warnings
+npm run format:check      # all web files formatted
+npm run fmt:rust -- --check
+npm run clippy:rust       # 0 warnings
 ```
 
-All three must pass. No exceptions.
+GitHub Actions enforces this through one `Code Quality` workflow with two jobs:
+- `web quality` → Prettier + ESLint + TypeScript
+- `rust quality` → `rustfmt --check` + `clippy -D warnings`
+
+All required checks must pass. No exceptions.

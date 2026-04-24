@@ -71,7 +71,7 @@ export class CsvService implements ICsvService {
       const uniqueMaterials = [...new Set(rolls.map((r) => r.material_type).filter(Boolean))]
       if (uniqueMaterials.length > 0) {
         const { data: existing } = await supabase.from("material_types").select("name")
-        const existingNames = new Set(existing?.map((m) => m.name) || [])
+        const existingNames = new Set(existing?.map((m: { name: string }) => m.name) || [])
         const newMaterials = uniqueMaterials.filter((name) => !existingNames.has(name!))
 
         if (newMaterials.length > 0) {

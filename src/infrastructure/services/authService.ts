@@ -1,7 +1,12 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { normalizeRoles } from "@/src/application/rbac"
-import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
+import type {
+  AuthChangeEvent,
+  AuthError,
+  Session,
+  User as SupabaseUser,
+} from "@supabase/supabase-js"
 import type {
   IAuthService,
   AuthUser,
@@ -279,13 +284,15 @@ export class AuthService implements IAuthService {
   }
 
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-        callback(await buildAuthUser(session.user))
-      } else if (event === "SIGNED_OUT") {
-        callback(null)
+    return supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
+          callback(await buildAuthUser(session.user))
+        } else if (event === "SIGNED_OUT") {
+          callback(null)
+        }
       }
-    })
+    )
   }
 }
 

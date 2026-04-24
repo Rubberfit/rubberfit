@@ -7,18 +7,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm run dev              # Next.js dev server
-npm run build            # Production build
+npm run build            # Production build (prebuild hook rebuilds the Rust engine)
 npm run start            # Production server
 
-# Code quality (run both before committing)
+# Code quality (run before committing)
 npm run typecheck        # tsc --noEmit — must be zero errors
 npm run lint             # ESLint — must be zero errors, zero warnings
 npm run lint:fix         # Auto-fix lint issues
 npm run format           # Prettier format
 npm run format:check     # Check formatting without writing
+
+# Tests (pretest hook auto-rebuilds the Rust engine)
+npm run test             # Vitest — runs TS unit + integration tests
+npm run test:parity      # Parity snapshots (legacy + rust baselines)
+npm run test:rust        # cargo test for the Rust workspace
+
+# Rust engine (standalone)
+npm run build:engine     # cargo build --release — produces engine/target/release/pack-cli
+npm run fmt:rust         # cargo fmt --all
+npm run clippy:rust      # cargo clippy (-D warnings)
 ```
 
-There are no automated tests in this project. Verification is done via `typecheck` and `lint`.
+Tests live in `tests/` (Vitest) and `engine/crates/*/tests/` (cargo). The GitHub `Code Quality` workflow is one workflow with two jobs: `web quality` (Prettier + ESLint + TypeScript) and `rust quality` (`rustfmt --check` + `clippy -D warnings`).
+
+Pre-commit verification runs `typecheck` + `lint` + `format:check` + `fmt:rust` + `clippy:rust` + `test`.
 
 ## Architecture
 
@@ -29,19 +41,61 @@ src/                        # Domain logic (framework-agnostic)
 ├── application/
 │   ├── services/           # Service interfaces (IPurchaseOrderService, etc.)
 │   ├── repositories/       # Repository interfaces
+│   ├── packing/            # Canonical packing types + IPackingService pipeline
 │   └── use-cases/          # Business-logic orchestrators (complex ops only)
 ├── entities/               # Domain models and custom errors
 ├── infrastructure/
-│   ├── services/           # Supabase-backed service implementations
+│   ├── services/           # Supabase-backed service implementations (+ RustPackingService)
 │   ├── repositories/       # Supabase-backed repository implementations
 │   └── supabase/           # Generated types + SQL migrations
 └── interface-adapters/     # Reserved for controllers — currently empty, no server actions yet
 
 app/                        # Frameworks & Drivers (Next.js)
-nesting/                    # 2D NFP nesting engine (standalone)
+engine/                     # Rust nesting engine (Cargo workspace)
+├── crates/rf-geom/       # Geometry primitives (MIT, future open-source crate)
+├── crates/rf-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
+└── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
+nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cutting-engine UI for NFP-based shape previews (removal tracked as Task #16, post-Tauri cleanup)
 di/                         # TSyringe dependency injection registration
 config/                     # App-wide constants (APP_CONFIG)
+tests/                      # Vitest TS tests (packing, parity, service boundaries)
 ```
+
+### Packing engine
+
+`IPackingService` is the canonical packing interface
+(`src/application/services/packing.service.interface.ts`). One
+implementation, `RustPackingService`, is registered through
+`di/di-registration.ts` as the sole binding — no TS fallback:
+
+| Engine | When | Invocation |
+|---|---|---|
+| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cutting-engine page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
+
+The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
+2D grid warm-start (Task 19a) + sparrow-style Guided Local Search
+(Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON
+progress streaming with AbortSignal cancellation (Tasks 14-16).
+Benchmarks: `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+
+`LegacyPackingService` was removed after `pack_lbf_lns + polish`
+beat it on every parity fixture at the production Fab Score.
+`USE_RUST_ENGINE=false` is no longer honored; the Rust binary is
+the only path.
+
+### Dev server
+
+`npm run dev` does NOT auto-build the Rust engine (unlike
+`npm run build`, which has a `prebuild` hook). On a fresh clone:
+
+```bash
+npm install
+npm run build:engine    # one-time; ~2 min cold, seconds after
+npm run dev
+```
+
+Without the binary, visiting `/dashboard/cutting-engine` surfaces a
+"pack-cli binary not found" error from the DI container.
 
 **Layer rules:**
 
@@ -115,6 +169,16 @@ State lives at the lowest scope that works:
 
 Zustand stores follow a flat interface with `isLoading`, `isUpdating`, and `error` fields. Components use selectors: `useStore(s => s.data)`. Never put UI state (modal open/closed, hover, etc.) in Zustand.
 
+### Hooks colocation (2-tier rule, S4 Task 4)
+
+| Scope                                 | Location                                       |
+| ------------------------------------- | ---------------------------------------------- |
+| Page-local (used by one surface only) | `app/dashboard/<surface>/_components/use-*.ts` |
+| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts` |
+
+No domain tier (`<surface>/_hooks/`) — if a surface grows past
+five shared hooks, revisit. Until then, two tiers is enough.
+
 ## TypeScript Rules (Strict — No Exceptions)
 
 - **Zero `any`** — use `unknown` + type narrowing or define an interface
@@ -168,7 +232,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cut Planner** (`app/dashboard/cut-planner/`): Greedy First-Fit-Decreasing algorithm + 2D NFP nesting engine in `nesting/` using a genetic algorithm to minimize material waste
+- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Batch and Manual sub-modes were deleted in the same task; the single-job flow is the only surface. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 

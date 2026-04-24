@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import type {
+  CutHistory,
+  CutHistoryLayoutJson,
+  PartCustomDimensions,
+} from "@/src/infrastructure/models/supabase"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { JobsRepository } from "@/src/infrastructure/repositories/jobs.repository"
 
 const MAX_LIMIT = 100
 const DEFAULT_LIMIT = 20
@@ -129,9 +134,35 @@ export async function GET(request: NextRequest) {
   })
 }
 
+interface OffcutPiecePayload {
+  width_in: number
+  length_in: number
+}
+
 interface RecordCutBody {
   material_id: number
   part_id: number
+  /**
+   * Optional source-roll id — set when the operator opened the
+   * engine via `?loadRoll=<id>` from the inventory drawer or when
+   * a material was selected and auto-resolved to a roll. Null for
+   * general-cutter usage (no inventory impact).
+   */
+  roll_id?: string | null
+  /**
+   * Optional job id — set when the engine was opened via
+   * `?loadJob=<id>` from a job drawer. Stamped onto
+   * `cut_history.job_id` so the job's "Cuts recorded" panel can
+   * list the record.
+   */
+  job_id?: string | null
+  /**
+   * Per-piece reusable offcut geometry coming from the engine. One
+   * inventory row is spawned per entry, sharing the parent roll's
+   * material / thickness / supplier metadata. Empty or missing =
+   * no offcut spawning (general cutter or zero-waste layout).
+   */
+  offcut_pieces?: OffcutPiecePayload[]
   cut_length: number
   cut_width: number
   cut_thickness: number
@@ -150,7 +181,23 @@ interface RecordCutBody {
   fab_score: number
   stock_label?: string | null
   cost_per_sqft?: number | null
+  /**
+   * Which cutting-engine surface produced this cut. `auto` (default)
+   * = pack-cli layout from Auto-nest; `manual` = Free-roam canvas
+   * placement. Omitting defaults to `auto` — the DB column has
+   * `DEFAULT 'auto'`.
+   */
+  source?: "auto" | "manual"
+  /**
+   * Free-roam layout snapshot — opaque JSON blob stored as-is. Only
+   * populated when `source === "manual"`. The server doesn't validate
+   * the schema; the client is the sole reader + writer. Older rows
+   * pre-dating the `layout_json` column return null from GET.
+   */
+  layout_json?: unknown
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function POST(request: NextRequest) {
   //  Authenticate caller
@@ -212,9 +259,18 @@ export async function POST(request: NextRequest) {
     fab_score,
   }
 
+  // Non-negative integers (>= 0, whole number). `material_id` uses
+  // 0 as a sentinel for "no STOCK_PRESET selected" — Free-roam never
+  // picks a preset (it edits W/L/T directly in the stock editor), and
+  // the Auto-nest fallback can emit 0 too when the user cleared the
+  // preset picker. Listings guard with `>= 1` before indexing into
+  // STOCK_PRESETS, so a 0 here is safe.
+  const nonNegativeIntFields: Record<string, unknown> = {
+    material_id,
+  }
+
   // Positive integers (>= 1, whole number)
   const positiveIntFields: Record<string, unknown> = {
-    material_id,
     part_id,
     cut_amount,
     parts_completed,
@@ -223,6 +279,15 @@ export async function POST(request: NextRequest) {
 
   for (const [key, val] of Object.entries(nonNegativeFields)) {
     if (typeof val !== "number" || !isFinite(val) || val < 0) {
+      return NextResponse.json(
+        { error: `Missing or invalid required field: ${key}` },
+        { status: 400 }
+      )
+    }
+  }
+
+  for (const [key, val] of Object.entries(nonNegativeIntFields)) {
+    if (typeof val !== "number" || !Number.isInteger(val) || val < 0) {
       return NextResponse.json(
         { error: `Missing or invalid required field: ${key}` },
         { status: 400 }
@@ -241,10 +306,24 @@ export async function POST(request: NextRequest) {
 
   const r2 = (n: number) => Math.round(n * 100) / 100
 
+  const rollId =
+    typeof body.roll_id === "string" && UUID_RE.test(body.roll_id) ? body.roll_id : null
+  const jobId = typeof body.job_id === "string" && UUID_RE.test(body.job_id) ? body.job_id : null
+
+  // Only include roll_id in the insert payload when the column is
+  // populated — Supabase will reject the insert if the column
+  // doesn't exist on the target table (e.g. migration not yet
+  // applied). Omitting the key keeps legacy environments working
+  // until the migration lands.
   const insert: Omit<CutHistory, "id" | "created_at" | "updated_at" | "cut_date"> & {
     user_id: string
   } = {
     user_id: user.id,
+    roll_id: rollId,
+    job_id: jobId,
+    // Line-level linking (cut_history.job_part_id) is reserved for
+    // a future per-line fulfilment flow; stays null on inserts today.
+    job_part_id: null,
     material_id,
     part_id,
     cut_length: r2(cut_length),
@@ -269,13 +348,212 @@ export async function POST(request: NextRequest) {
         ? r2(body.cost_per_sqft)
         : null,
     pdf_url: null,
+    // Surface provenance: `auto` (default) = pack-cli via Auto-nest;
+    // `manual` = Free-roam canvas. DB column has DEFAULT 'auto' so
+    // old callers that don't send this still classify correctly.
+    source: body.source === "manual" ? "manual" : "auto",
+    // Layout snapshot stored verbatim as JSONB. The discriminated
+    // shape (`kind: "manual" | "auto"`) lets Free-roam load the exact
+    // canvas + Auto-nest load the exact per-template quantities and
+    // frozen multi-sheet layouts. Nullable so pre-migration rows +
+    // any client that doesn't send it stay clean. Typed as the DTO
+    // shape for ergonomics — the server doesn't validate the JSON
+    // structure (the client is the sole reader / writer).
+    layout_json:
+      body.layout_json != null ? (body.layout_json as CutHistoryLayoutJson) : null,
   }
 
   const { data, error } = await db.from("cut_history").insert(insert).select().single()
 
   if (error) {
-    console.error("cut_history insert error:", error)
-    return NextResponse.json({ error: "Failed to record cut" }, { status: 500 })
+    console.error("cut_history insert error:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      payload: insert,
+    })
+    return NextResponse.json(
+      {
+        error: "Failed to record cut",
+        // Expose the Postgres error code/hint so the client toast
+        // can surface missing-column / FK-violation issues instead
+        // of the bare "Failed to record cut".
+        detail: error.message,
+        code: error.code,
+      },
+      { status: 500 }
+    )
+  }
+
+  // ── Post-insert inventory reconciliation ─────────────────────
+  // When the cut is tied to a source roll, two side effects land:
+  //   1. Parent roll's remaining_length decrements by cut_length.
+  //   2. Each unit of reusable offcut (≥ 0.1 sqft) spawns a child
+  //      row in `rolls` with is_offcut=true and parent_roll_id set,
+  //      so the operator sees the offcut as a scannable inventory
+  //      item and can consume it in a later cut.
+  //
+  // Best-effort and non-fatal — if either side effect errors the
+  // cut_history row still returns, and the user can reconcile from
+  // the inventory drawer. Stock-level triggers (see
+  // 20240217000006_create_functions_and_triggers.sql) handle the
+  // status transition when remaining_length hits zero.
+  if (rollId) {
+    const { data: rollRow } = await db
+      .from("rolls")
+      .select(
+        "remaining_length, width, thickness, material_type, material_type_id, color, supplier, cost_per_sqft, location"
+      )
+      .eq("id", rollId)
+      .single<{
+        remaining_length: number
+        width: number
+        thickness: number
+        material_type: string
+        material_type_id: string | null
+        color: string | null
+        supplier: string | null
+        cost_per_sqft: number | null
+        location: string | null
+      }>()
+    if (rollRow) {
+      const consumed = r2(cut_length)
+      const nextRemaining = Math.max(0, r2(rollRow.remaining_length - consumed))
+      const { error: updErr } = await db
+        .from("rolls")
+        .update({ remaining_length: nextRemaining })
+        .eq("id", rollId)
+      if (updErr) {
+        console.error("rolls remaining_length update failed:", {
+          rollId,
+          consumed,
+          message: updErr.message,
+          code: updErr.code,
+        })
+      }
+
+      // Spawn one inventory row per reusable offcut rectangle. We
+      // prefer the per-piece geometry the engine emitted; if it
+      // didn't (older clients, non-rectangle layouts), fall back
+      // to a single strip approximation so we don't drop the
+      // reusable area entirely. A cut-history id appears in the
+      // notes so operators can trace an offcut back to its source
+      // cut.
+      const clientPieces = Array.isArray(body.offcut_pieces) ? body.offcut_pieces : []
+      const validPieces = clientPieces
+        .map((p) => ({
+          width_in: Number(p?.width_in ?? 0),
+          length_in: Number(p?.length_in ?? 0),
+        }))
+        .filter(
+          (p) =>
+            Number.isFinite(p.width_in) &&
+            Number.isFinite(p.length_in) &&
+            p.width_in > 0 &&
+            p.length_in > 0 &&
+            (p.width_in * p.length_in) / 144 >= 0.05
+        )
+
+      let piecesToInsert = validPieces
+      if (piecesToInsert.length === 0) {
+        const reusable = r2(reusable_offset_sqft)
+        if (reusable >= 0.1 && rollRow.width > 0) {
+          piecesToInsert = [
+            {
+              width_in: rollRow.width,
+              length_in: r2((reusable * 144) / rollRow.width),
+            },
+          ]
+        }
+      }
+
+      if (piecesToInsert.length > 0) {
+        const cutIdLabel = data?.id ?? "?"
+        const offcutRows = piecesToInsert.map((piece, idx) => ({
+          user_id: user.id,
+          parent_roll_id: rollId,
+          is_offcut: true,
+          material_type: rollRow.material_type,
+          material_type_id: rollRow.material_type_id,
+          width: r2(piece.width_in),
+          length: r2(piece.length_in),
+          remaining_length: r2(piece.length_in),
+          thickness: rollRow.thickness,
+          color: rollRow.color,
+          supplier: rollRow.supplier,
+          cost_per_sqft: rollRow.cost_per_sqft,
+          location: rollRow.location,
+          status: "active" as const,
+          notes: `Reusable offcut ${idx + 1}/${piecesToInsert.length} from cut #${cutIdLabel}`,
+        }))
+        const { error: offcutErr } = await db.from("rolls").insert(offcutRows)
+        if (offcutErr) {
+          console.error("offcut spawn failed:", {
+            parentRollId: rollId,
+            pieceCount: piecesToInsert.length,
+            message: offcutErr.message,
+            code: offcutErr.code,
+          })
+        }
+      }
+    }
+  }
+
+  // ── Post-insert job status reconciliation ───────────────────
+  // If this cut is linked to a job, check whether the job's parts
+  // are now all covered and flip the status to `completed`. The
+  // decision policy lives on `JobsRepository.shouldAutoComplete`
+  // (pure + unit-tested). Best-effort: failures log but never
+  // block the cut from being recorded — the operator can always
+  // flip status manually from the drawer.
+  if (jobId) {
+    try {
+      const [partsResult, cutsResult, jobResult] = await Promise.all([
+        db.from("job_parts").select("quantity").eq("job_id", jobId),
+        db.from("cut_history").select("parts_completed").eq("job_id", jobId),
+        db.from("jobs").select("status").eq("id", jobId).single(),
+      ])
+      if (!partsResult.error && !cutsResult.error && !jobResult.error) {
+        const partsRows = (partsResult.data ?? []) as Array<{ quantity: number }>
+        const cutsRows = (cutsResult.data ?? []) as Array<{ parts_completed: number }>
+        const jobRow = jobResult.data as { status: string } | null
+        const needed = partsRows.reduce((sum, p) => sum + (p.quantity ?? 0), 0)
+        const completed = cutsRows.reduce((sum, c) => sum + (c.parts_completed ?? 0), 0)
+        if (jobRow && JobsRepository.shouldAutoComplete(needed, completed, jobRow.status)) {
+          const { error: jobUpdErr } = await db
+            .from("jobs")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", jobId)
+          if (jobUpdErr) {
+            console.error("job auto-complete update failed:", {
+              jobId,
+              message: jobUpdErr.message,
+              code: jobUpdErr.code,
+            })
+          }
+        }
+      } else {
+        // 42703 = missing column (pre-migration env), 42P01 = missing
+        // table. In either case skip the check instead of failing
+        // the whole POST.
+        const errs = [partsResult.error, cutsResult.error, jobResult.error].filter(
+          (e): e is NonNullable<typeof e> => Boolean(e)
+        )
+        const benign = errs.every((e) => e.code === "42703" || e.code === "42P01")
+        if (!benign) {
+          console.warn("job auto-complete check skipped — query error", {
+            jobId,
+            errors: errs.map((e) => ({ code: e.code, message: e.message })),
+          })
+        }
+      }
+    } catch (err) {
+      console.error("job auto-complete check threw:", err)
+    }
   }
 
   return NextResponse.json({ data: data as CutHistory }, { status: 201 })

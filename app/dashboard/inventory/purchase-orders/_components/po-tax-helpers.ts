@@ -1,10 +1,30 @@
 import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
-import { taxService } from "@/src/infrastructure/services/taxService"
+import { tax as taxSdk } from "@/src/infrastructure/api-client/rf/procurement"
 
 export interface TaxDetails {
   taxRate: number
   taxName: string
   taxLevel: string
+}
+
+/**
+ * Preview tax via the SDK. Flag-OFF delegates to legacy
+ * `taxService.calculatePurchaseOrderTax` and hydrates to the
+ * snake_case DTO shape. Flag-ON hits `/api/v2/po/tax/preview` which
+ * proxies the TS tax service from Rust. Either way this function
+ * returns the same camelCase `TaxDetails` the PO UI already
+ * consumes.
+ */
+async function preview(
+  supplierId: string,
+  subtotal: number
+): Promise<TaxDetails> {
+  const calc = await taxSdk.preview(supplierId, subtotal)
+  return {
+    taxRate: calc.tax_rate,
+    taxName: calc.tax_name,
+    taxLevel: calc.tax_level,
+  }
 }
 
 export async function fetchTaxDetails(po: PurchaseOrderWithDetails): Promise<TaxDetails> {
@@ -19,12 +39,7 @@ export async function fetchTaxDetails(po: PurchaseOrderWithDetails): Promise<Tax
   }
 
   try {
-    const taxCalc = await taxService.calculatePurchaseOrderTax(po.supplier_id, po.subtotal)
-    return {
-      taxRate: taxCalc.taxRate,
-      taxName: taxCalc.taxName,
-      taxLevel: taxCalc.taxLevel,
-    }
+    return await preview(po.supplier_id, po.subtotal)
   } catch (error) {
     console.error("Error fetching tax details:", error)
     // Use stored tax or defaults if error
@@ -46,12 +61,7 @@ export async function fetchCreateFormTaxDetails(
 
   try {
     const subtotal = items.reduce((sum, item) => sum + item.quantity_sqft * item.unit_cost, 0)
-    const taxCalc = await taxService.calculatePurchaseOrderTax(supplierId, subtotal)
-    return {
-      taxRate: taxCalc.taxRate,
-      taxName: taxCalc.taxName,
-      taxLevel: taxCalc.taxLevel,
-    }
+    return await preview(supplierId, subtotal)
   } catch (error) {
     console.error("Error fetching create form tax details:", {
       error: error instanceof Error ? error.message : error,
@@ -76,12 +86,7 @@ export async function fetchEditFormTaxDetails(
 
   try {
     const subtotal = items.reduce((sum, item) => sum + item.quantity_sqft * item.unit_cost, 0)
-    const taxCalc = await taxService.calculatePurchaseOrderTax(supplierId, subtotal)
-    return {
-      taxRate: taxCalc.taxRate,
-      taxName: taxCalc.taxName,
-      taxLevel: taxCalc.taxLevel,
-    }
+    return await preview(supplierId, subtotal)
   } catch (error) {
     console.error("Error fetching edit form tax details:", {
       error: error instanceof Error ? error.message : error,

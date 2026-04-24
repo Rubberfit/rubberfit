@@ -193,7 +193,7 @@ function CreateOrderDetailsCard({
               (() => {
                 const sel = suppliers.find((s) => s.id === formData.supplier_id)
                 return sel && (sel.city || sel.state) ? (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     <MapPin className="inline h-3 w-3 mr-1" />
                     {sel.city && `${sel.city}, `}
                     {sel.state} {sel.zip_code}
@@ -461,7 +461,7 @@ function CreateOrderSummary({
             <span>
               Tax
               {createFormTaxDetails && (
-                <span className="ml-1 text-xs text-gray-600">
+                <span className="ml-1 text-xs text-muted-foreground">
                   ({taxService.formatTaxRate(createFormTaxDetails.taxRate)}
                   {createFormTaxDetails.taxLevel === "exempt"
                     ? " - Tax Exempt"

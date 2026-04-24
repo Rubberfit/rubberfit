@@ -4,6 +4,7 @@ import type { IPurchaseOrderService } from "@/src/application/services/purchase-
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
+import { computePoSubtotal } from "@/src/application/computePoSubtotal"
 
 export interface CreatePurchaseOrderItemInput {
   materialTypeId: string
@@ -24,6 +25,13 @@ export interface CreatePurchaseOrderInput {
   billingAddress?: string
   notes?: string
   shippingCost?: number
+  /**
+   * Optional job this PO was raised for — set when the operator
+   * came from the job sufficiency panel's "Create PO" deep-link.
+   * Persists on `purchase_orders.job_id` so the job drawer's
+   * linked-POs panel can pick it up.
+   */
+  jobId?: string
   items: CreatePurchaseOrderItemInput[]
 }
 
@@ -44,7 +52,7 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
   ) {}
 
   async execute(input: CreatePurchaseOrderInput): Promise<CreatePurchaseOrderResult> {
-    const subtotal = input.items.reduce((sum, i) => sum + i.quantitySqft * i.unitCost, 0)
+    const subtotal = computePoSubtotal(input.items)
     const taxCalc = await this.taxService.calculatePurchaseOrderTax(input.supplierId, subtotal)
     const shipping = input.shippingCost ?? 50
 
@@ -62,6 +70,7 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
       billing_address: input.billingAddress,
       notes: input.notes,
       auto_generated: false,
+      job_id: input.jobId,
     })
 
     if (!po) throw new Error("Failed to create purchase order")

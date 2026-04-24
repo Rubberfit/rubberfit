@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 
 type CheckStatus = "operational" | "degraded" | "down" | "unknown"
 
@@ -12,60 +12,110 @@ interface CheckResult {
 
 // Individual health checks
 
-async function checkSupabaseDb(): Promise<CheckResult> {
+// Probes are named to match the seeded rows in admin.health_endpoints so the
+// results actually land against the right UI cards. Latency thresholds were
+// also bumped — 300ms was unrealistic for cold Vercel → Supabase round-trips.
+
+async function checkApiGateway(): Promise<CheckResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const name = "Supabase DB"
+  const name = "API Gateway"
   if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
   const start = Date.now()
   try {
-    const res = await fetch(`${url}/rest/v1/`, {
+    // `/auth/v1/health` is the known-good public GoTrue liveness ping
+    // (same endpoint the Auth Service probe uses). Since every Supabase
+    // service sits behind the same gateway, a GoTrue-up response proves
+    // the gateway layer is reachable.
+    const res = await fetch(`${url}/auth/v1/health`, {
       headers: { apikey: key },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(8000),
     })
     const responseMs = Date.now() - start
     if (!res.ok) return { serviceName: name, status: "down", responseMs, detail: `HTTP ${res.status}` }
-    if (responseMs > 300) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
   }
 }
 
-async function checkSupabaseAuth(): Promise<CheckResult> {
+async function checkAuthService(): Promise<CheckResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const name = "Supabase Auth"
+  const name = "Auth Service"
   if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
   const start = Date.now()
   try {
     const res = await fetch(`${url}/auth/v1/health`, {
       headers: { apikey: key },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(8000),
     })
     const responseMs = Date.now() - start
     if (!res.ok) return { serviceName: name, status: "down", responseMs, detail: `HTTP ${res.status}` }
-    if (responseMs > 300) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
   }
 }
 
-async function checkEdgeFunctions(): Promise<CheckResult> {
+async function checkDatabasePrimary(): Promise<CheckResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const name = "Edge Functions"
+  const name = "Database Primary"
   if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
   const start = Date.now()
   try {
-    const res = await fetch(`${url}/functions/v1/health`, {
-      headers: { apikey: key },
-      signal: AbortSignal.timeout(5000),
+    // HEAD on any PostgREST table is the cheapest liveness probe.
+    const res = await fetch(`${url}/rest/v1/profiles?select=id&limit=1`, {
+      method: "HEAD",
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
     })
     const responseMs = Date.now() - start
     if (!res.ok) return { serviceName: name, status: "down", responseMs, detail: `HTTP ${res.status}` }
-    if (responseMs > 300) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    return { serviceName: name, status: "operational", responseMs, detail: "OK" }
+  } catch (err) {
+    return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
+  }
+}
+
+async function checkFileStorage(): Promise<CheckResult> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const name = "File Storage"
+  if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
+  const start = Date.now()
+  try {
+    const res = await fetch(`${url}/storage/v1/bucket`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    const responseMs = Date.now() - start
+    if (!res.ok) return { serviceName: name, status: "down", responseMs, detail: `HTTP ${res.status}` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    return { serviceName: name, status: "operational", responseMs, detail: "OK" }
+  } catch (err) {
+    return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
+  }
+}
+
+async function checkJobQueue(): Promise<CheckResult> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const name = "Job Queue"
+  if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
+  const start = Date.now()
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/notification_queue?select=id&limit=1`,
+      { method: "HEAD", headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) }
+    )
+    const responseMs = Date.now() - start
+    if (!res.ok) return { serviceName: name, status: "down", responseMs, detail: `HTTP ${res.status}` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
@@ -90,7 +140,7 @@ async function checkFrontend(): Promise<CheckResult> {
 }
 
 async function checkEmailService(): Promise<CheckResult> {
-  const name = "Email (Resend)"
+  const name = "Email Service"
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { serviceName: name, status: "unknown", responseMs: null, detail: "RESEND_API_KEY not configured" }
   const start = Date.now()
@@ -131,29 +181,19 @@ async function checkStripe(): Promise<CheckResult> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<{ results: CheckResult[]; checkedAt: string } | { error: string }>> {
-  const authClient = makeAuthClient(request)
-  if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
+  const guard = await requireAdmin(request)
+  if (!guard.ok) return guard.response
+  const { adminClient } = guard.ctx
 
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const adminClient = makeAdminClient()
-  if (!adminClient) return NextResponse.json({ error: "Service role key not configured" }, { status: 500 })
-
-  const { data: profile } = await adminClient.from("profiles").select("roles").eq("id", user.id).single()
-  const roles = profile?.roles
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
-
-  // Run all endpoint checks in parallel
+  // Run all endpoint checks in parallel. Names here match the seeded rows in
+  // admin.health_endpoints so results bind to the right UI cards.
   const results = await Promise.all([
-    checkSupabaseDb(),
-    checkSupabaseAuth(),
-    checkEdgeFunctions(),
-    checkFrontend(),
+    checkApiGateway(),
+    checkDatabasePrimary(),
+    checkAuthService(),
+    checkFileStorage(),
+    checkJobQueue(),
     checkEmailService(),
-    checkStripe(),
   ])
 
   // Resolve endpoint UUIDs and last-known statuses

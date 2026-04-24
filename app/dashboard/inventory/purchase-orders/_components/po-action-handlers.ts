@@ -63,6 +63,12 @@ interface CreatePOParams {
   fetchTaxDetailsForPO: (po: PurchaseOrderWithDetails) => Promise<void>
   setIsCreateDialogOpen: (v: boolean) => void
   setFormData: (v: POFormData) => void
+  /**
+   * Set when the operator came from a job's sufficiency panel's
+   * "Create PO" deep-link — the resulting PO's `job_id` column
+   * gets stamped so the job's linked-POs panel can pick it up.
+   */
+  jobId?: string
 }
 
 export async function createPO({
@@ -74,6 +80,7 @@ export async function createPO({
   fetchTaxDetailsForPO,
   setIsCreateDialogOpen,
   setFormData,
+  jobId,
 }: CreatePOParams) {
   const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
 
@@ -87,6 +94,7 @@ export async function createPO({
     notes: formData.notes,
     shippingCost: selectedSupplier?.default_shipping_cost,
     items: mapFormItems(formData.items),
+    jobId,
   })
 
   if (taxCalculation.taxLevel !== "exempt") {

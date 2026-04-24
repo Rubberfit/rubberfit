@@ -1,5 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
-import type { VisionExtractionResponse } from "@/app/dashboard/cut-planner/_components/upload-types"
+import type { VisionExtractionResponse } from "@/src/application/vision/types"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
 import "reflect-metadata"
 import { injectable } from "tsyringe"

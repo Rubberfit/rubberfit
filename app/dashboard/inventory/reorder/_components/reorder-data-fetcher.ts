@@ -5,6 +5,7 @@ import {
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 
 interface FetchDataResult {
@@ -15,7 +16,15 @@ interface FetchDataResult {
 }
 
 export async function fetchReorderData(): Promise<FetchDataResult> {
-  const rulesResponse = await reorderService.getAllReorderRules()
+  // List via SDK — flag-ON hits Rust, flag-OFF uses legacy.
+  // Stock calc stays on the legacy service for now; the Rust
+  // path's per-rule `current_stock` surfaces through
+  // `reorderRules.suggestions()` (see plan §"Reorder suggestion
+  // contract"), which this UI will adopt post-S3c when the
+  // table/card view is rewired to consume the suggestion DTO
+  // directly instead of mounting `current_stock` on each rule.
+  const rulesResponse =
+    (await reorderRulesSdk.list()) as unknown as ReorderRuleWithDetails[]
   let rulesWithStock: (ReorderRuleWithDetails & {
     current_stock: number
     stock_status: "ok"
@@ -69,7 +78,6 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
   if (rulesWithStock.length > 0) {
     suggestions = await generateReorderSuggestions(
       rulesWithStock as ReorderRuleWithDetails[],
-      materials || [],
       pendingPOs || []
     )
   }

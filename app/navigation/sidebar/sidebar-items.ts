@@ -2,15 +2,14 @@ import {
   Package,
   Scissors,
   History,
-  AlertTriangle,
   FileText,
   Database,
   LayoutDashboard,
   type LucideIcon,
   Settings,
-  TrendingUp,
   BarChart3,
-  DollarSign,
+  ShieldCheck,
+  ClipboardList,
   Users,
 } from "lucide-react"
 import type { Permission } from "@/src/application/permissions"
@@ -49,7 +48,7 @@ export const sidebarItems: NavGroup[] = [
     items: [
       {
         title: "Dashboard",
-        url: "/dashboard/default",
+        url: "/dashboard",
         icon: LayoutDashboard,
         // No permission required — all authenticated users see the dashboard
       },
@@ -58,15 +57,15 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/inventory",
         icon: Package,
         requiredPermission: "viewInventory",
+        // Simplified to two sub-items. "Reorder Rules" was the third
+        // entry; its logic now lives inside the Purchase Orders
+        // surface (suggestion → PO one-click flow), so the separate
+        // nav item was redundant. Route still exists for direct
+        // links, just not promoted in the sidebar.
         subItems: [
           {
             title: "Current Stock",
             url: "/dashboard/inventory",
-          },
-          {
-            title: "Reorder Rules",
-            url: "/dashboard/inventory/reorder",
-            requiredPermission: "manageRolls",
           },
           {
             title: "Purchase Orders",
@@ -76,27 +75,23 @@ export const sidebarItems: NavGroup[] = [
         ],
       },
       {
-        title: "Cut Planner",
-        url: "/dashboard/cut-planner",
+        title: "Jobs",
+        url: "/dashboard/jobs",
+        icon: ClipboardList,
+      },
+      {
+        title: "Cutting Engine",
+        url: "/dashboard/cutting-engine",
         icon: Scissors,
         requiredPermission: "accessCutPlanner",
         subItems: [
           {
-            title: "Single Cut",
-            url: "/dashboard/cut-planner",
-            requiredPermission: "createCut",
+            title: "Auto nest",
+            url: "/dashboard/cutting-engine",
           },
           {
-            title: "Batch Cuts",
-            url: "/dashboard/cut-planner/batch",
-            requiredPermission: "accessBatchCut",
-            isNew: true,
-          },
-          {
-            title: "Manual Selection",
-            url: "/dashboard/cut-planner/manual",
-            requiredPermission: "createCut",
-            isNew: true,
+            title: "Free roam",
+            url: "/dashboard/cutting-engine/free-roam",
           },
         ],
       },
@@ -113,41 +108,37 @@ export const sidebarItems: NavGroup[] = [
     label: "Analytics",
     items: [
       {
-        title: "Waste Analysis",
-        url: "/dashboard/waste",
-        icon: AlertTriangle,
+        title: "Analytics",
+        url: "/dashboard/analytics/waste",
+        icon: BarChart3,
         requiredPermission: "accessAnalytics",
         subItems: [
           {
-            title: "Current Analysis",
-            url: "/dashboard/waste",
+            title: "Waste",
+            url: "/dashboard/analytics/waste",
             requiredPermission: "viewCurrentAnalysis",
           },
           {
-            title: "Period Comparison",
-            url: "/dashboard/waste-comparison",
+            title: "Period comparison",
+            url: "/dashboard/analytics/waste-comparison",
             requiredPermission: "viewPeriodConsumption",
-            isNew: true,
+          },
+          {
+            title: "Material usage",
+            url: "/dashboard/analytics/usage",
+            requiredPermission: "viewMaterialUsage",
+          },
+          {
+            title: "Cost reports",
+            url: "/dashboard/analytics/costs",
+            requiredPermission: "viewCostReports",
+          },
+          {
+            title: "Trends",
+            url: "/dashboard/analytics/trends",
+            requiredPermission: "viewTrends",
           },
         ],
-      },
-      {
-        title: "Material Usage",
-        url: "/dashboard/usage",
-        icon: BarChart3,
-        requiredPermission: "viewMaterialUsage",
-      },
-      {
-        title: "Cost Reports",
-        url: "/dashboard/costs",
-        icon: DollarSign,
-        requiredPermission: "viewCostReports",
-      },
-      {
-        title: "Trends",
-        url: "/dashboard/trends",
-        icon: TrendingUp,
-        requiredPermission: "viewTrends",
       },
     ],
   },
@@ -157,7 +148,7 @@ export const sidebarItems: NavGroup[] = [
     items: [
       {
         title: "Materials",
-        url: "/dashboard/materials",
+        url: "/dashboard/inventory/materials",
         icon: Database,
         requiredPermission: "accessManagement",
         subItems: [
@@ -168,24 +159,24 @@ export const sidebarItems: NavGroup[] = [
           },
           {
             title: "Material Types",
-            url: "/dashboard/materials/types",
+            url: "/dashboard/inventory/materials/types",
             requiredPermission: "manageMaterialTypes",
           },
           {
             title: "Suppliers",
-            url: "/dashboard/materials/suppliers",
+            url: "/dashboard/inventory/materials/suppliers",
             requiredPermission: "manageSuppliers",
           },
           {
             title: "Pricing",
-            url: "/dashboard/materials/pricing",
+            url: "/dashboard/inventory/materials/pricing",
             requiredPermission: "managePricing",
           },
         ],
       },
       {
         title: "Reports",
-        url: "/dashboard/reports",
+        url: "/dashboard/analytics/reports",
         icon: FileText,
         requiredPermission: "viewReports",
       },
@@ -197,9 +188,43 @@ export const sidebarItems: NavGroup[] = [
       },
       {
         title: "Settings",
-        url: "/dashboard/settings",
+        url: "/dashboard/settings/general",
         icon: Settings,
         requiredPermission: "manageUsers",
+        subItems: [
+          {
+            title: "General",
+            url: "/dashboard/settings/general",
+            requiredPermission: "manageUsers",
+          },
+          {
+            title: "Profile & account",
+            url: "/dashboard/settings/profile",
+          },
+          {
+            title: "Materials",
+            url: "/dashboard/settings/materials",
+            requiredPermission: "manageMaterialTypes",
+          },
+          {
+            title: "Notifications",
+            url: "/dashboard/settings/notifications",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 4,
+    label: "Q&A",
+    items: [
+      {
+        // Intentionally ungated — IT / procurement reviewers invited as
+        // viewers should be able to read the Trust & Security surface
+        // directly without being handed an elevated account.
+        title: "Security",
+        url: "/dashboard/security",
+        icon: ShieldCheck,
       },
     ],
   },

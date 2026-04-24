@@ -33,11 +33,18 @@ export function HealthAlertEmail({
   const statusLabel = isDown ? "Down" : "Degraded"
   const emoji = isDown ? "🔴" : "🟡"
 
-  const formattedTime = new Date(checkedAt).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  })
+  // Defensive parse — an invalid `checkedAt` (e.g. a malformed ISO
+  // string leaking through RPC) would render "Invalid Date" in the
+  // email body. Fall back to the raw value with a UTC suffix so the
+  // admin still sees something they can grep the logs for.
+  const parsedDate = new Date(checkedAt)
+  const formattedTime = Number.isFinite(parsedDate.getTime())
+    ? parsedDate.toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "UTC",
+      })
+    : String(checkedAt)
 
   return (
     <Html>
@@ -80,11 +87,16 @@ export function HealthAlertEmail({
 
           <Hr style={hrStyle} />
 
-          <Section style={{ textAlign: "center" as const }}>
-            <Button href={dashboardUrl} style={buttonStyle}>
-              View Health Dashboard
-            </Button>
-          </Section>
+          {/* Validate dashboardUrl before embedding — an attacker-
+              controlled upstream could inject javascript:/data: URIs.
+              Only allow http/https origins. */}
+          {isSafeHttpUrl(dashboardUrl) && (
+            <Section style={{ textAlign: "center" as const }}>
+              <Button href={dashboardUrl} style={buttonStyle}>
+                View Health Dashboard
+              </Button>
+            </Section>
+          )}
 
           <Hr style={hrStyle} />
 
@@ -96,6 +108,15 @@ export function HealthAlertEmail({
       </Body>
     </Html>
   )
+}
+
+function isSafeHttpUrl(candidate: string): boolean {
+  try {
+    const u = new URL(candidate)
+    return u.protocol === "https:" || u.protocol === "http:"
+  } catch {
+    return false
+  }
 }
 
 const bodyStyle = {

@@ -29,12 +29,19 @@
     - Models and custom errors
   - infrastructure/
     - services/ and repositories/ — Supabase-backed implementations
+      - `rollBarcodeAssetService.ts` — stores generated roll barcode PNGs in Supabase Storage and stamps barcode metadata onto `rolls`
     - supabase/ — generated types + SQL migrations
+      - `migrations/20260421000002_roll_barcodes_and_scan_pdf.sql` — roll barcode asset columns + `roll-barcodes` storage bucket
   - interface-adapters/
     - Reserved for controllers. Currently empty — no server actions exist yet, so client hooks fill the controller role.
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
+  - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
+
+- .claude/
+  - handoff/ — task briefs and second-opinion assignments
+  - research/ — investigation notes and reports
 
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - nesting/ — 2D nesting engine

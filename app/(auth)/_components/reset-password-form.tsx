@@ -22,6 +22,7 @@ import {
 import { Input } from "@/app/components/ui/input"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { supabase } from "@/src/infrastructure/models/supabase"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 const FormSchema = z
   .object({
@@ -116,7 +117,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!active || !session) {
         return
       }
@@ -165,7 +166,7 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         toast.success("Password updated", {
           description: "Your password has been reset. Redirecting now.",
         })
-        router.replace(redirectTo ?? "/dashboard/default")
+        router.replace(redirectTo ?? "/dashboard")
       } else {
         toast.error("Password reset failed", {
           description: error || "Please request a new reset link and try again.",

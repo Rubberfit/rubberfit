@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
+import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
@@ -72,35 +73,36 @@ export function useCutHistory() {
     setSelectedUserId(userId)
   }, [roleLoading, userId])
 
-  // Load history + favorites
+  // Load history + favorites. Delegates to the api-client module so
+  // the hook stays agnostic to which backend (v1 Supabase direct vs
+  // v2 Rust) is actually serving the data — the flag flip lives
+  // entirely in `src/infrastructure/api-client/cut-history.ts`.
   const loadHistory = useCallback(
     async (forUserId: string | null) => {
       setLoading(true)
       try {
-        const from = dateRange.from.toISOString()
-        const to = new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)).toISOString()
-        const userParam = forUserId ? `&userId=${encodeURIComponent(forUserId)}` : ""
-        const res = await fetchJson<{ data: CutHistory[] }>(
-          `/api/cuts/history?limit=100&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${userParam}`
-        )
+        const fromIso = dateRange.from.toISOString()
+        const toIso = new Date(new Date(dateRange.to).setHours(23, 59, 59, 999)).toISOString()
 
-        let favSet = new Set<string>()
-        try {
-          const favRes = await fetchJson<{ data: string[] }>("/api/cuts/favorites")
-          favSet = new Set(favRes.data)
-        } catch (_err) {
-          // silently ignore — favorites table may not be migrated yet
-        }
+        const [rows, favorites] = await Promise.all([
+          listCutHistory({
+            from: fromIso,
+            to: toIso,
+            limit: 100,
+            userId: forUserId ?? undefined,
+          }),
+          listFavoriteIds().catch(() => ({ ids: new Set<string>() })),
+        ])
 
-        const merged: CutHistoryRow[] = (res.data ?? [])
-          .map((c) => ({ ...c, isFavorite: favSet.has(c.id) }))
+        const merged: CutHistoryRow[] = rows
+          .map((c) => ({ ...c, isFavorite: favorites.ids.has(c.id) }))
           .sort((a, b) => {
             if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
             return new Date(b.cut_date).getTime() - new Date(a.cut_date).getTime()
           })
 
         setCuts(merged)
-        setFavoriteIds(favSet)
+        setFavoriteIds(favorites.ids)
       } catch (err) {
         console.error("Error fetching cut history:", err)
         toast.error("Failed to load cut history")
@@ -213,12 +215,20 @@ export function useCutHistory() {
     }
   }, [deleteConfirm])
 
-  // Navigate to cut planner
+  // Navigate back to the surface that produced the cut — Auto nest
+  // for `source: "auto"` rows, Free roam for `source: "manual"` so
+  // manual layouts re-hydrate onto the CAD canvas instead of landing
+  // on the preset picker (which can't represent free placements).
   const handleReopen = useCallback(
     (cutId: string) => {
-      router.push(`/dashboard/cut-planner?loadCut=${cutId}`)
+      const cut = cuts.find((c) => c.id === cutId)
+      const target =
+        cut?.source === "manual"
+          ? `/dashboard/cutting-engine/free-roam?loadCut=${cutId}`
+          : `/dashboard/cutting-engine?loadCut=${cutId}`
+      router.push(target)
     },
-    [router]
+    [cuts, router]
   )
 
   // Derived

@@ -2,8 +2,13 @@ name: Project Board Sync
 
 on:
   create:
+  # Removed `issues: [opened, reopened]` triggers 2026-04-24 — the OpenClaw
+  # triage watcher (.claude/scripts/openclaw-triage-watch.sh) now owns
+  # new-issue handling via Kimi K2.6 and writes to the Project's native
+  # Story Points + Priority fields directly. Keeping `closed` so the
+  # project board still moves finished issues to the Done column.
   issues:
-    types: [opened, reopened, closed]
+    types: [closed]
   pull_request_target:
     types:
       [

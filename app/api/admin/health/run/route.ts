@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+
+import { requireAdmin, type AdminContext } from "@/app/api/admin/_lib/require-admin"
 
 // Types
 
@@ -37,20 +38,24 @@ async function checkApiGateway(): Promise<CheckResult> {
   if (!url || !key) return { serviceName: name, status: "unknown", responseMs: null, detail: "SUPABASE_URL not configured" }
   const start = Date.now()
   try {
-    const res = await fetch(`${url}/rest/v1/`, {
+    // `/auth/v1/health` is public and returns 200 with just the apikey
+    // header — PostgREST root needs both apikey and Authorization: Bearer.
+    // Since every Supabase service sits behind one gateway, a GoTrue-up
+    // response is enough to prove the gateway is reachable.
+    const res = await fetch(`${url}/auth/v1/health`, {
       headers: { apikey: key },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(8000),
     })
     const responseMs = Date.now() - start
     if (!res.ok)          return { serviceName: name, status: "down",      responseMs, detail: `HTTP ${res.status}`, httpStatus: res.status }
-    if (responseMs > 1000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Connection failed" }
   }
 }
 
-type AdminClient = NonNullable<ReturnType<typeof makeAdminClient>>
+type AdminClient = AdminContext["adminClient"]
 
 async function checkDatabase(client: AdminClient): Promise<CheckResult> {
   const name  = "Database Primary"
@@ -59,7 +64,7 @@ async function checkDatabase(client: AdminClient): Promise<CheckResult> {
     const { error } = await client.from("profiles").select("id").limit(1)
     const responseMs = Date.now() - start
     if (error)             return { serviceName: name, status: "down",      responseMs, detail: error.message }
-    if (responseMs > 500)  return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 1500)  return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Query failed" }
@@ -107,7 +112,7 @@ async function checkAuthService(client: AdminClient): Promise<CheckResult> {
     const { error } = await client.auth.admin.listUsers({ perPage: 1 })
     const responseMs = Date.now() - start
     if (error)             return { serviceName: name, status: "down",      responseMs, detail: error.message }
-    if (responseMs > 1000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
+    if (responseMs > 2000) return { serviceName: name, status: "degraded", responseMs, detail: `High latency (${responseMs}ms)` }
     return { serviceName: name, status: "operational", responseMs, detail: "OK" }
   } catch (err) {
     return { serviceName: name, status: "down", responseMs: Date.now() - start, detail: err instanceof Error ? err.message : "Auth check failed" }
@@ -136,20 +141,9 @@ async function checkEmailService(): Promise<CheckResult> {
 // POST /api/admin/health/run 
 
 export async function POST(request: NextRequest) {
-  const authClient = makeAuthClient(request)
-  if (!authClient) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
-
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const adminClient = makeAdminClient()
-  if (!adminClient) return NextResponse.json({ error: "Service role key not configured" }, { status: 500 })
-
-  const { data: profile } = await adminClient.from("profiles").select("roles").eq("id", user.id).single()
-  const roles = profile?.roles
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const guard = await requireAdmin(request)
+  if (!guard.ok) return guard.response
+  const { adminClient } = guard.ctx
 
   // Run all checks concurrently
   const results = await Promise.all([

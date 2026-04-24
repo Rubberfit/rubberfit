@@ -1,5 +1,5 @@
 import "reflect-metadata"
-import { container } from "tsyringe"
+import { container, instanceCachingFactory } from "tsyringe"
 import { TOKENS } from "./tokens"
 
 // Application service interfaces
@@ -32,6 +32,7 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -68,6 +69,43 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
+// IPackingService: native Rust engine (pack-cli binary). The legacy TS
+// fallback was removed after pack_lbf_lns + polish matched / beat it on
+// every parity fixture and on the production Fab Score. If the binary
+// is missing the app must fail fast — there is no longer a TS backup.
+//
+// Binary path + existence check live in a server-only helper so this
+// file is safe to import from client components (Turbopack refuses to
+// bundle `node:fs` / `node:path`). The helper runs the first time the
+// packing service is resolved — which only ever happens server-side,
+// because RustPackingService.spawn uses node:child_process.
+export const RUST_PACK_BINARY = `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli`
+function verifyRustBinary(): void {
+  if (typeof window !== "undefined") return // client-side — nothing to verify.
+  if (typeof process === "undefined" || !process.versions?.node) return
+  // Wrapped in eval() to keep `require` opaque to the bundler's static
+  // analysis — Turbopack treats `require("node:fs")` as an external
+  // dependency it can't resolve for client chunks, even under a
+  // runtime guard. This is the documented escape hatch.
+  const nodeRequire = eval("require") as (m: string) => typeof import("node:fs")
+  const fs = nodeRequire("node:fs")
+  if (!fs.existsSync(RUST_PACK_BINARY)) {
+    throw new Error(
+      `[packing] pack-cli binary not found at ${RUST_PACK_BINARY}. ` +
+        `Run "npm run build:engine" to build the Rust nesting engine.`
+    )
+  }
+}
+// Use a cached factory so the binaryPath constructor arg stays out of
+// TSyringe's constructor reflection (reflect-metadata can't see string).
+// Check runs lazily — client components that pull this module in for
+// its *other* registrations never trigger the packing-binary check.
+container.register(TOKENS.IPackingService, {
+  useFactory: instanceCachingFactory(() => {
+    verifyRustBinary()
+    return new RustPackingService()
+  }),
+})
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(

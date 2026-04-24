@@ -7,7 +7,7 @@ import {
   type PurchaseOrderWithDetails,
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
@@ -59,12 +59,24 @@ export function usePOActions({
   const updatePOStatus = async (poId: string, newStatus: PurchaseOrder["status"]) => {
     try {
       if (newStatus === "approved") {
+        // Approve continues through the existing DI-registered use
+        // case so the in-app notification side effect still fires
+        // under flag-OFF. The SDK's flag-ON path fires the same
+        // notification via `send_po_approved` in rf-application,
+        // so the behavior is equivalent either way.
         const useCase = resolveUseCase<IApprovePurchaseOrderUseCase>(
           TOKENS.IApprovePurchaseOrderUseCase
         )
         await useCase.execute({ purchaseOrderId: poId })
       } else {
-        const response = await purchaseOrderService.updatePurchaseOrderStatus(poId, newStatus)
+        // SDK delegates to Rust under `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true`
+        // and to the legacy service otherwise. Flag-ON rejects
+        // `received` through this path with RECEIVED_REQUIRES_RECEIVE_FLOW
+        // — the catch block below surfaces the stable code with a
+        // friendly hint pointing users at the receive flow.
+        const response = await purchaseOrdersSdk.updateStatus(poId, {
+          status: newStatus,
+        })
         if (!response) throw new Error("Failed to update status")
       }
 
@@ -90,7 +102,26 @@ export function usePOActions({
           break
       }
     } catch (error) {
+      const err = error as Error & { code?: string; status?: number }
       console.error("Error updating PO status:", error)
+      // Surface the stable conflict codes with guidance instead of
+      // a generic "failed" toast. The body carries `allowedTargets`
+      // (read via the parity-tested shape); we don't render those
+      // directly here yet — follow-up UX ticket will expose them
+      // as a picker on the toast.
+      if (err.code === "RECEIVED_REQUIRES_RECEIVE_FLOW") {
+        toast.error(
+          "Use the receive flow on the PO detail view to mark items as received.",
+          { description: "Status can't go to `received` through the row menu." }
+        )
+        return
+      }
+      if (err.code === "INVALID_STATE_TRANSITION") {
+        toast.error("That status transition isn't allowed from the current state.", {
+          description: "Refresh the list and try again.",
+        })
+        return
+      }
       toast.error("Failed to update purchase order status")
     }
   }
@@ -99,7 +130,8 @@ export function usePOActions({
     formData: POFormData,
     setIsCreating: (v: boolean) => void,
     setIsCreateDialogOpen: (v: boolean) => void,
-    setFormData: (v: POFormData) => void
+    setFormData: (v: POFormData) => void,
+    jobId?: string
   ) => {
     if (!validatePOFormData(formData)) return
 
@@ -114,6 +146,7 @@ export function usePOActions({
         fetchTaxDetailsForPO,
         setIsCreateDialogOpen,
         setFormData,
+        jobId,
       })
     } catch (error) {
       console.error("Error creating purchase order:", error)

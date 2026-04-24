@@ -177,13 +177,16 @@ export function usePurchaseOrders() {
     })
   }, [purchaseOrders, statusFilter, supplierFilter, searchQuery])
 
-  // Wrap create/update to pass form state
-  const handleCreatePO = async () => {
+  // Wrap create/update to pass form state. Accepts an optional
+  // `jobId` so callers coming from the job sufficiency panel can
+  // stamp `purchase_orders.job_id` on the resulting row.
+  const handleCreatePO = async (jobId?: string) => {
     await actions.handleCreatePO(
       formState.formData,
       formState.setIsCreating,
       formState.setIsCreateDialogOpen,
-      formState.setFormData
+      formState.setFormData,
+      jobId
     )
   }
 

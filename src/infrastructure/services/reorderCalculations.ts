@@ -1,16 +1,30 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
+import { taxService } from "@/src/infrastructure/services/taxService"
+import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import type {
+  MaterialSupplierWithDetails,
+  PurchaseOrder,
+} from "@/src/infrastructure/models/supabase"
 import type {
   ReorderSuggestion,
   OptimalOrderQuantity,
 } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
+import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"
-import { injectable } from "tsyringe"
+import { injectable, inject } from "tsyringe"
 
 @injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
+  constructor(
+    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
+    @inject(TOKENS.IPriceHistoryService)
+    private readonly priceHistoryService: IPriceHistoryService
+  ) {}
+
   private generateOptimalQuantityReasoning(
     avgDailyUsage: number,
     optimalQuantity: number,
@@ -28,10 +42,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
     return reasoning
   }
 
-  async calculateOptimalOrderQuantity(
-    materialTypeId: string,
-    supplierId?: string
-  ): Promise<OptimalOrderQuantity> {
+  async getAverageDailyUsage(): Promise<number> {
     try {
       const { data: cuts, error: cutsError } = await supabase
         .from("cuts")
@@ -40,8 +51,24 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       if (cutsError) throw cutsError
 
-      const totalUsage = cuts?.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0) || 0
-      const avgDailyUsage = totalUsage / 90
+      const totalUsage =
+        cuts?.reduce(
+          (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+          0
+        ) || 0
+      return totalUsage / 90
+    } catch (error) {
+      console.error("Error calculating average daily usage:", error)
+      return 0
+    }
+  }
+
+  async calculateOptimalOrderQuantity(
+    materialTypeId: string,
+    supplierId?: string
+  ): Promise<OptimalOrderQuantity> {
+    try {
+      const avgDailyUsage = await this.getAverageDailyUsage()
 
       const orderingCost = 50
       const holdingCostRate = 0.25
@@ -133,8 +160,11 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       const unitCost = suggestion.estimatedCost / suggestion.suggestedQuantity
       const subtotal = suggestion.estimatedCost
-      const taxRate = 0.08
-      const taxAmount = subtotal * taxRate
+      const taxCalc = await this.taxService.calculatePurchaseOrderTax(
+        suggestion.supplierId,
+        subtotal
+      )
+      const taxAmount = taxCalc.taxAmount
       const totalAmount = subtotal + taxAmount
 
       const user_id = await getCurrentUserId()
@@ -218,15 +248,25 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
       } else {
         const { data } = await supabase
           .from("material_suppliers")
-          .select("cost_per_sqft")
+          .select(
+            `
+            *,
+            supplier:suppliers(id, name, rating, preferred)
+          `
+          )
           .eq("material_type_id", materialTypeId)
           .eq("active", true)
-          .order("cost_per_sqft", { ascending: true })
-          .limit(1)
-          .single()
 
-        if (data) {
-          costPerSqft = data.cost_per_sqft
+        const suppliers = (data ?? []) as MaterialSupplierWithDetails[]
+        if (suppliers.length > 0) {
+          const bestValue = suppliers
+            .slice()
+            .sort(
+              (a, b) =>
+                this.priceHistoryService.calculateValueScore(b) -
+                this.priceHistoryService.calculateValueScore(a)
+            )[0]
+          costPerSqft = bestValue.cost_per_sqft
         }
       }
 
@@ -249,7 +289,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       if (!data || data.length === 0) return 0
 
-      return data.reduce((total, roll) => {
+      return data.reduce((total: number, roll: Record<string, any>) => {
         const sqft = (roll.width * roll.remaining_length) / 144
         return total + sqft
       }, 0)
@@ -307,4 +347,4 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   }
 }
 
-export const reorderCalculations = new ReorderCalculationsService()
+export const reorderCalculations = new ReorderCalculationsService(taxService, priceHistoryService)

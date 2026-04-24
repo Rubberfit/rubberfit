@@ -1,13 +1,22 @@
 "use client"
 
-import { FileText, Plus, DollarSign, Truck, Clock, AlertCircle, Download } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Badge } from "@/app/components/ui/badge"
-import { Button } from "@/app/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
-import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { FileText, Plus, DollarSign, Truck, Clock, Download } from "lucide-react"
 import { toast } from "sonner"
+
+import { Card } from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
+import {
+  InlineNotice,
+  PageHeader,
+  PageShell,
+  StatCard,
+  StatusBadge,
+} from "@/app/components/patterns"
+import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
 import { POViewDialog } from "./_components/po-view-dialog"
@@ -15,9 +24,94 @@ import { POCreateDialog } from "./_components/po-create-dialog"
 import { POEditDialog } from "./_components/po-edit-dialog"
 import { POTable } from "./_components/po-table"
 import { usePurchaseOrders } from "./_components/use-purchase-orders"
+import { getEmptyItem, type POFormData } from "./_components/po-form-dialog"
 
-export default function PurchaseOrdersPage() {
+/**
+ * Reads the job-sufficiency deep-link query params and, when present,
+ * pre-fills the PO create dialog with a matching line item + stores
+ * the source job id so `handleCreatePO` can stamp it onto the PO.
+ * One-shot — strips the params afterwards so a refresh doesn't
+ * replay the prefill on top of an in-progress draft.
+ */
+function JobPrefillBridge({
+  materialTypes,
+  formData,
+  setFormData,
+  setIsCreateDialogOpen,
+  setSourceJobId,
+}: {
+  materialTypes: MaterialType[]
+  formData: POFormData
+  setFormData: (data: POFormData) => void
+  setIsCreateDialogOpen: (open: boolean) => void
+  setSourceJobId: (id: string | null) => void
+}) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const appliedRef = useRef(false)
+
+  const jobIdParam = searchParams.get("job_id")
+  const materialParam = searchParams.get("material")
+  const shortfallParam = searchParams.get("shortfall_sqft")
+
+  useEffect(() => {
+    if (appliedRef.current || !jobIdParam) return
+    // Wait for material types so the name → id lookup resolves.
+    if (materialTypes.length === 0) return
+    appliedRef.current = true
+
+    const shortfall = Number(shortfallParam)
+    const match = materialTypes.find(
+      (mt) =>
+        (materialParam ?? "").trim().toLowerCase() ===
+        (mt.name ?? "").trim().toLowerCase()
+    )
+
+    setFormData({
+      ...formData,
+      items: [
+        {
+          ...getEmptyItem(),
+          material_type_id: match?.id ?? "",
+          description: materialParam ? `Job shortfall: ${materialParam}` : "",
+          quantity_sqft:
+            Number.isFinite(shortfall) && shortfall > 0
+              ? Number(shortfall.toFixed(2))
+              : 0,
+        },
+      ],
+      notes: formData.notes,
+    })
+    setSourceJobId(jobIdParam)
+    setIsCreateDialogOpen(true)
+    toast.message("PO prefilled from job shortfall.", {
+      description: materialParam
+        ? `${materialParam} · ${shortfall.toFixed(1)} sqft`
+        : undefined,
+    })
+    router.replace("/dashboard/inventory/purchase-orders")
+  }, [
+    jobIdParam,
+    materialParam,
+    shortfallParam,
+    materialTypes,
+    formData,
+    setFormData,
+    setIsCreateDialogOpen,
+    setSourceJobId,
+    router,
+  ])
+
+  return null
+}
+
+function PurchaseOrdersPageInner() {
   const po = usePurchaseOrders()
+  // Set when the operator came from a job sufficiency panel's "Create
+  // PO" deep-link. Flows into `handleCreatePO(sourceJobId)` so the
+  // resulting PO stamps `purchase_orders.job_id` for the job drawer's
+  // linked-POs panel to surface it. Cleared on submit / dialog close.
+  const [sourceJobId, setSourceJobId] = useState<string | null>(null)
 
   const handleViewPO = async (poItem: Parameters<typeof po.fetchTaxDetailsForPO>[0]) => {
     po.setSelectedPO(poItem)
@@ -30,10 +124,9 @@ export default function PurchaseOrdersPage() {
       open: true,
       action: async () => {
         try {
-          const result = await purchaseOrderService.updatePurchaseOrderStatus(
-            poItem.id,
-            "cancelled"
-          )
+          const result = await purchaseOrdersSdk.updateStatus(poItem.id, {
+            status: "cancelled",
+          })
           if (result) {
             toast.success("Purchase order cancelled")
             po.fetchData()
@@ -41,7 +134,12 @@ export default function PurchaseOrdersPage() {
             toast.error("Failed to cancel purchase order")
           }
         } catch (error) {
+          const err = error as Error & { code?: string }
           console.error("Error canceling PO:", error)
+          if (err.code === "INVALID_STATE_TRANSITION") {
+            toast.error("This purchase order can't be cancelled from its current state.")
+            return
+          }
           toast.error("Failed to cancel purchase order")
         }
       },
@@ -51,132 +149,128 @@ export default function PurchaseOrdersPage() {
     })
   }
 
+  const handleCreatePO = async () => {
+    await po.handleCreatePO(sourceJobId ?? undefined)
+    setSourceJobId(null)
+  }
+
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold">Purchase Orders</h1>
-          <p className="text-muted-foreground">Manage purchase orders and track deliveries</p>
-        </div>
-        <Button onClick={() => po.setIsCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Purchase Order
-        </Button>
-      </div>
+    <PageShell variant="dense">
+      <JobPrefillBridge
+        materialTypes={po.materialTypes}
+        formData={po.formData}
+        setFormData={po.setFormData}
+        setIsCreateDialogOpen={po.setIsCreateDialogOpen}
+        setSourceJobId={setSourceJobId}
+      />
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total POs</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{po.stats.total}</div>
-            <div className="flex gap-2 mt-2">
-              <Badge variant="secondary">{po.stats.draft} draft</Badge>
-              <Badge variant="warning">{po.stats.pending} pending</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${po.stats.totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <p className="text-xs text-muted-foreground">Across all orders</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Transit</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{po.stats.ordered}</div>
-            <p className="text-xs text-muted-foreground">Awaiting delivery</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Lead Time</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{po.stats.avgLeadTime} days</div>
-            <p className="text-xs text-muted-foreground">From order to delivery</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Pending Approvals Alert */}
-      {po.stats.pending > 0 && (
-        <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Pending Approvals</AlertTitle>
-          <AlertDescription>
-            {po.stats.pending} purchase order(s) are awaiting approval.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Main Content */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Purchase Orders</CardTitle>
-              <CardDescription>View and manage all purchase orders</CardDescription>
-            </div>
-            <Button variant="outline" className="min-h-[44px]">
-              <Download className="h-4 w-4 mr-2" />
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Purchase Orders" },
+        ]}
+        title="Purchase Orders"
+        subtitle="Manage purchase orders, track deliveries, and handle approvals."
+        actions={
+          <>
+            <Button size="sm" variant="outline">
+              <Download className="size-3.5" />
               Export
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <POTable
-            loading={po.loading}
-            filteredPOs={po.filteredPOs}
-            suppliers={po.suppliers}
-            statusFilter={po.statusFilter}
-            setStatusFilter={po.setStatusFilter}
-            supplierFilter={po.supplierFilter}
-            setSupplierFilter={po.setSupplierFilter}
-            searchQuery={po.searchQuery}
-            setSearchQuery={po.setSearchQuery}
-            onViewPO={handleViewPO}
-            onEditPO={po.handleEditPO}
-            onUpdatePOStatus={po.updatePOStatus}
-            onCancelPO={handleCancelPO}
-            fetchData={po.fetchData}
-          />
-        </CardContent>
+            <Button size="sm" onClick={() => po.setIsCreateDialogOpen(true)}>
+              <Plus className="size-3.5" />
+              New PO
+            </Button>
+          </>
+        }
+      />
+
+      {sourceJobId && (
+        <InlineNotice intent="info" title="Job shortfall PO">
+          This draft will be linked to the originating job on submit.
+        </InlineNotice>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total POs"
+          icon={<FileText />}
+          value={po.stats.total}
+          footnote={
+            <span className="flex flex-wrap gap-1.5">
+              <StatusBadge intent="neutral" variant="outline">
+                {po.stats.draft} draft
+              </StatusBadge>
+              <StatusBadge intent="warning" variant="outline">
+                {po.stats.pending} pending
+              </StatusBadge>
+            </span>
+          }
+        />
+        <StatCard
+          label="Total value"
+          icon={<DollarSign />}
+          value={`$${po.stats.totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+          footnote="Across all orders"
+        />
+        <StatCard
+          label="In transit"
+          icon={<Truck />}
+          value={po.stats.ordered}
+          footnote="Awaiting delivery"
+          sparkIntent="accent"
+        />
+        <StatCard
+          label="Avg lead time"
+          icon={<Clock />}
+          value={po.stats.avgLeadTime}
+          unit="d"
+          footnote="Order to delivery"
+        />
+      </div>
+
+      {po.stats.pending > 0 && (
+        <InlineNotice intent="warning" title="Pending approvals">
+          {po.stats.pending} purchase order{po.stats.pending === 1 ? "" : "s"} awaiting approval.
+        </InlineNotice>
+      )}
+
+      <Card className="overflow-hidden p-0">
+        <POTable
+          loading={po.loading}
+          filteredPOs={po.filteredPOs}
+          suppliers={po.suppliers}
+          statusFilter={po.statusFilter}
+          setStatusFilter={po.setStatusFilter}
+          supplierFilter={po.supplierFilter}
+          setSupplierFilter={po.setSupplierFilter}
+          searchQuery={po.searchQuery}
+          setSearchQuery={po.setSearchQuery}
+          onViewPO={handleViewPO}
+          onEditPO={po.handleEditPO}
+          onUpdatePOStatus={po.updatePOStatus}
+          onCancelPO={handleCancelPO}
+          fetchData={po.fetchData}
+        />
       </Card>
 
-      {/* Create PO Dialog */}
       <POCreateDialog
         isOpen={po.isCreateDialogOpen}
-        setIsOpen={po.setIsCreateDialogOpen}
+        setIsOpen={(open) => {
+          po.setIsCreateDialogOpen(open)
+          if (!open) setSourceJobId(null)
+        }}
         formData={po.formData}
         setFormData={po.setFormData}
         suppliers={po.suppliers}
         materialTypes={po.materialTypes}
         isCreating={po.isCreating}
         createFormTaxDetails={po.createFormTaxDetails}
-        onCreatePO={po.handleCreatePO}
+        onCreatePO={handleCreatePO}
         onConfirmRemoveItem={po.handleConfirmRemoveItem}
       />
 
-      {/* View PO Dialog */}
       <POViewDialog
         selectedPO={po.selectedPO}
         isViewDialogOpen={po.isViewDialogOpen}
@@ -188,7 +282,6 @@ export default function PurchaseOrdersPage() {
         onDownloadPDF={handleDownloadPDF}
       />
 
-      {/* Edit PO Dialog */}
       <POEditDialog
         isOpen={po.isEditDialogOpen}
         setIsOpen={po.setIsEditDialogOpen}
@@ -204,7 +297,6 @@ export default function PurchaseOrdersPage() {
         onConfirmRemoveItem={po.handleConfirmRemoveItem}
       />
 
-      {/* Confirmation Dialog */}
       <ConfirmationDialog
         open={po.confirmAction.open}
         onOpenChange={(open) => po.setConfirmAction({ ...po.confirmAction, open })}
@@ -213,6 +305,15 @@ export default function PurchaseOrdersPage() {
         description={po.confirmAction.description}
         variant={po.confirmAction.variant}
       />
-    </div>
+    </PageShell>
+  )
+}
+
+export default function PurchaseOrdersPage() {
+  // `useSearchParams` requires a Suspense boundary in Next 16.
+  return (
+    <Suspense fallback={null}>
+      <PurchaseOrdersPageInner />
+    </Suspense>
   )
 }

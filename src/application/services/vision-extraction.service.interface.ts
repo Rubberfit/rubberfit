@@ -1,4 +1,4 @@
-import type { VisionExtractionResponse } from "@/app/dashboard/cut-planner/_components/upload-types"
+import type { VisionExtractionResponse } from "@/src/application/vision/types"
 
 export interface IVisionExtractionService {
   extractFromImage(file: File): Promise<VisionExtractionResponse>

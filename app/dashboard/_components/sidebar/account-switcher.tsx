@@ -42,7 +42,7 @@ export function AccountSwitcher({
   }
 
   const handleAccountClick = () => {
-    router.push("/dashboard/account")
+    router.push("/dashboard/settings/profile")
   }
 
   const handleNotificationsClick = () => {

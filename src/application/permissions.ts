@@ -43,35 +43,33 @@ export const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS
 
 export const ROUTE_PERMISSIONS = {
-  // Cut Planner
-  "/dashboard/cut-planner": "accessCutPlanner",
-  "/dashboard/cut-planner/batch": "accessBatchCut",
-  "/dashboard/cut-planner/manual": "createCut",
-  "/dashboard/cut-planner/history": "viewCutHistory",
+  // Cutting Engine (renamed from Cut Planner in S4 Task 8)
+  "/dashboard/cutting-engine": "accessCutPlanner",
+  "/dashboard/cutting-engine/history": "viewCutHistory",
 
   // History
   "/dashboard/history": "viewCutHistory",
 
-  // Analytics
-  "/dashboard/waste": "accessAnalytics",
-  "/dashboard/waste-comparison": "viewPeriodConsumption",
-  "/dashboard/usage": "viewMaterialUsage",
-  "/dashboard/costs": "viewCostReports",
-  "/dashboard/trends": "viewTrends",
-  "/dashboard/reports": "viewReports",
+  // Analytics — consolidated under /dashboard/analytics/* in S4 Task 9.
+  "/dashboard/analytics/waste": "accessAnalytics",
+  "/dashboard/analytics/waste-comparison": "viewPeriodConsumption",
+  "/dashboard/analytics/usage": "viewMaterialUsage",
+  "/dashboard/analytics/costs": "viewCostReports",
+  "/dashboard/analytics/trends": "viewTrends",
+  "/dashboard/analytics/reports": "viewReports",
 
   // Inventory sub-routes
   "/dashboard/inventory/reorder": "manageRolls",
   "/dashboard/inventory/purchase-orders": "manageRolls",
 
-  // Management
-  "/dashboard/materials": "accessManagement",
-  "/dashboard/materials/types": "manageMaterialTypes",
-  "/dashboard/materials/suppliers": "manageSuppliers",
-  "/dashboard/materials/pricing": "managePricing",
+  // Management — materials live under inventory after S4 Task 3
+  "/dashboard/inventory/materials": "accessManagement",
+  "/dashboard/inventory/materials/types": "manageMaterialTypes",
+  "/dashboard/inventory/materials/suppliers": "manageSuppliers",
+  "/dashboard/inventory/materials/pricing": "managePricing",
   "/dashboard/settings/materials": "manageMaterialTypes",
 
-  // Settings & Users
+  // Settings & Users (S4 Task 10 consolidation)
   "/dashboard/settings": "manageUsers",
-  "/dashboard/users": "manageUsers",
+  "/dashboard/settings/general": "manageUsers",
 } as const satisfies Record<string, Permission>

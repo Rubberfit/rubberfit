@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { rollService } from "@/src/infrastructure/services/rollService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { useRouter } from "next/navigation"
+
+import { PageHeader, PageShell } from "@/app/components/patterns"
 
 import { ImportReviewCard } from "./_components/import-review-card"
 import { ImportUploadCard } from "./_components/import-upload-card"
@@ -161,21 +163,40 @@ export default function CSVImportPage() {
         }
       }
 
-      const rollsToImport = parsedData.map((row) => ({
-        ...row,
-        remaining_length: row.remaining_length ?? row.length,
-        status: "active" as const,
-      }))
+      // Reviewed-row import through the SDK. Flag-ON commits via
+      // /api/v2/import/rolls (Rust adapter); flag-OFF delegates
+      // to legacy `csvService.uploadRolls`. The SDK accepts the
+      // CsvImportRow shape — Rust's adapter sets status=active +
+      // remaining_length=length automatically, so we don't stamp
+      // them here (matches the TS service's behavior).
+      const receipt = await importRollsSdk.uploadJson({
+        rows: parsedData.map((row) => ({
+          material_type: row.material_type,
+          width: row.width,
+          length: row.length,
+          thickness: row.thickness,
+          color: row.color,
+          location: row.location,
+          date_received: row.date_received,
+          supplier: row.supplier,
+          cost_per_sqft: row.cost_per_sqft,
+          notes: row.notes,
+        })),
+      })
 
-      const { imported, total } = await rollService.bulkAddRolls(rollsToImport)
-
-      if (imported === total) {
-        toast.success(`Successfully imported ${imported} rolls!`)
+      const total = parsedData.length
+      if (receipt.imported === total && receipt.errors.length === 0) {
+        toast.success(`Successfully imported ${receipt.imported} rolls!`)
         setTimeout(() => {
           router.push("/dashboard/inventory")
         }, 2000)
       } else {
-        toast.warning(`Imported ${imported} of ${total} rolls`)
+        toast.warning(
+          `Imported ${receipt.imported} of ${total} rolls` +
+            (receipt.errors.length > 0
+              ? ` — ${receipt.errors.length} error${receipt.errors.length > 1 ? "s" : ""}`
+              : "")
+        )
       }
     } catch (error) {
       console.error("Error importing data:", error)
@@ -188,11 +209,16 @@ export default function CSVImportPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Import Inventory from CSV</h1>
-        <p className="text-muted-foreground">Upload a CSV file to bulk import inventory data</p>
-      </div>
+    <PageShell variant="form">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Import" },
+        ]}
+        title="Import from CSV"
+        subtitle="Upload a CSV to bulk-import rolls. Review parsed data before committing."
+      />
 
       <ImportTemplateCard />
 
@@ -209,6 +235,6 @@ export default function CSVImportPage() {
         importing={importing}
         onImport={importData}
       />
-    </div>
+    </PageShell>
   )
 }

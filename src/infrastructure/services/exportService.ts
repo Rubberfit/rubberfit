@@ -4,20 +4,13 @@ import type {
   IExportService,
   ExportData,
 } from "@/src/application/services/export.service.interface"
-import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
-import { exportPdfService } from "./exportPdfService"
 import "reflect-metadata"
-import { injectable, inject } from "tsyringe"
-import { TOKENS } from "@/di/tokens"
+import { injectable } from "tsyringe"
 
 export type { ExportData }
 
-// Re-export PDF service for consumers that need it
-export { exportPdfService } from "./exportPdfService"
-
 @injectable()
 export class ExportService implements IExportService {
-  constructor(@inject(TOKENS.IExportPdfService) private readonly pdfService: IExportPdfService) {}
   exportToCSV(data: ExportData): void {
     try {
       const { headers, rows, filename = "export" } = data
@@ -175,25 +168,6 @@ export class ExportService implements IExportService {
 
     this.exportToCSV({ headers, rows, filename: "material_usage_export" })
   }
-
-  async generatePDFReport(title: string, content: string): Promise<void> {
-    return this.pdfService.generatePDFReport(title, content)
-  }
-
-  fallbackPDFDownload(title: string, htmlContent: string): void {
-    this.pdfService.fallbackPDFDownload(title, htmlContent)
-  }
-
-  async generateInventoryReport(
-    rolls: Record<string, unknown>[],
-    summary: Record<string, unknown>
-  ): Promise<void> {
-    return this.pdfService.generateInventoryReport(rolls, summary)
-  }
-
-  async generateWasteReport(data: Record<string, unknown>, charts?: string): Promise<void> {
-    return this.pdfService.generateWasteReport(data, charts)
-  }
 }
 
-export const exportService = new ExportService(exportPdfService)
+export const exportService = new ExportService()

@@ -112,7 +112,17 @@ export function CutHistoryTable({
 
                 {/* Part */}
                 <TableCell className="font-medium">
-                  {PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`}
+                  <div className="flex items-center gap-1.5">
+                    <span>{PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`}</span>
+                    {cut.source === "manual" && (
+                      <Badge
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px] font-medium border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-50/60 dark:bg-sky-950/30"
+                      >
+                        Manual
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Stock dimensions */}
@@ -165,12 +175,12 @@ export function CutHistoryTable({
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onReopen(cut.id)}
-                          aria-label="Reopen in Cut Planner"
+                          aria-label="Reopen in Cutting Engine"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Reopen in Cut Planner</TooltipContent>
+                      <TooltipContent>Reopen in Cutting Engine</TooltipContent>
                     </Tooltip>
                     {canDelete && (
                       <Tooltip>
