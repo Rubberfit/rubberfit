@@ -37,10 +37,7 @@ function buildPolygonFromSpec(spec: ShapeSpec): Point2D[] {
     case "rect":
       return buildRect(Number(spec.params.width), Number(spec.params.height))
     case "circle":
-      return buildCircle(
-        Number(spec.params.diameter),
-        Number(spec.params.segments ?? 24)
-      )
+      return buildCircle(Number(spec.params.diameter), Number(spec.params.segments ?? 24))
     case "trapezoid":
       return buildTrapezoid(
         Number(spec.params.topWidth),
@@ -99,16 +96,9 @@ function buildCircle(diameter: number, segments: number): Point2D[] {
   return normalizePolygon(pts)
 }
 
-function buildSector(
-  innerR: number,
-  outerR: number,
-  arcDeg: number,
-  segments: number
-): Point2D[] {
-  if (!(outerR > innerR))
-    throw new Error("sector: outerRadius must exceed innerRadius")
-  if (!(arcDeg > 0 && arcDeg < 360))
-    throw new Error("sector: arcDegrees must be in (0, 360)")
+function buildSector(innerR: number, outerR: number, arcDeg: number, segments: number): Point2D[] {
+  if (!(outerR > innerR)) throw new Error("sector: outerRadius must exceed innerRadius")
+  if (!(arcDeg > 0 && arcDeg < 360)) throw new Error("sector: arcDegrees must be in (0, 360)")
   const arcRad = (arcDeg * Math.PI) / 180
   const step = arcRad / segments
   const outer: Point2D[] = []

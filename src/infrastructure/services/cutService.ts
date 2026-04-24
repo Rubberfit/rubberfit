@@ -88,10 +88,19 @@ export class CutService implements ICutService {
     }
 
     if (data && data.length > 0) {
-      stats.totalWasteSqft = data.reduce((sum: number, cut: Record<string, any>) => sum + (cut.waste_sqft || 0), 0)
-      stats.totalMaterialUsed = data.reduce((sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0), 0)
+      stats.totalWasteSqft = data.reduce(
+        (sum: number, cut: Record<string, any>) => sum + (cut.waste_sqft || 0),
+        0
+      )
+      stats.totalMaterialUsed = data.reduce(
+        (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+        0
+      )
       stats.averageWastePercentage =
-        data.reduce((sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0), 0) / data.length
+        data.reduce(
+          (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+          0
+        ) / data.length
     }
 
     return stats
@@ -184,7 +193,10 @@ export class CutService implements ICutService {
       return 0
     }
 
-    return data.reduce((sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0), 0)
+    return data.reduce(
+      (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+      0
+    )
   }
 
   async getCutsGrowthPercentage(): Promise<number> {
@@ -195,9 +207,9 @@ export class CutService implements ICutService {
       // because the two queries disagreed on where "this week" starts.
       const now = new Date()
       const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
-      const thisWeekEnd   = endOfWeek(now,   { weekStartsOn: 1 })
+      const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 })
       const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
-      const lastWeekEnd   = endOfWeek(subWeeks(now, 1),   { weekStartsOn: 1 })
+      const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
 
       const { data: thisWeek, error: thisWeekError } = await supabase
         .from("cuts")
@@ -306,7 +318,10 @@ export class CutService implements ICutService {
 
       const avg =
         data && data.length > 0
-          ? data.reduce((sum: number, c: Record<string, any>) => sum + (c.waste_percentage || 0), 0) / data.length
+          ? data.reduce(
+              (sum: number, c: Record<string, any>) => sum + (c.waste_percentage || 0),
+              0
+            ) / data.length
           : 0
 
       result.push({
@@ -341,12 +356,18 @@ export class CutService implements ICutService {
 
       const thisMonthAvg =
         thisMonth && thisMonth.length > 0
-          ? thisMonth.reduce((sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0), 0) / thisMonth.length
+          ? thisMonth.reduce(
+              (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+              0
+            ) / thisMonth.length
           : 0
 
       const lastMonthAvg =
         lastMonth && lastMonth.length > 0
-          ? lastMonth.reduce((sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0), 0) / lastMonth.length
+          ? lastMonth.reduce(
+              (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+              0
+            ) / lastMonth.length
           : 0
 
       if (lastMonthAvg === 0) {

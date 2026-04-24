@@ -284,13 +284,15 @@ export class AuthService implements IAuthService {
   }
 
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-        callback(await buildAuthUser(session.user))
-      } else if (event === "SIGNED_OUT") {
-        callback(null)
+    return supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
+          callback(await buildAuthUser(session.user))
+        } else if (event === "SIGNED_OUT") {
+          callback(null)
+        }
       }
-    })
+    )
   }
 }
 

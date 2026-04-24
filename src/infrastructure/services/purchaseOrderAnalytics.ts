@@ -41,9 +41,7 @@ export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsSer
 
   private get purchaseOrderService(): IPurchaseOrderService {
     if (!this._purchaseOrderService) {
-      throw new Error(
-        "PurchaseOrderAnalyticsService: purchaseOrderService has not been wired yet"
-      )
+      throw new Error("PurchaseOrderAnalyticsService: purchaseOrderService has not been wired yet")
     }
     return this._purchaseOrderService
   }

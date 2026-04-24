@@ -51,7 +51,11 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       if (cutsError) throw cutsError
 
-      const totalUsage = cuts?.reduce((sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0), 0) || 0
+      const totalUsage =
+        cuts?.reduce(
+          (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+          0
+        ) || 0
       return totalUsage / 90
     } catch (error) {
       console.error("Error calculating average daily usage:", error)

@@ -559,7 +559,11 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       if (itemsError) throw itemsError
 
-      const subtotal = items?.reduce((sum: number, item: Record<string, any>) => sum + (item.line_total || 0), 0) || 0
+      const subtotal =
+        items?.reduce(
+          (sum: number, item: Record<string, any>) => sum + (item.line_total || 0),
+          0
+        ) || 0
 
       const { data: po, error: poError } = await supabase
         .from("purchase_orders")

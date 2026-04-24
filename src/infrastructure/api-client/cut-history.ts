@@ -40,7 +40,7 @@ export interface ListHistoryOptions {
  * Read the feature flag at call time (not module load) so a test
  * or dev-console flip takes effect without needing a server reload.
  */
-function useRustBackend(): boolean {
+function isRustBackendEnabled(): boolean {
   return process.env.NEXT_PUBLIC_USE_RUST_CUT_HISTORY === "true"
 }
 
@@ -111,7 +111,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export async function listCutHistory(opts: ListHistoryOptions = {}): Promise<CutHistory[]> {
-  if (useRustBackend()) {
+  if (isRustBackendEnabled()) {
     const params = new URLSearchParams()
     if (opts.limit !== undefined) params.set("limit", String(opts.limit))
     if (opts.from) params.set("since", opts.from)
@@ -146,7 +146,7 @@ export interface FavoritesResult {
 }
 
 export async function listFavoriteIds(): Promise<FavoritesResult> {
-  if (useRustBackend()) {
+  if (isRustBackendEnabled()) {
     // v2 returns the full favorite entries; the hook only needs ids.
     // v2 DTO still types id as number — stringify to match the
     // UUID-string migration on the v1 path.

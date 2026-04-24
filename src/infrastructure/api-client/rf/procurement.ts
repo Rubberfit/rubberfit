@@ -23,12 +23,8 @@
  */
 
 import { csvService as legacyCsv } from "@/src/infrastructure/services/csvService"
-import {
-  purchaseOrderService as legacyPos,
-} from "@/src/infrastructure/services/purchaseOrderService"
-import {
-  reorderService as legacyReorder,
-} from "@/src/infrastructure/services/reorderService"
+import { purchaseOrderService as legacyPos } from "@/src/infrastructure/services/purchaseOrderService"
+import { reorderService as legacyReorder } from "@/src/infrastructure/services/reorderService"
 import { taxService as legacyTax } from "@/src/infrastructure/services/taxService"
 
 import { rfClient } from "../client"
@@ -37,14 +33,11 @@ import type { components } from "../types"
 type PurchaseOrderDto = components["schemas"]["PurchaseOrderDto"]
 type CreatePurchaseOrderBody = components["schemas"]["CreatePurchaseOrderBody"]
 type UpdatePurchaseOrderBody = components["schemas"]["UpdatePurchaseOrderBody"]
-type UpdatePurchaseOrderStatusBody =
-  components["schemas"]["UpdatePurchaseOrderStatusBody"]
+type UpdatePurchaseOrderStatusBody = components["schemas"]["UpdatePurchaseOrderStatusBody"]
 
 type PurchaseOrderItemDto = components["schemas"]["PurchaseOrderItemDto"]
-type CreatePurchaseOrderItemBody =
-  components["schemas"]["CreatePurchaseOrderItemBody"]
-type UpdatePurchaseOrderItemBody =
-  components["schemas"]["UpdatePurchaseOrderItemBody"]
+type CreatePurchaseOrderItemBody = components["schemas"]["CreatePurchaseOrderItemBody"]
+type UpdatePurchaseOrderItemBody = components["schemas"]["UpdatePurchaseOrderItemBody"]
 
 type ReceivePurchaseOrderBody = components["schemas"]["ReceivePurchaseOrderBody"]
 type ReceiveReceiptDto = components["schemas"]["ReceiveReceiptDto"]
@@ -55,8 +48,7 @@ type UpdateReorderRuleBody = components["schemas"]["UpdateReorderRuleBody"]
 type ReorderSuggestionDto = components["schemas"]["ReorderSuggestionDto"]
 
 type CreateReorderPoRowBody = components["schemas"]["CreateReorderPoRowBody"]
-type CreateReorderPoBatchBody =
-  components["schemas"]["CreateReorderPoBatchBody"]
+type CreateReorderPoBatchBody = components["schemas"]["CreateReorderPoBatchBody"]
 type CreateReorderPoBulkBody = components["schemas"]["CreateReorderPoBulkBody"]
 type ReorderPoReceiptDto = components["schemas"]["ReorderPoReceiptDto"]
 
@@ -69,7 +61,7 @@ type TaxPreviewDto = components["schemas"]["TaxPreviewDto"]
  * Read the feature flag at call time (not module load) so a Vercel
  * env flip takes effect on the next request without a redeploy.
  */
-function useRustBackend(): boolean {
+function isRustBackendEnabled(): boolean {
   return process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT === "true"
 }
 
@@ -89,9 +81,7 @@ function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T
       err.status = result.response.status
       throw err
     }
-    throw new Error(
-      `${result.response.status} ${result.response.statusText || "request failed"}`
-    )
+    throw new Error(`${result.response.status} ${result.response.statusText || "request failed"}`)
   }
   if (result.data === undefined) {
     throw new Error("response had no data")
@@ -112,7 +102,7 @@ export const purchaseOrders = {
     limit?: number
     offset?: number
   }): Promise<PurchaseOrderDto[]> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       // Legacy returns PurchaseOrderWithDetails; structure differs
       // enough that call sites branch on flag state. Return the
       // legacy shape via a cast — the UI already consumes it, and
@@ -131,7 +121,7 @@ export const purchaseOrders = {
     return unwrap(res)
   },
   async get(id: string): Promise<PurchaseOrderDto | null> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const row = await legacyPos.getPurchaseOrderById(id)
       return row as unknown as PurchaseOrderDto
     }
@@ -142,7 +132,7 @@ export const purchaseOrders = {
     return unwrap(res)
   },
   async create(body: CreatePurchaseOrderBody): Promise<PurchaseOrderDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const row = await legacyPos.createPurchaseOrder(
         body as unknown as Parameters<typeof legacyPos.createPurchaseOrder>[0]
       )
@@ -152,7 +142,7 @@ export const purchaseOrders = {
     return unwrap(res)
   },
   async update(id: string, body: UpdatePurchaseOrderBody): Promise<PurchaseOrderDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const row = await legacyPos.updatePurchaseOrder(
         id,
         body as unknown as Parameters<typeof legacyPos.updatePurchaseOrder>[1]
@@ -165,11 +155,8 @@ export const purchaseOrders = {
     })
     return unwrap(res)
   },
-  async updateStatus(
-    id: string,
-    body: UpdatePurchaseOrderStatusBody
-  ): Promise<PurchaseOrderDto> {
-    if (!useRustBackend()) {
+  async updateStatus(id: string, body: UpdatePurchaseOrderStatusBody): Promise<PurchaseOrderDto> {
+    if (!isRustBackendEnabled()) {
       // Legacy `updatePurchaseOrderStatus(id, status, approvedBy?, notes?)`
       // enforces its own isValidStatusTransition ladder, allowing
       // `ordered → received` but rejecting other → received. That
@@ -193,7 +180,7 @@ export const purchaseOrders = {
     return unwrap(res)
   },
   async delete(id: string): Promise<void> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       await legacyPos.deletePurchaseOrder(id)
       return
     }
@@ -202,11 +189,8 @@ export const purchaseOrders = {
     })
     if (!res.response.ok) unwrap(res)
   },
-  async receive(
-    id: string,
-    body: ReceivePurchaseOrderBody
-  ): Promise<ReceiveReceiptDto> {
-    if (!useRustBackend()) {
+  async receive(id: string, body: ReceivePurchaseOrderBody): Promise<ReceiveReceiptDto> {
+    if (!isRustBackendEnabled()) {
       // Legacy `receivePurchaseOrder(id, items, receivedBy?)` has a
       // different item shape (itemId / quantityReceived / rollData
       // camelCase). Convert at the boundary.
@@ -225,9 +209,7 @@ export const purchaseOrders = {
       }))
       const receipt = await legacyPos.receivePurchaseOrder(
         id,
-        legacyItems as unknown as Parameters<
-          typeof legacyPos.receivePurchaseOrder
-        >[1]
+        legacyItems as unknown as Parameters<typeof legacyPos.receivePurchaseOrder>[1]
       )
       return receipt as unknown as ReceiveReceiptDto
     }
@@ -239,7 +221,7 @@ export const purchaseOrders = {
   },
   items: {
     async list(po_id: string): Promise<PurchaseOrderItemDto[]> {
-      if (!useRustBackend()) {
+      if (!isRustBackendEnabled()) {
         // Legacy doesn't expose a standalone items-list call; the
         // detail route embeds items. Pull the PO + extract.
         const row = (await legacyPos.getPurchaseOrderById(po_id)) as unknown as {
@@ -252,18 +234,14 @@ export const purchaseOrders = {
       })
       return unwrap(res)
     },
-    async add(
-      po_id: string,
-      body: CreatePurchaseOrderItemBody
-    ): Promise<PurchaseOrderItemDto> {
-      if (!useRustBackend()) {
+    async add(po_id: string, body: CreatePurchaseOrderItemBody): Promise<PurchaseOrderItemDto> {
+      if (!isRustBackendEnabled()) {
         // Legacy takes a single object that carries
         // purchase_order_id — merge the path segment + body.
-        const row = await legacyPos.addItemToPurchaseOrder(
-          { ...body, purchase_order_id: po_id } as unknown as Parameters<
-            typeof legacyPos.addItemToPurchaseOrder
-          >[0]
-        )
+        const row = await legacyPos.addItemToPurchaseOrder({
+          ...body,
+          purchase_order_id: po_id,
+        } as unknown as Parameters<typeof legacyPos.addItemToPurchaseOrder>[0])
         return row as unknown as PurchaseOrderItemDto
       }
       const res = await rfClient.POST("/api/v2/po/{po_id}/items", {
@@ -277,12 +255,10 @@ export const purchaseOrders = {
       item_id: string,
       body: UpdatePurchaseOrderItemBody
     ): Promise<PurchaseOrderItemDto> {
-      if (!useRustBackend()) {
+      if (!isRustBackendEnabled()) {
         const row = await legacyPos.updatePurchaseOrderItem(
           item_id,
-          body as unknown as Parameters<
-            typeof legacyPos.updatePurchaseOrderItem
-          >[1]
+          body as unknown as Parameters<typeof legacyPos.updatePurchaseOrderItem>[1]
         )
         return row as unknown as PurchaseOrderItemDto
       }
@@ -293,7 +269,7 @@ export const purchaseOrders = {
       return unwrap(res)
     },
     async delete(po_id: string, item_id: string): Promise<void> {
-      if (!useRustBackend()) {
+      if (!isRustBackendEnabled()) {
         await legacyPos.deletePurchaseOrderItem(item_id)
         return
       }
@@ -311,7 +287,7 @@ export const purchaseOrders = {
 
 export const reorderRules = {
   async list(): Promise<ReorderRuleDto[]> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const rows = await legacyReorder.getAllReorderRules()
       return rows as unknown as ReorderRuleDto[]
     }
@@ -319,7 +295,7 @@ export const reorderRules = {
     return unwrap(res)
   },
   async get(id: string): Promise<ReorderRuleDto | null> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       try {
         const row = await legacyReorder.getReorderRuleById(id)
         return row as unknown as ReorderRuleDto
@@ -334,7 +310,7 @@ export const reorderRules = {
     return unwrap(res)
   },
   async create(body: CreateReorderRuleBody): Promise<ReorderRuleDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const row = await legacyReorder.createReorderRule(
         body as unknown as Parameters<typeof legacyReorder.createReorderRule>[0]
       )
@@ -344,7 +320,7 @@ export const reorderRules = {
     return unwrap(res)
   },
   async update(id: string, body: UpdateReorderRuleBody): Promise<ReorderRuleDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const row = await legacyReorder.updateReorderRule(
         id,
         body as unknown as Parameters<typeof legacyReorder.updateReorderRule>[1]
@@ -358,7 +334,7 @@ export const reorderRules = {
     return unwrap(res)
   },
   async delete(id: string): Promise<void> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       await legacyReorder.deleteReorderRule(id)
       return
     }
@@ -367,10 +343,8 @@ export const reorderRules = {
     })
     if (!res.response.ok) unwrap(res)
   },
-  async suggestions(params?: {
-    include_pending?: boolean
-  }): Promise<ReorderSuggestionDto[]> {
-    if (!useRustBackend()) {
+  async suggestions(params?: { include_pending?: boolean }): Promise<ReorderSuggestionDto[]> {
+    if (!isRustBackendEnabled()) {
       // Do NOT forward `include_pending` to legacy —
       // `generateReorderSuggestions(includeInactive)` takes a
       // parameter with a completely different meaning ("include
@@ -387,11 +361,8 @@ export const reorderRules = {
     })
     return unwrap(res)
   },
-  async createPo(
-    id: string,
-    body: CreateReorderPoRowBody
-  ): Promise<ReorderPoReceiptDto> {
-    if (!useRustBackend()) {
+  async createPo(id: string, body: CreateReorderPoRowBody): Promise<ReorderPoReceiptDto> {
+    if (!isRustBackendEnabled()) {
       // Legacy `createAutomaticPurchaseOrder(suggestion)` expects a
       // shape with materialTypeId / suggestedQuantity / estimatedCost
       // / supplierId / reorderRuleId. The UI today reaches into
@@ -403,16 +374,14 @@ export const reorderRules = {
         "reorder createPo flag-OFF path not wired; flip NEXT_PUBLIC_USE_RUST_PROCUREMENT=true for this surface or call reorderService directly"
       )
     }
-    const res = await rfClient.POST(
-      "/api/v2/reorder-rules/{id}/create-po",
-      { params: { path: { id } }, body }
-    )
+    const res = await rfClient.POST("/api/v2/reorder-rules/{id}/create-po", {
+      params: { path: { id } },
+      body,
+    })
     return unwrap(res)
   },
-  async createIndividualPos(
-    body: CreateReorderPoBatchBody
-  ): Promise<ReorderPoReceiptDto[]> {
-    if (!useRustBackend()) {
+  async createIndividualPos(body: CreateReorderPoBatchBody): Promise<ReorderPoReceiptDto[]> {
+    if (!isRustBackendEnabled()) {
       throw new Error(
         "reorder createIndividualPos flag-OFF path not wired; flip the flag or call the legacy handler"
       )
@@ -422,10 +391,8 @@ export const reorderRules = {
     })
     return unwrap(res)
   },
-  async createBulkPo(
-    body: CreateReorderPoBulkBody
-  ): Promise<ReorderPoReceiptDto> {
-    if (!useRustBackend()) {
+  async createBulkPo(body: CreateReorderPoBulkBody): Promise<ReorderPoReceiptDto> {
+    if (!isRustBackendEnabled()) {
       throw new Error(
         "reorder createBulkPo flag-OFF path not wired; flip the flag or call the legacy handler"
       )
@@ -444,7 +411,7 @@ export const reorderRules = {
 export const importRolls = {
   /** Commit reviewed rows from the dedicated import page. */
   async uploadJson(body: ImportRollsBody): Promise<ImportReceiptDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       // Legacy uses `csvService.uploadRolls(rolls)` with the full
       // Roll shape, NOT the reviewed-row shape. The dedicated
       // review page converts rows to Partial<Roll> before calling.
@@ -456,9 +423,7 @@ export const importRolls = {
       return {
         imported: result.count ?? 0,
         skipped: 0,
-        errors: result.error
-          ? [{ row_number: 0, message: result.error }]
-          : [],
+        errors: result.error ? [{ row_number: 0, message: result.error }] : [],
       }
     }
     const res = await rfClient.POST("/api/v2/import/rolls", { body })
@@ -466,7 +431,7 @@ export const importRolls = {
   },
   /** Upload raw CSV bytes from the main inventory page quick-upload. */
   async uploadCsv(file: File): Promise<ImportReceiptDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const csvText = await file.text()
       const rows = legacyCsv.parseCSV(csvText)
       const rollPartials = legacyCsv.transformToRolls(rows)
@@ -474,9 +439,7 @@ export const importRolls = {
       return {
         imported: result.count ?? 0,
         skipped: 0,
-        errors: result.error
-          ? [{ row_number: 0, message: result.error }]
-          : [],
+        errors: result.error ? [{ row_number: 0, message: result.error }] : [],
       }
     }
     const res = await fetch("/api/v2/import/rolls/csv", {
@@ -519,7 +482,7 @@ export const importRolls = {
 
 export const tax = {
   async preview(supplierId: string, subtotal: number): Promise<TaxPreviewDto> {
-    if (!useRustBackend()) {
+    if (!isRustBackendEnabled()) {
       const calc = await legacyTax.calculatePurchaseOrderTax(supplierId, subtotal)
       return {
         tax_amount: calc.taxAmount,

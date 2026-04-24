@@ -46,13 +46,11 @@ export async function uploadJobPdf(
   const safeName = fileName.replace(/[^A-Za-z0-9._-]/g, "_")
   const path = `${userId}/${jobId}-${Date.now()}-${safeName}`
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, pdfBlob, {
-      cacheControl: "3600",
-      contentType: "application/pdf",
-      upsert: false,
-    })
+  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, pdfBlob, {
+    cacheControl: "3600",
+    contentType: "application/pdf",
+    upsert: false,
+  })
   if (uploadError) {
     throw new Error(`Failed to upload job PDF: ${uploadError.message}`)
   }
@@ -63,14 +61,10 @@ export async function uploadJobPdf(
   if (signError || !data?.signedUrl) {
     // Upload succeeded but signing failed — surface both so the
     // operator knows the object exists even if the link doesn't.
-    throw new Error(
-      `Uploaded but failed to sign URL: ${signError?.message ?? "unknown error"}`
-    )
+    throw new Error(`Uploaded but failed to sign URL: ${signError?.message ?? "unknown error"}`)
   }
 
-  const expiresAt = new Date(
-    Date.now() + JOB_PDF_SHARE_TTL_SECONDS * 1000
-  ).toISOString()
+  const expiresAt = new Date(Date.now() + JOB_PDF_SHARE_TTL_SECONDS * 1000).toISOString()
 
   return {
     signedUrl: data.signedUrl,

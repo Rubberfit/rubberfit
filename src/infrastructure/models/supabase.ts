@@ -657,4 +657,3 @@ export interface CutHistoryFavorite {
   cut_history_id: string
   created_at: string | null
 }
-

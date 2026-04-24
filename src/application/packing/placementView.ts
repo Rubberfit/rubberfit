@@ -1,12 +1,6 @@
 import type { Point2D, ShapeSpec } from "@/src/application/packing/types"
 
-export type RenderShape =
-  | "rect"
-  | "circle"
-  | "trapezoid"
-  | "sector"
-  | "ngon"
-  | "polygon"
+export type RenderShape = "rect" | "circle" | "trapezoid" | "sector" | "ngon" | "polygon"
 
 export interface PlacementViewItem {
   shapeId: string

@@ -145,9 +145,7 @@ export const authMfaService = {
    */
   async isChallengeRequired(): Promise<boolean> {
     const factors = await this.listFactors()
-    const hasVerified = factors.some(
-      (f) => f.status === "verified" && f.factorType === "totp"
-    )
+    const hasVerified = factors.some((f) => f.status === "verified" && f.factorType === "totp")
     let aalCurrent: string | null = null
     let aalNext: string | null = null
     try {

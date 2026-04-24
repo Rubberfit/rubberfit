@@ -1,9 +1,4 @@
-import type {
-  Bin,
-  PackRequest,
-  PackResult,
-  ShapeSpec,
-} from "@/src/application/packing/types"
+import type { Bin, PackRequest, PackResult, ShapeSpec } from "@/src/application/packing/types"
 import type {
   PlacementView,
   PlacementViewItem,
@@ -11,14 +6,9 @@ import type {
   RenderShape,
 } from "@/src/application/packing/placementView"
 
-export function buildPlacementView(
-  result: PackResult,
-  request: PackRequest
-): PlacementView {
+export function buildPlacementView(result: PackResult, request: PackRequest): PlacementView {
   const partsById = new Map(request.items.map((p) => [p.shapeId, p]))
-  const binsFromRequest = new Map<string, Bin>(
-    request.bins.map((b) => [b.binId, b])
-  )
+  const binsFromRequest = new Map<string, Bin>(request.bins.map((b) => [b.binId, b]))
   const binsById = new Map<string, PlacementViewBin>()
 
   for (const br of result.perBin) {

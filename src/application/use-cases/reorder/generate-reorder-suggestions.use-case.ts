@@ -106,11 +106,7 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
     const { supplierId, supplierName } = await this.resolveSupplier(rule)
 
     const urgencyLevel = mapUrgency(
-      this.reorderCalculations.determineUrgency(
-        currentStock,
-        reorderPoint,
-        rule.safety_stock_days
-      )
+      this.reorderCalculations.determineUrgency(currentStock, reorderPoint, rule.safety_stock_days)
     )
 
     return {

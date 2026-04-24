@@ -61,10 +61,7 @@ export interface JobMaterialSufficiency {
   /** Parts where `width > max_available_width` — no roll can cut them. */
   infeasible_parts: InfeasibleJobPart[]
   /** Individual rolls feeding the availability number — caller can render them. */
-  matching_rolls: Pick<
-    Roll,
-    "id" | "part_number" | "width" | "remaining_length" | "location"
-  >[]
+  matching_rolls: Pick<Roll, "id" | "part_number" | "width" | "remaining_length" | "location">[]
 }
 
 /** Minimal roll shape the aggregator needs (lets tests pass lightweight fixtures). */
@@ -112,10 +109,7 @@ export function aggregateSufficiency(
   // remaining length (can't reserve more than exists).
   const reservedByRoll = new Map<string, number>()
   for (const a of otherJobAllocations) {
-    reservedByRoll.set(
-      a.roll_id,
-      (reservedByRoll.get(a.roll_id) ?? 0) + a.allocated_length
-    )
+    reservedByRoll.set(a.roll_id, (reservedByRoll.get(a.roll_id) ?? 0) + a.allocated_length)
   }
 
   // Bucket parts + rolls by normalised material name. Using the
@@ -147,14 +141,8 @@ export function aggregateSufficiency(
   const results: JobMaterialSufficiency[] = []
   for (const [key, { display, parts: groupParts }] of partsByMaterial) {
     const materialRolls = rollsByMaterial.get(key) ?? []
-    const maxAvailableWidth = materialRolls.reduce(
-      (max, r) => (r.width > max ? r.width : max),
-      0
-    )
-    const maxRequiredWidth = groupParts.reduce(
-      (max, p) => (p.width > max ? p.width : max),
-      0
-    )
+    const maxAvailableWidth = materialRolls.reduce((max, r) => (r.width > max ? r.width : max), 0)
+    const maxRequiredWidth = groupParts.reduce((max, p) => (p.width > max ? p.width : max), 0)
 
     const infeasibleParts: InfeasibleJobPart[] = []
     for (const p of groupParts) {
@@ -171,10 +159,7 @@ export function aggregateSufficiency(
 
     // Total needed counts every part — the UI shows infeasibility
     // separately, but the sqft figure reflects the whole job.
-    const needed = groupParts.reduce(
-      (sum, p) => sum + (p.width * p.length * p.quantity) / 144,
-      0
-    )
+    const needed = groupParts.reduce((sum, p) => sum + (p.width * p.length * p.quantity) / 144, 0)
 
     let available = 0
     let reserved = 0
@@ -243,7 +228,9 @@ export type CreateJobInput = Pick<Job, "name"> &
     >
   >
 
-export type UpdateJobInput = Partial<Omit<Job, "id" | "user_id" | "job_number" | "created_at" | "updated_at">>
+export type UpdateJobInput = Partial<
+  Omit<Job, "id" | "user_id" | "job_number" | "created_at" | "updated_at">
+>
 
 export type CreateJobPartInput = Pick<JobPart, "job_id" | "width" | "length" | "quantity"> &
   Partial<
@@ -327,11 +314,7 @@ export class JobsRepository {
   // ── job_parts ────────────────────────────────────────────────
 
   async addPart(input: CreateJobPartInput): Promise<JobPart> {
-    const { data, error } = await supabase
-      .from("job_parts")
-      .insert(input)
-      .select()
-      .single()
+    const { data, error } = await supabase.from("job_parts").insert(input).select().single()
     if (error) throw error
     return data as JobPart
   }
@@ -365,10 +348,8 @@ export class JobsRepository {
       this.listAssignees(id),
       this.listAllocations(id),
     ])
-    const assignees =
-      assigneesR.status === "fulfilled" ? assigneesR.value : []
-    const allocations =
-      allocationsR.status === "fulfilled" ? allocationsR.value : []
+    const assignees = assigneesR.status === "fulfilled" ? assigneesR.value : []
+    const allocations = allocationsR.status === "fulfilled" ? allocationsR.value : []
     if (assigneesR.status === "rejected") {
       console.error("[jobs] listAssignees failed", assigneesR.reason)
     }
@@ -393,11 +374,7 @@ export class JobsRepository {
   }
 
   async addAssignee(input: CreateJobAssigneeInput): Promise<JobAssignee> {
-    const { data, error } = await supabase
-      .from("job_assignees")
-      .insert(input)
-      .select()
-      .single()
+    const { data, error } = await supabase.from("job_assignees").insert(input).select().single()
     if (error) throw error
     return data as JobAssignee
   }
@@ -547,11 +524,7 @@ export class JobsRepository {
    *   - Never stomp on `completed` or `cancelled` — those are
    *     terminal states the operator chose explicitly.
    */
-  static shouldAutoComplete(
-    needed: number,
-    completed: number,
-    currentStatus: string
-  ): boolean {
+  static shouldAutoComplete(needed: number, completed: number, currentStatus: string): boolean {
     if (needed <= 0) return false
     if (completed < needed) return false
     if (currentStatus === "completed" || currentStatus === "cancelled") return false

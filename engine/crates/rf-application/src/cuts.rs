@@ -173,6 +173,7 @@ mod tests {
             cut_date: None,
             created_at: None,
             updated_at: None,
+            source: None,
         }
     }
 

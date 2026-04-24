@@ -1,8 +1,4 @@
-import type {
-  PackRequest,
-  PackResult,
-  PackProgress,
-} from "@/src/application/packing/types"
+import type { PackRequest, PackResult, PackProgress } from "@/src/application/packing/types"
 
 /**
  * Task 16: optional AbortSignal for cooperative cancellation.

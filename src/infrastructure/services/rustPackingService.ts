@@ -37,9 +37,7 @@ class PackingServerOnlyError extends Error {
   }
 }
 
-async function loadChildProcess(): Promise<
-  typeof import("node:child_process")
-> {
+async function loadChildProcess(): Promise<typeof import("node:child_process")> {
   if (cachedChildProcess) return cachedChildProcess
   // Browser short-circuit. Keeps the Function() wrapper past
   // Turbopack's static analysis above, but rejects cleanly before
@@ -59,14 +57,8 @@ import type {
   IPackingService,
   PackOptions,
 } from "@/src/application/services/packing.service.interface"
-import {
-  PackingAbortedError,
-} from "@/src/application/packing/types"
-import type {
-  PackRequest,
-  PackResult,
-  PackProgress,
-} from "@/src/application/packing/types"
+import { PackingAbortedError } from "@/src/application/packing/types"
+import type { PackRequest, PackResult, PackProgress } from "@/src/application/packing/types"
 
 // Default binary location — the build writes `pack-cli` to
 // `engine/target/release` under the cwd. String concat is safe on
@@ -74,8 +66,7 @@ import type {
 // we'd need node:path, which would pull us back into the bundler-
 // escape-hatch territory we just left.
 const DEFAULT_BINARY =
-  (typeof process !== "undefined" ? process.cwd?.() : "") +
-  "/engine/target/release/pack-cli"
+  (typeof process !== "undefined" ? process.cwd?.() : "") + "/engine/target/release/pack-cli"
 
 /**
  * Task 16: RustPackingService wires pack-cli's `--stream` protocol
@@ -105,23 +96,16 @@ export class RustPackingService implements IPackingService {
 
   async pack(
     request: PackRequest,
-    optionsOrCallback?:
-      | PackOptions
-      | ((progress: PackProgress) => void)
+    optionsOrCallback?: PackOptions | ((progress: PackProgress) => void)
   ): Promise<PackResult> {
     const options = normalizeOptions(optionsOrCallback)
 
     if (options.signal?.aborted) {
-      throw new PackingAbortedError(
-        "signal already aborted before pack() started"
-      )
+      throw new PackingAbortedError("signal already aborted before pack() started")
     }
 
-    const streaming =
-      options.onProgress !== undefined || options.signal !== undefined
-    return streaming
-      ? this.packStreaming(request, options)
-      : this.packBatch(request)
+    const streaming = options.onProgress !== undefined || options.signal !== undefined
+    return streaming ? this.packStreaming(request, options) : this.packBatch(request)
   }
 
   private async packBatch(request: PackRequest): Promise<PackResult> {
@@ -145,14 +129,8 @@ export class RustPackingService implements IPackingService {
           try {
             resolve(JSON.parse(stdout) as PackResult)
           } catch (error) {
-            const context = stderr.trim()
-              ? ` | stderr: ${stderr.trim()}`
-              : ""
-            reject(
-              new Error(
-                `pack-cli stdout parse error: ${(error as Error).message}${context}`
-              )
-            )
+            const context = stderr.trim() ? ` | stderr: ${stderr.trim()}` : ""
+            reject(new Error(`pack-cli stdout parse error: ${(error as Error).message}${context}`))
           }
         } else {
           reject(new Error(`pack-cli exited ${code}: ${stderr.trim()}`))
@@ -164,10 +142,7 @@ export class RustPackingService implements IPackingService {
     })
   }
 
-  private async packStreaming(
-    request: PackRequest,
-    options: PackOptions
-  ): Promise<PackResult> {
+  private async packStreaming(request: PackRequest, options: PackOptions): Promise<PackResult> {
     const { spawn } = await loadChildProcess()
     return new Promise<PackResult>((resolve, reject) => {
       const child = spawn(this.binary, ["--stream"], {
@@ -213,9 +188,7 @@ export class RustPackingService implements IPackingService {
           lineBuffer = lineBuffer.slice(newlineIdx + 1)
           if (!line) continue
           try {
-            const parsed = JSON.parse(line) as
-              | PackProgress
-              | PackResult
+            const parsed = JSON.parse(line) as PackProgress | PackResult
             if (isPackResult(parsed)) {
               finalResult = parsed
             } else if (options.onProgress && isPackProgress(parsed)) {
@@ -231,9 +204,7 @@ export class RustPackingService implements IPackingService {
             // A malformed line likely indicates a corrupt pack-cli build.
             // Log once to stderr and continue reading — may still receive
             // a valid final PackResult.
-            console.error(
-              `RustPackingService: failed to parse NDJSON line: ${line}`
-            )
+            console.error(`RustPackingService: failed to parse NDJSON line: ${line}`)
           }
         }
       })
@@ -262,11 +233,7 @@ export class RustPackingService implements IPackingService {
           reject(new Error(`pack-cli exited ${code}: ${stderr.trim()}`))
           return
         }
-        reject(
-          new Error(
-            "pack-cli --stream produced no PackResult line before exit"
-          )
-        )
+        reject(new Error("pack-cli --stream produced no PackResult line before exit"))
       })
 
       child.stdin.write(JSON.stringify(request))
@@ -287,9 +254,7 @@ export class RustPackingService implements IPackingService {
 
 // ---------- helpers ----------
 
-function normalizeOptions(
-  input?: PackOptions | ((progress: PackProgress) => void)
-): PackOptions {
+function normalizeOptions(input?: PackOptions | ((progress: PackProgress) => void)): PackOptions {
   if (!input) return {}
   if (typeof input === "function") return { onProgress: input }
   return input
@@ -306,10 +271,6 @@ function isPackResult(v: unknown): v is PackResult {
 
 function isPackProgress(v: unknown): v is PackProgress {
   return (
-    typeof v === "object" &&
-    v !== null &&
-    "iteration" in v &&
-    "phase" in v &&
-    !("placements" in v)
+    typeof v === "object" && v !== null && "iteration" in v && "phase" in v && !("placements" in v)
   )
 }
