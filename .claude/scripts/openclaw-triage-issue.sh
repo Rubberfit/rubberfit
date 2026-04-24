@@ -291,7 +291,6 @@ COMMENT_FILE=$(mktemp -t openclaw-comment.XXXXXX)
   if [ -n "$TECH_NOTES" ]; then
     printf '\n---\n\n### Triage notes\n\n%s\n' "$TECH_NOTES"
   fi
-  printf '\n---\n_Model: `kimi-k2.6:cloud` via OpenClaw. Re-run: `.claude/scripts/openclaw-triage-issue.sh %s --apply`_\n' "$ISSUE_NUM"
 } > "$COMMENT_FILE"
 gh issue comment "$ISSUE_NUM" --body-file "$COMMENT_FILE" >/dev/null
 rm -f "$COMMENT_FILE"
