@@ -48,7 +48,14 @@ export function useLoadManualCut({
         })
         return
       }
+      // Discriminated union: bail if this is an auto-nest snapshot
+      // that snuck in (shouldn't happen — Reopen routes manual cuts
+      // here — but defensively reject).
       const snapshot = cut.layout_json
+      if (snapshot.kind === "auto") {
+        toast.error("This cut has an auto-nest snapshot, not a manual layout")
+        return
+      }
       if (!Array.isArray(snapshot.placements) || !Array.isArray(snapshot.parts)) {
         toast.error("Saved layout is malformed — skipping load")
         return

@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory, PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import type {
+  CutHistory,
+  CutHistoryLayoutJson,
+  PartCustomDimensions,
+} from "@/src/infrastructure/models/supabase"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 import { JobsRepository } from "@/src/infrastructure/repositories/jobs.repository"
 
@@ -348,11 +352,15 @@ export async function POST(request: NextRequest) {
     // `manual` = Free-roam canvas. DB column has DEFAULT 'auto' so
     // old callers that don't send this still classify correctly.
     source: body.source === "manual" ? "manual" : "auto",
-    // Free-roam's canvas snapshot, stored verbatim as JSONB. Only
-    // meaningful for manual cuts — the client re-hydrates placements
-    // from this on load. Auto-nest callers don't send it; column is
-    // nullable so existing rows are untouched.
-    layout_json: body.source === "manual" && body.layout_json != null ? body.layout_json : null,
+    // Layout snapshot stored verbatim as JSONB. The discriminated
+    // shape (`kind: "manual" | "auto"`) lets Free-roam load the exact
+    // canvas + Auto-nest load the exact per-template quantities and
+    // frozen multi-sheet layouts. Nullable so pre-migration rows +
+    // any client that doesn't send it stay clean. Typed as the DTO
+    // shape for ergonomics — the server doesn't validate the JSON
+    // structure (the client is the sole reader / writer).
+    layout_json:
+      body.layout_json != null ? (body.layout_json as CutHistoryLayoutJson) : null,
   }
 
   const { data, error } = await db.from("cut_history").insert(insert).select().single()

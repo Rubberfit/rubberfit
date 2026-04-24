@@ -201,6 +201,20 @@ function CutPlannerPageInner() {
         )
       }
 
+      // Restore per-template quantities from layout_json (auto-nest
+      // snapshots persist them to round-trip exactly). Fall back to
+      // `cut_amount` for each template when the snapshot is missing
+      // — the same lossy behavior as before, so pre-snapshot rows
+      // still load, just without multi-sheet fidelity.
+      const storedQtys =
+        cut.layout_json && cut.layout_json.kind === "auto"
+          ? cut.layout_json.perTemplateQuantities
+          : null
+      const quantityFor = (i: number): number => {
+        if (storedQtys && Number.isFinite(storedQtys[i])) return storedQtys[i]
+        return cut.cut_amount
+      }
+
       const templates: PartTemplate[] =
         sizeTexts.length > 0
           ? sizeTexts.map((label, i) => ({
@@ -208,7 +222,7 @@ function CutPlannerPageInner() {
               partType,
               label,
               summary: sizeLabels[i] ?? label,
-              quantity: cut.cut_amount,
+              quantity: quantityFor(i),
               category: "custom" as const,
               isCustom: true,
               ...resolveDims(label, i),
@@ -219,7 +233,7 @@ function CutPlannerPageInner() {
                 partType,
                 label: `${cut.cut_width}" × ${cut.cut_length}"`,
                 summary: "Loaded cut",
-                quantity: cut.cut_amount,
+                quantity: quantityFor(0),
                 category: "custom" as const,
                 isCustom: true,
                 width: cut.part_custom_width ?? cut.cut_width,
@@ -242,6 +256,10 @@ function CutPlannerPageInner() {
         labels: sizeTexts,
         nonce: Date.now(),
         customDimensions: storedDims ?? undefined,
+        // Pass through the per-template quantities so the selector
+        // can restore the Map with the right counts (see
+        // `use-preset-state.ts` Path A — `perQty` branch).
+        perTemplateQuantities: storedQtys ?? undefined,
       })
 
       toast.success("Cut configuration loaded")
@@ -495,6 +513,18 @@ function CutPlannerPageInner() {
         fab_score: cutMetrics?.fabScore ?? 0,
         stock_label: stockLabel,
         cost_per_sqft: stock.costPerSqft ?? null,
+        // Auto-nest layout snapshot — stores per-template quantities
+        // (cut_amount is a scalar and can't represent multi-template
+        // cuts) + the frozen multi-sheet layouts from this pack run so
+        // a reopen can restore the exact geometry rather than
+        // re-packing from scratch. Field is optional server-side so a
+        // missing column (old DBs) doesn't break the insert.
+        layout_json: {
+          version: 1,
+          kind: "auto",
+          perTemplateQuantities: selectedTemplates.map((t) => t.quantity ?? 1),
+          layouts: layouts.length > 0 ? layouts : undefined,
+        },
       }
 
       const response = await fetch("/api/cuts/history", {

@@ -495,8 +495,27 @@ export interface CutHistory {
   updated_at: string
 }
 
-export interface CutHistoryLayoutJson {
+/**
+ * Canvas / layout snapshot attached to a cut_history row. Discriminated
+ * on `kind`:
+ *
+ *   - `"manual"` (default when absent) — Free-roam CAD placements.
+ *     Carries everything needed to rehydrate the canvas: placements
+ *     (with x/y/rotation), the full parts queue, and the stock config.
+ *
+ *   - `"auto"` — Auto-nest output. Stores per-template quantities
+ *     (which cut_history's scalar `cut_amount` loses) plus an
+ *     optional frozen `layouts` array so a multi-sheet reopen can
+ *     skip the re-pack and render the original geometry. If `layouts`
+ *     is absent, the re-pack fallback uses `perTemplateQuantities`
+ *     for correct inputs.
+ */
+export type CutHistoryLayoutJson = CutHistoryLayoutJsonManual | CutHistoryLayoutJsonAuto
+
+export interface CutHistoryLayoutJsonManual {
   version: 1
+  /** Absent on pre-kind rows — implicitly manual. */
+  kind?: "manual"
   placements: Array<{
     id: string
     templateId: string
@@ -512,6 +531,25 @@ export interface CutHistoryLayoutJson {
     material?: string
     costPerSqft?: number | null
   }
+}
+
+export interface CutHistoryLayoutJsonAuto {
+  version: 1
+  kind: "auto"
+  /**
+   * Per-template quantities in the same order as
+   * `cut_history.part_selected_size_text`. Restores the exact pack
+   * input that the scalar `cut_amount` can't represent for
+   * multi-template cuts.
+   */
+  perTemplateQuantities: number[]
+  /**
+   * Frozen post-rotation layouts from the original pack run. When
+   * present, reopening the cut bypasses the re-pack so the operator
+   * sees the same multi-sheet split as the original session. Opaque
+   * LayoutModel[] — the client is sole reader / writer.
+   */
+  layouts?: unknown[]
 }
 
 export interface RollReusableOffcutSummary {

@@ -63,6 +63,13 @@ export interface LoadedSelection {
    * it and optionally save it as a permanent preset.
    */
   prebuiltTemplates?: PartTemplate[]
+  /**
+   * Per-template quantities (same order as `labels` / `customDimensions`).
+   * Recorded for auto-nest reloads so multi-template cuts re-pack with the
+   * exact original inputs instead of collapsing to a single `cut_amount`
+   * scalar. Written by `handleLoadCut` when `cut.layout_json.kind === "auto"`.
+   */
+  perTemplateQuantities?: number[]
 }
 
 /** Returns the first template whose dimensions exactly match the stored dimension set. */
@@ -368,6 +375,20 @@ export function usePresetState(
         setChecked(new Set())
       } else {
         setChecked(new Set(idsToCheck))
+      }
+
+      // Propagate per-template quantities from the loaded cut into
+      // the quantities Map so multi-template cuts re-pack with the
+      // original per-row counts (cut_history's scalar `cut_amount`
+      // can't represent them).
+      const perQty = loadedSelection.perTemplateQuantities
+      if (perQty && perQty.length > 0) {
+        const nextQty = new Map<string, number>()
+        idsToCheck.forEach((id, i) => {
+          const q = perQty[i]
+          if (Number.isFinite(q) && q > 1) nextQty.set(id, q)
+        })
+        setQuantities(nextQty)
       }
 
       const d = customDimensions[0]

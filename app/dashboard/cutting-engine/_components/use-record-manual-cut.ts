@@ -55,6 +55,7 @@ export function useRecordManualCut(
       // rows and migrate forward gracefully.
       const layoutJson: CutHistoryLayoutJson = {
         version: 1,
+        kind: "manual",
         placements: placements.map((p) => ({
           id: p.id,
           templateId: p.templateId,
