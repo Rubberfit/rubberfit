@@ -65,6 +65,7 @@ temp/
 # …except operator scripts that only read secrets from env vars —
 # these are explicitly audited and safe to commit.
 !engine/crates/rf-api/scripts/smoke.sh
+!.claude/scripts/*.sh
 
 # Internal planning docs — working files for us, not part of the
 # repo. Specs + benchmarks under docs/superpowers/ stay tracked;
