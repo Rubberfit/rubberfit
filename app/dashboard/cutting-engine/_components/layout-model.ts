@@ -305,10 +305,20 @@ function layoutPartToPreviewItem(part: PlacedPart): PreviewItem {
 
 function boundsForItems(items: PreviewItem[]) {
   if (items.length === 0) return { occupiedWidth: 0, occupiedHeight: 0 }
-  const minX = Math.min(...items.map((item) => item.x))
-  const minY = Math.min(...items.map((item) => item.y))
-  const maxX = Math.max(...items.map((item) => item.x + item.width))
-  const maxY = Math.max(...items.map((item) => item.y + item.height))
+  // Single-pass reduce — `Math.min(...arr)` would spread every element onto
+  // the call stack and blow up on large layouts (CR finding on PR #133).
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const item of items) {
+    if (item.x < minX) minX = item.x
+    if (item.y < minY) minY = item.y
+    const right = item.x + item.width
+    const bottom = item.y + item.height
+    if (right > maxX) maxX = right
+    if (bottom > maxY) maxY = bottom
+  }
   return {
     occupiedWidth: Math.max(0, maxX - minX),
     occupiedHeight: Math.max(0, maxY - minY),
