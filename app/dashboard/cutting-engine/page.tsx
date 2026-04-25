@@ -26,8 +26,8 @@ import {
   getRequestedSqFt,
   getDefaultCutDirection,
   parseCutRatios,
-  parseDimsFromLabel,
 } from "./_components/cut-planner-utils"
+import { buildTemplatesFromCutRecord } from "./_components/cut-load-utils"
 import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
 import {
@@ -53,15 +53,40 @@ const DEMO_STOCK: StockConfig = {
   thickness: 0.5,
 }
 
-// Maps part_id (1-based index into PART_OPTIONS) back to a SupportedPartType
-const PART_ID_TO_TYPE: Record<number, SupportedPartType> = {
-  1: "rectangle",
-  2: "cylinder",
-  3: "cone",
-  4: "trapezoid",
+// Helpers
+
+function finiteOrNull(value: number | undefined): number | null {
+  return value !== undefined && Number.isFinite(value) ? value : null
 }
 
-// Helpers
+function buildFrozenLayoutInputSignature(
+  stockWidth: number,
+  stockLength: number,
+  templates: readonly PartTemplate[],
+  cutDirection: SimpleCutDirection,
+  cutRatios?: readonly number[]
+): string {
+  return JSON.stringify({
+    stockWidth,
+    stockLength,
+    cutDirection,
+    cutRatios: cutRatios ?? null,
+    templates: templates.map((template) => ({
+      partType: template.partType,
+      quantity: template.quantity ?? 1,
+      width: finiteOrNull(template.width),
+      length: finiteOrNull(template.length),
+      diameter: finiteOrNull(template.diameter),
+      height: finiteOrNull(template.height),
+      topWidth: finiteOrNull(template.topWidth),
+      bottomWidth: finiteOrNull(template.bottomWidth),
+      innerRadius: finiteOrNull(template.innerRadius),
+      outerRadius: finiteOrNull(template.outerRadius),
+      arcDegrees: finiteOrNull(template.arcDegrees),
+      partNumber: template.partNumber ?? null,
+    })),
+  })
+}
 
 function LayoutLabel() {
   return <Ruler className="h-4 w-4 text-slate-500" />
@@ -80,6 +105,8 @@ function CutPlannerPageInner() {
   // LayoutModel[] emitted by NestingVisualizer — used by cut-history-pdf
   // to render vector shapes instead of scraping DOM SVG.
   const [layouts, setLayouts] = useState<LayoutModel[]>([])
+  const [frozenLayouts, setFrozenLayouts] = useState<LayoutModel[] | null>(null)
+  const [frozenLayoutInputSignature, setFrozenLayoutInputSignature] = useState<string | null>(null)
   const [isRecordingCut, setIsRecordingCut] = useState(false)
   const [cutListRefreshKey, setCutListRefreshKey] = useState(0)
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
@@ -170,96 +197,50 @@ function CutPlannerPageInner() {
         materialTypeId: matchedMt?.id,
       })
 
-      // 3. Reconstruct part templates from stored labels + dimensions
-      const partType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
-      const sizeTexts = cut.part_selected_size_text ?? []
-      const sizeLabels = cut.part_selected_label ?? []
-      const storedDims = cut.part_custom_dimensions
+      // 2. Reconstruct part templates (delegated to a pure helper so the
+      //    per-template partType / dims / quantity logic is unit-tested
+      //    independently of React state). See `cut-load-utils.ts`.
+      const {
+        templates,
+        primaryPartType,
+        perTemplatePartTypes,
+        customDimensions,
+        perTemplateQuantities,
+        sizeTexts,
+        frozenLayouts: restoredLayouts,
+      } = buildTemplatesFromCutRecord(cut)
+      const nextCutDirection = getDefaultCutDirection(primaryPartType)
 
-      const resolveDims = (label: string, i: number): Partial<PartTemplate> => {
-        // Prefer explicit stored dimensions (new records); fall back to label
-        // regex for backward compatibility with old records.
-        if (storedDims && storedDims[i]) {
-          const d: PartCustomDimensions = storedDims[i]
-          return {
-            ...(d.width !== undefined && { width: d.width }),
-            ...(d.length !== undefined && { length: d.length }),
-            ...(d.diameter !== undefined && { diameter: d.diameter }),
-            ...(d.height !== undefined && { height: d.height }),
-            ...(d.topWidth !== undefined && { topWidth: d.topWidth }),
-            ...(d.bottomWidth !== undefined && { bottomWidth: d.bottomWidth }),
-            ...(d.innerRadius !== undefined && { innerRadius: d.innerRadius }),
-            ...(d.outerRadius !== undefined && { outerRadius: d.outerRadius }),
-            ...(d.arcDegrees !== undefined && { arcDegrees: d.arcDegrees }),
-          }
-        }
-        return parseDimsFromLabel(
-          partType,
-          label,
-          i === 0 ? cut.part_custom_width : null,
-          i === 0 ? cut.part_custom_height : null
-        )
-      }
-
-      // Restore per-template quantities from layout_json (auto-nest
-      // snapshots persist them to round-trip exactly). Fall back to
-      // `cut_amount` for each template when the snapshot is missing
-      // — the same lossy behavior as before, so pre-snapshot rows
-      // still load, just without multi-sheet fidelity.
-      const storedQtys =
-        cut.layout_json && cut.layout_json.kind === "auto"
-          ? cut.layout_json.perTemplateQuantities
-          : null
-      const quantityFor = (i: number): number => {
-        if (storedQtys && Number.isFinite(storedQtys[i])) return storedQtys[i]
-        return cut.cut_amount
-      }
-
-      const templates: PartTemplate[] =
-        sizeTexts.length > 0
-          ? sizeTexts.map((label, i) => ({
-              id: `loaded-${cut.id}-${i}`,
-              partType,
-              label,
-              summary: sizeLabels[i] ?? label,
-              quantity: quantityFor(i),
-              category: "custom" as const,
-              isCustom: true,
-              ...resolveDims(label, i),
-            }))
-          : [
-              {
-                id: `loaded-${cut.id}-0`,
-                partType,
-                label: `${cut.cut_width}" × ${cut.cut_length}"`,
-                summary: "Loaded cut",
-                quantity: quantityFor(0),
-                category: "custom" as const,
-                isCustom: true,
-                width: cut.part_custom_width ?? cut.cut_width,
-                length: cut.part_custom_height ?? cut.cut_length,
-              },
-            ]
-
-      // 4. Apply — clear uploaded parts so loaded config is the only source
+      // 3. Apply — clear uploaded parts so loaded config is the only source
       setUploadedParts([])
       setPresetParts(templates)
-      setCutDirection(getDefaultCutDirection(partType))
+      setCutDirection(nextCutDirection)
       setCustomCutRatioInput("")
+      setFrozenLayouts(restoredLayouts)
+      setFrozenLayoutInputSignature(
+        restoredLayouts
+          ? buildFrozenLayoutInputSignature(
+              cut.cut_width,
+              cut.cut_length,
+              templates,
+              nextCutDirection,
+              undefined
+            )
+          : null
+      )
 
-      // 5. Signal PresetDimensionSelector to select matching checkboxes.
-      //    Pass stored dimension data when available so the selector can
-      //    auto-create custom templates (index 0 fills the form, 1..n are
-      //    added to the list and checked).
+      // 4. Signal PresetDimensionSelector to select matching checkboxes.
+      //    Pass stored dimension data + per-template partTypes so the
+      //    selector can re-check the right boxes across multiple tabs
+      //    (issue #126: a saved trapezoid+rectangle cut needs both
+      //    types' checkboxes restored, not just the primary type's).
       setLoadedSelection({
-        partType,
+        partType: primaryPartType,
         labels: sizeTexts,
         nonce: Date.now(),
-        customDimensions: storedDims ?? undefined,
-        // Pass through the per-template quantities so the selector
-        // can restore the Map with the right counts (see
-        // `use-preset-state.ts` Path A — `perQty` branch).
-        perTemplateQuantities: storedQtys ?? undefined,
+        customDimensions: customDimensions ?? undefined,
+        perTemplateQuantities: perTemplateQuantities ?? undefined,
+        perTemplatePartTypes,
       })
 
       toast.success("Cut configuration loaded")
@@ -373,6 +354,30 @@ function CutPlannerPageInner() {
   const activeStockPreset = STOCK_PRESETS.find(
     (preset) => preset.width === stock.width && preset.length === stock.length
   )?.id
+  const currentFrozenLayoutInputSignature = useMemo(
+    () =>
+      buildFrozenLayoutInputSignature(
+        stock.width,
+        stock.length,
+        selectedTemplates,
+        cutDirection,
+        customCutRatios
+      ),
+    [stock.width, stock.length, selectedTemplates, cutDirection, customCutRatios]
+  )
+  const activeFrozenLayouts =
+    frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
+      ? frozenLayouts
+      : undefined
+
+  useEffect(() => {
+    if (!frozenLayouts || !frozenLayoutInputSignature) return
+    if (currentFrozenLayoutInputSignature === frozenLayoutInputSignature) return
+    setFrozenLayouts(null)
+    setFrozenLayoutInputSignature(null)
+    setLayouts([])
+    setCutMetrics(null)
+  }, [frozenLayouts, frozenLayoutInputSignature, currentFrozenLayoutInputSignature])
 
   const nestingSimpleParts = useMemo(
     () =>
@@ -523,6 +528,11 @@ function CutPlannerPageInner() {
           version: 1,
           kind: "auto",
           perTemplateQuantities: selectedTemplates.map((t) => t.quantity ?? 1),
+          // Issue #126: persist per-template partType so mixed-shape
+          // cuts (e.g. trapezoid + rectangle) round-trip exactly. Built
+          // from the same `selectedTemplates` array as the other
+          // per-template fields so indices stay aligned.
+          perTemplatePartTypes: selectedTemplates.map((t) => t.partType),
           layouts: layouts.length > 0 ? layouts : undefined,
         },
       }
@@ -798,6 +808,7 @@ function CutPlannerPageInner() {
                 onLayoutChange={setLayouts}
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
+                frozenLayouts={activeFrozenLayouts}
               />
             </CardContent>
           </Card>

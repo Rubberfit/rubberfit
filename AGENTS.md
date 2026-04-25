@@ -38,6 +38,7 @@
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
+  - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
 
 - .claude/
   - handoff/ — task briefs and second-opinion assignments

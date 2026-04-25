@@ -1,4 +1,5 @@
 // Types and interfaces for NestingVisualizer
+import type { LayoutModel } from "./layout-model"
 
 export type ShapeType = "rect" | "circle" | "cone"
 export type GrainDir = "none" | "width" | "length"
@@ -103,6 +104,12 @@ export interface NestingVisualizerProps {
   defaultQty?: number
   simplePart?: SimplePartSpec
   simpleParts?: SimplePartSpec[]
+  /**
+   * Saved post-rotation layouts from `cut_history.layout_json.auto.layouts`.
+   * When provided, the visualizer renders these exact sheets and bypasses
+   * sync/async packing so reloads do not drift from the saved cut.
+   */
+  frozenLayouts?: LayoutModel[]
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
 }

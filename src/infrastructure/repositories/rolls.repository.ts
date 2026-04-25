@@ -85,10 +85,16 @@ export class RollsRepository implements IRollsRepository {
     if (error) throw error
     if (!data || data.length === 0) return 0
 
-    return data.reduce((sum: number, roll: Record<string, any>) => {
-      const sqft = (roll.width * roll.remaining_length) / 144
-      return sum + sqft * (roll.cost_per_sqft ?? 0)
-    }, 0)
+    return data.reduce(
+      (
+        sum: number,
+        roll: { width: number; remaining_length: number; cost_per_sqft?: number | null }
+      ) => {
+        const sqft = (roll.width * roll.remaining_length) / 144
+        return sum + sqft * (roll.cost_per_sqft ?? 0)
+      },
+      0
+    )
   }
 
   async searchRolls(query: string): Promise<Roll[]> {
@@ -121,16 +127,19 @@ export class RollsRepository implements IRollsRepository {
       if (rollError) throw rollError
 
       const stockLevels = new Map<string, number>()
-      rolls?.forEach((roll: Record<string, any>) => {
+      rolls?.forEach((roll: { material_type: string; width: number; remaining_length: number }) => {
         const sqft = (roll.width * roll.remaining_length) / 144
         const current = stockLevels.get(roll.material_type) ?? 0
         stockLevels.set(roll.material_type, current + sqft)
       })
 
-      return materialTypes.reduce((count: number, mt: Record<string, any>) => {
-        const currentStock = stockLevels.get(mt.name) ?? 0
-        return currentStock < (mt.min_stock_alert ?? 0) ? count + 1 : count
-      }, 0)
+      return materialTypes.reduce(
+        (count: number, mt: { name: string; min_stock_alert?: number | null }) => {
+          const currentStock = stockLevels.get(mt.name) ?? 0
+          return currentStock < (mt.min_stock_alert ?? 0) ? count + 1 : count
+        },
+        0
+      )
     } catch (_error) {
       return 0
     }

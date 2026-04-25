@@ -49,10 +49,12 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       if (error) throw error
 
-      const ordersWithCount = data?.map((order: Record<string, any>) => ({
-        ...order,
-        items_count: order.items?.[0]?.count || 0,
-      }))
+      const ordersWithCount = data?.map(
+        (order: Record<string, unknown> & { items?: Array<{ count: number }> }) => ({
+          ...order,
+          items_count: order.items?.[0]?.count || 0,
+        })
+      )
 
       return ordersWithCount as PurchaseOrderWithDetails[]
     } catch (error) {
@@ -499,7 +501,8 @@ export class PurchaseOrderService implements IPurchaseOrderService {
       if (checkError) throw checkError
 
       const fullyReceived = allItems?.every(
-        (item: Record<string, any>) => (item.quantity_received || 0) >= item.quantity_sqft
+        (item: { quantity_sqft: number; quantity_received?: number | null }) =>
+          (item.quantity_received || 0) >= item.quantity_sqft
       )
 
       if (fullyReceived) {
@@ -561,7 +564,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
       const subtotal =
         items?.reduce(
-          (sum: number, item: Record<string, any>) => sum + (item.line_total || 0),
+          (sum: number, item: { line_total?: number | null }) => sum + (item.line_total || 0),
           0
         ) || 0
 

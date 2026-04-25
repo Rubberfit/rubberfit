@@ -66,7 +66,7 @@ export class NotificationService implements INotificationService {
       }
 
       if (data) {
-        data.forEach((pref: any) => {
+        data.forEach((pref: NotificationPreferences & { user_identifier: string }) => {
           this.userPreferences.set(pref.user_identifier, pref)
         })
       }

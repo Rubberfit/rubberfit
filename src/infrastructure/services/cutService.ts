@@ -89,16 +89,17 @@ export class CutService implements ICutService {
 
     if (data && data.length > 0) {
       stats.totalWasteSqft = data.reduce(
-        (sum: number, cut: Record<string, any>) => sum + (cut.waste_sqft || 0),
+        (sum: number, cut: { waste_sqft?: number | null }) => sum + (cut.waste_sqft || 0),
         0
       )
       stats.totalMaterialUsed = data.reduce(
-        (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+        (sum: number, cut: { total_sqft_used?: number | null }) => sum + (cut.total_sqft_used || 0),
         0
       )
       stats.averageWastePercentage =
         data.reduce(
-          (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+          (sum: number, cut: { waste_percentage?: number | null }) =>
+            sum + (cut.waste_percentage || 0),
           0
         ) / data.length
     }
@@ -126,7 +127,13 @@ export class CutService implements ICutService {
       return { recommendations: [], message: "No suitable rolls found" }
     }
 
-    const recommendations = eligibleRolls.map((roll: Record<string, any>) => {
+    interface EligibleRoll {
+      width: number
+      remaining_length: number
+      cost_per_sqft?: number | null
+      [key: string]: unknown
+    }
+    const recommendations = eligibleRolls.map((roll: EligibleRoll) => {
       const totalLengthNeeded = requirements.length * requirements.quantity
       const materialUsedSqft = (requirements.width * totalLengthNeeded) / 144
       const totalConsumedSqft = (roll.width * totalLengthNeeded) / 144
@@ -194,7 +201,7 @@ export class CutService implements ICutService {
     }
 
     return data.reduce(
-      (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+      (sum: number, cut: { total_sqft_used?: number | null }) => sum + (cut.total_sqft_used || 0),
       0
     )
   }
@@ -319,7 +326,8 @@ export class CutService implements ICutService {
       const avg =
         data && data.length > 0
           ? data.reduce(
-              (sum: number, c: Record<string, any>) => sum + (c.waste_percentage || 0),
+              (sum: number, c: { waste_percentage?: number | null }) =>
+                sum + (c.waste_percentage || 0),
               0
             ) / data.length
           : 0
@@ -357,7 +365,8 @@ export class CutService implements ICutService {
       const thisMonthAvg =
         thisMonth && thisMonth.length > 0
           ? thisMonth.reduce(
-              (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+              (sum: number, cut: { waste_percentage?: number | null }) =>
+                sum + (cut.waste_percentage || 0),
               0
             ) / thisMonth.length
           : 0
@@ -365,7 +374,8 @@ export class CutService implements ICutService {
       const lastMonthAvg =
         lastMonth && lastMonth.length > 0
           ? lastMonth.reduce(
-              (sum: number, cut: Record<string, any>) => sum + (cut.waste_percentage || 0),
+              (sum: number, cut: { waste_percentage?: number | null }) =>
+                sum + (cut.waste_percentage || 0),
               0
             ) / lastMonth.length
           : 0
