@@ -537,6 +537,15 @@ export interface CutHistoryLayoutJsonManual {
   }
 }
 
+/**
+ * Part types persisted in `layout_json.perTemplatePartTypes`. Mirrors
+ * `SupportedPartType` in the cutting-engine UI but stays as a local
+ * literal union here to preserve the clean-architecture boundary
+ * (infra must not import from `app/`). The load path validates each
+ * entry against this set before applying it.
+ */
+export type CutHistoryPartTypeLiteral = "rectangle" | "cylinder" | "cone" | "trapezoid"
+
 export interface CutHistoryLayoutJsonAuto {
   version: 1
   kind: "auto"
@@ -547,6 +556,17 @@ export interface CutHistoryLayoutJsonAuto {
    * multi-template cuts.
    */
   perTemplateQuantities: number[]
+  /**
+   * Per-template part types in the same order as
+   * `perTemplateQuantities` and `cut_history.part_selected_size_text`.
+   * Added for issue #126: the scalar `cut_history.part_id` cannot
+   * encode mixed-shape cuts (e.g. trapezoid + rectangle), so without
+   * this field the load path collapses every template to a single
+   * partType. Optional for back-compat with rows saved before the
+   * fix — those rows fall back to `cut_history.part_id` for every
+   * template (legacy behavior).
+   */
+  perTemplatePartTypes?: CutHistoryPartTypeLiteral[]
   /**
    * Frozen post-rotation layouts from the original pack run. When
    * present, reopening the cut bypasses the re-pack so the operator

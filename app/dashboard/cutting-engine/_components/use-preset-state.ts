@@ -70,6 +70,15 @@ export interface LoadedSelection {
    * scalar. Written by `handleLoadCut` when `cut.layout_json.kind === "auto"`.
    */
   perTemplateQuantities?: number[]
+  /**
+   * Per-template part types (same order as `labels` / `customDimensions`).
+   * When the loaded cut mixes shape types (e.g. trapezoid + rectangle), the
+   * selector buckets `customDimensions` per type so each tab's `checked`
+   * set + `customTemplates` list stays aligned with the engine's loaded
+   * templates. Absent or all-equal-to `partType` ⇒ legacy single-type
+   * behaviour (issue #126 fix).
+   */
+  perTemplatePartTypes?: SupportedPartType[]
 }
 
 /** Returns the first template whose dimensions exactly match the stored dimension set. */
@@ -330,7 +339,7 @@ export function usePresetState(
     // → infinite. Nonce is stamped fresh by every `handleLoadCut` call.
     if (lastLoadedNonceRef.current === loadedSelection.nonce) return
     lastLoadedNonceRef.current = loadedSelection.nonce
-    const { partType, labels, customDimensions } = loadedSelection
+    const { partType, labels, customDimensions, perTemplatePartTypes } = loadedSelection
 
     setSelectedPart(partType)
     setFilter("all")
@@ -344,37 +353,68 @@ export function usePresetState(
       // rebuilds and `checked` settles in the same pass, so no
       // transient "allTemplates changed but checked still empty"
       // window exists for the onApply effect to misfire into.
-      const builtinForType = PART_TEMPLATES.filter((t) => t.partType === partType)
-      const existingCustom = customTemplates[partType]
-      const allForType = [...builtinForType, ...existingCustom]
-      const seenIds = new Set(allForType.map((t) => t.id))
+      //
+      // Issue #126: a saved cut may mix shape types (e.g. trapezoid +
+      // rectangle). When `perTemplatePartTypes` is supplied, bucket the
+      // dimensions per type so each tab's `customTemplates` and
+      // `checked` set stay aligned with the engine's loaded templates.
+      // Original index is preserved through bucketing so the
+      // `perTemplateQuantities` map below remains index-correct.
+      const partTypeForIndex = (i: number): SupportedPartType =>
+        perTemplatePartTypes?.[i] ?? partType
 
-      const idsToCheck: string[] = []
-      const toAdd: PartTemplate[] = []
-      for (const dims of customDimensions) {
-        const match = findMatchingTemplate(allForType, dims, partType)
-        if (match) {
-          idsToCheck.push(match.id)
-        } else {
-          const newTemplate = templateFromDims(partType, dims)
-          if (newTemplate && !seenIds.has(newTemplate.id)) {
-            toAdd.push(newTemplate)
-            seenIds.add(newTemplate.id)
-            allForType.push(newTemplate)
+      const buckets = new Map<
+        SupportedPartType,
+        Array<{ dims: DimensionSet; originalIndex: number }>
+      >()
+      customDimensions.forEach((dims, i) => {
+        const t = partTypeForIndex(i)
+        const list = buckets.get(t) ?? []
+        list.push({ dims, originalIndex: i })
+        buckets.set(t, list)
+      })
+
+      const idsByOriginalIndex = new Map<number, string>()
+      const nextCustomTemplates: CustomTemplateMap = { ...customTemplates }
+      let templatesChanged = false
+
+      for (const [bucketType, entries] of buckets.entries()) {
+        const builtinForType = PART_TEMPLATES.filter((t) => t.partType === bucketType)
+        const existingCustom = nextCustomTemplates[bucketType]
+        const allForType = [...builtinForType, ...existingCustom]
+        const seenIds = new Set(allForType.map((t) => t.id))
+
+        const toAdd: PartTemplate[] = []
+        for (const { dims, originalIndex } of entries) {
+          const match = findMatchingTemplate(allForType, dims, bucketType)
+          if (match) {
+            idsByOriginalIndex.set(originalIndex, match.id)
+          } else {
+            const newTemplate = templateFromDims(bucketType, dims)
+            if (newTemplate && !seenIds.has(newTemplate.id)) {
+              toAdd.push(newTemplate)
+              seenIds.add(newTemplate.id)
+              allForType.push(newTemplate)
+            }
+            if (newTemplate) idsByOriginalIndex.set(originalIndex, newTemplate.id)
           }
-          if (newTemplate) idsToCheck.push(newTemplate.id)
+        }
+
+        if (toAdd.length > 0) {
+          nextCustomTemplates[bucketType] = [...existingCustom, ...toAdd]
+          templatesChanged = true
         }
       }
 
-      if (toAdd.length > 0) {
-        setCustomTemplates({ ...customTemplates, [partType]: [...existingCustom, ...toAdd] })
+      if (templatesChanged) {
+        setCustomTemplates(nextCustomTemplates)
       }
 
-      if (idsToCheck.length === 0) {
+      if (idsByOriginalIndex.size === 0) {
         suppressNextApplyRef.current = true
         setChecked(new Set())
       } else {
-        setChecked(new Set(idsToCheck))
+        setChecked(new Set(idsByOriginalIndex.values()))
       }
 
       // Propagate per-template quantities from the loaded cut into
@@ -386,14 +426,21 @@ export function usePresetState(
       const perQty = loadedSelection.perTemplateQuantities
       const nextQty = new Map<string, number>()
       if (perQty && perQty.length > 0) {
-        idsToCheck.forEach((id, i) => {
-          const q = perQty[i]
+        for (const [originalIndex, id] of idsByOriginalIndex.entries()) {
+          const q = perQty[originalIndex]
           if (Number.isFinite(q) && q > 1) nextQty.set(id, q)
-        })
+        }
       }
       setQuantities(nextQty)
 
-      const d = customDimensions[0]
+      // Pre-fill the custom-size drafts for the visible tab using the
+      // first dimension entry whose partType matches the primary tab.
+      // Mixed-type loads still get a useful editor pre-fill; the other
+      // tabs keep whatever drafts the user had.
+      const primaryDimsIndex = customDimensions.findIndex(
+        (_, i) => partTypeForIndex(i) === partType
+      )
+      const d = primaryDimsIndex >= 0 ? customDimensions[primaryDimsIndex] : undefined
       if (d) {
         setCustomDrafts((draftPrev) => {
           switch (partType) {
