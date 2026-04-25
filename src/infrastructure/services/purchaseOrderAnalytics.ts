@@ -77,7 +77,7 @@ export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsSer
       }
 
       if (data && data.length > 0) {
-        data.forEach((po: Record<string, any>) => {
+        data.forEach((po: { status: string; total_amount?: number | null }) => {
           stats.byStatus[po.status] = (stats.byStatus[po.status] || 0) + 1
           stats.totalValue += po.total_amount || 0
         })

@@ -53,7 +53,8 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       const totalUsage =
         cuts?.reduce(
-          (sum: number, cut: Record<string, any>) => sum + (cut.total_sqft_used || 0),
+          (sum: number, cut: { total_sqft_used?: number | null }) =>
+            sum + (cut.total_sqft_used || 0),
           0
         ) || 0
       return totalUsage / 90
@@ -289,7 +290,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       if (!data || data.length === 0) return 0
 
-      return data.reduce((total: number, roll: Record<string, any>) => {
+      return data.reduce((total: number, roll: { width: number; remaining_length: number }) => {
         const sqft = (roll.width * roll.remaining_length) / 144
         return total + sqft
       }, 0)
