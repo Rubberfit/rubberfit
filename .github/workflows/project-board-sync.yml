@@ -51,6 +51,10 @@ concurrency:
 
 jobs:
   sync:
+    # Cap each run so a hung GraphQL/REST call (network blip, GitHub
+    # incident, infinite loop) can't park the serialized queue forever.
+    # The script normally finishes in < 30s; 10 min gives generous slack.
+    timeout-minutes: 10
     if: >
       (github.event_name != 'create' || github.event.ref_type == 'branch') &&
       (

@@ -418,6 +418,71 @@ const rest = async (path, { method = "GET", body } = {}) => {
 
 const PROJECT_ITEMS_PAGE_SIZE = 100;
 
+// Single source of truth for the per-item GraphQL selection. Inlined into
+// both the initial ProjectContext query AND the fetchProjectItemsPage
+// continuation query so page 1 and later pages can never drift on shape.
+const PROJECT_ITEM_SELECTION = `
+  id
+  content {
+    __typename
+    ... on Issue {
+      id
+      number
+      state
+      closedAt
+      issueType {
+        id
+        name
+      }
+      repository {
+        nameWithOwner
+      }
+    }
+  }
+  fieldValues(first: 50) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      __typename
+      ... on ProjectV2ItemFieldSingleSelectValue {
+        name
+        field {
+          ... on ProjectV2SingleSelectField {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldIterationValue {
+        iterationId
+        title
+        field {
+          ... on ProjectV2IterationField {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldDateValue {
+        date
+        field {
+          ... on ProjectV2Field {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldTextValue {
+        text
+        field {
+          ... on ProjectV2Field {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
 const fetchProjectItemsPage = async (projectId, cursor) => {
   const data = await graphql(
     `
@@ -430,65 +495,7 @@ const fetchProjectItemsPage = async (projectId, cursor) => {
                 endCursor
               }
               nodes {
-                id
-                content {
-                  __typename
-                  ... on Issue {
-                    id
-                    number
-                    state
-                    closedAt
-                    issueType {
-                      id
-                      name
-                    }
-                    repository {
-                      nameWithOwner
-                    }
-                  }
-                }
-                fieldValues(first: 50) {
-                  pageInfo {
-                    hasNextPage
-                    endCursor
-                  }
-                  nodes {
-                    __typename
-                    ... on ProjectV2ItemFieldSingleSelectValue {
-                      name
-                      field {
-                        ... on ProjectV2SingleSelectField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldIterationValue {
-                      iterationId
-                      title
-                      field {
-                        ... on ProjectV2IterationField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldDateValue {
-                      date
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldTextValue {
-                      text
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                  }
-                }
+                ${PROJECT_ITEM_SELECTION}
               }
             }
           }
@@ -563,71 +570,13 @@ const getProjectContext = async () => {
                 }
               }
             }
-            items(first: 100) {
+            items(first: ${PROJECT_ITEMS_PAGE_SIZE}) {
               pageInfo {
                 hasNextPage
                 endCursor
               }
               nodes {
-                id
-                content {
-                  __typename
-                  ... on Issue {
-                    id
-                    number
-                    state
-                    closedAt
-                    issueType {
-                      id
-                      name
-                    }
-                    repository {
-                      nameWithOwner
-                    }
-                  }
-                }
-                fieldValues(first: 50) {
-                  pageInfo {
-                    hasNextPage
-                    endCursor
-                  }
-                  nodes {
-                    __typename
-                    ... on ProjectV2ItemFieldSingleSelectValue {
-                      name
-                      field {
-                        ... on ProjectV2SingleSelectField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldIterationValue {
-                      iterationId
-                      title
-                      field {
-                        ... on ProjectV2IterationField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldDateValue {
-                      date
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldTextValue {
-                      text
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                  }
-                }
+                ${PROJECT_ITEM_SELECTION}
               }
             }
           }
