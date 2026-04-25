@@ -220,8 +220,10 @@ describe("issue #121 — hybrid and mixed-NFP packing paths", () => {
 
     const indices = uniqueSpecIndices(preview.items)
     // Both shapes must end up with distinct, correct specIndex values.
-    expect(indices.length).toBeGreaterThanOrEqual(1)
-    expect(indices.every((i) => i === 0 || i === 1)).toBe(true)
+    // The hybrid path is only meaningfully verified when both kinds get
+    // placed, so the assertion requires each spec to appear (no silent
+    // pass when only the trapezoids fit).
+    expect(indices).toEqual([0, 1])
   })
 
   it("mixed-NFP path (cone+trapezoid mix) stamps original indices", () => {
@@ -243,8 +245,10 @@ describe("issue #121 — hybrid and mixed-NFP packing paths", () => {
     expect(preview.items.length).toBeGreaterThan(0)
 
     const indices = uniqueSpecIndices(preview.items)
-    expect(indices.every((i) => i === 1 || i === 2)).toBe(true)
-    expect(indices.includes(0)).toBe(false)
+    // Require each original spec to appear so the assertion can't silently
+    // pass with only one kind placed; bug fix is only meaningful when both
+    // shape kinds carry their non-zero original indices.
+    expect(indices).toEqual([1, 2])
   })
 })
 
