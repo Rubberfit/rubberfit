@@ -28,6 +28,16 @@ export interface SimplePartSpec {
   outerRadius?: number
   arcDegrees?: number
   partNumber?: string
+  /**
+   * Stable index of this spec within the user's original `simpleParts` array.
+   * Set at the cut-planner entry point so that `PreviewItem.specIndex` (which
+   * keys the tag map) survives subset filtering — overflow regenerate, gap-fill,
+   * and label-based reconciliation — without collapsing distinct specs that
+   * share a display label. Optional; downstream code falls back to local
+   * position when undefined (preserves single-spec and free-roam call sites).
+   * See GitHub issue #121.
+   */
+  _originalSpecIndex?: number
 }
 
 export interface Strategy {

@@ -132,7 +132,10 @@ function buildMixedNfpInputs(
   fallbackHeight: number,
   // Original index of each spec in the parent simpleParts array. Needed when
   // the caller has split simpleParts (e.g. trapezoid hybrid) so per-item
-  // specIndex tags still match the parent's tag map.
+  // specIndex tags still match the parent's tag map. Prefers
+  // `spec._originalSpecIndex` (set at the cut-planner entry point) over the
+  // explicit `originalIndices` parameter, so subset filtering survives without
+  // requiring callers to thread parallel arrays through every helper.
   originalIndices?: number[]
 ): MixedSpec<MixedSpecMeta>[] | null {
   const inputs: MixedSpec<MixedSpecMeta>[] = []
@@ -141,7 +144,7 @@ function buildMixedNfpInputs(
     const basePolygon = basePolygonForSpec(spec, fallbackWidth, fallbackHeight)
     if (!basePolygon) return null
     const template = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-    template.specIndex = originalIndices?.[i] ?? i
+    template.specIndex = spec._originalSpecIndex ?? originalIndices?.[i] ?? i
     template.partNumber = spec.partNumber
     inputs.push({
       meta: template,
@@ -277,7 +280,7 @@ function packOtherSpecsForHybrid(
   const otherRequestedItems = otherSpecs.flatMap((spec, i) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-      item.specIndex = originalIndices?.[i] ?? i
+      item.specIndex = spec._originalSpecIndex ?? originalIndices?.[i] ?? i
       item.partNumber = spec.partNumber
       return item
     })
@@ -325,7 +328,7 @@ async function packOtherSpecsForHybridAsync(
   const otherRequestedItems = otherSpecs.flatMap((spec, i) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-      item.specIndex = originalIndices?.[i] ?? i
+      item.specIndex = spec._originalSpecIndex ?? originalIndices?.[i] ?? i
       item.partNumber = spec.partNumber
       return item
     })
@@ -422,12 +425,14 @@ function tryTrapezoidHybridCandidate(
   fallbackHeight: number
 ): PackingCandidate | null {
   // Track each spec's original index so the trapezoid/other split doesn't
-  // collide tag-map keys (specIndex) downstream.
+  // collide tag-map keys (specIndex) downstream. Uses `_originalSpecIndex`
+  // when present (set at the cut-planner entry point) so the index survives
+  // even when this function is called with an already-subset spec list.
   const trapWithIdx = simpleParts
-    .map((spec, idx) => ({ spec, idx }))
+    .map((spec, idx) => ({ spec, idx: spec._originalSpecIndex ?? idx }))
     .filter(({ spec }) => spec.partType === "trapezoid")
   const otherWithIdx = simpleParts
-    .map((spec, idx) => ({ spec, idx }))
+    .map((spec, idx) => ({ spec, idx: spec._originalSpecIndex ?? idx }))
     .filter(({ spec }) => spec.partType !== "trapezoid")
   if (trapWithIdx.length === 0 || otherWithIdx.length === 0) return null
 
@@ -475,12 +480,14 @@ async function tryTrapezoidHybridCandidateAsync(
   fallbackHeight: number
 ): Promise<PackingCandidate | null> {
   // Track each spec's original index so the trapezoid/other split doesn't
-  // collide tag-map keys (specIndex) downstream.
+  // collide tag-map keys (specIndex) downstream. Uses `_originalSpecIndex`
+  // when present (set at the cut-planner entry point) so the index survives
+  // even when this function is called with an already-subset spec list.
   const trapWithIdx = simpleParts
-    .map((spec, idx) => ({ spec, idx }))
+    .map((spec, idx) => ({ spec, idx: spec._originalSpecIndex ?? idx }))
     .filter(({ spec }) => spec.partType === "trapezoid")
   const otherWithIdx = simpleParts
-    .map((spec, idx) => ({ spec, idx }))
+    .map((spec, idx) => ({ spec, idx: spec._originalSpecIndex ?? idx }))
     .filter(({ spec }) => spec.partType !== "trapezoid")
   if (trapWithIdx.length === 0 || otherWithIdx.length === 0) return null
 
@@ -701,7 +708,7 @@ export function generateMultiPartPreview(
   const requestedItems = simpleParts.flatMap((spec, specIdx) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-      item.specIndex = specIdx
+      item.specIndex = spec._originalSpecIndex ?? specIdx
       item.partNumber = spec.partNumber
       return item
     })
@@ -762,7 +769,7 @@ export async function generateMultiPartPreviewAsync(
   const requestedItems = simpleParts.flatMap((spec, specIdx) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-      item.specIndex = specIdx
+      item.specIndex = spec._originalSpecIndex ?? specIdx
       item.partNumber = spec.partNumber
       return item
     })
@@ -1017,22 +1024,41 @@ export async function generateSimplePartPreviewAsync(
   return tagSingleSpecPreview(preview, simplePart)
 }
 
-// Matches placed items back to specs by formatted dimension label. This couples
+// Reconciles placed items against remaining specs.
+//
+// Primary path: identity-based via `_originalSpecIndex`. Distinct specs
+// sharing a display label (e.g. two 120° cones with different radii, or
+// two same-dimension rectangles with different partNumbers) do NOT collapse
+// — each spec only consumes items that match its own original index.
+//
+// Fallback (legacy / un-annotated specs): label-based matching mirrors the
+// pre-fix behavior so callers that haven't migrated still work. Couples
 // to the label format in buildPartPreviewItem — keep them in sync.
 function reduceSpecsByPlacedItems(specs: SimplePartSpec[], items: PreviewItem[]): SimplePartSpec[] {
-  const labels = new Map<string, number>()
-  items.forEach((item) => {
-    labels.set(item.label, (labels.get(item.label) ?? 0) + 1)
-  })
+  const placedByIndex = new Map<number, number>()
+  const placedByLabel = new Map<string, number>()
+  for (const item of items) {
+    if (item.specIndex != null) {
+      placedByIndex.set(item.specIndex, (placedByIndex.get(item.specIndex) ?? 0) + 1)
+    } else {
+      placedByLabel.set(item.label, (placedByLabel.get(item.label) ?? 0) + 1)
+    }
+  }
   return specs
     .map((spec) => {
-      // Use buildPartPreviewItem to derive the label so all part types
-      // (trapezoid, cone, cylinder, etc.) match the placed-item format.
-      const label = buildPartPreviewItem(spec, 0, 0).label
-      const count = labels.get(label) ?? 0
-      if (count <= 0) return spec
-      const left = Math.max(0, (spec.quantity || 1) - count)
-      labels.set(label, count - Math.min(count, spec.quantity || 1))
+      const requested = spec.quantity || 1
+      let placed: number
+      if (spec._originalSpecIndex != null) {
+        placed = placedByIndex.get(spec._originalSpecIndex) ?? 0
+      } else {
+        const label = buildPartPreviewItem(spec, 0, 0).label
+        placed = placedByLabel.get(label) ?? 0
+        // Consume so subsequent unannotated specs sharing this label don't
+        // double-count items already attributed to an earlier spec.
+        placedByLabel.set(label, Math.max(0, placed - requested))
+      }
+      if (placed <= 0) return spec
+      const left = Math.max(0, requested - placed)
       return left > 0 ? { ...spec, quantity: left } : null
     })
     .filter((s): s is SimplePartSpec => s !== null)
@@ -1070,7 +1096,11 @@ function tryGapFillSheet(
   const overflowItems = remainingSpecs.flatMap((spec) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, rollW, rollL)
-      item.specIndex = labelToSpecIndex.get(item.label)
+      // Prefer stable identity (`_originalSpecIndex`) so gap-filled items
+      // for a spec that hasn't been seen yet on this sheet still carry
+      // the correct tag-map key. Fall back to label lookup for un-annotated
+      // legacy callers — see issue #121.
+      item.specIndex = spec._originalSpecIndex ?? labelToSpecIndex.get(item.label)
       item.partNumber = spec.partNumber ?? labelToPartNumber.get(item.label)
       return item
     })
