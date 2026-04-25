@@ -1514,20 +1514,25 @@ const updatePullRequestBody = async (pullRequestNumber, body, issueNumber) => {
   console.log(`Updated PR #${pullRequestNumber} body with Closes #${issueNumber}`);
 };
 
+// Returns `{ isClosed, closedNow }` so callers can update their local
+// `item.issueState` even when the issue was already closed by something
+// else — without that, the next rollover tick repeats the same GET to
+// confirm closure for the same item indefinitely (CR finding on PR #134).
 const closeIssueIfOpen = async (issueNumber, reason = "completed") => {
-  if (!issueNumber) return false;
+  if (!issueNumber) return { isClosed: false, closedNow: false };
   const stateReason = reason === "not_planned" ? "not_planned" : "completed";
 
   if (DRY_RUN) {
     console.log(`[dry-run] close issue #${issueNumber} (state_reason=${stateReason})`);
-    return true;
+    return { isClosed: true, closedNow: true };
   }
 
-  // Skip the work if the issue is already closed — avoids no-op REST traffic
-  // and keeps the GitHub event log clean (no spurious "closed" events).
+  // Skip the PATCH if the issue is already closed — avoids no-op REST
+  // traffic and keeps the GitHub event log clean (no spurious "closed"
+  // events). Still report `isClosed: true` so the caller can stop checking.
   const current = await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`);
   if (current?.state === "closed") {
-    return false;
+    return { isClosed: true, closedNow: false };
   }
 
   await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`, {
@@ -1535,7 +1540,7 @@ const closeIssueIfOpen = async (issueNumber, reason = "completed") => {
     body: { state: "closed", state_reason: stateReason },
   });
   console.log(`Closed issue #${issueNumber} (state_reason=${stateReason})`);
-  return true;
+  return { isClosed: true, closedNow: true };
 };
 
 const syncIssue = async (project, issue, statusName, options = {}) => {
@@ -1704,14 +1709,17 @@ const runRollover = async () => {
       if (!item.targetDate) {
         await setTargetDate(project, item, item.issueClosedAt || formatDate(new Date()));
       }
-      // Drift safety net: if the live `projects_v2_item.edited` webhook
-      // missed an event (network blip, rate limit, app restart), the daily
-      // rollover catches any item whose Status is Done/Canceled but whose
-      // linked issue is still OPEN, and closes it.
+      // The rollover (every 15 minutes — see project-board-sync.yml) is the
+      // sole mechanism for the "Status moved to Done/Canceled → close issue"
+      // sync, since GitHub Actions doesn't expose `projects_v2_item` as a
+      // workflow trigger. Any item whose Status is Done/Canceled but whose
+      // linked issue is still OPEN gets closed here.
       if (item.issueState !== "CLOSED" && item.issueNumber) {
         const reason = item.status === "Canceled" ? "not_planned" : "completed";
-        const closed = await closeIssueIfOpen(item.issueNumber, reason);
-        if (closed) item.issueState = "CLOSED";
+        const result = await closeIssueIfOpen(item.issueNumber, reason);
+        // Mark as closed locally even if it was already closed upstream —
+        // otherwise the next tick re-runs the same GET to re-confirm.
+        if (result.isClosed) item.issueState = "CLOSED";
       }
       continue;
     }
