@@ -55,6 +55,39 @@ const DEMO_STOCK: StockConfig = {
 
 // Helpers
 
+function finiteOrNull(value: number | undefined): number | null {
+  return value !== undefined && Number.isFinite(value) ? value : null
+}
+
+function buildFrozenLayoutInputSignature(
+  stockWidth: number,
+  stockLength: number,
+  templates: readonly PartTemplate[],
+  cutDirection: SimpleCutDirection,
+  cutRatios?: readonly number[]
+): string {
+  return JSON.stringify({
+    stockWidth,
+    stockLength,
+    cutDirection,
+    cutRatios: cutRatios ?? null,
+    templates: templates.map((template) => ({
+      partType: template.partType,
+      quantity: template.quantity ?? 1,
+      width: finiteOrNull(template.width),
+      length: finiteOrNull(template.length),
+      diameter: finiteOrNull(template.diameter),
+      height: finiteOrNull(template.height),
+      topWidth: finiteOrNull(template.topWidth),
+      bottomWidth: finiteOrNull(template.bottomWidth),
+      innerRadius: finiteOrNull(template.innerRadius),
+      outerRadius: finiteOrNull(template.outerRadius),
+      arcDegrees: finiteOrNull(template.arcDegrees),
+      partNumber: template.partNumber ?? null,
+    })),
+  })
+}
+
 function LayoutLabel() {
   return <Ruler className="h-4 w-4 text-slate-500" />
 }
@@ -72,6 +105,8 @@ function CutPlannerPageInner() {
   // LayoutModel[] emitted by NestingVisualizer — used by cut-history-pdf
   // to render vector shapes instead of scraping DOM SVG.
   const [layouts, setLayouts] = useState<LayoutModel[]>([])
+  const [frozenLayouts, setFrozenLayouts] = useState<LayoutModel[] | null>(null)
+  const [frozenLayoutInputSignature, setFrozenLayoutInputSignature] = useState<string | null>(null)
   const [isRecordingCut, setIsRecordingCut] = useState(false)
   const [cutListRefreshKey, setCutListRefreshKey] = useState(0)
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
@@ -172,13 +207,27 @@ function CutPlannerPageInner() {
         customDimensions,
         perTemplateQuantities,
         sizeTexts,
+        frozenLayouts: restoredLayouts,
       } = buildTemplatesFromCutRecord(cut)
+      const nextCutDirection = getDefaultCutDirection(primaryPartType)
 
       // 3. Apply — clear uploaded parts so loaded config is the only source
       setUploadedParts([])
       setPresetParts(templates)
-      setCutDirection(getDefaultCutDirection(primaryPartType))
+      setCutDirection(nextCutDirection)
       setCustomCutRatioInput("")
+      setFrozenLayouts(restoredLayouts)
+      setFrozenLayoutInputSignature(
+        restoredLayouts
+          ? buildFrozenLayoutInputSignature(
+              cut.cut_width,
+              cut.cut_length,
+              templates,
+              nextCutDirection,
+              undefined
+            )
+          : null
+      )
 
       // 4. Signal PresetDimensionSelector to select matching checkboxes.
       //    Pass stored dimension data + per-template partTypes so the
@@ -305,6 +354,30 @@ function CutPlannerPageInner() {
   const activeStockPreset = STOCK_PRESETS.find(
     (preset) => preset.width === stock.width && preset.length === stock.length
   )?.id
+  const currentFrozenLayoutInputSignature = useMemo(
+    () =>
+      buildFrozenLayoutInputSignature(
+        stock.width,
+        stock.length,
+        selectedTemplates,
+        cutDirection,
+        customCutRatios
+      ),
+    [stock.width, stock.length, selectedTemplates, cutDirection, customCutRatios]
+  )
+  const activeFrozenLayouts =
+    frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
+      ? frozenLayouts
+      : undefined
+
+  useEffect(() => {
+    if (!frozenLayouts || !frozenLayoutInputSignature) return
+    if (currentFrozenLayoutInputSignature === frozenLayoutInputSignature) return
+    setFrozenLayouts(null)
+    setFrozenLayoutInputSignature(null)
+    setLayouts([])
+    setCutMetrics(null)
+  }, [frozenLayouts, frozenLayoutInputSignature, currentFrozenLayoutInputSignature])
 
   const nestingSimpleParts = useMemo(
     () =>
@@ -735,6 +808,7 @@ function CutPlannerPageInner() {
                 onLayoutChange={setLayouts}
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
+                frozenLayouts={activeFrozenLayouts}
               />
             </CardContent>
           </Card>

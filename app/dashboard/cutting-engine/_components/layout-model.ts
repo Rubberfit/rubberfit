@@ -1,4 +1,10 @@
-import type { SimplePartPreview, OffcutBand, PreviewItem } from "./nesting-visualizer-types"
+import type {
+  SimplePartPreview,
+  RectLikePreview,
+  OffcutBand,
+  PreviewItem,
+  MultiSheetResult,
+} from "./nesting-visualizer-types"
 import type { SimpleCutDirection } from "./nesting-visualizer-types"
 
 /**
@@ -86,6 +92,105 @@ export interface LayoutModel {
   source: "ts-nfp"
 }
 
+// ── Runtime guards ──────────────────────────────────────────────────────────
+
+const RENDER_SHAPES: ReadonlySet<RenderShape> = new Set([
+  "rect",
+  "circle",
+  "ellipse",
+  "ring",
+  "trapezoid",
+  "sector",
+  "triangle",
+  "ngon",
+  "star",
+  "polygon",
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value)
+}
+
+function isPoint(value: unknown): value is { x: number; y: number } {
+  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+}
+
+function isPointArray(value: unknown): value is Array<{ x: number; y: number }> {
+  return Array.isArray(value) && value.every(isPoint)
+}
+
+function hasOptionalFiniteNumber(value: Record<string, unknown>, key: string): boolean {
+  return value[key] === undefined || isFiniteNumber(value[key])
+}
+
+function isLayoutRegion(value: unknown): value is LayoutRegion {
+  if (!isRecord(value)) return false
+  return (
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.width) &&
+    isFiniteNumber(value.height) &&
+    (value.polygon === undefined || isPointArray(value.polygon))
+  )
+}
+
+function isPlacedPart(value: unknown): value is PlacedPart {
+  if (!isRecord(value)) return false
+  const renderShape = value.renderShape
+  return (
+    typeof value.id === "string" &&
+    typeof value.shapeId === "string" &&
+    (value.partNumber === undefined || typeof value.partNumber === "string") &&
+    typeof value.label === "string" &&
+    typeof renderShape === "string" &&
+    RENDER_SHAPES.has(renderShape as RenderShape) &&
+    isFiniteNumber(value.specIndex) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.rotationRad) &&
+    isFiniteNumber(value.width) &&
+    isFiniteNumber(value.height) &&
+    hasOptionalFiniteNumber(value, "diameter") &&
+    hasOptionalFiniteNumber(value, "topWidth") &&
+    hasOptionalFiniteNumber(value, "bottomWidth") &&
+    hasOptionalFiniteNumber(value, "innerRadius") &&
+    hasOptionalFiniteNumber(value, "outerRadius") &&
+    hasOptionalFiniteNumber(value, "arcDegrees") &&
+    (value.polygon === undefined || isPointArray(value.polygon)) &&
+    (value.flipped === undefined || typeof value.flipped === "boolean") &&
+    (value.rotated90 === undefined || typeof value.rotated90 === "boolean")
+  )
+}
+
+export function isLayoutModel(value: unknown): value is LayoutModel {
+  if (!isRecord(value)) return false
+  return (
+    isFiniteNumber(value.sheetWidth) &&
+    isFiniteNumber(value.sheetLength) &&
+    Array.isArray(value.parts) &&
+    value.parts.every(isPlacedPart) &&
+    Array.isArray(value.offcuts) &&
+    value.offcuts.every(isLayoutRegion) &&
+    Array.isArray(value.scrap) &&
+    value.scrap.every(isLayoutRegion) &&
+    isFiniteNumber(value.placedCount) &&
+    isFiniteNumber(value.overflowCount) &&
+    isFiniteNumber(value.usedAreaSqFt) &&
+    isFiniteNumber(value.reusableAreaSqFt) &&
+    isFiniteNumber(value.scrapAreaSqFt) &&
+    isFiniteNumber(value.fabScore) &&
+    value.source === "ts-nfp"
+  )
+}
+
+export function isLayoutModelArray(value: unknown): value is LayoutModel[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isLayoutModel)
+}
+
 // ── Normaliser ───────────────────────────────────────────────────────────────
 
 function bandToRegion(b: OffcutBand): LayoutRegion {
@@ -162,5 +267,124 @@ export function fromPreviewToLayoutModel(
     scrapAreaSqFt: preview.scrapArea / 144,
     fabScore: (preview.fabricationScore ?? 0) / 100,
     source: "ts-nfp",
+  }
+}
+
+// ── Frozen-layout restore ───────────────────────────────────────────────────
+
+function layoutPartToPreviewItem(part: PlacedPart): PreviewItem {
+  const renderShape =
+    part.renderShape === "circle" ||
+    part.renderShape === "trapezoid" ||
+    part.renderShape === "sector"
+      ? part.renderShape
+      : "rect"
+
+  return {
+    renderShape,
+    label: part.label,
+    specIndex: part.specIndex,
+    partNumber: part.partNumber,
+    x: part.x,
+    y: part.y,
+    width: part.width,
+    height: part.height,
+    flipped: part.flipped,
+    rotated90: part.rotated90,
+    cutDirection: part.cutDirection,
+    diameter: part.diameter,
+    topWidth: part.topWidth,
+    bottomWidth: part.bottomWidth,
+    innerRadius: part.innerRadius,
+    outerRadius: part.outerRadius,
+    arcDegrees: part.arcDegrees,
+    rotation: part.rotationRad,
+    placedPolygon: part.polygon,
+  }
+}
+
+function boundsForItems(items: PreviewItem[]) {
+  if (items.length === 0) return { occupiedWidth: 0, occupiedHeight: 0 }
+  const minX = Math.min(...items.map((item) => item.x))
+  const minY = Math.min(...items.map((item) => item.y))
+  const maxX = Math.max(...items.map((item) => item.x + item.width))
+  const maxY = Math.max(...items.map((item) => item.y + item.height))
+  return {
+    occupiedWidth: Math.max(0, maxX - minX),
+    occupiedHeight: Math.max(0, maxY - minY),
+  }
+}
+
+function previewShapeForLayout(layout: LayoutModel): RectLikePreview["renderShape"] {
+  const shapes = new Set(layout.parts.map((part) => part.renderShape))
+  if (shapes.size === 1 && shapes.has("trapezoid")) return "trapezoid"
+  if (shapes.size === 1 && shapes.has("sector")) return "sector"
+  return "rect"
+}
+
+export function fromLayoutModelToPreview(layout: LayoutModel): SimplePartPreview {
+  const items = layout.parts.map(layoutPartToPreviewItem)
+  const stockArea = layout.sheetWidth * layout.sheetLength
+  const usedArea = layout.usedAreaSqFt * 144
+  const reusableArea = layout.reusableAreaSqFt * 144
+  const scrapArea = layout.scrapAreaSqFt * 144
+  const wasteArea = reusableArea + scrapArea
+  const bounds = boundsForItems(items)
+  const piecesPerUnit =
+    layout.placedCount > 0 ? Math.max(1, Math.round(items.length / layout.placedCount)) : 0
+
+  return {
+    renderShape: previewShapeForLayout(layout),
+    strategyName: "Restored layout",
+    strategyNote: "Frozen from the saved cut history record.",
+    placementMode: "origin",
+    wasteMode: "bands",
+    cutPlanTitle: "",
+    cutSteps: [],
+    requestedUnits: layout.placedCount + layout.overflowCount,
+    unitsCompleted: layout.placedCount,
+    overflowUnits: layout.overflowCount,
+    piecesShown: items.length,
+    piecesPerUnit,
+    usedArea,
+    wasteArea,
+    wastePct: stockArea > 0 ? (wasteArea / stockArea) * 100 : 100,
+    reusableArea,
+    scrapArea,
+    occupiedWidth: bounds.occupiedWidth,
+    occupiedHeight: bounds.occupiedHeight,
+    items,
+    offcutBands: layout.offcuts,
+    scrapBands: layout.scrap,
+    fabricationScore: layout.fabScore * 100,
+    placements: items,
+    label: items[0]?.label ?? "",
+  }
+}
+
+export function fromLayoutModelsToMultiSheetResult(layouts: LayoutModel[]): MultiSheetResult {
+  const sheets = layouts.map((layout, index) => ({
+    sheetIndex: index,
+    preview: fromLayoutModelToPreview(layout),
+    isPartial: false,
+  }))
+
+  return {
+    sheets,
+    totalUnitsCompleted: layouts.reduce((sum, layout) => sum + layout.placedCount, 0),
+    totalUsedArea: layouts.reduce((sum, layout) => sum + layout.usedAreaSqFt * 144, 0),
+    totalReusableArea: layouts.reduce((sum, layout) => sum + layout.reusableAreaSqFt * 144, 0),
+    totalScrapArea: layouts.reduce((sum, layout) => sum + layout.scrapAreaSqFt * 144, 0),
+    totalStockArea: layouts.reduce(
+      (sum, layout) => sum + layout.sheetWidth * layout.sheetLength,
+      0
+    ),
+    remainingOverflow: layouts.reduce((sum, layout) => sum + layout.overflowCount, 0),
+    avgFabScore:
+      layouts.length > 0
+        ? Math.round(
+            layouts.reduce((sum, layout) => sum + layout.fabScore * 100, 0) / layouts.length
+          )
+        : 0,
   }
 }

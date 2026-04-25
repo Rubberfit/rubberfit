@@ -16,6 +16,7 @@ import type {
   PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
 import { parseDimsFromLabel } from "./cut-planner-utils"
+import { isLayoutModelArray, type LayoutModel } from "./layout-model"
 import type { PartTemplate } from "./preset-template-data"
 import type { SupportedPartType } from "./preset-template-data"
 
@@ -46,6 +47,8 @@ export interface LoadedCutTemplates {
   perTemplateQuantities: number[] | null
   /** Original `part_selected_size_text` (used to drive selector matching). */
   sizeTexts: string[]
+  /** Frozen layouts from the original pack run, or null for legacy/invalid rows. */
+  frozenLayouts: LayoutModel[] | null
 }
 
 function partTypeForIndex(
@@ -76,6 +79,12 @@ export function extractPerTemplatePartTypes(
   return raw
 }
 
+export function extractFrozenLayouts(cut: Pick<CutHistory, "layout_json">): LayoutModel[] | null {
+  const layout = cut.layout_json
+  if (!layout || layout.kind !== "auto") return null
+  return isLayoutModelArray(layout.layouts) ? layout.layouts : null
+}
+
 /**
  * Build the templates that hydrate the cutting engine when an operator
  * loads a recorded cut. Pure — no React state, no toasts. The page
@@ -84,6 +93,7 @@ export function extractPerTemplatePartTypes(
 export function buildTemplatesFromCutRecord(cut: CutHistory): LoadedCutTemplates {
   const fallbackPartType = PART_ID_TO_TYPE[cut.part_id] ?? "rectangle"
   const perTemplatePartTypesRaw = extractPerTemplatePartTypes(cut)
+  const frozenLayouts = extractFrozenLayouts(cut)
 
   const sizeTexts = cut.part_selected_size_text ?? []
   const sizeLabels = cut.part_selected_label ?? []
@@ -128,9 +138,7 @@ export function buildTemplatesFromCutRecord(cut: CutHistory): LoadedCutTemplates
 
   const perTemplatePartTypes: SupportedPartType[] =
     sizeTexts.length > 0
-      ? sizeTexts.map((_label, i) =>
-          partTypeForIndex(i, perTemplatePartTypesRaw, fallbackPartType)
-        )
+      ? sizeTexts.map((_label, i) => partTypeForIndex(i, perTemplatePartTypesRaw, fallbackPartType))
       : [fallbackPartType]
 
   const templates: PartTemplate[] =
@@ -169,5 +177,6 @@ export function buildTemplatesFromCutRecord(cut: CutHistory): LoadedCutTemplates
     customDimensions: storedDims ?? null,
     perTemplateQuantities: storedQtys ?? null,
     sizeTexts,
+    frozenLayouts,
   }
 }

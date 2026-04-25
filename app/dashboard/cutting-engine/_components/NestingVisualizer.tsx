@@ -5,7 +5,11 @@ import { useState, useEffect, useId, useMemo, useRef } from "react"
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
 
-import { fromPreviewToLayoutModel, type LayoutModel } from "./layout-model"
+import {
+  fromPreviewToLayoutModel,
+  fromLayoutModelsToMultiSheetResult,
+  type LayoutModel,
+} from "./layout-model"
 
 import type {
   NestingVisualizerProps,
@@ -239,6 +243,7 @@ export default function NestingVisualizer({
   defaultQty = 6,
   simplePart,
   simpleParts,
+  frozenLayouts,
   onMetricsChange,
   onTagMapChange,
   onLayoutChange,
@@ -246,13 +251,14 @@ export default function NestingVisualizer({
   const patternSeed = useId().replace(/:/g, "")
 
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
+  const hasFrozenLayouts = (frozenLayouts?.length ?? 0) > 0
 
   // Caller explicitly passed an empty `simpleParts` array — i.e.
   // "render the sheet chrome but nothing's placed yet". We short-
   // circuit the preview pipeline with a synthetic empty preview so
   // the same downstream renderer is used whether cuts are placed
   // or not. Keeps the engine layout identical in both states.
-  const isEmptySheet = simpleParts !== undefined && simpleParts.length === 0
+  const isEmptySheet = !hasFrozenLayouts && simpleParts !== undefined && simpleParts.length === 0
 
   const activeSimpleSpecs = useMemo(() => {
     if (simpleParts && simpleParts.length > 0) return simpleParts
@@ -299,10 +305,18 @@ export default function NestingVisualizer({
     }
   }, [isEmptySheet, defaultRollWidth, defaultRollLength])
 
+  const frozenMultiSheet = useMemo(
+    () =>
+      hasFrozenLayouts && frozenLayouts ? fromLayoutModelsToMultiSheetResult(frozenLayouts) : null,
+    [hasFrozenLayouts, frozenLayouts]
+  )
+  const frozenBasePreview = frozenMultiSheet?.sheets[0]?.preview ?? null
+
   // First paint runs the sync generator so the UI is never empty while workers warm up.
   // For cone/trapezoid specs an async refinement runs on the worker pool and replaces
   // this value when ready (effect below).
   const syncBasePreview = useMemo<SimplePartPreview | null>(() => {
+    if (hasFrozenLayouts) return frozenBasePreview
     if (isEmptySheet) return emptyPreview
     return activeSimpleSpecs.length > 1
       ? generateMultiPartPreview(
@@ -323,6 +337,8 @@ export default function NestingVisualizer({
   }, [
     isEmptySheet,
     emptyPreview,
+    hasFrozenLayouts,
+    frozenBasePreview,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -358,6 +374,7 @@ export default function NestingVisualizer({
   } | null>(null)
 
   useEffect(() => {
+    if (hasFrozenLayouts) return // saved layouts are exact; don't let async packing replace them
     if (isEmptySheet) return // nothing to refine on a blank sheet
     const key = asyncPreviewKey
     let cancelled = false
@@ -419,6 +436,7 @@ export default function NestingVisualizer({
     }
   }, [
     asyncPreviewKey,
+    hasFrozenLayouts,
     activeSimpleSpecs,
     defaultRollWidth,
     defaultRollLength,
@@ -428,7 +446,7 @@ export default function NestingVisualizer({
   ])
 
   const baseSimplePreview =
-    asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
+    !hasFrozenLayouts && asyncBasePreview && asyncBasePreview.key === asyncPreviewKey
       ? asyncBasePreview.preview
       : syncBasePreview
 
@@ -438,8 +456,8 @@ export default function NestingVisualizer({
   }, [activeSimpleSpecs])
 
   // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
-  const { optimizedResult, optimizedItems, isOptimizing, nfpError } = useNfpOptimizer(
-    true,
+  const optimizer = useNfpOptimizer(
+    !hasFrozenLayouts,
     activeSimpleSpecs,
     defaultCutWidth,
     defaultCutHeight,
@@ -447,26 +465,31 @@ export default function NestingVisualizer({
     defaultRollWidth,
     defaultRollLength
   )
+  const optimizedResult = hasFrozenLayouts ? null : optimizer.optimizedResult
+  const optimizedItems = hasFrozenLayouts ? null : optimizer.optimizedItems
+  const isOptimizing = hasFrozenLayouts ? false : optimizer.isOptimizing
+  const nfpError = hasFrozenLayouts ? null : optimizer.nfpError
 
-  const multiSheet = useMemo(
-    () =>
-      buildMultiSheet(
-        baseSimplePreview,
-        activeSimpleSpecs,
-        defaultRollWidth,
-        defaultRollLength,
-        defaultCutWidth,
-        defaultCutHeight
-      ),
-    [
+  const multiSheet = useMemo(() => {
+    if (hasFrozenLayouts) return frozenMultiSheet
+    return buildMultiSheet(
       baseSimplePreview,
       activeSimpleSpecs,
       defaultRollWidth,
       defaultRollLength,
       defaultCutWidth,
-      defaultCutHeight,
-    ]
-  )
+      defaultCutHeight
+    )
+  }, [
+    hasFrozenLayouts,
+    frozenMultiSheet,
+    baseSimplePreview,
+    activeSimpleSpecs,
+    defaultRollWidth,
+    defaultRollLength,
+    defaultCutWidth,
+    defaultCutHeight,
+  ])
 
   const tagMap = useMemo(
     () => buildTagMap(baseSimplePreview, multiSheet),
@@ -533,8 +556,26 @@ export default function NestingVisualizer({
     if (onTagMapChange && tagMap.size > 0) onTagMapChange(tagMap)
   }, [tagMap, onTagMapChange])
 
-  // Rotate the entire result once after nesting so the display layer never needs to transform.
-  const shouldRotate = defaultRollLength > defaultRollWidth
+  // Rotate the entire generated result once after nesting so the display layer
+  // never needs to transform. Frozen layouts are already saved post-rotation.
+  const shouldRotate = !hasFrozenLayouts && defaultRollLength > defaultRollWidth
+  const frozenDisplayWidth = frozenLayouts?.[0]?.sheetWidth
+  const frozenDisplayLength = frozenLayouts?.[0]?.sheetLength
+  const restoredRotatedStock =
+    hasFrozenLayouts &&
+    frozenDisplayWidth === defaultRollLength &&
+    frozenDisplayLength === defaultRollWidth
+  const previewRollW = hasFrozenLayouts
+    ? (frozenDisplayWidth ?? defaultRollWidth)
+    : shouldRotate
+      ? defaultRollLength
+      : defaultRollWidth
+  const previewRollL = hasFrozenLayouts
+    ? (frozenDisplayLength ?? defaultRollLength)
+    : shouldRotate
+      ? defaultRollWidth
+      : defaultRollLength
+  const wasRotated = hasFrozenLayouts ? restoredRotatedStock : shouldRotate
 
   const rotatedMultiSheet = useMemo(
     () =>
@@ -579,14 +620,14 @@ export default function NestingVisualizer({
   const lastEmittedLayoutsSigRef = useRef<string | null>(null)
   useEffect(() => {
     if (!onLayoutChange) return
-    const displayW = shouldRotate ? defaultRollLength : defaultRollWidth
-    const displayL = shouldRotate ? defaultRollWidth : defaultRollLength
     const next =
-      rotatedMultiSheet && rotatedMultiSheet.sheets.length > 1
-        ? rotatedMultiSheet.sheets.map((sheet) =>
-            fromPreviewToLayoutModel(sheet.preview, displayW, displayL, tagMap)
-          )
-        : [fromPreviewToLayoutModel(preview, displayW, displayL, tagMap)]
+      hasFrozenLayouts && frozenLayouts
+        ? frozenLayouts
+        : rotatedMultiSheet && rotatedMultiSheet.sheets.length > 1
+          ? rotatedMultiSheet.sheets.map((sheet) =>
+              fromPreviewToLayoutModel(sheet.preview, previewRollW, previewRollL, tagMap)
+            )
+          : [fromPreviewToLayoutModel(preview, previewRollW, previewRollL, tagMap)]
     const sig = JSON.stringify(next)
     if (sig === lastEmittedLayoutsSigRef.current) return
     lastEmittedLayoutsSigRef.current = sig
@@ -595,18 +636,19 @@ export default function NestingVisualizer({
     onLayoutChange,
     preview,
     rotatedMultiSheet,
-    shouldRotate,
-    defaultRollWidth,
-    defaultRollLength,
+    hasFrozenLayouts,
+    frozenLayouts,
+    previewRollW,
+    previewRollL,
     tagMap,
   ])
 
   return (
     <NestingVizSimpleMode
       preview={preview}
-      previewRollW={shouldRotate ? defaultRollLength : defaultRollWidth}
-      previewRollL={shouldRotate ? defaultRollWidth : defaultRollLength}
-      wasRotated={shouldRotate}
+      previewRollW={previewRollW}
+      previewRollL={previewRollL}
+      wasRotated={wasRotated}
       patternSeed={patternSeed}
       viewMode={viewMode}
       optimizedResult={optimizedResult}

@@ -18,6 +18,8 @@
 
 import { describe, it, expect } from "vitest"
 import { buildTemplatesFromCutRecord } from "@/app/dashboard/cutting-engine/_components/cut-load-utils"
+import { fromLayoutModelsToMultiSheetResult } from "@/app/dashboard/cutting-engine/_components/layout-model"
+import type { LayoutModel } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 interface CutOverrides {
@@ -62,6 +64,37 @@ function makeCut(overrides: CutOverrides = {}): CutHistory {
     cut_date: "2026-04-25T00:00:00Z",
     created_at: "2026-04-25T00:00:00Z",
     updated_at: "2026-04-25T00:00:00Z",
+  }
+}
+
+function makeLayout(overrides: Partial<LayoutModel> = {}): LayoutModel {
+  return {
+    sheetWidth: 96,
+    sheetLength: 48,
+    parts: [
+      {
+        id: "part-1",
+        shapeId: "spec-0",
+        label: "A",
+        renderShape: "rect",
+        specIndex: 0,
+        x: 0,
+        y: 0,
+        rotationRad: 0,
+        width: 24,
+        height: 12,
+      },
+    ],
+    offcuts: [{ x: 24, y: 0, width: 72, height: 48 }],
+    scrap: [],
+    placedCount: 1,
+    overflowCount: 0,
+    usedAreaSqFt: 2,
+    reusableAreaSqFt: 24,
+    scrapAreaSqFt: 0,
+    fabScore: 0.88,
+    source: "ts-nfp",
+    ...overrides,
   }
 }
 
@@ -247,5 +280,68 @@ describe("issue #126 — mixed-shape cut load restores every template's partType
 
     expect(result.templates).toHaveLength(1)
     expect(result.templates[0].partType).toBe("rectangle")
+  })
+
+  it("I. valid auto layout_json.layouts is exposed as frozen layouts", () => {
+    const layouts = [
+      makeLayout({ placedCount: 2 }),
+      makeLayout({
+        parts: [
+          {
+            id: "part-2",
+            shapeId: "spec-1",
+            label: "B",
+            renderShape: "trapezoid",
+            specIndex: 1,
+            x: 10,
+            y: 8,
+            rotationRad: 0,
+            width: 30,
+            height: 14,
+            topWidth: 20,
+            bottomWidth: 30,
+          },
+        ],
+        placedCount: 1,
+        usedAreaSqFt: 3,
+      }),
+    ]
+    const cut = makeCut({
+      part_selected_size_text: ['24" × 12"'],
+      part_custom_dimensions: [{ width: 24, length: 12 }],
+      layout_json: {
+        version: 1,
+        kind: "auto",
+        perTemplateQuantities: [1],
+        perTemplatePartTypes: ["rectangle"],
+        layouts,
+      },
+    })
+
+    const result = buildTemplatesFromCutRecord(cut)
+    const restored = fromLayoutModelsToMultiSheetResult(result.frozenLayouts ?? [])
+
+    expect(result.frozenLayouts).toEqual(layouts)
+    expect(restored.sheets).toHaveLength(2)
+    expect(restored.totalUnitsCompleted).toBe(3)
+    expect(restored.sheets[1].preview.items[0].renderShape).toBe("trapezoid")
+  })
+
+  it("J. malformed auto layout_json.layouts is ignored", () => {
+    const cut = makeCut({
+      part_selected_size_text: ['24" × 12"'],
+      part_custom_dimensions: [{ width: 24, length: 12 }],
+      layout_json: {
+        version: 1,
+        kind: "auto",
+        perTemplateQuantities: [1],
+        perTemplatePartTypes: ["rectangle"],
+        layouts: [{ sheetWidth: 96 }],
+      },
+    })
+
+    const result = buildTemplatesFromCutRecord(cut)
+
+    expect(result.frozenLayouts).toBeNull()
   })
 })
