@@ -303,14 +303,14 @@ describe("issue #121 — integration: tag map / legend completeness", () => {
         indexToLabel.set(key, item.label)
       }
     }
-    const legendByTag = new Map<string, { label: string; resolved: boolean }>()
+    const legendByTag = new Map<string, { label: string; hasResolvedLabel: boolean }>()
     for (const [key, tag] of tagMap.entries()) {
       const resolvedLabel = indexToLabel.get(key)
       const existing = legendByTag.get(tag)
-      if (!existing || (!existing.resolved && resolvedLabel)) {
+      if (!existing || (!existing.hasResolvedLabel && resolvedLabel)) {
         legendByTag.set(tag, {
           label: resolvedLabel ?? key,
-          resolved: Boolean(resolvedLabel),
+          hasResolvedLabel: Boolean(resolvedLabel),
         })
       }
     }

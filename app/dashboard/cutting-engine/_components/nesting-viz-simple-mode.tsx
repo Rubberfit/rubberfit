@@ -465,14 +465,14 @@ export default function NestingVizSimpleMode({
     // which would otherwise produce duplicate React keys + duplicate legend rows.
     // Prefer the first entry per tag whose label resolved, so the legend never
     // falls back to a numeric specIndex when a sibling has a real label.
-    const legendByTag = new Map<string, { label: string; resolved: boolean }>()
+    const legendByTag = new Map<string, { label: string; hasResolvedLabel: boolean }>()
     for (const [key, tag] of tagMap.entries()) {
       const resolvedLabel = indexToLabel.get(key)
       const existing = legendByTag.get(tag)
-      if (!existing || (!existing.resolved && resolvedLabel)) {
+      if (!existing || (!existing.hasResolvedLabel && resolvedLabel)) {
         legendByTag.set(tag, {
           label: resolvedLabel ?? key,
-          resolved: Boolean(resolvedLabel),
+          hasResolvedLabel: Boolean(resolvedLabel),
         })
       }
     }
