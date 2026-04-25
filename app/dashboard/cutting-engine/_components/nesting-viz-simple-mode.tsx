@@ -461,10 +461,16 @@ export default function NestingVizSimpleMode({
         indexToLabel.set(key, item.label)
       }
     }
-    // Return sorted by tag letter
+    // Dedupe by tag — multiple specIndexes can share a partNumber (e.g. "G1"),
+    // which would otherwise produce duplicate React keys + duplicate legend rows.
+    const seenTags = new Set<string>()
     return [...tagMap.entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([key, tag]) => ({ tag, label: indexToLabel.get(key) ?? key }))
+      .flatMap(([key, tag]) => {
+        if (seenTags.has(tag)) return []
+        seenTags.add(tag)
+        return [{ tag, label: indexToLabel.get(key) ?? key }]
+      })
   }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
