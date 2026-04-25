@@ -74,6 +74,20 @@ describe("issue #125 — mergeVerticallyAdjacentBands (restored from PR #106)", 
     expect(merged[0].width).toBe(96)
     expect(merged[0].height).toBe(8)
   })
+
+  it("fuses bands whose x/width differ by < EPS straddling a rounding boundary", () => {
+    // Per CodeRabbit on PR #130: the previous bucket-by-Math.round(x/EPS)
+    // approach split values that straddled a rounding boundary, e.g.
+    // x=30.004 and x=30.006 (delta 0.002) landed in different buckets even
+    // though they're well within the merge tolerance. Tolerance comparison
+    // fuses them as expected.
+    const merged = mergeVerticallyAdjacentBands([
+      band(30.004, 0, 60, 10),
+      band(30.006, 10, 60, 10),
+    ])
+    expect(merged).toHaveLength(1)
+    expect(merged[0].height).toBeCloseTo(20, 5)
+  })
 })
 
 describe("issue #125 — re-classification after merging promotes scrap to reusable", () => {
@@ -106,7 +120,10 @@ describe("issue #125 — buildShelfGapBands integrates the split + merge pass", 
     ]
     const bands = buildShelfGapBands(placements, 96, 48)
 
-    expect(bands).toEqual([band(28, 38, 68, 10), band(0, 42, 28, 6)])
+    // Order doesn't matter — the merge walks tolerance-aware so band order
+    // depends on the internal sort (sorted by x then width then y).
+    expect(bands).toHaveLength(2)
+    expect(bands).toEqual(expect.arrayContaining([band(28, 38, 68, 10), band(0, 42, 28, 6)]))
     expect(classifyOffcutBands(bands, []).scrapBands).toEqual([])
   })
 

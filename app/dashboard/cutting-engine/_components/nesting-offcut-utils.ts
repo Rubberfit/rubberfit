@@ -261,31 +261,40 @@ export function splitBandsAtCommonXEdges(bands: OffcutBand[]): OffcutBand[] {
 
 export function mergeVerticallyAdjacentBands(bands: OffcutBand[]): OffcutBand[] {
   if (bands.length <= 1) return bands
-  const EPS = 0.01
-  const buckets = new Map<string, OffcutBand[]>()
-  for (const band of bands) {
-    const key = `${Math.round(band.x / EPS)}|${Math.round(band.width / EPS)}`
-    const bucket = buckets.get(key)
-    if (bucket) bucket.push(band)
-    else buckets.set(key, [band])
+
+  // Tolerance-aware comparison rather than `Math.round(x / EPS)` bucket
+  // keys — round-based bucketing splits values that straddle a rounding
+  // boundary (e.g. 30.004 and 30.006 land in different buckets even though
+  // they differ by only 0.002). The comparator treats x and width as equal
+  // when they're within `BAND_TOUCH_EPS`, so column-aligned touching bands
+  // sort consecutively by y and the linear walk fuses them correctly.
+  // Per-CodeRabbit on PR #130.
+  const sorted = [...bands].sort((a, b) => {
+    const dx = a.x - b.x
+    if (Math.abs(dx) > BAND_TOUCH_EPS) return dx
+    const dw = a.width - b.width
+    if (Math.abs(dw) > BAND_TOUCH_EPS) return dw
+    return a.y - b.y
+  })
+  const merged: OffcutBand[] = []
+
+  for (const band of sorted) {
+    const current = merged.at(-1)
+    const currentEnd = current ? current.y + current.height : 0
+
+    if (
+      current &&
+      Math.abs(current.x - band.x) <= BAND_TOUCH_EPS &&
+      Math.abs(current.width - band.width) <= BAND_TOUCH_EPS &&
+      Math.abs(band.y - currentEnd) <= BAND_TOUCH_EPS
+    ) {
+      current.height = band.y + band.height - current.y
+      continue
+    }
+
+    merged.push({ ...band })
   }
 
-  const merged: OffcutBand[] = []
-  for (const bucket of buckets.values()) {
-    bucket.sort((a, b) => a.y - b.y)
-    let current: OffcutBand = { ...bucket[0] }
-    for (let i = 1; i < bucket.length; i++) {
-      const next = bucket[i]
-      const currentEnd = current.y + current.height
-      if (Math.abs(next.y - currentEnd) <= EPS) {
-        current.height = next.y + next.height - current.y
-      } else {
-        merged.push(current)
-        current = { ...next }
-      }
-    }
-    merged.push(current)
-  }
   return merged
 }
 
