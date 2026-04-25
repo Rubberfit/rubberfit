@@ -7,11 +7,16 @@
 import type {
   DiagDir,
   GrainDir,
+  MultiSheetResult,
+  OffcutBand,
+  PreviewItem,
   ScoredStrategy,
   SimpleCutDirection,
+  SimplePartPreview,
   Strategy,
   StratMethod,
 } from "./nesting-visualizer-types"
+import { getPlacementBounds } from "./nesting-offcut-utils"
 
 // SVG helpers
 export const NS = "http://www.w3.org/2000/svg"
@@ -226,6 +231,142 @@ export function buildCutBreakpoints(ratios: number[]) {
 
 export function lerp(start: number, end: number, t: number) {
   return start + (end - start) * t
+}
+
+type RectPlacement = { x: number; y: number; width: number; height: number }
+
+function rotatePointForLongStockDisplay(point: { x: number; y: number }, rollW: number) {
+  return { x: point.y, y: rollW - point.x }
+}
+
+export function rotateRectForLongStockDisplay<T extends RectPlacement>(item: T, rollW: number): T {
+  return {
+    ...item,
+    x: item.y,
+    y: rollW - item.x - item.width,
+    width: item.height,
+    height: item.width,
+  }
+}
+
+function rotateOffcutBandForLongStockDisplay(band: OffcutBand, rollW: number): OffcutBand {
+  const rotated = rotateRectForLongStockDisplay(band, rollW)
+  return {
+    ...rotated,
+    ...(band.polygon
+      ? { polygon: band.polygon.map((point) => rotatePointForLongStockDisplay(point, rollW)) }
+      : {}),
+  }
+}
+
+export function rotatePreviewItemForLongStockDisplay(
+  item: PreviewItem,
+  rollW: number
+): PreviewItem {
+  const rotatedItem = rotateRectForLongStockDisplay(item, rollW)
+
+  if (item.placedPolygon && item.placedPolygon.length > 0) {
+    return {
+      ...rotatedItem,
+      placedPolygon: item.placedPolygon.map((point) =>
+        rotatePointForLongStockDisplay(point, rollW)
+      ),
+    }
+  }
+
+  if (item.renderShape === "trapezoid") {
+    const topW = item.topWidth ?? item.width
+    const botW = item.bottomWidth ?? item.width
+    const points = item.flipped
+      ? [
+          { x: item.x + (item.width - botW) / 2, y: item.y },
+          { x: item.x + (item.width + botW) / 2, y: item.y },
+          { x: item.x + (item.width + topW) / 2, y: item.y + item.height },
+          { x: item.x + (item.width - topW) / 2, y: item.y + item.height },
+        ]
+      : [
+          { x: item.x + (item.width - topW) / 2, y: item.y },
+          { x: item.x + (item.width + topW) / 2, y: item.y },
+          { x: item.x + (item.width + botW) / 2, y: item.y + item.height },
+          { x: item.x + (item.width - botW) / 2, y: item.y + item.height },
+        ]
+    return {
+      ...rotatedItem,
+      placedPolygon: points.map((point) => rotatePointForLongStockDisplay(point, rollW)),
+    }
+  }
+
+  if (item.renderShape === "sector") {
+    const innerR = item.innerRadius ?? 0
+    const outerR = item.outerRadius ?? 0
+    const arcDeg = item.arcDegrees ?? 120
+    const halfArc = (arcDeg * Math.PI) / 360
+    const flipSign = item.flipped ? -1 : 1
+    const arcAngleOffset = item.rotated90 ? Math.PI / 2 : 0
+    const cx = item.rotated90 ? item.x + item.width - outerR : item.x + item.width / 2
+    const cy = item.rotated90 ? item.y + item.height / 2 : item.y + outerR
+    const a1 = -Math.PI / 2 - halfArc * flipSign + arcAngleOffset
+    const a2 = -Math.PI / 2 + halfArc * flipSign + arcAngleOffset
+    const segments = 32
+    const points: Array<{ x: number; y: number }> = []
+    for (let i = 0; i <= segments; i++) {
+      const a = a1 + (i / segments) * (a2 - a1)
+      points.push({ x: cx + outerR * Math.cos(a), y: cy + outerR * Math.sin(a) })
+    }
+    for (let i = 0; i <= segments; i++) {
+      const a = a2 + (i / segments) * (a1 - a2)
+      points.push({ x: cx + innerR * Math.cos(a), y: cy + innerR * Math.sin(a) })
+    }
+    return {
+      ...rotatedItem,
+      placedPolygon: points.map((point) => rotatePointForLongStockDisplay(point, rollW)),
+    }
+  }
+
+  return rotatedItem
+}
+
+export function rotateSimplePartPreviewForLongStockDisplay(
+  preview: SimplePartPreview,
+  rollW: number
+): SimplePartPreview {
+  const items = preview.items.map((item) => rotatePreviewItemForLongStockDisplay(item, rollW))
+  const bounds = getPlacementBounds(items)
+  const profileItem = preview.profileItem
+    ? rotatePreviewItemForLongStockDisplay(preview.profileItem, rollW)
+    : preview.profileItem
+
+  const rotatedPreview = {
+    ...preview,
+    items,
+    profileItem,
+    offcutBands: preview.offcutBands.map((band) =>
+      rotateOffcutBandForLongStockDisplay(band, rollW)
+    ),
+    scrapBands: preview.scrapBands.map((band) => rotateOffcutBandForLongStockDisplay(band, rollW)),
+    occupiedWidth: bounds.occupiedWidth,
+    occupiedHeight: bounds.occupiedHeight,
+  }
+
+  if (rotatedPreview.renderShape === "circle") return rotatedPreview
+
+  return {
+    ...rotatedPreview,
+    placements: items,
+  }
+}
+
+export function rotateMultiSheetResultForLongStockDisplay(
+  result: MultiSheetResult,
+  rollW: number
+): MultiSheetResult {
+  return {
+    ...result,
+    sheets: result.sheets.map((sheet) => ({
+      ...sheet,
+      preview: rotateSimplePartPreviewForLongStockDisplay(sheet.preview, rollW),
+    })),
+  }
 }
 
 export function isConeRadialSplit(direction?: SimpleCutDirection) {
