@@ -416,6 +416,96 @@ const rest = async (path, { method = "GET", body } = {}) => {
   return response.json();
 };
 
+const PROJECT_ITEMS_PAGE_SIZE = 100;
+
+const fetchProjectItemsPage = async (projectId, cursor) => {
+  const data = await graphql(
+    `
+      query ProjectItemsPage($projectId: ID!, $cursor: String, $pageSize: Int!) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            items(first: $pageSize, after: $cursor) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                id
+                content {
+                  __typename
+                  ... on Issue {
+                    id
+                    number
+                    state
+                    closedAt
+                    issueType {
+                      id
+                      name
+                    }
+                    repository {
+                      nameWithOwner
+                    }
+                  }
+                }
+                fieldValues(first: 50) {
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                  nodes {
+                    __typename
+                    ... on ProjectV2ItemFieldSingleSelectValue {
+                      name
+                      field {
+                        ... on ProjectV2SingleSelectField {
+                          name
+                        }
+                      }
+                    }
+                    ... on ProjectV2ItemFieldIterationValue {
+                      iterationId
+                      title
+                      field {
+                        ... on ProjectV2IterationField {
+                          name
+                        }
+                      }
+                    }
+                    ... on ProjectV2ItemFieldDateValue {
+                      date
+                      field {
+                        ... on ProjectV2Field {
+                          name
+                        }
+                      }
+                    }
+                    ... on ProjectV2ItemFieldTextValue {
+                      text
+                      field {
+                        ... on ProjectV2Field {
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `,
+    { projectId, cursor, pageSize: PROJECT_ITEMS_PAGE_SIZE },
+    "ProjectItemsPage",
+  );
+
+  const items = data?.node?.items;
+  if (!items) {
+    throw new Error(`Failed to fetch project items page (cursor=${cursor || "<start>"}).`);
+  }
+  return items;
+};
+
 const getProjectContext = async () => {
   const data = await graphql(
     `
@@ -592,7 +682,6 @@ const getProjectContext = async () => {
   }
 
   assertConnectionComplete("project fields", project.fields.pageInfo);
-  assertConnectionComplete("project items", project.items.pageInfo);
 
   const statusOptionIds = new Map(statusField.options.map((option) => [option.name, option.id]));
   const priorityOptionIds = new Map(priorityField.options.map((option) => [option.name, option.id]));
@@ -601,7 +690,18 @@ const getProjectContext = async () => {
   const currentIteration = getCurrentIteration(sprintField);
   const itemsByIssueNumber = new Map();
 
-  for (const node of project.items.nodes) {
+  // Paginate items via cursor — the initial query returns the first 100;
+  // any extra pages are pulled here. This keeps the rollover safety net
+  // working once the board grows past 100 items (CR finding on PR #134).
+  const allItemNodes = [...project.items.nodes];
+  let itemsPage = project.items.pageInfo;
+  while (itemsPage?.hasNextPage) {
+    const nextPage = await fetchProjectItemsPage(project.id, itemsPage.endCursor);
+    allItemNodes.push(...nextPage.nodes);
+    itemsPage = nextPage.pageInfo;
+  }
+
+  for (const node of allItemNodes) {
     assertConnectionComplete(
       node.content?.__typename === "Issue"
         ? `project field values for issue #${node.content.number}`
@@ -1498,79 +1598,6 @@ const handleIssueEvent = async () => {
   }
 };
 
-const handleProjectsV2ItemEvent = async () => {
-  // GitHub fires `projects_v2_item.edited` whenever any field on the item
-  // changes. We only care about Status transitions into Done / Canceled —
-  // every other edit is a no-op for this script.
-  const projectsItem = payload.projects_v2_item;
-  const changes = payload.changes;
-  if (!projectsItem || !changes) {
-    console.log("Missing projects_v2_item or changes payload. Skipping.");
-    return;
-  }
-
-  const fieldName = changes.field_value?.field_name;
-  if (fieldName !== STATUS_FIELD_NAME) {
-    console.log(`Ignoring projects_v2_item edit on field "${fieldName}".`);
-    return;
-  }
-
-  const fromStatus = changes.field_value?.from?.name || null;
-  const toStatus = changes.field_value?.to?.name || null;
-  console.log(`Status change on item ${projectsItem.id}: ${fromStatus || "unset"} -> ${toStatus || "unset"}`);
-
-  if (!toStatus || !CLOSED_STATUS_NAMES.has(toStatus)) {
-    return;
-  }
-
-  if (projectsItem.content_type !== "Issue" && projectsItem.content_type !== "DraftIssue") {
-    console.log(`Skipping non-issue content type: ${projectsItem.content_type}`);
-    return;
-  }
-
-  // The webhook payload only carries the project item id + node id of the
-  // content; resolve the issue number via GraphQL.
-  const data = await graphql(
-    `
-      query ProjectItemIssue($itemId: ID!) {
-        node(id: $itemId) {
-          ... on ProjectV2Item {
-            content {
-              __typename
-              ... on Issue {
-                number
-                state
-                repository { nameWithOwner }
-              }
-            }
-          }
-        }
-      }
-    `,
-    { itemId: projectsItem.node_id || projectsItem.id },
-    "ProjectItemIssue",
-  );
-
-  const content = data?.node?.content;
-  if (!content || content.__typename !== "Issue") {
-    console.log("Project item is not linked to an Issue. Skipping.");
-    return;
-  }
-
-  const expectedRepo = `${repoOwner}/${repoName}`;
-  if (content.repository?.nameWithOwner !== expectedRepo) {
-    console.log(`Issue belongs to ${content.repository?.nameWithOwner}, not ${expectedRepo}. Skipping.`);
-    return;
-  }
-
-  if (content.state === "CLOSED") {
-    console.log(`Issue #${content.number} is already closed. Skipping.`);
-    return;
-  }
-
-  await closeIssueIfOpen(content.number, toStatus === "Canceled" ? "not_planned" : "completed");
-};
-
 const handleBranchCreated = async () => {
   if (payload.ref_type !== "branch") {
     return;
@@ -1709,11 +1736,6 @@ const main = async () => {
 
   if (eventName === "pull_request_target") {
     await handlePullRequestEvent();
-    return;
-  }
-
-  if (eventName === "projects_v2_item") {
-    await handleProjectsV2ItemEvent();
     return;
   }
 

@@ -4,12 +4,6 @@ on:
   create:
   issues:
     types: [opened, reopened, closed]
-  # Fires when an item is added/edited on the org's Projects v2 board.
-  # Used to close issues whose Status moves to Done / Canceled — the
-  # script reads the linked issue from the project item and closes it
-  # via REST. Requires `repository-projects: write` (already granted).
-  projects_v2_item:
-    types: [edited]
   pull_request_target:
     types:
       [
@@ -24,7 +18,13 @@ on:
         closed,
       ]
   schedule:
-    - cron: "0 15 * * *"
+    # Run every 15 minutes. GitHub Actions has no `projects_v2_item`
+    # trigger (it's a webhook event but not exposed to Actions), so the
+    # "Status moved to Done → close issue" sync runs from the rollover
+    # path on this cron. 15 min is the smallest cron Actions guarantees
+    # in practice (5 min is the documented minimum but routinely
+    # delayed under load).
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
