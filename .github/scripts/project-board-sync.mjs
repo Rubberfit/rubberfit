@@ -1414,6 +1414,30 @@ const updatePullRequestBody = async (pullRequestNumber, body, issueNumber) => {
   console.log(`Updated PR #${pullRequestNumber} body with Closes #${issueNumber}`);
 };
 
+const closeIssueIfOpen = async (issueNumber, reason = "completed") => {
+  if (!issueNumber) return false;
+  const stateReason = reason === "not_planned" ? "not_planned" : "completed";
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] close issue #${issueNumber} (state_reason=${stateReason})`);
+    return true;
+  }
+
+  // Skip the work if the issue is already closed — avoids no-op REST traffic
+  // and keeps the GitHub event log clean (no spurious "closed" events).
+  const current = await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`);
+  if (current?.state === "closed") {
+    return false;
+  }
+
+  await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`, {
+    method: "PATCH",
+    body: { state: "closed", state_reason: stateReason },
+  });
+  console.log(`Closed issue #${issueNumber} (state_reason=${stateReason})`);
+  return true;
+};
+
 const syncIssue = async (project, issue, statusName, options = {}) => {
   const item = await ensureItem(project, issue);
   await setStatus(project, item, statusName);
@@ -1472,6 +1496,79 @@ const handleIssueEvent = async () => {
       targetDate: issueDetails.closedAt || formatDate(new Date()),
     });
   }
+};
+
+const handleProjectsV2ItemEvent = async () => {
+  // GitHub fires `projects_v2_item.edited` whenever any field on the item
+  // changes. We only care about Status transitions into Done / Canceled —
+  // every other edit is a no-op for this script.
+  const projectsItem = payload.projects_v2_item;
+  const changes = payload.changes;
+  if (!projectsItem || !changes) {
+    console.log("Missing projects_v2_item or changes payload. Skipping.");
+    return;
+  }
+
+  const fieldName = changes.field_value?.field_name;
+  if (fieldName !== STATUS_FIELD_NAME) {
+    console.log(`Ignoring projects_v2_item edit on field "${fieldName}".`);
+    return;
+  }
+
+  const fromStatus = changes.field_value?.from?.name || null;
+  const toStatus = changes.field_value?.to?.name || null;
+  console.log(`Status change on item ${projectsItem.id}: ${fromStatus || "unset"} -> ${toStatus || "unset"}`);
+
+  if (!toStatus || !CLOSED_STATUS_NAMES.has(toStatus)) {
+    return;
+  }
+
+  if (projectsItem.content_type !== "Issue" && projectsItem.content_type !== "DraftIssue") {
+    console.log(`Skipping non-issue content type: ${projectsItem.content_type}`);
+    return;
+  }
+
+  // The webhook payload only carries the project item id + node id of the
+  // content; resolve the issue number via GraphQL.
+  const data = await graphql(
+    `
+      query ProjectItemIssue($itemId: ID!) {
+        node(id: $itemId) {
+          ... on ProjectV2Item {
+            content {
+              __typename
+              ... on Issue {
+                number
+                state
+                repository { nameWithOwner }
+              }
+            }
+          }
+        }
+      }
+    `,
+    { itemId: projectsItem.node_id || projectsItem.id },
+    "ProjectItemIssue",
+  );
+
+  const content = data?.node?.content;
+  if (!content || content.__typename !== "Issue") {
+    console.log("Project item is not linked to an Issue. Skipping.");
+    return;
+  }
+
+  const expectedRepo = `${repoOwner}/${repoName}`;
+  if (content.repository?.nameWithOwner !== expectedRepo) {
+    console.log(`Issue belongs to ${content.repository?.nameWithOwner}, not ${expectedRepo}. Skipping.`);
+    return;
+  }
+
+  if (content.state === "CLOSED") {
+    console.log(`Issue #${content.number} is already closed. Skipping.`);
+    return;
+  }
+
+  await closeIssueIfOpen(content.number, toStatus === "Canceled" ? "not_planned" : "completed");
 };
 
 const handleBranchCreated = async () => {
@@ -1580,6 +1677,15 @@ const runRollover = async () => {
       if (!item.targetDate) {
         await setTargetDate(project, item, item.issueClosedAt || formatDate(new Date()));
       }
+      // Drift safety net: if the live `projects_v2_item.edited` webhook
+      // missed an event (network blip, rate limit, app restart), the daily
+      // rollover catches any item whose Status is Done/Canceled but whose
+      // linked issue is still OPEN, and closes it.
+      if (item.issueState !== "CLOSED" && item.issueNumber) {
+        const reason = item.status === "Canceled" ? "not_planned" : "completed";
+        const closed = await closeIssueIfOpen(item.issueNumber, reason);
+        if (closed) item.issueState = "CLOSED";
+      }
       continue;
     }
 
@@ -1603,6 +1709,11 @@ const main = async () => {
 
   if (eventName === "pull_request_target") {
     await handlePullRequestEvent();
+    return;
+  }
+
+  if (eventName === "projects_v2_item") {
+    await handleProjectsV2ItemEvent();
     return;
   }
 
