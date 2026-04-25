@@ -20,12 +20,14 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
   const searchParams = useSearchParams()
   const router = useRouter()
   const loadCutId = searchParams.get("loadCut")
+  console.log("[issue-126] CutLoaderInner RENDER, loadCutId=", loadCutId, "all params=", Array.from(searchParams.entries()))
   // Id-keyed guard: the boolean flag pattern silently swallowed
   // subsequent deep links within the same mount, so consecutive
   // `?loadCut=` links appeared to do nothing after the first.
   const lastLoadedIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    console.log("[issue-126] CutLoader useEffect fired, loadCutId=", loadCutId, "lastRef=", lastLoadedIdRef.current)
     if (!loadCutId) {
       lastLoadedIdRef.current = null
       return
@@ -95,6 +97,7 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
 }
 
 export function CutLoader(props: CutLoaderProps) {
+  console.log("[issue-126] CutLoader (wrapper) RENDER")
   return (
     <Suspense fallback={null}>
       <CutLoaderInner {...props} />
