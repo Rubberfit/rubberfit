@@ -148,11 +148,6 @@ function CutPlannerPageInner() {
   // ── Load a previously recorded cut ────────────────────────────────────────
   const handleLoadCut = useCallback(
     (cut: CutHistory) => {
-      console.log("[issue-126] handleLoadCut START", {
-        id: cut.id,
-        cut_width: cut.cut_width,
-        cut_length: cut.cut_length,
-      })
       // 1. Restore stock dimensions
       const stockPreset = cut.material_id >= 1 ? STOCK_PRESETS[cut.material_id - 1] : null
       const materialName =
@@ -178,14 +173,6 @@ function CutPlannerPageInner() {
         perTemplateQuantities,
         sizeTexts,
       } = buildTemplatesFromCutRecord(cut)
-      console.log("[issue-126] handleLoadCut helper output", {
-        templates: templates.map((t) => ({ id: t.id, partType: t.partType, w: t.width, l: t.length, q: t.quantity })),
-        primaryPartType,
-        perTemplatePartTypes,
-        customDimensions,
-        perTemplateQuantities,
-        sizeTexts,
-      })
 
       // 3. Apply — clear uploaded parts so loaded config is the only source
       setUploadedParts([])
@@ -207,20 +194,10 @@ function CutPlannerPageInner() {
         perTemplatePartTypes,
       })
 
-      console.log("[issue-126] handleLoadCut END — state setters called")
       toast.success("Cut configuration loaded")
     },
     [materialTypes]
   )
-
-  // Track every time presetParts/uploadedParts changes so we can see if
-  // something resets them after handleLoadCut.
-  useEffect(() => {
-    console.log("[issue-126] presetParts changed:", presetParts.length, presetParts.map((p) => ({ partType: p.partType, w: p.width, l: p.length })))
-  }, [presetParts])
-  useEffect(() => {
-    console.log("[issue-126] stock changed:", stock)
-  }, [stock])
 
   // ── Load a job into the engine ────────────────────────────────────────────
   // Invoked by `?loadJob=<id>` — stashes the job id so the next
