@@ -34,6 +34,7 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
     lastLoadedIdRef.current = loadCutId
     let isCancelled = false
 
+    console.log("[issue-126] CutLoader fetching cut", loadCutId)
     fetch(`/api/cuts/history/${encodeURIComponent(loadCutId)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`${res.status}`)
@@ -43,14 +44,26 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
         // pass `undefined` into onLoad and silently break restore. Throw
         // into the shared catch so the user sees the same error toast.
         if (!json.data) throw new Error("missing payload.data")
+        console.log("[issue-126] CutLoader got cut", {
+          id: json.data.id,
+          source: json.data.source,
+          part_id: json.data.part_id,
+          cut_width: json.data.cut_width,
+          cut_length: json.data.cut_length,
+          part_selected_size_text: json.data.part_selected_size_text,
+          part_custom_dimensions: json.data.part_custom_dimensions,
+          layout_json: json.data.layout_json,
+        })
         onLoad(json.data)
       })
-      .catch((_error) => {
+      .catch((error) => {
         if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
+        console.error("[issue-126] CutLoader fetch error", error)
         toast.error("Could not load cut record")
       })
       .finally(() => {
         if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
+        console.log("[issue-126] CutLoader cleaning up URL via", returnPath)
         // CRITICAL: same-path URL cleanup must use the History API, NOT
         // `router.replace`. Next 16 App Router treats a `router.replace` to
         // the same pathname as a navigation that remounts the page tree —
