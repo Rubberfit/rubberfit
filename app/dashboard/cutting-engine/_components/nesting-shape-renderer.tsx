@@ -159,7 +159,7 @@ function CircleShape({
             y={cy}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-stone-200"
+            className="fill-foreground"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -250,7 +250,7 @@ function SectorShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-stone-200"
+            className="fill-foreground"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -330,7 +330,7 @@ function TrapezoidShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-stone-200"
+            className="fill-foreground"
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
