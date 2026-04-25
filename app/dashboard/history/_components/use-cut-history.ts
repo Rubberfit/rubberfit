@@ -7,6 +7,8 @@ import { toast } from "sonner"
 
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { isLayoutModelArray } from "@/app/dashboard/cutting-engine/_components/layout-model"
+import { useRegenerateCutPdf } from "@/app/hooks/use-regenerate-cut-pdf"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
 // Types
@@ -59,6 +61,7 @@ export function useCutHistory() {
     open: false,
     cutId: null,
   })
+  const { pendingIds: pendingPdfIds, regenerate: regenerateCutPdf } = useRegenerateCutPdf()
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: new Date(),
@@ -215,6 +218,30 @@ export function useCutHistory() {
     }
   }, [deleteConfirm])
 
+  // Open the PDF for a cut. If the row already has a `pdf_url`, open it
+  // directly. Otherwise delegate to `useRegenerateCutPdf` which calls
+  // the on-demand endpoint (`POST /api/cuts/history/[id]/pdf`), which
+  // builds the PDF from the persisted `layout_json` snapshot, uploads
+  // it, persists `pdf_url` on the row, and returns the URL. Issue #127:
+  // the save-time path can leave `pdf_url = null` when the browser
+  // navigates away mid-upload or storage rejects, so the button used
+  // to disappear forever — this path heals those rows on first click.
+  const handleViewPdf = useCallback(
+    async (cutId: string) => {
+      const row = cuts.find((c) => c.id === cutId)
+      if (row?.pdf_url) {
+        window.open(row.pdf_url, "_blank")
+        return
+      }
+
+      const url = await regenerateCutPdf(cutId)
+      if (!url) return
+      setCuts((prev) => prev.map((c) => (c.id === cutId ? { ...c, pdf_url: url } : c)))
+      window.open(url, "_blank")
+    },
+    [cuts, regenerateCutPdf]
+  )
+
   // Navigate back to the surface that produced the cut — Auto nest
   // for `source: "auto"` rows, Free roam for `source: "manual"` so
   // manual layouts re-hydrate onto the CAD canvas instead of landing
@@ -312,10 +339,26 @@ export function useCutHistory() {
     canDelete,
     roleLoading,
     userId,
+    // PDF
+    pendingPdfIds,
     // Handlers
     handleToggleFavorite,
     handleConfirmDelete,
     handleReopen,
+    handleViewPdf,
     exportToCsv,
   }
+}
+
+/**
+ * `true` when the cut row has either a stored `pdf_url` (button opens
+ * directly) or a frozen auto-nest layout we can regenerate from on
+ * demand. `false` only for legacy rows that can never produce a PDF —
+ * those render the button disabled with a tooltip.
+ */
+export function canViewPdf(cut: CutHistory): boolean {
+  if (cut.pdf_url) return true
+  const layout = cut.layout_json
+  if (!layout || layout.kind !== "auto") return false
+  return isLayoutModelArray(layout.layouts)
 }

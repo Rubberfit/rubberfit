@@ -59,9 +59,13 @@ delete / parts / assignees / PDF export all happen inline.
 - **job-purchase-orders-panel.tsx** -- POs with `job_id` pointing
   at this job. Status badge mirrors the PO list palette.
 - **job-cuts-panel.tsx** -- cut_history rows linked to this job;
-  metric summary + PDF deep-link when available. No layout
-  thumbnails (per the customer-facing rule — layouts stay in the
-  internal cut history view).
+  metric summary + PDF link. The PDF action always renders: it
+  opens `pdf_url` directly when present, falls back to
+  `POST /api/cuts/history/[id]/pdf` to regenerate from
+  `layout_json` when missing (issue #127), and is disabled with a
+  tooltip on legacy rows that have neither. No layout thumbnails
+  (per the customer-facing rule — layouts stay in the internal
+  cut history view).
 - **job-pdf.ts** -- jsPDF builder. Receipt-style: customer +
   company header, roster, parts, allocated rolls, totals.
   **No cut layouts.** Exports `buildJobPdfBlob` for
