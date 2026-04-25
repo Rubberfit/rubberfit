@@ -96,12 +96,6 @@ export function buildOriginRectOffcutBands(
   return bands
 }
 
-/**
- * Subtract a placement's AABB from a single band rect, returning 0–4
- * non-overlapping sub-bands. Used to clip shelf-gap bands so they never
- * paint over placements from other rows (NFP rotation gives each placement
- * a unique y, so the per-row bands otherwise span across other placements).
- */
 function subtractPlacementFromBand(band: OffcutBand, placement: ShapePlacement): OffcutBand[] {
   const bx1 = band.x
   const bx2 = band.x + band.width
@@ -141,12 +135,6 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     return [] as OffcutBand[]
   }
 
-  /**
-   * Stage 1: Group placements into rows (lines 149-163)
-   * Items are grouped by their exact y-coordinate.
-   * Each row tracks its y position, the maximum height of any item in the row, and the list of placements.
-   */
-
   const rows = new Map<number, { y: number; height: number; placements: ShapePlacement[] }>()
 
   placements.forEach((placement) => {
@@ -164,10 +152,6 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     existing.placements.push(placement)
   })
 
-  /**
-   * Stage 2: Walk each row and find gaps. (lines 172-220)
-   * For each row, sort placements left-to-right by x, then scan across
-   */
   const candidateBands: OffcutBand[] = []
   const sortedRows = Array.from(rows.values()).sort((a, b) => a.y - b.y)
 
@@ -176,11 +160,9 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     let rowMaxX = 0
 
     sortedPlacements.forEach((placement, idx) => {
-      // Leading gap (first placement doesn't start at x=0)
       if (idx === 0 && placement.x > MIN_GAP_BAND_SIZE) {
         candidateBands.push({ x: 0, y: row.y, width: placement.x, height: row.height })
       }
-      // Inter-placement gap (gap between consecutive placements)
       if (idx > 0) {
         const prevEnd = sortedPlacements[idx - 1].x + sortedPlacements[idx - 1].width
         const gapWidth = placement.x - prevEnd
@@ -197,10 +179,6 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
           width: placement.width,
           height: underfillHeight,
         }
-        // Only emit when the strip is large enough to be reusable. Otherwise
-        // a row of short cones next to a tall one produces thin scrap bands
-        // below each short cone, which paint a horizontal waste stripe and
-        // also shift withWaste's proportional split toward scrap.
         if (isReusableOffcutBand(underfillBand)) {
           candidateBands.push(underfillBand)
         }
@@ -232,16 +210,6 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     }
   }
 
-  /**
-   * Stage 3: Clip against all placements
-   * Every candidate band is run through subtractPlacementFromBand against every placement.
-   * This splits bands that would overlap a shape's AABB into sub bands around it.
-   * This matters for NFP-rotated layouts where items in different rows might have overlapping x-ranges.
-   */
-
-  // Clip every candidate against every placement so no band overlaps a
-  // placement's AABB. Without this, rows of NFP-rotated placements emit
-  // leading/trailing strips that paint across other rows' shapes.
   const bands: OffcutBand[] = []
   for (const band of candidateBands) {
     let pieces: OffcutBand[] = [band]
@@ -255,36 +223,32 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
   return mergeVerticallyAdjacentBands(splitBandsAtCommonXEdges(bands))
 }
 
-// Slice every band at every other band's x-edges so that vertically-adjacent
-// bands with overlapping x-ranges end up column-aligned. Without this pass
-// `mergeVerticallyAdjacentBands` cannot fuse a row's trailing band
-// (e.g. {x:28, w:68}) with the bottom band ({x:0, w:96}) even though they
-// touch at y — the (x, width) bucket keys differ. After splitting at the
-// union {0, 28, 96} the bottom band becomes [{x:0,w:28}, {x:28,w:68}], the
-// {x:28,w:68} bucket fuses with the trailing band into one tall rectangle,
-// and the lonely {x:0,w:28} piece classifies on its own merits. Issue #125.
 export function splitBandsAtCommonXEdges(bands: OffcutBand[]): OffcutBand[] {
   if (bands.length <= 1) return bands
-  const EPS = 0.001
-  const xSet = new Set<number>()
-  for (const band of bands) {
-    xSet.add(band.x)
-    xSet.add(band.x + band.width)
+  // Same EPS as `mergeVerticallyAdjacentBands` so the bucket keys produced
+  // there fold pieces emitted from these split points. Per-CodeRabbit on PR #130.
+  const EPS = 0.01
+  // Collect every band's left + right x-coords, then coalesce values within
+  // EPS into a single representative — otherwise near-equal floats (e.g. 30
+  // and 30.004 from independent placements) survive as distinct split points
+  // and emit sub-EPS-width slivers downstream.
+  const sortedXs = bands
+    .flatMap((band) => [band.x, band.x + band.width])
+    .sort((a, b) => a - b)
+  const xs: number[] = []
+  for (const x of sortedXs) {
+    if (xs.length === 0 || x - xs[xs.length - 1] > EPS) xs.push(x)
   }
-  const xs = Array.from(xSet).sort((a, b) => a - b)
 
   const result: OffcutBand[] = []
   for (const band of bands) {
     const bandLeft = band.x
     const bandRight = band.x + band.width
-    // Find every x-edge strictly between this band's left and right.
     const interior = xs.filter((x) => x > bandLeft + EPS && x < bandRight - EPS)
     if (interior.length === 0) {
       result.push(band)
       continue
     }
-    // Emit slices [bandLeft, interior[0]], [interior[0], interior[1]], …,
-    // [interior[last], bandRight].
     let prev = bandLeft
     for (const x of interior) {
       result.push({ ...band, x: prev, width: x - prev })
@@ -295,16 +259,6 @@ export function splitBandsAtCommonXEdges(bands: OffcutBand[]): OffcutBand[] {
   return result
 }
 
-// Fuse bands that share the same (x, width) column and touch at their
-// y-boundary. Row-by-row gap generation emits one band per row, so a
-// reusable band directly above a scrap band with the same x-range would
-// otherwise stay split and get classified independently — leaving a thin
-// scrap stripe sandwiched between two reusable strips. Merging lets the
-// combined rectangle re-hit the reusable thresholds downstream.
-//
-// Originally added in PR #106 ("Merge vertically adjacent offcut bands for
-// better waste classification"). Deleted by PR #112 (Free-roam + Rust
-// migration); restored here for issue #125.
 export function mergeVerticallyAdjacentBands(bands: OffcutBand[]): OffcutBand[] {
   if (bands.length <= 1) return bands
   const EPS = 0.01
@@ -408,11 +362,11 @@ export function classifyOffcutBands(
       }
     }
 
-    const componentReusable = component.some((index) => individuallyReusable[index])
+    const isComponentReusable = component.some((index) => individuallyReusable[index])
     for (const index of component) {
       const band = bands[index]
       const area = band.width * band.height
-      if (componentReusable) {
+      if (isComponentReusable) {
         offcutBands.push(band)
         reusableArea += area
       } else {

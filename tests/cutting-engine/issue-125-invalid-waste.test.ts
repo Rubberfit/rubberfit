@@ -2,24 +2,30 @@
  * Regression tests for GitHub issue #125 — "Invalid Waste Calculation".
  *
  * The cut planner was rendering a thin scrap (pink) stripe sandwiched
- * between two reusable (yellow) bands that shared the same x-range, even
- * though the combined rectangle was clearly reusable. Row-by-row gap
- * generation in `buildShelfGapBands` emits one band per row; without a
- * post-pass to fuse vertically-adjacent (x, width)-matching bands, a
- * narrow leftover row stays classified independently as scrap.
+ * between reusable (yellow) free space, even though the connected leftover
+ * material was reusable. Row-by-row gap generation in `buildShelfGapBands`
+ * emits one band per row; without x-edge normalization plus connected
+ * classification, a narrow leftover row can stay isolated as scrap.
  *
- * The fix restores `mergeVerticallyAdjacentBands` (originally PR #106,
- * deleted by PR #112's rust migration). After merging, the combined band
- * re-hits `isReusableOffcutBand` and the visual scrap-stripe disappears.
+ * The fix keeps `mergeVerticallyAdjacentBands`, slices mismatched x-ranges
+ * before that merge, and promotes edge-connected free-space components that
+ * contain any reusable band.
  */
 import { describe, it, expect } from "vitest"
 import {
+  bandFitsAnyPreviewItem,
   buildShelfGapBands,
+  classifyOffcutBands,
   isReusableOffcutBand,
   mergeVerticallyAdjacentBands,
+  splitBandsAtCommonXEdges,
 } from "@/app/dashboard/cutting-engine/_components/nesting-offcut-utils"
+import { buildPartPreviewItem } from "@/app/dashboard/cutting-engine/_components/nesting-preview-builders"
+import { packPreviewItemsOnShelves } from "@/app/dashboard/cutting-engine/_components/nesting-packing-utils"
 import type {
   OffcutBand,
+  PreviewItem,
+  SimplePartSpec,
   ShapePlacement,
 } from "@/app/dashboard/cutting-engine/_components/nesting-visualizer-types"
 
@@ -87,6 +93,23 @@ describe("issue #125 — re-classification after merging promotes scrap to reusa
 })
 
 describe("issue #125 — buildShelfGapBands integrates the split + merge pass", () => {
+  it("splits a full-width bottom band at the row-trailing band's x-edge", () => {
+    const split = splitBandsAtCommonXEdges([band(28, 38, 68, 4), band(0, 42, 96, 6)])
+
+    expect(split).toEqual([band(28, 38, 68, 4), band(0, 42, 28, 6), band(28, 42, 68, 6)])
+  })
+
+  it("merges a thin row-trailing stripe into the bottom offcut after splitting", () => {
+    const placements: ShapePlacement[] = [
+      { x: 0, y: 0, width: 96, height: 38 },
+      { x: 0, y: 38, width: 28, height: 4 },
+    ]
+    const bands = buildShelfGapBands(placements, 96, 48)
+
+    expect(bands).toEqual([band(28, 38, 68, 10), band(0, 42, 28, 6)])
+    expect(classifyOffcutBands(bands, []).scrapBands).toEqual([])
+  })
+
   it("trailing strips fuse vertically AND with the (split) bottom band", () => {
     // Two side-by-side rows of placements leave trailing strips at
     // {x:30, w:66}; the bottom band {x:0, w:96, y:20, h:28} gets sliced at
@@ -103,6 +126,28 @@ describe("issue #125 — buildShelfGapBands integrates the split + merge pass", 
     // Two trailing strips (10 each) + bottom slice at the same x-range (28)
     // = 48, the full height from y=0 to the sheet bottom.
     expect(trailing?.height).toBe(48)
+  })
+
+  it("coalesces near-equal x-edges within EPS instead of emitting sub-EPS slivers", () => {
+    // Two trailing strips at nearly identical x (30 vs 30.004) — without
+    // EPS coalescing the splitter would produce a 0.004-wide sliver between
+    // them. Per CodeRabbit on PR #130. The split should treat 30 ≈ 30.004
+    // as one cut point and merge the strips into a single tall column.
+    const placements: ShapePlacement[] = [
+      { x: 0, y: 0, width: 30, height: 10 },
+      { x: 0, y: 10, width: 30.004, height: 10 },
+    ]
+    const bands = buildShelfGapBands(placements, 96, 48)
+
+    const trailing = bands.find((b) => Math.abs(b.x - 30) < 0.01 && b.width > 65)
+    expect(trailing, "trailing strips at x≈30 should fuse despite fractional drift").toBeDefined()
+    expect(trailing?.height).toBeCloseTo(48, 1)
+
+    // No sub-EPS sliver should appear in the band list — every band must
+    // have meaningful width.
+    for (const b of bands) {
+      expect(b.width, `sliver detected: x=${b.x} w=${b.width}`).toBeGreaterThan(0.01)
+    }
   })
 
   it("issue #125 reproduction: scrap stripe between row-trailing and bottom band gets absorbed", () => {
@@ -132,7 +177,69 @@ describe("issue #125 — buildShelfGapBands integrates the split + merge pass", 
       // exactly the bug we just fixed.
       const isWide = b.width > 80
       const isThin = b.height < 6
-      expect(isWide && isThin, `regression: thin wide bottom stripe ${b.width}x${b.height}`).toBe(false)
+      expect(isWide && isThin, `regression: thin wide bottom stripe ${b.width}x${b.height}`).toBe(
+        false
+      )
     }
   })
 })
+
+describe("issue #125 — connected free-space classification", () => {
+  it("absorbs the screenshot-style stripe touching a reusable bottom band", () => {
+    const classified = classifyOffcutBands([band(28, 38, 68, 4), band(0, 42, 96, 6)], [])
+
+    expect(classified.scrapBands).toEqual([])
+    expect(classified.offcutBands).toHaveLength(2)
+    expect(classified.reusableArea).toBe(68 * 4 + 96 * 6)
+  })
+
+  it("does not absorb a stripe separated by a real gap", () => {
+    const classified = classifyOffcutBands([band(28, 37, 68, 4), band(0, 42, 96, 6)], [])
+
+    expect(classified.scrapBands).toEqual([band(28, 37, 68, 4)])
+    expect(classified.offcutBands).toEqual([band(0, 42, 96, 6)])
+  })
+
+  it("does not absorb corner-only contact", () => {
+    const classified = classifyOffcutBands([band(0, 0, 4, 4), band(4, 4, 96, 6)], [])
+
+    expect(classified.scrapBands).toEqual([band(0, 0, 4, 4)])
+    expect(classified.offcutBands).toEqual([band(4, 4, 96, 6)])
+  })
+
+  it("classifies the sync first-paint issue #125 shelf layout without visual scrap bands", () => {
+    const requestedItems = buildIssue125Items()
+    const packed = packPreviewItemsOnShelves(requestedItems, 96, 48, "width")
+
+    expect(
+      packed.items.map(({ x, y, width, height, rotated90 }) => ({ x, y, width, height, rotated90 }))
+    ).toEqual([
+      { x: 0, y: 0, width: Math.PI * 12, height: 18, rotated90: false },
+      { x: Math.PI * 12, y: 0, width: 40, height: 28, rotated90: true },
+      { x: Math.PI * 12 + 40, y: 0, width: 14, height: 24, rotated90: true },
+      { x: 0, y: 28, width: 24, height: 12, rotated90: true },
+    ])
+
+    const bands = buildShelfGapBands(packed.items, 96, 48)
+    const rawScrap = bands.filter((candidate) => !bandFitsAnyPreviewItem(candidate, packed.items))
+    expect(rawScrap).toEqual([band(Math.PI * 12 + 54, 0, 96 - (Math.PI * 12 + 54), 48)])
+
+    const classified = classifyOffcutBands(bands, packed.items)
+    expect(classified.scrapBands).toEqual([])
+  })
+})
+
+function buildIssue125Items(): Array<PreviewItem & { usedArea: number }> {
+  const specs: SimplePartSpec[] = [
+    { partType: "trapezoid", quantity: 1, topWidth: 20, bottomWidth: 28, height: 40 },
+    { partType: "rectangle", quantity: 1, width: 12, length: 24 },
+    { partType: "rectangle", quantity: 1, width: 24, length: 14 },
+    { partType: "cylinder", quantity: 1, diameter: 12, height: 18 },
+  ]
+
+  return specs.map((spec, specIndex) => {
+    const item = buildPartPreviewItem(spec, 0, 0)
+    item.specIndex = specIndex
+    return item
+  })
+}
