@@ -292,7 +292,7 @@ describe("issue #121 — regressions: existing layouts unchanged", () => {
 })
 
 describe("issue #121 — integration: tag map / legend completeness", () => {
-  /** Mirrors the legend builder in nesting-viz-simple-mode.tsx:451-468.
+  /** Mirrors the legend builder in nesting-viz-simple-mode.tsx:451-481.
    *  `buildTagMap` itself is imported from production so test coverage tracks
    *  runtime behavior — see CodeRabbit feedback during implementation. */
   function buildLegend(tagMap: Map<string, string>, allItems: PreviewItem[]) {
@@ -303,10 +303,20 @@ describe("issue #121 — integration: tag map / legend completeness", () => {
         indexToLabel.set(key, item.label)
       }
     }
-    return [...tagMap.entries()].map(([key, tag]) => ({
-      tag,
-      label: indexToLabel.get(key) ?? key,
-    }))
+    const legendByTag = new Map<string, { label: string; resolved: boolean }>()
+    for (const [key, tag] of tagMap.entries()) {
+      const resolvedLabel = indexToLabel.get(key)
+      const existing = legendByTag.get(tag)
+      if (!existing || (!existing.resolved && resolvedLabel)) {
+        legendByTag.set(tag, {
+          label: resolvedLabel ?? key,
+          resolved: Boolean(resolvedLabel),
+        })
+      }
+    }
+    return [...legendByTag.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([tag, { label }]) => ({ tag, label }))
   }
 
   it("multi-sheet mixed-shape layout produces complete legend (Done-when of issue #121)", () => {
@@ -342,5 +352,23 @@ describe("issue #121 — integration: tag map / legend completeness", () => {
       expect(entry.label).toBeTruthy()
       expect(entry.label).not.toMatch(/^\d+$/) // bare specIndex string would match — must NOT happen
     }
+  })
+
+  it("collapses duplicate part-number tags to one legend entry per letter (PR #137)", () => {
+    // Two specs with the same partNumber → tagMap has two distinct keys
+    // mapping to the same tag value. Without dedupe the legend would emit
+    // two "G1" rows + a duplicate React key warning.
+    const specs = [
+      rect(40, 60, 1, 0, "G1"),
+      rect(20, 30, 2, 1, "G1"),
+      rect(8, 8, 4, 2, "G2"),
+    ]
+    const basePreview = generateMultiPartPreview(ROLL_W, ROLL_L, specs, FALLBACK_W, FALLBACK_H)
+    const tagMap = buildTagMap(basePreview, null)
+    const legend = buildLegend(tagMap, basePreview.items)
+
+    expect(tagMap.size).toBe(3) // raw map: two keys mapping to "G1", one to "G2"
+    expect(legend).toHaveLength(2) // collapsed to one per unique tag
+    expect(legend.map((e) => e.tag)).toEqual(["G1", "G2"])
   })
 })

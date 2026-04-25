@@ -463,14 +463,22 @@ export default function NestingVizSimpleMode({
     }
     // Dedupe by tag — multiple specIndexes can share a partNumber (e.g. "G1"),
     // which would otherwise produce duplicate React keys + duplicate legend rows.
-    const seenTags = new Set<string>()
-    return [...tagMap.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .flatMap(([key, tag]) => {
-        if (seenTags.has(tag)) return []
-        seenTags.add(tag)
-        return [{ tag, label: indexToLabel.get(key) ?? key }]
-      })
+    // Prefer the first entry per tag whose label resolved, so the legend never
+    // falls back to a numeric specIndex when a sibling has a real label.
+    const legendByTag = new Map<string, { label: string; resolved: boolean }>()
+    for (const [key, tag] of tagMap.entries()) {
+      const resolvedLabel = indexToLabel.get(key)
+      const existing = legendByTag.get(tag)
+      if (!existing || (!existing.resolved && resolvedLabel)) {
+        legendByTag.set(tag, {
+          label: resolvedLabel ?? key,
+          resolved: Boolean(resolvedLabel),
+        })
+      }
+    }
+    return [...legendByTag.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([tag, { label }]) => ({ tag, label }))
   }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
