@@ -30,10 +30,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
   }
 
-  const { id: rawId } = await params
-  const cutId = parseInt(rawId, 10)
+  const { id: cutId } = await params
 
-  if (isNaN(cutId)) {
+  if (!cutId) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 })
   }
 
@@ -91,10 +90,9 @@ export async function DELETE(
     )
   }
 
-  const { id: rawId } = await params
-  const cutId = parseInt(rawId, 10)
+  const { id: cutId } = await params
 
-  if (isNaN(cutId)) {
+  if (!cutId) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 })
   }
 

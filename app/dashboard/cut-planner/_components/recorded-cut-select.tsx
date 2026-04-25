@@ -54,11 +54,11 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
       try {
         const [histResult, favResult] = await Promise.allSettled([
           fetchJson<{ data: CutHistory[] }>("/api/cuts/history?limit=50"),
-          fetchJson<{ data: number[] }>("/api/cuts/favorites"),
+          fetchJson<{ data: string[] }>("/api/cuts/favorites"),
         ])
 
         const history = histResult.status === "fulfilled" ? (histResult.value.data ?? []) : []
-        const favIds = new Set<number>(favResult.status === "fulfilled" ? favResult.value.data : [])
+        const favIds = new Set<string>(favResult.status === "fulfilled" ? favResult.value.data : [])
 
         const merged = history
           .map((c) => ({ ...c, isFavorite: favIds.has(c.id) }))
@@ -83,7 +83,7 @@ export function RecordedCutSelect({ onLoad, refreshKey = 0 }: RecordedCutSelectP
   const isEmpty = !isLoading && cuts.length === 0
 
   function handleValueChange(value: string) {
-    const cut = cuts.find((c) => c.id === Number(value))
+    const cut = cuts.find((c) => c.id === value)
     if (cut) onLoad(cut)
   }
 

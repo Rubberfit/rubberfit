@@ -180,6 +180,23 @@ function parseDimsFromLabel(
   return {}
 }
 
+import type { PartCustomDimensions } from "@/src/infrastructure/models/supabase"
+import type { SupportedPartType } from "./preset-template-data"
+
+/** Infer the part type from a stored PartCustomDimensions record.
+ *  Heuristic: each type has a unique distinguishing field.
+ *  - cylinder  → has `diameter`
+ *  - cone      → has `arcDegrees`
+ *  - trapezoid → has `topWidth` or `bottomWidth`
+ *  - rectangle → fallback
+ */
+function inferPartTypeFromDims(dims: PartCustomDimensions): SupportedPartType {
+  if (dims.diameter !== undefined) return "cylinder"
+  if (dims.arcDegrees !== undefined) return "cone"
+  if (dims.topWidth !== undefined || dims.bottomWidth !== undefined) return "trapezoid"
+  return "rectangle"
+}
+
 export {
   getRequestedSqFt,
   getDefaultCutDirection,
@@ -189,4 +206,5 @@ export {
   getCutDirectionOptions,
   getCutModeTitle,
   getCutModeDescription,
+  inferPartTypeFromDims,
 }

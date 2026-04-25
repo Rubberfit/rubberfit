@@ -1,0 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS admin;
+
+GRANT USAGE ON SCHEMA admin TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA admin TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA admin GRANT ALL ON TABLES TO service_role;

@@ -22,6 +22,8 @@ import type { ISupplierService } from "@/src/application/services/supplier.servi
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
+import type { IUserManagementService } from "@/src/application/services/user-management.service.interface"
+import type { IHealthAlertService } from "@/src/application/services/health-alert.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -43,6 +45,8 @@ import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
+import { userManagementService } from "@/src/infrastructure/services/userManagementService"
+import { healthAlertService } from "@/src/infrastructure/services/healthAlertService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -87,6 +91,11 @@ container.registerInstance<IVisionExtractionService>(
   TOKENS.IVisionExtractionService,
   visionExtractionService
 )
+container.registerInstance<IUserManagementService>(
+  TOKENS.IUserManagementService,
+  userManagementService
+)
+container.registerInstance<IHealthAlertService>(TOKENS.IHealthAlertService, healthAlertService)
 
 // Use cases — registered as class-based singletons so the container lazily
 // constructs them on first resolve, keeping use-case modules import-safe for

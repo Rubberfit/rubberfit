@@ -11,6 +11,10 @@ import "reflect-metadata"
 import { injectable } from "tsyringe"
 
 export type { AuthUser, AuthResponse }
+interface ProfileData {
+  roles: string[]
+  isSuperAdmin: boolean
+}
 
 function generateRandomAvatar(seed: string): string {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=2563eb&textColor=ffffff`
@@ -34,33 +38,45 @@ function getUserAuthProvider(user: SupabaseUser): string | undefined {
   return typeof provider === "string" ? provider : undefined
 }
 
-async function getProfileRoles(userId: string): Promise<string[]> {
+async function getProfileRoles(userId: string): Promise<ProfileData> {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("roles")
+      .select("roles, super_admin")
       .eq("id", userId)
       .maybeSingle()
 
     if (error) {
       console.error("Error loading profile roles:", error)
-      return normalizeRoles()
+      return { roles: normalizeRoles(), isSuperAdmin: false }
     }
 
-    return normalizeRoles(data?.roles)
+    return { roles: normalizeRoles(data?.roles), isSuperAdmin: data?.super_admin === true }
   } catch (error) {
     console.error("Error loading profile roles:", error)
-    return normalizeRoles()
+    return { roles: normalizeRoles(), isSuperAdmin: false }
   }
 }
 
+async function isProfileDeleted(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_deleted")
+    .eq("id", userId)
+    .maybeSingle()
+
+  return data?.is_deleted === true
+}
+
 async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
+  const { roles, isSuperAdmin } = await getProfileRoles(user.id)
   return {
     id: user.id,
     email: user.email!,
     name: getUserName(user),
     avatar: getUserAvatar(user),
-    roles: await getProfileRoles(user.id),
+    roles: roles,
+    isSuperAdmin,
     authProvider: getUserAuthProvider(user),
     createdAt: user.created_at,
   }
@@ -86,6 +102,18 @@ export class AuthService implements IAuthService {
             message: "No user returned from sign in",
             name: "AuthError",
             status: 400,
+          } as AuthError,
+        }
+      }
+
+      if (await isProfileDeleted(data.user.id)) {
+        await supabase.auth.signOut()
+        return {
+          user: null,
+          error: {
+            message: "This account has been deactivated. Please contact your administrator.",
+            name: "AuthError",
+            status: 403,
           } as AuthError,
         }
       }
