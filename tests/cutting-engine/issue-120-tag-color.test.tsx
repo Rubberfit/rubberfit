@@ -137,14 +137,21 @@ function polygonItem(): PreviewItem {
   }
 }
 
+interface ShapeCase {
+  name: string
+  build: () => PreviewItem
+}
+
+const SHAPE_CASES: ReadonlyArray<ShapeCase> = [
+  { name: "rect", build: rectItem },
+  { name: "circle", build: circleItem },
+  { name: "sector", build: sectorItem },
+  { name: "trapezoid", build: trapezoidItem },
+  { name: "polygon (NFP-rotated)", build: polygonItem },
+]
+
 describe("issue #120 — tag letters render with theme-aware fill on every shape kind", () => {
-  for (const [name, build] of [
-    ["rect", rectItem],
-    ["circle", circleItem],
-    ["sector", sectorItem],
-    ["trapezoid", trapezoidItem],
-    ["polygon (NFP-rotated)", polygonItem],
-  ] as const) {
+  for (const { name, build } of SHAPE_CASES) {
     it(`${name}: tag text uses fill-foreground (never the legacy hardcoded near-white)`, () => {
       const html = renderShape(build(), "A")
       // The tag text must be present
