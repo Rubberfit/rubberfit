@@ -86,22 +86,53 @@ describe("issue #125 — re-classification after merging promotes scrap to reusa
   })
 })
 
-describe("issue #125 — buildShelfGapBands integrates the merge pass", () => {
-  it("for a layout that produces row-aligned strips, post-build bands are merged", () => {
-    // Two side-by-side rows of placements that leave a trailing strip in
-    // the same x-range. Without the merge pass, two separate trailing
-    // strips would survive; with the merge they combine into one.
+describe("issue #125 — buildShelfGapBands integrates the split + merge pass", () => {
+  it("trailing strips fuse vertically AND with the (split) bottom band", () => {
+    // Two side-by-side rows of placements leave trailing strips at
+    // {x:30, w:66}; the bottom band {x:0, w:96, y:20, h:28} gets sliced at
+    // x=30 by `splitBandsAtCommonXEdges`, producing a {x:30, w:66, y:20,
+    // h:28} piece that merges with the trailing strips into one tall band.
     const placements: ShapePlacement[] = [
       { x: 0, y: 0, width: 30, height: 10 },
       { x: 0, y: 10, width: 30, height: 10 },
     ]
     const bands = buildShelfGapBands(placements, 96, 48)
 
-    // The trailing strips at (30, 0, 66, 10) and (30, 10, 66, 10) plus the
-    // bottom band (0, 20, 96, 28) all carry MIN_GAP_BAND_SIZE > 0.25
-    // checks. After merge, the two trailing strips become (30, 0, 66, 20).
     const trailing = bands.find((b) => b.x === 30 && b.width === 66)
     expect(trailing, "trailing strips at x=30,width=66 should fuse").toBeDefined()
-    expect(trailing?.height).toBe(20)
+    // Two trailing strips (10 each) + bottom slice at the same x-range (28)
+    // = 48, the full height from y=0 to the sheet bottom.
+    expect(trailing?.height).toBe(48)
+  })
+
+  it("issue #125 reproduction: scrap stripe between row-trailing and bottom band gets absorbed", () => {
+    // Mimic the user's reported screenshot: a tall placement on the left
+    // (trapezoid) leaves a wide trailing strip; a few small placements
+    // form a row to the right. Without split-then-merge, the bottom band
+    // at the very bottom couldn't fuse with the trailing strip above it
+    // because they had different (x, width). After this fix, the bottom
+    // band gets sliced at the trailing strip's x-edges and the matching
+    // pieces fuse — eliminating the thin scrap stripe artifact.
+    const placements: ShapePlacement[] = [
+      { x: 0, y: 0, width: 28, height: 40 }, // trapezoid AABB
+      { x: 28, y: 0, width: 18, height: 38 }, // cylinder rotated tall
+      { x: 46, y: 0, width: 24, height: 14 }, // 24×14
+      { x: 70, y: 0, width: 12, height: 24 }, // 12×24
+    ]
+    const bands = buildShelfGapBands(placements, 96, 48)
+
+    // No band should exist that is geometrically a "thin scrap stripe at
+    // the very bottom of the sheet" (height < 6 spanning much of the sheet
+    // width). Specifically: any band touching the sheet's bottom edge
+    // (y + height ≈ 48) must have either real reusable height (≥ 6) or
+    // not be classified as a tiny isolated stripe.
+    const bottomTouchers = bands.filter((b) => Math.abs(b.y + b.height - 48) < 0.5)
+    for (const b of bottomTouchers) {
+      // Stripes thinner than the strip threshold WITH wide x-coverage are
+      // exactly the bug we just fixed.
+      const isWide = b.width > 80
+      const isThin = b.height < 6
+      expect(isWide && isThin, `regression: thin wide bottom stripe ${b.width}x${b.height}`).toBe(false)
+    }
   })
 })

@@ -10,6 +10,7 @@ import {
 } from "./nesting-visualizer-types"
 
 const MIN_GAP_BAND_SIZE = 0.25
+const BAND_TOUCH_EPS = 0.01
 
 export function buildRowCounts(placed: number, cols: number) {
   const rows = Math.ceil(placed / cols)
@@ -251,7 +252,47 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
     bands.push(...pieces)
   }
 
-  return mergeVerticallyAdjacentBands(bands)
+  return mergeVerticallyAdjacentBands(splitBandsAtCommonXEdges(bands))
+}
+
+// Slice every band at every other band's x-edges so that vertically-adjacent
+// bands with overlapping x-ranges end up column-aligned. Without this pass
+// `mergeVerticallyAdjacentBands` cannot fuse a row's trailing band
+// (e.g. {x:28, w:68}) with the bottom band ({x:0, w:96}) even though they
+// touch at y — the (x, width) bucket keys differ. After splitting at the
+// union {0, 28, 96} the bottom band becomes [{x:0,w:28}, {x:28,w:68}], the
+// {x:28,w:68} bucket fuses with the trailing band into one tall rectangle,
+// and the lonely {x:0,w:28} piece classifies on its own merits. Issue #125.
+export function splitBandsAtCommonXEdges(bands: OffcutBand[]): OffcutBand[] {
+  if (bands.length <= 1) return bands
+  const EPS = 0.001
+  const xSet = new Set<number>()
+  for (const band of bands) {
+    xSet.add(band.x)
+    xSet.add(band.x + band.width)
+  }
+  const xs = Array.from(xSet).sort((a, b) => a - b)
+
+  const result: OffcutBand[] = []
+  for (const band of bands) {
+    const bandLeft = band.x
+    const bandRight = band.x + band.width
+    // Find every x-edge strictly between this band's left and right.
+    const interior = xs.filter((x) => x > bandLeft + EPS && x < bandRight - EPS)
+    if (interior.length === 0) {
+      result.push(band)
+      continue
+    }
+    // Emit slices [bandLeft, interior[0]], [interior[0], interior[1]], …,
+    // [interior[last], bandRight].
+    let prev = bandLeft
+    for (const x of interior) {
+      result.push({ ...band, x: prev, width: x - prev })
+      prev = x
+    }
+    result.push({ ...band, x: prev, width: bandRight - prev })
+  }
+  return result
 }
 
 // Fuse bands that share the same (x, width) column and touch at their
@@ -317,6 +358,71 @@ export function bandFitsAnyPreviewItem(band: OffcutBand, items: PreviewItem[]) {
     items.some((item) => countPieceFitsInBand(band, item.width, item.height) > 0) ||
     isReusableOffcutBand(band)
   )
+}
+
+export interface ClassifiedOffcutBands {
+  offcutBands: OffcutBand[]
+  scrapBands: OffcutBand[]
+  reusableArea: number
+  scrapArea: number
+}
+
+function bandsAreEdgeConnected(a: OffcutBand, b: OffcutBand): boolean {
+  const ax2 = a.x + a.width
+  const ay2 = a.y + a.height
+  const bx2 = b.x + b.width
+  const by2 = b.y + b.height
+  const xOverlap = Math.min(ax2, bx2) - Math.max(a.x, b.x)
+  const yOverlap = Math.min(ay2, by2) - Math.max(a.y, b.y)
+
+  return (
+    (xOverlap > BAND_TOUCH_EPS && yOverlap >= -BAND_TOUCH_EPS) ||
+    (yOverlap > BAND_TOUCH_EPS && xOverlap >= -BAND_TOUCH_EPS)
+  )
+}
+
+export function classifyOffcutBands(
+  bands: OffcutBand[],
+  items: PreviewItem[]
+): ClassifiedOffcutBands {
+  const offcutBands: OffcutBand[] = []
+  const scrapBands: OffcutBand[] = []
+  const individuallyReusable = bands.map((band) => bandFitsAnyPreviewItem(band, items))
+  const visited = new Array<boolean>(bands.length).fill(false)
+  let reusableArea = 0
+  let scrapArea = 0
+
+  for (let start = 0; start < bands.length; start += 1) {
+    if (visited[start]) continue
+    const component: number[] = []
+    const queue = [start]
+    visited[start] = true
+
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const current = queue[cursor]
+      component.push(current)
+      for (let next = 0; next < bands.length; next += 1) {
+        if (visited[next] || !bandsAreEdgeConnected(bands[current], bands[next])) continue
+        visited[next] = true
+        queue.push(next)
+      }
+    }
+
+    const componentReusable = component.some((index) => individuallyReusable[index])
+    for (const index of component) {
+      const band = bands[index]
+      const area = band.width * band.height
+      if (componentReusable) {
+        offcutBands.push(band)
+        reusableArea += area
+      } else {
+        scrapBands.push(band)
+        scrapArea += area
+      }
+    }
+  }
+
+  return { offcutBands, scrapBands, reusableArea, scrapArea }
 }
 
 export function computeIntraBlankWaste(item: PreviewItem): number {
