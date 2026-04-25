@@ -26,6 +26,13 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # CodeRabbit only auto-reviews PRs whose base is the default branch (main)
+    # OR is listed here. Without `dev`, the integration branch sees
+    # "Auto reviews are disabled on base/target branches other than the
+    # default branch" — see PR #129. Adding `dev` so feature → dev PRs get
+    # reviewed without manually invoking @coderabbitai review.
+    base_branches:
+      - dev
   path_instructions:
     - path: "app/src/services/**"
       instructions: |
