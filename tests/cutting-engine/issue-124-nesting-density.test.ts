@@ -125,6 +125,100 @@ describe("issue #124 — nesting density on the 7-shape screenshot fixture", () 
     ).toEqual([])
   })
 
+  it("14-shape long-stock layout leaves no fillable internal gap (issue #124 follow-up)", async () => {
+    // The user's long-stock report showed shapes packed loosely with big
+    // empty rectangles (24×37.7, 48.5×27, 36.77×22.43) sitting INSIDE the
+    // packed region while smaller shapes were placed elsewhere. Root cause:
+    // `comparePackingCandidates` ranked "less scrap area" before "smaller
+    // bbox", so the dispatcher picked a wider/looser candidate over a
+    // tighter one (often the global MaxRects packer).
+    //
+    // After the comparator swap, the dispatcher picks the densest-bbox
+    // candidate. This test asserts: no internal band (one fully inside the
+    // occupied bbox) larger than 500 sqin should be able to fit any of the
+    // placed items — i.e., gaps that *could* be backfilled don't exist.
+    const specs: SimplePartSpec[] = [
+      { partType: "rectangle", quantity: 1, width: 12, length: 12, partNumber: "A" },
+      { partType: "rectangle", quantity: 1, width: 24, length: 18, partNumber: "B" },
+      {
+        partType: "cone",
+        quantity: 1,
+        innerRadius: 8,
+        outerRadius: 28,
+        arcDegrees: 130,
+        partNumber: "C",
+      },
+      {
+        partType: "cone",
+        quantity: 1,
+        innerRadius: 8,
+        outerRadius: 30,
+        arcDegrees: 160,
+        partNumber: "D",
+      },
+      {
+        partType: "trapezoid",
+        quantity: 1,
+        topWidth: 8,
+        bottomWidth: 18,
+        height: 30,
+        partNumber: "E",
+      },
+      {
+        partType: "trapezoid",
+        quantity: 1,
+        topWidth: 14,
+        bottomWidth: 18,
+        height: 22,
+        partNumber: "F",
+      },
+      {
+        partType: "trapezoid",
+        quantity: 1,
+        topWidth: 18,
+        bottomWidth: 24,
+        height: 26,
+        partNumber: "G",
+      },
+      { partType: "rectangle", quantity: 1, width: 80, length: 30, partNumber: "H" },
+      { partType: "rectangle", quantity: 1, width: 30, length: 60, partNumber: "I" },
+      { partType: "rectangle", quantity: 1, width: 24, length: 24, partNumber: "J" },
+      { partType: "rectangle", quantity: 1, width: 150, length: 40, partNumber: "K" },
+      { partType: "rectangle", quantity: 1, width: 12, length: 24, partNumber: "L" },
+      { partType: "rectangle", quantity: 1, width: 30, length: 12, partNumber: "M" },
+      { partType: "rectangle", quantity: 1, width: 36, length: 18, partNumber: "N" },
+    ]
+    const stockW = 78
+    const stockL = 396
+    const preview = await generateMultiPartPreviewAsync(stockW, stockL, specs, 24, 12)
+
+    expect(preview.items.length).toBe(specs.length)
+    expect(preview.overflowUnits).toBe(0)
+
+    const maxX = Math.max(...preview.items.map((it) => it.x + it.width))
+    const maxY = Math.max(...preview.items.map((it) => it.y + it.height))
+
+    const itemFitsBand = (
+      item: { width: number; height: number },
+      band: { width: number; height: number }
+    ) =>
+      (item.width <= band.width + 0.01 && item.height <= band.height + 0.01) ||
+      (item.height <= band.width + 0.01 && item.width <= band.height + 0.01)
+
+    const allBands = [...preview.offcutBands, ...preview.scrapBands]
+    const internalBands = allBands.filter(
+      (b) => b.x + b.width <= maxX + 0.5 && b.y + b.height <= maxY + 0.5
+    )
+    const fillableInternalGaps = internalBands.filter((b) => {
+      if (b.width * b.height < 500) return false
+      return preview.items.some((item) => itemFitsBand(item, b))
+    })
+    expect(
+      fillableInternalGaps,
+      `gaps that could fit a placed item: ${JSON.stringify(fillableInternalGaps.map((b) => ({ w: b.width, h: b.height })))}`
+    ).toEqual([])
+  })
+
   it("hybrid candidate never auto-wins when fallback packs strictly tighter", async () => {
     // Construct a mix where the trapezoid-hybrid path leaves big slivers but
     // the basic shelf packer can stack everything cleanly. Two trapezoids +

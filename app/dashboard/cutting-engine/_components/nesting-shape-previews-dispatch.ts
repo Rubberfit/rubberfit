@@ -573,6 +573,14 @@ function tryGlobalMaxRectsCandidate(
 function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): number {
   if (a.packed.items.length !== b.packed.items.length)
     return b.packed.items.length - a.packed.items.length
+  // Prefer the smaller occupied bounding box BEFORE per-band scrap counting.
+  // A tighter bbox uses less stock length, leaves a cleaner contiguous
+  // remainder at the end of the roll, and is what operators perceive as
+  // "denser packing" — even if the band classifier sees more "scrap"
+  // pockets between shapes. Issue #124 user report.
+  const aBbox = a.bounds.occupiedWidth * a.bounds.occupiedHeight
+  const bBbox = b.bounds.occupiedWidth * b.bounds.occupiedHeight
+  if (Math.abs(aBbox - bBbox) > 0.5) return aBbox - bBbox
   if (Math.abs(a.scrapArea - b.scrapArea) > 0.001) return a.scrapArea - b.scrapArea
   if (Math.abs(a.trimDensity - b.trimDensity) > 0.0001) return a.trimDensity - b.trimDensity
   if (Math.abs(a.reusableArea - b.reusableArea) > 0.001) return b.reusableArea - a.reusableArea
