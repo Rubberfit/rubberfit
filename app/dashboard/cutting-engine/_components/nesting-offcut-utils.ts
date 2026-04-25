@@ -225,26 +225,28 @@ export function buildShelfGapBands(placements: ShapePlacement[], rollW: number, 
 
 export function splitBandsAtCommonXEdges(bands: OffcutBand[]): OffcutBand[] {
   if (bands.length <= 1) return bands
-  // Same EPS as `mergeVerticallyAdjacentBands` so the bucket keys produced
-  // there fold pieces emitted from these split points. Per-CodeRabbit on PR #130.
-  const EPS = 0.01
-  // Collect every band's left + right x-coords, then coalesce values within
-  // EPS into a single representative — otherwise near-equal floats (e.g. 30
-  // and 30.004 from independent placements) survive as distinct split points
-  // and emit sub-EPS-width slivers downstream.
+  // Coalesce within MAX(BAND_TOUCH_EPS, MIN_GAP_BAND_SIZE) so the split pass
+  // honors the same minimum-band threshold every upstream generator uses.
+  // Without this, near-equal edges that are outside EPS but still below the
+  // gap-band threshold (e.g. 30 vs 30.02) would emit a 0.02"-wide micro-
+  // stripe — exactly the artifact this fix is meant to suppress, just
+  // outside the EPS bucket. Per-CodeRabbit on PR #130.
+  const splitTolerance = Math.max(BAND_TOUCH_EPS, MIN_GAP_BAND_SIZE)
   const sortedXs = bands
     .flatMap((band) => [band.x, band.x + band.width])
     .sort((a, b) => a - b)
   const xs: number[] = []
   for (const x of sortedXs) {
-    if (xs.length === 0 || x - xs[xs.length - 1] > EPS) xs.push(x)
+    if (xs.length === 0 || x - xs[xs.length - 1] > splitTolerance) xs.push(x)
   }
 
   const result: OffcutBand[] = []
   for (const band of bands) {
     const bandLeft = band.x
     const bandRight = band.x + band.width
-    const interior = xs.filter((x) => x > bandLeft + EPS && x < bandRight - EPS)
+    const interior = xs.filter(
+      (x) => x > bandLeft + splitTolerance && x < bandRight - splitTolerance
+    )
     if (interior.length === 0) {
       result.push(band)
       continue

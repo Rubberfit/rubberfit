@@ -167,6 +167,25 @@ describe("issue #125 — buildShelfGapBands integrates the split + merge pass", 
     }
   })
 
+  it("doesn't emit micro-stripes when x-drift sits between EPS and MIN_GAP_BAND_SIZE", () => {
+    // Per CodeRabbit on PR #130: x=30 vs x=30.02 is outside BAND_TOUCH_EPS
+    // (so it survives the coalesce-by-EPS step) but the resulting 0.02"-
+    // wide split column is below MIN_GAP_BAND_SIZE (0.25") — the same
+    // threshold every upstream band generator uses to drop micro-stripes.
+    // The split pass must coalesce at the larger threshold or we re-emit
+    // exactly the artifact the rest of the pipeline normally suppresses.
+    const placements: ShapePlacement[] = [
+      { x: 0, y: 0, width: 30, height: 10 },
+      { x: 0, y: 10, width: 30.02, height: 10 },
+    ]
+    const bands = buildShelfGapBands(placements, 96, 48)
+
+    // No band should be narrower than MIN_GAP_BAND_SIZE (0.25").
+    for (const b of bands) {
+      expect(b.width, `micro-stripe: x=${b.x} w=${b.width}`).toBeGreaterThanOrEqual(0.25)
+    }
+  })
+
   it("issue #125 reproduction: scrap stripe between row-trailing and bottom band gets absorbed", () => {
     // Mimic the user's reported screenshot: a tall placement on the left
     // (trapezoid) leaves a wide trailing strip; a few small placements
