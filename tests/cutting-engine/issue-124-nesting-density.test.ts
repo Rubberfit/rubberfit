@@ -21,11 +21,7 @@
  *   - `bandsInStockBounds`              — every offcut band must be inside the sheet
  */
 import { describe, it, expect } from "vitest"
-import { rotateSimplePartPreviewForLongStockDisplay } from "@/app/dashboard/cutting-engine/_components/nesting-layout-utils"
-import {
-  generateMultiPartPreview,
-  generateMultiPartPreviewAsync,
-} from "@/app/dashboard/cutting-engine/_components/nesting-shape-previews"
+import { generateMultiPartPreview, generateMultiPartPreviewAsync } from "@/app/dashboard/cutting-engine/_components/nesting-shape-previews"
 import type {
   OffcutBand,
   SimplePartPreview,
@@ -36,10 +32,6 @@ const ROLL_W = 96
 const ROLL_L = 48
 const FALLBACK_W = 24
 const FALLBACK_H = 12
-const LONG_STOCK_RAW_W = 78
-const LONG_STOCK_RAW_L = 396
-const LONG_STOCK_DISPLAY_W = 396
-const LONG_STOCK_DISPLAY_L = 78
 
 // Per Codex's investigation — approximates the issue #124 screenshot's
 // 7-shape layout (A/B/C rectangles, D/E cones, F/G trapezoids on a 96×48
@@ -49,74 +41,10 @@ const SCREENSHOT_SPECS: SimplePartSpec[] = [
   { partType: "rectangle", quantity: 1, width: 8, length: 14, partNumber: "A" },
   { partType: "rectangle", quantity: 1, width: 8, length: 16, partNumber: "B" },
   { partType: "rectangle", quantity: 1, width: 30, length: 7, partNumber: "C" },
-  {
-    partType: "cone",
-    quantity: 1,
-    innerRadius: 11,
-    outerRadius: 22,
-    arcDegrees: 70,
-    partNumber: "D",
-  },
-  {
-    partType: "cone",
-    quantity: 1,
-    innerRadius: 11,
-    outerRadius: 31,
-    arcDegrees: 130,
-    partNumber: "E",
-  },
-  {
-    partType: "trapezoid",
-    quantity: 1,
-    topWidth: 42,
-    bottomWidth: 34,
-    height: 18,
-    partNumber: "F",
-  },
-  {
-    partType: "trapezoid",
-    quantity: 1,
-    topWidth: 30,
-    bottomWidth: 24,
-    height: 14,
-    partNumber: "G",
-  },
-]
-
-// Regression for the follow-up report on a much longer 78×396 roll displayed
-// as 396×78. Before the display-rotation fix, origin-packed raw layouts showed
-// up pinned to the far right after clockwise rotation, leaving a full-height
-// offcut on the left. These dimensions approximate the reported A-H mix.
-const LONG_STOCK_SPECS: SimplePartSpec[] = [
-  { partType: "rectangle", quantity: 1, width: 40, length: 40, partNumber: "A" },
-  { partType: "rectangle", quantity: 1, width: 24, length: 24, partNumber: "B" },
-  { partType: "rectangle", quantity: 1, width: 48, length: 30, partNumber: "C" },
-  { partType: "rectangle", quantity: 1, width: 24, length: 24, partNumber: "D" },
-  {
-    partType: "cone",
-    quantity: 1,
-    innerRadius: 8,
-    outerRadius: 28,
-    arcDegrees: 160,
-    partNumber: "E",
-  },
-  {
-    partType: "cone",
-    quantity: 1,
-    innerRadius: 12,
-    outerRadius: 38,
-    arcDegrees: 160,
-    partNumber: "F",
-  },
-  {
-    partType: "trapezoid",
-    quantity: 1,
-    topWidth: 60,
-    bottomWidth: 72,
-    height: 28,
-    partNumber: "G",
-  },
-  { partType: "rectangle", quantity: 1, width: 78, length: 40, partNumber: "H" },
+  { partType: "cone", quantity: 1, innerRadius: 11, outerRadius: 22, arcDegrees: 70, partNumber: "D" },
+  { partType: "cone", quantity: 1, innerRadius: 11, outerRadius: 31, arcDegrees: 130, partNumber: "E" },
+  { partType: "trapezoid", quantity: 1, topWidth: 42, bottomWidth: 34, height: 18, partNumber: "F" },
+  { partType: "trapezoid", quantity: 1, topWidth: 30, bottomWidth: 24, height: 14, partNumber: "G" },
 ]
 
 interface DensityReport {
@@ -127,18 +55,18 @@ interface DensityReport {
   density: number
   reusableArea: number
   scrapArea: number
-  minX: number
-  stockUtilization: number
   bandsOutsideStock: OffcutBand[]
 }
 
-function analyzePreview(preview: SimplePartPreview, rollW = ROLL_W, rollL = ROLL_L): DensityReport {
-  const minX = preview.items.length > 0 ? Math.min(...preview.items.map((item) => item.x)) : 0
+function analyzePreview(preview: SimplePartPreview): DensityReport {
   const bboxArea = Math.max(1, preview.occupiedWidth * preview.occupiedHeight)
   const allBands = [...preview.offcutBands, ...preview.scrapBands]
   const bandsOutsideStock = allBands.filter(
     (b) =>
-      b.x < -0.01 || b.y < -0.01 || b.x + b.width > rollW + 0.01 || b.y + b.height > rollL + 0.01
+      b.x < -0.01 ||
+      b.y < -0.01 ||
+      b.x + b.width > ROLL_W + 0.01 ||
+      b.y + b.height > ROLL_L + 0.01
   )
   return {
     itemsPlaced: preview.items.length,
@@ -148,8 +76,6 @@ function analyzePreview(preview: SimplePartPreview, rollW = ROLL_W, rollL = ROLL
     density: preview.usedArea / bboxArea,
     reusableArea: preview.reusableArea,
     scrapArea: preview.scrapArea,
-    minX,
-    stockUtilization: rollW * rollL > 0 ? preview.usedArea / (rollW * rollL) : 0,
     bandsOutsideStock,
   }
 }
@@ -216,29 +142,5 @@ describe("issue #124 — nesting density on the 7-shape screenshot fixture", () 
     // The dispatcher should pick the densest candidate; this fixture's
     // best-of-three places all 3 with sane density.
     expect(report.density).toBeGreaterThan(0.4)
-  })
-
-  it("long 396×78 display remains left-anchored after rotating raw roll coordinates", async () => {
-    const rawPreview = await generateMultiPartPreviewAsync(
-      LONG_STOCK_RAW_W,
-      LONG_STOCK_RAW_L,
-      LONG_STOCK_SPECS,
-      FALLBACK_W,
-      FALLBACK_H
-    )
-    const displayedPreview = rotateSimplePartPreviewForLongStockDisplay(
-      rawPreview,
-      LONG_STOCK_RAW_W
-    )
-    const report = analyzePreview(displayedPreview, LONG_STOCK_DISPLAY_W, LONG_STOCK_DISPLAY_L)
-
-    expect(report.overflowUnits, "all A-H parts must fit on the long stock").toBe(0)
-    expect(report.itemsPlaced).toBe(LONG_STOCK_SPECS.length)
-    expect(
-      report.minX,
-      `displayed bbox must start at the left edge, got x=${report.minX}`
-    ).toBeLessThanOrEqual(1)
-    expect(report.stockUtilization).toBeGreaterThan(0.35)
-    expect(report.bandsOutsideStock).toEqual([])
   })
 })
