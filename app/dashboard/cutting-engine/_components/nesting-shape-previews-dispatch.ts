@@ -42,6 +42,7 @@ import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
 
 export { globalMultiSheetPack } from "./nesting-global-packer-entry"
+import { globalMultiSheetPack as _globalMultiSheetPack } from "./nesting-global-packer-entry"
 
 interface PackingCandidate {
   sortBy: string
@@ -519,6 +520,56 @@ async function tryTrapezoidHybridCandidateAsync(
   )
 }
 
+// Pick the densest candidate from a heterogeneous list (hybrid, mixed-NFP,
+// fallback, global-MaxRects). The fallback is always non-null; the others
+// are nullable when their preconditions don't hold. Sorted via the existing
+// comparePackingCandidates (more items > less scrap > tighter trim).
+// Issue #124.
+function pickBestCandidate(
+  candidates: ReadonlyArray<PackingCandidate | null>
+): PackingCandidate {
+  const valid = candidates.filter((c): c is PackingCandidate => c !== null)
+  if (valid.length === 0) {
+    throw new Error("pickBestCandidate: no candidates supplied")
+  }
+  if (valid.length === 1) return valid[0]
+  return [...valid].sort(comparePackingCandidates)[0]
+}
+
+// Run globalMultiSheetPack on the spec list and convert its first sheet's
+// preview into a PackingCandidate so it can compete with hybrid/mixed/
+// fallback. The MaxRects-based packer is much better than shelf packing at
+// fitting a heterogeneous spec mix into irregular leftover pockets — and
+// it was previously gated off entirely for trapezoid+other layouts via
+// `needsNfpRegenerate` in NestingVisualizer.tsx. Issue #124.
+function tryGlobalMaxRectsCandidate(
+  simpleParts: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): PackingCandidate | null {
+  if (simpleParts.length < 2) return null
+  const result = _globalMultiSheetPack(simpleParts, rollW, rollL, 1, fallbackWidth, fallbackHeight)
+  const sheet = result.sheets[0]?.preview
+  if (!sheet || sheet.items.length === 0) return null
+  const bounds = getPlacementBounds(sheet.items)
+  const trimDensity =
+    bounds.occupiedWidth * bounds.occupiedHeight > 0
+      ? sheet.scrapArea / (bounds.occupiedWidth * bounds.occupiedHeight)
+      : 1
+  return {
+    sortBy: "global-maxrects",
+    packed: { items: sheet.items, usedArea: sheet.usedArea },
+    bounds,
+    offcutBands: sheet.offcutBands,
+    scrapBands: sheet.scrapBands,
+    reusableArea: sheet.reusableArea,
+    scrapArea: sheet.scrapArea,
+    trimDensity,
+  }
+}
+
 function comparePackingCandidates(a: PackingCandidate, b: PackingCandidate): number {
   if (a.packed.items.length !== b.packed.items.length)
     return b.packed.items.length - a.packed.items.length
@@ -733,16 +784,21 @@ export function generateMultiPartPreview(
     ? tryMixedNfpCandidate(simpleParts, rollW, rollL, fallbackWidth, fallbackHeight)
     : null
 
-  let best: PackingCandidate | undefined
-  if (hybrid && mixed) {
-    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
-  } else {
-    best = hybrid ?? mixed ?? undefined
-  }
-
-  if (!best) {
-    best = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
-  }
+  // Always evaluate the shelf-pack fallback alongside hybrid/mixed-NFP and
+  // let `comparePackingCandidates` (more items > less scrap > tighter)
+  // decide. Previously hybrid auto-won on every trapezoid+other layout
+  // even when the fallback strictly packed more items or denser — that's
+  // the "small parts stranded by the trapezoid band" artifact in
+  // issue #124.
+  const fallback = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
+  const global = tryGlobalMaxRectsCandidate(
+    simpleParts,
+    rollW,
+    rollL,
+    fallbackWidth,
+    fallbackHeight
+  )
+  const best = pickBestCandidate([fallback, hybrid, mixed, global])
 
   return buildMultiPartPreviewFromCandidate(best, simpleParts, requestedItems.length, rollW, rollL)
 }
@@ -788,16 +844,18 @@ export async function generateMultiPartPreviewAsync(
       : Promise.resolve(null),
   ])
 
-  let best: PackingCandidate | undefined
-  if (hybrid && mixed) {
-    best = mixed.packed.items.length > hybrid.packed.items.length ? mixed : hybrid
-  } else {
-    best = hybrid ?? mixed ?? undefined
-  }
-
-  if (!best) {
-    best = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
-  }
+  // See comment in the sync variant above — always evaluate fallback
+  // alongside hybrid/mixed-NFP and let comparePackingCandidates pick.
+  // Issue #124.
+  const fallback = pickFallbackCandidate(requestedItems, simpleParts, rollW, rollL)
+  const global = tryGlobalMaxRectsCandidate(
+    simpleParts,
+    rollW,
+    rollL,
+    fallbackWidth,
+    fallbackHeight
+  )
+  const best = pickBestCandidate([fallback, hybrid, mixed, global])
   return buildMultiPartPreviewFromCandidate(best, simpleParts, requestedItems.length, rollW, rollL)
 }
 
