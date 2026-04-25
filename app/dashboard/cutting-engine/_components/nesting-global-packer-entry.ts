@@ -293,11 +293,13 @@ export function globalMultiSheetPack(
 ): MultiSheetResult {
   const stockArea = rollW * rollL
 
-  // Build all items from specs (expand quantities)
+  // Build all items from specs (expand quantities). Prefer
+  // `_originalSpecIndex` so callers operating on filtered subsets still get
+  // the correct tag-map key (see issue #121).
   const allItems = specs.flatMap((spec, specIdx) =>
     Array.from({ length: Math.max(1, spec.quantity || 1) }, () => {
       const item = buildPartPreviewItem(spec, fallbackWidth, fallbackHeight)
-      item.specIndex = specIdx
+      item.specIndex = spec._originalSpecIndex ?? specIdx
       item.partNumber = spec.partNumber
       return item
     })
