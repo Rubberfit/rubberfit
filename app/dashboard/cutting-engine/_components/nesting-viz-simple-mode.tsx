@@ -461,10 +461,24 @@ export default function NestingVizSimpleMode({
         indexToLabel.set(key, item.label)
       }
     }
-    // Return sorted by tag letter
-    return [...tagMap.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([key, tag]) => ({ tag, label: indexToLabel.get(key) ?? key }))
+    // Dedupe by tag — multiple specIndexes can share a partNumber (e.g. "G1"),
+    // which would otherwise produce duplicate React keys + duplicate legend rows.
+    // Prefer the first entry per tag whose label resolved, so the legend never
+    // falls back to a numeric specIndex when a sibling has a real label.
+    const legendByTag = new Map<string, { label: string; hasResolvedLabel: boolean }>()
+    for (const [key, tag] of tagMap.entries()) {
+      const resolvedLabel = indexToLabel.get(key)
+      const existing = legendByTag.get(tag)
+      if (!existing || (!existing.hasResolvedLabel && resolvedLabel)) {
+        legendByTag.set(tag, {
+          label: resolvedLabel ?? key,
+          hasResolvedLabel: Boolean(resolvedLabel),
+        })
+      }
+    }
+    return [...legendByTag.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([tag, { label }]) => ({ tag, label }))
   }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
