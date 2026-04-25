@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { ExternalLink, Loader2, Scissors } from "lucide-react"
-import { toast } from "sonner"
 
 import { Card } from "@/app/components/ui/card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/app/components/ui/tooltip"
 import { canViewPdf } from "@/app/dashboard/history/_components/use-cut-history"
+import { useRegenerateCutPdf } from "@/app/hooks/use-regenerate-cut-pdf"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 /**
@@ -36,7 +37,7 @@ export function JobCutsPanel({ cuts: initialCuts }: JobCutsPanelProps) {
   // Track regenerated `pdf_url` per row separately from the prop, so we
   // don't reset on parent re-render. Map of cutId → fresh URL.
   const [pdfUrlOverrides, setPdfUrlOverrides] = useState<Record<string, string>>({})
-  const [pendingId, setPendingId] = useState<string | null>(null)
+  const { pendingIds, regenerate } = useRegenerateCutPdf()
 
   // Drop overrides whose value is now in the prop (parent refetched).
   useEffect(() => {
@@ -65,24 +66,10 @@ export function JobCutsPanel({ cuts: initialCuts }: JobCutsPanelProps) {
       window.open(cut.pdf_url, "_blank", "noopener,noreferrer")
       return
     }
-
-    setPendingId(cut.id)
-    try {
-      const res = await fetch(`/api/cuts/history/${cut.id}/pdf`, { method: "POST" })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null
-        toast.error(body?.error ?? "Failed to generate PDF")
-        return
-      }
-      const { url } = (await res.json()) as { url: string }
-      setPdfUrlOverrides((prev) => ({ ...prev, [cut.id]: url }))
-      window.open(url, "_blank", "noopener,noreferrer")
-    } catch (err) {
-      console.error("View PDF error:", err)
-      toast.error("Failed to generate PDF")
-    } finally {
-      setPendingId(null)
-    }
+    const url = await regenerate(cut.id)
+    if (!url) return
+    setPdfUrlOverrides((prev) => ({ ...prev, [cut.id]: url }))
+    window.open(url, "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -98,9 +85,16 @@ export function JobCutsPanel({ cuts: initialCuts }: JobCutsPanelProps) {
       {cuts.length > 0 && (
         <Card className="gap-0 p-0 divide-y divide-border-subtle">
           {cuts.map((cut) => {
-            const isPending = pendingId === cut.id
+            const isPending = pendingIds.has(cut.id)
             const recoverable = canViewPdf(cut)
-            const label = isPending ? "Generating…" : "PDF"
+            const tooltipLabel = cut.pdf_url
+              ? "View PDF"
+              : recoverable
+                ? isPending
+                  ? "Generating PDF…"
+                  : "Generate PDF"
+                : "PDF unavailable — no layout snapshot was stored for this cut"
+
             return (
               <div key={cut.id} className="flex items-center gap-3 px-4 py-3">
                 <Scissors className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -118,26 +112,27 @@ export function JobCutsPanel({ cuts: initialCuts }: JobCutsPanelProps) {
                     {(cut.fab_score * 100).toFixed(0)}/100
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openPdf(cut)}
-                  disabled={!recoverable || isPending}
-                  className="inline-flex items-center gap-1 text-muted-foreground enabled:hover:text-foreground text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label={
-                    cut.pdf_url
-                      ? "View PDF"
-                      : recoverable
-                        ? "Generate PDF"
-                        : "PDF unavailable"
-                  }
-                >
-                  {label}
-                  {isPending ? (
-                    <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <ExternalLink className="size-3" aria-hidden="true" />
-                  )}
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <button
+                        type="button"
+                        onClick={() => openPdf(cut)}
+                        disabled={!recoverable || isPending}
+                        className="inline-flex items-center gap-1 text-muted-foreground enabled:hover:text-foreground text-[11px] disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={tooltipLabel}
+                      >
+                        {isPending ? "Generating…" : "PDF"}
+                        {isPending ? (
+                          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <ExternalLink className="size-3" aria-hidden="true" />
+                        )}
+                      </button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{tooltipLabel}</TooltipContent>
+                </Tooltip>
               </div>
             )
           })}

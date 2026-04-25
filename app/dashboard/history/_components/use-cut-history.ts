@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { isLayoutModelArray } from "@/app/dashboard/cutting-engine/_components/layout-model"
+import { useRegenerateCutPdf } from "@/app/hooks/use-regenerate-cut-pdf"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
 // Types
@@ -60,7 +61,7 @@ export function useCutHistory() {
     open: false,
     cutId: null,
   })
-  const [pendingPdfIds, setPendingPdfIds] = useState<Set<string>>(new Set())
+  const { pendingIds: pendingPdfIds, regenerate: regenerateCutPdf } = useRegenerateCutPdf()
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: new Date(),
@@ -218,13 +219,13 @@ export function useCutHistory() {
   }, [deleteConfirm])
 
   // Open the PDF for a cut. If the row already has a `pdf_url`, open it
-  // directly. Otherwise hit the on-demand regeneration endpoint
-  // (`POST /api/cuts/history/[id]/pdf`) which builds the PDF from the
-  // persisted `layout_json` snapshot, uploads it, persists `pdf_url` on
-  // the row, and returns the URL. Issue #127: the save-time path can
-  // leave `pdf_url = null` when the browser navigates away mid-upload
-  // or storage rejects, so the button used to disappear forever — this
-  // path heals those rows on first click.
+  // directly. Otherwise delegate to `useRegenerateCutPdf` which calls
+  // the on-demand endpoint (`POST /api/cuts/history/[id]/pdf`), which
+  // builds the PDF from the persisted `layout_json` snapshot, uploads
+  // it, persists `pdf_url` on the row, and returns the URL. Issue #127:
+  // the save-time path can leave `pdf_url = null` when the browser
+  // navigates away mid-upload or storage rejects, so the button used
+  // to disappear forever — this path heals those rows on first click.
   const handleViewPdf = useCallback(
     async (cutId: string) => {
       const row = cuts.find((c) => c.id === cutId)
@@ -233,36 +234,12 @@ export function useCutHistory() {
         return
       }
 
-      setPendingPdfIds((prev) => {
-        if (prev.has(cutId)) return prev
-        const next = new Set(prev)
-        next.add(cutId)
-        return next
-      })
-
-      try {
-        const res = await fetch(`/api/cuts/history/${cutId}/pdf`, { method: "POST" })
-        if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as { error?: string } | null
-          toast.error(body?.error ?? "Failed to generate PDF")
-          return
-        }
-        const { url } = (await res.json()) as { url: string }
-        setCuts((prev) => prev.map((c) => (c.id === cutId ? { ...c, pdf_url: url } : c)))
-        window.open(url, "_blank")
-      } catch (err) {
-        console.error("View PDF error:", err)
-        toast.error("Failed to generate PDF")
-      } finally {
-        setPendingPdfIds((prev) => {
-          if (!prev.has(cutId)) return prev
-          const next = new Set(prev)
-          next.delete(cutId)
-          return next
-        })
-      }
+      const url = await regenerateCutPdf(cutId)
+      if (!url) return
+      setCuts((prev) => prev.map((c) => (c.id === cutId ? { ...c, pdf_url: url } : c)))
+      window.open(url, "_blank")
     },
-    [cuts]
+    [cuts, regenerateCutPdf]
   )
 
   // Navigate back to the surface that produced the cut — Auto nest

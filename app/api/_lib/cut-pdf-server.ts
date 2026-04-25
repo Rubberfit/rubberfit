@@ -118,16 +118,17 @@ export async function uploadCutPdfWithAdmin(
     .eq("id", cutId)
 
   if (updateError) {
-    // The file is already in storage at a deterministic path so the
-    // caller can still serve it; the next regeneration overwrites and
-    // re-attempts the row update. Log the orphan with enough context
-    // to reconcile manually if it persists.
+    // Surface the failure rather than returning the URL: callers treat
+    // any non-null return as "row healed", but with `pdf_url` still null
+    // in the DB the next page load would re-trigger this slow regen
+    // path. Better to fail loudly so the user knows + retries (the
+    // deterministic storage path means retry overwrites in place).
     console.error("Failed to persist PDF URL (storage object exists):", {
       cutId,
       publicUrl,
       updateError,
     })
-    return publicUrl
+    return null
   }
 
   return publicUrl
