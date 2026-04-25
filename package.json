@@ -26,6 +26,7 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.38.0",
     "@types/jspdf": "^2.0.0",
+    "@vercel/analytics": "^2.0.1",
     "class-variance-authority": "^0.7.1",
     "clipper-lib": "^6.4.2",
     "clsx": "^2.1.1",
