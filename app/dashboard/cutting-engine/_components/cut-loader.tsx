@@ -51,7 +51,26 @@ function CutLoaderInner({ onLoad, returnPath = "/dashboard/cutting-engine" }: Cu
       })
       .finally(() => {
         if (isCancelled || lastLoadedIdRef.current !== loadCutId) return
-        router.replace(returnPath)
+        // CRITICAL: same-path URL cleanup must use the History API, NOT
+        // `router.replace`. Next 16 App Router treats a `router.replace` to
+        // the same pathname as a navigation that remounts the page tree —
+        // which immediately wipes the React state we just populated via
+        // `onLoad(...)` (stock + presetParts), leaving the engine on
+        // `DEMO_STOCK` with no parts. `window.history.replaceState` strips
+        // the `?loadCut=` query without triggering a router transition, so
+        // the loaded state survives. We still fall back to `router.replace`
+        // when the return path is a different pathname (e.g. Free-roam
+        // bouncing between surfaces).
+        const cleanUrl = new URL(returnPath, window.location.origin)
+        if (cleanUrl.pathname === window.location.pathname) {
+          window.history.replaceState(
+            window.history.state,
+            "",
+            cleanUrl.pathname + cleanUrl.search
+          )
+        } else {
+          router.replace(returnPath)
+        }
       })
 
     return () => {
