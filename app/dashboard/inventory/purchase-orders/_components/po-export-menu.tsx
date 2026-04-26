@@ -31,7 +31,7 @@ export function PurchaseOrdersExportMenu({ input, disabled }: PurchaseOrdersExpo
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExportCsv = () => {
-    if (isExporting) return
+    if (disabled || isExporting) return
     if (input.pos.length === 0) {
       toast.error("No purchase orders to export")
       return
@@ -48,7 +48,7 @@ export function PurchaseOrdersExportMenu({ input, disabled }: PurchaseOrdersExpo
   }
 
   const handleExportPdf = async () => {
-    if (isExporting) return
+    if (disabled || isExporting) return
     if (input.pos.length === 0) {
       toast.error("No purchase orders to export")
       return
@@ -78,11 +78,11 @@ export function PurchaseOrdersExportMenu({ input, disabled }: PurchaseOrdersExpo
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleExportCsv} disabled={isExporting}>
+        <DropdownMenuItem onClick={handleExportCsv} disabled={disabled || isExporting}>
           <FileText className="size-3.5" />
           Export as CSV
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportPdf} disabled={isExporting}>
+        <DropdownMenuItem onClick={handleExportPdf} disabled={disabled || isExporting}>
           <FileText className="size-3.5" />
           Generate PDF Report
         </DropdownMenuItem>

@@ -29,11 +29,13 @@ vi.mock("@/app/components/ui/dropdown-menu", () => {
     DropdownMenuItem: ({
       children,
       onClick,
+      disabled,
     }: {
       children: React.ReactNode
       onClick?: () => void
+      disabled?: boolean
     }) => (
-      <button type="button" onClick={onClick}>
+      <button type="button" disabled={disabled} onClick={disabled ? undefined : onClick}>
         {children}
       </button>
     ),
@@ -114,6 +116,14 @@ describe("PurchaseOrdersExportMenu", () => {
     render(<PurchaseOrdersExportMenu input={makeFixture()} disabled />)
     const trigger = screen.getByRole("button", { name: /^export$/i }) as HTMLButtonElement
     expect(trigger.disabled).toBe(true)
+  })
+
+  it("ignores menu item clicks when the parent prop is disabled", () => {
+    render(<PurchaseOrdersExportMenu input={makeFixture()} disabled />)
+    fireEvent.click(screen.getByText(/export as csv/i))
+    fireEvent.click(screen.getByText(/generate pdf report/i))
+    expect(exportToCSV).not.toHaveBeenCalled()
+    expect(generatePDFReport).not.toHaveBeenCalled()
   })
 
   it("guards against duplicate dispatches while a PDF export is in flight", async () => {
