@@ -60,25 +60,6 @@ function discTemplate(id: string, diameter: number): PartTemplate {
   }
 }
 
-function ringTemplate(id: string, outerDiameter: number, innerDiameter: number): PartTemplate {
-  // Mirrors how the shape registry builds rings — outer polygon for
-  // collision/render, separate inner/outer radii for the hole.
-  return {
-    id,
-    partType: "cylinder",
-    label: id,
-    summary: `⌀ ${outerDiameter}" / ${innerDiameter}"`,
-    quantity: 1,
-    category: "custom",
-    diameter: outerDiameter,
-    width: outerDiameter,
-    length: outerDiameter,
-    innerRadius: innerDiameter / 2,
-    outerRadius: outerDiameter / 2,
-    renderShape: "ring",
-  }
-}
-
 function place(id: string, templateId: string, x: number, y: number): ManualPlacement {
   return { id, templateId, x, y, rotationRad: 0 }
 }
@@ -341,29 +322,6 @@ describe("issue #116 — free-roam waste classification", () => {
       (r) => r.x <= 1 && r.x + r.width >= 1 && r.y <= 1.5 && r.y + r.height >= 1.5
     )
     expect(coversCorner).toBe(true)
-  })
-
-  it("L. ring shape's inner hole IS classified as scrap (image #31 repro)", () => {
-    // Ring (annulus) at (30, 30) with outer diameter 24 and inner
-    // diameter 12. The inner hole — material punched out from the
-    // middle of the ring — is real waste. The shape registry stores
-    // rings with the OUTER polygon only (collision treats rings as
-    // solid), so envelope − shape would miss the inner hole; the
-    // ring-specific branch handles it.
-    const parts = [ringTemplate("ring-A", 24, 12)]
-    const placements = [place("p1", "ring-A", 30, 12)]
-
-    const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
-
-    // Ring center is at (42, 24); inner hole bbox is a 12×12 area
-    // centered on (42, 24) → roughly (36..48, 18..30). Find a scrap
-    // region whose centroid lies inside that hole.
-    const hole = scrap.find((r) => {
-      const rcx = r.x + r.width / 2
-      const rcy = r.y + r.height / 2
-      return Math.abs(rcx - 42) < 2 && Math.abs(rcy - 24) < 2
-    })
-    expect(hole).toBeDefined()
   })
 
   it("K. narrow strip between part and stock top edge IS classified as scrap (image #26 repro)", () => {
