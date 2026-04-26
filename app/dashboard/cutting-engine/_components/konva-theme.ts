@@ -1,6 +1,6 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
+import { useMemo, useSyncExternalStore } from "react"
 
 /**
  * Konva shape props take raw color strings, not Tailwind classes —
@@ -140,7 +140,12 @@ export function useKonvaTheme(): KonvaThemeTokens & {
     readIsDark,
     () => false // SSR fallback — Konva is client-only anyway
   )
-  const tokens = isDark ? DARK : LIGHT
-  const partFills = isDark ? PART_FILLS_DARK : PART_FILLS_LIGHT
-  return { ...tokens, partFills, isDark }
+  // Memoized so consumers get a stable object ref across renders.
+  // PartShape's React.memo (issue #117 phase 3) relies on this to
+  // skip reconciliation for stationary parts during drag.
+  return useMemo(() => {
+    const tokens = isDark ? DARK : LIGHT
+    const partFills = isDark ? PART_FILLS_DARK : PART_FILLS_LIGHT
+    return { ...tokens, partFills, isDark }
+  }, [isDark])
 }

@@ -160,6 +160,50 @@ PRIO_LABEL=$(printf '%s' "$CLEAN_JSON" | jq -r '.priority // empty')
 RATIONALE=$(printf '%s' "$CLEAN_JSON" | jq -r '.rationale // empty')
 TECH_NOTES=$(printf '%s' "$CLEAN_JSON" | jq -r '.technical_notes // empty')
 
+# ── Preserve screenshots / screen recordings ───────────────────────────
+# The model produces an `improved_description` from scratch, which means
+# any image embeds or video links from the original issue body get
+# dropped on the ensuing `gh issue edit --body`. Extract them up front
+# and append a "Reference media" section to the improved description
+# when the model didn't keep the URL on its own. Skips silently when
+# the original body had no media so non-media issues stay clean.
+# `|| true` keeps `set -euo pipefail` happy when an issue has no media —
+# both grep stages exit 1 on zero matches and would otherwise crash the
+# whole triage run.
+MEDIA_LINES=$(printf '%s\n' "$ISSUE_BODY" \
+  | { grep -oE -e '!\[[^]]*\]\([^)]+\)' \
+               -e '<img[^>]+src="[^"]+"[^>]*>' \
+               -e '<video[^>]+src="[^"]+"[^>]*>' \
+               -e 'https?://[^[:space:])"]+' || true; } \
+  | { grep -iE 'github\.com/user-attachments|user-images\.githubusercontent\.com|\.png($|[^a-z])|\.jpe?g($|[^a-z])|\.gif($|[^a-z])|\.webp($|[^a-z])|\.svg($|[^a-z])|\.mp4($|[^a-z])|\.mov($|[^a-z])|\.webm($|[^a-z])' || true; } \
+  | awk '!seen[$0]++')
+
+if [ -n "$MEDIA_LINES" ] && [ -n "$IMPROVED" ]; then
+  # Skip whichever lines the model already preserved verbatim — avoids
+  # the section duplicating media the new description already contains.
+  REMAINING_MEDIA=""
+  # Use a here-string with the variable double-quoted so its content is
+  # passed literally to the loop. An unquoted heredoc (<<MEDIA_EOF
+  # without quotes) would expand backticks / $() in the captured media
+  # lines before the loop sees them, which could execute attacker-
+  # controlled substrings from issue bodies.
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    if printf '%s' "$IMPROVED" | grep -qF -- "$line"; then
+      continue
+    fi
+    if [ -n "$REMAINING_MEDIA" ]; then
+      REMAINING_MEDIA=$(printf '%s\n%s' "$REMAINING_MEDIA" "$line")
+    else
+      REMAINING_MEDIA="$line"
+    fi
+  done <<< "$MEDIA_LINES"
+
+  if [ -n "$REMAINING_MEDIA" ]; then
+    IMPROVED=$(printf '%s\n\n## Reference media\n\n%s\n' "$IMPROVED" "$REMAINING_MEDIA")
+  fi
+fi
+
 # Validate against allowed taxonomies.
 if ! printf '%s' "$PTS_ALLOWED" | grep -qw "$PTS_LABEL"; then
   echo "warning: points label '$PTS_LABEL' not in allowed set; skipping points" >&2
