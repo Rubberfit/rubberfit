@@ -38,7 +38,7 @@ uuid = { version = "1", features = ["v4"] }
 http = "1"
 http-body-util = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 # OpenAPI spec generation. `axum_extras` unlocks query/path extractor
 # support in the `#[utoipa::path]` macros; otherwise the macros can't
 # see Axum's `Path`/`Query`/`State` types.
