@@ -167,14 +167,20 @@ TECH_NOTES=$(printf '%s' "$CLEAN_JSON" | jq -r '.technical_notes // empty')
 # and append a "Reference media" section to the improved description
 # when the model didn't keep the URL on its own. Skips silently when
 # the original body had no media so non-media issues stay clean.
+#
+# Extracts CANONICAL URLs only (not raw HTML/markdown fragments). Pulling
+# the full `<img ... onerror="...">` tag from a hostile issue body and
+# echoing it back into the rewritten description would execute the
+# attacker's HTML attributes. Pulling the URL alone strips every
+# attribute and dedupes the same asset across markdown/HTML/bare forms.
+# URLs from `github.com/user-attachments` auto-render as images on GitHub
+# so the visual is preserved.
+#
 # `|| true` keeps `set -euo pipefail` happy when an issue has no media —
 # both grep stages exit 1 on zero matches and would otherwise crash the
 # whole triage run.
 MEDIA_LINES=$(printf '%s\n' "$ISSUE_BODY" \
-  | { grep -oE -e '!\[[^]]*\]\([^)]+\)' \
-               -e '<img[^>]+src="[^"]+"[^>]*>' \
-               -e '<video[^>]+src="[^"]+"[^>]*>' \
-               -e 'https?://[^[:space:])"]+' || true; } \
+  | { grep -oE 'https?://[^[:space:])"'"'"'<>]+' || true; } \
   | { grep -iE 'github\.com/user-attachments|user-images\.githubusercontent\.com|\.png($|[^a-z])|\.jpe?g($|[^a-z])|\.gif($|[^a-z])|\.webp($|[^a-z])|\.svg($|[^a-z])|\.mp4($|[^a-z])|\.mov($|[^a-z])|\.webm($|[^a-z])' || true; } \
   | awk '!seen[$0]++')
 
