@@ -41,15 +41,34 @@ declare module "clipper-lib" {
     const etOpenRound: number
   }
 
+  class PolyNode {
+    Contour(): Path
+    Childs(): PolyNode[]
+    ChildCount(): number
+    Parent(): PolyNode | null
+    GetNext(): PolyNode | null
+    IsHole(): boolean
+    IsOpen: boolean
+  }
+
+  class PolyTree extends PolyNode {
+    constructor()
+    Clear(): void
+    GetFirst(): PolyNode | null
+    Total(): number
+  }
+
   class Clipper {
     constructor()
     AddPath(path: Path, polyType: number, closed: boolean): boolean
     AddPaths(paths: Paths, polyType: number, closed: boolean): boolean
     Execute(clipType: number, solution: Paths, fillType1?: number, fillType2?: number): boolean
+    Execute(clipType: number, solution: PolyTree, fillType1?: number, fillType2?: number): boolean
     static MinkowskiSum(pattern: Path, path: Path, pathIsClosed: boolean): Paths
     static CleanPolygon(path: Path, distance?: number): Path
     static CleanPolygons(paths: Paths, distance?: number): Paths
     static Area(path: Path): number
+    static ClosedPathsFromPolyTree(polytree: PolyTree): Paths
   }
 
   class ClipperOffset {

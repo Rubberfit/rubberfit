@@ -2,7 +2,6 @@ import ClipperLib from "clipper-lib"
 import type { Point2D } from "@/nesting/types"
 import { circleToPolygon, rectToPolygon } from "@/nesting/shape-to-polygon"
 import { polygonArea } from "@/nesting/convex-hull"
-import { extractMaximalFreeRects } from "@/nesting/free-space"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { LayoutRegion } from "./layout-model"
@@ -76,19 +75,18 @@ export interface ComputedRegions {
 const MIN_VISIBLE_SCRAP_SQIN = 2
 
 /**
- * Minimum "usable" dimension for a free-space inscribed rectangle.
- * A rect with its smaller side below this is too thin to cut anything
- * meaningful from — classified as waste regardless of its length.
+ * Per-side gap threshold (inches). When a placed part has less than
+ * this distance between one of its sides and the nearest obstacle
+ * (stock edge or another placed part on that side), the gap renders
+ * as red waste. Above this threshold, the gap is wide enough that the
+ * operator could plan another part into it, so it stays ambient.
  *
- * Tuned to 6" to match the existing Auto-nest `MIN_REUSABLE_STRIP_W`
- * threshold: a 6"-wide strip is the narrowest piece treated as
- * reusable anywhere else in the app. Anything thinner is a strip the
- * operator can't practically plan around. The earlier 11.5" threshold
- * (MIN_REUSABLE_OFFCUT_W) was too aggressive — it flagged 10"-wide
- * columns around a disc as waste even though they had plenty of
- * vertical room for other cuts.
+ * Tuned to 4" — the smallest gap an operator typically considers
+ * usable. Anything narrower reads as a sliver they can't realistically
+ * cut another piece from, even though it doesn't quite hit the 6"
+ * Auto-nest reusable-strip threshold.
  */
-const MIN_USABLE_DIM_IN = 6
+const MIN_USABLE_GAP_IN = 4
 
 // ── Clipper helpers for the "unreusable residue" compute ─────────────────
 
@@ -123,44 +121,66 @@ function polyBbox(poly: Point2D[]): { x: number; y: number; width: number; heigh
 }
 
 /**
- * Compute per-part "crescent waste" polygons — the material trapped
- * between a part's axis-aligned bounding box and the part's own
- * outline. For rectangles this is empty (bbox === polygon). For
- * discs the result is the four corner crescents of the bbox. For
- * trapezoids / triangles / sectors it's the tapered strips.
+ * Compute per-placement "shape-envelope waste" polygons — the material
+ * trapped between a part's TEMPLATE-LOCAL axis-aligned envelope and the
+ * part's actual outline. For rectangles this is empty (envelope ≡ shape).
+ * For discs the result is the four corner crescents. For trapezoids /
+ * triangles / sectors it's the tapered slivers along the envelope edges.
  *
- * This is the intuitive notion of waste the operator expects: the
- * material that's geometrically TRAPPED by the part's shape. The
- * earlier "strict reusable threshold" logic classified any free
- * strip narrower than 11.5" or 6" as scrap — technically correct
- * per offcut-catalog rules, but it turned the whole column
- * containing a 10"-wide disc red even though there was plenty of
- * usable sheet above and below.
+ * Computed in LOCAL coords (where the envelope is always axis-aligned)
+ * and then rotated/translated to sheet space. Doing the difference in
+ * sheet space against the SHEET-AABB would over-estimate waste for
+ * rotated rectangles — a 24"×12" rect at 30° has a sheet-AABB roughly
+ * 23"×22", and `bbox − rect` produces large phantom corner triangles
+ * even though the rectangle has no real shape-envelope waste at all.
  *
- * Thin-strip / dead-end waste (e.g., 5" between a part and the
- * sheet edge) is NOT detected here on purpose — operators generally
- * plan those by eye. If we re-introduce strict classification later,
- * it should be behind an explicit toggle.
+ * Issue #116 root-cause story: the old implementation also unioned this
+ * with thin-strip "waste" extracted via `extractMaximalFreeRects`, which
+ * emitted topology-dependent open-edge slivers (a strip alongside a
+ * part with the other side facing unused stock). Those slivers aren't
+ * waste — operators can rearrange to reclaim them — and the greedy
+ * carve order made them appear to "move around" when shapes were added
+ * elsewhere on the canvas. We now ONLY classify shape-envelope waste:
+ * material trapped by the part's own geometry, which is invariant to
+ * surrounding placements and can never be reclaimed without changing
+ * the part itself.
  */
-function computePartCrescentWaste(
-  partPolygons: ReadonlyArray<ReadonlyArray<Point2D>>
+function computeShapeEnvelopeWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>
 ): Point2D[][] {
+  const byId = new Map(parts.map((p) => [p.id, p]))
   const out: Point2D[][] = []
-  for (const poly of partPolygons) {
-    if (poly.length < 3) continue
-    const bbox = polyBbox(poly as Point2D[])
-    // Degenerate or zero-area bbox → nothing to subtract.
-    if (bbox.width <= 0 || bbox.height <= 0) continue
 
-    const bboxPath = toClipperPath([
-      { x: bbox.x, y: bbox.y },
-      { x: bbox.x + bbox.width, y: bbox.y },
-      { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
-      { x: bbox.x, y: bbox.y + bbox.height },
-    ])
+  for (const placement of placements) {
+    const template = byId.get(placement.templateId)
+    if (!template) continue
+
+    const width = template.width ?? template.diameter ?? 12
+    const height = template.length ?? template.height ?? template.diameter ?? 12
+    if (width <= 0 || height <= 0) continue
+
+    // Resolve the local-coords shape outline. Rectangles return early —
+    // their envelope IS the shape, so the difference is empty.
+    let localShape: Point2D[]
+    if (template.polygon && template.polygon.length >= 3) {
+      localShape = template.polygon
+    } else if (template.partType === "cylinder" && template.diameter) {
+      localShape = circleToPolygon(template.diameter, 24)
+    } else {
+      continue
+    }
+
+    const localEnvelope: Point2D[] = [
+      { x: 0, y: 0 },
+      { x: width, y: 0 },
+      { x: width, y: height },
+      { x: 0, y: height },
+    ]
+
     const clip = new ClipperLib.Clipper()
-    clip.AddPath(bboxPath, ClipperLib.PolyType.ptSubject, true)
-    clip.AddPath(toClipperPath(poly), ClipperLib.PolyType.ptClip, true)
+    clip.AddPath(toClipperPath(localEnvelope), ClipperLib.PolyType.ptSubject, true)
+    clip.AddPath(toClipperPath(localShape), ClipperLib.PolyType.ptClip, true)
     const paths = new ClipperLib.Paths()
     clip.Execute(
       ClipperLib.ClipType.ctDifference,
@@ -168,10 +188,27 @@ function computePartCrescentWaste(
       ClipperLib.PolyFillType.pftNonZero,
       ClipperLib.PolyFillType.pftNonZero
     )
+
+    if (paths.length === 0) continue
+
+    // Transform the local-coord residue polygons into sheet space using
+    // the same pivot-around-center rotation the canvas applies.
+    const cx = placement.x + width / 2
+    const cy = placement.y + height / 2
+    const cos = Math.cos(placement.rotationRad)
+    const sin = Math.sin(placement.rotationRad)
     for (const path of paths) {
-      if (ClipperLib.Clipper.Area(path) > 0) out.push(fromClipperPath(path))
+      if (ClipperLib.Clipper.Area(path) <= 0) continue
+      const localPoly = fromClipperPath(path)
+      const sheetPoly = localPoly.map((p) => {
+        const dx = p.x - width / 2
+        const dy = p.y - height / 2
+        return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos }
+      })
+      out.push(sheetPoly)
     }
   }
+
   return out
 }
 
@@ -230,31 +267,303 @@ function unionWasteRegions(
 }
 
 /**
+ * Trapped-pocket waste: free-space components in `stock − ⋃parts` that
+ * don't touch the stock boundary. These are pockets fully enclosed by
+ * placed parts — material the operator can't recover by sliding things
+ * around (they'd have to remove a surrounding part).
+ *
+ * Algorithm (Clipper PolyTree decomposition):
+ *
+ *   1. Union all part polygons so touching/overlapping parts collapse
+ *      into one composite footprint. Without this, the difference can
+ *      produce self-touching contours that hide a real pocket.
+ *   2. Compute `stock − part_union` as a `PolyTree`. The tree alternates
+ *      hole / outer levels: root is a hole, its children are outer
+ *      free-space contours, their children are hole contours (placed
+ *      parts), etc.
+ *   3. DFS over all NON-hole nodes at any depth. Each one is a free-
+ *      space component. Pockets enclosed by parts appear NESTED several
+ *      levels deep (root → free-space outer → part hole → POCKET) —
+ *      iterating only top-level nodes misses them.
+ *   4. Drop any component with a vertex within ε of the stock boundary —
+ *      that component has a frontier and is reclaimable, not a pocket.
+ *
+ * Performance: two Clipper passes (union + difference) per drag tick.
+ * Sub-millisecond for typical ~10-part scenes per upstream benchmarks.
+ *
+ * Refs: clipper-lib `Execute(...)` overload for `PolyTree`
+ * (https://sourceforge.net/p/jsclipper/wiki/documentation/), jagua-rs
+ * leftover classification (https://github.com/JeroenGar/jagua-rs).
+ */
+const STOCK_BOUNDARY_EPS_IN = 1e-3
+
+function computeTrappedPocketWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>,
+  stock: StockConfig
+): Point2D[][] {
+  if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) return []
+
+  const partPaths: ClipperPath[] = []
+  for (const placement of placements) {
+    const template = parts.find((p) => p.id === placement.templateId)
+    if (!template) continue
+    const poly = placementsToPolygons([placement], [template])[0]
+    if (poly && poly.length >= 3) partPaths.push(toClipperPath(poly))
+  }
+  if (partPaths.length === 0) return []
+
+  // Pre-union parts so touching edges don't produce self-touching diff
+  // contours that would hide a real surrounded pocket.
+  const unionClip = new ClipperLib.Clipper()
+  unionClip.AddPaths(partPaths, ClipperLib.PolyType.ptSubject, true)
+  const partUnion = new ClipperLib.Paths()
+  unionClip.Execute(
+    ClipperLib.ClipType.ctUnion,
+    partUnion,
+    ClipperLib.PolyFillType.pftNonZero,
+    ClipperLib.PolyFillType.pftNonZero
+  )
+  if (partUnion.length === 0) return []
+
+  const stockPath = toClipperPath([
+    { x: 0, y: 0 },
+    { x: stock.width, y: 0 },
+    { x: stock.width, y: stock.length },
+    { x: 0, y: stock.length },
+  ])
+  const diff = new ClipperLib.Clipper()
+  diff.AddPath(stockPath, ClipperLib.PolyType.ptSubject, true)
+  diff.AddPaths(partUnion, ClipperLib.PolyType.ptClip, true)
+
+  const tree = new ClipperLib.PolyTree()
+  diff.Execute(
+    ClipperLib.ClipType.ctDifference,
+    tree,
+    ClipperLib.PolyFillType.pftNonZero,
+    ClipperLib.PolyFillType.pftNonZero
+  )
+
+  const stockW = Math.round(stock.width * CLIPPER_SCALE)
+  const stockL = Math.round(stock.length * CLIPPER_SCALE)
+  const eps = Math.ceil(STOCK_BOUNDARY_EPS_IN * CLIPPER_SCALE)
+
+  const isTouchingBoundary = (path: ClipperPath): boolean =>
+    path.some(
+      (p) =>
+        Math.abs(p.X) <= eps ||
+        Math.abs(p.X - stockW) <= eps ||
+        Math.abs(p.Y) <= eps ||
+        Math.abs(p.Y - stockL) <= eps
+    )
+
+  const pockets: Point2D[][] = []
+  const visit = (node: ClipperLib.PolyNode): void => {
+    const contour = node.Contour()
+    if (
+      !node.IsOpen &&
+      !node.IsHole() &&
+      contour.length >= 3 &&
+      ClipperLib.Clipper.Area(contour) > 0 &&
+      !isTouchingBoundary(contour)
+    ) {
+      pockets.push(fromClipperPath(contour))
+    }
+    for (const child of node.Childs()) visit(child)
+  }
+  for (const child of tree.Childs()) visit(child)
+
+  return pockets
+}
+
+/**
+ * Per-side gap waste: for each placed part, on each of its 4 sides,
+ * find the perpendicular distance to the nearest blocker (stock edge
+ * or another placed part whose bbox shadows the side). If the gap is
+ * non-zero and below `MIN_USABLE_GAP_IN`, emit it as a thin waste
+ * rectangle aligned to that side.
+ *
+ * Per-part, per-side computation is deterministic — the gap on
+ * placement P's top side depends only on P's position and the parts
+ * directly above P (in P's x-range). Adding a part elsewhere on the
+ * canvas can never change P's existing gaps. This is the property the
+ * old `extractMaximalFreeRects`-based detector was missing (its greedy
+ * decomposition order was topology-sensitive).
+ *
+ * Output bboxes only — these are always axis-aligned strips, so a full
+ * polygon adds no information over `LayoutRegion.{x,y,width,height}`.
+ */
+type SideGapBbox = { x: number; y: number; width: number; height: number }
+type SideGap = { gap: number; blocker: number; isVisible: boolean }
+
+const GAP_EPSILON = 1e-3
+
+function rectAsPoly(x: number, y: number, w: number, h: number): Point2D[] {
+  return [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ]
+}
+
+function isVisibleGap(gap: number): boolean {
+  return gap > GAP_EPSILON && gap < MIN_USABLE_GAP_IN
+}
+
+function gapAbove(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): SideGap {
+  let blocker = 0
+  for (const o of others) {
+    if (o.x + o.width <= me.x + GAP_EPSILON || o.x >= me.x + me.width - GAP_EPSILON) continue
+    const oBottom = o.y + o.height
+    if (oBottom <= me.y + GAP_EPSILON && oBottom > blocker) blocker = oBottom
+  }
+  const gap = me.y - blocker
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
+}
+
+function gapBelow(
+  me: SideGapBbox,
+  others: ReadonlyArray<SideGapBbox>,
+  stockLength: number
+): SideGap {
+  let blocker = stockLength
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.x + o.width <= me.x + GAP_EPSILON || o.x >= me.x + me.width - GAP_EPSILON) continue
+    if (o.y >= myBottom - GAP_EPSILON && o.y < blocker) blocker = o.y
+  }
+  const gap = blocker - myBottom
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
+}
+
+function gapLeft(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): SideGap {
+  let blocker = 0
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.y + o.height <= me.y + GAP_EPSILON || o.y >= myBottom - GAP_EPSILON) continue
+    const oRight = o.x + o.width
+    if (oRight <= me.x + GAP_EPSILON && oRight > blocker) blocker = oRight
+  }
+  const gap = me.x - blocker
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
+}
+
+function gapRight(
+  me: SideGapBbox,
+  others: ReadonlyArray<SideGapBbox>,
+  stockWidth: number
+): SideGap {
+  let blocker = stockWidth
+  const myRight = me.x + me.width
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.y + o.height <= me.y + GAP_EPSILON || o.y >= myBottom - GAP_EPSILON) continue
+    if (o.x >= myRight - GAP_EPSILON && o.x < blocker) blocker = o.x
+  }
+  const gap = blocker - myRight
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
+}
+
+/**
+ * Build the side-strip + corner-fill rectangles for one placement. When two
+ * adjacent sides both have visible gaps (e.g. top + left for a part wedged
+ * into the upper-left of the sheet), the small square between their outer
+ * extents would otherwise be left unpainted — visually reading as a "hole"
+ * in the L-shape of red. Emitting the corner rectangle fills it in so the
+ * union renders as a clean L (or full rectangle when all 4 sides have gaps).
+ */
+function buildGapPolysForPart(
+  me: SideGapBbox,
+  top: SideGap,
+  bot: SideGap,
+  lft: SideGap,
+  rgt: SideGap
+): Point2D[][] {
+  const out: Point2D[][] = []
+  const myRight = me.x + me.width
+  const myBottom = me.y + me.height
+
+  if (top.isVisible) out.push(rectAsPoly(me.x, top.blocker, me.width, top.gap))
+  if (bot.isVisible) out.push(rectAsPoly(me.x, myBottom, me.width, bot.gap))
+  if (lft.isVisible) out.push(rectAsPoly(lft.blocker, me.y, lft.gap, me.height))
+  if (rgt.isVisible) out.push(rectAsPoly(myRight, me.y, rgt.gap, me.height))
+
+  // Corner fills — connect adjacent visible side strips.
+  if (top.isVisible && lft.isVisible) {
+    out.push(rectAsPoly(lft.blocker, top.blocker, lft.gap, top.gap))
+  }
+  if (top.isVisible && rgt.isVisible) {
+    out.push(rectAsPoly(myRight, top.blocker, rgt.gap, top.gap))
+  }
+  if (bot.isVisible && lft.isVisible) {
+    out.push(rectAsPoly(lft.blocker, myBottom, lft.gap, bot.gap))
+  }
+  if (bot.isVisible && rgt.isVisible) {
+    out.push(rectAsPoly(myRight, myBottom, rgt.gap, bot.gap))
+  }
+
+  return out
+}
+
+function computePerSideGapWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>,
+  stock: StockConfig
+): Point2D[][] {
+  if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) return []
+
+  const bboxes: SideGapBbox[] = []
+  for (const placement of placements) {
+    const template = parts.find((p) => p.id === placement.templateId)
+    if (!template) continue
+    const poly = placementsToPolygons([placement], [template])[0]
+    if (!poly || poly.length < 3) continue
+    bboxes.push(polyBbox(poly))
+  }
+
+  const out: Point2D[][] = []
+  for (let i = 0; i < bboxes.length; i++) {
+    const me = bboxes[i]
+    const others = bboxes.filter((_, j) => j !== i)
+    const top = gapAbove(me, others)
+    const bot = gapBelow(me, others, stock.length)
+    const lft = gapLeft(me, others)
+    const rgt = gapRight(me, others, stock.width)
+    out.push(...buildGapPolysForPart(me, top, bot, lft, rgt))
+  }
+  return out
+}
+
+/**
  * Continuously-computed amber/red regions for the Free-roam canvas.
  *
- * Waste comes from two independent signals, ORed together:
+ * Three waste signals, OR-unioned:
  *
- *   1. Per-part crescents: for each placed part, the material trapped
- *      between the part's axis-aligned bbox and its own outline.
- *      Rectangles produce nothing (bbox ≡ polygon); discs produce
- *      four small corner crescents; trapezoids / triangles / sectors
- *      produce their characteristic tapered slivers. This is purely
- *      shape-driven — it doesn't depend on how parts are arranged.
+ *   1. **Shape-envelope waste** — material trapped between each part's
+ *      template-local axis-aligned envelope and its actual outline.
+ *      Discs produce corner crescents, trapezoids produce tapered
+ *      slivers, rectangles produce nothing (envelope ≡ shape).
+ *      Invariant under part arrangement.
  *
- *   2. Thin-strip detection: inscribed rectangles in the free polygon
- *      (`stock − ⋃parts`) whose smaller dimension is below
- *      `MIN_USABLE_DIM_IN`. This catches dead-end strips between
- *      parts and narrow bands along the sheet edge. The threshold is
- *      6" — matches the app-wide minimum-reusable-strip width — so a
- *      10"-wide column around a disc stays amber while a 4" gap
- *      between two parts gets flagged.
+ *   2. **Trapped-pocket waste** — free-space components in `stock − ⋃parts`
+ *      that don't touch the stock boundary. A 12"×12" hole fully
+ *      enclosed by four surrounding parts is a real pocket the operator
+ *      can't reclaim without moving a surrounding part. Components that
+ *      reach the stock boundary are "open frontier" — unused stock the
+ *      operator can plan around — and stay ambient.
  *
- * Both signals are unioned via Clipper before being emitted, so the
- * renderer paints ONE uniformly-coloured red layer — even where a
- * crescent corner overlaps a thin strip.
+ *   3. **Per-side gap waste** — for each placed part, on each of its 4
+ *      sides, the perpendicular distance to the nearest blocker (stock
+ *      edge or another part shadowing the side). Below `MIN_USABLE_GAP_IN`
+ *      = 4", that gap renders red. Per-part deterministic — adding a
+ *      part elsewhere never changes a given part's existing gaps, which
+ *      is the property the old `extractMaximalFreeRects` detector was
+ *      missing (its greedy decomposition was topology-sensitive).
  *
- * Cheap enough to run on every rAF tick — the Clipper passes operate
- * on small polygon sets (parts + the inscribed rect carve).
+ * Cheap enough to run on every rAF tick: one Clipper diff per placement
+ * for envelopes, plus one union + one difference + one DFS for pockets,
+ * plus an O(n²) per-side scan over placements (n is small in Free-roam).
  */
 export function computeAdaptiveRegions(
   placements: ManualPlacement[],
@@ -264,30 +573,26 @@ export function computeAdaptiveRegions(
   if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) {
     return { offcuts: [], scrap: [] }
   }
-  const polygons = placementsToPolygons(placements, parts)
-  if (polygons.length === 0) return { offcuts: [], scrap: [] }
 
-  // Signal 1 — per-part crescent waste (raw polygons).
-  const crescentPolys = computePartCrescentWaste(polygons)
+  const envelopeWaste = computeShapeEnvelopeWaste(placements, parts)
+  const pocketWaste = computeTrappedPocketWaste(placements, parts, stock)
+  const sideGapWaste = computePerSideGapWaste(placements, parts, stock)
 
-  // Signal 2 — inscribed rects in free space that are too thin to
-  // cut a useful piece from. Usable rects are dropped — the amber
-  // background paints them.
-  const rects = extractMaximalFreeRects(stock.width, stock.length, polygons, 20, "maximal")
-  const thinRects = rects
-    .filter((r) => Math.min(r.width, r.height) < MIN_USABLE_DIM_IN)
-    .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }))
-
-  // Union the two signals so overlapping waste doesn't render as
-  // darker red. Filter sub-threshold polygons so truly micro slivers
-  // disappear into the amber background rather than showing as noise.
-  const merged = unionWasteRegions(crescentPolys, thinRects)
+  // Union all three signals via Clipper so overlapping waste (e.g. a
+  // corner crescent that abuts a side gap) renders as one uniformly-
+  // coloured region instead of compounding into darker patches.
+  const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste, ...sideGapWaste], [])
   const scrap: LayoutRegion[] = []
   for (const poly of merged) {
     if (polygonArea(poly) < MIN_VISIBLE_SCRAP_SQIN) continue
     const bbox = polyBbox(poly)
     scrap.push({ ...bbox, polygon: poly })
   }
+
+  // Stable order so re-renders (and React keys) don't flicker as
+  // upstream Clipper output happens to permute polygons. Sort by
+  // (y, x, width, height) — top-to-bottom, then left-to-right.
+  scrap.sort((a, b) => a.y - b.y || a.x - b.x || a.width - b.width || a.height - b.height)
 
   // Offcuts deliberately empty — the amber sheet background already
   // paints the reusable semantic.
