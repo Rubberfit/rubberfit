@@ -94,10 +94,49 @@ function rotatedAabb(
 }
 
 /**
+ * True when every vertex of `innerPoly` lies inside the inner-hole disc
+ * of a ring placement (radius `ringTemplate.innerRadius` centered on
+ * the ring's bbox center). Used to exempt parts that fit entirely inside
+ * a ring's hole from the standard collision rejection — the SAT polygon
+ * for a ring traces the outer boundary only (registry comment in
+ * `shape-registry.ts`), so a small disc dropped in the middle would
+ * otherwise read as overlapping the ring's body.
+ *
+ * Returns false for non-ring templates (no `innerRadius`) so the caller
+ * can short-circuit cheaply.
+ */
+function isFullyInsideRingHole(
+  innerPoly: Polygon,
+  ringPlacement: ManualPlacement,
+  ringTemplate: PartTemplate
+): boolean {
+  const innerR = ringTemplate.innerRadius
+  if (innerR == null || innerR <= 0) return false
+  const ringW = ringTemplate.width ?? ringTemplate.diameter ?? 12
+  const ringH = ringTemplate.length ?? ringTemplate.height ?? ringTemplate.diameter ?? 12
+  const cx = ringPlacement.x + ringW / 2
+  const cy = ringPlacement.y + ringH / 2
+  const r2 = innerR * innerR
+  // `buildPlacementPolygon` constructs Polygons with pos=(0,0) and
+  // points already in sheet space, so we can read coords directly.
+  for (const v of innerPoly.points) {
+    const dx = v.x - cx
+    const dy = v.y - cy
+    if (dx * dx + dy * dy > r2) return false
+  }
+  return true
+}
+
+/**
  * Check whether moving `candidate` to `(proposedX, proposedY)` would
  * overlap any OTHER placement. Returns true on collision so the caller
  * can reject the move. Rotated-AABB broad-phase first (conservative —
  * never skips a real hit), SAT narrow-phase second.
+ *
+ * Ring exception: if SAT reports overlap with a ring placement but the
+ * candidate fits entirely inside the ring's hole (or vice versa), we
+ * treat it as non-collision — the candidate is in the hole, not the
+ * ring's body.
  */
 export function wouldCollide(
   candidate: ManualPlacement,
@@ -123,7 +162,13 @@ export function wouldCollide(
     if (a.maxX <= b.minX || b.maxX <= a.minX || a.maxY <= b.minY || b.maxY <= a.minY) continue
 
     const otherPoly = buildPlacementPolygon(other, otherTemplate)
-    if (testPolygonPolygon(proposedPoly, otherPoly)) return true
+    if (!testPolygonPolygon(proposedPoly, otherPoly)) continue
+
+    // SAT overlap detected. Allow it when one part fits inside the
+    // other's ring hole (works in either direction).
+    if (isFullyInsideRingHole(proposedPoly, other, otherTemplate)) continue
+    if (isFullyInsideRingHole(otherPoly, proposed, candidateTemplate)) continue
+    return true
   }
   return false
 }
