@@ -13,16 +13,16 @@ import { render, screen, fireEvent, act } from "@testing-library/react"
 // `vi.mock` is hoisted to the top of the file, before module-scope `const`
 // declarations. `vi.hoisted` declares the spy refs in the same hoisted phase
 // so the mock factories can close over them safely.
-const { exportToCSV, generatePDFReport } = vi.hoisted(() => ({
+const { exportToCSV, downloadOperationsPdf } = vi.hoisted(() => ({
   exportToCSV: vi.fn(),
-  generatePDFReport: vi.fn().mockResolvedValue(undefined),
+  downloadOperationsPdf: vi.fn(),
 }))
 
 vi.mock("@/src/infrastructure/services/exportService", () => ({
   exportService: { exportToCSV },
 }))
-vi.mock("@/src/infrastructure/services/exportPdfService", () => ({
-  exportPdfService: { generatePDFReport },
+vi.mock("@/app/dashboard/_components/dashboard-pdf", () => ({
+  downloadOperationsPdf,
 }))
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }))
 
@@ -70,7 +70,7 @@ const FIXTURE: OperationsExportInput = {
 describe("DashboardExportMenu", () => {
   beforeEach(() => {
     exportToCSV.mockClear()
-    generatePDFReport.mockClear()
+    downloadOperationsPdf.mockClear()
   })
 
   it("renders an Export trigger that is disabled while loading", () => {
@@ -84,7 +84,7 @@ describe("DashboardExportMenu", () => {
     fireEvent.click(screen.getByText(/export as csv/i))
     fireEvent.click(screen.getByText(/generate pdf report/i))
     expect(exportToCSV).not.toHaveBeenCalled()
-    expect(generatePDFReport).not.toHaveBeenCalled()
+    expect(downloadOperationsPdf).not.toHaveBeenCalled()
   })
 
   it("dispatches CSV export with a period-scoped filename when 'Export as CSV' is clicked", () => {
@@ -98,38 +98,42 @@ describe("DashboardExportMenu", () => {
     expect(arg.rows.some((r: unknown[]) => r[0] === "Active rolls" && r[1] === 42)).toBe(true)
   })
 
-  it("dispatches PDF export with the Operations overview title when 'Generate PDF Report' is clicked", async () => {
+  it("invokes the branded PDF builder when 'Generate PDF Report' is clicked", async () => {
     render(<DashboardExportMenu input={FIXTURE} />)
     await act(async () => {
       fireEvent.click(screen.getByText(/generate pdf report/i))
     })
 
-    expect(generatePDFReport).toHaveBeenCalledTimes(1)
-    const [title, content] = generatePDFReport.mock.calls[0]
-    expect(title).toBe("Operations overview")
-    expect(content).toContain("<h1>Operations overview</h1>")
-    expect(content).toContain(">42<")
+    expect(downloadOperationsPdf).toHaveBeenCalledTimes(1)
+    expect(downloadOperationsPdf.mock.calls[0][0]).toMatchObject({
+      period: "week",
+      periodLabel: "Apr 21 – Apr 27",
+      totalActiveRolls: 42,
+    })
   })
 
   it("guards against duplicate dispatches while a PDF export is in flight", async () => {
+    // The PDF builder is synchronous — the in-flight guard still matters for
+    // re-clicks that fire inside the same task before isExporting resets.
+    // Stub it to a slow async-ish op to exercise the guard.
     let resolvePdf: (() => void) | null = null
-    generatePDFReport.mockImplementationOnce(
-      () => new Promise<void>((resolve) => (resolvePdf = () => resolve()))
-    )
+    downloadOperationsPdf.mockImplementationOnce(() => {
+      // Pretend the work is queued on a microtask so we can interleave clicks.
+      return new Promise<void>((resolve) => (resolvePdf = () => resolve()))
+    })
 
     render(<DashboardExportMenu input={FIXTURE} />)
     fireEvent.click(screen.getByText(/generate pdf report/i))
-    // Second click before the first call resolves should be ignored.
+    // Second click before the first resolves should be ignored.
     fireEvent.click(screen.getByText(/generate pdf report/i))
     fireEvent.click(screen.getByText(/export as csv/i))
 
-    expect(generatePDFReport).toHaveBeenCalledTimes(1)
+    expect(downloadOperationsPdf).toHaveBeenCalledTimes(1)
     expect(exportToCSV).not.toHaveBeenCalled()
 
     await act(async () => {
       resolvePdf?.()
     })
-    // After the in-flight export resolves the menu accepts new dispatches.
     fireEvent.click(screen.getByText(/export as csv/i))
     expect(exportToCSV).toHaveBeenCalledTimes(1)
   })

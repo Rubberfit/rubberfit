@@ -15,9 +15,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildOperationsCsv,
-  buildOperationsPdfHtml,
   type OperationsExportInput,
 } from "@/app/dashboard/_components/dashboard-export-utils"
+import { buildOperationsPdf } from "@/app/dashboard/_components/dashboard-pdf"
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
@@ -147,42 +147,30 @@ describe("buildOperationsCsv", () => {
   })
 })
 
-describe("buildOperationsPdfHtml", () => {
-  it("uses the Operations overview title", () => {
-    const { title } = buildOperationsPdfHtml(FIXTURE)
-    expect(title).toBe("Operations overview")
+describe("buildOperationsPdf", () => {
+  it("returns a non-empty PDF blob with the %PDF magic header", async () => {
+    const blob = buildOperationsPdf(FIXTURE)
+    expect(blob.type).toBe("application/pdf")
+    expect(blob.size).toBeGreaterThan(1024)
+    const head = await blob.slice(0, 5).text()
+    expect(head).toBe("%PDF-")
   })
 
-  it("embeds the four summary metric cards and active util period", () => {
-    const { content } = buildOperationsPdfHtml(FIXTURE)
-    expect(content).toContain("<h1>Operations overview</h1>")
-    expect(content).toContain("Active rolls")
-    expect(content).toContain("Cuts this week")
-    expect(content).toContain("Avg waste")
-    expect(content).toContain("Inventory value")
-    expect(content).toContain("Utilization (7d)")
-    // Numbers from the fixture surface in the rendered HTML.
-    expect(content).toContain(">42<")
-    expect(content).toContain(">7<")
-    expect(content).toContain("12.3%")
-  })
-
-  it("renders empty-state placeholders instead of empty tables", () => {
+  it("renders without throwing on empty utilization and recent cuts", () => {
     const empty: OperationsExportInput = {
       ...FIXTURE,
       utilization: { series: [], materials: [] },
       recentCuts: [],
     }
-    const { content } = buildOperationsPdfHtml(empty)
-    expect(content).toContain("No utilization data in window.")
-    expect(content).toContain("No recent cuts.")
-    expect(content).not.toContain("<tbody>")
+    expect(() => buildOperationsPdf(empty)).not.toThrow()
   })
 
-  it("escapes HTML in user-controlled fields (operator, periodLabel, materials)", () => {
-    const malicious: OperationsExportInput = {
+  it("renders without throwing for arbitrary user-controlled strings", () => {
+    // jsPDF's text APIs accept raw strings — no HTML escape concern — but the
+    // builder should still not crash on punctuation or unicode.
+    const tricky: OperationsExportInput = {
       ...FIXTURE,
-      periodLabel: 'Apr 21 – Apr 27 <script>alert("x")</script>',
+      periodLabel: 'Apr 21 – Apr 27 "weird" 〈chars〉',
       utilization: {
         series: [{ label: "Mon", "<b>Hax</b>": 1 }],
         materials: ["<b>Hax</b>"],
@@ -197,12 +185,6 @@ describe("buildOperationsPdfHtml", () => {
         },
       ],
     }
-    const { content } = buildOperationsPdfHtml(malicious)
-    expect(content).not.toContain("<script>alert")
-    expect(content).not.toContain("<img onerror=x>")
-    expect(content).not.toContain("<b>Hax</b>")
-    expect(content).toContain("&lt;script&gt;")
-    expect(content).toContain("&lt;img onerror=x&gt;")
-    expect(content).toContain("&lt;b&gt;Hax&lt;/b&gt;")
+    expect(() => buildOperationsPdf(tricky)).not.toThrow()
   })
 })

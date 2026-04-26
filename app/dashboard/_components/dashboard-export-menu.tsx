@@ -12,13 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
 import { exportService } from "@/src/infrastructure/services/exportService"
-import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 
-import {
-  buildOperationsCsv,
-  buildOperationsPdfHtml,
-  type OperationsExportInput,
-} from "./dashboard-export-utils"
+import { buildOperationsCsv, type OperationsExportInput } from "./dashboard-export-utils"
+import { downloadOperationsPdf } from "./dashboard-pdf"
 
 interface DashboardExportMenuProps {
   input: OperationsExportInput
@@ -47,8 +43,7 @@ export function DashboardExportMenu({ input, disabled }: DashboardExportMenuProp
     if (disabled || isExporting) return
     setIsExporting(true)
     try {
-      const { title, content } = buildOperationsPdfHtml(input)
-      await exportPdfService.generatePDFReport(title, content)
+      await downloadOperationsPdf(input)
     } catch (error) {
       console.error("Error generating dashboard PDF:", error)
       toast.error("Failed to generate report")
