@@ -348,7 +348,7 @@ function computeTrappedPocketWaste(
   const stockL = Math.round(stock.length * CLIPPER_SCALE)
   const eps = Math.ceil(STOCK_BOUNDARY_EPS_IN * CLIPPER_SCALE)
 
-  const touchesBoundary = (path: ClipperPath): boolean =>
+  const isTouchingBoundary = (path: ClipperPath): boolean =>
     path.some(
       (p) =>
         Math.abs(p.X) <= eps ||
@@ -365,7 +365,7 @@ function computeTrappedPocketWaste(
       !node.IsHole() &&
       contour.length >= 3 &&
       ClipperLib.Clipper.Area(contour) > 0 &&
-      !touchesBoundary(contour)
+      !isTouchingBoundary(contour)
     ) {
       pockets.push(fromClipperPath(contour))
     }
@@ -397,7 +397,6 @@ type SideGapBbox = { x: number; y: number; width: number; height: number }
 type SideGap = { gap: number; blocker: number; isVisible: boolean }
 
 const GAP_EPSILON = 1e-3
-const NO_GAP: SideGap = { gap: 0, blocker: 0, isVisible: false }
 
 function rectAsPoly(x: number, y: number, w: number, h: number): Point2D[] {
   return [
@@ -527,7 +526,7 @@ function computePerSideGapWaste(
   for (let i = 0; i < bboxes.length; i++) {
     const me = bboxes[i]
     const others = bboxes.filter((_, j) => j !== i)
-    const top = bboxes.length > 0 ? gapAbove(me, others) : NO_GAP
+    const top = gapAbove(me, others)
     const bot = gapBelow(me, others, stock.length)
     const lft = gapLeft(me, others)
     const rgt = gapRight(me, others, stock.width)
@@ -557,7 +556,7 @@ function computePerSideGapWaste(
  *   3. **Per-side gap waste** — for each placed part, on each of its 4
  *      sides, the perpendicular distance to the nearest blocker (stock
  *      edge or another part shadowing the side). Below `MIN_USABLE_GAP_IN`
- *      = 6", that gap renders red. Per-part deterministic — adding a
+ *      = 4", that gap renders red. Per-part deterministic — adding a
  *      part elsewhere never changes a given part's existing gaps, which
  *      is the property the old `extractMaximalFreeRects` detector was
  *      missing (its greedy decomposition was topology-sensitive).

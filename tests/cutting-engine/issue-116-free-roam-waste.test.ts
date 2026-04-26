@@ -96,8 +96,8 @@ describe("issue #116 — free-roam waste classification", () => {
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
     const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 26 && r.x >= 9.5)
-    expect(gapStrip).toBeDefined()
-    expect(gapStrip!.height).toBeCloseTo(3, 1)
+    if (!gapStrip) throw new Error("Expected gap strip scrap region between rects")
+    expect(gapStrip.height).toBeCloseTo(3, 1)
   })
 
   it("B2. rotated rectangle produces no waste (no phantom corner crescents)", () => {
@@ -167,11 +167,15 @@ describe("issue #116 — free-roam waste classification", () => {
     for (let i = 1; i < scrap.length; i++) {
       const prev = scrap[i - 1]
       const cur = scrap[i]
-      const inOrder =
+      const isInOrder =
         prev.y < cur.y ||
         (prev.y === cur.y && prev.x < cur.x) ||
-        (prev.y === cur.y && prev.x === cur.x && prev.width <= cur.width)
-      expect(inOrder).toBe(true)
+        (prev.y === cur.y && prev.x === cur.x && prev.width < cur.width) ||
+        (prev.y === cur.y &&
+          prev.x === cur.x &&
+          prev.width === cur.width &&
+          prev.height <= cur.height)
+      expect(isInOrder).toBe(true)
     }
   })
 
@@ -253,9 +257,9 @@ describe("issue #116 — free-roam waste classification", () => {
 
     // Expect a scrap region whose bbox matches the inner pocket.
     const pocket = scrap.find((r) => Math.abs(r.x - 40) < 0.5 && Math.abs(r.y - 18) < 0.5)
-    expect(pocket).toBeDefined()
-    expect(pocket!.width).toBeCloseTo(16, 1)
-    expect(pocket!.height).toBeCloseTo(12, 1)
+    if (!pocket) throw new Error("Expected enclosed pocket scrap region")
+    expect(pocket.width).toBeCloseTo(16, 1)
+    expect(pocket.height).toBeCloseTo(12, 1)
   })
 
   it("I. narrow gap between two full-width rects IS classified as scrap (per-side gap)", () => {
@@ -272,9 +276,9 @@ describe("issue #116 — free-roam waste classification", () => {
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
     const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 26)
-    expect(gapStrip).toBeDefined()
-    expect(gapStrip!.width).toBeCloseTo(96, 1)
-    expect(gapStrip!.height).toBeCloseTo(3, 1)
+    if (!gapStrip) throw new Error("Expected full-width gap strip scrap region")
+    expect(gapStrip.width).toBeCloseTo(96, 1)
+    expect(gapStrip.height).toBeCloseTo(3, 1)
   })
 
   it("J. parts placed with ample free space yield only shape-envelope waste, no edge-gap waste", () => {
@@ -335,8 +339,8 @@ describe("issue #116 — free-roam waste classification", () => {
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
     const topStrip = scrap.find((r) => r.y < 1 && r.height < 4)
-    expect(topStrip).toBeDefined()
-    expect(topStrip!.width).toBeCloseTo(30, 1)
-    expect(topStrip!.height).toBeCloseTo(3, 1)
+    if (!topStrip) throw new Error("Expected top edge strip scrap region")
+    expect(topStrip.width).toBeCloseTo(30, 1)
+    expect(topStrip.height).toBeCloseTo(3, 1)
   })
 })
