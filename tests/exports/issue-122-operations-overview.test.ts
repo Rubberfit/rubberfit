@@ -3,10 +3,11 @@
  * dashboard". The Operations overview Export button on `app/dashboard/page.tsx`
  * had no `onClick` handler, so clicking it did nothing.
  *
- * The fix wires the button to a CSV+PDF dropdown backed by two pure helpers:
- *   - `buildOperationsCsv(input)`  → ExportData for `exportService.exportToCSV`
- *   - `buildOperationsPdfHtml(input)` → { title, content } for
- *                                       `exportPdfService.generatePDFReport`
+ * The fix wires the button to a CSV+PDF dropdown backed by two helpers:
+ *   - `buildOperationsCsv(input)` (data shaper) → ExportData for
+ *     `exportService.exportToCSV`
+ *   - `buildOperationsPdf(input)` (jsPDF builder) → Blob, downloaded by
+ *     `downloadOperationsPdf` from `dashboard-pdf.ts`
  *
  * These tests pin the helper output shapes so future refactors don't silently
  * break the export contract.
@@ -136,6 +137,16 @@ describe("buildOperationsCsv", () => {
     // single-quote so spreadsheet apps render the cell as text.
     expect(flat).toContain("Period label|'=cmd|' /C calc'!A1")
     expect(rows.find((r) => r[0] === "'+SUM(A1:A2)")).toBeDefined()
+
+    // Whitespace-prefixed formulas should also be neutralized — Excel/Sheets
+    // trim leading whitespace before evaluating.
+    const trickyInput: OperationsExportInput = {
+      ...FIXTURE,
+      periodLabel: "  =SUM(A1:A2)",
+    }
+    const trickyOut = buildOperationsCsv(trickyInput)
+    const periodRow = trickyOut.rows.find((r) => r[0] === "Period label")
+    expect(periodRow?.[1]).toBe("'  =SUM(A1:A2)")
     const utilHeader = rows.find(
       (r) => r[0] === "Bucket" && typeof r[1] === "string" && r[1].startsWith("'@")
     )

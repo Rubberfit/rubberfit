@@ -38,6 +38,27 @@ function checkNewPage(doc: jsPDF, y: number, needed: number): number {
   return y
 }
 
+/**
+ * Truncate `value` with an ellipsis so it fits within `maxWidth` mm at the
+ * currently-active font. Width-aware (uses `doc.getTextWidth`) and stable
+ * for any font/size. Caller must set `doc.setFont` / `doc.setFontSize`
+ * before measuring — that's how jsPDF knows the metrics to use.
+ */
+function clampText(doc: jsPDF, value: string, maxWidth: number): string {
+  if (maxWidth <= 0 || value === "") return value
+  if (doc.getTextWidth(value) <= maxWidth) return value
+  const ellipsis = "…"
+  // Binary search for the longest prefix length whose `prefix + …` fits.
+  let lo = 0
+  let hi = value.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (doc.getTextWidth(value.slice(0, mid) + ellipsis) <= maxWidth) lo = mid
+    else hi = mid - 1
+  }
+  return value.slice(0, lo) + ellipsis
+}
+
 // ── Header ─────────────────────────────────────────────────────────────────
 
 function addHeader(doc: jsPDF, input: OperationsExportInput, logo: string): number {
@@ -218,13 +239,16 @@ function addRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number)
       doc.rect(MARGIN, y - 3.5, CONTENT_W, 5.5, "F")
     }
     let x = MARGIN + 3
+    // Reserve 6mm of right padding inside each column so adjacent cells
+    // don't touch when the value is near the column edge.
+    const cellPad = 6
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
-    doc.text(cut.jobCode, x, y)
+    doc.text(clampText(doc, cut.jobCode, widths[0] - cellPad), x, y)
     x += widths[0]
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
-    doc.text(cut.operator, x, y)
+    doc.text(clampText(doc, cut.operator, widths[1] - cellPad), x, y)
     x += widths[1]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
@@ -232,7 +256,7 @@ function addRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number)
     x += widths[2]
     doc.setTextColor(...GRAY_500)
     doc.setFont("helvetica", "normal")
-    doc.text(cut.whenLabel, x, y)
+    doc.text(clampText(doc, cut.whenLabel, widths[3] - cellPad), x, y)
     y += 5.5
   }
 
@@ -242,7 +266,10 @@ function addRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number)
 // ── Footer ─────────────────────────────────────────────────────────────────
 
 function addFooter(doc: jsPDF): void {
-  const totalPages = doc.internal.pages.length - 1
+  // jsPDF exposes `getNumberOfPages` on the doc instance as the canonical
+  // accessor; the `internal.pages.length` shape is undocumented and has
+  // shifted between major versions.
+  const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
     doc.setDrawColor(...GRAY_200)
@@ -300,10 +327,17 @@ export async function downloadOperationsPdf(input: OperationsExportInput): Promi
   const blob = buildOperationsPdf(input)
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
-  link.href = url
-  link.download = `Operations_overview_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  try {
+    link.href = url
+    link.download = `Operations_overview_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
+    document.body.appendChild(link)
+    link.click()
+  } finally {
+    // Detach + revoke even if `appendChild`/`click` throws so we don't leak
+    // the blob URL. Defer the revoke by one task — Safari and some Chromium
+    // versions race the revoke against the actual download fetch when both
+    // happen synchronously.
+    if (link.isConnected) document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
 }
