@@ -2,7 +2,6 @@ import ClipperLib from "clipper-lib"
 import type { Point2D } from "@/nesting/types"
 import { circleToPolygon, rectToPolygon } from "@/nesting/shape-to-polygon"
 import { polygonArea } from "@/nesting/convex-hull"
-import { extractMaximalFreeRects } from "@/nesting/free-space"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { LayoutRegion } from "./layout-model"
@@ -75,37 +74,6 @@ export interface ComputedRegions {
  */
 const MIN_VISIBLE_SCRAP_SQIN = 2
 
-/**
- * Minimum "usable" dimension for a free-space inscribed rectangle.
- * A rect with its smaller side below this is too thin to cut anything
- * meaningful from — classified as waste regardless of its length.
- *
- * Tuned to 6" to match the existing Auto-nest `MIN_REUSABLE_STRIP_W`
- * threshold: a 6"-wide strip is the narrowest piece treated as
- * reusable anywhere else in the app. Anything thinner is a strip the
- * operator can't practically plan around. The earlier 11.5" threshold
- * (MIN_REUSABLE_OFFCUT_W) was too aggressive — it flagged 10"-wide
- * columns around a disc as waste even though they had plenty of
- * vertical room for other cuts.
- */
-const MIN_USABLE_DIM_IN = 6
-
-/**
- * Probe distance (inches) used to detect whether a side of a thin
- * inscribed rect is "blocked" by a placed part or a stock edge.
- * Issue #116: `extractMaximalFreeRects` greedily decomposes the free
- * polygon and emits *any* axis-aligned rectangle that fits, including
- * open-edge slivers (a strip with one side touching a part and the
- * other facing open stock). The greedy carve order also depends on
- * the topology of the free polygon, so adding an unrelated shape
- * elsewhere can shuffle which rects come out — making waste appear
- * to "move around" when shapes are added. We keep only thin rects
- * that are TRAPPED on both narrow-axis sides (between two parts, or
- * between a part and a stock edge); open-edge slivers are not waste,
- * just unused stock and stay ambient.
- */
-const TRAP_PROBE_IN = 0.05
-
 // ── Clipper helpers for the "unreusable residue" compute ─────────────────
 
 const CLIPPER_SCALE = 1e7
@@ -138,116 +106,67 @@ function polyBbox(poly: Point2D[]): { x: number; y: number; width: number; heigh
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
-interface BBox {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-function bboxesOverlap(a: BBox, b: BBox): boolean {
-  return !(
-    a.x + a.width <= b.x ||
-    b.x + b.width <= a.x ||
-    a.y + a.height <= b.y ||
-    b.y + b.height <= a.y
-  )
-}
-
 /**
- * True when a thin inscribed rectangle is "trapped" on both ends of its
- * NARROW axis — i.e. a real waste pocket between two pieces of placed
- * geometry (or between a placed piece and a stock edge), not an
- * open-edge sliver running off into unused stock.
+ * Compute per-placement "shape-envelope waste" polygons — the material
+ * trapped between a part's TEMPLATE-LOCAL axis-aligned envelope and the
+ * part's actual outline. For rectangles this is empty (envelope ≡ shape).
+ * For discs the result is the four corner crescents. For trapezoids /
+ * triangles / sectors it's the tapered slivers along the envelope edges.
  *
- * Probes a `TRAP_PROBE_IN`-thin band just outside each narrow-axis
- * side. A side counts as blocked when the probe band touches the stock
- * boundary OR overlaps the bounding box of any placed part. Both sides
- * must be blocked for the rect to qualify as scrap.
+ * Computed in LOCAL coords (where the envelope is always axis-aligned)
+ * and then rotated/translated to sheet space. Doing the difference in
+ * sheet space against the SHEET-AABB would over-estimate waste for
+ * rotated rectangles — a 24"×12" rect at 30° has a sheet-AABB roughly
+ * 23"×22", and `bbox − rect` produces large phantom corner triangles
+ * even though the rectangle has no real shape-envelope waste at all.
+ *
+ * Issue #116 root-cause story: the old implementation also unioned this
+ * with thin-strip "waste" extracted via `extractMaximalFreeRects`, which
+ * emitted topology-dependent open-edge slivers (a strip alongside a
+ * part with the other side facing unused stock). Those slivers aren't
+ * waste — operators can rearrange to reclaim them — and the greedy
+ * carve order made them appear to "move around" when shapes were added
+ * elsewhere on the canvas. We now ONLY classify shape-envelope waste:
+ * material trapped by the part's own geometry, which is invariant to
+ * surrounding placements and can never be reclaimed without changing
+ * the part itself.
  */
-function isClosedTrap(rect: BBox, partBboxes: ReadonlyArray<BBox>, stock: BBox): boolean {
-  const narrowIsHorizontal = rect.height < rect.width
-  if (narrowIsHorizontal) {
-    // Narrow axis is Y → check TOP and BOTTOM neighbours.
-    const topProbe: BBox = {
-      x: rect.x,
-      y: rect.y - TRAP_PROBE_IN,
-      width: rect.width,
-      height: TRAP_PROBE_IN,
-    }
-    const bottomProbe: BBox = {
-      x: rect.x,
-      y: rect.y + rect.height,
-      width: rect.width,
-      height: TRAP_PROBE_IN,
-    }
-    const topBlocked =
-      rect.y <= stock.y + TRAP_PROBE_IN || partBboxes.some((b) => bboxesOverlap(topProbe, b))
-    const bottomBlocked =
-      rect.y + rect.height >= stock.y + stock.height - TRAP_PROBE_IN ||
-      partBboxes.some((b) => bboxesOverlap(bottomProbe, b))
-    return topBlocked && bottomBlocked
-  }
-  // Narrow axis is X → check LEFT and RIGHT neighbours.
-  const leftProbe: BBox = {
-    x: rect.x - TRAP_PROBE_IN,
-    y: rect.y,
-    width: TRAP_PROBE_IN,
-    height: rect.height,
-  }
-  const rightProbe: BBox = {
-    x: rect.x + rect.width,
-    y: rect.y,
-    width: TRAP_PROBE_IN,
-    height: rect.height,
-  }
-  const leftBlocked =
-    rect.x <= stock.x + TRAP_PROBE_IN || partBboxes.some((b) => bboxesOverlap(leftProbe, b))
-  const rightBlocked =
-    rect.x + rect.width >= stock.x + stock.width - TRAP_PROBE_IN ||
-    partBboxes.some((b) => bboxesOverlap(rightProbe, b))
-  return leftBlocked && rightBlocked
-}
-
-/**
- * Compute per-part "crescent waste" polygons — the material trapped
- * between a part's axis-aligned bounding box and the part's own
- * outline. For rectangles this is empty (bbox === polygon). For
- * discs the result is the four corner crescents of the bbox. For
- * trapezoids / triangles / sectors it's the tapered strips.
- *
- * This is the intuitive notion of waste the operator expects: the
- * material that's geometrically TRAPPED by the part's shape. The
- * earlier "strict reusable threshold" logic classified any free
- * strip narrower than 11.5" or 6" as scrap — technically correct
- * per offcut-catalog rules, but it turned the whole column
- * containing a 10"-wide disc red even though there was plenty of
- * usable sheet above and below.
- *
- * Thin-strip / dead-end waste (e.g., 5" between a part and the
- * sheet edge) is NOT detected here on purpose — operators generally
- * plan those by eye. If we re-introduce strict classification later,
- * it should be behind an explicit toggle.
- */
-function computePartCrescentWaste(
-  partPolygons: ReadonlyArray<ReadonlyArray<Point2D>>
+function computeShapeEnvelopeWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>
 ): Point2D[][] {
+  const byId = new Map(parts.map((p) => [p.id, p]))
   const out: Point2D[][] = []
-  for (const poly of partPolygons) {
-    if (poly.length < 3) continue
-    const bbox = polyBbox(poly as Point2D[])
-    // Degenerate or zero-area bbox → nothing to subtract.
-    if (bbox.width <= 0 || bbox.height <= 0) continue
 
-    const bboxPath = toClipperPath([
-      { x: bbox.x, y: bbox.y },
-      { x: bbox.x + bbox.width, y: bbox.y },
-      { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
-      { x: bbox.x, y: bbox.y + bbox.height },
-    ])
+  for (const placement of placements) {
+    const template = byId.get(placement.templateId)
+    if (!template) continue
+
+    const width = template.width ?? template.diameter ?? 12
+    const height = template.length ?? template.height ?? template.diameter ?? 12
+    if (width <= 0 || height <= 0) continue
+
+    // Resolve the local-coords shape outline. Rectangles return early —
+    // their envelope IS the shape, so the difference is empty.
+    let localShape: Point2D[]
+    if (template.polygon && template.polygon.length >= 3) {
+      localShape = template.polygon
+    } else if (template.partType === "cylinder" && template.diameter) {
+      localShape = circleToPolygon(template.diameter, 24)
+    } else {
+      continue
+    }
+
+    const localEnvelope: Point2D[] = [
+      { x: 0, y: 0 },
+      { x: width, y: 0 },
+      { x: width, y: height },
+      { x: 0, y: height },
+    ]
+
     const clip = new ClipperLib.Clipper()
-    clip.AddPath(bboxPath, ClipperLib.PolyType.ptSubject, true)
-    clip.AddPath(toClipperPath(poly), ClipperLib.PolyType.ptClip, true)
+    clip.AddPath(toClipperPath(localEnvelope), ClipperLib.PolyType.ptSubject, true)
+    clip.AddPath(toClipperPath(localShape), ClipperLib.PolyType.ptClip, true)
     const paths = new ClipperLib.Paths()
     clip.Execute(
       ClipperLib.ClipType.ctDifference,
@@ -255,10 +174,27 @@ function computePartCrescentWaste(
       ClipperLib.PolyFillType.pftNonZero,
       ClipperLib.PolyFillType.pftNonZero
     )
+
+    if (paths.length === 0) continue
+
+    // Transform the local-coord residue polygons into sheet space using
+    // the same pivot-around-center rotation the canvas applies.
+    const cx = placement.x + width / 2
+    const cy = placement.y + height / 2
+    const cos = Math.cos(placement.rotationRad)
+    const sin = Math.sin(placement.rotationRad)
     for (const path of paths) {
-      if (ClipperLib.Clipper.Area(path) > 0) out.push(fromClipperPath(path))
+      if (ClipperLib.Clipper.Area(path) <= 0) continue
+      const localPoly = fromClipperPath(path)
+      const sheetPoly = localPoly.map((p) => {
+        const dx = p.x - width / 2
+        const dy = p.y - height / 2
+        return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos }
+      })
+      out.push(sheetPoly)
     }
   }
+
   return out
 }
 
@@ -317,31 +253,142 @@ function unionWasteRegions(
 }
 
 /**
+ * Trapped-pocket waste: free-space components in `stock − ⋃parts` that
+ * don't touch the stock boundary. These are pockets fully enclosed by
+ * placed parts — material the operator can't recover by sliding things
+ * around (they'd have to remove a surrounding part).
+ *
+ * Algorithm (Clipper PolyTree decomposition):
+ *
+ *   1. Union all part polygons so touching/overlapping parts collapse
+ *      into one composite footprint. Without this, the difference can
+ *      produce self-touching contours that hide a real pocket.
+ *   2. Compute `stock − part_union` as a `PolyTree`. The tree alternates
+ *      hole / outer levels: root is a hole, its children are outer
+ *      free-space contours, their children are hole contours (placed
+ *      parts), etc.
+ *   3. DFS over all NON-hole nodes at any depth. Each one is a free-
+ *      space component. Pockets enclosed by parts appear NESTED several
+ *      levels deep (root → free-space outer → part hole → POCKET) —
+ *      iterating only top-level nodes misses them.
+ *   4. Drop any component with a vertex within ε of the stock boundary —
+ *      that component has a frontier and is reclaimable, not a pocket.
+ *
+ * Performance: two Clipper passes (union + difference) per drag tick.
+ * Sub-millisecond for typical ~10-part scenes per upstream benchmarks.
+ *
+ * Refs: clipper-lib `Execute(...)` overload for `PolyTree`
+ * (https://sourceforge.net/p/jsclipper/wiki/documentation/), jagua-rs
+ * leftover classification (https://github.com/JeroenGar/jagua-rs).
+ */
+const STOCK_BOUNDARY_EPS_IN = 1e-3
+
+function computeTrappedPocketWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>,
+  stock: StockConfig
+): Point2D[][] {
+  if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) return []
+
+  const partPaths: ClipperPath[] = []
+  for (const placement of placements) {
+    const template = parts.find((p) => p.id === placement.templateId)
+    if (!template) continue
+    const poly = placementsToPolygons([placement], [template])[0]
+    if (poly && poly.length >= 3) partPaths.push(toClipperPath(poly))
+  }
+  if (partPaths.length === 0) return []
+
+  // Pre-union parts so touching edges don't produce self-touching diff
+  // contours that would hide a real surrounded pocket.
+  const unionClip = new ClipperLib.Clipper()
+  unionClip.AddPaths(partPaths, ClipperLib.PolyType.ptSubject, true)
+  const partUnion = new ClipperLib.Paths()
+  unionClip.Execute(
+    ClipperLib.ClipType.ctUnion,
+    partUnion,
+    ClipperLib.PolyFillType.pftNonZero,
+    ClipperLib.PolyFillType.pftNonZero
+  )
+  if (partUnion.length === 0) return []
+
+  const stockPath = toClipperPath([
+    { x: 0, y: 0 },
+    { x: stock.width, y: 0 },
+    { x: stock.width, y: stock.length },
+    { x: 0, y: stock.length },
+  ])
+  const diff = new ClipperLib.Clipper()
+  diff.AddPath(stockPath, ClipperLib.PolyType.ptSubject, true)
+  diff.AddPaths(partUnion, ClipperLib.PolyType.ptClip, true)
+
+  const tree = new ClipperLib.PolyTree()
+  diff.Execute(
+    ClipperLib.ClipType.ctDifference,
+    tree,
+    ClipperLib.PolyFillType.pftNonZero,
+    ClipperLib.PolyFillType.pftNonZero
+  )
+
+  const stockW = Math.round(stock.width * CLIPPER_SCALE)
+  const stockL = Math.round(stock.length * CLIPPER_SCALE)
+  const eps = Math.ceil(STOCK_BOUNDARY_EPS_IN * CLIPPER_SCALE)
+
+  const touchesBoundary = (path: ClipperPath): boolean =>
+    path.some(
+      (p) =>
+        Math.abs(p.X) <= eps ||
+        Math.abs(p.X - stockW) <= eps ||
+        Math.abs(p.Y) <= eps ||
+        Math.abs(p.Y - stockL) <= eps
+    )
+
+  const pockets: Point2D[][] = []
+  const visit = (node: ClipperLib.PolyNode): void => {
+    const contour = node.Contour()
+    if (
+      !node.IsOpen &&
+      !node.IsHole() &&
+      contour.length >= 3 &&
+      ClipperLib.Clipper.Area(contour) > 0 &&
+      !touchesBoundary(contour)
+    ) {
+      pockets.push(fromClipperPath(contour))
+    }
+    for (const child of node.Childs()) visit(child)
+  }
+  for (const child of tree.Childs()) visit(child)
+
+  return pockets
+}
+
+/**
  * Continuously-computed amber/red regions for the Free-roam canvas.
  *
- * Waste comes from two independent signals, ORed together:
+ * Two waste signals, OR-unioned:
  *
- *   1. Per-part crescents: for each placed part, the material trapped
- *      between the part's axis-aligned bbox and its own outline.
- *      Rectangles produce nothing (bbox ≡ polygon); discs produce
- *      four small corner crescents; trapezoids / triangles / sectors
- *      produce their characteristic tapered slivers. This is purely
- *      shape-driven — it doesn't depend on how parts are arranged.
+ *   1. **Shape-envelope waste** — material trapped between each part's
+ *      template-local axis-aligned envelope and its actual outline.
+ *      Discs produce corner crescents, trapezoids produce tapered
+ *      slivers, rectangles produce nothing (envelope ≡ shape).
+ *      Invariant under part arrangement.
  *
- *   2. Thin-strip detection: inscribed rectangles in the free polygon
- *      (`stock − ⋃parts`) whose smaller dimension is below
- *      `MIN_USABLE_DIM_IN`. This catches dead-end strips between
- *      parts and narrow bands along the sheet edge. The threshold is
- *      6" — matches the app-wide minimum-reusable-strip width — so a
- *      10"-wide column around a disc stays amber while a 4" gap
- *      between two parts gets flagged.
+ *   2. **Trapped-pocket waste** — free-space components in `stock − ⋃parts`
+ *      that don't touch the stock boundary. A 12"×12" hole fully
+ *      enclosed by four surrounding parts is a real pocket the operator
+ *      can't reclaim without moving a surrounding part. Components that
+ *      reach the stock boundary are "open frontier" — unused stock the
+ *      operator can plan around — and stay ambient.
  *
- * Both signals are unioned via Clipper before being emitted, so the
- * renderer paints ONE uniformly-coloured red layer — even where a
- * crescent corner overlaps a thin strip.
+ * The earlier implementation used `extractMaximalFreeRects` greedy
+ * thin-strip detection, which was topology-dependent: adding an
+ * unrelated shape elsewhere shuffled the extraction order and made
+ * waste appear to "move around" the canvas (issue #116). The new
+ * pocket-detection signal replaces it with a deterministic topological
+ * predicate that matches operator intuition.
  *
- * Cheap enough to run on every rAF tick — the Clipper passes operate
- * on small polygon sets (parts + the inscribed rect carve).
+ * Cheap enough to run on every rAF tick: one Clipper diff per placement
+ * for envelopes, plus one union + one difference + one DFS for pockets.
  */
 export function computeAdaptiveRegions(
   placements: ManualPlacement[],
@@ -351,31 +398,14 @@ export function computeAdaptiveRegions(
   if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) {
     return { offcuts: [], scrap: [] }
   }
-  const polygons = placementsToPolygons(placements, parts)
-  if (polygons.length === 0) return { offcuts: [], scrap: [] }
 
-  // Signal 1 — per-part crescent waste (raw polygons).
-  const crescentPolys = computePartCrescentWaste(polygons)
+  const envelopeWaste = computeShapeEnvelopeWaste(placements, parts)
+  const pocketWaste = computeTrappedPocketWaste(placements, parts, stock)
 
-  // Signal 2 — inscribed rects in free space that are too thin to
-  // cut a useful piece from AND are TRAPPED on both narrow-axis sides.
-  // Open-edge slivers (one side facing unused stock) are dropped —
-  // they're not waste, just unused sheet, and the greedy decomposition
-  // emits them in topology-dependent order, so without this gate the
-  // strips appear to "move around" when unrelated shapes are added
-  // elsewhere on the canvas (issue #116).
-  const stockBbox: BBox = { x: 0, y: 0, width: stock.width, height: stock.length }
-  const partBboxes = polygons.map((p) => polyBbox(p as Point2D[]))
-  const rects = extractMaximalFreeRects(stock.width, stock.length, polygons, 20, "maximal")
-  const thinRects = rects
-    .filter((r) => Math.min(r.width, r.height) < MIN_USABLE_DIM_IN)
-    .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }))
-    .filter((r) => isClosedTrap(r, partBboxes, stockBbox))
-
-  // Union the two signals so overlapping waste doesn't render as
-  // darker red. Filter sub-threshold polygons so truly micro slivers
-  // disappear into the amber background rather than showing as noise.
-  const merged = unionWasteRegions(crescentPolys, thinRects)
+  // Union both signals via Clipper so overlapping waste (e.g. a corner
+  // crescent that abuts a pocket) renders as one uniformly-coloured
+  // region instead of compounding into darker patches where they overlap.
+  const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste], [])
   const scrap: LayoutRegion[] = []
   for (const poly of merged) {
     if (polygonArea(poly) < MIN_VISIBLE_SCRAP_SQIN) continue
