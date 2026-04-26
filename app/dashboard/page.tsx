@@ -1,10 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Download } from "lucide-react"
 import { format, startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
 
-import { Button } from "@/app/components/ui/button"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"
 
@@ -15,14 +13,10 @@ import { materialTypeService } from "@/src/infrastructure/services/materialTypeS
 
 import { SummaryCards } from "./_components/dashboard-summary-cards"
 import { DashboardSidebar } from "./_components/dashboard-activity-aside"
-import {
-  UtilizationCard,
-  type UtilizationDatum,
-} from "./_components/dashboard-utilization-card"
-import {
-  RecentCutsCard,
-  type RecentCutRow,
-} from "./_components/dashboard-recent-cuts-card"
+import { UtilizationCard, type UtilizationDatum } from "./_components/dashboard-utilization-card"
+import { RecentCutsCard, type RecentCutRow } from "./_components/dashboard-recent-cuts-card"
+import { DashboardExportMenu } from "./_components/dashboard-export-menu"
+import { type OperationsExportInput } from "./_components/dashboard-export-utils"
 
 type Period = "week" | "month" | "quarter"
 type UtilizationPeriod = "7d" | "30d" | "90d"
@@ -104,7 +98,9 @@ export default function DashboardPage() {
           materialTypeService.getAll().catch(() => [] as MaterialType[]),
           cutService.getRecentCutsWithRolls(5).catch(() => []),
           rollService.getRecentRolls(5).catch(() => [] as Roll[]),
-          cutService.getWasteTrendByWeek(8).catch(() => [] as { period: string; wastePercentage: number }[]),
+          cutService
+            .getWasteTrendByWeek(8)
+            .catch(() => [] as { period: string; wastePercentage: number }[]),
           cutService.getCutsGrowthPercentage().catch(() => undefined as number | undefined),
           cutService.getWasteImprovementPercentage().catch(() => undefined as number | undefined),
         ])
@@ -117,7 +113,8 @@ export default function DashboardPage() {
 
         const totalActiveRolls = activeRolls.length
         const inventoryValue = activeRolls.reduce(
-          (total, roll) => total + ((roll.remaining_length * roll.width) / 144) * (roll.cost_per_sqft || 0),
+          (total, roll) =>
+            total + ((roll.remaining_length * roll.width) / 144) * (roll.cost_per_sqft || 0),
           0
         )
         const cutsThisWeek = cutsThisWeekData.length
@@ -187,6 +184,18 @@ export default function DashboardPage() {
       minute: "2-digit",
     })
 
+  const exportInput: OperationsExportInput = {
+    period,
+    weekLabel: data.weekLabel,
+    utilPeriod,
+    totalActiveRolls: data.totalActiveRolls,
+    cutsThisWeek: data.cutsThisWeek,
+    wastePercentage: data.wastePercentage,
+    inventoryValue: data.inventoryValue,
+    utilization,
+    recentCuts: data.recentCuts,
+  }
+
   return (
     <PageShell variant="overview">
       <PageHeader
@@ -195,10 +204,7 @@ export default function DashboardPage() {
         actions={
           <>
             <PeriodToggle value={period} onChange={setPeriod} />
-            <Button size="sm" variant="outline">
-              <Download className="size-3.5" />
-              Export
-            </Button>
+            <DashboardExportMenu input={exportInput} disabled={loading} />
           </>
         }
       />
@@ -238,13 +244,7 @@ export default function DashboardPage() {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function PeriodToggle({
-  value,
-  onChange,
-}: {
-  value: Period
-  onChange: (next: Period) => void
-}) {
+function PeriodToggle({ value, onChange }: { value: Period; onChange: (next: Period) => void }) {
   const options: Array<{ id: Period; label: string }> = [
     { id: "week", label: "This week" },
     { id: "month", label: "Month" },
@@ -420,7 +420,9 @@ function buildRecentCutsRows(
       "—"
     return {
       id: String(cut.id ?? `cut-${index}`),
-      jobCode: `CUT-${String(cut.id ?? index).slice(-4).toUpperCase()}`,
+      jobCode: `CUT-${String(cut.id ?? index)
+        .slice(-4)
+        .toUpperCase()}`,
       operator,
       utilizationPct: Number(utilization.toFixed(1)),
       whenLabel: formatRelative(cut.created_at),

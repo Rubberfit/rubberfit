@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { FileText, Plus, DollarSign, Truck, Clock, Download } from "lucide-react"
+import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
 
 import { Card } from "@/app/components/ui/card"
@@ -23,6 +23,8 @@ import { POViewDialog } from "./_components/po-view-dialog"
 import { POCreateDialog } from "./_components/po-create-dialog"
 import { POEditDialog } from "./_components/po-edit-dialog"
 import { POTable } from "./_components/po-table"
+import { PurchaseOrdersExportMenu } from "./_components/po-export-menu"
+import { toPurchaseOrdersExportInput } from "./_components/po-export-utils"
 import { usePurchaseOrders } from "./_components/use-purchase-orders"
 import { getEmptyItem, type POFormData } from "./_components/po-form-dialog"
 
@@ -62,9 +64,7 @@ function JobPrefillBridge({
 
     const shortfall = Number(shortfallParam)
     const match = materialTypes.find(
-      (mt) =>
-        (materialParam ?? "").trim().toLowerCase() ===
-        (mt.name ?? "").trim().toLowerCase()
+      (mt) => (materialParam ?? "").trim().toLowerCase() === (mt.name ?? "").trim().toLowerCase()
     )
 
     setFormData({
@@ -75,9 +75,7 @@ function JobPrefillBridge({
           material_type_id: match?.id ?? "",
           description: materialParam ? `Job shortfall: ${materialParam}` : "",
           quantity_sqft:
-            Number.isFinite(shortfall) && shortfall > 0
-              ? Number(shortfall.toFixed(2))
-              : 0,
+            Number.isFinite(shortfall) && shortfall > 0 ? Number(shortfall.toFixed(2)) : 0,
         },
       ],
       notes: formData.notes,
@@ -85,9 +83,7 @@ function JobPrefillBridge({
     setSourceJobId(jobIdParam)
     setIsCreateDialogOpen(true)
     toast.message("PO prefilled from job shortfall.", {
-      description: materialParam
-        ? `${materialParam} · ${shortfall.toFixed(1)} sqft`
-        : undefined,
+      description: materialParam ? `${materialParam} · ${shortfall.toFixed(1)} sqft` : undefined,
     })
     router.replace("/dashboard/inventory/purchase-orders")
   }, [
@@ -174,10 +170,10 @@ function PurchaseOrdersPageInner() {
         subtitle="Manage purchase orders, track deliveries, and handle approvals."
         actions={
           <>
-            <Button size="sm" variant="outline">
-              <Download className="size-3.5" />
-              Export
-            </Button>
+            <PurchaseOrdersExportMenu
+              input={toPurchaseOrdersExportInput(po)}
+              disabled={po.loading}
+            />
             <Button size="sm" onClick={() => po.setIsCreateDialogOpen(true)}>
               <Plus className="size-3.5" />
               New PO

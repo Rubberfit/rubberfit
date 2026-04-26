@@ -5,7 +5,7 @@ Main dashboard layout, navigation, and shared components. All authenticated page
 ## Files
 
 - **layout.tsx** -- Server component: reads user preferences from cookies, renders ProtectedRoute wrapper, SidebarProvider, and the app sidebar shell
-- **page.tsx** -- Operations Overview landing (S4 Task 5 rewrite matching the approved mock): `PageHeader` with tenant + week subtitle, period toggle (week/month/quarter), Export CTA; 4 KPI `StatCard`s with sparklines + trend deltas; stacked "Utilization by material" chart + "Recent cuts" `DataTable` in a two-column row; "Low stock · reorder needed" + "Recent activity" feed below. Consumes `rollService`, `cutService`, `materialTypeService` via `Promise.all`. Jobs funnel from the mock is deferred to Q4 (Jobs domain). Pre-S4 `/dashboard/default` URLs 308-redirect here.
+- **page.tsx** -- Operations Overview landing (S4 Task 5 rewrite matching the approved mock): `PageHeader` with tenant + week subtitle, period toggle (week/month/quarter), Export CTA (CSV + PDF dropdown — wired in issue #122 via `DashboardExportMenu`); 4 KPI `StatCard`s with sparklines + trend deltas; stacked "Utilization by material" chart + "Recent cuts" `DataTable` in a two-column row; "Low stock · reorder needed" + "Recent activity" feed below. Consumes `rollService`, `cutService`, `materialTypeService` via `Promise.all`. Jobs funnel from the mock is deferred to Q4 (Jobs domain). Pre-S4 `/dashboard/default` URLs 308-redirect here.
 
 ## \_components/
 
@@ -17,6 +17,8 @@ Shared components used across multiple dashboard pages. Roll-specific components
 - **dashboard-activity-aside.tsx** -- Low-stock list (`EntityRow` + `StatusBadge` with per-row Create PO CTA) + recent activity feed (`ActivityFeedRow`). Two-column layout under the header row. Rewritten in S4 Task 5 to consume the pattern library.
 - **dashboard-utilization-card.tsx** -- Stacked bar chart of cut volume by material × weekday (recharts `BarChart`). Inline 7d/30d/90d segmented control. Added in S4 Task 5. Matches the user-approved Operations Overview mock.
 - **dashboard-recent-cuts-card.tsx** -- Compact `DataTable` of the 5 most recent cuts (Job, Operator, Util%, When). Utilization column colour-coded by threshold via `--success/warning/danger-foreground` tokens. Added in S4 Task 5.
+- **dashboard-export-menu.tsx** -- CSV/PDF dropdown wiring the Operations overview Export action (issue #122). Calls `exportService.exportToCSV` and `exportPdfService.generatePDFReport` via the helpers below; disabled while the dashboard is loading.
+- **dashboard-export-utils.ts** -- Pure data shapers `buildOperationsCsv` and `buildOperationsPdfHtml` for the Operations overview export. Filename is period-scoped (`operations-overview_<week|month|quarter>`). Empty utilization/recent-cut sets render placeholder copy instead of empty tables.
 
 ### \_components/sidebar/
 
