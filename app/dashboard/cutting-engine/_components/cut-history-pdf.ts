@@ -49,25 +49,43 @@ const GRAY_200: RGB = [229, 231, 235]
 const GRAY_50: RGB = [249, 250, 251]
 const WHITE: RGB = [255, 255, 255]
 
-// Must stay in sync with KonvaSheetRenderer's PART_FILLS so screen and PDF match.
-const PART_FILLS_RGB: RGB[] = [
-  [59, 130, 246], // blue-500
-  [239, 68, 68], // red-500
-  [34, 197, 94], // green-500
-  [245, 158, 11], // amber-500
-  [139, 92, 246], // violet-500
-  [236, 72, 153], // pink-500
-  [20, 184, 166], // teal-500
-  [249, 115, 22], // orange-500
-]
-// Paper-friendly semantic palette: amber for reusable offcut, red for scrap.
-// Matches the Konva on-screen convention (which uses darker background).
-const OFFCUT_RGB: RGB = [254, 243, 199] // amber-100
-const OFFCUT_STROKE_RGB: RGB = [245, 158, 11] // amber-500
-const SCRAP_RGB: RGB = [254, 226, 226] // red-100
-const SCRAP_STROKE_RGB: RGB = [239, 68, 68] // red-500
-const SHEET_FILL_RGB: RGB = [245, 245, 244] // stone-100
-const SHEET_STROKE_RGB: RGB = [168, 162, 158] // stone-400
+// Blueprint palette: a single semantic per-region scheme so the diagram reads
+// as material zones (shape vs. reusable vs. waste), not a per-spec rainbow.
+// Each region paints with a soft fill + a 45° hatch stroke for engineering-
+// drawing affect.
+const PART_FILL_RGB: RGB = [220, 252, 231] // emerald-100 — shape body
+const PART_HATCH_RGB: RGB = [110, 217, 145] // emerald-400 — diagonal lines
+const PART_STROKE_RGB: RGB = [22, 163, 74] // emerald-600 — outline
+const OFFCUT_FILL_RGB: RGB = [254, 243, 199] // amber-100 — reusable zone
+const OFFCUT_HATCH_RGB: RGB = [245, 158, 11] // amber-500 — diagonals
+const OFFCUT_STROKE_RGB: RGB = [180, 83, 9] // amber-700 — outline
+const SCRAP_FILL_RGB: RGB = [254, 226, 226] // red-100 — waste zone
+const SCRAP_HATCH_RGB: RGB = [239, 68, 68] // red-500 — diagonals
+const SCRAP_STROKE_RGB: RGB = [185, 28, 28] // red-700 — outline
+const SHEET_STROKE_RGB: RGB = [55, 65, 81] // gray-700 — sheet border + dim arrows
+const LABEL_TEXT_RGB: RGB = [17, 24, 39] // gray-900 — labels read against light fills
+
+// Hatch geometry. Lines run at 45° in PDF (mm) space so spacing stays stable
+// regardless of layout scale. Tighter for parts (visually busier shape area),
+// looser for offcut/scrap so the callout text can sit on top of the hatch
+// without competing with it.
+const HATCH_SPACING_PART_MM = 1.6
+const HATCH_SPACING_REGION_MM = 2.4
+const HATCH_LINE_WIDTH_MM = 0.12
+
+// Dimension annotation gutters around the diagram (matches the target
+// blueprint look — width arrow on the right, length arrow at the bottom).
+const DIM_GUTTER_RIGHT_MM = 12
+const DIM_GUTTER_BOTTOM_MM = 12
+const DIM_ARROW_HEAD_MM = 1.6
+
+// Label sizing: drop a hard pt floor so tiny boxes don't get oversized text
+// that bleeds into adjacent shapes. Skip the label entirely when even the
+// minimum readable size won't fit both the box width AND height.
+const LABEL_PAD_MM = 0.35
+const MIN_LABEL_FONT_PT = 2.5
+const MAX_LABEL_FONT_PT = 10
+const PT_TO_MM = 25.4 / 72
 
 // ── Logo Loader ──────────────────────────────────────────────────────────────
 
@@ -287,119 +305,463 @@ function addCutLegend(doc: jsPDF, tagMap: Map<string, string>, y: number): numbe
 // ── Vector Layout Rendering ──────────────────────────────────────────────────
 
 /**
- * Draw a single LayoutModel into a rectangle on the PDF page using jsPDF
- * vector primitives (rect / ellipse / lines). Coordinates on `layout` are in
- * inches; this function scales them to fit within `w × h` mm on the page.
+ * Render a single `LayoutModel` to the PDF in blueprint style: true-aspect
+ * single panel (no segmentation), 45° hatched fills per region category, and
+ * dimension arrows on the right (width) + bottom (length) gutters.
+ *
+ * `boxX/boxY/boxW/boxH` is the TOTAL budget (diagram + dimension gutters).
+ * The diagram itself sits in the top-left of that box and is scaled to
+ * preserve the layout's true aspect ratio — long rolls render flat (vector
+ * zoom keeps them legible).
  */
 function renderLayoutToDoc(
   doc: jsPDF,
   layout: LayoutModel,
-  x: number,
-  y: number,
-  w: number,
-  h: number
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number
 ): void {
   const sheetW = layout.sheetWidth
   const sheetL = layout.sheetLength
   if (sheetW <= 0 || sheetL <= 0) return
-  const scale = Math.min(w / sheetW, h / sheetL)
+
+  // Reserve gutters for the dimension annotations.
+  const diagramMaxW = Math.max(1, boxW - DIM_GUTTER_RIGHT_MM)
+  const diagramMaxH = Math.max(1, boxH - DIM_GUTTER_BOTTOM_MM)
+  const scale = Math.min(diagramMaxW / sheetW, diagramMaxH / sheetL)
   const drawW = sheetW * scale
   const drawH = sheetL * scale
-  const ox = x + (w - drawW) / 2
-  const oy = y + (h - drawH) / 2
+  // Anchor to the top-left of the available box so the dimension arrows on
+  // the right + bottom always sit at predictable offsets.
+  const ox = boxX
+  const oy = boxY
 
-  // Sheet background
-  doc.setFillColor(...SHEET_FILL_RGB)
-  doc.setDrawColor(...SHEET_STROKE_RGB)
-  doc.setLineWidth(0.3)
-  doc.rect(ox, oy, drawW, drawH, "FD")
+  // Sheet background — soft fill so hatched regions read on top of it.
+  doc.setFillColor(255, 255, 255)
+  doc.rect(ox, oy, drawW, drawH, "F")
 
-  // Grid (12" intervals)
-  doc.setDrawColor(...GRAY_200)
-  doc.setLineWidth(0.1)
-  for (let gx = 12; gx < sheetW; gx += 12) {
-    doc.line(ox + gx * scale, oy, ox + gx * scale, oy + drawH)
-  }
-  for (let gy = 12; gy < sheetL; gy += 12) {
-    doc.line(ox, oy + gy * scale, ox + drawW, oy + gy * scale)
-  }
+  // Clip body content so any geometric drift never bleeds into the gutters.
+  // The `null` style arg is critical: with the default (undefined) jsPDF
+  // emits `re S` first (path + stroke), so the clip rect itself would draw
+  // a visible navy outline using whatever the current draw color happens to
+  // be. `null` produces just the path operator (`re W n`), the canonical
+  // jsPDF clipping idiom. Same applies to every other `.clip().discardPath()`
+  // call below (region rect, ellipse, polygon, label box).
+  doc.saveGraphicsState()
+  doc.rect(ox, oy, drawW, drawH, null).clip().discardPath()
 
-  // Reusable offcut (amber)
-  for (const region of layout.offcuts) {
-    drawRegion(doc, region, ox, oy, scale, OFFCUT_RGB, OFFCUT_STROKE_RGB)
-  }
+  // Paint order matches `NestingVizSimpleMode` (the on-screen autonest
+  // renderer): scrap UNDER, offcut OVER, parts on top. The data lets a
+  // scrap region cover the same area as an offcut region; the renderer's
+  // overlap-resolution rule is "offcut wins" so reusable area always
+  // displays as reusable.
 
-  // Scrap / waste (red)
+  // Scrap / waste (red) — drawn first so offcut can overlay.
   for (const region of layout.scrap) {
-    drawRegion(doc, region, ox, oy, scale, SCRAP_RGB, SCRAP_STROKE_RGB)
+    drawHatchedRegion(doc, region, ox, oy, scale, {
+      fill: SCRAP_FILL_RGB,
+      hatch: SCRAP_HATCH_RGB,
+      stroke: SCRAP_STROKE_RGB,
+      hatchSpacingMm: HATCH_SPACING_REGION_MM,
+    })
+  }
+  // Reusable offcut (amber) — drawn over scrap. Hatch is anchored to a
+  // GLOBAL grid (see drawHatchInBounds) so adjacent regions share
+  // continuous diagonals — no visible seam at boundaries.
+  for (const region of layout.offcuts) {
+    drawHatchedRegion(doc, region, ox, oy, scale, {
+      fill: OFFCUT_FILL_RGB,
+      hatch: OFFCUT_HATCH_RGB,
+      stroke: OFFCUT_STROKE_RGB,
+      hatchSpacingMm: HATCH_SPACING_REGION_MM,
+    })
   }
 
-  // Parts
+  // Parts (single green hatch — they are all "shape", distinguished by tag
+  // letter rather than by spec color).
   for (const part of layout.parts) {
-    const fill = PART_FILLS_RGB[part.specIndex % PART_FILLS_RGB.length]
-    drawPart(doc, part, ox, oy, scale, fill)
+    drawHatchedPart(doc, part, ox, oy, scale)
   }
+
+  doc.restoreGraphicsState()
+
+  // Sheet border — drawn last and OUTSIDE the clip so it sits cleanly on
+  // top of all content. Adaptive line width keeps a border proportional to
+  // the panel height (a 0.3mm stroke would dominate a 4mm-tall flat roll).
+  doc.setDrawColor(...SHEET_STROKE_RGB)
+  doc.setLineWidth(Math.min(0.25, Math.max(0.08, drawH * 0.04)))
+  doc.rect(ox, oy, drawW, drawH, "S")
+
+  // Offcut callout — label only the largest offcut region. The data often
+  // splits one visual offcut zone into several adjacent rectangles; labeling
+  // each produced a stack of overlapping "Reusable offcut" texts.
+  const largestOffcut = pickLargestRegion(layout.offcuts)
+  if (largestOffcut) drawOffcutCallout(doc, largestOffcut, ox, oy, scale)
+
+  // Dimension annotations on the right (width) + bottom (length) edges.
+  drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL)
 }
 
-function drawRegion(
+interface RegionStyle {
+  fill: RGB
+  hatch: RGB
+  stroke: RGB
+  hatchSpacingMm: number
+}
+
+function drawHatchedRegion(
   doc: jsPDF,
   region: LayoutRegion,
   ox: number,
   oy: number,
   scale: number,
-  fill: RGB,
-  stroke: RGB
+  style: RegionStyle
 ): void {
-  doc.setFillColor(...fill)
-  doc.setDrawColor(...stroke)
-  doc.setLineWidth(0.15)
   if (region.polygon && region.polygon.length >= 3) {
-    drawPolygon(doc, region.polygon, ox, oy, scale, "FD")
+    doc.setFillColor(...style.fill)
+    drawPolygon(doc, region.polygon, ox, oy, scale, "F")
+    doc.saveGraphicsState()
+    polygonAsClipPath(doc, region.polygon, ox, oy, scale)
+    const bbox = polygonBoundingBox(region.polygon, ox, oy, scale)
+    drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+    doc.restoreGraphicsState()
     return
   }
-  doc.rect(
-    ox + region.x * scale,
-    oy + region.y * scale,
-    region.width * scale,
-    region.height * scale,
-    "FD"
-  )
+  const rx = ox + region.x * scale
+  const ry = oy + region.y * scale
+  const rw = region.width * scale
+  const rh = region.height * scale
+  if (rw <= 0 || rh <= 0) return
+  drawHatchedRect(doc, rx, ry, rw, rh, style)
 }
 
-function drawPart(
+function pickLargestRegion(regions: LayoutRegion[]): LayoutRegion | null {
+  let best: LayoutRegion | null = null
+  let bestArea = 0
+  for (const r of regions) {
+    const area = r.width * r.height
+    if (area > bestArea) {
+      bestArea = area
+      best = r
+    }
+  }
+  return best
+}
+
+function drawHatchedRect(
+  doc: jsPDF,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+  style: RegionStyle,
+  options: { stroke: boolean } = { stroke: false }
+): void {
+  doc.setFillColor(...style.fill)
+  doc.rect(rx, ry, rw, rh, "F")
+  doc.saveGraphicsState()
+  doc.rect(rx, ry, rw, rh, null).clip().discardPath()
+  drawHatchInBounds(doc, rx, ry, rw, rh, style.hatch, style.hatchSpacingMm)
+  doc.restoreGraphicsState()
+  // Stroke only when caller requests it. Parts ask for it (need a visible
+  // separator between adjacent same-color rectangles); offcut/scrap regions
+  // skip it (the fill alone distinguishes them and stacked outlines on
+  // adjacent bands produced visible "stripes" through the offcut area).
+  if (options.stroke) {
+    doc.setDrawColor(...style.stroke)
+    doc.setLineWidth(0.2)
+    doc.rect(rx, ry, rw, rh, "S")
+  }
+}
+
+/**
+ * Fill `[bx, by, bw, bh]` with parallel 45° lines. Caller must have set up
+ * a clip region equal to the target shape — these lines paint across the
+ * bounding box and rely on the clip to stay inside the shape.
+ *
+ * Hatch positions snap to a GLOBAL grid (`c = step * k` in absolute PDF mm
+ * coordinates), so adjacent regions whose bounding boxes don't overlap still
+ * draw lines on the same anchor. Without that, two stacked offcut bands
+ * each compute their hatch from their own local origin — the diagonal lines
+ * don't continue across the boundary, and the resulting phase shift reads
+ * as a hard horizontal seam between regions.
+ */
+function drawHatchInBounds(
+  doc: jsPDF,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+  hatch: RGB,
+  spacingMm: number
+): void {
+  if (bw <= 0 || bh <= 0 || spacingMm <= 0) return
+  doc.setDrawColor(...hatch)
+  doc.setLineWidth(HATCH_LINE_WIDTH_MM)
+  // Parametrize each line as `(t + c, t)` for parameter `t`: 45° slope, where
+  // the line `x - y = c` is uniquely identified by its absolute offset `c`.
+  // Step `c` by `spacing * √2` (perpendicular spacing) on a global grid.
+  const step = spacingMm * Math.SQRT2
+  const cMin = bx - (by + bh)
+  const cMax = bx + bw - by
+  const firstC = Math.ceil(cMin / step) * step
+  for (let c = firstC; c <= cMax; c += step) {
+    // Intersect the line `(t + c, t)` with the rect [bx..bx+bw] × [by..by+bh].
+    const tMin = Math.max(bx - c, by)
+    const tMax = Math.min(bx + bw - c, by + bh)
+    if (tMin >= tMax) continue
+    doc.line(tMin + c, tMin, tMax + c, tMax)
+  }
+}
+
+function drawHatchedPart(
   doc: jsPDF,
   part: PlacedPart,
   ox: number,
   oy: number,
-  scale: number,
-  fill: RGB
+  scale: number
 ): void {
-  doc.setFillColor(...fill)
-  doc.setDrawColor(255, 255, 255)
-  doc.setLineWidth(0.2)
-
   const px = ox + part.x * scale
   const py = oy + part.y * scale
   const pw = part.width * scale
   const ph = part.height * scale
   const cx = px + pw / 2
   const cy = py + ph / 2
+  if (pw <= 0 || ph <= 0) return
+
+  const style: RegionStyle = {
+    fill: PART_FILL_RGB,
+    hatch: PART_HATCH_RGB,
+    stroke: PART_STROKE_RGB,
+    hatchSpacingMm: HATCH_SPACING_PART_MM,
+  }
 
   if (part.renderShape === "circle" && part.diameter != null) {
     const r = (part.diameter / 2) * scale
-    doc.ellipse(cx, cy, r, r, "FD")
+    doc.setFillColor(...style.fill)
+    doc.ellipse(cx, cy, r, r, "F")
+    doc.saveGraphicsState()
+    doc.ellipse(cx, cy, r, r, null).clip().discardPath()
+    drawHatchInBounds(doc, cx - r, cy - r, r * 2, r * 2, style.hatch, style.hatchSpacingMm)
+    doc.restoreGraphicsState()
+    doc.setDrawColor(...style.stroke)
+    doc.setLineWidth(0.25)
+    doc.ellipse(cx, cy, r, r, "S")
   } else if (part.polygon && part.polygon.length >= 3) {
-    drawPolygon(doc, part.polygon, ox, oy, scale, "FD")
+    doc.setFillColor(...style.fill)
+    drawPolygon(doc, part.polygon, ox, oy, scale, "F")
+    doc.saveGraphicsState()
+    polygonAsClipPath(doc, part.polygon, ox, oy, scale)
+    const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
+    drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+    doc.restoreGraphicsState()
+    doc.setDrawColor(...style.stroke)
+    doc.setLineWidth(0.25)
+    drawPolygon(doc, part.polygon, ox, oy, scale, "S")
   } else {
-    doc.rect(px, py, pw, ph, "FD")
+    drawHatchedRect(doc, px, py, pw, ph, style, { stroke: true })
   }
 
-  // Label
-  const labelFontPt = Math.max(5, Math.min(10, Math.min(pw, ph) / 3))
+  // Label — shrink to fit both width AND height. Skip when even the minimum
+  // readable size won't fit. Black on the light fill (the previous white-on-
+  // colored scheme is no longer needed since fills are uniformly soft).
+  const labelFontPt = getFittingLabelFontPt(doc, part.label, pw, ph)
+  if (labelFontPt == null) return
+  doc.saveGraphicsState()
+  doc.rect(px, py, pw, ph, null).clip().discardPath()
   doc.setFontSize(labelFontPt)
-  doc.setTextColor(255, 255, 255)
+  doc.setTextColor(...LABEL_TEXT_RGB)
   doc.setFont("helvetica", "bold")
-  doc.text(part.label, cx, cy + labelFontPt / 4, { align: "center" })
+  doc.text(part.label, cx, cy + (labelFontPt * PT_TO_MM) / 3, { align: "center" })
+  doc.restoreGraphicsState()
+}
+
+function polygonBoundingBox(
+  polygon: Array<{ x: number; y: number }>,
+  ox: number,
+  oy: number,
+  scale: number
+): { x: number; y: number; w: number; h: number } {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const pt of polygon) {
+    const px = ox + pt.x * scale
+    const py = oy + pt.y * scale
+    if (px < minX) minX = px
+    if (py < minY) minY = py
+    if (px > maxX) maxX = px
+    if (py > maxY) maxY = py
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+function polygonAsClipPath(
+  doc: jsPDF,
+  polygon: Array<{ x: number; y: number }>,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
+  if (polygon.length < 3) return
+  const first = polygon[0]
+  const segments = polygon.slice(1).map((pt, i) => {
+    const prev = polygon[i]
+    return [(pt.x - prev.x) * scale, (pt.y - prev.y) * scale] as [number, number]
+  })
+  // Trace the polygon as a path with `style=null` so jsPDF doesn't auto-stroke
+  // it before the clip (the default `undefined` style emits an `S` operator
+  // which produces visible strokes around every clipped region).
+  doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], null, true)
+  doc.clip().discardPath()
+}
+
+/**
+ * Compute the largest font size (in pt) at which `label` fits inside a
+ * `boxW × boxH` mm box, leaving `LABEL_PAD_MM` of padding on each side.
+ * Returns `null` when even `MIN_LABEL_FONT_PT` won't fit — caller should
+ * skip the label rather than draw something that overflows.
+ */
+function getFittingLabelFontPt(
+  doc: jsPDF,
+  label: string,
+  boxW: number,
+  boxH: number
+): number | null {
+  const availW = boxW - LABEL_PAD_MM * 2
+  const availH = boxH - LABEL_PAD_MM * 2
+  if (availW <= 0 || availH <= 0) return null
+
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(1)
+  const widthAt1Pt = doc.getTextWidth(label)
+  if (widthAt1Pt <= 0) return null
+
+  // jsPDF returns text width in mm at the active font size, so width-at-1pt
+  // gives us a per-pt mm/pt ratio. Cap by both axes so a thin tall box can't
+  // get a font that overflows horizontally and vice versa.
+  const fontPt = Math.min(MAX_LABEL_FONT_PT, availW / widthAt1Pt, availH / PT_TO_MM)
+  return fontPt >= MIN_LABEL_FONT_PT ? fontPt : null
+}
+
+/**
+ * Render a "Reusable offcut\n W" × L"" callout inside an offcut region —
+ * but only when the region is large enough for the text to fit comfortably.
+ */
+function drawOffcutCallout(
+  doc: jsPDF,
+  region: LayoutRegion,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
+  const rw = region.width * scale
+  const rh = region.height * scale
+  // Need at least ~22mm × 5mm of room for "Reusable offcut" + a sub-line.
+  if (rw < 22 || rh < 5) return
+  const rx = ox + region.x * scale
+  const ry = oy + region.y * scale
+  const cx = rx + rw / 2
+  const cy = ry + rh / 2
+  const widthIn = formatInch(region.width)
+  const lengthIn = formatInch(region.height)
+  doc.setFontSize(6.5)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(...LABEL_TEXT_RGB)
+  doc.text("Reusable offcut", cx, cy - 0.3, { align: "center" })
+  doc.setFontSize(5.5)
+  doc.setFont("helvetica", "normal")
+  doc.text(`${widthIn} × ${lengthIn}`, cx, cy + 2.4, { align: "center" })
+}
+
+function formatInch(value: number): string {
+  // Round to the nearest 1/16" then drop trailing zeros: 12.0 → "12"",
+  // 7.5 → "7.5"", 12.0625 → "12.0625"".
+  const stepped = Math.round(value * 16) / 16
+  const text = Number.isInteger(stepped) ? `${stepped}` : `${stepped.toFixed(4).replace(/0+$/, "")}`
+  return `${text}"`
+}
+
+function drawDimensionArrows(
+  doc: jsPDF,
+  ox: number,
+  oy: number,
+  drawW: number,
+  drawH: number,
+  sheetWidthIn: number,
+  sheetLengthIn: number
+): void {
+  doc.setDrawColor(...SHEET_STROKE_RGB)
+  doc.setLineWidth(0.25)
+  doc.setFillColor(...SHEET_STROKE_RGB)
+
+  // Width arrow — vertical, sits in the right gutter, spans the panel height.
+  const widthArrowX = ox + drawW + 4
+  const widthArrowY1 = oy
+  const widthArrowY2 = oy + drawH
+  doc.line(widthArrowX, widthArrowY1, widthArrowX, widthArrowY2)
+  drawArrowhead(doc, widthArrowX, widthArrowY1, "up")
+  drawArrowhead(doc, widthArrowX, widthArrowY2, "down")
+  doc.setFontSize(8)
+  doc.setFont("helvetica", "normal")
+  doc.setTextColor(...LABEL_TEXT_RGB)
+  // Sideways label sits to the right of the arrow. Keep horizontal so it
+  // reads at default PDF orientation; jsPDF's rotated text is fragile.
+  doc.text(`${formatInch(sheetWidthIn)} width`, widthArrowX + 2, oy + drawH / 2 + 2)
+
+  // Length arrow — horizontal, sits in the bottom gutter, spans the panel width.
+  const lengthArrowY = oy + drawH + 4
+  const lengthArrowX1 = ox
+  const lengthArrowX2 = ox + drawW
+  doc.line(lengthArrowX1, lengthArrowY, lengthArrowX2, lengthArrowY)
+  drawArrowhead(doc, lengthArrowX1, lengthArrowY, "left")
+  drawArrowhead(doc, lengthArrowX2, lengthArrowY, "right")
+  doc.text(`${formatInch(sheetLengthIn)} length`, ox + drawW / 2, lengthArrowY + 5, {
+    align: "center",
+  })
+}
+
+function drawArrowhead(
+  doc: jsPDF,
+  tipX: number,
+  tipY: number,
+  direction: "up" | "down" | "left" | "right"
+): void {
+  const s = DIM_ARROW_HEAD_MM
+  let segments: Array<[number, number]>
+  switch (direction) {
+    case "up":
+      segments = [
+        [-s / 2, s],
+        [s, 0],
+        [-s / 2, -s],
+      ]
+      break
+    case "down":
+      segments = [
+        [-s / 2, -s],
+        [s, 0],
+        [-s / 2, s],
+      ]
+      break
+    case "left":
+      segments = [
+        [s, -s / 2],
+        [0, s],
+        [-s, -s / 2],
+      ]
+      break
+    case "right":
+      segments = [
+        [-s, -s / 2],
+        [0, s],
+        [s, -s / 2],
+      ]
+      break
+  }
+  doc.lines(segments, tipX, tipY, [1, 1], "F", true)
 }
 
 function drawPolygon(
@@ -420,29 +782,51 @@ function drawPolygon(
 }
 
 async function addLayoutDiagrams(doc: jsPDF, layouts: LayoutModel[], y: number): Promise<number> {
-  // Match the aspect ratio of the legacy SVG path: CONTENT_W wide, scaled proportionally.
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
-    const sheetAspect = layout.sheetLength / layout.sheetWidth
-    const imgW = CONTENT_W
-    const imgH = imgW * sheetAspect
+    if (layout.sheetWidth <= 0 || layout.sheetLength <= 0) continue
+    const showRollHeader = layouts.length > 1
 
-    y = checkNewPage(doc, y, imgH + 12)
+    // True-aspect sizing: scale to fit CONTENT_W minus the dimension gutter,
+    // then derive the panel height from the layout's actual aspect ratio.
+    // Long rolls render flat — vector zoom keeps them legible.
+    const diagramMaxW = Math.max(1, CONTENT_W - DIM_GUTTER_RIGHT_MM)
+    const aspect = layout.sheetLength / layout.sheetWidth
+    const drawW = diagramMaxW
+    const drawH = drawW * aspect
+    const boxH = drawH + DIM_GUTTER_BOTTOM_MM
+    const boxW = CONTENT_W
 
-    if (layouts.length > 1) {
-      doc.setFillColor(...BRAND)
-      doc.rect(MARGIN, y - 1, 2, 6, "F")
-      doc.setFontSize(10)
-      doc.setTextColor(...GRAY_900)
-      doc.setFont("helvetica", "bold")
-      doc.text(`Roll ${i + 1} of ${layouts.length}`, MARGIN + 5, y + 3)
-      y += 8
-    }
-
-    renderLayoutToDoc(doc, layout, MARGIN, y, imgW, imgH)
-    y += imgH + 6
+    y = renderRollHeader(doc, y, {
+      show: showRollHeader,
+      rollIndex: i,
+      rollTotal: layouts.length,
+      panelHeightMm: boxH,
+    })
+    renderLayoutToDoc(doc, layout, MARGIN, y, boxW, boxH)
+    y += boxH + 8
   }
   return y
+}
+
+interface RollHeaderArgs {
+  show: boolean
+  rollIndex: number
+  rollTotal: number
+  panelHeightMm: number
+}
+
+function renderRollHeader(doc: jsPDF, y: number, args: RollHeaderArgs): number {
+  const headerHeight = args.show ? 8 : 0
+  const reserved = headerHeight + args.panelHeightMm + 8
+  y = checkNewPage(doc, y, reserved)
+  if (!args.show) return y
+
+  doc.setFontSize(10)
+  doc.setTextColor(...GRAY_900)
+  doc.setFont("helvetica", "bold")
+  doc.text(`Roll ${args.rollIndex + 1} of ${args.rollTotal}`, MARGIN, y + 3)
+  return y + headerHeight
 }
 
 async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number): Promise<number> {

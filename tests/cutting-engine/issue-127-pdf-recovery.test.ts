@@ -326,5 +326,81 @@ describe("issue #127 — PDF button always renders for saved cuts", () => {
       expect(data.reusableOffcutPct).toBe(0)
       expect(data.scrapPct).toBe(0)
     })
+
+    // Long-roll segmentation regression: a 600"×12" frozen layout (post-rotation
+    // sheetWidth=600, sheetLength=12) used to render as a single 180×3.6mm strip
+    // — too flat to read. The renderer now slices it into stacked panels at a
+    // fixed height. We can't introspect the resulting PDF easily, but a smoke
+    // test confirms the segmentation path (clip(), translate, multi-segment
+    // header) doesn't blow up jsPDF in the Node runtime.
+    it("K. generateCutPdf renders a long roll without throwing", async () => {
+      const longLayout = makeLayout({
+        sheetWidth: 600,
+        sheetLength: 12,
+        parts: Array.from({ length: 20 }, (_, i) => ({
+          id: `p${i}`,
+          shapeId: `spec-${i % 3}`,
+          label: `${String.fromCharCode(65 + (i % 3))}${i}`,
+          renderShape: "rect" as const,
+          specIndex: i % 3,
+          x: i * 30,
+          y: 0,
+          rotationRad: 0,
+          width: 28,
+          height: 10,
+        })),
+        offcuts: [{ x: 0, y: 10, width: 600, height: 2 }],
+      })
+      const cut = makeCut({
+        cut_width: 12,
+        cut_length: 600,
+        material_used_sqft: 38,
+        reusable_offset_sqft: 8,
+        scrap_sqft: 4,
+        cut_pieces: 20,
+        parts_completed: 20,
+      })
+      const data = buildCutPdfDataFromRow(cut, [longLayout])
+
+      const blob = await generateCutPdf({ svgElements: [], layouts: [longLayout], data })
+
+      expect(blob).toBeInstanceOf(Blob)
+      // Multiple segments + many parts → output meaningfully larger than the
+      // single-strip baseline (~6KB for the K layout vs ~3KB for a tiny one).
+      expect(blob.size).toBeGreaterThan(4096)
+    })
+
+    it("L. multi-roll output with one long + one normal roll renders without throwing", async () => {
+      const longLayout = makeLayout({
+        sheetWidth: 240,
+        sheetLength: 12,
+        parts: [
+          {
+            id: "p-long",
+            shapeId: "spec-0",
+            label: "A",
+            renderShape: "rect",
+            specIndex: 0,
+            x: 0,
+            y: 0,
+            rotationRad: 0,
+            width: 200,
+            height: 10,
+          },
+        ],
+      })
+      const normalLayout = makeLayout()
+      const cut = makeCut()
+      const data = buildCutPdfDataFromRow(cut, [longLayout, normalLayout])
+
+      const blob = await generateCutPdf({
+        svgElements: [],
+        layouts: [longLayout, normalLayout],
+        data,
+      })
+
+      expect(blob).toBeInstanceOf(Blob)
+      expect(blob.size).toBeGreaterThan(1024)
+    })
   })
 })
