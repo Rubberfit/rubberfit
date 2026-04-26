@@ -307,6 +307,27 @@ describe("issue #116 — free-roam waste classification", () => {
     expect(scrap.length).toBeGreaterThan(0) // disc crescents exist
   })
 
+  it("K0. corner gap between two adjacent visible-side strips is filled (image #29 repro)", () => {
+    // Reproduces the user's "weird box" — a part wedged into the upper-
+    // left corner with narrow gaps to BOTH the stock left and stock top
+    // edges. The two side strips would otherwise leave a small empty
+    // square at the part's outer corner; the corner-fill closes it so
+    // the union renders as a clean L-shape (or full rect for a four-
+    // sided wedge).
+    const parts = [rectTemplate("rect-A", 24, 12)]
+    const placements = [place("p1", "rect-A", 3, 4)] // 3" left gap, 4" top gap
+
+    const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
+
+    // The merged scrap should cover the upper-left corner area at
+    // (0..3, 0..4) — the corner-fill rectangle. Without the fix it'd
+    // be empty. Find any region whose bbox includes (1.5, 2).
+    const coversCorner = scrap.some(
+      (r) => r.x <= 1.5 && r.x + r.width >= 1.5 && r.y <= 2 && r.y + r.height >= 2
+    )
+    expect(coversCorner).toBe(true)
+  })
+
   it("K. narrow strip between part and stock top edge IS classified as scrap (image #26 repro)", () => {
     // Reproduces the user's screenshot in issue #116: rect placed near
     // the top of the sheet leaves a thin strip between its top edge

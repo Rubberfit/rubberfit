@@ -392,8 +392,10 @@ function computeTrappedPocketWaste(
  * polygon adds no information over `LayoutRegion.{x,y,width,height}`.
  */
 type SideGapBbox = { x: number; y: number; width: number; height: number }
+type SideGap = { gap: number; blocker: number; isVisible: boolean }
 
 const GAP_EPSILON = 1e-3
+const NO_GAP: SideGap = { gap: 0, blocker: 0, isVisible: false }
 
 function rectAsPoly(x: number, y: number, w: number, h: number): Point2D[] {
   return [
@@ -404,7 +406,11 @@ function rectAsPoly(x: number, y: number, w: number, h: number): Point2D[] {
   ]
 }
 
-function findGapAbove(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Point2D[] | null {
+function isVisibleGap(gap: number): boolean {
+  return gap > GAP_EPSILON && gap < MIN_USABLE_GAP_IN
+}
+
+function gapAbove(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): SideGap {
   let blocker = 0
   for (const o of others) {
     if (o.x + o.width <= me.x + GAP_EPSILON || o.x >= me.x + me.width - GAP_EPSILON) continue
@@ -412,15 +418,14 @@ function findGapAbove(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Poin
     if (oBottom <= me.y + GAP_EPSILON && oBottom > blocker) blocker = oBottom
   }
   const gap = me.y - blocker
-  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
-  return rectAsPoly(me.x, blocker, me.width, gap)
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
 }
 
-function findGapBelow(
+function gapBelow(
   me: SideGapBbox,
   others: ReadonlyArray<SideGapBbox>,
   stockLength: number
-): Point2D[] | null {
+): SideGap {
   let blocker = stockLength
   const myBottom = me.y + me.height
   for (const o of others) {
@@ -428,11 +433,10 @@ function findGapBelow(
     if (o.y >= myBottom - GAP_EPSILON && o.y < blocker) blocker = o.y
   }
   const gap = blocker - myBottom
-  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
-  return rectAsPoly(me.x, myBottom, me.width, gap)
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
 }
 
-function findGapLeft(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Point2D[] | null {
+function gapLeft(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): SideGap {
   let blocker = 0
   const myBottom = me.y + me.height
   for (const o of others) {
@@ -441,15 +445,14 @@ function findGapLeft(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Point
     if (oRight <= me.x + GAP_EPSILON && oRight > blocker) blocker = oRight
   }
   const gap = me.x - blocker
-  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
-  return rectAsPoly(blocker, me.y, gap, me.height)
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
 }
 
-function findGapRight(
+function gapRight(
   me: SideGapBbox,
   others: ReadonlyArray<SideGapBbox>,
   stockWidth: number
-): Point2D[] | null {
+): SideGap {
   let blocker = stockWidth
   const myRight = me.x + me.width
   const myBottom = me.y + me.height
@@ -458,8 +461,48 @@ function findGapRight(
     if (o.x >= myRight - GAP_EPSILON && o.x < blocker) blocker = o.x
   }
   const gap = blocker - myRight
-  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
-  return rectAsPoly(myRight, me.y, gap, me.height)
+  return { gap, blocker, isVisible: isVisibleGap(gap) }
+}
+
+/**
+ * Build the side-strip + corner-fill rectangles for one placement. When two
+ * adjacent sides both have visible gaps (e.g. top + left for a part wedged
+ * into the upper-left of the sheet), the small square between their outer
+ * extents would otherwise be left unpainted — visually reading as a "hole"
+ * in the L-shape of red. Emitting the corner rectangle fills it in so the
+ * union renders as a clean L (or full rectangle when all 4 sides have gaps).
+ */
+function buildGapPolysForPart(
+  me: SideGapBbox,
+  top: SideGap,
+  bot: SideGap,
+  lft: SideGap,
+  rgt: SideGap
+): Point2D[][] {
+  const out: Point2D[][] = []
+  const myRight = me.x + me.width
+  const myBottom = me.y + me.height
+
+  if (top.isVisible) out.push(rectAsPoly(me.x, top.blocker, me.width, top.gap))
+  if (bot.isVisible) out.push(rectAsPoly(me.x, myBottom, me.width, bot.gap))
+  if (lft.isVisible) out.push(rectAsPoly(lft.blocker, me.y, lft.gap, me.height))
+  if (rgt.isVisible) out.push(rectAsPoly(myRight, me.y, rgt.gap, me.height))
+
+  // Corner fills — connect adjacent visible side strips.
+  if (top.isVisible && lft.isVisible) {
+    out.push(rectAsPoly(lft.blocker, top.blocker, lft.gap, top.gap))
+  }
+  if (top.isVisible && rgt.isVisible) {
+    out.push(rectAsPoly(myRight, top.blocker, rgt.gap, top.gap))
+  }
+  if (bot.isVisible && lft.isVisible) {
+    out.push(rectAsPoly(lft.blocker, myBottom, lft.gap, bot.gap))
+  }
+  if (bot.isVisible && rgt.isVisible) {
+    out.push(rectAsPoly(myRight, myBottom, rgt.gap, bot.gap))
+  }
+
+  return out
 }
 
 function computePerSideGapWaste(
@@ -482,14 +525,11 @@ function computePerSideGapWaste(
   for (let i = 0; i < bboxes.length; i++) {
     const me = bboxes[i]
     const others = bboxes.filter((_, j) => j !== i)
-    const above = findGapAbove(me, others)
-    if (above) out.push(above)
-    const below = findGapBelow(me, others, stock.length)
-    if (below) out.push(below)
-    const left = findGapLeft(me, others)
-    if (left) out.push(left)
-    const right = findGapRight(me, others, stock.width)
-    if (right) out.push(right)
+    const top = bboxes.length > 0 ? gapAbove(me, others) : NO_GAP
+    const bot = gapBelow(me, others, stock.length)
+    const lft = gapLeft(me, others)
+    const rgt = gapRight(me, others, stock.width)
+    out.push(...buildGapPolysForPart(me, top, bot, lft, rgt))
   }
   return out
 }
