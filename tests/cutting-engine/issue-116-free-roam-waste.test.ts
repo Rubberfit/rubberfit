@@ -87,20 +87,17 @@ describe("issue #116 — free-roam waste classification", () => {
   })
 
   it("B. narrow gap between two parallel rects IS classified as scrap (per-side gap)", () => {
-    // Two 24×12 rects stacked vertically with a 4" gap between them
-    // (rect-A bottom at y=22, next top at y=26). The gap is below
-    // MIN_USABLE_GAP_IN (6") — the operator can't fit anything
-    // useful in 4", so it counts as waste.
+    // Two 24×12 rects stacked vertically with a 3" gap between them
+    // (rect-A bottom at y=22, next top at y=25). The gap is below
+    // MIN_USABLE_GAP_IN (4") so it counts as waste.
     const parts = [rectTemplate("rect-A", 24, 12)]
-    const placements = [place("p1", "rect-A", 10, 10), place("p2", "rect-A", 10, 26)]
+    const placements = [place("p1", "rect-A", 10, 10), place("p2", "rect-A", 10, 25)]
 
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
-    // A waste polygon should sit in the gap (y between 22 and 26)
-    // overlapping the rects' x range.
-    const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 27 && r.x >= 9.5)
+    const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 26 && r.x >= 9.5)
     expect(gapStrip).toBeDefined()
-    expect(gapStrip!.height).toBeCloseTo(4, 1)
+    expect(gapStrip!.height).toBeCloseTo(3, 1)
   })
 
   it("B2. rotated rectangle produces no waste (no phantom corner crescents)", () => {
@@ -262,23 +259,22 @@ describe("issue #116 — free-roam waste classification", () => {
   })
 
   it("I. narrow gap between two full-width rects IS classified as scrap (per-side gap)", () => {
-    // Two 96×22 rects spanning the full sheet width with a 4" gap
+    // Two 96×22 rects spanning the full sheet width with a 3" gap
     // between them. Per-side gap detection emits the gap as waste
-    // because the parts are 4" apart (< MIN_USABLE_GAP_IN). The earlier
+    // because the parts are 3" apart (< MIN_USABLE_GAP_IN). The earlier
     // pocket-only model treated this as "open frontier" because the
     // gap reaches the stock left/right edges, but per the user's
     // intent (issue #116) any narrow space between adjacent parts is
     // waste regardless of boundary contact.
     const parts = [rectTemplate("wide", 96, 22)]
-    const placements = [place("p1", "wide", 0, 0), place("p2", "wide", 0, 26)]
+    const placements = [place("p1", "wide", 0, 0), place("p2", "wide", 0, 25)]
 
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
-    // The gap (y 22..26) should appear as a scrap strip.
-    const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 27)
+    const gapStrip = scrap.find((r) => r.y >= 21 && r.y + r.height <= 26)
     expect(gapStrip).toBeDefined()
     expect(gapStrip!.width).toBeCloseTo(96, 1)
-    expect(gapStrip!.height).toBeCloseTo(4, 1)
+    expect(gapStrip!.height).toBeCloseTo(3, 1)
   })
 
   it("J. parts placed with ample free space yield only shape-envelope waste, no edge-gap waste", () => {
@@ -315,15 +311,15 @@ describe("issue #116 — free-roam waste classification", () => {
     // the union renders as a clean L-shape (or full rect for a four-
     // sided wedge).
     const parts = [rectTemplate("rect-A", 24, 12)]
-    const placements = [place("p1", "rect-A", 3, 4)] // 3" left gap, 4" top gap
+    const placements = [place("p1", "rect-A", 2, 3)] // 2" left gap, 3" top gap
 
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
     // The merged scrap should cover the upper-left corner area at
-    // (0..3, 0..4) — the corner-fill rectangle. Without the fix it'd
-    // be empty. Find any region whose bbox includes (1.5, 2).
+    // (0..2, 0..3) — the corner-fill rectangle. Without the fix it'd
+    // be empty. Find any region whose bbox includes (1, 1.5).
     const coversCorner = scrap.some(
-      (r) => r.x <= 1.5 && r.x + r.width >= 1.5 && r.y <= 2 && r.y + r.height >= 2
+      (r) => r.x <= 1 && r.x + r.width >= 1 && r.y <= 1.5 && r.y + r.height >= 1.5
     )
     expect(coversCorner).toBe(true)
   })
@@ -334,13 +330,13 @@ describe("issue #116 — free-roam waste classification", () => {
     // and the stock top. Per-side gap detection emits this strip
     // because it's < MIN_USABLE_GAP_IN.
     const parts = [rectTemplate("rect-A", 30, 16)]
-    const placements = [place("p1", "rect-A", 20, 4)] // 4" gap above
+    const placements = [place("p1", "rect-A", 20, 3)] // 3" gap above
 
     const { scrap } = computeAdaptiveRegions(placements, parts, STOCK)
 
-    const topStrip = scrap.find((r) => r.y < 1 && r.height < 5)
+    const topStrip = scrap.find((r) => r.y < 1 && r.height < 4)
     expect(topStrip).toBeDefined()
     expect(topStrip!.width).toBeCloseTo(30, 1)
-    expect(topStrip!.height).toBeCloseTo(4, 1)
+    expect(topStrip!.height).toBeCloseTo(3, 1)
   })
 })

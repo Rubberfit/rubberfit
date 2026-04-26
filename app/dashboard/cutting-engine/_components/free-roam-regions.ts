@@ -81,10 +81,12 @@ const MIN_VISIBLE_SCRAP_SQIN = 2
  * as red waste. Above this threshold, the gap is wide enough that the
  * operator could plan another part into it, so it stays ambient.
  *
- * Tuned to 6" to match Auto-nest's `MIN_REUSABLE_STRIP_W` — anything
- * below 6" wide can't accommodate the narrowest reusable strip.
+ * Tuned to 4" — the smallest gap an operator typically considers
+ * usable. Anything narrower reads as a sliver they can't realistically
+ * cut another piece from, even though it doesn't quite hit the 6"
+ * Auto-nest reusable-strip threshold.
  */
-const MIN_USABLE_GAP_IN = 6
+const MIN_USABLE_GAP_IN = 4
 
 // ── Clipper helpers for the "unreusable residue" compute ─────────────────
 
