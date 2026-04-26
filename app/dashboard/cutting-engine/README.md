@@ -104,7 +104,7 @@ CAD-style three-column workspace — parts queue left, Konva canvas center, Save
 | `canvas-toolbar.tsx`                 | Tool cluster + zoom controls + sheet tabs. Lift-state design — parent owns `zoom` so the renderer reads the same value.    |
 | `free-roam-layout.ts`                | Builds `LayoutModel` from placements. Honors template `renderShape` + `polygon` overrides before falling back to partType. |
 | `free-roam-collision.ts`             | SAT polygon + rotated-AABB broad-phase collision. `wouldCollide` rejects drops that would overlap another placement.        |
-| `free-roam-regions.ts`               | Adaptive waste compute — per-part crescents ∪ thin-strip inscribed rects, unioned via Clipper so the red layer is uniform.  |
+| `free-roam-regions.ts`               | Adaptive waste compute — per-part crescents ∪ thin-strip inscribed rects unioned via Clipper. Thin rects gated by `isClosedTrap` (issue #116) so open-edge slivers don't render as phantom waste. Output sorted by `(y, x, w, h)` for stable React keys. |
 | `free-roam-metrics.ts`               | Sheet-area decomposition: used / scrap / reusable (remainder). Scrap area reads polygon area when present.                 |
 | `free-roam-saved-layouts-rail.tsx`   | Right-column rail. Stock editor + Saved-layouts dropdown (filtered to `source='manual'`) + results breakdown + Cut button.  |
 | `free-roam-stock-editor.tsx`         | W × L × T inputs for the sheet dimensions.                                                                                 |

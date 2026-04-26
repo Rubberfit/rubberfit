@@ -90,6 +90,22 @@ const MIN_VISIBLE_SCRAP_SQIN = 2
  */
 const MIN_USABLE_DIM_IN = 6
 
+/**
+ * Probe distance (inches) used to detect whether a side of a thin
+ * inscribed rect is "blocked" by a placed part or a stock edge.
+ * Issue #116: `extractMaximalFreeRects` greedily decomposes the free
+ * polygon and emits *any* axis-aligned rectangle that fits, including
+ * open-edge slivers (a strip with one side touching a part and the
+ * other facing open stock). The greedy carve order also depends on
+ * the topology of the free polygon, so adding an unrelated shape
+ * elsewhere can shuffle which rects come out — making waste appear
+ * to "move around" when shapes are added. We keep only thin rects
+ * that are TRAPPED on both narrow-axis sides (between two parts, or
+ * between a part and a stock edge); open-edge slivers are not waste,
+ * just unused stock and stay ambient.
+ */
+const TRAP_PROBE_IN = 0.05
+
 // ── Clipper helpers for the "unreusable residue" compute ─────────────────
 
 const CLIPPER_SCALE = 1e7
@@ -120,6 +136,77 @@ function polyBbox(poly: Point2D[]): { x: number; y: number; width: number; heigh
     if (p.y > maxY) maxY = p.y
   }
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+interface BBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function bboxesOverlap(a: BBox, b: BBox): boolean {
+  return !(
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.y + a.height <= b.y ||
+    b.y + b.height <= a.y
+  )
+}
+
+/**
+ * True when a thin inscribed rectangle is "trapped" on both ends of its
+ * NARROW axis — i.e. a real waste pocket between two pieces of placed
+ * geometry (or between a placed piece and a stock edge), not an
+ * open-edge sliver running off into unused stock.
+ *
+ * Probes a `TRAP_PROBE_IN`-thin band just outside each narrow-axis
+ * side. A side counts as blocked when the probe band touches the stock
+ * boundary OR overlaps the bounding box of any placed part. Both sides
+ * must be blocked for the rect to qualify as scrap.
+ */
+function isClosedTrap(rect: BBox, partBboxes: ReadonlyArray<BBox>, stock: BBox): boolean {
+  const narrowIsHorizontal = rect.height < rect.width
+  if (narrowIsHorizontal) {
+    // Narrow axis is Y → check TOP and BOTTOM neighbours.
+    const topProbe: BBox = {
+      x: rect.x,
+      y: rect.y - TRAP_PROBE_IN,
+      width: rect.width,
+      height: TRAP_PROBE_IN,
+    }
+    const bottomProbe: BBox = {
+      x: rect.x,
+      y: rect.y + rect.height,
+      width: rect.width,
+      height: TRAP_PROBE_IN,
+    }
+    const topBlocked =
+      rect.y <= stock.y + TRAP_PROBE_IN || partBboxes.some((b) => bboxesOverlap(topProbe, b))
+    const bottomBlocked =
+      rect.y + rect.height >= stock.y + stock.height - TRAP_PROBE_IN ||
+      partBboxes.some((b) => bboxesOverlap(bottomProbe, b))
+    return topBlocked && bottomBlocked
+  }
+  // Narrow axis is X → check LEFT and RIGHT neighbours.
+  const leftProbe: BBox = {
+    x: rect.x - TRAP_PROBE_IN,
+    y: rect.y,
+    width: TRAP_PROBE_IN,
+    height: rect.height,
+  }
+  const rightProbe: BBox = {
+    x: rect.x + rect.width,
+    y: rect.y,
+    width: TRAP_PROBE_IN,
+    height: rect.height,
+  }
+  const leftBlocked =
+    rect.x <= stock.x + TRAP_PROBE_IN || partBboxes.some((b) => bboxesOverlap(leftProbe, b))
+  const rightBlocked =
+    rect.x + rect.width >= stock.x + stock.width - TRAP_PROBE_IN ||
+    partBboxes.some((b) => bboxesOverlap(rightProbe, b))
+  return leftBlocked && rightBlocked
 }
 
 /**
@@ -271,12 +358,19 @@ export function computeAdaptiveRegions(
   const crescentPolys = computePartCrescentWaste(polygons)
 
   // Signal 2 — inscribed rects in free space that are too thin to
-  // cut a useful piece from. Usable rects are dropped — the amber
-  // background paints them.
+  // cut a useful piece from AND are TRAPPED on both narrow-axis sides.
+  // Open-edge slivers (one side facing unused stock) are dropped —
+  // they're not waste, just unused sheet, and the greedy decomposition
+  // emits them in topology-dependent order, so without this gate the
+  // strips appear to "move around" when unrelated shapes are added
+  // elsewhere on the canvas (issue #116).
+  const stockBbox: BBox = { x: 0, y: 0, width: stock.width, height: stock.length }
+  const partBboxes = polygons.map((p) => polyBbox(p as Point2D[]))
   const rects = extractMaximalFreeRects(stock.width, stock.length, polygons, 20, "maximal")
   const thinRects = rects
     .filter((r) => Math.min(r.width, r.height) < MIN_USABLE_DIM_IN)
     .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }))
+    .filter((r) => isClosedTrap(r, partBboxes, stockBbox))
 
   // Union the two signals so overlapping waste doesn't render as
   // darker red. Filter sub-threshold polygons so truly micro slivers
@@ -288,6 +382,11 @@ export function computeAdaptiveRegions(
     const bbox = polyBbox(poly)
     scrap.push({ ...bbox, polygon: poly })
   }
+
+  // Stable order so re-renders (and React keys) don't flicker as
+  // upstream Clipper output happens to permute polygons. Sort by
+  // (y, x, width, height) — top-to-bottom, then left-to-right.
+  scrap.sort((a, b) => a.y - b.y || a.x - b.x || a.width - b.width || a.height - b.height)
 
   // Offcuts deliberately empty — the amber sheet background already
   // paints the reusable semantic.
