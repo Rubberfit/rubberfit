@@ -73,6 +73,17 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;")
 }
 
+/**
+ * Neutralize CSV formula injection: cells starting with `= + - @ \t \r`
+ * are evaluated as formulas by Excel/Google Sheets. Prefixing with a
+ * single quote keeps the original text visible while preventing
+ * execution.
+ */
+function sanitizeCsvCell(value: string): string {
+  if (value === "") return value
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+}
+
 function activeFilterLabel(filters: POExportFilters): string {
   const parts: string[] = []
   if (filters.status && filters.status !== "all") parts.push(`status=${filters.status}`)
@@ -98,18 +109,18 @@ export function buildPurchaseOrdersCsv(input: PurchaseOrdersExportInput): Export
   ]
 
   const rows: ExportData["rows"] = input.pos.map((po) => [
-    po.po_number,
-    po.supplier?.name ?? "",
-    po.status,
-    formatDate(po.order_date),
-    formatDate(po.requested_delivery_date),
-    formatDate(po.actual_delivery_date),
+    sanitizeCsvCell(po.po_number),
+    sanitizeCsvCell(po.supplier?.name ?? ""),
+    sanitizeCsvCell(po.status),
+    sanitizeCsvCell(formatDate(po.order_date)),
+    sanitizeCsvCell(formatDate(po.requested_delivery_date)),
+    sanitizeCsvCell(formatDate(po.actual_delivery_date)),
     po.items_count ?? po.items?.length ?? 0,
     formatMoney(po.subtotal),
     formatMoney(po.tax_amount),
     formatMoney(po.shipping_cost),
     formatMoney(po.total_amount),
-    po.notes ?? "",
+    sanitizeCsvCell(po.notes ?? ""),
   ])
 
   return { headers, rows, filename: FILENAME }

@@ -55,7 +55,7 @@ import type { OperationsExportInput } from "@/app/dashboard/_components/dashboar
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
-  weekLabel: "Apr 21 – Apr 27",
+  periodLabel: "Apr 21 – Apr 27",
   utilPeriod: "7d",
   totalActiveRolls: 42,
   cutsThisWeek: 7,
@@ -99,5 +99,28 @@ describe("DashboardExportMenu", () => {
     expect(title).toBe("Operations overview")
     expect(content).toContain("<h1>Operations overview</h1>")
     expect(content).toContain(">42<")
+  })
+
+  it("guards against duplicate dispatches while a PDF export is in flight", async () => {
+    let resolvePdf: (() => void) | null = null
+    generatePDFReport.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolvePdf = () => resolve()))
+    )
+
+    render(<DashboardExportMenu input={FIXTURE} />)
+    fireEvent.click(screen.getByText(/generate pdf report/i))
+    // Second click before the first call resolves should be ignored.
+    fireEvent.click(screen.getByText(/generate pdf report/i))
+    fireEvent.click(screen.getByText(/export as csv/i))
+
+    expect(generatePDFReport).toHaveBeenCalledTimes(1)
+    expect(exportToCSV).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolvePdf?.()
+    })
+    // After the in-flight export resolves the menu accepts new dispatches.
+    fireEvent.click(screen.getByText(/export as csv/i))
+    expect(exportToCSV).toHaveBeenCalledTimes(1)
   })
 })

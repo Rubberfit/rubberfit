@@ -10,7 +10,12 @@ export type DashboardUtilPeriod = "7d" | "30d" | "90d"
 
 export interface OperationsExportInput {
   period: DashboardPeriod
-  weekLabel: string
+  /**
+   * Human-readable label describing the export window (e.g.
+   * "Apr 21 – Apr 27", "April 2026", "Q2 2026"). Caller computes the
+   * shape based on `period` so the artifact matches the dashboard view.
+   */
+  periodLabel: string
   utilPeriod: DashboardUtilPeriod
   totalActiveRolls: number
   cutsThisWeek: number
@@ -39,10 +44,21 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;")
 }
 
+/**
+ * Neutralize CSV formula injection: cells whose first byte is one of
+ * `= + - @ \t \r` are evaluated as formulas by Excel/Google Sheets when
+ * the file is opened. Prefixing a single quote keeps the original text
+ * visible to the user while preventing execution.
+ */
+function sanitizeCsvCell(value: string): string {
+  if (value === "") return value
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+}
+
 export function buildOperationsCsv(input: OperationsExportInput): ExportData {
   const summaryRows: ExportData["rows"] = [
     ["Period", input.period],
-    ["Week label", input.weekLabel],
+    ["Period label", sanitizeCsvCell(input.periodLabel)],
     ["Active rolls", input.totalActiveRolls],
     ["Cuts this week", input.cutsThisWeek],
     ["Avg waste %", input.wastePercentage.toFixed(1)],
@@ -51,11 +67,11 @@ export function buildOperationsCsv(input: OperationsExportInput): ExportData {
 
   const utilizationHeader: ExportData["rows"] = [
     [],
-    [`Utilization (${input.utilPeriod}) — sqft by material`],
-    ["Bucket", ...input.utilization.materials],
+    [sanitizeCsvCell(`Utilization (${input.utilPeriod}) — sqft by material`)],
+    ["Bucket", ...input.utilization.materials.map(sanitizeCsvCell)],
   ]
   const utilizationRows: ExportData["rows"] = input.utilization.series.map((row) => [
-    String(row.label ?? ""),
+    sanitizeCsvCell(String(row.label ?? "")),
     ...input.utilization.materials.map((material) => {
       const cell = row[material]
       return typeof cell === "number" ? cell : 0
@@ -68,10 +84,10 @@ export function buildOperationsCsv(input: OperationsExportInput): ExportData {
     ["Job code", "Operator", "Utilization %", "When"],
   ]
   const recentCutsRows: ExportData["rows"] = input.recentCuts.map((cut) => [
-    cut.jobCode,
-    cut.operator,
+    sanitizeCsvCell(cut.jobCode),
+    sanitizeCsvCell(cut.operator),
     cut.utilizationPct,
-    cut.whenLabel,
+    sanitizeCsvCell(cut.whenLabel),
   ])
 
   return {
@@ -156,7 +172,7 @@ export function buildOperationsPdfHtml(input: OperationsExportInput): {
 
   const content = `
     <h1>Operations overview</h1>
-    <p>${escapeHtml(input.weekLabel)} · period: ${escapeHtml(input.period)} · generated ${generatedAt}</p>
+    <p>${escapeHtml(input.periodLabel)} · period: ${escapeHtml(input.period)} · generated ${generatedAt}</p>
 
     <h2>Summary</h2>
     <div>

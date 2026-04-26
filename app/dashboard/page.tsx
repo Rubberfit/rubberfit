@@ -157,10 +157,18 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [period])
 
-  const subtitle = useMemo(() => {
-    const periodLabel = period === "week" ? `Week · ${data.weekLabel}` : period
-    return `${tenantDisplayName} · ${periodLabel}`
-  }, [period, data.weekLabel])
+  const periodLabel = useMemo(
+    () => buildPeriodLabel(period, data.weekLabel),
+    [period, data.weekLabel]
+  )
+
+  const subtitle = useMemo(
+    () =>
+      period === "week"
+        ? `${tenantDisplayName} · Week · ${data.weekLabel}`
+        : `${tenantDisplayName} · ${periodLabel}`,
+    [period, data.weekLabel, periodLabel]
+  )
 
   // Client-side aggregation per utilization period — swaps whenever
   // the operator clicks 7d / 30d / 90d without any refetch.
@@ -184,17 +192,30 @@ export default function DashboardPage() {
       minute: "2-digit",
     })
 
-  const exportInput: OperationsExportInput = {
-    period,
-    weekLabel: data.weekLabel,
-    utilPeriod,
-    totalActiveRolls: data.totalActiveRolls,
-    cutsThisWeek: data.cutsThisWeek,
-    wastePercentage: data.wastePercentage,
-    inventoryValue: data.inventoryValue,
-    utilization,
-    recentCuts: data.recentCuts,
-  }
+  const exportInput = useMemo<OperationsExportInput>(
+    () => ({
+      period,
+      periodLabel,
+      utilPeriod,
+      totalActiveRolls: data.totalActiveRolls,
+      cutsThisWeek: data.cutsThisWeek,
+      wastePercentage: data.wastePercentage,
+      inventoryValue: data.inventoryValue,
+      utilization,
+      recentCuts: data.recentCuts,
+    }),
+    [
+      period,
+      periodLabel,
+      utilPeriod,
+      data.totalActiveRolls,
+      data.cutsThisWeek,
+      data.wastePercentage,
+      data.inventoryValue,
+      utilization,
+      data.recentCuts,
+    ]
+  )
 
   return (
     <PageShell variant="overview">
@@ -243,6 +264,20 @@ export default function DashboardPage() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+
+function buildPeriodLabel(period: Period, weekLabel: string): string {
+  switch (period) {
+    case "week":
+      return weekLabel
+    case "month":
+      return format(new Date(), "MMMM yyyy")
+    case "quarter": {
+      const now = new Date()
+      const q = Math.floor(now.getMonth() / 3) + 1
+      return `Q${q} ${now.getFullYear()}`
+    }
+  }
+}
 
 function PeriodToggle({ value, onChange }: { value: Period; onChange: (next: Period) => void }) {
   const options: Array<{ id: Period; label: string }> = [

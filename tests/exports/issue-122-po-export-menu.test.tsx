@@ -115,4 +115,25 @@ describe("PurchaseOrdersExportMenu", () => {
     const trigger = screen.getByRole("button", { name: /^export$/i }) as HTMLButtonElement
     expect(trigger.disabled).toBe(true)
   })
+
+  it("guards against duplicate dispatches while a PDF export is in flight", async () => {
+    let resolvePdf: (() => void) | null = null
+    generatePDFReport.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolvePdf = () => resolve()))
+    )
+
+    render(<PurchaseOrdersExportMenu input={makeFixture()} />)
+    fireEvent.click(screen.getByText(/generate pdf report/i))
+    fireEvent.click(screen.getByText(/generate pdf report/i))
+    fireEvent.click(screen.getByText(/export as csv/i))
+
+    expect(generatePDFReport).toHaveBeenCalledTimes(1)
+    expect(exportToCSV).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolvePdf?.()
+    })
+    fireEvent.click(screen.getByText(/export as csv/i))
+    expect(exportToCSV).toHaveBeenCalledTimes(1)
+  })
 })

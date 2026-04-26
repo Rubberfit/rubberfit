@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
@@ -150,6 +150,18 @@ function PurchaseOrdersPageInner() {
     setSourceJobId(null)
   }
 
+  const exportInput = useMemo(
+    () =>
+      toPurchaseOrdersExportInput({
+        filteredPOs: po.filteredPOs,
+        statusFilter: po.statusFilter,
+        supplierFilter: po.supplierFilter,
+        searchQuery: po.searchQuery,
+        stats: po.stats,
+      }),
+    [po.filteredPOs, po.statusFilter, po.supplierFilter, po.searchQuery, po.stats]
+  )
+
   return (
     <PageShell variant="dense">
       <JobPrefillBridge
@@ -170,10 +182,7 @@ function PurchaseOrdersPageInner() {
         subtitle="Manage purchase orders, track deliveries, and handle approvals."
         actions={
           <>
-            <PurchaseOrdersExportMenu
-              input={toPurchaseOrdersExportInput(po)}
-              disabled={po.loading}
-            />
+            <PurchaseOrdersExportMenu input={exportInput} disabled={po.loading} />
             <Button size="sm" onClick={() => po.setIsCreateDialogOpen(true)}>
               <Plus className="size-3.5" />
               New PO

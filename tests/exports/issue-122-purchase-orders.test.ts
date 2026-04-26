@@ -125,6 +125,23 @@ describe("buildPurchaseOrdersCsv", () => {
     expect(result.headers).toHaveLength(12)
   })
 
+  it("neutralizes CSV formula injection in user-controlled string cells", () => {
+    const malicious = makePO({
+      po_number: "=cmd|' /C calc'!A1",
+      status: "@evil" as unknown as PurchaseOrderWithDetails["status"],
+      notes: "+SUM(A1:A2)",
+      supplier: { id: "s-x", name: "-Acme" } as PurchaseOrderWithDetails["supplier"],
+    })
+    const input: PurchaseOrdersExportInput = { ...FIXTURE, pos: [malicious] }
+    const { rows } = buildPurchaseOrdersCsv(input)
+    // Each formula-prefix character ( = + - @ \t \r ) gets a leading
+    // single-quote so spreadsheet apps render the cell as text.
+    expect(rows[0][0]).toBe("'=cmd|' /C calc'!A1")
+    expect(rows[0][1]).toBe("'-Acme")
+    expect(rows[0][2]).toBe("'@evil")
+    expect(rows[0][11]).toBe("'+SUM(A1:A2)")
+  })
+
   it("coerces null monetary fields to 0.00 instead of throwing", () => {
     const partialPo = makePO({
       po_number: "PO-NULL-MONEY",

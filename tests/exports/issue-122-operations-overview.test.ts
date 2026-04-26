@@ -21,7 +21,7 @@ import {
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
-  weekLabel: "Apr 21 – Apr 27",
+  periodLabel: "Apr 21 – Apr 27",
   utilPeriod: "7d",
   totalActiveRolls: 42,
   cutsThisWeek: 7,
@@ -59,9 +59,10 @@ describe("buildOperationsCsv", () => {
     expect(result.filename).toBe("operations-overview_week")
   })
 
-  it("emits the four headline summary metrics", () => {
+  it("emits the four headline summary metrics under the renamed period label", () => {
     const { rows } = buildOperationsCsv(FIXTURE)
     const flat = rows.map((r) => r.join("|"))
+    expect(flat).toContain("Period label|Apr 21 – Apr 27")
     expect(flat).toContain("Active rolls|42")
     expect(flat).toContain("Cuts this week|7")
     expect(flat).toContain("Avg waste %|12.3")
@@ -110,6 +111,40 @@ describe("buildOperationsCsv", () => {
     const dataRow = rows.find((r) => r[0] === "Mon")
     expect(dataRow).toEqual(["Mon", 5, 0])
   })
+
+  it("neutralizes CSV formula injection in user-controlled string cells", () => {
+    const malicious: OperationsExportInput = {
+      ...FIXTURE,
+      periodLabel: "=cmd|' /C calc'!A1",
+      utilization: {
+        series: [{ label: "+SUM(A1:A2)", "@evil": 1 }],
+        materials: ["@evil"],
+      },
+      recentCuts: [
+        {
+          id: "1",
+          jobCode: "-2+3",
+          operator: "\tDaniel",
+          utilizationPct: 50,
+          whenLabel: "\rnow",
+        },
+      ],
+    }
+    const { rows } = buildOperationsCsv(malicious)
+    const flat = rows.map((r) => r.join("|"))
+    // Each formula-prefix character ( = + - @ \t \r ) gets a leading
+    // single-quote so spreadsheet apps render the cell as text.
+    expect(flat).toContain("Period label|'=cmd|' /C calc'!A1")
+    expect(rows.find((r) => r[0] === "'+SUM(A1:A2)")).toBeDefined()
+    const utilHeader = rows.find(
+      (r) => r[0] === "Bucket" && typeof r[1] === "string" && r[1].startsWith("'@")
+    )
+    expect(utilHeader).toBeDefined()
+    const cutRow = rows.find((r) => r[0] === "'-2+3")
+    expect(cutRow).toBeDefined()
+    expect(cutRow?.[1]).toBe("'\tDaniel")
+    expect(cutRow?.[3]).toBe("'\rnow")
+  })
 })
 
 describe("buildOperationsPdfHtml", () => {
@@ -144,10 +179,10 @@ describe("buildOperationsPdfHtml", () => {
     expect(content).not.toContain("<tbody>")
   })
 
-  it("escapes HTML in user-controlled fields (operator, weekLabel, materials)", () => {
+  it("escapes HTML in user-controlled fields (operator, periodLabel, materials)", () => {
     const malicious: OperationsExportInput = {
       ...FIXTURE,
-      weekLabel: 'Apr 21 – Apr 27 <script>alert("x")</script>',
+      periodLabel: 'Apr 21 – Apr 27 <script>alert("x")</script>',
       utilization: {
         series: [{ label: "Mon", "<b>Hax</b>": 1 }],
         materials: ["<b>Hax</b>"],

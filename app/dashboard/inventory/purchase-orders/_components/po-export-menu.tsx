@@ -1,6 +1,7 @@
 "use client"
 
-import { Download, FileText } from "lucide-react"
+import { useState } from "react"
+import { Download, FileText, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/app/components/ui/button"
@@ -25,47 +26,63 @@ interface PurchaseOrdersExportMenuProps {
 }
 
 export function PurchaseOrdersExportMenu({ input, disabled }: PurchaseOrdersExportMenuProps) {
+  // Guards against double-clicks on the slow PDF path so a single user
+  // tap doesn't dispatch two `generatePDFReport` calls in flight.
+  const [isExporting, setIsExporting] = useState(false)
+
   const handleExportCsv = () => {
+    if (isExporting) return
     if (input.pos.length === 0) {
       toast.error("No purchase orders to export")
       return
     }
+    setIsExporting(true)
     try {
       exportService.exportToCSV(buildPurchaseOrdersCsv(input))
     } catch (error) {
       console.error("Error exporting PO CSV:", error)
       toast.error("Failed to export CSV")
+    } finally {
+      setIsExporting(false)
     }
   }
 
   const handleExportPdf = async () => {
+    if (isExporting) return
     if (input.pos.length === 0) {
       toast.error("No purchase orders to export")
       return
     }
+    setIsExporting(true)
     try {
       const { title, content } = buildPurchaseOrdersPdfHtml(input)
       await exportPdfService.generatePDFReport(title, content)
     } catch (error) {
       console.error("Error generating PO PDF:", error)
       toast.error("Failed to generate report")
+    } finally {
+      setIsExporting(false)
     }
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline" disabled={disabled}>
-          <Download className="size-3.5" />
-          Export
+        <Button size="sm" variant="outline" disabled={disabled || isExporting}>
+          {isExporting ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Download className="size-3.5" />
+          )}
+          {isExporting ? "Exporting…" : "Export"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleExportCsv}>
+        <DropdownMenuItem onClick={handleExportCsv} disabled={isExporting}>
           <FileText className="size-3.5" />
           Export as CSV
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportPdf}>
+        <DropdownMenuItem onClick={handleExportPdf} disabled={isExporting}>
           <FileText className="size-3.5" />
           Generate PDF Report
         </DropdownMenuItem>
