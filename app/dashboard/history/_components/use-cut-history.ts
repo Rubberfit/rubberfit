@@ -303,7 +303,7 @@ export function useCutHistory() {
       `${Math.round(cut.fab_score * 100)}%`,
     ])
     const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
