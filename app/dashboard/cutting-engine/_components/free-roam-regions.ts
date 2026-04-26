@@ -189,23 +189,36 @@ function computeShapeEnvelopeWaste(
       ClipperLib.PolyFillType.pftNonZero
     )
 
-    if (paths.length === 0) continue
-
-    // Transform the local-coord residue polygons into sheet space using
-    // the same pivot-around-center rotation the canvas applies.
+    // Transform helper — pivot-around-center rotation matching the canvas.
     const cx = placement.x + width / 2
     const cy = placement.y + height / 2
     const cos = Math.cos(placement.rotationRad)
     const sin = Math.sin(placement.rotationRad)
-    for (const path of paths) {
-      if (ClipperLib.Clipper.Area(path) <= 0) continue
-      const localPoly = fromClipperPath(path)
-      const sheetPoly = localPoly.map((p) => {
+    const localToSheet = (poly: Point2D[]): Point2D[] =>
+      poly.map((p) => {
         const dx = p.x - width / 2
         const dy = p.y - height / 2
         return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos }
       })
-      out.push(sheetPoly)
+
+    // Envelope − shape crescents (corners outside a disc, slivers along
+    // a trapezoid's tapered sides, etc.).
+    for (const path of paths) {
+      if (ClipperLib.Clipper.Area(path) <= 0) continue
+      out.push(localToSheet(fromClipperPath(path)))
+    }
+
+    // Ring shapes carry their hole as `innerRadius`/`outerRadius` rather
+    // than encoding it in the polygon (the polygon only traces the outer
+    // boundary so collision treats the ring as solid). The inner hole IS
+    // material the operator loses, so add it as envelope waste.
+    if (template.innerRadius != null && template.outerRadius != null && template.innerRadius > 0) {
+      const innerOffset = template.outerRadius - template.innerRadius
+      const localHole = circleToPolygon(template.innerRadius * 2, 24).map((p) => ({
+        x: p.x + innerOffset,
+        y: p.y + innerOffset,
+      }))
+      out.push(localToSheet(localHole))
     }
   }
 
