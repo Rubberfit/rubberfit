@@ -74,6 +74,18 @@ export interface ComputedRegions {
  */
 const MIN_VISIBLE_SCRAP_SQIN = 2
 
+/**
+ * Per-side gap threshold (inches). When a placed part has less than
+ * this distance between one of its sides and the nearest obstacle
+ * (stock edge or another placed part on that side), the gap renders
+ * as red waste. Above this threshold, the gap is wide enough that the
+ * operator could plan another part into it, so it stays ambient.
+ *
+ * Tuned to 6" to match Auto-nest's `MIN_REUSABLE_STRIP_W` — anything
+ * below 6" wide can't accommodate the narrowest reusable strip.
+ */
+const MIN_USABLE_GAP_IN = 6
+
 // ── Clipper helpers for the "unreusable residue" compute ─────────────────
 
 const CLIPPER_SCALE = 1e7
@@ -363,9 +375,129 @@ function computeTrappedPocketWaste(
 }
 
 /**
+ * Per-side gap waste: for each placed part, on each of its 4 sides,
+ * find the perpendicular distance to the nearest blocker (stock edge
+ * or another placed part whose bbox shadows the side). If the gap is
+ * non-zero and below `MIN_USABLE_GAP_IN`, emit it as a thin waste
+ * rectangle aligned to that side.
+ *
+ * Per-part, per-side computation is deterministic — the gap on
+ * placement P's top side depends only on P's position and the parts
+ * directly above P (in P's x-range). Adding a part elsewhere on the
+ * canvas can never change P's existing gaps. This is the property the
+ * old `extractMaximalFreeRects`-based detector was missing (its greedy
+ * decomposition order was topology-sensitive).
+ *
+ * Output bboxes only — these are always axis-aligned strips, so a full
+ * polygon adds no information over `LayoutRegion.{x,y,width,height}`.
+ */
+type SideGapBbox = { x: number; y: number; width: number; height: number }
+
+const GAP_EPSILON = 1e-3
+
+function rectAsPoly(x: number, y: number, w: number, h: number): Point2D[] {
+  return [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ]
+}
+
+function findGapAbove(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Point2D[] | null {
+  let blocker = 0
+  for (const o of others) {
+    if (o.x + o.width <= me.x + GAP_EPSILON || o.x >= me.x + me.width - GAP_EPSILON) continue
+    const oBottom = o.y + o.height
+    if (oBottom <= me.y + GAP_EPSILON && oBottom > blocker) blocker = oBottom
+  }
+  const gap = me.y - blocker
+  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
+  return rectAsPoly(me.x, blocker, me.width, gap)
+}
+
+function findGapBelow(
+  me: SideGapBbox,
+  others: ReadonlyArray<SideGapBbox>,
+  stockLength: number
+): Point2D[] | null {
+  let blocker = stockLength
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.x + o.width <= me.x + GAP_EPSILON || o.x >= me.x + me.width - GAP_EPSILON) continue
+    if (o.y >= myBottom - GAP_EPSILON && o.y < blocker) blocker = o.y
+  }
+  const gap = blocker - myBottom
+  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
+  return rectAsPoly(me.x, myBottom, me.width, gap)
+}
+
+function findGapLeft(me: SideGapBbox, others: ReadonlyArray<SideGapBbox>): Point2D[] | null {
+  let blocker = 0
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.y + o.height <= me.y + GAP_EPSILON || o.y >= myBottom - GAP_EPSILON) continue
+    const oRight = o.x + o.width
+    if (oRight <= me.x + GAP_EPSILON && oRight > blocker) blocker = oRight
+  }
+  const gap = me.x - blocker
+  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
+  return rectAsPoly(blocker, me.y, gap, me.height)
+}
+
+function findGapRight(
+  me: SideGapBbox,
+  others: ReadonlyArray<SideGapBbox>,
+  stockWidth: number
+): Point2D[] | null {
+  let blocker = stockWidth
+  const myRight = me.x + me.width
+  const myBottom = me.y + me.height
+  for (const o of others) {
+    if (o.y + o.height <= me.y + GAP_EPSILON || o.y >= myBottom - GAP_EPSILON) continue
+    if (o.x >= myRight - GAP_EPSILON && o.x < blocker) blocker = o.x
+  }
+  const gap = blocker - myRight
+  if (gap <= GAP_EPSILON || gap >= MIN_USABLE_GAP_IN) return null
+  return rectAsPoly(myRight, me.y, gap, me.height)
+}
+
+function computePerSideGapWaste(
+  placements: ReadonlyArray<ManualPlacement>,
+  parts: ReadonlyArray<PartTemplate>,
+  stock: StockConfig
+): Point2D[][] {
+  if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) return []
+
+  const bboxes: SideGapBbox[] = []
+  for (const placement of placements) {
+    const template = parts.find((p) => p.id === placement.templateId)
+    if (!template) continue
+    const poly = placementsToPolygons([placement], [template])[0]
+    if (!poly || poly.length < 3) continue
+    bboxes.push(polyBbox(poly))
+  }
+
+  const out: Point2D[][] = []
+  for (let i = 0; i < bboxes.length; i++) {
+    const me = bboxes[i]
+    const others = bboxes.filter((_, j) => j !== i)
+    const above = findGapAbove(me, others)
+    if (above) out.push(above)
+    const below = findGapBelow(me, others, stock.length)
+    if (below) out.push(below)
+    const left = findGapLeft(me, others)
+    if (left) out.push(left)
+    const right = findGapRight(me, others, stock.width)
+    if (right) out.push(right)
+  }
+  return out
+}
+
+/**
  * Continuously-computed amber/red regions for the Free-roam canvas.
  *
- * Two waste signals, OR-unioned:
+ * Three waste signals, OR-unioned:
  *
  *   1. **Shape-envelope waste** — material trapped between each part's
  *      template-local axis-aligned envelope and its actual outline.
@@ -380,15 +512,17 @@ function computeTrappedPocketWaste(
  *      reach the stock boundary are "open frontier" — unused stock the
  *      operator can plan around — and stay ambient.
  *
- * The earlier implementation used `extractMaximalFreeRects` greedy
- * thin-strip detection, which was topology-dependent: adding an
- * unrelated shape elsewhere shuffled the extraction order and made
- * waste appear to "move around" the canvas (issue #116). The new
- * pocket-detection signal replaces it with a deterministic topological
- * predicate that matches operator intuition.
+ *   3. **Per-side gap waste** — for each placed part, on each of its 4
+ *      sides, the perpendicular distance to the nearest blocker (stock
+ *      edge or another part shadowing the side). Below `MIN_USABLE_GAP_IN`
+ *      = 6", that gap renders red. Per-part deterministic — adding a
+ *      part elsewhere never changes a given part's existing gaps, which
+ *      is the property the old `extractMaximalFreeRects` detector was
+ *      missing (its greedy decomposition was topology-sensitive).
  *
  * Cheap enough to run on every rAF tick: one Clipper diff per placement
- * for envelopes, plus one union + one difference + one DFS for pockets.
+ * for envelopes, plus one union + one difference + one DFS for pockets,
+ * plus an O(n²) per-side scan over placements (n is small in Free-roam).
  */
 export function computeAdaptiveRegions(
   placements: ManualPlacement[],
@@ -401,11 +535,12 @@ export function computeAdaptiveRegions(
 
   const envelopeWaste = computeShapeEnvelopeWaste(placements, parts)
   const pocketWaste = computeTrappedPocketWaste(placements, parts, stock)
+  const sideGapWaste = computePerSideGapWaste(placements, parts, stock)
 
-  // Union both signals via Clipper so overlapping waste (e.g. a corner
-  // crescent that abuts a pocket) renders as one uniformly-coloured
-  // region instead of compounding into darker patches where they overlap.
-  const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste], [])
+  // Union all three signals via Clipper so overlapping waste (e.g. a
+  // corner crescent that abuts a side gap) renders as one uniformly-
+  // coloured region instead of compounding into darker patches.
+  const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste, ...sideGapWaste], [])
   const scrap: LayoutRegion[] = []
   for (const poly of merged) {
     if (polygonArea(poly) < MIN_VISIBLE_SCRAP_SQIN) continue
