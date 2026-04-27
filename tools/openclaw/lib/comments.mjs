@@ -1,3 +1,4 @@
+/* eslint-env node */
 // Idempotent PR comment helpers. Posts as `@openclaw[bot]` when GitHub App
 // auth is configured (see `lib/github-app.mjs`); otherwise falls back to
 // the developer's personal identity via the `gh` CLI.

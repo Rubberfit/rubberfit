@@ -1,3 +1,4 @@
+/* eslint-env node */
 // GitHub App authentication for OpenClaw.
 //
 // Authenticating as a GitHub App lets OpenClaw post comments under its own

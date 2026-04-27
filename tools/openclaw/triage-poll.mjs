@@ -13,7 +13,7 @@
 // holes needed.
 //
 // Idempotency: each PR's latest failed run id is tracked in
-// `.openclaw/state.json`. Re-runs against the same failure no-op
+// `.openclaw/poll-state.json`. Re-runs against the same failure no-op
 // instead of re-posting / re-spamming the comment thread.
 //
 // Usage:

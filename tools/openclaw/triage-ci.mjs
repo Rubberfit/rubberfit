@@ -17,7 +17,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { isAbsolute, relative, resolve } from "node:path"
 
 import { buildTriagePrompt, extractMentionedFiles, parseConfidence } from "./lib/build-prompt.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
@@ -74,7 +74,14 @@ async function readPrDiff(prNumber) {
 
 async function readFileSafe(path) {
   try {
-    return await readFile(resolve(process.cwd(), path), "utf8")
+    // Constrain log-derived paths to the repo root. CI logs can contain
+    // path strings that, when resolved, escape via `..` and would leak
+    // arbitrary local files into the prompt + posted comment.
+    const cwd = process.cwd()
+    const abs = resolve(cwd, path)
+    const rel = relative(cwd, abs)
+    if (rel.startsWith("..") || isAbsolute(rel)) return null
+    return await readFile(abs, "utf8")
   } catch {
     return null
   }
