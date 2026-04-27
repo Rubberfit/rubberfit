@@ -49,12 +49,26 @@ function repoRoot() {
   return process.cwd()
 }
 
+/**
+ * State shape v2:
+ *   {
+ *     handledRuns: { "<prNumber>": "<lastFailedRunId>" },
+ *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> }
+ *   }
+ *
+ * v1 state files only had `handledRuns`; we initialize the new field on
+ * first read so the migration is invisible.
+ */
 async function loadState() {
   try {
     const raw = await readFile(resolve(repoRoot(), STATE_DIR, STATE_FILE), "utf8")
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    return {
+      handledRuns: parsed.handledRuns ?? {},
+      handledCrComments: parsed.handledCrComments ?? {},
+    }
   } catch {
-    return { handledRuns: {} }
+    return { handledRuns: {}, handledCrComments: {} }
   }
 }
 
@@ -91,14 +105,18 @@ async function listOpenPrs() {
   })
 }
 
-async function runTriage(prNumber) {
-  // Spawn the existing triage script as a child so any future logic
-  // changes flow through one entry point. Inheriting stdio gives the
-  // poller's terminal a live transcript of what was diagnosed.
+/**
+ * Spawn one of the per-PR triage scripts. `kind` selects which:
+ *   - "ci" → triage-ci.mjs (failure log → diagnosis comment)
+ *   - "cr" → triage-cr.mjs (CR comment evaluator)
+ * Inherits stdio so the poller's terminal gets the live transcript.
+ */
+async function runTriage(prNumber, kind) {
+  const scriptName = kind === "cr" ? "triage-cr.mjs" : "triage-ci.mjs"
   return new Promise((resolveProc) => {
     const child = execFile(
       process.execPath,
-      [resolve(repoRoot(), "tools", "openclaw", "triage-ci.mjs"), String(prNumber)],
+      [resolve(repoRoot(), "tools", "openclaw", scriptName), String(prNumber)],
       { env: process.env, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         resolveProc({ error, stdout, stderr })
@@ -107,6 +125,53 @@ async function runTriage(prNumber) {
     child.stdout?.pipe(process.stdout)
     child.stderr?.pipe(process.stderr)
   })
+}
+
+/**
+ * Look up the highest-id top-level CodeRabbit review comment on the PR.
+ * Used as a cheap "anything new from CR?" check — the per-comment
+ * idempotency (one OpenClaw reply per CR comment) lives inside
+ * triage-cr.mjs. Returns null when the PR has no CR comments yet.
+ */
+export async function latestCrCommentId(prNumber) {
+  try {
+    const out = await gh([
+      "api",
+      `repos/{owner}/{repo}/pulls/${prNumber}/comments`,
+      "--paginate",
+      "--jq",
+      // Top-level CR comments only: the bot's coderabbitai login,
+      // and `in_reply_to_id` null (skip nested CR follow-ups).
+      '[.[] | select(.user.login | startswith("coderabbitai")) | select(.in_reply_to_id == null) | .id] | max',
+    ])
+    const trimmed = out.trim()
+    if (!trimmed || trimmed === "null") return null
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Decide whether a PR needs a CI-triage spawn this tick. Pure function
+ * so it's unit-testable without a live `gh`.
+ */
+export function shouldRunCiTriage(pr, state) {
+  if (!pr.latestFailedRunId) return false
+  return state.handledRuns?.[String(pr.number)] !== pr.latestFailedRunId
+}
+
+/**
+ * Decide whether a PR needs a CR-evaluator spawn this tick. Same
+ * shape as `shouldRunCiTriage` for symmetry.
+ */
+export function shouldRunCrTriage(pr, latestCrId, state) {
+  if (latestCrId == null) return false
+  const handled = state.handledCrComments?.[String(pr.number)]
+  // Numeric compare: only run when CR has posted a comment newer than
+  // the last one we've evaluated for this PR.
+  return typeof handled !== "number" || latestCrId > handled
 }
 
 async function tick() {
@@ -120,14 +185,23 @@ async function tick() {
   }
 
   for (const pr of prs) {
-    if (!pr.latestFailedRunId) continue
-    const handledRunId = state.handledRuns[String(pr.number)]
-    if (handledRunId === pr.latestFailedRunId) continue
+    // 1) CI-failure triage (v1 + v2)
+    if (shouldRunCiTriage(pr, state)) {
+      console.log(`[openclaw-poll] PR #${pr.number} -> CI triage (run ${pr.latestFailedRunId})`)
+      await runTriage(pr.number, "ci")
+      state.handledRuns[String(pr.number)] = pr.latestFailedRunId
+      await saveState(state)
+    }
 
-    console.log(`[openclaw-poll] PR #${pr.number} → triaging run ${pr.latestFailedRunId}`)
-    await runTriage(pr.number)
-    state.handledRuns[String(pr.number)] = pr.latestFailedRunId
-    await saveState(state)
+    // 2) CodeRabbit-comment evaluator (v4) — only when CR has posted
+    // something new since our last evaluation pass on this PR.
+    const latestCrId = await latestCrCommentId(pr.number)
+    if (shouldRunCrTriage(pr, latestCrId, state)) {
+      console.log(`[openclaw-poll] PR #${pr.number} -> CR eval (latest comment ${latestCrId})`)
+      await runTriage(pr.number, "cr")
+      state.handledCrComments[String(pr.number)] = latestCrId
+      await saveState(state)
+    }
   }
 }
 

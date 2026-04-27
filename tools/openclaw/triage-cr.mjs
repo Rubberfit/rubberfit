@@ -28,8 +28,14 @@
 //   OPENCLAW_MODEL=kimi-k2.6:cloud node tools/openclaw/triage-cr.mjs 145
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
+import { readFile } from "node:fs/promises"
+import { resolve } from "node:path"
 
-import { buildEvaluatorPrompt, parseEvaluatorResponse } from "./lib/cr-evaluator.mjs"
+import {
+  buildEvaluatorPrompt,
+  extractFileContext,
+  parseEvaluatorResponse,
+} from "./lib/cr-evaluator.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
 import { getInstallationToken, isAppAuthConfigured } from "./lib/github-app.mjs"
 import { getOwnerRepo } from "./lib/comments.mjs"
@@ -97,40 +103,80 @@ async function listOpenCrComments(call, ownerRepo, prNumber) {
 }
 
 async function fetchPrContext(prNumber) {
-  const meta = JSON.parse(await gh(["pr", "view", String(prNumber), "--json", "title,body"]))
+  const meta = JSON.parse(await gh(["pr", "view", String(prNumber), "--json", "title,body,author"]))
   const diff = await gh(["pr", "diff", String(prNumber)])
-  return { title: meta.title, body: meta.body, diff }
+  return {
+    title: meta.title,
+    body: meta.body,
+    diff,
+    author: meta.author?.login ?? null,
+  }
 }
 
-function formatSkipReply(verdict) {
-  const reasonLabel = {
-    SKIP_NITPICK: "Nitpick, not a correctness issue",
-    SKIP_OUT_OF_SCOPE: "Out of this PR's scope",
-    SKIP_FALSE_POSITIVE: "False positive",
-  }[verdict.classification]
-  const reply = verdict.skipReply?.trim() || verdict.reason || "Recommending skip."
-  return `${REPLY_MARKER_PREFIX}${verdict.commentId} -->
-🦞 **OpenClaw recommends: skip — ${reasonLabel}**
-
-${reply}
-
----
-_Advisory only. The engineer reviewing this PR makes the final call._`
+/**
+ * Read ±N lines around the CR comment's affected line so the model can
+ * write a precise verdict instead of a generic "consider X" hand-wave.
+ * Falls back to null when the file isn't readable from the working
+ * directory (rare — we run inside the repo checkout).
+ */
+async function readFileContextForComment(comment) {
+  if (!comment.path) return null
+  try {
+    const content = await readFile(resolve(process.cwd(), comment.path), "utf8")
+    const line = comment.line ?? comment.original_line
+    return extractFileContext(content, line)
+  } catch {
+    return null
+  }
 }
 
-function formatAcceptReply(verdict) {
-  const suggestion = verdict.suggestion?.trim() || verdict.reason
-  return `${REPLY_MARKER_PREFIX}${verdict.commentId} -->
-🦞 **OpenClaw recommends: accept**
+function mention(prAuthor) {
+  // PR author may be null (e.g., user deleted), or it may be the bot
+  // itself if OpenClaw ever opens its own PRs — don't @-mention either.
+  if (!prAuthor) return ""
+  if (prAuthor.toLowerCase().includes("[bot]")) return ""
+  return `@${prAuthor} `
+}
 
-${verdict.reason}
+/**
+ * Severity tag prepended to each reply, mirroring Greptile's
+ * `[P0]` / `[P1]` shape — at-a-glance indicator before the headline.
+ */
+const TAG_BY_CLASS = {
+  ACCEPT: "ACCEPT",
+  SKIP_NITPICK: "NITPICK — safe to skip",
+  SKIP_OUT_OF_SCOPE: "OUT OF SCOPE",
+  SKIP_FALSE_POSITIVE: "FALSE POSITIVE",
+}
 
-**Suggested fix:**
-
-${suggestion}
-
----
-_Advisory only. The engineer reviewing this PR makes the final call._`
+/**
+ * Render a verdict as the inline reply body. Greptile-style: bracketed
+ * tag, headline as the first line, technical body underneath, no
+ * trailing advisory disclaimer. ACCEPTs get an `@author` mention so
+ * the PR owner is pinged; SKIPs stay quiet (the reviewer who sees the
+ * thread will pick up the recommendation).
+ */
+function formatVerdictReply(verdict, prAuthor) {
+  const tag = TAG_BY_CLASS[verdict.classification] ?? verdict.classification
+  const headline = verdict.headline?.trim() || verdict.reason?.trim() || ""
+  const lines = [`${REPLY_MARKER_PREFIX}${verdict.commentId} -->`]
+  // Tag + headline on the first content line (the line CR / GitHub
+  // renders in the "expanded" preview), so reviewers can skim a thread
+  // and triage all OpenClaw verdicts at a glance.
+  lines.push(`🦞 [${tag}] ${headline}`.trim())
+  lines.push("")
+  if (verdict.classification === "ACCEPT" && prAuthor && mention(prAuthor)) {
+    lines.push(`${mention(prAuthor)}— flagging since this read holds up.`)
+    lines.push("")
+  }
+  // Body — preserves the model's technical paragraphs verbatim.
+  const body = verdict.body?.trim() || verdict.skipReply?.trim() || verdict.reason?.trim() || ""
+  if (body) lines.push(body)
+  if (verdict.classification === "ACCEPT" && verdict.location?.trim()) {
+    lines.push("")
+    lines.push(`**Where:** \`${verdict.location.trim()}\``)
+  }
+  return lines.join("\n")
 }
 
 async function postInlineReply(call, ownerRepo, prNumber, commentId, body) {
@@ -171,6 +217,16 @@ async function main() {
   }
 
   const prCtx = await fetchPrContext(prNumber)
+
+  // Decorate each comment with ±20 lines of file context so the
+  // evaluator prompt can produce surgical verdicts instead of generic
+  // ones. Comments where we can't read the file (rare) simply skip the
+  // context and rely on PR diff alone.
+  for (const comment of comments) {
+    const fileContext = await readFileContextForComment(comment)
+    if (fileContext) comment.fileContext = fileContext
+  }
+
   const prompt = await buildEvaluatorPrompt({
     prNumber,
     prTitle: prCtx.title,
@@ -200,7 +256,9 @@ async function main() {
       continue
     }
     const reply =
-      verdict.classification === "ACCEPT" ? formatAcceptReply(verdict) : formatSkipReply(verdict)
+      verdict.classification === "ACCEPT"
+        ? formatAcceptReply(verdict, prCtx.author)
+        : formatSkipReply(verdict, prCtx.author)
     try {
       await postInlineReply(call, ownerRepo, prNumber, comment.id, reply)
       posted += 1

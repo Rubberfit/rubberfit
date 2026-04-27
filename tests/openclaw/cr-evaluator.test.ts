@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildEvaluatorPrompt,
+  extractFileContext,
   parseEvaluatorResponse,
   stripCRAgentPrompt,
 } from "@/tools/openclaw/lib/cr-evaluator.mjs"
@@ -44,27 +45,48 @@ More human text below.`
 })
 
 describe("parseEvaluatorResponse", () => {
-  it("parses a clean JSON array of verdicts", () => {
+  it("parses a clean JSON array of verdicts in the new headline+body schema", () => {
     const out = parseEvaluatorResponse(
       JSON.stringify([
-        { commentId: 1, classification: "ACCEPT", reason: "Real bug", suggestion: "fix it" },
+        {
+          commentId: 1,
+          classification: "ACCEPT",
+          headline: "Real bug headline",
+          body: "Body explanation",
+          location: "app/foo.ts:42",
+        },
         {
           commentId: 2,
           classification: "SKIP_NITPICK",
-          reason: "Stylistic only",
-          skipReply: "skipping",
+          headline: "Stylistic only",
+          body: "House rule applies",
         },
       ])
     )
-    expect(out).toEqual([
-      { commentId: 1, classification: "ACCEPT", reason: "Real bug", suggestion: "fix it" },
-      {
-        commentId: 2,
-        classification: "SKIP_NITPICK",
-        reason: "Stylistic only",
-        skipReply: "skipping",
-      },
-    ])
+    expect(out).toHaveLength(2)
+    expect(out?.[0]).toMatchObject({
+      commentId: 1,
+      classification: "ACCEPT",
+      headline: "Real bug headline",
+      body: "Body explanation",
+      location: "app/foo.ts:42",
+    })
+    expect(out?.[1]).toMatchObject({
+      commentId: 2,
+      classification: "SKIP_NITPICK",
+      headline: "Stylistic only",
+      body: "House rule applies",
+    })
+  })
+
+  it("falls back to legacy reason field when body is absent (model rollout safety)", () => {
+    const out = parseEvaluatorResponse(
+      JSON.stringify([
+        { commentId: 1, classification: "ACCEPT", reason: "Legacy reason", suggestion: "fix it" },
+      ])
+    )
+    expect(out?.[0].body).toBe("Legacy reason")
+    expect(out?.[0].suggestion).toBe("fix it")
   })
 
   it("strips a surrounding ```json fence", () => {
@@ -115,6 +137,60 @@ describe("parseEvaluatorResponse", () => {
     expect(out?.[0].skipReply).toBeUndefined()
     expect(out?.[1].suggestion).toBeUndefined()
     expect(out?.[1].skipReply).toBeUndefined()
+  })
+
+  it("captures the optional location field on ACCEPT verdicts", () => {
+    const out = parseEvaluatorResponse(
+      JSON.stringify([
+        {
+          commentId: 1,
+          classification: "ACCEPT",
+          reason: "Real bug",
+          location: "app/foo.ts:42-46",
+          suggestion: "Re-throw after logging the error",
+        },
+      ])
+    )
+    expect(out?.[0].location).toBe("app/foo.ts:42-46")
+    expect(out?.[0].suggestion).toBe("Re-throw after logging the error")
+  })
+})
+
+describe("extractFileContext", () => {
+  const fileContent = Array.from({ length: 50 }, (_, i) => `const line${i + 1} = ${i + 1}`).join(
+    "\n"
+  )
+
+  it("returns ±radius lines around the target line, with line numbers", () => {
+    const ctx = extractFileContext(fileContent, 25, 3)
+    const lines = ctx.split("\n")
+    expect(lines).toHaveLength(7) // 22, 23, 24, 25, 26, 27, 28
+    expect(lines.some((l) => l.includes("line25"))).toBe(true)
+    expect(lines.some((l) => l.includes("line22"))).toBe(true)
+    expect(lines.some((l) => l.includes("line28"))).toBe(true)
+    expect(lines.some((l) => l.includes("line21"))).toBe(false)
+  })
+
+  it("marks the target line with a leading caret so the model can spot it", () => {
+    const ctx = extractFileContext(fileContent, 10, 2)
+    const targetLine = ctx.split("\n").find((l) => l.includes("line10"))
+    expect(targetLine?.startsWith("> ")).toBe(true)
+    const otherLine = ctx.split("\n").find((l) => l.includes("line9"))
+    expect(otherLine?.startsWith("  ")).toBe(true)
+  })
+
+  it("clamps to file bounds when the target is near start or end", () => {
+    const head = extractFileContext(fileContent, 1, 5)
+    expect(head.split("\n")).toHaveLength(6) // line 1..6
+    const tail = extractFileContext(fileContent, 50, 5)
+    expect(tail.split("\n")).toHaveLength(6) // line 45..50
+  })
+
+  it("returns empty string for non-string content or invalid line", () => {
+    expect(extractFileContext("", 5)).toBe("")
+    expect(extractFileContext(undefined as unknown as string, 5)).toBe("")
+    expect(extractFileContext(fileContent, 0)).toBe("")
+    expect(extractFileContext(fileContent, NaN)).toBe("")
   })
 })
 
@@ -184,5 +260,24 @@ Internal CR prompt that we don't want our model to see.
     expect(
       prompt.trimEnd().endsWith("Return only the JSON array. No prose, no Markdown fence.")
     ).toBe(true)
+  })
+
+  it("embeds attached fileContext under each comment so the model can quote line-anchored advice", async () => {
+    const ctx = {
+      ...baseCtx,
+      comments: [
+        {
+          id: 99,
+          path: "app/foo.ts",
+          line: 42,
+          body: "missing null check",
+          fileContext:
+            "  40: const result = service.compute(input)\n  41: return result.value\n> 42: return result.value.toFixed(2)",
+        },
+      ],
+    }
+    const prompt = await buildEvaluatorPrompt(ctx)
+    expect(prompt).toContain("File context (app/foo.ts, around line 42):")
+    expect(prompt).toContain("> 42: return result.value.toFixed(2)")
   })
 })
