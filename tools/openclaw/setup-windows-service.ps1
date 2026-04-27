@@ -4,18 +4,18 @@
 # on Windows. Usage:
 #
 #   cd C:\path\to\rema-portal
-#   .\tools\openclaw\setup-windows-service.ps1 `
-#       -AppId 1234567 `
-#       -InstallationId 12345678 `
-#       -PrivateKeyPath "D:\Safe\openclaw-devops.private-key.pem" `
+#   .\tools\openclaw\setup-windows-service.ps1 
+#       -AppId 1234567 
+#       -InstallationId 12345678 
+#       -PrivateKeyPath "D:\Safe\openclaw-devops.private-key.pem" 
 #       -GhToken "github_pat_..."
 #
-# Run from an *admin* PowerShell — NSSM service operations require elevation.
+# Run from an *admin* PowerShell -- NSSM service operations require elevation.
 #
 # What it does:
-#   - Resolves $PSScriptRoot → the OpenClaw tools dir, then the repo root
+#   - Resolves $PSScriptRoot -> the OpenClaw tools dir, then the repo root
 #     so paths can never be typed wrong via copy-paste.
-#   - Creates / reconfigures the `openclaw-triage` service with the right
+#   - Creates / reconfigures the openclaw-triage service with the right
 #     Application, AppParameters, AppDirectory, AppStdout, AppStderr, env
 #     vars, and ObjectName=LocalSystem.
 #   - Restarts the service and prints a final status block.
@@ -45,7 +45,7 @@ function Require-Admin {
 }
 
 function Resolve-RepoRoot {
-    # $PSScriptRoot points at tools/openclaw — the repo root is two parents up.
+    # $PSScriptRoot points at tools/openclaw -- the repo root is two parents up.
     $toolsOpenclaw = Split-Path -Parent $MyInvocation.PSCommandPath
     return (Resolve-Path (Join-Path $toolsOpenclaw "..\..")).Path
 }
@@ -87,11 +87,11 @@ function Test-PrivateKey {
     $drive = (Get-Item $Path).PSDrive.Name
     $expected = @("C", "D")
     if (-not ($expected -contains $drive)) {
-        Write-Warning ("Private key is on drive {0}: — confirm LocalSystem can read it." -f $drive)
+        Write-Warning ("Private key is on drive {0}: -- confirm LocalSystem can read it." -f $drive)
     }
 }
 
-# ── main ─────────────────────────────────────────────────────────────────────
+#  main 
 
 Require-Admin
 
@@ -115,7 +115,7 @@ Write-Host "  log file   : $logFile"
 Write-Host "  private key: $PrivateKeyPath"
 Write-Host ""
 
-# Stop any existing instance — `nssm stop` no-ops on a stopped service.
+# Stop any existing instance -- nssm stop no-ops on a stopped service.
 Invoke-Nssm @("stop", $ServiceName) | Out-Null
 
 # Idempotent install: if the service exists this fails harmlessly. Drop
@@ -138,7 +138,7 @@ Invoke-Nssm @("set", $ServiceName, "AppRotateFiles", "1")
 Invoke-Nssm @("set", $ServiceName, "AppRotateBytes", "5242880")
 Invoke-Nssm @("set", $ServiceName, "ObjectName", "LocalSystem")
 
-# Build env-var array. NSSM accepts each KEY=VALUE as its own arg —
+# Build env-var array. NSSM accepts each KEY=VALUE as its own arg --
 # splatting an array bypasses any shell-quoting issues.
 $envVars = @(
     "OLLAMA_HOST=$OllamaHost",
@@ -161,10 +161,10 @@ Write-Host "Service status: $status"
 Write-Host "Log file:       $logFile"
 Write-Host ""
 if ($status -match "RUNNING") {
-    Write-Host "✅  Service running. Tail the log with:"
+    Write-Host "[OK]  Service running. Tail the log with:"
     Write-Host "    Get-Content `"$logFile`" -Wait"
 } else {
-    Write-Host "⚠️   Service did not reach RUNNING. Tail the log to see why:"
+    Write-Host "[WARN]   Service did not reach RUNNING. Tail the log to see why:"
     Write-Host "    Get-Content `"$logFile`" -Tail 50"
     Write-Host "Or check Windows Event Log:"
     Write-Host "    Get-WinEvent -LogName Application -MaxEvents 30 | Where-Object { `$_.ProviderName -eq 'nssm' } | Format-List TimeCreated, LevelDisplayName, Message"
