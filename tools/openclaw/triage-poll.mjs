@@ -50,11 +50,12 @@ function repoRoot() {
 }
 
 /**
- * State shape v3:
+ * State shape v4:
  *   {
  *     handledRuns: { "<prNumber>": "<lastFailedRunId>" },
  *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> },
- *     handledIssues: { "<issueNumber>": true }
+ *     handledIssues: { "<issueNumber>": true },
+ *     handledOverviewShas: { "<prNumber>": "<headSha>" }
  *   }
  *
  * Earlier shapes only had a subset; we initialize missing fields on
@@ -68,9 +69,15 @@ async function loadState() {
       handledRuns: parsed.handledRuns ?? {},
       handledCrComments: parsed.handledCrComments ?? {},
       handledIssues: parsed.handledIssues ?? {},
+      handledOverviewShas: parsed.handledOverviewShas ?? {},
     }
   } catch {
-    return { handledRuns: {}, handledCrComments: {}, handledIssues: {} }
+    return {
+      handledRuns: {},
+      handledCrComments: {},
+      handledIssues: {},
+      handledOverviewShas: {},
+    }
   }
 }
 
@@ -96,7 +103,7 @@ async function listOpenPrs() {
       "--state",
       "open",
       "--json",
-      "number,statusCheckRollup",
+      "number,headRefOid,statusCheckRollup",
       "--limit",
       "50",
     ])
@@ -106,6 +113,7 @@ async function listOpenPrs() {
       const match = failed?.detailsUrl?.match(/\/runs\/(\d+)/)
       return {
         number: pr.number,
+        headSha: pr.headRefOid ?? null,
         latestFailedRunId: match ? match[1] : null,
       }
     })
@@ -122,9 +130,22 @@ async function listOpenPrs() {
         )
         warnedNoChecksScope = true
       }
-      const out = await gh(["pr", "list", "--state", "open", "--json", "number", "--limit", "50"])
+      const out = await gh([
+        "pr",
+        "list",
+        "--state",
+        "open",
+        "--json",
+        "number,headRefOid",
+        "--limit",
+        "50",
+      ])
       const prs = JSON.parse(out)
-      return prs.map((pr) => ({ number: pr.number, latestFailedRunId: null }))
+      return prs.map((pr) => ({
+        number: pr.number,
+        headSha: pr.headRefOid ?? null,
+        latestFailedRunId: null,
+      }))
     }
     throw error
   }
@@ -138,7 +159,13 @@ async function listOpenPrs() {
  */
 async function runTriage(targetNumber, kind) {
   const scriptName =
-    kind === "cr" ? "triage-cr.mjs" : kind === "issue" ? "triage-issue.mjs" : "triage-ci.mjs"
+    kind === "cr"
+      ? "triage-cr.mjs"
+      : kind === "issue"
+        ? "triage-issue.mjs"
+        : kind === "overview"
+          ? "triage-pr-overview.mjs"
+          : "triage-ci.mjs"
   return new Promise((resolveProc) => {
     const child = execFile(
       process.execPath,
@@ -269,6 +296,20 @@ export function shouldRunCiTriage(pr, state) {
  * Decide whether a PR needs a CR-evaluator spawn this tick. Same
  * shape as `shouldRunCiTriage` for symmetry.
  */
+/**
+ * Decide whether to fire a PR overview this tick. Pure for testability.
+ * The trigger is "head SHA is different from the last overview we
+ * posted on this PR", so the very first poll after a push (or after
+ * the daemon starts and finds an unhandled SHA) emits one overview
+ * and then no-ops until the next push.
+ */
+export function shouldRunPrOverview(pr, state) {
+  if (!pr || typeof pr.number !== "number") return false
+  if (typeof pr.headSha !== "string" || !pr.headSha) return false
+  const handled = state.handledOverviewShas?.[String(pr.number)]
+  return handled !== pr.headSha
+}
+
 export function shouldRunCrTriage(pr, latestCrId, state) {
   if (latestCrId == null) return false
   const handled = state.handledCrComments?.[String(pr.number)]
@@ -305,7 +346,24 @@ async function tick() {
       }
     }
 
-    // 2) CodeRabbit-comment evaluator (v4) — only when CR has posted
+    // 2) PR overview (v6) — fires on every push (head SHA changed).
+    // Posts a Greptile-style top-level comment summarizing the latest
+    // push: summary, important files, confidence, concerns. Edited
+    // in place via marker comment, so re-runs don't spam.
+    if (shouldRunPrOverview(pr, state)) {
+      console.log(`[openclaw-poll] PR #${pr.number} -> overview (head ${pr.headSha?.slice(0, 7)})`)
+      const result = await runTriage(pr.number, "overview")
+      if (!result.error) {
+        state.handledOverviewShas[String(pr.number)] = pr.headSha
+        await saveState(state)
+      } else {
+        console.warn(
+          `[openclaw-poll] PR overview failed on #${pr.number}; will retry next tick.`
+        )
+      }
+    }
+
+    // 3) CodeRabbit-comment evaluator (v4) — only when CR has posted
     // something new since our last evaluation pass on this PR.
     const latestCrId = await latestCrCommentId(pr.number)
     if (shouldRunCrTriage(pr, latestCrId, state)) {
