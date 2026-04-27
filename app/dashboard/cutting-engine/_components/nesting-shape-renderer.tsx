@@ -91,7 +91,9 @@ function PolygonShape({
         y={coords.py + coords.ph / 2}
         textAnchor="middle"
         dominantBaseline="middle"
-        className="fill-foreground"
+        className="fill-shape-label stroke-shape-label-halo"
+        style={{ paintOrder: "stroke" }}
+        strokeWidth={2}
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
@@ -159,7 +161,9 @@ function CircleShape({
             y={cy}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-foreground"
+            className="fill-shape-label stroke-shape-label-halo"
+            style={{ paintOrder: "stroke" }}
+            strokeWidth={2}
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -250,7 +254,9 @@ function SectorShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-foreground"
+            className="fill-shape-label stroke-shape-label-halo"
+            style={{ paintOrder: "stroke" }}
+            strokeWidth={2}
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -330,7 +336,9 @@ function TrapezoidShape({
             y={coords.py + coords.ph / 2}
             textAnchor="middle"
             dominantBaseline="middle"
-            className="fill-foreground"
+            className="fill-shape-label stroke-shape-label-halo"
+            style={{ paintOrder: "stroke" }}
+            strokeWidth={2}
             fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
@@ -370,7 +378,9 @@ function RectShape({
         x={coords.px + coords.pw / 2}
         y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
         textAnchor="middle"
-        className="fill-foreground"
+        className="fill-shape-label stroke-shape-label-halo"
+        style={{ paintOrder: "stroke" }}
+        strokeWidth={2}
         fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >

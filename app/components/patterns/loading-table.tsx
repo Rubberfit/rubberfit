@@ -39,7 +39,7 @@ export function LoadingTable({
     <div
       data-slot="loading-table"
       aria-busy="true"
-      className={cn("w-full rounded-md border bg-card", className)}
+      className={cn("w-full overflow-hidden rounded-md border bg-card", className)}
       {...props}
     >
       {showHeader && (
