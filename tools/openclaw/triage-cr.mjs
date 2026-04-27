@@ -185,6 +185,64 @@ async function postInlineReply(call, ownerRepo, prNumber, commentId, body) {
   })
 }
 
+/**
+ * Fetch every review thread on the PR and return a map keyed by the
+ * REST `databaseId` of each comment to `{ threadId, isResolved }`. We
+ * use this to resolve threads where OpenClaw's verdict is a SKIP_*
+ * classification — the bot already replied with the rationale, so the
+ * nitpick / out-of-scope / false-positive thread no longer needs a
+ * human's attention.
+ */
+async function fetchReviewThreadMap(call, ownerRepo, prNumber) {
+  const [owner, repo] = ownerRepo.split("/")
+  const query = `
+    query($owner: String!, $repo: String!, $num: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $num) {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              isResolved
+              comments(first: 20) { nodes { databaseId } }
+            }
+          }
+        }
+      }
+    }
+  `
+  const res = await call("POST", "/graphql", {
+    query,
+    variables: { owner, repo, num: prNumber },
+  })
+  if (res?.errors?.length) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(res.errors).slice(0, 300)}`)
+  }
+  const threads = res?.data?.repository?.pullRequest?.reviewThreads?.nodes ?? []
+  const map = new Map()
+  for (const t of threads) {
+    for (const c of t.comments?.nodes ?? []) {
+      if (typeof c.databaseId === "number") {
+        map.set(c.databaseId, { threadId: t.id, isResolved: !!t.isResolved })
+      }
+    }
+  }
+  return map
+}
+
+async function resolveReviewThread(call, threadId) {
+  const mutation = `
+    mutation($id: ID!) {
+      resolveReviewThread(input: { threadId: $id }) {
+        thread { id isResolved }
+      }
+    }
+  `
+  const res = await call("POST", "/graphql", { query: mutation, variables: { id: threadId } })
+  if (res?.errors?.length) {
+    throw new Error(`GraphQL errors: ${JSON.stringify(res.errors).slice(0, 300)}`)
+  }
+}
+
 async function main() {
   const prArg = process.argv[2]
   if (!prArg || !/^\d+$/.test(prArg)) {
@@ -222,6 +280,16 @@ async function main() {
 
   console.log(`[cr-triage] PR #${prNumber}: fetching PR context (title/body/diff)...`)
   const prCtx = await fetchPrContext(prNumber)
+
+  // Pre-fetch the review-thread map so SKIP_* verdicts can mark their
+  // thread resolved once the reply lands. Failure here is non-fatal —
+  // we log and proceed without auto-resolve.
+  let threadMap = new Map()
+  try {
+    threadMap = await fetchReviewThreadMap(call, ownerRepo, prNumber)
+  } catch (error) {
+    console.warn(`Could not fetch review threads (auto-resolve disabled): ${error.message}`)
+  }
 
   // Decorate each comment with ±20 lines of file context so the
   // evaluator prompt can produce surgical verdicts instead of generic
@@ -300,6 +368,21 @@ async function main() {
         await postInlineReply(call, ownerRepo, prNumber, comment.id, reply)
         posted += 1
         console.log(`Posted ${verdict.classification} reply on comment ${comment.id}`)
+
+        // Resolve the review thread on SKIP_* verdicts. ACCEPT
+        // threads stay open so the human reviewer can act on them.
+        // We only call resolve when the thread isn't already resolved.
+        if (typeof verdict.classification === "string" && verdict.classification.startsWith("SKIP_")) {
+          const thread = threadMap.get(comment.id)
+          if (thread && !thread.isResolved) {
+            try {
+              await resolveReviewThread(call, thread.threadId)
+              console.log(`Resolved thread on comment ${comment.id} (${verdict.classification})`)
+            } catch (error) {
+              console.warn(`Failed to resolve thread on comment ${comment.id}: ${error.message}`)
+            }
+          }
+        }
       } catch (error) {
         skipped += 1
         console.warn(`Failed to post reply on comment ${comment.id}: ${error.message}`)
