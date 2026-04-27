@@ -20,6 +20,7 @@ const LIMITS = {
   ciLog: 12_000,
   fileContext: 30_000, // total across all included files
   prBody: 4_000,
+  relatedChunks: 16_000, // total across all v3 retrieval-supplied chunks
 }
 
 /**
@@ -104,6 +105,23 @@ export async function buildTriagePrompt(ctx) {
       const slice = truncate(file.content ?? "", Math.min(remaining, 8_000))
       remaining -= slice.length
       sections.push(`--- ${file.path} ---`, slice, "")
+    }
+  }
+
+  if (Array.isArray(ctx.relatedChunks) && ctx.relatedChunks.length > 0) {
+    sections.push(
+      "",
+      "[RELATED CODEBASE CONTEXT (semantic similarity to the failure)]",
+      "These chunks were retrieved by embedding-based similarity to the failure log + diff. They may or may not be relevant — use them only if they help explain the root cause."
+    )
+    let remaining = LIMITS.relatedChunks
+    for (const chunk of ctx.relatedChunks) {
+      if (remaining <= 0) break
+      const slice = truncate(chunk.content ?? "", Math.min(remaining, 4_000))
+      remaining -= slice.length
+      const span = `${chunk.path}:${chunk.lineStart}-${chunk.lineEnd}`
+      const score = typeof chunk.score === "number" ? ` (score=${chunk.score.toFixed(3)})` : ""
+      sections.push(`--- ${span}${score} ---`, slice, "")
     }
   }
 

@@ -1,116 +1,160 @@
 # `tools/openclaw/`
 
-Local-first PR automation driven by the OpenClaw agent layer (Ollama + GLM-5.1 by default). Greptile-style: every diagnosis is grounded in the PR diff _and_ the contents of the files the failure references, not the log alone.
+Local-first PR automation driven by OpenClaw + Ollama. Greptile-style: every diagnosis is grounded in the PR diff, the failure log, the contents of the files the failure references, **and** semantically-related chunks pulled from a codebase index — not just whatever the log says in isolation.
+
+The whole thing runs on the devops box (the same Windows server that hosts Ollama). No GitHub Actions runners, no GitHub-stored secrets, no public Ollama exposure. The bot's GitHub App private key never leaves that machine.
 
 ## Tools shipped here
 
-| Script          | Purpose                                                                                                                                                                                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `triage-ci.mjs` | Reads the latest failed CI run on a PR, builds a context bundle (PR diff + filtered CI log + affected file contents), asks GLM-5.1 to produce a structured root-cause diagnosis, and posts/updates a single sticky comment on the PR. |
+| Script            | Purpose                                                                                                                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `triage-ci.mjs`   | **v1.** Reads the latest failed CI run on a PR, builds a context bundle (PR diff + filtered failure log + contents of files the log mentions + retrieved related code), asks GLM-5.1 for a structured root-cause diagnosis, posts/updates a single sticky comment on the PR. |
+| `triage-poll.mjs` | **v2.** Long-running poller that watches every open PR for new failed CI runs and runs the triage automatically. State lives in `.openclaw/poll-state.json` so we never re-triage the same run twice.                                                                        |
+| `index-repo.mjs`  | **v3.** Builds the codebase index used by `triage-ci.mjs` for semantic retrieval. Chunks every indexable source file, embeds via `nomic-embed-text`, persists to `.openclaw/index.json`. Incremental: only re-embeds files whose mtime changed.                              |
+| `triage-cr.mjs`   | **v4.** Reads every open CodeRabbit comment on a PR, classifies each one (ACCEPT / SKIP_NITPICK / SKIP_OUT_OF_SCOPE / SKIP_FALSE_POSITIVE) using the team's house rules, and posts an inline reply per comment. **Advisory only — never auto-applies changes.**              |
 
-## Why local-first
+## Architecture
 
-GitHub Actions runners can't reach the Ollama instance on the LAN
-(`192.168.50.68:11434`), and exposing Ollama publicly defeats the
-local-first stack. So this tool runs on the developer's Mac (or any host
-with `OLLAMA_HOST` configured) against the gh CLI. v2 will move to a
-self-hosted runner on the Windows GPU box for hands-off automation.
+```
+┌─────────────────────── Windows devops box (192.168.50.68) ───────────────────────┐
+│                                                                                  │
+│   Ollama  ──────────────  glm-5.1:cloud, kimi-k2.6:cloud, deepseek-v3.1:671b,    │
+│   :11434                  nomic-embed-text                                       │
+│                                                                                  │
+│       ▲                                                                          │
+│       │  HTTP                                                                    │
+│       │                                                                          │
+│   Node.js                                                                        │
+│   processes  ───  triage-poll.mjs  ───  spawns triage-ci.mjs / triage-cr.mjs     │
+│                                                                                  │
+│       │  GitHub App                                                              │
+│       │  installation                                                            │
+│       ▼  token                                                                   │
+│       ─────────────────────────────────────────────────────────────────────────  │
+│                                                                                  │
+│   ~/.openclaw/                                                                   │
+│   ├── private-key.pem      ←── GitHub App private key (chmod 600, gitignored)    │
+│   └── …                                                                          │
+└──────────────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       │ HTTPS
+                                       ▼
+                                api.github.com
+```
 
 ## Prerequisites
 
-- `gh` CLI authenticated for the repo
-- `OLLAMA_HOST` env exported (defaults to `http://192.168.50.68:11434`)
-- Model `glm-5.1:cloud` registered on the Ollama host (override with
-  `OPENCLAW_MODEL=...`). Model role routing rules live in
-  `~/Work/CLAUDE.md`; for CI triage GLM-5.1 is the default because it's
-  tuned for structured output + multi-step instruction following.
-- _(Optional but recommended)_ A GitHub App so triage comments post
-  under `@openclaw[bot]` instead of your personal account — see
-  [Posting as @openclaw\[bot\]](#posting-as-openclawbot) below.
+- **`gh` CLI** authenticated — used for read-only fetches (PR diff, run logs, listing PRs). The default user auth is fine here; the App token is only used for posting.
+- **`OLLAMA_HOST`** exported (defaults to `http://192.168.50.68:11434`).
+- **Models registered:** `glm-5.1:cloud` (default for triage), `nomic-embed-text` (for indexing), and any others you want to reach via `OPENCLAW_MODEL`. Routing rules live in `~/Work/CLAUDE.md` — TL;DR: GLM for orchestration / structured output, Kimi for design review, DeepSeek for math/algorithm correctness.
+- **GitHub App** — required for v4 (CR evaluator), strongly recommended for v1/v2 so comments post as `@openclaw[bot]` instead of your personal user. Setup below.
 
 ## Posting as `@openclaw[bot]`
 
-Without App auth, the script falls back to posting comments through the
-`gh` CLI as your personal user. To get the bot identity, create a
-GitHub App owned by the org and wire its credentials into env.
+Without App auth, v1 (triage-ci) falls back to posting via the `gh` CLI as your personal user. v4 (triage-cr) refuses to run without App auth so it never posts review-feedback under your name.
 
-### One-time setup (~10 minutes in the GitHub UI)
+### One-time GitHub App setup
 
-1. Go to **<https://github.com/organizations/Arc-and-Anchor/settings/apps/new>**
-   (this URL puts the App under the org — you can also reach it via
-   org Settings → Developer Settings → GitHub Apps → New GitHub App).
-2. Fill the form:
-   - **GitHub App name:** `openclaw` (must be globally unique on
-     GitHub; if taken, try `openclaw-arc-anchor`).
-   - **Homepage URL:** anything (e.g., `https://github.com/Arc-and-Anchor`).
-   - **Webhook → Active:** uncheck for v1 — we don't need event
-     delivery yet, just outbound posts.
+1. Create the App at <https://github.com/organizations/Arc-and-Anchor/settings/apps/new> — App lives under the org so credentials and bot identity are organization-owned.
+2. Form fields:
+   - **Name:** `openclaw` (globally unique; if taken try `openclaw-arc-anchor`)
+   - **Homepage URL:** any URL (cosmetic)
+   - **Webhook → Active:** uncheck — this stack doesn't subscribe to events
    - **Repository permissions:**
      - Issues → Read & write
      - Pull requests → Read & write
      - Contents → Read-only
-     - Actions → Read-only (for fetching run logs in v1, and
-       `workflow_run` event subscription in v2)
-   - **Where can this GitHub App be installed?** → **Only on this account**
-3. Click **Create GitHub App**.
-4. On the resulting page, click **Generate a private key** — downloads
-   `<app-name>.<date>.private-key.pem`. Save it somewhere outside the
-   repo (e.g., `~/.openclaw/private-key.pem`). Note the **App ID**
-   shown at the top of the page.
-5. In the App's left sidebar, click **Install App** → **Install** on
-   `Arc-and-Anchor` → either "All repositories" (recommended) or just
-   `rema-portal`. After installing, the URL contains the
-   **Installation ID** (e.g., `…/installations/12345678`).
+     - Actions → Read-only
+   - **Where can this GitHub App be installed?** Only on this account
+3. **Generate a private key** on the App's settings page. Move the downloaded `.pem` somewhere outside the repo:
+   ```bash
+   mkdir -p ~/.openclaw
+   mv ~/Downloads/openclaw.*.private-key.pem ~/.openclaw/private-key.pem
+   chmod 600 ~/.openclaw/private-key.pem
+   ```
+4. **Install** the App on the org → "All repositories" or just the ones you want the bot to comment on. The Install URL contains the **Installation ID**.
 
-### Wire the credentials into your shell
-
-Add to `~/.zshrc` (or your env manager of choice):
+### Wire credentials (devops box only)
 
 ```bash
-export OPENCLAW_APP_ID=123456                                  # from App settings page
-export OPENCLAW_INSTALLATION_ID=12345678                       # from the Install URL
+# These three live on the devops box and never leave it.
+export OPENCLAW_APP_ID=1234567
+export OPENCLAW_INSTALLATION_ID=12345678
 export OPENCLAW_PRIVATE_KEY_PATH="$HOME/.openclaw/private-key.pem"
 ```
 
-Restrict perms on the key:
+The poller / triage scripts read those env vars at runtime, sign a short-lived JWT (10 min), and exchange it for a per-installation access token (~1 hour TTL) for each API call. **The `.pem` is never serialized into a log line, never sent over a non-GitHub network, and never copied off the devops box.**
+
+The repo's `.gitignore` covers `.openclaw/` and `*.pem` so the key can't accidentally land in a commit.
+
+## v1 — manual triage
 
 ```bash
-chmod 600 ~/.openclaw/private-key.pem
-```
-
-That's it — next `node tools/openclaw/triage-ci.mjs <pr>` run will
-post as `@openclaw[bot]`. The script logs which identity it used
-("Triage created on PR #146 as bot" vs "as user"). When App auth
-isn't configured it prints a hint pointing back here.
-
-### Alternative: inline private key
-
-For CI / secret-store setups, set `OPENCLAW_PRIVATE_KEY` to the raw
-PEM contents (newlines included) instead of a path. The script
-prefers inline when both are set.
-
-## Usage
-
-```bash
-node tools/openclaw/triage-ci.mjs 145              # triage failed CI on PR #145
+node tools/openclaw/triage-ci.mjs 145
 OPENCLAW_MODEL=kimi-k2.6:cloud node tools/openclaw/triage-ci.mjs 145
 ```
 
 Exit codes:
 
-- `0` — diagnosis posted, updated, or intentionally skipped (low confidence)
+- `0` — diagnosis posted/updated, or skipped due to low confidence
 - `1` — no failed CI runs on the PR (nothing to triage)
-- `2` — unrecoverable error (Ollama unreachable, gh CLI missing, model not pulled)
+- `2` — unrecoverable error (Ollama unreachable, model not pulled, gh missing)
 
-The first run posts a new comment marked with
-`<!-- openclaw:ci-triage -->`. Subsequent runs find that comment and
-_edit it in place_ — no spam, the diagnosis stays current with the
-latest failure on the PR.
+Subsequent runs find the existing `<!-- openclaw:ci-triage -->` marker and edit in place — no spam, the diagnosis stays current.
 
-## Output shape
+## v2 — auto-triage poller
 
-The model is constrained (see `prompts/ci-triage.md`) to return a
-fixed-shape comment:
+```bash
+node tools/openclaw/triage-poll.mjs              # default 60s interval
+OPENCLAW_POLL_INTERVAL_MS=30000 node tools/openclaw/triage-poll.mjs
+node tools/openclaw/triage-poll.mjs --once       # single pass, exit
+```
+
+Run as a Windows service via NSSM or Task Scheduler, or under pm2 / launchd on macOS. Suggested NSSM config:
+
+```
+nssm install openclaw-triage "C:\Program Files\nodejs\node.exe" "C:\repos\rema-portal\tools\openclaw\triage-poll.mjs"
+nssm set openclaw-triage AppDirectory C:\repos\rema-portal
+nssm set openclaw-triage AppEnvironmentExtra ^
+  OLLAMA_HOST=http://localhost:11434 ^
+  OPENCLAW_APP_ID=1234567 ^
+  OPENCLAW_INSTALLATION_ID=12345678 ^
+  OPENCLAW_PRIVATE_KEY_PATH=C:\Users\Daniel\.openclaw\private-key.pem
+nssm start openclaw-triage
+```
+
+State (which run id we last triaged per PR) is persisted in `.openclaw/poll-state.json` so a restarted poller doesn't re-post on the same failures.
+
+## v3 — codebase index
+
+Build / refresh once on the devops box (and any time the repo gains a meaningful chunk of new code):
+
+```bash
+node tools/openclaw/index-repo.mjs
+```
+
+Re-running is incremental — only modified files get re-embedded. The first build for `rema-portal` is ~minutes; subsequent rebuilds are seconds.
+
+The triage script auto-loads the index when present and adds top-K (default 5) semantically-related chunks to the prompt. With no index it falls back gracefully to the v1 file-mention heuristic.
+
+## v4 — CR comment evaluator
+
+```bash
+node tools/openclaw/triage-cr.mjs 145
+```
+
+Reads every CodeRabbit review comment on PR #145 that hasn't already been evaluated (no marker reply present), asks GLM-5.1 to classify each one against the team's house rules in `prompts/cr-evaluation.md`, and posts an inline reply per comment:
+
+- **ACCEPT** — concrete suggestion fix, with reasoning
+- **SKIP_NITPICK / SKIP_OUT_OF_SCOPE / SKIP_FALSE_POSITIVE** — short reasoned skip reply
+
+Every reply ends with _"Advisory only. The engineer reviewing this PR makes the final call."_ OpenClaw never auto-applies changes — the goal is to give engineers a reasoned recommendation per CR comment, so they don't take CR at face value.
+
+To force re-evaluation, delete OpenClaw's reply on GitHub and re-run.
+
+## Output shape (v1)
+
+The triage model is constrained to return a fixed-shape comment. Roughly:
 
 ```
 🔴 Root cause: <one sentence>
@@ -131,13 +175,9 @@ fixed-shape comment:
 
 Followed by an OpenClaw footer line with the model + run id + confidence.
 
-## Confidence calibration
+## Confidence calibration (v1)
 
-`parseConfidence` extracts the `**Confidence:** <level>` token from the
-model output. The script **refuses to post** when confidence is `low` or
-unparsed — false-positive comments train developers to ignore the bot.
-The model is instructed to use `low` (and explain what's missing) when
-the log alone doesn't give it enough to fix the failure.
+`parseConfidence` extracts the `**Confidence:** <level>` token from the model output. The script **refuses to post** when confidence is `low` or unparsed — false-positive comments train developers to ignore the bot. Skipped runs print to stdout for offline review.
 
 ## Files
 
@@ -145,39 +185,42 @@ the log alone doesn't give it enough to fix the failure.
 
 tools/openclaw/
 ├── README.md # this file
-├── triage-ci.mjs # main entry — orchestrates gh + Ollama + comment post
+├── triage-ci.mjs # v1 — single-PR CI triage
+├── triage-poll.mjs # v2 — devops-box poller that runs v1 on new failures
+├── index-repo.mjs # v3 — codebase indexer CLI
+├── triage-cr.mjs # v4 — CR comment evaluator + suggestion poster
 ├── prompts/
-│ └── ci-triage.md # system prompt (edit here, no code change needed)
+│ ├── ci-triage.md # v1 system prompt
+│ └── cr-evaluation.md # v4 system prompt (house rules embedded)
 └── lib/
-├── build-prompt.mjs # pure prompt assembly (testable, no I/O)
-├── ollama.mjs # thin Ollama HTTP client + pre-flight check
-├── github-app.mjs # GitHub App JWT signing + installation token exchange
-└── comments.mjs # idempotent comment posting (App or gh CLI fallback)
+├── build-prompt.mjs # v1+v3 prompt assembly (file context + retrieved chunks)
+├── ollama.mjs # Ollama HTTP client + pre-flight model check
+├── github-app.mjs # JWT signing + installation token exchange
+├── comments.mjs # idempotent triage comment posting (App or gh CLI)
+├── indexer.mjs # v3 chunking + embedding + persistence
+├── retrieval.mjs # v3 cosine top-K + query construction
+└── cr-evaluator.mjs # v4 prompt assembly + verdict parsing
 
 ````
 
 ## Tests
 
-- `tests/openclaw/build-prompt.test.ts` — pure prompt-builder helpers:
-  file extraction from log mentions, truncation behavior, confidence
-  parsing, full prompt assembly.
-- `tests/openclaw/github-app.test.ts` — App-auth helpers: RS256 JWT
-  signing (verified end-to-end with a freshly-generated keypair),
-  payload claim shape, env-driven `isAppAuthConfigured` detection.
+| Suite | Coverage |
+| --- | --- |
+| `tests/openclaw/build-prompt.test.ts` | v1 prompt builder: truncation, file-mention extraction, confidence parsing, full prompt assembly |
+| `tests/openclaw/github-app.test.ts` | RS256 JWT signing (verified end-to-end with a freshly-generated keypair), env-driven `isAppAuthConfigured` |
+| `tests/openclaw/indexer.test.ts` | v3 chunking, persistence round-trip, incremental re-embedding |
+| `tests/openclaw/retrieval.test.ts` | v3 cosine similarity, top-K ranking, query construction |
+| `tests/openclaw/cr-evaluator.test.ts` | v4 CR-prompt scrubbing, verdict JSON parsing (with/without code fences), prompt shape |
 
-No live Ollama, GitHub, or `gh` CLI calls in the test suite.
+No live Ollama, GitHub, or `gh` CLI calls in the test suite — all I/O is mocked or generated.
 
 ```bash
 npx vitest run tests/openclaw/
 ````
 
-## Roadmap
+## Roadmap (after v4)
 
-- **v1** _(this commit)_ — manual run from the dev Mac, single PR at a time.
-- **v2** — self-hosted runner on the Windows box; trigger on
-  `workflow_run` failure events so the diagnosis appears automatically.
-- **v3** — codebase indexer (treesitter + nomic-embed-text). The current
-  v1 grabs files mentioned in the log; v3 expands context to related
-  modules retrieved by semantic similarity.
-- **v4** — auto-fix proposals on a `bot/<pr>` branch when confidence is
-  high and the fix is mechanical (missing import, type rename).
+- **Symbol-aware indexing** — replace v3's line-window chunking with treesitter symbol chunks so retrieval surfaces "the function being called" rather than "the next 80 lines."
+- **Cross-PR memory** — when a PR re-introduces a pattern OpenClaw flagged on a previous PR, surface that history.
+- **Issue triage parity** — promote the existing OpenClaw issue-triage script (the `🦞 Triaged via OpenClaw` you've seen on GitHub issues) into this directory so all OpenClaw automations live together.

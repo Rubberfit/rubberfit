@@ -1,0 +1,252 @@
+// Codebase indexer for OpenClaw v3 — file-based chunking + nomic-embed-text
+// embeddings + JSON persistence. Greptile-style retrieval ("what other parts
+// of the codebase are related to this failure") layered on top of v1's
+// "files mentioned in the log" heuristic.
+//
+// Chunking: file contents split into overlapping line windows. We don't run
+// treesitter — for retrieval at this repo's scale (~1k source files), line-
+// window chunks ranked by cosine similarity recover the relevant context
+// without the parser dependency. v4 can swap in symbol-aware chunking once
+// the basic retrieval proves out.
+//
+// Storage: `.openclaw/index.json` at the repo root. Gitignored so each dev's
+// index stays local, and the self-hosted runner builds its own. No remote
+// state to sync, no cache invalidation across machines.
+import { createHash } from "node:crypto"
+import { readFile, readdir, stat, writeFile, mkdir } from "node:fs/promises"
+import { resolve, relative, join } from "node:path"
+
+import { getOllamaHost } from "./ollama.mjs"
+
+const INDEX_VERSION = 1
+const EMBEDDING_MODEL = "nomic-embed-text"
+
+/** Files / dirs we never index. Build artifacts, deps, binary data, etc. */
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".next",
+  ".vercel",
+  "dist",
+  "build",
+  "coverage",
+  "target", // Rust build output
+  ".openclaw", // our own index
+  ".claude", // local agent scratch
+])
+
+const INDEXED_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".mjs",
+  ".js",
+  ".jsx",
+  ".rs",
+  ".sql",
+  ".md",
+  ".yml",
+  ".yaml",
+  ".json",
+  ".sh",
+  ".toml",
+])
+
+const MAX_FILE_BYTES = 200 * 1024 // 200 KB — skip generated/lockfiles
+const CHUNK_LINES = 80
+const CHUNK_OVERLAP = 20
+const EMBED_BATCH = 32 // Ollama /api/embed accepts batched input
+
+/**
+ * Walk `root` and yield repo-relative paths matching the indexable set.
+ * Generator so memory stays bounded on big trees.
+ */
+async function* walkRepo(root) {
+  const stack = [root]
+  while (stack.length > 0) {
+    const dir = stack.pop()
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue
+        if (entry.name.startsWith(".") && entry.name !== ".github") continue
+        stack.push(full)
+        continue
+      }
+      if (!entry.isFile()) continue
+      const dot = entry.name.lastIndexOf(".")
+      if (dot < 0) continue
+      const ext = entry.name.slice(dot)
+      if (!INDEXED_EXTENSIONS.has(ext)) continue
+      try {
+        const info = await stat(full)
+        if (info.size > MAX_FILE_BYTES) continue
+        yield {
+          path: relative(root, full),
+          mtime: Math.floor(info.mtimeMs),
+          size: info.size,
+        }
+      } catch {
+        // Skip files we can't stat (perm error, race with deletion).
+      }
+    }
+  }
+}
+
+/**
+ * Split a file's contents into overlapping line windows. Each chunk records
+ * the [lineStart, lineEnd) span (1-based, inclusive lower / exclusive upper)
+ * so callers can quote it back accurately.
+ */
+export function chunkFile(path, content, mtime) {
+  const lines = content.split("\n")
+  if (lines.length === 0) return []
+  const chunks = []
+  const step = Math.max(1, CHUNK_LINES - CHUNK_OVERLAP)
+  for (let start = 0; start < lines.length; start += step) {
+    const end = Math.min(start + CHUNK_LINES, lines.length)
+    const slice = lines.slice(start, end).join("\n")
+    if (slice.trim().length === 0) continue
+    chunks.push({
+      id: `${path}:${start + 1}-${end}`,
+      path,
+      lineStart: start + 1,
+      lineEnd: end,
+      content: slice,
+      mtime,
+    })
+    if (end === lines.length) break
+  }
+  return chunks
+}
+
+/**
+ * Embed an array of strings via Ollama's /api/embed endpoint. Batches to
+ * keep request size under control. Returns a parallel array of vectors.
+ */
+export async function embedBatch(texts, { model = EMBEDDING_MODEL, fetchImpl = fetch } = {}) {
+  if (texts.length === 0) return []
+  const host = getOllamaHost().replace(/\/$/, "")
+  const out = []
+  for (let i = 0; i < texts.length; i += EMBED_BATCH) {
+    const batch = texts.slice(i, i + EMBED_BATCH)
+    const res = await fetchImpl(`${host}/api/embed`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model, input: batch }),
+    })
+    if (!res.ok) {
+      throw new Error(`Ollama /api/embed failed (HTTP ${res.status}): ${await res.text()}`)
+    }
+    const json = await res.json()
+    if (!Array.isArray(json.embeddings) || json.embeddings.length !== batch.length) {
+      throw new Error(
+        `Ollama /api/embed returned ${json.embeddings?.length ?? 0} embeddings, expected ${batch.length}`
+      )
+    }
+    for (const vec of json.embeddings) out.push(vec)
+  }
+  return out
+}
+
+function indexPath(repoRoot) {
+  return resolve(repoRoot, ".openclaw", "index.json")
+}
+
+/**
+ * Load a previously-built index. Returns null when missing or version-
+ * incompatible — callers should rebuild from scratch in that case rather
+ * than trying to migrate.
+ */
+export async function loadIndex(repoRoot) {
+  try {
+    const raw = await readFile(indexPath(repoRoot), "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed.version !== INDEX_VERSION) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Persist the index. Caller is responsible for writing only valid index
+ * shapes; we just stringify and atomic-replace.
+ */
+export async function saveIndex(repoRoot, index) {
+  const dir = resolve(repoRoot, ".openclaw")
+  await mkdir(dir, { recursive: true })
+  await writeFile(indexPath(repoRoot), JSON.stringify(index), "utf8")
+}
+
+function fingerprint(path, mtime) {
+  return createHash("sha1").update(`${path}:${mtime}`).digest("hex").slice(0, 16)
+}
+
+/**
+ * Build (or refresh) the codebase index for the repo rooted at `repoRoot`.
+ * Existing chunks whose file fingerprint hasn't changed are reused —
+ * embedding calls only fire for new or modified files.
+ *
+ * Yields progress updates via the optional `onProgress` callback so a CLI
+ * can render a heartbeat. Returns the persisted index shape.
+ */
+export async function buildIndex(repoRoot, { onProgress, embed = embedBatch } = {}) {
+  const previous = (await loadIndex(repoRoot)) ?? null
+  const existingByFingerprint = new Map()
+  if (previous) {
+    for (const chunk of previous.chunks ?? []) {
+      const fp = fingerprint(chunk.path, chunk.mtime)
+      const list = existingByFingerprint.get(fp) ?? []
+      list.push(chunk)
+      existingByFingerprint.set(fp, list)
+    }
+  }
+
+  const allChunks = []
+  const newChunks = []
+
+  for await (const file of walkRepo(repoRoot)) {
+    onProgress?.({ stage: "scan", path: file.path })
+    const fp = fingerprint(file.path, file.mtime)
+    const cached = existingByFingerprint.get(fp)
+    if (cached && cached.every((c) => c.path === file.path)) {
+      for (const c of cached) allChunks.push(c)
+      continue
+    }
+    let content
+    try {
+      content = await readFile(resolve(repoRoot, file.path), "utf8")
+    } catch {
+      continue
+    }
+    const chunks = chunkFile(file.path, content, file.mtime)
+    for (const chunk of chunks) {
+      newChunks.push(chunk)
+      allChunks.push(chunk)
+    }
+  }
+
+  if (newChunks.length > 0) {
+    onProgress?.({ stage: "embed", count: newChunks.length })
+    const vectors = await embed(newChunks.map((c) => c.content))
+    for (let i = 0; i < newChunks.length; i++) {
+      newChunks[i].embedding = vectors[i]
+    }
+  }
+
+  const index = {
+    version: INDEX_VERSION,
+    createdAt: new Date().toISOString(),
+    embeddingModel: EMBEDDING_MODEL,
+    chunks: allChunks,
+  }
+  await saveIndex(repoRoot, index)
+  onProgress?.({ stage: "done", total: allChunks.length, fresh: newChunks.length })
+  return index
+}

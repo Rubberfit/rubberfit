@@ -22,6 +22,8 @@ import { resolve } from "node:path"
 import { buildTriagePrompt, extractMentionedFiles, parseConfidence } from "./lib/build-prompt.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
 import { postOrUpdateTriage } from "./lib/comments.mjs"
+import { loadIndex } from "./lib/indexer.mjs"
+import { retrieveRelatedChunks } from "./lib/retrieval.mjs"
 
 const exec = promisify(execFile)
 const MODEL = process.env.OPENCLAW_MODEL ?? "glm-5.1:cloud"
@@ -114,6 +116,33 @@ async function main() {
     if (content != null) fileContexts.push({ path, content })
   }
 
+  // v3: layer on semantic-similarity retrieval from the codebase index.
+  // Falls back to no-op when the index hasn't been built — the v2 file-
+  // context heuristic alone still produces useful diagnoses.
+  const index = await loadIndex(process.cwd())
+  let relatedChunks = []
+  if (index) {
+    const excludePaths = new Set(fileContexts.map((f) => f.path))
+    try {
+      const ranked = await retrieveRelatedChunks({
+        index,
+        ciLog,
+        prDiff,
+        excludePaths,
+        k: 5,
+      })
+      relatedChunks = ranked.map(({ chunk, score }) => ({
+        path: chunk.path,
+        lineStart: chunk.lineStart,
+        lineEnd: chunk.lineEnd,
+        content: chunk.content,
+        score,
+      }))
+    } catch (error) {
+      console.warn(`Codebase retrieval failed (continuing without it): ${error.message}`)
+    }
+  }
+
   const prompt = await buildTriagePrompt({
     prNumber,
     prTitle: meta.title,
@@ -121,6 +150,7 @@ async function main() {
     prDiff,
     ciLog,
     fileContexts,
+    relatedChunks,
   })
 
   const response = await generate({ model: MODEL, prompt })
