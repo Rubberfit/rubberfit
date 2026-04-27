@@ -233,11 +233,17 @@ async function main() {
     if (fileContext) comment.fileContext = fileContext
   }
 
-  // Batch comments so each prompt stays under ~30k chars — that's the
-  // sweet spot where glm-5.1:cloud reliably returns within the 5-minute
-  // window. Big PRs (PR #146 had 23 comments → 87k chars in one shot)
-  // were aborting on the cloud-routed model.
-  const BATCH_SIZE = 6
+  // Batch comments so each prompt stays under ~25k chars — that's the
+  // size at which glm-5.1:cloud reliably returns within the 5-minute
+  // window (PR #146's 23 comments + diff = 87k aborted; even 44k
+  // batches aborted; 24k single-comment prompts succeeded).
+  //
+  // We also drop the PR diff entirely from per-batch prompts. Each
+  // comment carries ±20 lines of file context already (see
+  // `readFileContextForComment` above), which is what the model
+  // actually needs to write a surgical verdict. The full PR diff was
+  // 16k chars of overhead per batch and rarely changed the verdict.
+  const BATCH_SIZE = 3
   const batches = []
   for (let i = 0; i < comments.length; i += BATCH_SIZE) {
     batches.push(comments.slice(i, i + BATCH_SIZE))
@@ -253,7 +259,7 @@ async function main() {
       prNumber,
       prTitle: prCtx.title,
       prBody: prCtx.body,
-      prDiff: prCtx.diff,
+      prDiff: "", // diff dropped — comment.fileContext already provides surgical context
       comments: batch,
     })
 
