@@ -481,29 +481,34 @@ function drawOffcutMarker(
   let connector: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null
 
   if (rw < minBox || rh < minBox) {
-    // Strip too thin to host the chip inside. Place it just outside the
-    // long edge: to the right when the strip is taller than it is wide,
-    // below otherwise. Small connector keeps the visual link.
+    // Strip too thin to host the chip inside. Anchor the chip so its
+    // edge TOUCHES the strip's edge — no gap, no detached look. Tiny
+    // visual stem from the strip into the chip keeps the link obvious
+    // even when the chip is mostly amber on amber background.
     if (rh > rw) {
-      cx = ox + region.x * scale + rw + baseRadius + 0.6
+      // Tall narrow strip — chip on the right, edge-touching.
+      cx = ox + region.x * scale + rw + baseRadius
       cy = insideY
       connector = {
         from: { x: ox + region.x * scale + rw, y: cy },
-        to: { x: cx - baseRadius, y: cy },
+        to: { x: cx, y: cy },
       }
     } else {
+      // Short wide strip — chip below, edge-touching.
       cx = insideX
-      cy = oy + region.y * scale + rh + baseRadius + 0.6
+      cy = oy + region.y * scale + rh + baseRadius
       connector = {
         from: { x: cx, y: oy + region.y * scale + rh },
-        to: { x: cx, y: cy - baseRadius },
+        to: { x: cx, y: cy },
       }
     }
   }
 
   if (connector) {
+    // Solid amber stem; thicker than a hairline so it reads as a
+    // deliberate connector, not a stray line.
     doc.setDrawColor(...OFFCUT_STROKE_RGB)
-    doc.setLineWidth(0.2)
+    doc.setLineWidth(0.5)
     doc.line(connector.from.x, connector.from.y, connector.to.x, connector.to.y)
   }
 

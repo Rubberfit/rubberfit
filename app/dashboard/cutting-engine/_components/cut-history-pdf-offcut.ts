@@ -34,14 +34,21 @@ export function classifyOffcutType(region: LayoutRegion): OffcutType | null {
   return null
 }
 
-const TOUCH_EPS = 0.1 // inches — matches `BAND_TOUCH_EPS` over in nesting-offcut-utils
+const TOUCH_EPS = 0.1 // inches
+// Pure edge-touch clustering threshold. Two rectangles that only share
+// a sliver — e.g., a 1" wide vertical strip kissing the corner of a 1"
+// tall bottom strip on the same roll — visually represent two
+// SEPARATE offcuts to the operator, not one zone. Require the shared
+// edge to be at least the strip-reusable width (6") so genuine
+// neighbors merge while sliver-contacts stay distinct.
+const SHARED_EDGE_MIN_IN = 6
 
 /**
- * Two regions are considered part of the same visual offcut zone when
- * they share an edge (or overlap) along either axis. Mirrors the
- * adjacency rule used by `classifyOffcutBands` in
- * `nesting-offcut-utils.ts` so we cluster the same way the engine
- * conceptually grouped them.
+ * Two regions belong to the same visual offcut zone when they
+ * genuinely overlap, OR share an edge of at least `SHARED_EDGE_MIN_IN`
+ * inches. Pure corner / sliver contact is treated as separate zones —
+ * that matches how an operator reads the diagram, even though the
+ * engine's CC analysis lumps them together internally.
  */
 function regionsTouch(a: LayoutRegion, b: LayoutRegion): boolean {
   const ax2 = a.x + a.width
@@ -50,10 +57,18 @@ function regionsTouch(a: LayoutRegion, b: LayoutRegion): boolean {
   const by2 = b.y + b.height
   const xOverlap = Math.min(ax2, bx2) - Math.max(a.x, b.x)
   const yOverlap = Math.min(ay2, by2) - Math.max(a.y, b.y)
-  return (
-    (xOverlap > TOUCH_EPS && yOverlap >= -TOUCH_EPS) ||
-    (yOverlap > TOUCH_EPS && xOverlap >= -TOUCH_EPS)
-  )
+
+  // Genuine 2D overlap — rects intersect on interior, not just at a boundary.
+  if (xOverlap > TOUCH_EPS && yOverlap > TOUCH_EPS) return true
+
+  // Pure horizontal-edge sharing: y-extents touch (yOverlap ≈ 0), and
+  // they overlap on x by at least SHARED_EDGE_MIN_IN.
+  if (Math.abs(yOverlap) <= TOUCH_EPS && xOverlap >= SHARED_EDGE_MIN_IN) return true
+
+  // Pure vertical-edge sharing.
+  if (Math.abs(xOverlap) <= TOUCH_EPS && yOverlap >= SHARED_EDGE_MIN_IN) return true
+
+  return false
 }
 
 /**
