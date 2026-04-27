@@ -157,6 +157,8 @@ function addUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number
   const cols = ["Bucket", ...input.utilization.materials]
   const colW = CONTENT_W / cols.length
 
+  const cellPad = 4
+
   const drawHeader = (headerY: number): number => {
     doc.setFillColor(...BRAND)
     doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
@@ -165,7 +167,9 @@ function addUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number
     doc.setFont("helvetica", "bold")
     for (let i = 0; i < cols.length; i++) {
       const cx = MARGIN + i * colW + colW / 2
-      doc.text(cols[i].toUpperCase(), cx, headerY, { align: "center" })
+      doc.text(clampText(doc, cols[i].toUpperCase(), colW - cellPad), cx, headerY, {
+        align: "center",
+      })
     }
     return headerY + 5
   }
@@ -186,7 +190,9 @@ function addUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number
     }
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
-    doc.text(String(row.label ?? ""), MARGIN + colW / 2, y, { align: "center" })
+    doc.text(clampText(doc, String(row.label ?? ""), colW - cellPad), MARGIN + colW / 2, y, {
+      align: "center",
+    })
     for (let c = 0; c < input.utilization.materials.length; c++) {
       const material = input.utilization.materials[c]
       const cell = row[material]
@@ -343,7 +349,7 @@ export async function downloadOperationsPdf(input: OperationsExportInput): Promi
   const link = document.createElement("a")
   try {
     link.href = url
-    link.download = `Operations_overview_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
+    link.download = `operations-overview_${input.period}_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`
     document.body.appendChild(link)
     link.click()
   } finally {
