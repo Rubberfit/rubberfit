@@ -186,6 +186,14 @@ export function parseEvaluatorResponse(text) {
       headline,
       body,
       location: typeof entry.location === "string" ? entry.location : undefined,
+      // Per-comment opener clause (no @author — the formatter prepends
+      // the mention). When unset, the formatter falls back to a static
+      // line; when set, each ACCEPT reply carries its own framing
+      // tailored to the specific finding.
+      opener:
+        typeof entry.opener === "string" && entry.opener.trim().length > 0
+          ? entry.opener.trim()
+          : undefined,
       // Legacy fields kept around so existing tests / callers don't break;
       // new code should prefer headline + body.
       reason: typeof entry.reason === "string" ? entry.reason : body,

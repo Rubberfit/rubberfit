@@ -126,21 +126,27 @@ export function parseIssueTriageResponse(text) {
     typeof parsed.research === "string" && parsed.research.trim().length > 0
       ? parsed.research.trim()
       : undefined
-  const diagram =
-    typeof parsed.diagram === "string" && parsed.diagram.trim().length > 0
-      ? // Strip an accidental ```mermaid fence the model sometimes wraps
-        // around the code despite the prompt — the formatter adds it.
-        // Also strip any INTERNAL triple-backticks: Mermaid syntax doesn't
-        // use backticks, so any that show up would just terminate the
-        // fenced block we're about to wrap this in and corrupt the
-        // rendered comment.
-        parsed.diagram
+  // Strip an accidental ```mermaid fence the model sometimes wraps
+  // around the code despite the prompt — the formatter adds it.
+  // Also strip any INTERNAL triple-backticks: Mermaid syntax doesn't
+  // use backticks, so any that show up would just terminate the
+  // fenced block we're about to wrap this in and corrupt the
+  // rendered comment.
+  //
+  // After sanitization the diagram can become empty (e.g. the model
+  // returned a payload that was nothing but fence markers). In that
+  // case downgrade to undefined so the formatter skips the section
+  // cleanly and the verdict contract holds.
+  const sanitizedDiagram =
+    typeof parsed.diagram === "string"
+      ? parsed.diagram
           .trim()
           .replace(/^```(?:mermaid)?\s*/i, "")
           .replace(/\s*```$/i, "")
           .replace(/```+/g, "")
           .trim()
-      : undefined
+      : ""
+  const diagram = sanitizedDiagram.length > 0 ? sanitizedDiagram : undefined
 
   return {
     headline,

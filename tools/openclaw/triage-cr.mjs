@@ -166,7 +166,17 @@ function formatVerdictReply(verdict, prAuthor) {
   lines.push(`🦞 [${tag}] ${headline}`.trim())
   lines.push("")
   if (verdict.classification === "ACCEPT" && prAuthor && mention(prAuthor)) {
-    lines.push(`${mention(prAuthor)}— flagging since this read holds up.`)
+    // Prefer a per-comment opener from the model so each ACCEPT reply
+    // gets its own framing instead of the static "this read holds up"
+    // line. Fall back to the static phrase when the model didn't
+    // produce one (older prompts, parse fallback, etc.).
+    const opener = verdict.opener?.trim()
+    const trimmedOpener = opener ? opener.replace(/^[—–-]\s*/, "").replace(/[.!]+$/, "") : ""
+    if (trimmedOpener) {
+      lines.push(`${mention(prAuthor)}— ${trimmedOpener}.`)
+    } else {
+      lines.push(`${mention(prAuthor)}— flagging since this read holds up.`)
+    }
     lines.push("")
   }
   // Body — preserves the model's technical paragraphs verbatim.
