@@ -36,10 +36,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Require-Admin {
-    $current = [Security.Principal.WindowsPrincipal]::new(
-        [Security.Principal.WindowsIdentity]::GetCurrent()
-    )
-    if (-not $current.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $adminRole = [Security.Principal.WindowsBuiltInRole]::Administrator
+    if (-not $principal.IsInRole($adminRole)) {
         throw "This script must be run from an admin PowerShell window."
     }
 }
@@ -85,8 +85,9 @@ function Test-PrivateKey {
     # but warn early if the path is on a removable / encrypted drive
     # the user might forget about later.
     $drive = (Get-Item $Path).PSDrive.Name
-    if ($drive -notin @("C", "D")) {
-        Write-Warning "Private key is on drive $($drive): — confirm LocalSystem can read it."
+    $expected = @("C", "D")
+    if (-not ($expected -contains $drive)) {
+        Write-Warning ("Private key is on drive {0}: — confirm LocalSystem can read it." -f $drive)
     }
 }
 
