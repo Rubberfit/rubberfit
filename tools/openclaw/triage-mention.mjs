@@ -80,12 +80,15 @@ async function reactEyes(call, ownerRepo, commentId) {
 /**
  * Detect whether this number is an issue or a PR. The poller passes
  * `auto` since the issue/comments REST endpoint returns both kinds
- * uniformly — only an explicit `gh pr view` succeeds on PRs.
+ * uniformly. We can't use `gh pr view N --json number` here — that
+ * returns `{number: N}` for an issue too, since `number` is shared
+ * across the issue/PR namespace. Asking for a PR-specific field
+ * (`headRefOid`) makes the call fail cleanly on non-PRs.
  */
 async function resolveSurface(surfaceArg, number) {
   if (surfaceArg === "pr_comment" || surfaceArg === "issue_comment") return surfaceArg
   try {
-    await gh(["pr", "view", String(number), "--json", "number"])
+    await gh(["pr", "view", String(number), "--json", "headRefOid"])
     return "pr_comment"
   } catch {
     return "issue_comment"
