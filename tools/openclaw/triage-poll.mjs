@@ -85,26 +85,49 @@ async function saveState(state) {
  * `{ number, latestFailedRunId | null }` so the poller can decide which
  * ones need triaging this cycle.
  */
+// Track once-per-process so we don't spam the warning every poll cycle.
+let warnedNoChecksScope = false
+
 async function listOpenPrs() {
-  const out = await gh([
-    "pr",
-    "list",
-    "--state",
-    "open",
-    "--json",
-    "number,statusCheckRollup",
-    "--limit",
-    "50",
-  ])
-  const prs = JSON.parse(out)
-  return prs.map((pr) => {
-    const failed = (pr.statusCheckRollup ?? []).find((c) => c.conclusion === "FAILURE")
-    const match = failed?.detailsUrl?.match(/\/runs\/(\d+)/)
-    return {
-      number: pr.number,
-      latestFailedRunId: match ? match[1] : null,
+  try {
+    const out = await gh([
+      "pr",
+      "list",
+      "--state",
+      "open",
+      "--json",
+      "number,statusCheckRollup",
+      "--limit",
+      "50",
+    ])
+    const prs = JSON.parse(out)
+    return prs.map((pr) => {
+      const failed = (pr.statusCheckRollup ?? []).find((c) => c.conclusion === "FAILURE")
+      const match = failed?.detailsUrl?.match(/\/runs\/(\d+)/)
+      return {
+        number: pr.number,
+        latestFailedRunId: match ? match[1] : null,
+      }
+    })
+  } catch (error) {
+    // Fine-grained PATs without Checks:Read can't read statusCheckRollup
+    // and the whole query fails. CR + issue triage don't need CI status
+    // at all, so degrade gracefully: list PR numbers only, skip ci-triage
+    // for this cycle, and log a one-shot warning explaining the scope gap.
+    if (/Resource not accessible/i.test(String(error?.message ?? ""))) {
+      if (!warnedNoChecksScope) {
+        console.warn(
+          "[openclaw-poll] PAT lacks Checks:Read — ci-triage disabled. Upgrade the token to include " +
+            "fine-grained 'Checks: Read' (or classic 'repo') to re-enable CI failure triage."
+        )
+        warnedNoChecksScope = true
+      }
+      const out = await gh(["pr", "list", "--state", "open", "--json", "number", "--limit", "50"])
+      const prs = JSON.parse(out)
+      return prs.map((pr) => ({ number: pr.number, latestFailedRunId: null }))
     }
-  })
+    throw error
+  }
 }
 
 /**
