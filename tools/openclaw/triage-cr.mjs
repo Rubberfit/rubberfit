@@ -245,10 +245,14 @@ async function resolveReviewThread(call, threadId) {
   // on resolveReviewThread even when posting replies works — usually a
   // stale install permission set on the App. Fall back to the developer's
   // gh CLI (which uses GH_TOKEN) since we know that PAT has access.
-  const message = JSON.stringify(res.errors).slice(0, 300)
-  const isForbidden = /FORBIDDEN|Resource not accessible/i.test(message)
+  //
+  // Test the FULL serialized payload for the marker — if FORBIDDEN lands
+  // past 300 chars (e.g. several batched errors), we still want to take
+  // the fallback path. Truncation is for the thrown message only.
+  const fullPayload = JSON.stringify(res.errors)
+  const isForbidden = /FORBIDDEN|Resource not accessible/i.test(fullPayload)
   if (!isForbidden) {
-    throw new Error(`GraphQL errors: ${message}`)
+    throw new Error(`GraphQL errors: ${fullPayload.slice(0, 300)}`)
   }
   await gh([
     "api",
