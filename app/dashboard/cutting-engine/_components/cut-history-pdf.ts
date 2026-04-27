@@ -444,9 +444,16 @@ function drawHatchedRegion(
 
 /**
  * Draw a small numbered chip at the centroid of an offcut region. The
- * chip is a filled amber circle with the row number in white bold text;
- * if the region is too small for even a 3.5mm chip the marker is
- * omitted on the diagram (the row still appears in the summary table).
+ * chip is a filled amber circle with the row number in white bold text.
+ *
+ * Placement logic:
+ *   - If the region fits a full chip in both dimensions: draw inside,
+ *     centered.
+ *   - If the region is too thin in one axis (common for long narrow
+ *     strips like 6"×60"): place the chip just outside the long edge
+ *     so the marker stays visible even when the strip is sub-millimeter
+ *     in PDF mm space. A small connector line links the chip back to
+ *     the region so the operator can tell which strip it labels.
  */
 function drawOffcutMarker(
   doc: jsPDF,
@@ -465,10 +472,40 @@ function drawOffcutMarker(
   // little more slack, so step the radius up at 10+.
   const baseRadius = row.number >= 10 ? 2.4 : 2.0
   const minBox = baseRadius * 2 + 0.5
-  if (rw < minBox || rh < minBox) return
 
-  const cx = ox + region.x * scale + rw / 2
-  const cy = oy + region.y * scale + rh / 2
+  const insideX = ox + region.x * scale + rw / 2
+  const insideY = oy + region.y * scale + rh / 2
+
+  let cx = insideX
+  let cy = insideY
+  let connector: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null
+
+  if (rw < minBox || rh < minBox) {
+    // Strip too thin to host the chip inside. Place it just outside the
+    // long edge: to the right when the strip is taller than it is wide,
+    // below otherwise. Small connector keeps the visual link.
+    if (rh > rw) {
+      cx = ox + region.x * scale + rw + baseRadius + 0.6
+      cy = insideY
+      connector = {
+        from: { x: ox + region.x * scale + rw, y: cy },
+        to: { x: cx - baseRadius, y: cy },
+      }
+    } else {
+      cx = insideX
+      cy = oy + region.y * scale + rh + baseRadius + 0.6
+      connector = {
+        from: { x: cx, y: oy + region.y * scale + rh },
+        to: { x: cx, y: cy - baseRadius },
+      }
+    }
+  }
+
+  if (connector) {
+    doc.setDrawColor(...OFFCUT_STROKE_RGB)
+    doc.setLineWidth(0.2)
+    doc.line(connector.from.x, connector.from.y, connector.to.x, connector.to.y)
+  }
 
   doc.setFillColor(...OFFCUT_STROKE_RGB) // amber-700 fill — pops against amber-100 region
   doc.setDrawColor(...OFFCUT_STROKE_RGB)

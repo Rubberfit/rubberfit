@@ -34,36 +34,113 @@ export function classifyOffcutType(region: LayoutRegion): OffcutType | null {
   return null
 }
 
+const TOUCH_EPS = 0.1 // inches — matches `BAND_TOUCH_EPS` over in nesting-offcut-utils
+
 /**
- * Produce one summary row per individually-reusable offcut across all rolls.
+ * Two regions are considered part of the same visual offcut zone when
+ * they share an edge (or overlap) along either axis. Mirrors the
+ * adjacency rule used by `classifyOffcutBands` in
+ * `nesting-offcut-utils.ts` so we cluster the same way the engine
+ * conceptually grouped them.
+ */
+function regionsTouch(a: LayoutRegion, b: LayoutRegion): boolean {
+  const ax2 = a.x + a.width
+  const ay2 = a.y + a.height
+  const bx2 = b.x + b.width
+  const by2 = b.y + b.height
+  const xOverlap = Math.min(ax2, bx2) - Math.max(a.x, b.x)
+  const yOverlap = Math.min(ay2, by2) - Math.max(a.y, b.y)
+  return (
+    (xOverlap > TOUCH_EPS && yOverlap >= -TOUCH_EPS) ||
+    (yOverlap > TOUCH_EPS && xOverlap >= -TOUCH_EPS)
+  )
+}
+
+/**
+ * BFS the offcut list into connected-component groups. Adjacent
+ * rectangles end up in one group; isolated rectangles become singletons.
+ */
+function groupConnectedComponents(regions: ReadonlyArray<LayoutRegion>): LayoutRegion[][] {
+  const visited = new Array(regions.length).fill(false) as boolean[]
+  const groups: LayoutRegion[][] = []
+  for (let start = 0; start < regions.length; start++) {
+    if (visited[start]) continue
+    const group: LayoutRegion[] = []
+    const queue = [start]
+    visited[start] = true
+    while (queue.length > 0) {
+      const idx = queue.shift() as number
+      group.push(regions[idx])
+      for (let j = 0; j < regions.length; j++) {
+        if (visited[j]) continue
+        if (regionsTouch(regions[idx], regions[j])) {
+          visited[j] = true
+          queue.push(j)
+        }
+      }
+    }
+    groups.push(group)
+  }
+  return groups
+}
+
+/** Pick the largest-area rectangle from a CC group — that's the
+ *  operator-actionable piece + the right anchor for the marker chip. */
+function pickCanonical(group: LayoutRegion[]): LayoutRegion {
+  let best = group[0]
+  let bestArea = best.width * best.height
+  for (let i = 1; i < group.length; i++) {
+    const r = group[i]
+    const a = r.width * r.height
+    if (a > bestArea) {
+      best = r
+      bestArea = a
+    }
+  }
+  return best
+}
+
+/**
+ * Produce one summary row per **reusable offcut zone** (connected
+ * component of adjacent rectangles), per roll.
  *
- * `layout.offcuts` holds every rectangle in any reusable connected component
- * (see `classifyOffcutBands` in `nesting-offcut-utils.ts`), which means
- * sub-reusable rectangles ride along when they're adjacent to a reusable
- * neighbor. Filtering here by individual reusability gives the operator a
- * clean list of pieces they can actually reuse and avoids the historical
- * "stacked labels on adjacent rectangles" overlap that motivated labeling
- * only the largest offcut in the first place.
+ * Why grouping: `layout.offcuts` ships every rectangle in any reusable
+ * connected component (see `classifyOffcutBands`), which means a single
+ * visual offcut zone can be split into 3-4 adjacent sub-rectangles that
+ * each individually meet the reusable threshold. Without grouping we
+ * emit a marker chip per sub-rectangle, which clusters 4 chips inside
+ * one zone and visually looks broken.
  *
- * Numbering is global across rolls so a single marker on the diagram maps
- * to a single row in the table without ambiguity.
+ * Behavior:
+ *   - Cluster adjacent rectangles into zones via BFS.
+ *   - Reject the zone unless the largest rect inside it qualifies as a
+ *     reusable Piece or Strip.
+ *   - One row per zone, numbered per-roll (Roll 1 starts at 1, Roll 2
+ *     starts at 1, etc.) so each diagram has a clean local index.
+ *   - `areaSqFt` sums every rect in the zone — operators see the true
+ *     recoverable material in that zone, not just the canonical rect.
+ *   - `region` is the canonical (largest) rect, used to anchor the
+ *     marker chip on the diagram.
  */
 export function buildOffcutSummary(layouts: ReadonlyArray<LayoutModel>): OffcutSummaryRow[] {
   const rows: OffcutSummaryRow[] = []
-  let counter = 0
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
-    for (const region of layout.offcuts) {
-      const type = classifyOffcutType(region)
+    const groups = groupConnectedComponents(layout.offcuts)
+    let perRollNumber = 0
+    for (const group of groups) {
+      const canonical = pickCanonical(group)
+      const type = classifyOffcutType(canonical)
       if (type == null) continue
-      counter += 1
+      perRollNumber += 1
+      const totalSqIn = group.reduce((sum, r) => sum + r.width * r.height, 0)
       rows.push({
-        number: counter,
+        number: perRollNumber,
         rollIndex: i + 1,
         rollTotal: layouts.length,
-        region,
+        region: canonical,
         type,
-        areaSqFt: (region.width * region.height) / 144,
+        areaSqFt: totalSqIn / 144,
       })
     }
   }

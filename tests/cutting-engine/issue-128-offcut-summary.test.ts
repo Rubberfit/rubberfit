@@ -68,26 +68,45 @@ describe("classifyOffcutType", () => {
 })
 
 describe("buildOffcutSummary", () => {
-  it("emits one row per individually-reusable offcut", () => {
-    // CC-rideralong: a 12×12 piece next to a 5×5 sub-reusable rectangle.
-    // The sub-rect should NOT generate a summary row even though it's in
-    // `layout.offcuts` (the engine ships it because the CC contains a
-    // reusable neighbor).
-    const layout = emptyLayout([region(0, 0, 12, 12), region(12, 0, 5, 5)])
+  it("merges adjacent rectangles into a single zone (one row per CC)", () => {
+    // The big CC-cluster bug: a 24×24 piece touching two 5×5 stragglers
+    // along its right edge. Pre-fix this emitted 1-3 rows per
+    // individually-reusable rect; now it emits exactly 1 row whose
+    // canonical region is the 24×24 and whose area sums all three.
+    const big = region(0, 0, 24, 24)
+    const tinyA = region(24, 0, 5, 5)
+    const tinyB = region(24, 5, 5, 5)
+    const layout = emptyLayout([big, tinyA, tinyB])
     const rows = buildOffcutSummary([layout])
     expect(rows).toHaveLength(1)
-    expect(rows[0].number).toBe(1)
-    expect(rows[0].region.width).toBe(12)
-    expect(rows[0].type).toBe("Piece")
+    expect(rows[0].region).toBe(big) // canonical = largest rect
+    // 24*24 + 5*5 + 5*5 = 626 sqin = 4.347... sqft
+    expect(rows[0].areaSqFt).toBeCloseTo(626 / 144, 5)
   })
 
-  it("numbers globally across multiple rolls", () => {
-    const rollA = emptyLayout([region(0, 0, 12, 12), region(20, 0, 6, 24)])
+  it("rejects a zone when its canonical rect doesn't meet the reusable threshold", () => {
+    // Two adjacent 5×5 rectangles — one CC, but the largest rect is 5×5
+    // which is below the Piece + Strip thresholds. No row.
+    const layout = emptyLayout([region(0, 0, 5, 5), region(5, 0, 5, 5)])
+    expect(buildOffcutSummary([layout])).toEqual([])
+  })
+
+  it("numbers per roll (Roll 1 starts at 1, Roll 2 starts at 1) so each diagram is locally indexed", () => {
+    const rollA = emptyLayout([
+      region(0, 0, 12, 12),
+      region(0, 30, 6, 24), // disjoint from the piece, separate zone
+    ])
     const rollB = emptyLayout([region(5, 5, 24, 6)])
     const rows = buildOffcutSummary([rollA, rollB])
-    expect(rows.map((r) => r.number)).toEqual([1, 2, 3])
+    expect(rows.map((r) => r.number)).toEqual([1, 2, 1])
     expect(rows.map((r) => r.rollIndex)).toEqual([1, 1, 2])
     expect(rows.map((r) => r.rollTotal)).toEqual([2, 2, 2])
+  })
+
+  it("treats disjoint rectangles as separate zones (no false clustering)", () => {
+    // Two reusable pieces with a 50-inch gap between them. Distinct CCs.
+    const layout = emptyLayout([region(0, 0, 12, 12), region(80, 80, 12, 12)])
+    expect(buildOffcutSummary([layout])).toHaveLength(2)
   })
 
   it("computes area in square feet from inch dimensions", () => {
@@ -102,14 +121,16 @@ describe("buildOffcutSummary", () => {
     expect(buildOffcutSummary([layout])).toEqual([])
   })
 
-  it("preserves the original LayoutRegion reference so the PDF can read polygon data", () => {
+  it("preserves the canonical LayoutRegion reference so the PDF can read polygon data", () => {
     const r = region(3, 4, 12, 12)
     const layout = emptyLayout([r])
     const [row] = buildOffcutSummary([layout])
     expect(row.region).toBe(r)
   })
 
-  it("classifies each row using the orientation-aware threshold", () => {
+  it("classifies each zone using the orientation-aware threshold", () => {
+    // Three disjoint zones — clustering shouldn't merge them since they
+    // don't touch.
     const layout = emptyLayout([
       region(0, 0, 24, 6), // strip oriented horizontally
       region(0, 30, 6, 24), // strip oriented vertically
