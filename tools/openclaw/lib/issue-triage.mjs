@@ -130,10 +130,15 @@ export function parseIssueTriageResponse(text) {
     typeof parsed.diagram === "string" && parsed.diagram.trim().length > 0
       ? // Strip an accidental ```mermaid fence the model sometimes wraps
         // around the code despite the prompt — the formatter adds it.
+        // Also strip any INTERNAL triple-backticks: Mermaid syntax doesn't
+        // use backticks, so any that show up would just terminate the
+        // fenced block we're about to wrap this in and corrupt the
+        // rendered comment.
         parsed.diagram
           .trim()
           .replace(/^```(?:mermaid)?\s*/i, "")
           .replace(/\s*```$/i, "")
+          .replace(/```+/g, "")
           .trim()
       : undefined
 

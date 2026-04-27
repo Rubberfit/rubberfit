@@ -116,6 +116,20 @@ describe("parseIssueTriageResponse", () => {
     expect(out?.diagram).toBe("graph LR\n  A-->B")
   })
 
+  it("strips internal triple backticks so the rendered fenced block can't break", () => {
+    const out = parseIssueTriageResponse(
+      JSON.stringify({
+        headline: "h",
+        severity: "P2",
+        estimate: "S",
+        summary: "s",
+        diagram: "graph LR\n  A-->B\n```\nstray fence\n```",
+      })
+    )
+    expect(out?.diagram).not.toContain("```")
+    expect(out?.diagram).toContain("graph LR")
+  })
+
   it("leaves diagram undefined when omitted or empty", () => {
     const out1 = parseIssueTriageResponse(
       JSON.stringify({ headline: "h", severity: "P2", estimate: "S", summary: "s" })
