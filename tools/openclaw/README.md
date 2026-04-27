@@ -24,6 +24,70 @@ self-hosted runner on the Windows GPU box for hands-off automation.
   `OPENCLAW_MODEL=...`). Model role routing rules live in
   `~/Work/CLAUDE.md`; for CI triage GLM-5.1 is the default because it's
   tuned for structured output + multi-step instruction following.
+- _(Optional but recommended)_ A GitHub App so triage comments post
+  under `@openclaw[bot]` instead of your personal account — see
+  [Posting as @openclaw\[bot\]](#posting-as-openclawbot) below.
+
+## Posting as `@openclaw[bot]`
+
+Without App auth, the script falls back to posting comments through the
+`gh` CLI as your personal user. To get the bot identity, create a
+GitHub App owned by the org and wire its credentials into env.
+
+### One-time setup (~10 minutes in the GitHub UI)
+
+1. Go to **<https://github.com/organizations/Arc-and-Anchor/settings/apps/new>**
+   (this URL puts the App under the org — you can also reach it via
+   org Settings → Developer Settings → GitHub Apps → New GitHub App).
+2. Fill the form:
+   - **GitHub App name:** `openclaw` (must be globally unique on
+     GitHub; if taken, try `openclaw-arc-anchor`).
+   - **Homepage URL:** anything (e.g., `https://github.com/Arc-and-Anchor`).
+   - **Webhook → Active:** uncheck for v1 — we don't need event
+     delivery yet, just outbound posts.
+   - **Repository permissions:**
+     - Issues → Read & write
+     - Pull requests → Read & write
+     - Contents → Read-only
+     - Actions → Read-only (for fetching run logs in v1, and
+       `workflow_run` event subscription in v2)
+   - **Where can this GitHub App be installed?** → **Only on this account**
+3. Click **Create GitHub App**.
+4. On the resulting page, click **Generate a private key** — downloads
+   `<app-name>.<date>.private-key.pem`. Save it somewhere outside the
+   repo (e.g., `~/.openclaw/private-key.pem`). Note the **App ID**
+   shown at the top of the page.
+5. In the App's left sidebar, click **Install App** → **Install** on
+   `Arc-and-Anchor` → either "All repositories" (recommended) or just
+   `rema-portal`. After installing, the URL contains the
+   **Installation ID** (e.g., `…/installations/12345678`).
+
+### Wire the credentials into your shell
+
+Add to `~/.zshrc` (or your env manager of choice):
+
+```bash
+export OPENCLAW_APP_ID=123456                                  # from App settings page
+export OPENCLAW_INSTALLATION_ID=12345678                       # from the Install URL
+export OPENCLAW_PRIVATE_KEY_PATH="$HOME/.openclaw/private-key.pem"
+```
+
+Restrict perms on the key:
+
+```bash
+chmod 600 ~/.openclaw/private-key.pem
+```
+
+That's it — next `node tools/openclaw/triage-ci.mjs <pr>` run will
+post as `@openclaw[bot]`. The script logs which identity it used
+("Triage created on PR #146 as bot" vs "as user"). When App auth
+isn't configured it prints a hint pointing back here.
+
+### Alternative: inline private key
+
+For CI / secret-store setups, set `OPENCLAW_PRIVATE_KEY` to the raw
+PEM contents (newlines included) instead of a path. The script
+prefers inline when both are set.
 
 ## Usage
 
@@ -87,15 +151,21 @@ tools/openclaw/
 └── lib/
 ├── build-prompt.mjs # pure prompt assembly (testable, no I/O)
 ├── ollama.mjs # thin Ollama HTTP client + pre-flight check
-└── comments.mjs # idempotent gh comment helpers
+├── github-app.mjs # GitHub App JWT signing + installation token exchange
+└── comments.mjs # idempotent comment posting (App or gh CLI fallback)
 
 ````
 
 ## Tests
 
-`tests/openclaw/build-prompt.test.ts` covers the pure prompt-builder
-helpers — file extraction from log mentions, truncation behavior, and
-confidence parsing. No live Ollama or gh calls in the test suite.
+- `tests/openclaw/build-prompt.test.ts` — pure prompt-builder helpers:
+  file extraction from log mentions, truncation behavior, confidence
+  parsing, full prompt assembly.
+- `tests/openclaw/github-app.test.ts` — App-auth helpers: RS256 JWT
+  signing (verified end-to-end with a freshly-generated keypair),
+  payload claim shape, env-driven `isAppAuthConfigured` detection.
+
+No live Ollama, GitHub, or `gh` CLI calls in the test suite.
 
 ```bash
 npx vitest run tests/openclaw/

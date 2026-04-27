@@ -135,7 +135,14 @@ async function main() {
 
   const footer = `\n\n---\n_🦞 Auto-triage by **OpenClaw** · model \`${MODEL}\` · run \`${runId}\` · confidence \`${confidence}\`_`
   const result = await postOrUpdateTriage(prNumber, response + footer)
-  console.log(`Triage ${result.mode} on PR #${prNumber} (run ${runId}, confidence ${confidence})`)
+  console.log(
+    `Triage ${result.mode} on PR #${prNumber} as ${result.identity} (run ${runId}, confidence ${confidence})`
+  )
+  if (result.identity === "user") {
+    console.log(
+      "Tip: set OPENCLAW_APP_ID + OPENCLAW_PRIVATE_KEY_PATH + OPENCLAW_INSTALLATION_ID to post as @openclaw[bot] instead of your personal account."
+    )
+  }
 }
 
 main().catch((error) => {
