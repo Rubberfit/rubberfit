@@ -82,6 +82,14 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `nesting-svg-detail-helpers.ts` | Helper functions for SVG detail rendering (cut lines, overlays)             |
 | `nesting-svg-mini-roll.ts`      | Draws miniature roll previews for strategy comparison                       |
 
+### PDF Generation
+
+| File                          | Purpose                                                                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cut-history-pdf.ts`          | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. Uploads to Supabase via `uploadCutPdf`. |
+| `cut-history-pdf-offcut.ts`   | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface. |
+| `arc-anchor-logo.ts`          | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                       |
+
 ### State & Hooks
 
 | File                      | Purpose                                                                                 |

@@ -9,6 +9,7 @@ import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
 import { PART_OPTIONS } from "./preset-template-data"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
+import { buildOffcutSummary, type OffcutSummaryRow } from "./cut-history-pdf-offcut"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -320,7 +321,8 @@ function renderLayoutToDoc(
   boxX: number,
   boxY: number,
   boxW: number,
-  boxH: number
+  boxH: number,
+  offcutRows: ReadonlyArray<OffcutSummaryRow>
 ): void {
   const sheetW = layout.sheetWidth
   const sheetL = layout.sheetLength
@@ -393,11 +395,15 @@ function renderLayoutToDoc(
   doc.setLineWidth(Math.min(0.25, Math.max(0.08, drawH * 0.04)))
   doc.rect(ox, oy, drawW, drawH, "S")
 
-  // Offcut callout — label only the largest offcut region. The data often
-  // splits one visual offcut zone into several adjacent rectangles; labeling
-  // each produced a stack of overlapping "Reusable offcut" texts.
-  const largestOffcut = pickLargestRegion(layout.offcuts)
-  if (largestOffcut) drawOffcutCallout(doc, largestOffcut, ox, oy, scale)
+  // Offcut markers — one numbered chip per individually-reusable offcut.
+  // The number ties each marker on the diagram to a row in the summary
+  // table emitted by `addOffcutSummary`. Single-digit chips fit inside
+  // small regions where the previous "Reusable offcut\nW × L" callout
+  // would have stacked or overflowed; oversized rows are filtered to
+  // operator-actionable pieces upstream by `buildOffcutSummary`.
+  for (const row of offcutRows) {
+    drawOffcutMarker(doc, row, ox, oy, scale)
+  }
 
   // Dimension annotations on the right (width) + bottom (length) edges.
   drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL)
@@ -436,17 +442,43 @@ function drawHatchedRegion(
   drawHatchedRect(doc, rx, ry, rw, rh, style)
 }
 
-function pickLargestRegion(regions: LayoutRegion[]): LayoutRegion | null {
-  let best: LayoutRegion | null = null
-  let bestArea = 0
-  for (const r of regions) {
-    const area = r.width * r.height
-    if (area > bestArea) {
-      bestArea = area
-      best = r
-    }
-  }
-  return best
+/**
+ * Draw a small numbered chip at the centroid of an offcut region. The
+ * chip is a filled amber circle with the row number in white bold text;
+ * if the region is too small for even a 3.5mm chip the marker is
+ * omitted on the diagram (the row still appears in the summary table).
+ */
+function drawOffcutMarker(
+  doc: jsPDF,
+  row: OffcutSummaryRow,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
+  const region = row.region
+  const rw = region.width * scale
+  const rh = region.height * scale
+  if (rw <= 0 || rh <= 0) return
+
+  // 3.5mm chip is roughly the smallest size where a single-digit number
+  // stays readable at the canonical 8pt font. Two-digit numbers need a
+  // little more slack, so step the radius up at 10+.
+  const baseRadius = row.number >= 10 ? 2.4 : 2.0
+  const minBox = baseRadius * 2 + 0.5
+  if (rw < minBox || rh < minBox) return
+
+  const cx = ox + region.x * scale + rw / 2
+  const cy = oy + region.y * scale + rh / 2
+
+  doc.setFillColor(...OFFCUT_STROKE_RGB) // amber-700 fill — pops against amber-100 region
+  doc.setDrawColor(...OFFCUT_STROKE_RGB)
+  doc.setLineWidth(0.2)
+  doc.ellipse(cx, cy, baseRadius, baseRadius, "FD")
+
+  doc.setFontSize(row.number >= 10 ? 7 : 8)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(...WHITE)
+  doc.text(String(row.number), cx, cy + 0.9, { align: "center" })
 }
 
 function drawHatchedRect(
@@ -646,36 +678,6 @@ function getFittingLabelFontPt(
   return fontPt >= MIN_LABEL_FONT_PT ? fontPt : null
 }
 
-/**
- * Render a "Reusable offcut\n W" × L"" callout inside an offcut region —
- * but only when the region is large enough for the text to fit comfortably.
- */
-function drawOffcutCallout(
-  doc: jsPDF,
-  region: LayoutRegion,
-  ox: number,
-  oy: number,
-  scale: number
-): void {
-  const rw = region.width * scale
-  const rh = region.height * scale
-  // Need at least ~22mm × 5mm of room for "Reusable offcut" + a sub-line.
-  if (rw < 22 || rh < 5) return
-  const rx = ox + region.x * scale
-  const ry = oy + region.y * scale
-  const cx = rx + rw / 2
-  const cy = ry + rh / 2
-  const widthIn = formatInch(region.width)
-  const lengthIn = formatInch(region.height)
-  doc.setFontSize(6.5)
-  doc.setFont("helvetica", "bold")
-  doc.setTextColor(...LABEL_TEXT_RGB)
-  doc.text("Reusable offcut", cx, cy - 0.3, { align: "center" })
-  doc.setFontSize(5.5)
-  doc.setFont("helvetica", "normal")
-  doc.text(`${widthIn} × ${lengthIn}`, cx, cy + 2.4, { align: "center" })
-}
-
 function formatInch(value: number): string {
   // Round to the nearest 1/16" then drop trailing zeros: 12.0 → "12"",
   // 7.5 → "7.5"", 12.0625 → "12.0625"".
@@ -781,7 +783,12 @@ function drawPolygon(
   doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], style, true)
 }
 
-async function addLayoutDiagrams(doc: jsPDF, layouts: LayoutModel[], y: number): Promise<number> {
+async function addLayoutDiagrams(
+  doc: jsPDF,
+  layouts: LayoutModel[],
+  offcutSummary: ReadonlyArray<OffcutSummaryRow>,
+  y: number
+): Promise<number> {
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
     if (layout.sheetWidth <= 0 || layout.sheetLength <= 0) continue
@@ -803,7 +810,8 @@ async function addLayoutDiagrams(doc: jsPDF, layouts: LayoutModel[], y: number):
       rollTotal: layouts.length,
       panelHeightMm: boxH,
     })
-    renderLayoutToDoc(doc, layout, MARGIN, y, boxW, boxH)
+    const rollOffcuts = offcutSummary.filter((row) => row.rollIndex === i + 1)
+    renderLayoutToDoc(doc, layout, MARGIN, y, boxW, boxH, rollOffcuts)
     y += boxH + 8
   }
   return y
@@ -854,6 +862,109 @@ async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number):
     doc.addImage(imgData, "PNG", MARGIN, y, imgW, imgH)
     y += imgH + 6
   }
+  return y
+}
+
+/**
+ * Render a Reusable Offcut Summary section listing every individually
+ * reusable offcut across all rolls. Each row's number ties back to a
+ * numbered chip drawn on the diagram by `drawOffcutMarker`. Operators
+ * use this to plan strip recovery without having to read dimensions
+ * off the rendered layout.
+ */
+function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: number): number {
+  if (rows.length === 0) return y
+  const showRoll = rows.some((r) => r.rollTotal > 1)
+
+  y = checkNewPage(doc, y, 24)
+
+  doc.setFontSize(11)
+  doc.setTextColor(...GRAY_900)
+  doc.setFont("helvetica", "bold")
+  doc.text("Reusable Offcuts", MARGIN, y)
+  y += 6
+
+  // Column allocation: # / Roll / Location / Size / Area / Type. The
+  // Roll column collapses out for single-roll exports so dimensions get
+  // more room. Numeric column proportions chosen to keep all values
+  // single-line at the standard 9pt body font.
+  const cols = showRoll
+    ? [
+        { label: "#", width: 0.06 },
+        { label: "ROLL", width: 0.1 },
+        { label: "LOCATION", width: 0.24 },
+        { label: "SIZE", width: 0.24 },
+        { label: "AREA", width: 0.16 },
+        { label: "TYPE", width: 0.2 },
+      ]
+    : [
+        { label: "#", width: 0.07 },
+        { label: "LOCATION", width: 0.27 },
+        { label: "SIZE", width: 0.27 },
+        { label: "AREA", width: 0.18 },
+        { label: "TYPE", width: 0.21 },
+      ]
+  const widths = cols.map((c) => c.width * CONTENT_W)
+
+  const drawHeader = (headerY: number): number => {
+    doc.setFillColor(...BRAND)
+    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
+    doc.setFontSize(8)
+    doc.setTextColor(...WHITE)
+    doc.setFont("helvetica", "bold")
+    let cx = MARGIN + 3
+    for (let i = 0; i < cols.length; i++) {
+      doc.text(cols[i].label, cx, headerY)
+      cx += widths[i]
+    }
+    return headerY + 5
+  }
+
+  y = drawHeader(y)
+
+  for (let i = 0; i < rows.length; i++) {
+    const beforePageCheck = y
+    y = checkNewPage(doc, y, 6)
+    if (y !== beforePageCheck) y = drawHeader(y)
+    // Body font size is re-applied per row so the page-break re-draw
+    // of the header (size 8) doesn't leak into the next body row.
+    doc.setFontSize(9)
+
+    const row = rows[i]
+    if (i % 2 === 0) {
+      doc.setFillColor(...GRAY_50)
+      doc.rect(MARGIN, y - 3.5, CONTENT_W, 5.5, "F")
+    }
+    let x = MARGIN + 3
+    doc.setTextColor(...GRAY_900)
+    doc.setFont("helvetica", "bold")
+    doc.text(String(row.number), x, y)
+    x += widths[0]
+    if (showRoll) {
+      doc.setTextColor(...GRAY_700)
+      doc.setFont("helvetica", "normal")
+      doc.text(`${row.rollIndex} / ${row.rollTotal}`, x, y)
+      x += widths[1]
+    }
+    doc.setTextColor(...GRAY_700)
+    doc.setFont("helvetica", "normal")
+    doc.text(`${formatInch(row.region.x)}, ${formatInch(row.region.y)}`, x, y)
+    x += widths[showRoll ? 2 : 1]
+    doc.setTextColor(...GRAY_900)
+    doc.setFont("helvetica", "bold")
+    doc.text(`${formatInch(row.region.width)} × ${formatInch(row.region.height)}`, x, y)
+    x += widths[showRoll ? 3 : 2]
+    doc.setTextColor(...GRAY_900)
+    doc.setFont("helvetica", "normal")
+    doc.text(`${row.areaSqFt.toFixed(2)} sqft`, x, y)
+    x += widths[showRoll ? 4 : 3]
+    doc.setTextColor(...GRAY_700)
+    doc.setFont("helvetica", "normal")
+    doc.text(row.type, x, y)
+    y += 5.5
+  }
+
+  y += 4
   return y
 }
 
@@ -1049,15 +1160,20 @@ export async function generateCutPdf(args: {
   })
 
   const logo = getLogo()
+  // Compute the offcut summary once up front so the diagram pass and
+  // the table section share the same numbering and filtering.
+  const offcutSummary = layouts.length > 0 ? buildOffcutSummary(layouts) : []
+
   let y = addHeader(doc, data, logo)
   y = addSummaryCards(doc, data, y)
   y = addCutLegend(doc, data.tagMap, y)
   // Vector path when layouts are provided, raster fallback otherwise.
   if (layouts.length > 0) {
-    y = await addLayoutDiagrams(doc, layouts, y)
+    y = await addLayoutDiagrams(doc, layouts, offcutSummary, y)
   } else {
     y = await addDiagrams(doc, svgElements, y)
   }
+  y = addOffcutSummary(doc, offcutSummary, y)
   y = addMetrics(doc, data, y)
   addAdhesives(doc, data, y)
   addFooter(doc)
