@@ -105,10 +105,14 @@ export function parseOverviewResponse(text) {
     ? parsed.bullets.filter((b) => typeof b === "string" && b.trim()).map((b) => b.trim())
     : []
 
+  const confidenceReason =
+    typeof parsed.confidenceReason === "string" ? parsed.confidenceReason.trim() : ""
+
   return {
     summary,
     files,
     confidence: Math.round(confidence),
+    confidenceReason,
     bullets,
   }
 }
@@ -140,6 +144,10 @@ export function formatOverviewComment({ verdict, marker, isFirstRun }) {
 
   lines.push("")
   lines.push(`### Confidence: ${verdict.confidence}/5`)
+  if (verdict.confidenceReason) {
+    lines.push("")
+    lines.push(verdict.confidenceReason)
+  }
 
   if (verdict.bullets.length > 0) {
     lines.push("")
