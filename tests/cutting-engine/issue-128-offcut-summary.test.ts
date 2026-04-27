@@ -48,21 +48,21 @@ describe("classifyOffcutType", () => {
     expect(classifyOffcutType(region(0, 0, 12, 11.5))).toBe("Piece")
   })
 
-  it("classifies regions just below the piece threshold as Strip when long", () => {
-    // 6 × 24 strip threshold should catch tall narrow regions.
+  it("classifies long narrow regions as Strip", () => {
     expect(classifyOffcutType(region(0, 0, 6, 24))).toBe("Strip")
     expect(classifyOffcutType(region(0, 0, 24, 6))).toBe("Strip")
   })
 
-  it("returns null for regions below both thresholds (true scrap)", () => {
-    expect(classifyOffcutType(region(0, 0, 5, 5))).toBeNull()
-    expect(classifyOffcutType(region(0, 0, 5, 23.9))).toBeNull()
-    expect(classifyOffcutType(region(0, 0, 11.4, 11.9))).toBeNull()
+  it("falls back to Strip for sub-Piece regions — never null", () => {
+    // The upstream engine already filters scrap out of `layout.offcuts`,
+    // so we don't try to second-guess it here. Anything that doesn't
+    // meet Piece dimensions just gets the Strip label.
+    expect(classifyOffcutType(region(0, 0, 5, 5))).toBe("Strip")
+    expect(classifyOffcutType(region(0, 0, 5, 23.9))).toBe("Strip")
+    expect(classifyOffcutType(region(0, 0, 11.4, 11.9))).toBe("Strip")
   })
 
-  it("prefers Piece over Strip when both thresholds are met", () => {
-    // A 24 × 24 region qualifies under both — should report as the more
-    // useful classification (Piece, the squarer/larger threshold).
+  it("prefers Piece over Strip when the Piece threshold is met", () => {
     expect(classifyOffcutType(region(0, 0, 24, 24))).toBe("Piece")
   })
 })
@@ -87,16 +87,14 @@ describe("buildOffcutSummary", () => {
     // Real-world pattern: a vertical left strip and a horizontal bottom
     // strip on the same roll meeting at the corner. Pre-fix these
     // clustered into one zone (with a single marker) because they
-    // shared a 1" edge. Operator sees two distinct offcuts — keep them
-    // as separate zones now.
+    // shared a 1" edge. Operator sees two distinct offcuts — each
+    // gets its own marker now.
     const leftStrip = region(0, 0, 1, 35) // 1" wide x 35" tall
     const bottomStrip = region(0, 35, 78, 1) // 78" wide x 1" tall
     const layout = emptyLayout([leftStrip, bottomStrip])
     const rows = buildOffcutSummary([layout])
-    // Neither strip individually qualifies (1" too thin for both
-    // Piece + Strip thresholds), so 0 rows — but the important part
-    // is the test pins they aren't clustered.
-    expect(rows).toEqual([])
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.region)).toEqual([leftStrip, bottomStrip])
   })
 
   it('keeps two reusable strips separate when they only share a 1" sliver', () => {
@@ -112,21 +110,25 @@ describe("buildOffcutSummary", () => {
     expect(rows.length).toBeGreaterThanOrEqual(1)
   })
 
-  it("rejects a zone when its canonical rect doesn't meet the reusable threshold", () => {
-    // Two adjacent 5×5 rectangles — one CC, but the largest rect is 5×5
-    // which is below the Piece + Strip thresholds. No row.
+  it("emits rows even for sub-Piece zones — labels them Strip", () => {
+    // Upstream `classifyOffcutBands` already filtered scrap; if a 5×5
+    // rect made it to `layout.offcuts` we trust it and mark it. The
+    // two 5×5s share a 5" edge — under the 6" clustering threshold —
+    // so they stay separate.
     const layout = emptyLayout([region(0, 0, 5, 5), region(5, 0, 5, 5)])
-    expect(buildOffcutSummary([layout])).toEqual([])
+    const rows = buildOffcutSummary([layout])
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.type)).toEqual(["Strip", "Strip"])
   })
 
-  it("numbers per roll (Roll 1 starts at 1, Roll 2 starts at 1) so each diagram is locally indexed", () => {
+  it("numbers continuously across rolls (Roll 1 → 1, Roll 2 keeps counting)", () => {
     const rollA = emptyLayout([
       region(0, 0, 12, 12),
       region(0, 30, 6, 24), // disjoint from the piece, separate zone
     ])
     const rollB = emptyLayout([region(5, 5, 24, 6)])
     const rows = buildOffcutSummary([rollA, rollB])
-    expect(rows.map((r) => r.number)).toEqual([1, 2, 1])
+    expect(rows.map((r) => r.number)).toEqual([1, 2, 3])
     expect(rows.map((r) => r.rollIndex)).toEqual([1, 1, 2])
     expect(rows.map((r) => r.rollTotal)).toEqual([2, 2, 2])
   })
@@ -144,9 +146,8 @@ describe("buildOffcutSummary", () => {
     expect(row.areaSqFt).toBeCloseTo(2.0, 5)
   })
 
-  it("returns an empty list when no offcuts qualify", () => {
-    const layout = emptyLayout([region(0, 0, 5, 5), region(10, 10, 4, 4)])
-    expect(buildOffcutSummary([layout])).toEqual([])
+  it("returns an empty list only when the layout has no offcuts at all", () => {
+    expect(buildOffcutSummary([emptyLayout([])])).toEqual([])
   })
 
   it("preserves the canonical LayoutRegion reference so the PDF can read polygon data", () => {

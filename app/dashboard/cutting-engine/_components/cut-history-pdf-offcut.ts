@@ -9,9 +9,9 @@ import type { LayoutModel, LayoutRegion } from "./layout-model"
 export type OffcutType = "Piece" | "Strip"
 
 export interface OffcutSummaryRow {
-  /** 1-based row number, also drawn as a marker inside the offcut on the diagram. */
+  /** 1-based row number, globally continuous across rolls; also drawn as a marker on the diagram. */
   number: number
-  /** 1-based roll index. */
+  /** 1-based roll index — drives the Roll column in the summary table. */
   rollIndex: number
   /** Total roll count — used to decide whether to include the Roll column. */
   rollTotal: number
@@ -21,17 +21,17 @@ export interface OffcutSummaryRow {
 }
 
 /**
- * Classify a region as a reusable Piece (≥ 11.5" × 12") or Strip
- * (≥ 6" × 24"), checking both orientations. Returns `null` for regions
- * that don't meet either threshold — those are operator-irrelevant scrap
- * even if they're connected to a reusable zone in the engine's CC graph.
+ * Label a reusable region as a Piece (≥ 11.5" × 12") or fall back to Strip
+ * for everything else. We don't filter — every rectangle the engine ships
+ * in `layout.offcuts` is already pre-classified as reusable upstream by
+ * `classifyOffcutBands`, so a thin band that doesn't meet Piece dimensions
+ * still gets marked, just under the Strip label.
  */
-export function classifyOffcutType(region: LayoutRegion): OffcutType | null {
+export function classifyOffcutType(region: LayoutRegion): OffcutType {
   const fits = (w: number, h: number) =>
     (region.width >= w && region.height >= h) || (region.width >= h && region.height >= w)
   if (fits(MIN_REUSABLE_OFFCUT_WIDTH, MIN_REUSABLE_OFFCUT_HEIGHT)) return "Piece"
-  if (fits(MIN_REUSABLE_STRIP_WIDTH, MIN_REUSABLE_STRIP_LENGTH)) return "Strip"
-  return null
+  return "Strip"
 }
 
 const TOUCH_EPS = 0.1 // inches
@@ -117,21 +117,24 @@ function pickCanonical(group: LayoutRegion[]): LayoutRegion {
 
 /**
  * Produce one summary row per **reusable offcut zone** (connected
- * component of adjacent rectangles), per roll.
+ * component of adjacent rectangles), across all rolls.
  *
  * Why grouping: `layout.offcuts` ships every rectangle in any reusable
  * connected component (see `classifyOffcutBands`), which means a single
  * visual offcut zone can be split into 3-4 adjacent sub-rectangles that
- * each individually meet the reusable threshold. Without grouping we
- * emit a marker chip per sub-rectangle, which clusters 4 chips inside
- * one zone and visually looks broken.
+ * each individually qualify as reusable. Without grouping we emit a
+ * marker chip per sub-rectangle, which clusters 4 chips inside one zone
+ * and visually looks broken.
  *
- * Behavior:
- *   - Cluster adjacent rectangles into zones via BFS.
- *   - Reject the zone unless the largest rect inside it qualifies as a
- *     reusable Piece or Strip.
- *   - One row per zone, numbered per-roll (Roll 1 starts at 1, Roll 2
- *     starts at 1, etc.) so each diagram has a clean local index.
+ * Why no threshold filter: the upstream engine already filters scrap
+ * out of `layout.offcuts` — anything that lands here is a zone the
+ * operator should see. The previous threshold pass was rejecting visible
+ * amber zones in the PDF, so the operator saw an offcut with no marker.
+ *
+ * Numbering is **globally continuous** across rolls (Roll 1 → 1,
+ * Roll 2 keeps counting from where Roll 1 ended). The summary table
+ * then matches the diagram chips one-for-one without ambiguity.
+ *
  *   - `areaSqFt` sums every rect in the zone — operators see the true
  *     recoverable material in that zone, not just the canonical rect.
  *   - `region` is the canonical (largest) rect, used to anchor the
@@ -139,22 +142,20 @@ function pickCanonical(group: LayoutRegion[]): LayoutRegion {
  */
 export function buildOffcutSummary(layouts: ReadonlyArray<LayoutModel>): OffcutSummaryRow[] {
   const rows: OffcutSummaryRow[] = []
+  let runningNumber = 0
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
     const groups = groupConnectedComponents(layout.offcuts)
-    let perRollNumber = 0
     for (const group of groups) {
       const canonical = pickCanonical(group)
-      const type = classifyOffcutType(canonical)
-      if (type == null) continue
-      perRollNumber += 1
+      runningNumber += 1
       const totalSqIn = group.reduce((sum, r) => sum + r.width * r.height, 0)
       rows.push({
-        number: perRollNumber,
+        number: runningNumber,
         rollIndex: i + 1,
         rollTotal: layouts.length,
         region: canonical,
-        type,
+        type: classifyOffcutType(canonical),
         areaSqFt: totalSqIn / 144,
       })
     }

@@ -467,60 +467,28 @@ function drawOffcutMarker(
   const rh = region.height * scale
   if (rw <= 0 || rh <= 0) return
 
-  // 3.5mm chip is roughly the smallest size where a single-digit number
-  // stays readable at the canonical 8pt font. Two-digit numbers need a
-  // little more slack, so step the radius up at 10+.
-  const baseRadius = row.number >= 10 ? 2.4 : 2.0
-  const minBox = baseRadius * 2 + 0.5
+  // Compact chip: 1.4mm single digit, 1.7mm two-digit. The PDF is
+  // vector — operators zoom to read fine markers — so we trade
+  // physical legibility at print scale for visual lightness on the
+  // diagram. The chip always sits ON the offcut zone (centered on the
+  // canonical rect), even when it overflows the zone's bounds. No
+  // stems, no anchors outside the zone.
+  const radius = row.number >= 10 ? 1.7 : 1.4
 
-  const insideX = ox + region.x * scale + rw / 2
-  const insideY = oy + region.y * scale + rh / 2
-
-  let cx = insideX
-  let cy = insideY
-  let connector: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null
-
-  if (rw < minBox || rh < minBox) {
-    // Strip too thin to host the chip inside. Anchor the chip so its
-    // edge TOUCHES the strip's edge — no gap, no detached look. Tiny
-    // visual stem from the strip into the chip keeps the link obvious
-    // even when the chip is mostly amber on amber background.
-    if (rh > rw) {
-      // Tall narrow strip — chip on the right, edge-touching.
-      cx = ox + region.x * scale + rw + baseRadius
-      cy = insideY
-      connector = {
-        from: { x: ox + region.x * scale + rw, y: cy },
-        to: { x: cx, y: cy },
-      }
-    } else {
-      // Short wide strip — chip below, edge-touching.
-      cx = insideX
-      cy = oy + region.y * scale + rh + baseRadius
-      connector = {
-        from: { x: cx, y: oy + region.y * scale + rh },
-        to: { x: cx, y: cy },
-      }
-    }
-  }
-
-  if (connector) {
-    // Solid amber stem; thicker than a hairline so it reads as a
-    // deliberate connector, not a stray line.
-    doc.setDrawColor(...OFFCUT_STROKE_RGB)
-    doc.setLineWidth(0.5)
-    doc.line(connector.from.x, connector.from.y, connector.to.x, connector.to.y)
-  }
+  const cx = ox + region.x * scale + rw / 2
+  const cy = oy + region.y * scale + rh / 2
 
   doc.setFillColor(...OFFCUT_STROKE_RGB) // amber-700 fill — pops against amber-100 region
   doc.setDrawColor(...OFFCUT_STROKE_RGB)
-  doc.setLineWidth(0.2)
-  doc.ellipse(cx, cy, baseRadius, baseRadius, "FD")
+  doc.setLineWidth(0.15)
+  doc.ellipse(cx, cy, radius, radius, "FD")
 
-  doc.setFontSize(row.number >= 10 ? 7 : 8)
+  // Font scales with the chip. 5pt is the floor that still resolves
+  // crisply at 200% zoom; the chip is small enough to need it.
+  doc.setFontSize(row.number >= 10 ? 4.5 : 5)
   doc.setFont("helvetica", "bold")
   doc.setTextColor(...WHITE)
-  doc.text(String(row.number), cx, cy + 0.9, { align: "center" })
+  doc.text(String(row.number), cx, cy + (row.number >= 10 ? 0.55 : 0.6), { align: "center" })
 }
 
 function drawHatchedRect(
