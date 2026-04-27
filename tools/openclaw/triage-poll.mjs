@@ -95,6 +95,10 @@ async function loadState() {
       handledIssues: parsed.handledIssues ?? {},
       handledOverviewShas: parsed.handledOverviewShas ?? {},
       handledMentions: pruneHandledMentions(parsed.handledMentions),
+      // Cursor for the mention scan — ISO timestamp of the most recent
+      // comment we've already considered. Initial scan starts 24h back
+      // so the daemon doesn't replay months of history on first run.
+      lastMentionScanAt: typeof parsed.lastMentionScanAt === "string" ? parsed.lastMentionScanAt : null,
     }
   } catch {
     return {
@@ -103,6 +107,7 @@ async function loadState() {
       handledIssues: {},
       handledOverviewShas: {},
       handledMentions: {},
+      lastMentionScanAt: null,
     }
   }
 }
@@ -382,70 +387,77 @@ function isKnownBotLogin(login) {
 }
 
 /**
- * Use GitHub Search API to find issues/PRs that have a recent comment
- * mentioning the bot. Returns `[{ number, isPullRequest }]`. One call
- * per tick total — much cheaper than walking every comment.
+ * Scan all repo issue + PR top-level comments updated since the
+ * given cursor for unhandled @-mentions of the bot. One paginated
+ * REST call per tick — works for App-installed bots (whereas
+ * Search API's `mentions:` operator does not).
+ *
+ * Returns `[{ commentId, askerLogin, surface, number, updatedAt }]`
+ * plus the latest `updated_at` we observed (caller advances the
+ * cursor).
  */
-async function searchOpenItemsWithMention() {
-  const handle = getMentionSearchHandle()
+async function scanRecentMentions(state, mentionDetector) {
+  // Default to 24h back on first run so we don't replay history.
+  const since =
+    state.lastMentionScanAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  let raw
   try {
-    const out = await gh([
-      "search",
-      "issues",
-      "--state",
-      "open",
-      `--match=comments`,
-      `mentions:${handle}`,
-      "--json",
-      "number,isPullRequest",
-      "--limit",
-      "30",
-    ])
-    const arr = JSON.parse(out)
-    return Array.isArray(arr) ? arr : []
-  } catch (error) {
-    if (/Resource not accessible/i.test(String(error?.message ?? ""))) {
-      // PAT lacks the search scope; mentions can't be discovered. Log
-      // once and degrade.
-      console.warn(`[openclaw-poll] mention search failed (PAT scope?): ${error.message}`)
-      return []
-    }
-    console.warn(`[openclaw-poll] mention search error: ${error.message}`)
-    return []
-  }
-}
-
-/**
- * For an issue/PR that the search hit, fetch its comments and pick
- * unhandled bot mentions. Returns `[{ commentId, askerLogin, surface }]`.
- */
-async function findUnhandledMentionsOnItem(item, state, mentionDetector) {
-  const surface = item.isPullRequest ? "pr_comment" : "issue_comment"
-  let comments
-  try {
-    const out = await gh([
+    raw = await gh([
       "api",
-      `repos/{owner}/{repo}/issues/${item.number}/comments`,
+      `repos/{owner}/{repo}/issues/comments?since=${encodeURIComponent(since)}&per_page=100&sort=updated&direction=asc`,
       "--paginate",
       "--jq",
-      "[.[] | {id, login: .user.login, body, created_at}]",
+      "[.[] | {id, login: .user.login, body, updated_at, issue_url}]",
     ])
-    comments = JSON.parse(out)
   } catch (error) {
-    console.warn(
-      `[openclaw-poll] couldn't fetch comments on #${item.number} for mention scan: ${error.message}`
-    )
-    return []
+    console.warn(`[openclaw-poll] mention scan failed: ${error.message}`)
+    return { matches: [], cursor: since }
+  }
+  let comments
+  try {
+    comments = JSON.parse(raw)
+  } catch (error) {
+    console.warn(`[openclaw-poll] mention scan parse failed: ${error.message}`)
+    return { matches: [], cursor: since }
+  }
+  if (!Array.isArray(comments) || comments.length === 0) {
+    return { matches: [], cursor: since }
   }
   const triggers = (process.env.OPENCLAW_MENTION_TRIGGERS?.split(",").map((s) => s.trim()) ?? []).filter(
     Boolean
   )
   const triggerList = triggers.length > 0 ? triggers : ["openclaw-devops", "openclaw[bot]"]
-  return comments
+  const matches = comments
     .filter((c) => !isKnownBotLogin(c.login))
     .filter((c) => mentionDetector(c.body, triggerList))
     .filter((c) => !state.handledMentions?.[String(c.id)])
-    .map((c) => ({ commentId: c.id, askerLogin: c.login, surface, number: item.number }))
+    .map((c) => {
+      // issue_url ends in /issues/N or /pulls/N — we'll resolve the
+      // surface in the script via a separate lookup since the issue
+      // comments endpoint returns issue_url uniformly. For now treat
+      // all as issue_comment; the script reads the actual type when it
+      // fetches the source comment.
+      const m = String(c.issue_url ?? "").match(/\/(issues|pulls)\/(\d+)/)
+      const number = m ? Number(m[2]) : null
+      return number == null
+        ? null
+        : {
+            commentId: c.id,
+            askerLogin: c.login,
+            surface: "issue_comment", // top-level on issue OR PR; both use this REST shape
+            number,
+            updatedAt: c.updated_at,
+          }
+    })
+    .filter(Boolean)
+  // Advance cursor to the newest comment we observed (ISO timestamps
+  // sort lexicographically). +1ms guards against re-pulling the same
+  // boundary comment next tick.
+  const newest = comments.reduce(
+    (acc, c) => (typeof c.updated_at === "string" && c.updated_at > acc ? c.updated_at : acc),
+    since
+  )
+  return { matches, cursor: newest }
 }
 
 async function tick() {
@@ -533,30 +545,35 @@ async function tick() {
     await saveState(state)
   }
 
-  // 4) @-mention reply (v7) — Search API finds issues/PRs with a
-  // recent comment mentioning the bot, then we scan each item's
-  // comments for unhandled, non-bot, real (not quoted) mentions and
-  // spawn one mention reply per match.
-  const mentionItems = await searchOpenItemsWithMention()
-  for (const item of mentionItems) {
-    const matches = await findUnhandledMentionsOnItem(item, state, bodyMentionsBot)
-    for (const m of matches) {
-      console.log(
-        `[openclaw-poll] @-mention on ${m.surface} #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
+  // 4) @-mention reply (v7) — single REST call returns all repo
+  // issue/PR top-level comments updated since the cursor; we scan
+  // those for unhandled, non-bot, real (not quoted) mentions and
+  // spawn one mention reply per match. The script auto-detects
+  // issue vs PR surface so we don't need to disambiguate here.
+  const { matches, cursor } = await scanRecentMentions(state, bodyMentionsBot)
+  for (const m of matches) {
+    console.log(
+      `[openclaw-poll] @-mention on #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
+    )
+    const result = await runTriage(m.number, "mention", [m.commentId, "auto"])
+    if (result.error) {
+      console.warn(
+        `[openclaw-poll] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
       )
-      const result = await runTriage(m.number, "mention", [m.commentId, m.surface])
-      if (result.error) {
-        console.warn(
-          `[openclaw-poll] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
-        )
-        continue
-      }
-      state.handledMentions[String(m.commentId)] = {
-        handledAt: new Date().toISOString(),
-        surface: m.surface,
-      }
-      await saveState(state)
+      continue
     }
+    state.handledMentions[String(m.commentId)] = {
+      handledAt: new Date().toISOString(),
+      surface: m.surface,
+    }
+    await saveState(state)
+  }
+  // Advance cursor regardless of per-item outcomes — failures stay
+  // unhandled in handledMentions, so they retry; reprocessing the
+  // same comment would just hit idempotency and noop anyway.
+  if (cursor && cursor !== state.lastMentionScanAt) {
+    state.lastMentionScanAt = cursor
+    await saveState(state)
   }
 }
 

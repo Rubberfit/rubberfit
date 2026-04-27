@@ -77,6 +77,21 @@ async function reactEyes(call, ownerRepo, commentId) {
   }
 }
 
+/**
+ * Detect whether this number is an issue or a PR. The poller passes
+ * `auto` since the issue/comments REST endpoint returns both kinds
+ * uniformly — only an explicit `gh pr view` succeeds on PRs.
+ */
+async function resolveSurface(surfaceArg, number) {
+  if (surfaceArg === "pr_comment" || surfaceArg === "issue_comment") return surfaceArg
+  try {
+    await gh(["pr", "view", String(number), "--json", "number"])
+    return "pr_comment"
+  } catch {
+    return "issue_comment"
+  }
+}
+
 async function fetchSurfaceContext(surface, number) {
   const meta = JSON.parse(
     await gh([
@@ -130,21 +145,16 @@ async function findExistingReply(call, ownerRepo, number, sourceCommentId) {
 async function main() {
   const numberArg = process.argv[2]
   const commentArg = process.argv[3]
-  const surface = process.argv[4]
-  if (
-    !numberArg ||
-    !/^\d+$/.test(numberArg) ||
-    !commentArg ||
-    !/^\d+$/.test(commentArg) ||
-    (surface !== "issue_comment" && surface !== "pr_comment")
-  ) {
+  const surfaceArg = process.argv[4] ?? "auto"
+  if (!numberArg || !/^\d+$/.test(numberArg) || !commentArg || !/^\d+$/.test(commentArg)) {
     console.error(
-      "Usage: node tools/openclaw/triage-mention.mjs <number> <comment-id> <issue_comment|pr_comment>"
+      "Usage: node tools/openclaw/triage-mention.mjs <number> <comment-id> [issue_comment|pr_comment|auto]"
     )
     process.exit(2)
   }
   const number = Number(numberArg)
   const sourceCommentId = Number(commentArg)
+  const surface = await resolveSurface(surfaceArg, number)
 
   console.log(`[mention] #${number} comment ${sourceCommentId}: pre-flight model check...`)
   try {
