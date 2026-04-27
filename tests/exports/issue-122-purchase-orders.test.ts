@@ -142,10 +142,16 @@ describe("buildPurchaseOrdersCsv", () => {
     expect(rows[0][11]).toBe("'+SUM(A1:A2)")
 
     // Whitespace-prefixed formulas should also be neutralized — Excel/Sheets
-    // trim leading whitespace before evaluating the formula chars.
-    const tricky = makePO({ po_number: "  =SUM(A1:A2)", notes: "\t=evil" })
+    // trim leading whitespace before evaluating the formula chars. Carriage
+    // return acts as a paste/cell-break sentinel and must be neutralized too.
+    const tricky = makePO({
+      po_number: "  =SUM(A1:A2)",
+      notes: "\t=evil",
+      supplier: { id: "s-r", name: "\r=DANGER" } as PurchaseOrderWithDetails["supplier"],
+    })
     const trickyOut = buildPurchaseOrdersCsv({ ...FIXTURE, pos: [tricky] })
     expect(trickyOut.rows[0][0]).toBe("'  =SUM(A1:A2)")
+    expect(trickyOut.rows[0][1]).toBe("'\r=DANGER")
     expect(trickyOut.rows[0][11]).toBe("'\t=evil")
   })
 
