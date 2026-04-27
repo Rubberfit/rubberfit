@@ -31,6 +31,22 @@ import { loadIndex } from "./lib/indexer.mjs"
 import { retrieveRelatedChunks } from "./lib/retrieval.mjs"
 import { getInstallationToken, isAppAuthConfigured } from "./lib/github-app.mjs"
 import { getOwnerRepo } from "./lib/comments.mjs"
+import {
+  addOrFindProjectItem,
+  applyProjectVerdict,
+  getProjectFieldMap,
+} from "./lib/projects.mjs"
+
+// Map verdict.estimate → Story Points option name on the board.
+// Project field is single-select with options 1/2/3/5/8/13. We don't
+// auto-assign 13 — that's a "true epic" the operator should size by hand.
+const ESTIMATE_TO_STORY_POINTS = {
+  trivial: "1",
+  S: "2",
+  M: "3",
+  L: "5",
+  XL: "8",
+}
 
 const exec = promisify(execFile)
 const MODEL = process.env.OPENCLAW_MODEL ?? "glm-5.1:cloud"
@@ -48,7 +64,7 @@ async function fetchIssue(issueNumber) {
     "view",
     String(issueNumber),
     "--json",
-    "title,body,author,labels,createdAt",
+    "title,body,author,labels,createdAt,id",
   ])
   const meta = JSON.parse(out)
   return {
@@ -57,6 +73,7 @@ async function fetchIssue(issueNumber) {
     author: meta.author?.login ?? null,
     labels: (meta.labels ?? []).map((l) => l.name),
     createdAt: meta.createdAt,
+    nodeId: meta.id,
   }
 }
 
@@ -100,9 +117,9 @@ async function findExistingTriage(call, ownerRepo, issueNumber) {
   }
 }
 
-async function postOrUpdateTriage(prNumberOrIssue, body) {
-  const ownerRepo = await getOwnerRepo()
-  const call = await buildAppCallable()
+async function postOrUpdateTriage(prNumberOrIssue, body, callOpt, ownerRepoOpt) {
+  const ownerRepo = ownerRepoOpt ?? (await getOwnerRepo())
+  const call = callOpt ?? (await buildAppCallable())
   if (call) {
     const existing = await findExistingTriage(call, ownerRepo, prNumberOrIssue)
     if (existing != null) {
@@ -205,10 +222,58 @@ async function main() {
     marker: TRIAGE_MARKER,
   })}\n\n_🦞 Auto-triage by **OpenClaw** · model \`${MODEL}\` · severity \`${verdict.severity}\` · estimate \`${verdict.estimate}\`_`
 
-  const result = await postOrUpdateTriage(issueNumber, body)
+  // Build the App-authed callable once so we can reuse it across
+  // comment post, label apply, and project field updates. Falls back
+  // to gh-CLI inside postOrUpdateTriage for local manual runs.
+  const ownerRepo = await getOwnerRepo()
+  const call = await buildAppCallable()
+
+  const result = await postOrUpdateTriage(issueNumber, body, call, ownerRepo)
   console.log(
     `Issue triage ${result.mode} on #${issueNumber} as ${result.identity} (severity=${verdict.severity}, estimate=${verdict.estimate})`
   )
+
+  // Beyond the comment: apply labels + project board fields. Both
+  // require the bot identity (App auth) — the gh-CLI fallback can't
+  // safely set project fields under the developer's identity.
+  if (call) {
+    if (Array.isArray(verdict.labels) && verdict.labels.length > 0) {
+      try {
+        await call("POST", `/repos/${ownerRepo}/issues/${issueNumber}/labels`, {
+          labels: verdict.labels,
+        })
+        console.log(`Applied labels: ${verdict.labels.join(", ")}`)
+      } catch (error) {
+        console.warn(`Label apply failed (continuing): ${error.message}`)
+      }
+    }
+
+    const projectId = process.env.OPENCLAW_PROJECT_ID?.trim()
+    if (projectId && issue.nodeId) {
+      try {
+        const graphql = async (query, variables) => {
+          const res = await call("POST", "/graphql", { query, variables })
+          if (res?.errors?.length) {
+            throw new Error(`GraphQL errors: ${JSON.stringify(res.errors).slice(0, 300)}`)
+          }
+          return res?.data ?? null
+        }
+        const fieldMap = await getProjectFieldMap(graphql, projectId)
+        const itemId = await addOrFindProjectItem(graphql, projectId, issue.nodeId)
+        if (itemId) {
+          await applyProjectVerdict(graphql, projectId, itemId, fieldMap, {
+            Priority: verdict.severity,
+            "Story Points": ESTIMATE_TO_STORY_POINTS[verdict.estimate],
+          })
+          console.log(
+            `Set project fields on #${issueNumber}: Priority=${verdict.severity}, Story Points=${ESTIMATE_TO_STORY_POINTS[verdict.estimate] ?? "(unset)"}`
+          )
+        }
+      } catch (error) {
+        console.warn(`Project field update failed (continuing): ${error.message}`)
+      }
+    }
+  }
 }
 
 main().catch((error) => {

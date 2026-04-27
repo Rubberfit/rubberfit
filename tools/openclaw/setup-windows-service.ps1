@@ -35,7 +35,12 @@ param(
     # date will be triaged; older issues are skipped so the daemon
     # doesn't flood the existing backlog with auto-triage. Leave empty
     # to disable issue triage entirely.
-    [string] $IssueSince = ""
+    [string] $IssueSince = "",
+    # GitHub Projects v2 node ID (e.g. PVT_kwDOD7DDt84BUM5C) for the
+    # canonical project. When set, issue triage applies Priority +
+    # Story Points to the project board after posting the comment.
+    # Leave empty to skip project-field writes.
+    [string] $ProjectId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -154,6 +159,9 @@ $envVars = @(
 )
 if (-not [string]::IsNullOrWhiteSpace($IssueSince)) {
     $envVars += "OPENCLAW_ISSUE_SINCE=$IssueSince"
+}
+if (-not [string]::IsNullOrWhiteSpace($ProjectId)) {
+    $envVars += "OPENCLAW_PROJECT_ID=$ProjectId"
 }
 Invoke-Nssm (@("set", $ServiceName, "AppEnvironmentExtra") + $envVars)
 
