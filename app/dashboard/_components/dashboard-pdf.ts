@@ -81,7 +81,7 @@ function addHeader(doc: jsPDF, input: OperationsExportInput, logo: string): numb
   doc.setFont("helvetica", "normal")
   const periodWord = input.period.charAt(0).toUpperCase() + input.period.slice(1)
   doc.text(
-    `${periodWord} · ${input.periodLabel} · generated ${format(new Date(), "MMMM d, yyyy  HH:mm")}`,
+    `${periodWord} · ${input.periodLabel} · generated ${format(new Date(), "MMMM d, yyyy HH:mm")}`,
     MARGIN,
     y
   )
@@ -157,21 +157,28 @@ function addUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number
   const cols = ["Bucket", ...input.utilization.materials]
   const colW = CONTENT_W / cols.length
 
-  // Header bar
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
-  doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
-  doc.setFont("helvetica", "bold")
-  for (let i = 0; i < cols.length; i++) {
-    const cx = MARGIN + i * colW + colW / 2
-    doc.text(cols[i].toUpperCase(), cx, y, { align: "center" })
+  const drawHeader = (headerY: number): number => {
+    doc.setFillColor(...BRAND)
+    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
+    doc.setFontSize(8)
+    doc.setTextColor(...WHITE)
+    doc.setFont("helvetica", "bold")
+    for (let i = 0; i < cols.length; i++) {
+      const cx = MARGIN + i * colW + colW / 2
+      doc.text(cols[i].toUpperCase(), cx, headerY, { align: "center" })
+    }
+    return headerY + 5
   }
-  y += 5
 
-  doc.setFontSize(9)
+  y = drawHeader(y)
+
   for (let r = 0; r < input.utilization.series.length; r++) {
+    const beforePageCheck = y
     y = checkNewPage(doc, y, 6)
+    if (y !== beforePageCheck) y = drawHeader(y)
+    // Body font size is re-applied per row so a page-break re-draw of
+    // the header (which sets size 8) doesn't leak into the next row.
+    doc.setFontSize(9)
     const row = input.utilization.series[r]
     if (r % 2 === 0) {
       doc.setFillColor(...GRAY_50)
@@ -217,22 +224,29 @@ function addRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number)
   const widths = [0.25, 0.35, 0.18, 0.22].map((w) => CONTENT_W * w)
   const headers = ["JOB CODE", "OPERATOR", "UTILIZATION %", "WHEN"]
 
-  // Header bar
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
-  doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
-  doc.setFont("helvetica", "bold")
-  let cx = MARGIN + 3
-  for (let i = 0; i < headers.length; i++) {
-    doc.text(headers[i], cx, y)
-    cx += widths[i]
+  const drawHeader = (headerY: number): number => {
+    doc.setFillColor(...BRAND)
+    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
+    doc.setFontSize(8)
+    doc.setTextColor(...WHITE)
+    doc.setFont("helvetica", "bold")
+    let cx = MARGIN + 3
+    for (let i = 0; i < headers.length; i++) {
+      doc.text(headers[i], cx, headerY)
+      cx += widths[i]
+    }
+    return headerY + 5
   }
-  y += 5
 
-  doc.setFontSize(9)
+  y = drawHeader(y)
+
   for (let i = 0; i < input.recentCuts.length; i++) {
+    const beforePageCheck = y
     y = checkNewPage(doc, y, 6)
+    if (y !== beforePageCheck) y = drawHeader(y)
+    // Body font size is re-applied per row so a page-break re-draw of
+    // the header (which sets size 8) doesn't leak into the next row.
+    doc.setFontSize(9)
     const cut = input.recentCuts[i]
     if (i % 2 === 0) {
       doc.setFillColor(...GRAY_50)
