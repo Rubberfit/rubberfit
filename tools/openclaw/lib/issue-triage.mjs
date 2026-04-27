@@ -172,8 +172,5 @@ export function formatIssueTriageComment({ verdict, author, marker }) {
     lines.push("")
     lines.push(`_Suggested labels:_ ${verdict.labels.map((l) => `\`${l}\``).join(", ")}`)
   }
-  lines.push("")
-  lines.push("---")
-  lines.push("_Auto-triage. Severity and estimate are best-effort — adjust as you scope the work._")
   return lines.join("\n")
 }

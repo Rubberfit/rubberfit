@@ -226,12 +226,13 @@ describe("formatIssueTriageComment", () => {
     expect(body).not.toContain("Prior art")
   })
 
-  it("ends with the auto-triage advisory line", () => {
+  it("does not append a trailing advisory or signature line", () => {
     const body = formatIssueTriageComment({
       verdict,
       author: "stevenfojas670",
       marker: "<!-- m -->",
     })
-    expect(body.trimEnd().endsWith("adjust as you scope the work._")).toBe(true)
+    expect(body).not.toContain("Auto-triage")
+    expect(body).not.toContain("adjust as you scope")
   })
 })
