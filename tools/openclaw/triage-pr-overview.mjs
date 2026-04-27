@@ -201,11 +201,11 @@ async function main() {
     process.exit(2)
   }
 
-  const body = `${formatOverviewComment({
+  const body = formatOverviewComment({
     verdict,
     marker: OVERVIEW_MARKER,
     isFirstRun,
-  })}\n\n_🦞 Auto-overview by **OpenClaw** · model \`${MODEL}\` · confidence \`${verdict.confidence}/5\`_`
+  })
 
   const result = await postOrUpdateOverview(prNumber, body)
   console.log(
