@@ -153,23 +153,42 @@ async function runTriage(targetNumber, kind) {
   })
 }
 
+let warnedNoIssuesScope = false
+
 /**
  * List open issues that we haven't triaged yet. Returns minimal shape
  * for the poller's decision logic; the actual triage call fetches the
  * issue body via `gh issue view` itself.
+ *
+ * Same scope-gap pattern as `listOpenPrs`: a fine-grained PAT without
+ * Issues:Read can't run this query at all. We log once and return [].
  */
 async function listOpenIssues() {
-  const out = await gh([
-    "issue",
-    "list",
-    "--state",
-    "open",
-    "--json",
-    "number,title",
-    "--limit",
-    "50",
-  ])
-  return JSON.parse(out)
+  try {
+    const out = await gh([
+      "issue",
+      "list",
+      "--state",
+      "open",
+      "--json",
+      "number,title",
+      "--limit",
+      "50",
+    ])
+    return JSON.parse(out)
+  } catch (error) {
+    if (/Resource not accessible/i.test(String(error?.message ?? ""))) {
+      if (!warnedNoIssuesScope) {
+        console.warn(
+          "[openclaw-poll] PAT lacks Issues:Read — issue-triage disabled. Add fine-grained " +
+            "'Issues: Read' (or classic 'repo') to the token to re-enable new-issue triage."
+        )
+        warnedNoIssuesScope = true
+      }
+      return []
+    }
+    throw error
+  }
 }
 
 /**
@@ -241,9 +260,18 @@ async function tick() {
     // 1) CI-failure triage (v1 + v2)
     if (shouldRunCiTriage(pr, state)) {
       console.log(`[openclaw-poll] PR #${pr.number} -> CI triage (run ${pr.latestFailedRunId})`)
-      await runTriage(pr.number, "ci")
-      state.handledRuns[String(pr.number)] = pr.latestFailedRunId
-      await saveState(state)
+      const result = await runTriage(pr.number, "ci")
+      // Only mark this run as handled when the child exited cleanly.
+      // A failed triage (model timeout, network blip, code bug) should
+      // retry on the next poll, not be silently swallowed.
+      if (!result.error) {
+        state.handledRuns[String(pr.number)] = pr.latestFailedRunId
+        await saveState(state)
+      } else {
+        console.warn(
+          `[openclaw-poll] CI triage failed on PR #${pr.number}; will retry next tick.`
+        )
+      }
     }
 
     // 2) CodeRabbit-comment evaluator (v4) — only when CR has posted
@@ -251,9 +279,15 @@ async function tick() {
     const latestCrId = await latestCrCommentId(pr.number)
     if (shouldRunCrTriage(pr, latestCrId, state)) {
       console.log(`[openclaw-poll] PR #${pr.number} -> CR eval (latest comment ${latestCrId})`)
-      await runTriage(pr.number, "cr")
-      state.handledCrComments[String(pr.number)] = latestCrId
-      await saveState(state)
+      const result = await runTriage(pr.number, "cr")
+      if (!result.error) {
+        state.handledCrComments[String(pr.number)] = latestCrId
+        await saveState(state)
+      } else {
+        console.warn(
+          `[openclaw-poll] CR triage failed on PR #${pr.number}; will retry next tick.`
+        )
+      }
     }
   }
 
@@ -269,7 +303,13 @@ async function tick() {
   for (const issue of issues) {
     if (!shouldRunIssueTriage(issue, state)) continue
     console.log(`[openclaw-poll] Issue #${issue.number} -> triage (${issue.title})`)
-    await runTriage(issue.number, "issue")
+    const result = await runTriage(issue.number, "issue")
+    if (result.error) {
+      console.warn(
+        `[openclaw-poll] Issue triage failed on #${issue.number}; will retry next tick.`
+      )
+      continue
+    }
     state.handledIssues[String(issue.number)] = true
     await saveState(state)
   }

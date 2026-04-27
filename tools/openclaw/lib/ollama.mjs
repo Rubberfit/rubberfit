@@ -23,7 +23,10 @@ export async function generate({
   model,
   prompt,
   temperature = 0.2,
-  timeoutMs = 120_000,
+  // 5 minutes covers large prompts on cloud models (e.g. CR triage with
+  // 20+ inline comments + retrieved chunks). The 2-minute default kept
+  // aborting under PR #146-scale backlogs.
+  timeoutMs = 300_000,
   retries = 1,
 }) {
   const host = getOllamaHost()

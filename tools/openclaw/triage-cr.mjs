@@ -255,10 +255,7 @@ async function main() {
       console.warn(`No verdict returned for comment ${comment.id} — skipping.`)
       continue
     }
-    const reply =
-      verdict.classification === "ACCEPT"
-        ? formatAcceptReply(verdict, prCtx.author)
-        : formatSkipReply(verdict, prCtx.author)
+    const reply = formatVerdictReply(verdict, prCtx.author)
     try {
       await postInlineReply(call, ownerRepo, prNumber, comment.id, reply)
       posted += 1
