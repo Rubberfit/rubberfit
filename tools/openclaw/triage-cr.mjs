@@ -193,6 +193,7 @@ async function main() {
   }
   const prNumber = Number(prArg)
 
+  console.log(`[cr-triage] PR #${prNumber}: pre-flight model check...`)
   try {
     await ensureModelAvailable(MODEL)
   } catch (error) {
@@ -201,6 +202,7 @@ async function main() {
   }
 
   // CR-eval requires App auth — we post as the bot, not the developer.
+  console.log(`[cr-triage] PR #${prNumber}: building App auth...`)
   const call = await buildAppCallable()
   if (!call) {
     console.error(
@@ -210,23 +212,28 @@ async function main() {
   }
 
   const ownerRepo = await getOwnerRepo()
+  console.log(`[cr-triage] PR #${prNumber}: fetching CR comments...`)
   const comments = await listOpenCrComments(call, ownerRepo, prNumber)
   if (comments.length === 0) {
     console.log(`No fresh CR comments on PR #${prNumber} — nothing to evaluate.`)
     process.exit(0)
   }
+  console.log(`[cr-triage] PR #${prNumber}: ${comments.length} CR comment(s) to evaluate.`)
 
+  console.log(`[cr-triage] PR #${prNumber}: fetching PR context (title/body/diff)...`)
   const prCtx = await fetchPrContext(prNumber)
 
   // Decorate each comment with ±20 lines of file context so the
   // evaluator prompt can produce surgical verdicts instead of generic
   // ones. Comments where we can't read the file (rare) simply skip the
   // context and rely on PR diff alone.
+  console.log(`[cr-triage] PR #${prNumber}: reading file context for ${comments.length} comments...`)
   for (const comment of comments) {
     const fileContext = await readFileContextForComment(comment)
     if (fileContext) comment.fileContext = fileContext
   }
 
+  console.log(`[cr-triage] PR #${prNumber}: building evaluator prompt...`)
   const prompt = await buildEvaluatorPrompt({
     prNumber,
     prTitle: prCtx.title,
@@ -235,7 +242,14 @@ async function main() {
     comments,
   })
 
+  console.log(
+    `[cr-triage] PR #${prNumber}: calling ${MODEL} with ${prompt.length}-char prompt (this may take 1-5 min)...`
+  )
+  const t0 = Date.now()
   const response = await generate({ model: MODEL, prompt, temperature: 0.15 })
+  console.log(
+    `[cr-triage] PR #${prNumber}: model returned in ${Math.round((Date.now() - t0) / 1000)}s`
+  )
   const verdicts = parseEvaluatorResponse(response)
   if (!verdicts) {
     console.error("Model output did not parse as a verdict array; raw output below:\n")

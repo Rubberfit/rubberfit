@@ -27,7 +27,11 @@ export async function generate({
   // 20+ inline comments + retrieved chunks). The 2-minute default kept
   // aborting under PR #146-scale backlogs.
   timeoutMs = 300_000,
-  retries = 1,
+  // Default to no retries — for triage scripts a silent retry on the same
+  // big prompt usually just doubles the wait before the operator sees the
+  // real failure. Callers that genuinely benefit from retry (transient
+  // network blip on a small embedder call) can opt in.
+  retries = 0,
 }) {
   const host = getOllamaHost()
   const url = `${host.replace(/\/$/, "")}/api/generate`
