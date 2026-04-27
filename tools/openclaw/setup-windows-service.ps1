@@ -30,7 +30,12 @@ param(
     [Parameter(Mandatory = $true)] [string] $GhToken,
     [string] $ServiceName = "openclaw-triage",
     [string] $OllamaHost = "http://localhost:11434",
-    [string] $LogDir = "C:\openclaw-logs"
+    [string] $LogDir = "C:\openclaw-logs",
+    # ISO date cutoff for issue triage. Issues created on/after this
+    # date will be triaged; older issues are skipped so the daemon
+    # doesn't flood the existing backlog with auto-triage. Leave empty
+    # to disable issue triage entirely.
+    [string] $IssueSince = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -147,6 +152,9 @@ $envVars = @(
     "OPENCLAW_PRIVATE_KEY_PATH=$PrivateKeyPath",
     "GH_TOKEN=$GhToken"
 )
+if (-not [string]::IsNullOrWhiteSpace($IssueSince)) {
+    $envVars += "OPENCLAW_ISSUE_SINCE=$IssueSince"
+}
 Invoke-Nssm (@("set", $ServiceName, "AppEnvironmentExtra") + $envVars)
 
 Write-Host ""

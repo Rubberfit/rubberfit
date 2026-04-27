@@ -154,16 +154,43 @@ async function runTriage(targetNumber, kind) {
 }
 
 let warnedNoIssuesScope = false
+let warnedNoIssueSince = false
 
 /**
- * List open issues that we haven't triaged yet. Returns minimal shape
- * for the poller's decision logic; the actual triage call fetches the
- * issue body via `gh issue view` itself.
+ * Resolve the cutoff Date from `OPENCLAW_ISSUE_SINCE`. Returns null when
+ * the env var is unset or unparseable — callers treat null as "skip all
+ * issues" (safe default: don't auto-triage the existing backlog).
+ */
+function getIssueSinceCutoff() {
+  const raw = process.env.OPENCLAW_ISSUE_SINCE?.trim()
+  if (!raw) return null
+  const t = Date.parse(raw)
+  return Number.isFinite(t) ? new Date(t) : null
+}
+
+/**
+ * List open issues created on/after `OPENCLAW_ISSUE_SINCE`. The cutoff
+ * exists so spinning up the daemon on a repo with a long-standing issue
+ * backlog doesn't post a flood of triage comments retroactively. Set
+ * the env var to an ISO date (e.g. `2026-04-27`) to opt issues from
+ * that date forward into triage; leave it unset to skip issues entirely.
  *
  * Same scope-gap pattern as `listOpenPrs`: a fine-grained PAT without
  * Issues:Read can't run this query at all. We log once and return [].
  */
 async function listOpenIssues() {
+  const since = getIssueSinceCutoff()
+  if (!since) {
+    if (!warnedNoIssueSince) {
+      console.log(
+        "[openclaw-poll] OPENCLAW_ISSUE_SINCE unset — issue-triage skipped. Set to an ISO date " +
+          "(e.g. 2026-04-27) to triage issues created on/after that date."
+      )
+      warnedNoIssueSince = true
+    }
+    return []
+  }
+
   try {
     const out = await gh([
       "issue",
@@ -171,11 +198,15 @@ async function listOpenIssues() {
       "--state",
       "open",
       "--json",
-      "number,title",
+      "number,title,createdAt",
       "--limit",
-      "50",
+      "100",
     ])
-    return JSON.parse(out)
+    const all = JSON.parse(out)
+    return all.filter((i) => {
+      const created = Date.parse(i.createdAt ?? "")
+      return Number.isFinite(created) && created >= since.getTime()
+    })
   } catch (error) {
     if (/Resource not accessible/i.test(String(error?.message ?? ""))) {
       if (!warnedNoIssuesScope) {
