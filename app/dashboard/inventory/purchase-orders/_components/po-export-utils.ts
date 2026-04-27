@@ -74,14 +74,21 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Neutralize CSV formula injection: cells starting with `= + - @ \t \r`
- * are evaluated as formulas by Excel/Google Sheets. Prefixing with a
- * single quote keeps the original text visible while preventing
- * execution.
+ * Neutralize CSV formula injection. Excel/Google Sheets evaluate cells
+ * starting with `=`, `+`, `-`, `@` as formulas, and treat leading `\t`
+ * or `\r` as paste/cell-break sentinels. Excel also trims leading
+ * whitespace before evaluating the formula chars, so `"  =SUM(A1:A2)"`
+ * is just as dangerous as `"=SUM(A1:A2)"`. Prefix a single quote to
+ * keep the original text visible while preventing execution. Mirrors
+ * the dashboard sanitizer in `dashboard-export-utils.ts`.
  */
 function sanitizeCsvCell(value: string): string {
   if (value === "") return value
-  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  // Tab and carriage return are sentinels in their own right — `trimStart`
+  // would strip them before the regex check, so handle them up front.
+  if (/^[\t\r]/.test(value)) return `'${value}`
+  const trimmed = value.trimStart()
+  return /^[=+\-@]/.test(trimmed) ? `'${value}` : value
 }
 
 function activeFilterLabel(filters: POExportFilters): string {

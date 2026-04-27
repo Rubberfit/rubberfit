@@ -140,6 +140,13 @@ describe("buildPurchaseOrdersCsv", () => {
     expect(rows[0][1]).toBe("'-Acme")
     expect(rows[0][2]).toBe("'@evil")
     expect(rows[0][11]).toBe("'+SUM(A1:A2)")
+
+    // Whitespace-prefixed formulas should also be neutralized — Excel/Sheets
+    // trim leading whitespace before evaluating the formula chars.
+    const tricky = makePO({ po_number: "  =SUM(A1:A2)", notes: "\t=evil" })
+    const trickyOut = buildPurchaseOrdersCsv({ ...FIXTURE, pos: [tricky] })
+    expect(trickyOut.rows[0][0]).toBe("'  =SUM(A1:A2)")
+    expect(trickyOut.rows[0][11]).toBe("'\t=evil")
   })
 
   it("coerces null monetary fields to 0.00 instead of throwing", () => {
