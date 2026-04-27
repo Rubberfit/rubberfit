@@ -139,8 +139,45 @@ export function chunkFile(path, content, mtime) {
 }
 
 /**
- * Embed an array of strings via Ollama's /api/embed endpoint. Batches to
- * keep request size under control. Returns a parallel array of vectors.
+ * Send a single batch to Ollama. Caller handles fallback / per-input
+ * retry. Returns the embedding array on success or null on a recognized
+ * "context length exceeded" error (so the caller can re-try smaller).
+ */
+async function tryEmbedBatch(batch, host, model, fetchImpl) {
+  const res = await fetchImpl(`${host}/api/embed`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model, input: batch, options: { num_ctx: 8192 } }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    if (res.status === 400 && /context length/i.test(text)) {
+      return { tooLong: true, error: text }
+    }
+    throw new Error(`Ollama /api/embed failed (HTTP ${res.status}): ${text}`)
+  }
+  const json = await res.json()
+  if (!Array.isArray(json.embeddings) || json.embeddings.length !== batch.length) {
+    throw new Error(
+      `Ollama /api/embed returned ${json.embeddings?.length ?? 0} embeddings, expected ${batch.length}`
+    )
+  }
+  return { tooLong: false, embeddings: json.embeddings }
+}
+
+/**
+ * Embed an array of strings via Ollama's `/api/embed` endpoint.
+ *
+ * Forces `num_ctx` to nomic-embed-text's full 8192-token capacity. Ollama's
+ * default is 2048 tokens for embed calls, which trips on legitimate code
+ * chunks the moment a busy file rolls through.
+ *
+ * Robustness: when a batch hits "context length exceeded" (one or more
+ * inputs in that batch are still too dense even with 8192 ctx), fall
+ * back to embedding inputs one at a time within that batch. The
+ * offending input gets a zero vector instead of nuking the whole index
+ * build — chunk-level skip already drops the *gross* offenders; this
+ * handles the long-tail.
  */
 export async function embedBatch(texts, { model = EMBEDDING_MODEL, fetchImpl = fetch } = {}) {
   if (texts.length === 0) return []
@@ -148,21 +185,27 @@ export async function embedBatch(texts, { model = EMBEDDING_MODEL, fetchImpl = f
   const out = []
   for (let i = 0; i < texts.length; i += EMBED_BATCH) {
     const batch = texts.slice(i, i + EMBED_BATCH)
-    const res = await fetchImpl(`${host}/api/embed`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, input: batch }),
-    })
-    if (!res.ok) {
-      throw new Error(`Ollama /api/embed failed (HTTP ${res.status}): ${await res.text()}`)
+    const result = await tryEmbedBatch(batch, host, model, fetchImpl)
+    if (!result.tooLong) {
+      for (const vec of result.embeddings) out.push(vec)
+      continue
     }
-    const json = await res.json()
-    if (!Array.isArray(json.embeddings) || json.embeddings.length !== batch.length) {
-      throw new Error(
-        `Ollama /api/embed returned ${json.embeddings?.length ?? 0} embeddings, expected ${batch.length}`
-      )
+    // Per-input fallback. Replace any single input that still exceeds
+    // context with a zero vector — that chunk just won't be retrievable.
+    let dim = 0
+    const fallbackVectors = []
+    for (const input of batch) {
+      const single = await tryEmbedBatch([input], host, model, fetchImpl)
+      if (!single.tooLong && Array.isArray(single.embeddings[0])) {
+        dim = single.embeddings[0].length
+        fallbackVectors.push(single.embeddings[0])
+      } else {
+        fallbackVectors.push(null)
+      }
     }
-    for (const vec of json.embeddings) out.push(vec)
+    for (const vec of fallbackVectors) {
+      out.push(vec ?? new Array(dim || 1).fill(0))
+    }
   }
   return out
 }
