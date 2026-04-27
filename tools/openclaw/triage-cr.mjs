@@ -233,28 +233,47 @@ async function main() {
     if (fileContext) comment.fileContext = fileContext
   }
 
-  console.log(`[cr-triage] PR #${prNumber}: building evaluator prompt...`)
-  const prompt = await buildEvaluatorPrompt({
-    prNumber,
-    prTitle: prCtx.title,
-    prBody: prCtx.body,
-    prDiff: prCtx.diff,
-    comments,
-  })
+  // Batch comments so each prompt stays under ~30k chars — that's the
+  // sweet spot where glm-5.1:cloud reliably returns within the 5-minute
+  // window. Big PRs (PR #146 had 23 comments → 87k chars in one shot)
+  // were aborting on the cloud-routed model.
+  const BATCH_SIZE = 6
+  const batches = []
+  for (let i = 0; i < comments.length; i += BATCH_SIZE) {
+    batches.push(comments.slice(i, i + BATCH_SIZE))
+  }
 
-  console.log(
-    `[cr-triage] PR #${prNumber}: calling ${MODEL} with ${prompt.length}-char prompt (this may take 1-5 min)...`
-  )
-  const t0 = Date.now()
-  const response = await generate({ model: MODEL, prompt, temperature: 0.15 })
-  console.log(
-    `[cr-triage] PR #${prNumber}: model returned in ${Math.round((Date.now() - t0) / 1000)}s`
-  )
-  const verdicts = parseEvaluatorResponse(response)
-  if (!verdicts) {
-    console.error("Model output did not parse as a verdict array; raw output below:\n")
-    console.error(response)
-    process.exit(2)
+  const verdicts = []
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i]
+    console.log(
+      `[cr-triage] PR #${prNumber}: building evaluator prompt for batch ${i + 1}/${batches.length} (${batch.length} comments)...`
+    )
+    const prompt = await buildEvaluatorPrompt({
+      prNumber,
+      prTitle: prCtx.title,
+      prBody: prCtx.body,
+      prDiff: prCtx.diff,
+      comments: batch,
+    })
+
+    console.log(
+      `[cr-triage] PR #${prNumber}: calling ${MODEL} with ${prompt.length}-char prompt (batch ${i + 1}/${batches.length})...`
+    )
+    const t0 = Date.now()
+    const response = await generate({ model: MODEL, prompt, temperature: 0.15 })
+    console.log(
+      `[cr-triage] PR #${prNumber}: batch ${i + 1}/${batches.length} returned in ${Math.round((Date.now() - t0) / 1000)}s`
+    )
+    const batchVerdicts = parseEvaluatorResponse(response)
+    if (!batchVerdicts) {
+      console.error(
+        `Model output did not parse as a verdict array for batch ${i + 1}; raw output below:\n`
+      )
+      console.error(response)
+      process.exit(2)
+    }
+    verdicts.push(...batchVerdicts)
   }
 
   // Map for fast lookup; the model is supposed to preserve order but we
