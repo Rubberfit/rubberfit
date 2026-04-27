@@ -7,15 +7,20 @@
  */
 import { describe, expect, it } from "vitest"
 
-import { shouldRunCiTriage, shouldRunCrTriage } from "@/tools/openclaw/triage-poll.mjs"
+import {
+  shouldRunCiTriage,
+  shouldRunCrTriage,
+  shouldRunIssueTriage,
+} from "@/tools/openclaw/triage-poll.mjs"
 
 interface State {
   handledRuns: Record<string, string>
   handledCrComments: Record<string, number>
+  handledIssues: Record<string, true>
 }
 
 function emptyState(): State {
-  return { handledRuns: {}, handledCrComments: {} }
+  return { handledRuns: {}, handledCrComments: {}, handledIssues: {} }
 }
 
 describe("shouldRunCiTriage", () => {
@@ -63,9 +68,33 @@ describe("shouldRunCrTriage", () => {
   })
 
   it("treats different PRs independently", () => {
-    const state = { handledRuns: {}, handledCrComments: { "1": 100, "2": 50 } }
+    const state = { handledRuns: {}, handledCrComments: { "1": 100, "2": 50 }, handledIssues: {} }
     expect(shouldRunCrTriage({ number: 1 }, 100, state)).toBe(false)
     expect(shouldRunCrTriage({ number: 2 }, 75, state)).toBe(true)
     expect(shouldRunCrTriage({ number: 3 }, 1, state)).toBe(true)
+  })
+})
+
+describe("shouldRunIssueTriage", () => {
+  it("returns true the first time we see an issue", () => {
+    expect(shouldRunIssueTriage({ number: 128 }, emptyState())).toBe(true)
+  })
+
+  it("returns false once an issue is in the handled set", () => {
+    const state = { handledRuns: {}, handledCrComments: {}, handledIssues: { "128": true } }
+    expect(shouldRunIssueTriage({ number: 128 }, state)).toBe(false)
+  })
+
+  it("treats different issues independently", () => {
+    const state = { handledRuns: {}, handledCrComments: {}, handledIssues: { "128": true } }
+    expect(shouldRunIssueTriage({ number: 128 }, state)).toBe(false)
+    expect(shouldRunIssueTriage({ number: 129 }, state)).toBe(true)
+  })
+
+  it("returns false for malformed input", () => {
+    expect(shouldRunIssueTriage(null as unknown as { number: number }, emptyState())).toBe(false)
+    expect(
+      shouldRunIssueTriage({ number: undefined } as unknown as { number: number }, emptyState())
+    ).toBe(false)
   })
 })

@@ -50,14 +50,15 @@ function repoRoot() {
 }
 
 /**
- * State shape v2:
+ * State shape v3:
  *   {
  *     handledRuns: { "<prNumber>": "<lastFailedRunId>" },
- *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> }
+ *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> },
+ *     handledIssues: { "<issueNumber>": true }
  *   }
  *
- * v1 state files only had `handledRuns`; we initialize the new field on
- * first read so the migration is invisible.
+ * Earlier shapes only had a subset; we initialize missing fields on
+ * first read so migrations are invisible.
  */
 async function loadState() {
   try {
@@ -66,9 +67,10 @@ async function loadState() {
     return {
       handledRuns: parsed.handledRuns ?? {},
       handledCrComments: parsed.handledCrComments ?? {},
+      handledIssues: parsed.handledIssues ?? {},
     }
   } catch {
-    return { handledRuns: {}, handledCrComments: {} }
+    return { handledRuns: {}, handledCrComments: {}, handledIssues: {} }
   }
 }
 
@@ -111,12 +113,13 @@ async function listOpenPrs() {
  *   - "cr" → triage-cr.mjs (CR comment evaluator)
  * Inherits stdio so the poller's terminal gets the live transcript.
  */
-async function runTriage(prNumber, kind) {
-  const scriptName = kind === "cr" ? "triage-cr.mjs" : "triage-ci.mjs"
+async function runTriage(targetNumber, kind) {
+  const scriptName =
+    kind === "cr" ? "triage-cr.mjs" : kind === "issue" ? "triage-issue.mjs" : "triage-ci.mjs"
   return new Promise((resolveProc) => {
     const child = execFile(
       process.execPath,
-      [resolve(repoRoot(), "tools", "openclaw", scriptName), String(prNumber)],
+      [resolve(repoRoot(), "tools", "openclaw", scriptName), String(targetNumber)],
       { env: process.env, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         resolveProc({ error, stdout, stderr })
@@ -125,6 +128,33 @@ async function runTriage(prNumber, kind) {
     child.stdout?.pipe(process.stdout)
     child.stderr?.pipe(process.stderr)
   })
+}
+
+/**
+ * List open issues that we haven't triaged yet. Returns minimal shape
+ * for the poller's decision logic; the actual triage call fetches the
+ * issue body via `gh issue view` itself.
+ */
+async function listOpenIssues() {
+  const out = await gh([
+    "issue",
+    "list",
+    "--state",
+    "open",
+    "--json",
+    "number,title",
+    "--limit",
+    "50",
+  ])
+  return JSON.parse(out)
+}
+
+/**
+ * Decide whether to triage `issue` this tick. Pure for testability.
+ */
+export function shouldRunIssueTriage(issue, state) {
+  if (!issue || typeof issue.number !== "number") return false
+  return state.handledIssues?.[String(issue.number)] !== true
 }
 
 /**
@@ -202,6 +232,23 @@ async function tick() {
       state.handledCrComments[String(pr.number)] = latestCrId
       await saveState(state)
     }
+  }
+
+  // 3) Issue triage (v5) — once per issue. Idempotency at both layers:
+  // the local handledIssues set AND the marker comment inside the
+  // script, so wiping the state file won't re-spam.
+  let issues = []
+  try {
+    issues = await listOpenIssues()
+  } catch (error) {
+    console.error(`[openclaw-poll] gh issue list failed: ${error.message}`)
+  }
+  for (const issue of issues) {
+    if (!shouldRunIssueTriage(issue, state)) continue
+    console.log(`[openclaw-poll] Issue #${issue.number} -> triage (${issue.title})`)
+    await runTriage(issue.number, "issue")
+    state.handledIssues[String(issue.number)] = true
+    await saveState(state)
   }
 }
 
