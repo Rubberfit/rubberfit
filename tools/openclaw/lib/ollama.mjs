@@ -72,6 +72,10 @@ export async function generate({
 /**
  * Verify the configured model is available on the host. Cheap pre-flight
  * check — the script bails early if you typo the model name.
+ *
+ * Tag tolerance: `ollama pull nomic-embed-text` stores the model as
+ * `nomic-embed-text:latest`. If the caller asked for an untagged name,
+ * accept the `:latest` variant rather than failing on exact-match.
  */
 export async function ensureModelAvailable(model) {
   const host = getOllamaHost()
@@ -81,10 +85,10 @@ export async function ensureModelAvailable(model) {
   }
   const json = await res.json()
   const names = (json.models ?? []).map((m) => m.name)
-  if (!names.includes(model)) {
-    const sample = names.slice(0, 8).join(", ")
-    throw new Error(
-      `Model '${model}' not found at ${host}. Available: ${sample}${names.length > 8 ? ", …" : ""}`
-    )
-  }
+  if (names.includes(model)) return
+  if (!model.includes(":") && names.includes(`${model}:latest`)) return
+  const sample = names.slice(0, 8).join(", ")
+  throw new Error(
+    `Model '${model}' not found at ${host}. Available: ${sample}${names.length > 8 ? ", …" : ""}`
+  )
 }
