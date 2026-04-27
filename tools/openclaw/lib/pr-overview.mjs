@@ -98,6 +98,7 @@ export function parseOverviewResponse(text) {
             ? Math.max(1, Math.min(5, Math.round(Number(f.score))))
             : 3,
           overview: typeof f.overview === "string" ? f.overview.trim() : "",
+          nextStep: typeof f.nextStep === "string" ? f.nextStep.trim() : "",
         }))
     : []
 
@@ -135,10 +136,12 @@ export function formatOverviewComment({ verdict, marker, isFirstRun }) {
     lines.push("")
     lines.push("### Important files")
     lines.push("")
-    lines.push("| File | Score | Notes |")
-    lines.push("| --- | :---: | --- |")
+    lines.push("| File | Score | Notes | Next step |")
+    lines.push("| --- | :---: | --- | --- |")
     for (const f of verdict.files) {
-      lines.push(`| \`${f.path}\` | ${f.score}/5 | ${f.overview || "—"} |`)
+      lines.push(
+        `| \`${f.path}\` | ${f.score}/5 | ${f.overview || "—"} | ${f.nextStep || "—"} |`
+      )
     }
   }
 
