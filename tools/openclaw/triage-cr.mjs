@@ -233,17 +233,18 @@ async function main() {
     if (fileContext) comment.fileContext = fileContext
   }
 
-  // Batch comments so each prompt stays under ~25k chars — that's the
-  // size at which glm-5.1:cloud reliably returns within the 5-minute
-  // window (PR #146's 23 comments + diff = 87k aborted; even 44k
-  // batches aborted; 24k single-comment prompts succeeded).
+  // One comment per LLM call. Smaller prompts (~5-8k chars) return in
+  // 30-90 seconds on glm-5.1:cloud, and operators see each verdict
+  // posted to GitHub as soon as it's ready instead of waiting for a
+  // whole batch to finish. Trade-off: more API calls to the LLM
+  // provider (N instead of N/3), but the daemon is sequential anyway
+  // so wall-clock is similar and reliability is much better — a
+  // failure on one comment doesn't take down the others.
   //
-  // We also drop the PR diff entirely from per-batch prompts. Each
-  // comment carries ±20 lines of file context already (see
-  // `readFileContextForComment` above), which is what the model
-  // actually needs to write a surgical verdict. The full PR diff was
-  // 16k chars of overhead per batch and rarely changed the verdict.
-  const BATCH_SIZE = 3
+  // PR diff is dropped — each comment carries ±20 lines of file
+  // context from `readFileContextForComment` above, which is the
+  // surgical context the verdict actually needs.
+  const BATCH_SIZE = 1
   const batches = []
   for (let i = 0; i < comments.length; i += BATCH_SIZE) {
     batches.push(comments.slice(i, i + BATCH_SIZE))
