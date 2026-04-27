@@ -126,6 +126,16 @@ export function parseIssueTriageResponse(text) {
     typeof parsed.research === "string" && parsed.research.trim().length > 0
       ? parsed.research.trim()
       : undefined
+  const diagram =
+    typeof parsed.diagram === "string" && parsed.diagram.trim().length > 0
+      ? // Strip an accidental ```mermaid fence the model sometimes wraps
+        // around the code despite the prompt — the formatter adds it.
+        parsed.diagram
+          .trim()
+          .replace(/^```(?:mermaid)?\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim()
+      : undefined
 
   return {
     headline,
@@ -136,6 +146,7 @@ export function parseIssueTriageResponse(text) {
     approach,
     relevantFiles,
     research,
+    diagram,
   }
 }
 
@@ -167,6 +178,12 @@ export function formatIssueTriageComment({ verdict, author, marker }) {
   if (verdict.research) {
     lines.push("")
     lines.push(`**Prior art / research:** ${verdict.research}`)
+  }
+  if (verdict.diagram) {
+    lines.push("")
+    lines.push("```mermaid")
+    lines.push(verdict.diagram)
+    lines.push("```")
   }
   if (verdict.labels.length > 0) {
     lines.push("")

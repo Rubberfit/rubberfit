@@ -103,6 +103,30 @@ describe("parseIssueTriageResponse", () => {
     expect(out?.research).toBe("Standard event-handler pattern in React docs.")
   })
 
+  it("captures the optional diagram field, stripping an accidental mermaid fence", () => {
+    const out = parseIssueTriageResponse(
+      JSON.stringify({
+        headline: "h",
+        severity: "P2",
+        estimate: "S",
+        summary: "s",
+        diagram: "```mermaid\ngraph LR\n  A-->B\n```",
+      })
+    )
+    expect(out?.diagram).toBe("graph LR\n  A-->B")
+  })
+
+  it("leaves diagram undefined when omitted or empty", () => {
+    const out1 = parseIssueTriageResponse(
+      JSON.stringify({ headline: "h", severity: "P2", estimate: "S", summary: "s" })
+    )
+    expect(out1?.diagram).toBeUndefined()
+    const out2 = parseIssueTriageResponse(
+      JSON.stringify({ headline: "h", severity: "P2", estimate: "S", summary: "s", diagram: "" })
+    )
+    expect(out2?.diagram).toBeUndefined()
+  })
+
   it("strips a surrounding ```json fence", () => {
     const text = '```json\n{"headline":"h","severity":"P1","estimate":"S","summary":"s"}\n```'
     const out = parseIssueTriageResponse(text)

@@ -23,7 +23,8 @@ Reply with **only a JSON object**, no markdown fence, no preamble:
   "summary": "1–2 sentences restating the issue in technical terms — what behavior is broken or what user need is unmet",
   "approach": "1–3 sentences sketching the fix. Reference specific symbols and `path:line-line` from the retrieved chunks. End with the trade-off if there is one.",
   "relevantFiles": ["app/foo.ts:42-46", "src/bar.ts"],
-  "research": "<optional — a single sentence pointing at a well-known pattern, library, or prior internal work the engineer should look at before coding. Omit if you don't have a confident reference.>"
+  "research": "<optional — a single sentence pointing at a well-known pattern, library, or prior internal work the engineer should look at before coding. Omit if you don't have a confident reference.>",
+  "diagram": "<optional — a Mermaid diagram (flowchart, sequenceDiagram, graph, etc.) when a visual genuinely clarifies the architecture or flow described in `approach` or `research`. Plain Mermaid syntax only — no surrounding ```mermaid fence; the renderer adds it. Omit if a diagram would be filler.>"
 }
 ```
 
@@ -66,6 +67,59 @@ Examples of good `research`:
 - _"Sparrow's GLS construction (jagua-rs/docs/sparrow.md) handles this with a tabu list — same idea applies here."_
 - _"Standard CSV formula injection mitigation — OWASP cheat sheet calls it 'CSV injection prevention,' Excel/Sheets-specific."_
 - _"This is the classic Producer/Consumer with backpressure; Node's `stream.Readable.toWeb()` plus `WritableStream` is the canonical fit."_
+
+## Diagram field guidance
+
+Include a Mermaid diagram **only when it genuinely clarifies something the prose can't show as cleanly**. The bar: would a 5-second glance at this graph save the engineer 30+ seconds of reading and meaningfully improve their mental model? If you're hesitating, omit. A weak or filler diagram is worse than none.
+
+Skip diagrams for:
+
+- Trivial bugs (typos, single-line fixes, formatting, off-by-one)
+- Pure UI/copy/styling changes
+- Anything the `approach` field already explains in 1–2 sentences
+- "Generic" boxes-and-arrows you'd draw for *any* issue of this type
+
+Use whichever Mermaid form fits:
+
+- `flowchart` / `graph` — state machines, decision trees, dependency graphs, build/toolchain pipelines, control flow.
+- `sequenceDiagram` — API call sequences, race conditions, multi-actor flows.
+- `classDiagram` — inheritance relationships, interface boundaries.
+- `erDiagram` — data model / table relationships for db work.
+- `stateDiagram-v2` — UI state, status transitions, lifecycle issues.
+
+Examples of good `diagram`:
+
+```
+graph LR
+  A[Rust crate] --> B[wasm-pack build]
+  B --> C[npm package]
+  C --> D[Next.js app]
+```
+
+```
+sequenceDiagram
+  Client->>API: POST /quote
+  API->>RustEngine: pack(parts)
+  RustEngine-->>API: layout
+  API-->>Client: { layout, fabScore }
+```
+
+```
+stateDiagram-v2
+  [*] --> Pending
+  Pending --> Approved: manager signs
+  Pending --> Rejected: manager declines
+  Approved --> Closed: invoice paid
+```
+
+```
+erDiagram
+  ROLLS ||--o{ CUTS : produces
+  ROLLS { uuid id, int width, int length }
+  CUTS  { uuid id, uuid roll_id, int width, int length }
+```
+
+Keep diagrams under ~10 nodes. If you can't sketch one in 5 lines of Mermaid, the issue probably doesn't need one.
 
 ## Output discipline
 
