@@ -237,10 +237,27 @@ async function resolveReviewThread(call, threadId) {
       }
     }
   `
+  // Try via App auth first.
   const res = await call("POST", "/graphql", { query: mutation, variables: { id: threadId } })
-  if (res?.errors?.length) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(res.errors).slice(0, 300)}`)
+  if (!res?.errors?.length) return
+
+  // App auth can return FORBIDDEN ("Resource not accessible by integration")
+  // on resolveReviewThread even when posting replies works — usually a
+  // stale install permission set on the App. Fall back to the developer's
+  // gh CLI (which uses GH_TOKEN) since we know that PAT has access.
+  const message = JSON.stringify(res.errors).slice(0, 300)
+  const isForbidden = /FORBIDDEN|Resource not accessible/i.test(message)
+  if (!isForbidden) {
+    throw new Error(`GraphQL errors: ${message}`)
   }
+  await gh([
+    "api",
+    "graphql",
+    "-f",
+    `query=${mutation}`,
+    "-f",
+    `id=${threadId}`,
+  ])
 }
 
 async function main() {
