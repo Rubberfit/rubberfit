@@ -249,7 +249,12 @@ async function main() {
     batches.push(comments.slice(i, i + BATCH_SIZE))
   }
 
-  const verdicts = []
+  // Post replies per-batch instead of accumulating all verdicts and
+  // bulk-posting at the end. Operators see OpenClaw thinking through
+  // the comments in real time on GitHub — no 5-minute silence followed
+  // by a flood of replies.
+  let posted = 0
+  let skipped = 0
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
     console.log(
@@ -279,29 +284,25 @@ async function main() {
       console.error(response)
       process.exit(2)
     }
-    verdicts.push(...batchVerdicts)
-  }
 
-  // Map for fast lookup; the model is supposed to preserve order but we
-  // verify by id rather than position.
-  const byId = new Map(verdicts.map((v) => [v.commentId, v]))
-
-  let posted = 0
-  let skipped = 0
-  for (const comment of comments) {
-    const verdict = byId.get(comment.id)
-    if (!verdict) {
-      console.warn(`No verdict returned for comment ${comment.id} — skipping.`)
-      continue
-    }
-    const reply = formatVerdictReply(verdict, prCtx.author)
-    try {
-      await postInlineReply(call, ownerRepo, prNumber, comment.id, reply)
-      posted += 1
-      console.log(`Posted ${verdict.classification} reply on comment ${comment.id}`)
-    } catch (error) {
-      skipped += 1
-      console.warn(`Failed to post reply on comment ${comment.id}: ${error.message}`)
+    // Stream replies for this batch immediately. Map by commentId so a
+    // model that returns out of order still posts to the right thread.
+    const byId = new Map(batchVerdicts.map((v) => [v.commentId, v]))
+    for (const comment of batch) {
+      const verdict = byId.get(comment.id)
+      if (!verdict) {
+        console.warn(`No verdict returned for comment ${comment.id} — skipping.`)
+        continue
+      }
+      const reply = formatVerdictReply(verdict, prCtx.author)
+      try {
+        await postInlineReply(call, ownerRepo, prNumber, comment.id, reply)
+        posted += 1
+        console.log(`Posted ${verdict.classification} reply on comment ${comment.id}`)
+      } catch (error) {
+        skipped += 1
+        console.warn(`Failed to post reply on comment ${comment.id}: ${error.message}`)
+      }
     }
   }
 
