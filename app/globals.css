@@ -61,6 +61,12 @@
    * a stable `--color-text-muted` name without knowing the
    * underlying shadcn token. */
   --color-text-muted: var(--muted-foreground);
+
+  /* S5 — shape label text + halo for SVG nesting renderer.
+   * Mirrors konva-theme.ts labelFill/labelStroke per theme so
+   * SVG and Konva renderers stay in visual parity. */
+  --color-shape-label: var(--shape-label);
+  --color-shape-label-halo: var(--shape-label-halo);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
@@ -245,6 +251,10 @@
   --color-border-secondary: var(--border);
   --color-border-tertiary: var(--border-subtle);
   --svg-bg: var(--card);
+
+  /* Shape label — dark text + white halo survives any part fill */
+  --shape-label: oklch(0.141 0.005 285.823);
+  --shape-label-halo: oklch(1 0 0 / 0.85);
 }
 
 /* Dark theme tokens */
@@ -342,6 +352,10 @@
   --color-border-secondary: var(--border);
   --color-border-tertiary: var(--border-subtle);
   --svg-bg: var(--card);
+
+  /* Shape label — white text + black halo */
+  --shape-label: oklch(1 0 0);
+  --shape-label-halo: oklch(0 0 0 / 0.85);
 }
 
 /* S5 accent ramp — dark-mode hue overrides, one block per hue.
