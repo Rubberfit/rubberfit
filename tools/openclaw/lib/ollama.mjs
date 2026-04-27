@@ -42,35 +42,57 @@ export async function generate({
     options: { temperature },
   })
 
+  // Cloud-routed models occasionally return 5xx during transient routing
+  // hiccups (e.g. provider-side rate limits). We always retry those once
+  // with a brief backoff regardless of the configured `retries` count;
+  // the alternative is a daemon stall waiting for a clean tick.
+  const TRANSIENT_RETRIES = 2
   let lastError
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
-      if (!res.ok) {
-        throw new Error(`Ollama HTTP ${res.status}: ${await res.text()}`)
+    let transientAttempt = 0
+    while (true) {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          signal: controller.signal,
+        })
+        clearTimeout(timer)
+        if (!res.ok) {
+          const text = await res.text()
+          // Retry transient upstream failures (502/503/504) with backoff.
+          if (res.status >= 500 && transientAttempt < TRANSIENT_RETRIES) {
+            transientAttempt += 1
+            const delayMs = 5_000 * transientAttempt
+            console.warn(
+              `[ollama] HTTP ${res.status} from ${model}; retrying in ${delayMs / 1000}s (transient ${transientAttempt}/${TRANSIENT_RETRIES})`
+            )
+            await sleep(delayMs)
+            continue
+          }
+          throw new Error(`Ollama HTTP ${res.status}: ${text}`)
+        }
+        const json = await res.json()
+        if (typeof json.response !== "string") {
+          throw new Error(
+            `Ollama response missing 'response' field: ${JSON.stringify(json).slice(0, 200)}`
+          )
+        }
+        return json.response
+      } catch (error) {
+        clearTimeout(timer)
+        lastError = error
+        // Break out of the transient retry loop on non-5xx errors so the
+        // outer `retries` loop can decide whether to retry from scratch.
+        break
       }
-      const json = await res.json()
-      if (typeof json.response !== "string") {
-        throw new Error(
-          `Ollama response missing 'response' field: ${JSON.stringify(json).slice(0, 200)}`
-        )
-      }
-      return json.response
-    } catch (error) {
-      clearTimeout(timer)
-      lastError = error
-      if (attempt < retries) {
-        await sleep(1_000 * (attempt + 1))
-        continue
-      }
+    }
+    if (attempt < retries) {
+      await sleep(1_000 * (attempt + 1))
+      continue
     }
   }
   throw lastError ?? new Error("Ollama generate failed without error")
