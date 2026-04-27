@@ -34,6 +34,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { bodyMentionsBot } from "./lib/mention-detection.mjs"
+
 const exec = promisify(execFile)
 
 const STATE_DIR = ".openclaw"
@@ -50,17 +52,39 @@ function repoRoot() {
 }
 
 /**
- * State shape v4:
+ * State shape v5:
  *   {
  *     handledRuns: { "<prNumber>": "<lastFailedRunId>" },
  *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> },
  *     handledIssues: { "<issueNumber>": true },
- *     handledOverviewShas: { "<prNumber>": "<headSha>" }
+ *     handledOverviewShas: { "<prNumber>": "<headSha>" },
+ *     handledMentions: { "<commentId>": { handledAt, replyCommentId, surface } }
  *   }
  *
  * Earlier shapes only had a subset; we initialize missing fields on
- * first read so migrations are invisible.
+ * first read so migrations are invisible. Old `handledMentions: true`
+ * boolean entries are upgraded transparently on first save.
  */
+const HANDLED_MENTION_TTL_MS = 180 * 24 * 60 * 60 * 1000 // 180 days
+
+function pruneHandledMentions(handled) {
+  if (!handled || typeof handled !== "object") return {}
+  const now = Date.now()
+  const out = {}
+  for (const [id, entry] of Object.entries(handled)) {
+    if (entry === true) {
+      // Legacy boolean — keep without a timestamp (treated as "no expiry").
+      out[id] = { handledAt: null }
+      continue
+    }
+    if (entry && typeof entry === "object") {
+      const ts = Date.parse(entry.handledAt ?? "") || 0
+      if (!ts || now - ts < HANDLED_MENTION_TTL_MS) out[id] = entry
+    }
+  }
+  return out
+}
+
 async function loadState() {
   try {
     const raw = await readFile(resolve(repoRoot(), STATE_DIR, STATE_FILE), "utf8")
@@ -70,6 +94,7 @@ async function loadState() {
       handledCrComments: parsed.handledCrComments ?? {},
       handledIssues: parsed.handledIssues ?? {},
       handledOverviewShas: parsed.handledOverviewShas ?? {},
+      handledMentions: pruneHandledMentions(parsed.handledMentions),
     }
   } catch {
     return {
@@ -77,6 +102,7 @@ async function loadState() {
       handledCrComments: {},
       handledIssues: {},
       handledOverviewShas: {},
+      handledMentions: {},
     }
   }
 }
@@ -157,7 +183,7 @@ async function listOpenPrs() {
  *   - "cr" → triage-cr.mjs (CR comment evaluator)
  * Inherits stdio so the poller's terminal gets the live transcript.
  */
-async function runTriage(targetNumber, kind) {
+async function runTriage(targetNumber, kind, extraArgs = []) {
   const scriptName =
     kind === "cr"
       ? "triage-cr.mjs"
@@ -165,11 +191,17 @@ async function runTriage(targetNumber, kind) {
         ? "triage-issue.mjs"
         : kind === "overview"
           ? "triage-pr-overview.mjs"
-          : "triage-ci.mjs"
+          : kind === "mention"
+            ? "triage-mention.mjs"
+            : "triage-ci.mjs"
   return new Promise((resolveProc) => {
     const child = execFile(
       process.execPath,
-      [resolve(repoRoot(), "tools", "openclaw", scriptName), String(targetNumber)],
+      [
+        resolve(repoRoot(), "tools", "openclaw", scriptName),
+        String(targetNumber),
+        ...extraArgs.map(String),
+      ],
       { env: process.env, maxBuffer: 50 * 1024 * 1024 },
       (error, stdout, stderr) => {
         resolveProc({ error, stdout, stderr })
@@ -318,6 +350,104 @@ export function shouldRunCrTriage(pr, latestCrId, state) {
   return typeof handled !== "number" || latestCrId > handled
 }
 
+const MENTION_TRIGGER_DEFAULT = "openclaw-devops"
+
+function getMentionSearchHandle() {
+  // The Search API only matches one handle at a time. Use the first
+  // configured trigger as the canonical search target — additional
+  // aliases still work for *detection* inside fetched comment bodies.
+  const raw = process.env.OPENCLAW_MENTION_TRIGGERS?.trim()
+  if (!raw) return MENTION_TRIGGER_DEFAULT
+  const first = raw.split(",")[0]?.trim()
+  return first || MENTION_TRIGGER_DEFAULT
+}
+
+const KNOWN_BOT_LOGINS_SET = new Set([
+  "coderabbitai",
+  "coderabbitai[bot]",
+  "openclaw-devops",
+  "openclaw[bot]",
+  "github-actions",
+  "github-actions[bot]",
+  "vercel",
+  "vercel[bot]",
+  "dependabot",
+  "dependabot[bot]",
+])
+
+function isKnownBotLogin(login) {
+  if (typeof login !== "string") return false
+  const lower = login.toLowerCase()
+  return KNOWN_BOT_LOGINS_SET.has(lower) || /\[bot\]$/.test(lower)
+}
+
+/**
+ * Use GitHub Search API to find issues/PRs that have a recent comment
+ * mentioning the bot. Returns `[{ number, isPullRequest }]`. One call
+ * per tick total — much cheaper than walking every comment.
+ */
+async function searchOpenItemsWithMention() {
+  const handle = getMentionSearchHandle()
+  try {
+    const out = await gh([
+      "search",
+      "issues",
+      "--state",
+      "open",
+      `--match=comments`,
+      `mentions:${handle}`,
+      "--json",
+      "number,isPullRequest",
+      "--limit",
+      "30",
+    ])
+    const arr = JSON.parse(out)
+    return Array.isArray(arr) ? arr : []
+  } catch (error) {
+    if (/Resource not accessible/i.test(String(error?.message ?? ""))) {
+      // PAT lacks the search scope; mentions can't be discovered. Log
+      // once and degrade.
+      console.warn(`[openclaw-poll] mention search failed (PAT scope?): ${error.message}`)
+      return []
+    }
+    console.warn(`[openclaw-poll] mention search error: ${error.message}`)
+    return []
+  }
+}
+
+/**
+ * For an issue/PR that the search hit, fetch its comments and pick
+ * unhandled bot mentions. Returns `[{ commentId, askerLogin, surface }]`.
+ */
+async function findUnhandledMentionsOnItem(item, state, mentionDetector) {
+  const surface = item.isPullRequest ? "pr_comment" : "issue_comment"
+  let comments
+  try {
+    const out = await gh([
+      "api",
+      `repos/{owner}/{repo}/issues/${item.number}/comments`,
+      "--paginate",
+      "--jq",
+      "[.[] | {id, login: .user.login, body, created_at}]",
+    ])
+    comments = JSON.parse(out)
+  } catch (error) {
+    console.warn(
+      `[openclaw-poll] couldn't fetch comments on #${item.number} for mention scan: ${error.message}`
+    )
+    return []
+  }
+  const triggers = (process.env.OPENCLAW_MENTION_TRIGGERS?.split(",").map((s) => s.trim()) ?? []).filter(
+    Boolean
+  )
+  const triggerList = triggers.length > 0 ? triggers : ["openclaw-devops", "openclaw[bot]"]
+  return comments
+    .filter((c) => !isKnownBotLogin(c.login))
+    .filter((c) => mentionDetector(c.body, triggerList))
+    .filter((c) => !state.handledMentions?.[String(c.id)])
+    .map((c) => ({ commentId: c.id, askerLogin: c.login, surface, number: item.number }))
+}
+
 async function tick() {
   const state = await loadState()
   let prs
@@ -401,6 +531,32 @@ async function tick() {
     }
     state.handledIssues[String(issue.number)] = true
     await saveState(state)
+  }
+
+  // 4) @-mention reply (v7) — Search API finds issues/PRs with a
+  // recent comment mentioning the bot, then we scan each item's
+  // comments for unhandled, non-bot, real (not quoted) mentions and
+  // spawn one mention reply per match.
+  const mentionItems = await searchOpenItemsWithMention()
+  for (const item of mentionItems) {
+    const matches = await findUnhandledMentionsOnItem(item, state, bodyMentionsBot)
+    for (const m of matches) {
+      console.log(
+        `[openclaw-poll] @-mention on ${m.surface} #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
+      )
+      const result = await runTriage(m.number, "mention", [m.commentId, m.surface])
+      if (result.error) {
+        console.warn(
+          `[openclaw-poll] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
+        )
+        continue
+      }
+      state.handledMentions[String(m.commentId)] = {
+        handledAt: new Date().toISOString(),
+        surface: m.surface,
+      }
+      await saveState(state)
+    }
   }
 }
 
