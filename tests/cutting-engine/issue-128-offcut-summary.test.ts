@@ -97,17 +97,26 @@ describe("buildOffcutSummary", () => {
     expect(rows.map((r) => r.region)).toEqual([leftStrip, bottomStrip])
   })
 
-  it('keeps two reusable strips separate when they only share a 1" sliver', () => {
-    // Same shape as above but at a reusable size: each strip is 6"x24"
-    // (qualifies as Strip). They touch at the corner only.
-    const leftStrip = region(0, 0, 6, 24) // 6 wide × 24 tall
-    const bottomStrip = region(0, 24, 60, 6) // 60 wide × 6 tall, touches at (0..6, 24)
+  it("merges adjacent strips that share exactly the SHARED_EDGE_MIN_IN edge (>= boundary)", () => {
+    // Two strips sharing exactly a 6" edge — at the documented merge
+    // threshold (SHARED_EDGE_MIN_IN). The touch test uses `>=` so they
+    // DO merge into a single zone (1 row, not 2).
+    const leftStrip = region(0, 0, 6, 24)
+    const bottomStrip = region(0, 24, 60, 6)
     const layout = emptyLayout([leftStrip, bottomStrip])
     const rows = buildOffcutSummary([layout])
-    // They share a 6" edge, so technically AT the threshold. The
-    // touch-test uses `>=` so they DO merge. Documenting the
-    // boundary behavior — anything below 6" stays separate.
-    expect(rows.length).toBeGreaterThanOrEqual(1)
+    expect(rows).toHaveLength(1)
+  })
+
+  it("keeps strips separate when shared edge is just below the threshold (< boundary)", () => {
+    // Same setup but the bottom strip starts at x=0.01 instead of 0,
+    // so the shared horizontal extent is 5.99" — under the 6" minimum.
+    // Each strip becomes its own zone.
+    const leftStrip = region(0, 0, 6, 24)
+    const bottomStrip = region(0.01, 24, 60, 6)
+    const layout = emptyLayout([leftStrip, bottomStrip])
+    const rows = buildOffcutSummary([layout])
+    expect(rows).toHaveLength(2)
   })
 
   it("emits rows even for sub-Piece zones — labels them Strip", () => {
