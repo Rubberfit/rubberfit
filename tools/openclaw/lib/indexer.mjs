@@ -55,6 +55,12 @@ const MAX_FILE_BYTES = 200 * 1024 // 200 KB — skip generated/lockfiles
 const CHUNK_LINES = 80
 const CHUNK_OVERLAP = 20
 const EMBED_BATCH = 32 // Ollama /api/embed accepts batched input
+// nomic-embed-text v1.5 has an 8192-token context. With code averaging
+// ~3 chars/token, 6000 chars leaves comfortable headroom. Chunks larger
+// than this are almost always encoded blobs (base64 assets, minified
+// bundles) — useless for semantic retrieval anyway, so we drop them
+// rather than truncate.
+const MAX_CHUNK_CHARS = 6_000
 
 /**
  * Walk `root` and yield repo-relative paths matching the indexable set.
@@ -112,6 +118,13 @@ export function chunkFile(path, content, mtime) {
     const end = Math.min(start + CHUNK_LINES, lines.length)
     const slice = lines.slice(start, end).join("\n")
     if (slice.trim().length === 0) continue
+    // Drop chunks bigger than the embedder can handle. These are almost
+    // always one-line encoded blobs (base64 assets, minified bundles)
+    // that the embedder couldn't usefully represent anyway.
+    if (slice.length > MAX_CHUNK_CHARS) {
+      if (end === lines.length) break
+      continue
+    }
     chunks.push({
       id: `${path}:${start + 1}-${end}`,
       path,

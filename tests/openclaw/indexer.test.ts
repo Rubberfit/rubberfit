@@ -52,6 +52,27 @@ describe("chunkFile", () => {
     const [chunk] = chunkFile("foo.ts", content, 0) as IndexedChunk[]
     expect(chunk.id).toBe("foo.ts:1-50")
   })
+
+  it("drops chunks larger than the embedder context (e.g., base64 assets)", () => {
+    // One huge single-line file — mimics the arc-anchor-logo base64 blob.
+    const huge = "x".repeat(12_000)
+    expect(chunkFile("logo.ts", huge, 0)).toEqual([])
+  })
+
+  it("keeps surrounding chunks while skipping the oversize one in a mixed file", () => {
+    // First 80 lines are normal code, then a huge single line, then more code.
+    const normalBlock = Array.from({ length: 80 }, (_, i) => `const a${i} = ${i}`).join("\n")
+    const oversize = "y".repeat(10_000)
+    const tail = Array.from({ length: 80 }, (_, i) => `const b${i} = ${i}`).join("\n")
+    const content = `${normalBlock}\n${oversize}\n${tail}`
+    const chunks = chunkFile("mixed.ts", content, 0) as IndexedChunk[]
+    // The chunk window that captures the oversize line gets dropped, but
+    // chunks surrounding it (normal code) still index.
+    expect(chunks.length).toBeGreaterThan(0)
+    for (const chunk of chunks) {
+      expect(chunk.content.length).toBeLessThanOrEqual(6_000)
+    }
+  })
 })
 
 describe("loadIndex / saveIndex round-trip", () => {
