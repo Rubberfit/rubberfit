@@ -249,18 +249,26 @@ async function main() {
     }
 
     // Per-repo project mapping. OPENCLAW_PROJECT_IDS is a JSON map of
-    // `{ "<owner/repo>": "<projectV2NodeId>" }`. Falls back to the
-    // singular OPENCLAW_PROJECT_ID env var (single-repo install). If
-    // neither matches the current repo, we skip project field writes
-    // — Rubberfit-Desktop issues shouldn't try to write to the
-    // rema-portal project (project IDs aren't shared across orgs/repos).
+    // `{ "<owner/repo>": "<projectV2NodeId>" }`. When the JSON parses
+    // successfully, the map is the source of truth for THIS repo —
+    // missing entry means "skip project field writes for this repo",
+    // NOT "fall back to OPENCLAW_PROJECT_ID" (that would reintroduce
+    // the cross-repo write bug this commit is fixing).
+    //
+    // The singular OPENCLAW_PROJECT_ID is only consulted when the
+    // JSON map env var is unset entirely OR fails to parse. That
+    // preserves the single-repo install path.
     let projectId = ""
     const idsRaw = process.env.OPENCLAW_PROJECT_IDS?.trim()
+    let mapWasValid = false
     if (idsRaw) {
       try {
         const map = JSON.parse(idsRaw)
-        if (map && typeof map === "object" && typeof map[ownerRepo] === "string") {
-          projectId = map[ownerRepo].trim()
+        if (map && typeof map === "object") {
+          mapWasValid = true
+          if (typeof map[ownerRepo] === "string") {
+            projectId = map[ownerRepo].trim()
+          }
         }
       } catch (error) {
         console.warn(
@@ -268,7 +276,7 @@ async function main() {
         )
       }
     }
-    if (!projectId) {
+    if (!projectId && !mapWasValid) {
       projectId = process.env.OPENCLAW_PROJECT_ID?.trim() ?? ""
     }
     if (projectId && issue.nodeId) {
