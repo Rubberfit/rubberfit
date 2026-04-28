@@ -127,6 +127,13 @@ async function loadState(primaryRepo) {
       // the Mac shell watcher's bootstrap behavior).
       firstSeenAt:
         parsed.firstSeenAt && typeof parsed.firstSeenAt === "object" ? parsed.firstSeenAt : {},
+      // Per-repo last reindex timestamp. When OPENCLAW_AUTO_REINDEX_HOURS
+      // is set, the poller refreshes each indexed repo's chunks on
+      // that cadence so retrieval stays current as the codebase evolves.
+      lastReindexAt:
+        parsed.lastReindexAt && typeof parsed.lastReindexAt === "object"
+          ? parsed.lastReindexAt
+          : {},
     }
   } catch {
     return {
@@ -137,6 +144,7 @@ async function loadState(primaryRepo) {
       handledMentions: {},
       lastMentionScanAt: {},
       firstSeenAt: {},
+      lastReindexAt: {},
     }
   }
 }
@@ -696,6 +704,10 @@ async function tick() {
   const checkout = await resolveCheckoutRepo()
   const migrationTarget = checkout && repos.includes(checkout) ? checkout : repos[0]
   const state = await loadState(migrationTarget)
+  // Refresh stale codebase indexes before the per-repo loop so the
+  // very next mention/issue triage benefits from fresh chunks. The
+  // function checks its own cadence — most ticks no-op cheaply.
+  await autoReindex(state)
   for (const repo of repos) {
     process.env.GH_REPO = repo
     await tickForRepo(repo, state)
@@ -739,6 +751,70 @@ async function gitAutoUpdate() {
   } catch (error) {
     console.warn(`[openclaw-poll] auto-update failed (continuing): ${error.message}`)
     return false
+  }
+}
+
+/**
+ * Auto-reindex: when `OPENCLAW_AUTO_REINDEX_HOURS=N` is set AND
+ * `OPENCLAW_INDEX_DIRS` maps repos to local checkouts, walk the map
+ * and refresh each repo's chunk index every N hours. Each iteration:
+ *   1. `git pull --ff-only` in the checkout (clean ff or skip).
+ *   2. `node tools/openclaw/index-repo.mjs --root <dir>` — incremental
+ *      re-embed of just the changed files.
+ *
+ * `lastReindexAt[repo]` is persisted so the cadence survives daemon
+ * restarts.
+ */
+async function autoReindex(state) {
+  const hoursStr = process.env.OPENCLAW_AUTO_REINDEX_HOURS?.trim()
+  if (!hoursStr) return
+  const hours = Number(hoursStr)
+  if (!Number.isFinite(hours) || hours <= 0) return
+
+  const indexDirsRaw = process.env.OPENCLAW_INDEX_DIRS?.trim()
+  if (!indexDirsRaw) return
+  let indexDirs
+  try {
+    indexDirs = JSON.parse(indexDirsRaw)
+  } catch {
+    return
+  }
+  if (!indexDirs || typeof indexDirs !== "object" || Array.isArray(indexDirs)) return
+
+  const intervalMs = hours * 60 * 60 * 1000
+  const now = Date.now()
+
+  for (const [repo, dir] of Object.entries(indexDirs)) {
+    if (typeof dir !== "string" || !dir.trim()) continue
+    const last = Date.parse(state.lastReindexAt[repo] ?? "") || 0
+    if (now - last < intervalMs) continue
+
+    try {
+      console.log(`[openclaw-poll] auto-reindex: ${repo} → pulling ${dir}`)
+      await exec("git", ["pull", "--ff-only"], {
+        cwd: dir,
+        maxBuffer: 10 * 1024 * 1024,
+      })
+    } catch (error) {
+      console.warn(`[openclaw-poll] auto-reindex pull failed for ${repo}: ${error.message}`)
+      // Continue to indexing — the existing checkout may still have
+      // changes worth re-embedding.
+    }
+
+    try {
+      console.log(`[openclaw-poll] auto-reindex: ${repo} → indexing`)
+      const indexerPath = resolve(repoRoot(), "tools", "openclaw", "index-repo.mjs")
+      await exec(process.execPath, [indexerPath, "--root", dir], {
+        cwd: repoRoot(),
+        env: process.env,
+        maxBuffer: 50 * 1024 * 1024,
+      })
+      state.lastReindexAt[repo] = new Date().toISOString()
+      await saveState(state)
+      console.log(`[openclaw-poll] auto-reindex: ${repo} complete`)
+    } catch (error) {
+      console.warn(`[openclaw-poll] auto-reindex failed for ${repo}: ${error.message}`)
+    }
   }
 }
 
