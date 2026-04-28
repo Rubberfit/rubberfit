@@ -260,15 +260,23 @@ async function main() {
     // preserves the single-repo install path.
     let projectId = ""
     const idsRaw = process.env.OPENCLAW_PROJECT_IDS?.trim()
-    let mapWasValid = false
+    // `null` here means "env was set" — distinct from "env unset"
+    // (undefined). The fallback to OPENCLAW_PROJECT_ID only kicks in
+    // for unset OR parse-throws, so any successful parse (even to a
+    // non-map value like `null` / `"foo"` / `[]`) is treated as "user
+    // intends multi-repo mode; skip the legacy fallback."
+    let envUsed = false
     if (idsRaw) {
       try {
         const map = JSON.parse(idsRaw)
-        if (map && typeof map === "object") {
-          mapWasValid = true
-          if (typeof map[ownerRepo] === "string") {
-            projectId = map[ownerRepo].trim()
-          }
+        envUsed = true
+        if (
+          map &&
+          typeof map === "object" &&
+          !Array.isArray(map) &&
+          typeof map[ownerRepo] === "string"
+        ) {
+          projectId = map[ownerRepo].trim()
         }
       } catch (error) {
         console.warn(
@@ -276,7 +284,7 @@ async function main() {
         )
       }
     }
-    if (!projectId && !mapWasValid) {
+    if (!projectId && !envUsed) {
       projectId = process.env.OPENCLAW_PROJECT_ID?.trim() ?? ""
     }
     if (projectId && issue.nodeId) {
