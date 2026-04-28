@@ -291,5 +291,5 @@ export type PreviewPackSort = "area" | "height" | "width" | "max-edge"
 
 export const MIN_REUSABLE_OFFCUT_WIDTH = 11.5
 export const MIN_REUSABLE_OFFCUT_HEIGHT = 12
-export const MIN_REUSABLE_STRIP_WIDTH = 5.5
+export const MIN_REUSABLE_STRIP_WIDTH = 6
 export const MIN_REUSABLE_STRIP_LENGTH = 24
