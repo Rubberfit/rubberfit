@@ -765,27 +765,69 @@ async function gitAutoUpdate() {
  * `lastReindexAt[repo]` is persisted so the cadence survives daemon
  * restarts.
  */
+// One-shot warning flags so a misconfigured env var doesn't spam the
+// log every tick — the operator only needs to see the warning once.
+let warnedAutoReindexHoursInvalid = false
+let warnedAutoReindexNoDirs = false
+let warnedAutoReindexBadJson = false
+let warnedAutoReindexNotObject = false
+
 async function autoReindex(state) {
   const hoursStr = process.env.OPENCLAW_AUTO_REINDEX_HOURS?.trim()
+  // Unset → feature off, nothing to warn about.
   if (!hoursStr) return
+
   const hours = Number(hoursStr)
-  if (!Number.isFinite(hours) || hours <= 0) return
+  if (!Number.isFinite(hours) || hours <= 0) {
+    if (!warnedAutoReindexHoursInvalid) {
+      console.warn(
+        `[openclaw-poll] OPENCLAW_AUTO_REINDEX_HOURS="${hoursStr}" is not a positive number; auto-reindex disabled until corrected.`
+      )
+      warnedAutoReindexHoursInvalid = true
+    }
+    return
+  }
 
   const indexDirsRaw = process.env.OPENCLAW_INDEX_DIRS?.trim()
-  if (!indexDirsRaw) return
+  if (!indexDirsRaw) {
+    if (!warnedAutoReindexNoDirs) {
+      console.warn(
+        "[openclaw-poll] OPENCLAW_AUTO_REINDEX_HOURS is set but OPENCLAW_INDEX_DIRS is unset; nothing to reindex."
+      )
+      warnedAutoReindexNoDirs = true
+    }
+    return
+  }
+
   let indexDirs
   try {
     indexDirs = JSON.parse(indexDirsRaw)
-  } catch {
+  } catch (error) {
+    if (!warnedAutoReindexBadJson) {
+      console.warn(
+        `[openclaw-poll] OPENCLAW_INDEX_DIRS is not valid JSON (${error.message}); auto-reindex disabled until corrected.`
+      )
+      warnedAutoReindexBadJson = true
+    }
     return
   }
-  if (!indexDirs || typeof indexDirs !== "object" || Array.isArray(indexDirs)) return
+  if (!indexDirs || typeof indexDirs !== "object" || Array.isArray(indexDirs)) {
+    if (!warnedAutoReindexNotObject) {
+      console.warn(
+        `[openclaw-poll] OPENCLAW_INDEX_DIRS parsed but is not a {repo: dir} object (got ${Array.isArray(indexDirs) ? "array" : indexDirs === null ? "null" : typeof indexDirs}); auto-reindex disabled until corrected.`
+      )
+      warnedAutoReindexNotObject = true
+    }
+    return
+  }
 
   const intervalMs = hours * 60 * 60 * 1000
   const now = Date.now()
 
-  for (const [repo, dir] of Object.entries(indexDirs)) {
-    if (typeof dir !== "string" || !dir.trim()) continue
+  for (const [repo, rawDir] of Object.entries(indexDirs)) {
+    if (typeof rawDir !== "string") continue
+    const dir = rawDir.trim()
+    if (!dir) continue
     const last = Date.parse(state.lastReindexAt[repo] ?? "") || 0
     if (now - last < intervalMs) continue
 
