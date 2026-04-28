@@ -216,11 +216,11 @@ async function main() {
     process.exit(2)
   }
 
-  const body = `${formatIssueTriageComment({
+  const body = formatIssueTriageComment({
     verdict,
     author: issue.author,
     marker: TRIAGE_MARKER,
-  })}\n\n_🦞 Auto-triage by **OpenClaw** · model \`${MODEL}\` · severity \`${verdict.severity}\` · estimate \`${verdict.estimate}\`_`
+  })
 
   // Build the App-authed callable once so we can reuse it across
   // comment post, label apply, and project field updates. Falls back

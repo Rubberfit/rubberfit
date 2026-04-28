@@ -103,6 +103,44 @@ describe("parseIssueTriageResponse", () => {
     expect(out?.research).toBe("Standard event-handler pattern in React docs.")
   })
 
+  it("captures the optional diagram field, stripping an accidental mermaid fence", () => {
+    const out = parseIssueTriageResponse(
+      JSON.stringify({
+        headline: "h",
+        severity: "P2",
+        estimate: "S",
+        summary: "s",
+        diagram: "```mermaid\ngraph LR\n  A-->B\n```",
+      })
+    )
+    expect(out?.diagram).toBe("graph LR\n  A-->B")
+  })
+
+  it("strips internal triple backticks so the rendered fenced block can't break", () => {
+    const out = parseIssueTriageResponse(
+      JSON.stringify({
+        headline: "h",
+        severity: "P2",
+        estimate: "S",
+        summary: "s",
+        diagram: "graph LR\n  A-->B\n```\nstray fence\n```",
+      })
+    )
+    expect(out?.diagram).not.toContain("```")
+    expect(out?.diagram).toContain("graph LR")
+  })
+
+  it("leaves diagram undefined when omitted or empty", () => {
+    const out1 = parseIssueTriageResponse(
+      JSON.stringify({ headline: "h", severity: "P2", estimate: "S", summary: "s" })
+    )
+    expect(out1?.diagram).toBeUndefined()
+    const out2 = parseIssueTriageResponse(
+      JSON.stringify({ headline: "h", severity: "P2", estimate: "S", summary: "s", diagram: "" })
+    )
+    expect(out2?.diagram).toBeUndefined()
+  })
+
   it("strips a surrounding ```json fence", () => {
     const text = '```json\n{"headline":"h","severity":"P1","estimate":"S","summary":"s"}\n```'
     const out = parseIssueTriageResponse(text)
@@ -226,12 +264,13 @@ describe("formatIssueTriageComment", () => {
     expect(body).not.toContain("Prior art")
   })
 
-  it("ends with the auto-triage advisory line", () => {
+  it("does not append a trailing advisory or signature line", () => {
     const body = formatIssueTriageComment({
       verdict,
       author: "stevenfojas670",
       marker: "<!-- m -->",
     })
-    expect(body.trimEnd().endsWith("adjust as you scope the work._")).toBe(true)
+    expect(body).not.toContain("Auto-triage")
+    expect(body).not.toContain("adjust as you scope")
   })
 })

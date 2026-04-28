@@ -166,7 +166,24 @@ function formatVerdictReply(verdict, prAuthor) {
   lines.push(`🦞 [${tag}] ${headline}`.trim())
   lines.push("")
   if (verdict.classification === "ACCEPT" && prAuthor && mention(prAuthor)) {
-    lines.push(`${mention(prAuthor)}— flagging since this read holds up.`)
+    // Prefer a per-comment opener from the model so each ACCEPT reply
+    // gets its own framing instead of the static "this read holds up"
+    // line. Fall back to the static phrase when the model didn't
+    // produce one (older prompts, parse fallback, etc.).
+    //
+    // Reject openers containing `@` — the LLM output is interpolated
+    // nearly verbatim, and a stray `@username` would notify a real
+    // GitHub user. Static phrase wins over an unsafe opener.
+    const opener = verdict.opener?.trim()
+    const safeOpener = opener && !opener.includes("@") ? opener : ""
+    const trimmedOpener = safeOpener
+      ? safeOpener.replace(/^[—–-]\s*/, "").replace(/[.!]+$/, "")
+      : ""
+    if (trimmedOpener) {
+      lines.push(`${mention(prAuthor)}— ${trimmedOpener}.`)
+    } else {
+      lines.push(`${mention(prAuthor)}— flagging since this read holds up.`)
+    }
     lines.push("")
   }
   // Body — preserves the model's technical paragraphs verbatim.
@@ -237,10 +254,31 @@ async function resolveReviewThread(call, threadId) {
       }
     }
   `
+  // Try via App auth first.
   const res = await call("POST", "/graphql", { query: mutation, variables: { id: threadId } })
-  if (res?.errors?.length) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(res.errors).slice(0, 300)}`)
+  if (!res?.errors?.length) return
+
+  // App auth can return FORBIDDEN ("Resource not accessible by integration")
+  // on resolveReviewThread even when posting replies works — usually a
+  // stale install permission set on the App. Fall back to the developer's
+  // gh CLI (which uses GH_TOKEN) since we know that PAT has access.
+  //
+  // Test the FULL serialized payload for the marker — if FORBIDDEN lands
+  // past 300 chars (e.g. several batched errors), we still want to take
+  // the fallback path. Truncation is for the thrown message only.
+  const fullPayload = JSON.stringify(res.errors)
+  const isForbidden = /FORBIDDEN|Resource not accessible/i.test(fullPayload)
+  if (!isForbidden) {
+    throw new Error(`GraphQL errors: ${fullPayload.slice(0, 300)}`)
   }
+  await gh([
+    "api",
+    "graphql",
+    "-f",
+    `query=${mutation}`,
+    "-f",
+    `id=${threadId}`,
+  ])
 }
 
 async function main() {

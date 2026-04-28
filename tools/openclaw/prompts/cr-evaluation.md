@@ -16,6 +16,7 @@ Reply with **only a JSON array**, no markdown fence, no preamble. Each element c
     "commentId": 12345,
     "classification": "ACCEPT" | "SKIP_NITPICK" | "SKIP_OUT_OF_SCOPE" | "SKIP_FALSE_POSITIVE",
     "headline": "One sentence summarizing the verdict, ≤120 chars, no period at end.",
+    "opener": "<ACCEPT only — short clause specific to THIS finding, ≤90 chars. The renderer prepends `@author —` and appends a period, so write it like a sentence fragment that follows that. NO @-mentions, NO trailing period. Make it specific to the comment, not a generic 'this read holds up' line. Examples: 'this one's worth scrutinizing because the truncation can mask the very condition we're testing for' / 'surfacing this since the same regex lives in two places and they need to stay in sync' / 'flagging because the path-traversal guard is what blocks the leak in the model prompt'.>",
     "body": "1–3 sentences. Technical voice. Reference `code identifiers` in backticks and file paths like `app/foo.ts:42-46`. End with the minimal-fix direction in plain English. NO code blocks, NO ```suggestion``` syntax, NO patches. The engineer writes the actual code.",
     "location": "<only when ACCEPT — repo-relative path:line(s) where the engineer should look, e.g., `app/foo.ts:42-46`>"
   }
