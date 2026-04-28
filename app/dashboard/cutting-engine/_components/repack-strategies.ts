@@ -396,16 +396,36 @@ function rePackHomogeneousOverflowSheets(
   const pooledSpecs = buildPooledSpecsFromItems(overflowItems, originalSpecs)
   if (pooledSpecs.length === 0) return result
 
+  // Cap the NFP expand at the original overflow sheet count, not the global
+  // `sheetCap` — `sheetCap` is the engine-wide budget; `overflowSheets.length`
+  // is what this re-pack is actually replacing. Without this, NFP could
+  // produce MORE overflow sheets than the raw global packer used (e.g. when
+  // the cones don't tessellate as densely as the AABB grid for a particular
+  // geometry), regressing total sheet count even though every spec keeps its
+  // items. Plan A enforces the same constraint via its own gate at line ~360.
+  // See PR #150 review (CodeRabbit + OpenClaw flagged ACCEPT).
+  const overflowSheetCap = Math.min(sheetCap, overflowSheets.length)
   const repackedSheets = expandNfpSheets(
     pooledSpecs,
     rollW,
     rollL,
     fallbackWidth,
     fallbackHeight,
-    sheetCap
+    overflowSheetCap
   )
 
-  // Acceptance gate (per-spec multiset, see Plan A's gate 2).
+  // Acceptance gate 1: sheet count must not increase. Defensive — `expandNfpSheets`
+  // already honors the cap above, but if the cap is ever raised this guard
+  // remains the single source of truth for the "no regression" promise.
+  if (repackedSheets.length > overflowSheets.length) {
+    console.warn(
+      `[issue-119] overflow re-pack rejected: ` +
+        `repack would use ${repackedSheets.length} sheets vs original ${overflowSheets.length}`
+    )
+    return result
+  }
+
+  // Acceptance gate 2: per-spec multiset (no spec loses items).
   const originalCounts = specCountsByOriginalIndex(overflowItems)
   const newCounts = specCountsByOriginalIndex(repackedSheets.flatMap((sh) => sh.preview.items))
   const regression = checkPerSpecMultiset(originalCounts, newCounts)

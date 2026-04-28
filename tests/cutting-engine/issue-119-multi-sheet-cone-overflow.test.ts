@@ -310,11 +310,16 @@ describe("Issue #119 — Plan A: full-job NFP with rect gap-fill", () => {
     // (no rects), so the wrapper falls through to v1 which re-packs the
     // overflow sheets via NFP. Without v1 the raw global packer's AABB
     // overflow sheets would carry only ~4 cones each (the bug pattern).
+    const MAX_SHEETS = 4
     const specs: SimplePartSpec[] = [cone(100, 12, 24, 12, 0, "C")]
-    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, MAX_SHEETS, FALLBACK_W, FALLBACK_H)
 
     // Force overflow: 12 cones at this size require multiple sheets.
     expect(result.sheets.length).toBeGreaterThanOrEqual(2)
+    // v1 must respect the caller's sheet budget — the overflow re-pack
+    // cannot produce MORE sheets than the raw packer used. Catches the
+    // CodeRabbit/OpenClaw "v1 sheet-count exceeds original" regression.
+    expect(result.sheets.length).toBeLessThanOrEqual(MAX_SHEETS)
 
     // No items dropped, no rect kinds (v1 path doesn't introduce them).
     const placed = result.sheets.reduce((s, sh) => s + sh.preview.items.length, 0)
