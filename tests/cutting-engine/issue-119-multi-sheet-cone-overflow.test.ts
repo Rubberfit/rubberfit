@@ -260,3 +260,105 @@ describe("Issue #119 — guards against worst-case CPU and silent regressions", 
   // is verified instead by code review (constant + early-return at top of
   // the helper).
 })
+
+describe("Issue #119 — Plan A: full-job NFP with rect gap-fill", () => {
+  it("collapses screenshot fixture from 3 sheets to 2 by tucking rect into NFP gap", () => {
+    // The killer fixture from Steven's screenshot: 12 cones (100°/12/24) +
+    // 1 small rect (8x14) on a 96"x48" sheet.
+    //
+    // Pre-fix (raw global packer): 3 sheets [4+rect, 4 (AABB grid), 4 (AABB grid)]
+    // v1 only:                     3 sheets [4+rect, 6 (NFP fan), 2 (NFP partial)]
+    // Plan A (target):             2 sheets [6 cones, 6 cones + rect gap-filled]
+    //                              OR     [6+rect, 6] depending on which gap won
+    const specs: SimplePartSpec[] = [cone(100, 12, 24, 12, 0, "C-100"), rect(8, 14, 1, 1, "B")]
+
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+
+    // The headline win: total sheet count must be 2.
+    expect(result.sheets.length).toBe(2)
+
+    // No items dropped (12 cones + 1 rect = 13).
+    const placed = result.sheets.reduce((s, sh) => s + sh.preview.items.length, 0)
+    expect(placed + result.remainingOverflow).toBe(totalSpecQuantity(specs))
+
+    // Each sheet must contain ≥ 6 cones (NFP fan capacity for these dims).
+    for (const sheet of result.sheets) {
+      const coneCount = sheet.preview.items.filter((it) => it.renderShape === "sector").length
+      expect(
+        coneCount,
+        `sheet ${sheet.sheetIndex} should have ≥ 6 cones via NFP, got ${coneCount}`
+      ).toBeGreaterThanOrEqual(6)
+    }
+
+    // Rect must appear on EXACTLY one sheet (gap-filled into the NFP layout).
+    const sheetsWithRect = result.sheets.filter((sh) =>
+      sh.preview.items.some((it) => it.renderShape === "rect")
+    )
+    expect(sheetsWithRect.length).toBe(1)
+  })
+
+  it("contiguous sheetIndex 0..N-1 after Plan A splice", () => {
+    const specs: SimplePartSpec[] = [cone(100, 12, 24, 12, 0, "C-100"), rect(8, 14, 1, 1, "B")]
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+    result.sheets.forEach((sh, i) => {
+      expect(sh.sheetIndex, `sheet at position ${i} has stale sheetIndex ${sh.sheetIndex}`).toBe(i)
+    })
+  })
+
+  it("falls back to v1 (overflow-only re-pack) when no rectangles in the job", () => {
+    // Pure cone job large enough to force overflow — Plan A is ineligible
+    // (no rects), so the wrapper falls through to v1 which re-packs the
+    // overflow sheets via NFP. Without v1 the raw global packer's AABB
+    // overflow sheets would carry only ~4 cones each (the bug pattern).
+    const specs: SimplePartSpec[] = [cone(100, 12, 24, 12, 0, "C")]
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+
+    // Force overflow: 12 cones at this size require multiple sheets.
+    expect(result.sheets.length).toBeGreaterThanOrEqual(2)
+
+    // No items dropped, no rect kinds (v1 path doesn't introduce them).
+    const placed = result.sheets.reduce((s, sh) => s + sh.preview.items.length, 0)
+    expect(placed + result.remainingOverflow).toBe(totalSpecQuantity(specs))
+    const allKinds = new Set(
+      result.sheets.flatMap((sh) => sh.preview.items.map((it) => it.renderShape))
+    )
+    expect(allKinds.has("rect")).toBe(false)
+
+    // v1 actually re-packed: any non-trailing pure-cone overflow sheet must
+    // carry strictly more than the AABB-grid baseline (4).
+    const overflow = result.sheets.slice(1)
+    const fullOverflow = overflow.filter((sh) => !sh.isPartial)
+    if (fullOverflow.length > 0) {
+      for (const sheet of fullOverflow) {
+        expect(
+          sheet.preview.items.length,
+          `v1 overflow sheet ${sheet.sheetIndex} should beat AABB tile (4)`
+        ).toBeGreaterThan(4)
+      }
+    }
+  })
+
+  it("Plan A skipped for pure-rect jobs (no shape items to NFP)", () => {
+    const specs: SimplePartSpec[] = [rect(20, 20, 12, 0, "R")]
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+    expect(result.sheets.length).toBeGreaterThan(0)
+    for (const sheet of result.sheets) {
+      expect(sheet.preview.items.length).toBeGreaterThan(0)
+      expect(isPureRect(sheet.preview.items)).toBe(true)
+    }
+  })
+
+  it("does not regress when both Plan A and v1 fall back to raw layout", () => {
+    // A job with circles (renderShape="circle") makes Plan A ineligible AND
+    // breaks v1's homogeneous-overflow check. Wrapper must return raw global
+    // packer's output unchanged.
+    const specs: SimplePartSpec[] = [
+      { partType: "circle", quantity: 4, diameter: 20, _originalSpecIndex: 0, partNumber: "D" },
+      rect(8, 14, 1, 1, "B"),
+    ]
+    const result = globalMultiSheetPack(specs, ROLL_W, ROLL_L, 4, FALLBACK_W, FALLBACK_H)
+    expect(result.sheets.length).toBeGreaterThan(0)
+    const placed = result.sheets.reduce((s, sh) => s + sh.preview.items.length, 0)
+    expect(placed + result.remainingOverflow).toBe(totalSpecQuantity(specs))
+  })
+})
