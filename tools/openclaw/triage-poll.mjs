@@ -124,14 +124,27 @@ async function loadState(primaryRepo) {
       lastMentionScanAt: migrateLegacyMentionScan(parsed.lastMentionScanAt, primaryRepo),
       // Per-repo first-seen timestamps. Used to skip the existing
       // backlog of open issues on first sight of a new repo (matches
-      // the Mac shell watcher's bootstrap behavior).
+      // the Mac shell watcher's bootstrap behavior). Arrays must be
+      // rejected explicitly — `typeof [] === "object"` so a corrupt
+      // state file with `[]` would pass the guard, and string-keyed
+      // writes onto arrays vanish through JSON.stringify, silently
+      // re-bootstrapping every tick.
       firstSeenAt:
-        parsed.firstSeenAt && typeof parsed.firstSeenAt === "object" ? parsed.firstSeenAt : {},
+        parsed.firstSeenAt &&
+        typeof parsed.firstSeenAt === "object" &&
+        !Array.isArray(parsed.firstSeenAt)
+          ? parsed.firstSeenAt
+          : {},
       // Per-repo last reindex timestamp. When OPENCLAW_AUTO_REINDEX_HOURS
       // is set, the poller refreshes each indexed repo's chunks on
       // that cadence so retrieval stays current as the codebase evolves.
+      // Same array-rejection rule as firstSeenAt above — a corrupt
+      // `[]` would survive JSON.stringify with no string keys and
+      // re-trigger reindex on every tick.
       lastReindexAt:
-        parsed.lastReindexAt && typeof parsed.lastReindexAt === "object"
+        parsed.lastReindexAt &&
+        typeof parsed.lastReindexAt === "object" &&
+        !Array.isArray(parsed.lastReindexAt)
           ? parsed.lastReindexAt
           : {},
     }
@@ -893,14 +906,15 @@ async function main() {
       `[openclaw-poll] auto-update: tracking origin/${process.env.OPENCLAW_AUTO_UPDATE_BRANCH}`
     )
     // Pull once at startup so the very first tick uses the latest code.
-    // If the pull actually advanced the checkout, exit cleanly so the
-    // service supervisor (NSSM) restarts the poller — otherwise the
-    // parent process keeps running the old in-memory code while
-    // freshly-spawned children load the new code, which silently
-    // breaks any contract that changed between versions.
+    // If the pull actually advanced the checkout, exit cleanly. The
+    // parent process is now running stale in-memory modules vs the
+    // freshly-rewritten checkout on disk, which silently breaks any
+    // contract that changed between versions. Exiting in `--once`
+    // mode too is intentional: the caller should re-invoke on the
+    // fresh code rather than ride out a single tick on the old.
     const updated = await gitAutoUpdate()
-    if (updated && !once) {
-      console.log("[openclaw-poll] auto-update applied; exiting for supervisor restart")
+    if (updated) {
+      console.log("[openclaw-poll] auto-update applied at startup; exiting for fresh-code rerun")
       process.exit(0)
     }
   }
