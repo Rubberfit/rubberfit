@@ -30,7 +30,7 @@ const MIN_REGION_AREA = 0.25
 /** Standard reusable offcut minimums (from nesting-visualizer-types.ts) */
 const MIN_REUSABLE_OFFCUT_W = 11.5
 const MIN_REUSABLE_OFFCUT_H = 12
-const MIN_REUSABLE_STRIP_W = 6
+const MIN_REUSABLE_STRIP_W = 5.5
 const MIN_REUSABLE_STRIP_H = 24
 
 type ClipperPoint = { X: number; Y: number }
