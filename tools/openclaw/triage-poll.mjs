@@ -702,6 +702,46 @@ async function tick() {
   }
 }
 
+/**
+ * Optional auto-update: when `OPENCLAW_AUTO_UPDATE_BRANCH` is set
+ * (e.g. "dev"), fetch + hard-reset the daemon's checkout to that
+ * remote branch so new fixes pushed upstream get picked up without a
+ * manual `git pull`. Spawned triage scripts (triage-cr, triage-issue,
+ * etc.) read code fresh on each spawn, so most updates apply on the
+ * very next tick. Poller-level changes wait for the next service
+ * restart.
+ *
+ * Hard-reset is safe because the daemon checkout shouldn't have any
+ * local modifications. Anything uncommitted gets clobbered — if the
+ * operator wants to test a local hotfix, unset the env var first.
+ */
+async function gitAutoUpdate() {
+  const branch = process.env.OPENCLAW_AUTO_UPDATE_BRANCH?.trim()
+  if (!branch) return false
+  try {
+    await exec("git", ["fetch", "origin", branch], {
+      cwd: repoRoot(),
+      maxBuffer: 10 * 1024 * 1024,
+    })
+    const beforeOut = await exec("git", ["rev-parse", "HEAD"], { cwd: repoRoot() })
+    const afterOut = await exec("git", ["rev-parse", `origin/${branch}`], { cwd: repoRoot() })
+    const before = beforeOut.stdout.trim()
+    const after = afterOut.stdout.trim()
+    if (before === after) return false
+    await exec("git", ["reset", "--hard", `origin/${branch}`], {
+      cwd: repoRoot(),
+      maxBuffer: 10 * 1024 * 1024,
+    })
+    console.log(
+      `[openclaw-poll] auto-update: pulled origin/${branch} (${before.slice(0, 7)} → ${after.slice(0, 7)})`
+    )
+    return true
+  } catch (error) {
+    console.warn(`[openclaw-poll] auto-update failed (continuing): ${error.message}`)
+    return false
+  }
+}
+
 function parseArgs(argv) {
   return { once: argv.includes("--once") }
 }
@@ -730,13 +770,32 @@ async function main() {
     }
   }
 
+  if (process.env.OPENCLAW_AUTO_UPDATE_BRANCH) {
+    console.log(
+      `[openclaw-poll] auto-update: tracking origin/${process.env.OPENCLAW_AUTO_UPDATE_BRANCH}`
+    )
+    // Pull once at startup so the very first tick uses the latest code.
+    await gitAutoUpdate()
+  }
+
   console.log(
     `[openclaw-poll] starting (interval=${intervalMs}ms, once=${once}, repo=${repoRoot()})`
   )
 
+  // Auto-update cadence: every N ticks, check the configured remote
+  // branch for new commits and hard-reset to it.
+  const AUTO_UPDATE_EVERY_N_TICKS = 10
+  let tickCount = 0
   while (true) {
     await tick()
+    tickCount += 1
     if (once) break
+    if (
+      process.env.OPENCLAW_AUTO_UPDATE_BRANCH &&
+      tickCount % AUTO_UPDATE_EVERY_N_TICKS === 0
+    ) {
+      await gitAutoUpdate()
+    }
     await sleep(intervalMs)
   }
 }
