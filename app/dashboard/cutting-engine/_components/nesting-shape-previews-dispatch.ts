@@ -41,7 +41,12 @@ import {
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
 
-export { globalMultiSheetPack } from "./nesting-global-packer-entry"
+// Public `globalMultiSheetPack` is defined at the bottom of this file as a
+// wrapper that calls the raw global packer, then re-packs homogeneous
+// (cone/trapezoid) overflow sheets via the NFP-aware pipeline. The raw
+// implementation stays available here under `_globalMultiSheetPack` for
+// internal candidate-evaluation use (single-sheet probe at line ~560).
+// See issue #119.
 import { globalMultiSheetPack as _globalMultiSheetPack } from "./nesting-global-packer-entry"
 
 interface PackingCandidate {
@@ -191,10 +196,7 @@ function mixedResultToCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = placedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -288,12 +290,7 @@ function packOtherSpecsForHybrid(
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(
-      otherSpecs,
-      fallbackWidth,
-      fallbackHeight,
-      originalIndices
-    )
+    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = packMixedNfp(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -336,12 +333,7 @@ async function packOtherSpecsForHybridAsync(
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(
-      otherSpecs,
-      fallbackWidth,
-      fallbackHeight,
-      originalIndices
-    )
+    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = await packMixedNfpAsync(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -387,10 +379,7 @@ function buildHybridCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = combinedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -448,10 +437,7 @@ function tryTrapezoidHybridCandidate(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce(
-    (m, item) => Math.max(m, item.y + item.height),
-    0
-  )
+  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = packOtherSpecsForHybrid(
@@ -503,10 +489,7 @@ async function tryTrapezoidHybridCandidateAsync(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce(
-    (m, item) => Math.max(m, item.y + item.height),
-    0
-  )
+  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = await packOtherSpecsForHybridAsync(
@@ -532,9 +515,7 @@ async function tryTrapezoidHybridCandidateAsync(
 // are nullable when their preconditions don't hold. Sorted via the existing
 // comparePackingCandidates (more items > less scrap > tighter trim).
 // Issue #124.
-function pickBestCandidate(
-  candidates: ReadonlyArray<PackingCandidate | null>
-): PackingCandidate {
+function pickBestCandidate(candidates: ReadonlyArray<PackingCandidate | null>): PackingCandidate {
   const valid = candidates.filter((c): c is PackingCandidate => c !== null)
   if (valid.length === 0) {
     throw new Error("pickBestCandidate: no candidates supplied")
@@ -1316,4 +1297,255 @@ export function computeMultiSheetPreviews(
     remainingOverflow,
     avgFabScore,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Issue #119 — homogeneous-overflow re-pack
+//
+// `globalMultiSheetPack` (the raw MaxRects/AABB packer) treats sectors and
+// trapezoids as oriented bounding boxes with rotation disabled. For mixed
+// jobs (e.g. cones + a small rect) the packer's per-job strategy decision
+// degrades every overflow sheet — even pure-cone overflow sheets that no
+// longer contain the rect inherit the AABB layout and lose the dense fan
+// pattern that the NFP path can produce on a fresh sheet.
+//
+// Fix: post-process the raw result. If sheets 1..N are all homogeneous
+// (every item is a sector OR every item is a trapezoid), pool their items,
+// reconstruct per-spec quantities preserving issue #121 identity invariants,
+// and re-allocate them across overflow sheets via the NFP-aware
+// `computeMultiSheetPreviews` path. Sheet 0 is preserved (it may contain
+// the heterogeneous item; rect-aware hybrid packing for sheet 0 is tracked
+// as a follow-up).
+//
+// Acceptance gate: exact per-spec multiset equality. The re-pack must place
+// the same count for every original spec; if any item would be dropped, we
+// keep the raw packer's output to guarantee no regression.
+// ---------------------------------------------------------------------------
+
+/** Cap on overflow sheets eligible for NFP re-pack. Sync NFP runs on the
+ *  main thread per sheet; this bound keeps worst-case CPU predictable for
+ *  pathological jobs while still covering normal operator scenarios. */
+const MAX_REPACK_SHEETS = 10
+
+function specCountsByOriginalIndex(items: PreviewItem[]): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const item of items) {
+    const key = item.specIndex
+    if (key == null) continue
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
+}
+
+function buildPooledOverflowSpecs(
+  items: PreviewItem[],
+  originalSpecs: SimplePartSpec[]
+): SimplePartSpec[] {
+  // Group items by `_originalSpecIndex` (fallback `specIndex`). For each
+  // group, find the matching original spec by `_originalSpecIndex` first,
+  // fallback to local position. Preserves issue #121 identity invariants:
+  // distinct specs that share dimensions (e.g. two cones with different
+  // partNumbers) stay distinct in the re-packed output.
+  const counts = specCountsByOriginalIndex(items)
+  const pooled: SimplePartSpec[] = []
+  for (const [origIdx, qty] of counts) {
+    const matched =
+      originalSpecs.find((s) => s._originalSpecIndex === origIdx) ?? originalSpecs[origIdx]
+    if (!matched) continue
+    pooled.push({ ...matched, quantity: qty })
+  }
+  return pooled
+}
+
+function isHomogeneousOverflowSheet(sheet: SheetPreview): boolean {
+  const items = sheet.preview.items
+  if (items.length === 0) return false
+  const allSector = items.every((it) => it.renderShape === "sector")
+  const allTrap = items.every((it) => it.renderShape === "trapezoid")
+  return allSector || allTrap
+}
+
+/**
+ * Generate a single-sheet preview using the most NFP-aware entry point for
+ * the given spec set:
+ *
+ * - Single cone spec → `generateConePreview` (dedicated NFP fan).
+ * - Single trapezoid spec → `generateTrapezoidPreview` (interleave-aware).
+ * - Multi-spec → `generateMultiPartPreview(..., false)` (mixed-NFP / hybrid).
+ *
+ * `generateMultiPartPreview` falls through to shelf packing when given a
+ * single cone or trapezoid spec because `useMixedNfp` requires
+ * `simpleParts.length > 1`. Calling the dedicated single-spec generator
+ * avoids that fall-through and recovers the fan / interlock pattern.
+ */
+function generateNfpPreviewForSpecs(
+  specs: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): SimplePartPreview {
+  if (specs.length === 1) {
+    const spec = specs[0]
+    const qty = Math.max(1, spec.quantity || 1)
+    let preview: SimplePartPreview | null = null
+    if (spec.partType === "cone") {
+      preview = generateConePreview(
+        rollW,
+        rollL,
+        spec.innerRadius ?? Math.max(1, fallbackWidth / 2),
+        spec.outerRadius ?? Math.max(2, fallbackHeight),
+        spec.arcDegrees ?? 120,
+        qty,
+        spec.cutDirection,
+        spec.cutRatios,
+        undefined,
+        false
+      )
+    } else if (spec.partType === "trapezoid") {
+      preview = generateTrapezoidPreview(
+        rollW,
+        rollL,
+        spec.topWidth ?? fallbackWidth,
+        spec.bottomWidth ?? fallbackWidth,
+        spec.height ?? fallbackHeight,
+        qty,
+        spec.cutDirection,
+        spec.cutRatios,
+        undefined,
+        false
+      )
+    }
+    if (preview) {
+      // Single-spec generators don't take a spec object, so they don't stamp
+      // `specIndex`/`partNumber` on placed items. Apply the identity from the
+      // pooled spec so downstream tag-map / overflow accounting (issue #121)
+      // stays correct.
+      const stampedItems = preview.items.map((item) => ({
+        ...item,
+        specIndex: spec._originalSpecIndex ?? item.specIndex,
+        partNumber: spec.partNumber ?? item.partNumber,
+      }))
+      return { ...preview, items: stampedItems, placements: stampedItems } as SimplePartPreview
+    }
+  }
+  return generateMultiPartPreview(rollW, rollL, specs, fallbackWidth, fallbackHeight, false)
+}
+
+function rePackHomogeneousOverflowSheets(
+  result: MultiSheetResult,
+  specs: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): MultiSheetResult {
+  // Nothing to re-pack: 0 or 1 sheet, no overflow.
+  if (result.sheets.length < 2) return result
+
+  const overflowSheets = result.sheets.slice(1)
+
+  // CPU guard: skip re-pack on pathological jobs with too many overflow sheets.
+  if (overflowSheets.length > MAX_REPACK_SHEETS) return result
+
+  // Eligibility: every overflow sheet must be a single shape kind. Mixed
+  // overflow sheets (rare but possible) keep the global packer's layout.
+  if (!overflowSheets.every(isHomogeneousOverflowSheet)) return result
+
+  // Pool overflow items, reconstruct per-spec quantities preserving identity.
+  const overflowItems = overflowSheets.flatMap((sh) => sh.preview.items)
+  const pooledSpecs = buildPooledOverflowSpecs(overflowItems, specs)
+  if (pooledSpecs.length === 0) return result
+
+  // Multi-sheet expansion via a small per-sheet loop. We can't reuse
+  // `computeMultiSheetPreviews` here because its `isMultiPart` gate skips
+  // `reduceSpecsByPlacedItems` when `allSpecs.length === 1` — for the common
+  // pooled-pure-cone overflow case (single cone spec) the gate would never
+  // decrement remaining quantities, causing each sheet to re-pack the full
+  // pool and over-place items. Tracking decrement here keeps the per-sheet
+  // contract simple and shape-agnostic.
+  const repackedSheets: SheetPreview[] = []
+  let remainingPool = pooledSpecs.map((s) => ({ ...s }))
+  let capacityPerSheet = 0
+
+  while (repackedSheets.length < MAX_REPACK_SHEETS) {
+    const activeSpecs = remainingPool.filter((s) => (s.quantity ?? 0) > 0)
+    if (activeSpecs.length === 0) break
+    const preview = generateNfpPreviewForSpecs(
+      activeSpecs,
+      rollW,
+      rollL,
+      fallbackWidth,
+      fallbackHeight
+    )
+    if (preview.unitsCompleted === 0) break
+    if (capacityPerSheet === 0) capacityPerSheet = preview.unitsCompleted
+    const isPartial = preview.unitsCompleted < capacityPerSheet
+    repackedSheets.push({ sheetIndex: repackedSheets.length, preview, isPartial })
+    remainingPool = reduceSpecsByPlacedItems(remainingPool, preview.items).filter(
+      (s) => (s.quantity ?? 0) > 0
+    )
+  }
+
+  // Acceptance gate: each original spec must keep at least its overflow
+  // contribution. The re-pack may place MORE per spec (e.g. gap-fill stuffs
+  // an extra cone into a sheet's free area) — that's a strict win and is
+  // accepted. Any spec losing items rejects the re-pack to avoid regressions.
+  const originalCounts = specCountsByOriginalIndex(overflowItems)
+  const newCounts = specCountsByOriginalIndex(repackedSheets.flatMap((sh) => sh.preview.items))
+  for (const [origIdx, requiredQty] of originalCounts) {
+    const placedQty = newCounts.get(origIdx) ?? 0
+    if (placedQty < requiredQty) {
+      console.warn(
+        `[issue-119] re-pack rejected: spec ${origIdx} placed ${placedQty}/${requiredQty} ` +
+          `original=${JSON.stringify([...originalCounts])} ` +
+          `repack=${JSON.stringify([...newCounts])}`
+      )
+      return result
+    }
+  }
+  // Splice sheet 0 + re-packed overflow, recompute totals.
+  const sheets: SheetPreview[] = [
+    result.sheets[0],
+    ...repackedSheets.map((sh, i) => ({ ...sh, sheetIndex: i + 1 })),
+  ]
+  const stockArea = rollW * rollL
+  const totalUnitsCompleted = sheets.reduce((s, sh) => s + sh.preview.unitsCompleted, 0)
+  const totalUsedArea = sheets.reduce((s, sh) => s + sh.preview.usedArea, 0)
+  const totalReusableArea = sheets.reduce((s, sh) => s + sh.preview.reusableArea, 0)
+  const totalScrapArea = sheets.reduce((s, sh) => s + sh.preview.scrapArea, 0)
+  const totalNeeded = specs.reduce((s, sp) => s + Math.max(0, sp.quantity ?? 0), 0)
+  const remainingOverflow = Math.max(0, totalNeeded - totalUnitsCompleted)
+  const fabScores = sheets.map((sh) => computeFabricationScore(sh.preview, rollW, rollL).score)
+  const avgFabScore =
+    fabScores.length > 0 ? Math.round(fabScores.reduce((a, b) => a + b, 0) / fabScores.length) : 0
+
+  return {
+    sheets,
+    totalUnitsCompleted,
+    totalUsedArea,
+    totalReusableArea,
+    totalScrapArea,
+    totalStockArea: stockArea * sheets.length,
+    remainingOverflow,
+    avgFabScore,
+  }
+}
+
+/**
+ * Public entry point: runs the raw global MaxRects packer, then post-processes
+ * any homogeneous overflow sheets through the NFP-aware multi-sheet pipeline
+ * so cone/trapezoid sheets recover their fan / interlock density. See issue
+ * #119 and `rePackHomogeneousOverflowSheets` above for the full rationale.
+ */
+export function globalMultiSheetPack(
+  specs: SimplePartSpec[],
+  rollW: number,
+  rollL: number,
+  maxSheets: number,
+  fallbackWidth: number,
+  fallbackHeight: number
+): MultiSheetResult {
+  const raw = _globalMultiSheetPack(specs, rollW, rollL, maxSheets, fallbackWidth, fallbackHeight)
+  return rePackHomogeneousOverflowSheets(raw, specs, rollW, rollL, fallbackWidth, fallbackHeight)
 }
