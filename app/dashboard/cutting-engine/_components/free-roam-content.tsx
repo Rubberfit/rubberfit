@@ -11,16 +11,48 @@ import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import { PartsQueuePanel, type PartsFilter } from "./parts-queue-panel"
 import { CanvasToolbar } from "./canvas-toolbar"
 import KonvaSheetRenderer from "./KonvaSheetRenderer"
-import { buildFreeRoamLayout } from "./free-roam-layout"
+import { useFreeRoamLayout } from "./use-free-roam-layout"
 import { deriveManualMetrics } from "./free-roam-metrics"
 import { useFreeRoamPlacements } from "./use-free-roam-placements"
 import { FreeRoamSavedLayoutsRail } from "./free-roam-saved-layouts-rail"
-import { computeAdaptiveRegions } from "./free-roam-regions"
+import { useFreeRoamRegions } from "./use-free-roam-regions"
 import { useDragSnapshot } from "./use-drag-snapshot"
 import { useRecordManualCut } from "./use-record-manual-cut"
 import { useLoadManualCut } from "./use-load-manual-cut"
 import { FreeRoamAddShapeDialog } from "./free-roam-add-shape-dialog"
 import { CutLoader } from "./cut-loader"
+
+/**
+ * Inline help overlay shown on the empty canvas. Bottom-centered, no
+ * pointer events so it doesn't shadow the canvas under it.
+ */
+function FreeRoamCanvasTip({
+  hasParts,
+  hasPlacements,
+}: {
+  hasParts: boolean
+  hasPlacements: boolean
+}) {
+  if (!hasParts) {
+    return (
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+        <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+          Add parts from the queue to start.
+        </div>
+      </div>
+    )
+  }
+  if (!hasPlacements) {
+    return (
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+        <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
+          Click a part to place · drag to move · click to select · R to rotate · Delete to remove
+        </div>
+      </div>
+    )
+  }
+  return null
+}
 
 interface FreeRoamContentProps {
   parts: PartTemplate[]
@@ -108,12 +140,9 @@ export default function FreeRoamContent({
     onAfterLoadCut,
   })
 
-  // Drop focus from any text input in the rail (stock editor, etc.)
-  // when the canvas is interacted with. Otherwise the `keydown`
-  // handler in the placements hook sees `e.target` as an INPUT,
-  // treats it as an editable surface, and skips R / Delete shortcuts
-  // — rotation silently no-ops the first time the operator touches
-  // the canvas after editing stock dimensions.
+  // Drop focus from any rail text input when the canvas is touched —
+  // otherwise the placements hook's keydown sees INPUT and skips R /
+  // Delete shortcuts.
   const blurIfEditable = () => {
     const active = document.activeElement as HTMLElement | null
     if (
@@ -156,10 +185,9 @@ export default function FreeRoamContent({
     return map
   }, [parts])
 
-  // Konva moves the dragged <Group> itself — the VISUAL is handled
-  // without a React re-render. For reactive downstream (amber / red
-  // regions) we need the live position; `useDragSnapshot` rAF-throttles
-  // it so Clipper diffs don't run on every pointer-move.
+  // Konva moves the dragged Group; React only needs the live position
+  // for reactive downstream (waste regions). `useDragSnapshot`
+  // rAF-throttles to keep Clipper diffs off every pointer-move.
   const {
     snapshot: dragSnapshot,
     onDragMove: handlePartDragMove,
@@ -183,26 +211,23 @@ export default function FreeRoamContent({
     )
   }, [placements, dragSnapshot])
 
-  // Regions — cheap enough to compute on every frame, so the same
-  // pass runs for both drag snapshots and committed placements.
-  const regions = useMemo(
-    () => computeAdaptiveRegions(effectivePlacements, parts, stock),
-    [effectivePlacements, parts, stock]
+  // Region computation. See `use-free-roam-regions.ts` for the
+  // committed-vs-live split + cache invalidation rules (issue #117).
+  const { regions, committedRegions } = useFreeRoamRegions(
+    placements,
+    effectivePlacements,
+    parts,
+    stock,
+    dragSnapshot != null
   )
 
-  const layout = useMemo(() => {
-    const base = buildFreeRoamLayout(effectivePlacements, parts, stock, tagByTemplateId)
-    return { ...base, offcuts: regions.offcuts, scrap: regions.scrap }
-  }, [effectivePlacements, parts, stock, tagByTemplateId, regions])
-
-  // Metrics use the COMMITTED placements + regions computed from them,
-  // not the in-flight drag snapshot — the numbers shouldn't jitter
-  // while the operator is still choosing a position. On drop, both
-  // `placements` and `regions` update together and the breakdown
-  // re-reads the authoritative classification.
-  const committedRegions = useMemo(
-    () => (dragSnapshot ? computeAdaptiveRegions(placements, parts, stock) : regions),
-    [placements, parts, stock, dragSnapshot, regions]
+  const layout = useFreeRoamLayout(
+    effectivePlacements,
+    parts,
+    stock,
+    tagByTemplateId,
+    regions.offcuts,
+    regions.scrap
   )
 
   const derivedMetrics = useMemo<SimpleCutMetrics | null>(
@@ -254,20 +279,10 @@ export default function FreeRoamContent({
                 zoomPct={zoomPct}
                 showGrid={showGrid}
               />
-              {parts.length === 0 ? (
-                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-                  <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Add parts from the queue to start.
-                  </div>
-                </div>
-              ) : placements.length === 0 ? (
-                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-                  <div className="rounded-md border border-border/60 bg-background/95 px-3 py-2 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                    Click a part to place · drag to move · click to select · R to rotate · Delete to
-                    remove
-                  </div>
-                </div>
-              ) : null}
+              <FreeRoamCanvasTip
+                hasParts={parts.length > 0}
+                hasPlacements={placements.length > 0}
+              />
             </div>
           </div>
         </WorkspaceColumn>

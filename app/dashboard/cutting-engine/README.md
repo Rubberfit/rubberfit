@@ -82,6 +82,14 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `nesting-svg-detail-helpers.ts` | Helper functions for SVG detail rendering (cut lines, overlays)             |
 | `nesting-svg-mini-roll.ts`      | Draws miniature roll previews for strategy comparison                       |
 
+### PDF Generation
+
+| File                          | Purpose                                                                                                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cut-history-pdf.ts`          | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. Uploads to Supabase via `uploadCutPdf`. |
+| `cut-history-pdf-offcut.ts`   | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface. |
+| `arc-anchor-logo.ts`          | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                       |
+
 ### State & Hooks
 
 | File                      | Purpose                                                                                 |
@@ -104,7 +112,8 @@ CAD-style three-column workspace — parts queue left, Konva canvas center, Save
 | `canvas-toolbar.tsx`                 | Tool cluster + zoom controls + sheet tabs. Lift-state design — parent owns `zoom` so the renderer reads the same value.    |
 | `free-roam-layout.ts`                | Builds `LayoutModel` from placements. Honors template `renderShape` + `polygon` overrides before falling back to partType. |
 | `free-roam-collision.ts`             | SAT polygon + rotated-AABB broad-phase collision. `wouldCollide` rejects drops that would overlap another placement.        |
-| `free-roam-regions.ts`               | Adaptive waste compute (issue #116). Three deterministic signals OR-unioned: SHAPE-ENVELOPE (per-placement local-coords `envelope − shape`, rotated to sheet space) + TRAPPED-POCKET (Clipper PolyTree DFS over `stock − ⋃parts`, free-space components fully enclosed by parts emit as scrap) + PER-SIDE GAP (for each part, on each of its 4 sides, the perpendicular distance to the nearest blocker — stock edge or another part — emits as scrap when below `MIN_USABLE_GAP_IN`). Per-part deterministic, never moves around as unrelated shapes are added. Output sorted by `(y, x, w, h)` for stable React keys. |
+| `free-roam-regions.ts`               | Adaptive waste compute (issue #116). Three deterministic signals OR-unioned: SHAPE-ENVELOPE (per-placement local-coords `envelope − shape`, rotated to sheet space) + TRAPPED-POCKET (Clipper PolyTree DFS over `stock − ⋃parts`, free-space components fully enclosed by parts emit as scrap) + PER-SIDE GAP (for each part, on each of its 4 sides, the perpendicular distance to the nearest blocker — stock edge or another part — emits as scrap when below `MIN_USABLE_GAP_IN`). Per-part deterministic, never moves around as unrelated shapes are added. Output sorted by `(y, x, w, h)` for stable React keys. Accepts an optional `RegionCache` (issue #117) so drag-tick recomputes skip per-placement Clipper work for stationary parts. |
+| `free-roam-region-cache.ts`          | Per-placement geometry memoizer (issue #117). Holds `Map<placementId, { sheetPoly, sheetPath, bbox, envelopeWaste }>` keyed by a fingerprint of `(templateId, partType, w, h, diameter, polygon vertices, x, y, rotation)`. Stationary placements hit the cache; only the dragged part's geometry is re-encoded. Sync runs synchronously inside `computeAdaptiveRegions`, idempotent and safe under React 19 concurrent rendering. |
 | `free-roam-metrics.ts`               | Sheet-area decomposition: used / scrap / reusable (remainder). Scrap area reads polygon area when present.                 |
 | `free-roam-saved-layouts-rail.tsx`   | Right-column rail. Stock editor + Saved-layouts dropdown (filtered to `source='manual'`) + results breakdown + Cut button.  |
 | `free-roam-stock-editor.tsx`         | W × L × T inputs for the sheet dimensions.                                                                                 |
@@ -112,6 +121,8 @@ CAD-style three-column workspace — parts queue left, Konva canvas center, Save
 | `shape-registry.ts`                  | tldraw-style tagged registry of shapes (rect, square, circle, ring, ellipse, triangle, n-gon, star) + `validateDimensions`. |
 | `results-breakdown.tsx`              | Shared utilization / reusable / waste card used by both Auto-nest and Free-roam rails.                                     |
 | `use-free-roam-placements.ts`        | Placement state hook + keyboard shortcuts (R rotates part OR sheet, Delete removes part).                                  |
+| `use-free-roam-regions.ts`           | Owns the region cache and the committed-vs-live memo split (issue #117). `committedRegions` deps exclude the drag snapshot so its full Clipper pipeline only re-runs when committed state actually changes; `regions` overlays the live drag with `skipPocketPass: true` so the heaviest pass defers to drop. |
+| `use-free-roam-layout.ts`            | Owns the per-id `PlacedPart` ref cache (issue #117). Threads a stable Map into `buildFreeRoamLayout` so `React.memo`'d `PartShape` components skip reconciliation for stationary placements during drag. |
 | `use-drag-snapshot.ts`               | rAF-throttled drag snapshot. Pointer-move events coalesce into one state update per animation frame.                        |
 | `use-record-manual-cut.ts`           | POSTs a manual cut to `/api/cuts/history` with `source: "manual"`. Owns its own `isRecordingCut` flag.                      |
 | `recorded-cut-select.tsx`            | Cut-history dropdown. Accepts an optional `sourceFilter` — Free-roam passes `"manual"` so saved layouts are filtered.       |

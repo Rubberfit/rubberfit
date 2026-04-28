@@ -39,7 +39,7 @@ CSV bulk import flow for rolls.
 
 Purchase order management within inventory.
 
-- **page.tsx** -- PO list page. S4 Task 7 polished: `PageShell` (dense) + `PageHeader` with crumbs + Export/New PO actions; 4 `StatCard`s (Total POs with draft/pending chips, Total Value, In Transit, Avg Lead Time); `InlineNotice` when pending approvals > 0; `POTable` in bordered card. All existing create/edit/view/cancel dialogs preserved with `INVALID_STATE_TRANSITION` handling.
+- **page.tsx** -- PO list page. S4 Task 7 polished: `PageShell` (dense) + `PageHeader` with crumbs + Export/New PO actions; 4 `StatCard`s (Total POs with draft/pending chips, Total Value, In Transit, Avg Lead Time); `InlineNotice` when pending approvals > 0; `POTable` in bordered card. All existing create/edit/view/cancel dialogs preserved with `INVALID_STATE_TRANSITION` handling. Issue #122 wired the previously-dead Export action to `PurchaseOrdersExportMenu`.
 - **\_components/po-table.tsx** -- Sortable, filterable PO data table with context-aware status actions
 - **\_components/po-create-dialog.tsx** -- Create new PO dialog
 - **\_components/po-edit-dialog.tsx** -- Edit existing PO dialog
@@ -47,7 +47,9 @@ Purchase order management within inventory.
 - **\_components/po-view-dialog.tsx** -- Read-only PO detail view
 - **\_components/po-view-sections.tsx** -- Sub-sections rendered inside the PO detail view
 - **\_components/po-action-handlers.ts** -- PO action logic (approve, reject, cancel, receive)
-- **\_components/po-pdf-export.ts** -- Generate PDF export of a purchase order
+- **\_components/po-pdf-export.ts** -- Generate PDF export of a single purchase order (View dialog → Download PDF)
+- **\_components/po-export-menu.tsx** -- CSV/PDF dropdown for the page-level header (issue #122). Calls `exportService` + `exportPdfService` via the helpers below; toasts when the filtered PO list is empty.
+- **\_components/po-export-utils.ts** -- Pure data shapers (`buildPurchaseOrdersCsv`, `buildPurchaseOrdersPdfHtml`) plus `toPurchaseOrdersExportInput(po)` adapter from the `usePurchaseOrders` hook return shape.
 - **\_components/po-tax-helpers.ts** -- Tax calculation helpers for PO line items
 - **\_components/use-po-actions.ts** -- Hook for PO status transitions
 - **\_components/use-po-form-state.ts** -- Hook for PO form state with auto tax detail fetching
