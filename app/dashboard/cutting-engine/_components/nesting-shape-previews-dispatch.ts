@@ -41,7 +41,12 @@ import {
 import { sectorToPolygon, trapezoidToPolygon } from "@/nesting/shape-to-polygon"
 import type { Point2D } from "@/nesting/types"
 
-export { globalMultiSheetPack } from "./nesting-global-packer-entry"
+// Public `globalMultiSheetPack` is defined in `./repack-strategies.ts` as a
+// wrapper that calls the raw global packer, then attempts the Plan A
+// (full-job NFP + rect gap-fill) and v1 (overflow-only) re-pack strategies.
+// The raw implementation stays available here under `_globalMultiSheetPack`
+// for internal candidate-evaluation use (single-sheet probe further below).
+// See issue #119.
 import { globalMultiSheetPack as _globalMultiSheetPack } from "./nesting-global-packer-entry"
 
 interface PackingCandidate {
@@ -191,10 +196,7 @@ function mixedResultToCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = placedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = placedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -288,12 +290,7 @@ function packOtherSpecsForHybrid(
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(
-      otherSpecs,
-      fallbackWidth,
-      fallbackHeight,
-      originalIndices
-    )
+    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = packMixedNfp(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -336,12 +333,7 @@ async function packOtherSpecsForHybridAsync(
   )
   const hasCone = otherSpecs.some((s) => s.partType === "cone")
   if (hasCone) {
-    const inputs = buildMixedNfpInputs(
-      otherSpecs,
-      fallbackWidth,
-      fallbackHeight,
-      originalIndices
-    )
+    const inputs = buildMixedNfpInputs(otherSpecs, fallbackWidth, fallbackHeight, originalIndices)
     if (inputs) {
       const result = await packMixedNfpAsync(inputs, rollW, remainingHeight)
       const items: PreviewItem[] = result.placements.map((p) => ({
@@ -387,10 +379,7 @@ function buildHybridCandidate(
       scrapArea += area
     }
   })
-  const intraBlankWaste = combinedItems.reduce(
-    (sum, item) => sum + computeIntraBlankWaste(item),
-    0
-  )
+  const intraBlankWaste = combinedItems.reduce((sum, item) => sum + computeIntraBlankWaste(item), 0)
   scrapArea += intraBlankWaste
   const trimDensity =
     bounds.occupiedWidth * bounds.occupiedHeight > 0
@@ -448,10 +437,7 @@ function tryTrapezoidHybridCandidate(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce(
-    (m, item) => Math.max(m, item.y + item.height),
-    0
-  )
+  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = packOtherSpecsForHybrid(
@@ -503,10 +489,7 @@ async function tryTrapezoidHybridCandidateAsync(
   const trapPacked = packInterleavedTrapezoids(trapItems, rollW, rollL)
   if (!trapPacked) return null
 
-  const trapMaxY = trapPacked.packed.items.reduce(
-    (m, item) => Math.max(m, item.y + item.height),
-    0
-  )
+  const trapMaxY = trapPacked.packed.items.reduce((m, item) => Math.max(m, item.y + item.height), 0)
   const remainingHeight = Math.max(0, rollL - trapMaxY)
 
   const otherPacked = await packOtherSpecsForHybridAsync(
@@ -532,9 +515,7 @@ async function tryTrapezoidHybridCandidateAsync(
 // are nullable when their preconditions don't hold. Sorted via the existing
 // comparePackingCandidates (more items > less scrap > tighter trim).
 // Issue #124.
-function pickBestCandidate(
-  candidates: ReadonlyArray<PackingCandidate | null>
-): PackingCandidate {
+function pickBestCandidate(candidates: ReadonlyArray<PackingCandidate | null>): PackingCandidate {
   const valid = candidates.filter((c): c is PackingCandidate => c !== null)
   if (valid.length === 0) {
     throw new Error("pickBestCandidate: no candidates supplied")
@@ -1100,7 +1081,10 @@ export async function generateSimplePartPreviewAsync(
 // Fallback (legacy / un-annotated specs): label-based matching mirrors the
 // pre-fix behavior so callers that haven't migrated still work. Couples
 // to the label format in buildPartPreviewItem — keep them in sync.
-function reduceSpecsByPlacedItems(specs: SimplePartSpec[], items: PreviewItem[]): SimplePartSpec[] {
+export function reduceSpecsByPlacedItems(
+  specs: SimplePartSpec[],
+  items: PreviewItem[]
+): SimplePartSpec[] {
   const placedByIndex = new Map<number, number>()
   const placedByLabel = new Map<string, number>()
   for (const item of items) {
@@ -1130,7 +1114,7 @@ function reduceSpecsByPlacedItems(specs: SimplePartSpec[], items: PreviewItem[])
     .filter((s): s is SimplePartSpec => s !== null)
 }
 
-function tryGapFillSheet(
+export function tryGapFillSheet(
   sheetPreview: SimplePartPreview,
   remainingSpecs: SimplePartSpec[],
   rollW: number,
