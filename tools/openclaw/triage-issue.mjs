@@ -248,7 +248,29 @@ async function main() {
       }
     }
 
-    const projectId = process.env.OPENCLAW_PROJECT_ID?.trim()
+    // Per-repo project mapping. OPENCLAW_PROJECT_IDS is a JSON map of
+    // `{ "<owner/repo>": "<projectV2NodeId>" }`. Falls back to the
+    // singular OPENCLAW_PROJECT_ID env var (single-repo install). If
+    // neither matches the current repo, we skip project field writes
+    // — Rubberfit-Desktop issues shouldn't try to write to the
+    // rema-portal project (project IDs aren't shared across orgs/repos).
+    let projectId = ""
+    const idsRaw = process.env.OPENCLAW_PROJECT_IDS?.trim()
+    if (idsRaw) {
+      try {
+        const map = JSON.parse(idsRaw)
+        if (map && typeof map === "object" && typeof map[ownerRepo] === "string") {
+          projectId = map[ownerRepo].trim()
+        }
+      } catch (error) {
+        console.warn(
+          `OPENCLAW_PROJECT_IDS is not valid JSON, falling back to OPENCLAW_PROJECT_ID: ${error.message}`
+        )
+      }
+    }
+    if (!projectId) {
+      projectId = process.env.OPENCLAW_PROJECT_ID?.trim() ?? ""
+    }
     if (projectId && issue.nodeId) {
       try {
         const graphql = async (query, variables) => {
