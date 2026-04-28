@@ -153,6 +153,15 @@ Invoke-Nssm @("set", $ServiceName, "AppRotateFiles", "1")
 Invoke-Nssm @("set", $ServiceName, "AppRotateBytes", "5242880")
 Invoke-Nssm @("set", $ServiceName, "ObjectName", "LocalSystem")
 
+# Auto-restart on every exit, including clean exit (code 0). The poller
+# uses a clean exit-and-restart pattern when OPENCLAW_AUTO_UPDATE_BRANCH
+# pulls new code — supervisor restart is what loads the new in-memory
+# modules. Without this NSSM would treat exit 0 as "intentional stop".
+Invoke-Nssm @("set", $ServiceName, "AppExit", "Default", "Restart")
+# Brief throttle so an immediate crash loop is visible in the log
+# instead of pegging CPU.
+Invoke-Nssm @("set", $ServiceName, "AppRestartDelay", "2000")
+
 # Build env-var array. NSSM accepts each KEY=VALUE as its own arg --
 # splatting an array bypasses any shell-quoting issues.
 $envVars = @(

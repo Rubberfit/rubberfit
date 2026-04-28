@@ -851,7 +851,16 @@ async function main() {
       `[openclaw-poll] auto-update: tracking origin/${process.env.OPENCLAW_AUTO_UPDATE_BRANCH}`
     )
     // Pull once at startup so the very first tick uses the latest code.
-    await gitAutoUpdate()
+    // If the pull actually advanced the checkout, exit cleanly so the
+    // service supervisor (NSSM) restarts the poller — otherwise the
+    // parent process keeps running the old in-memory code while
+    // freshly-spawned children load the new code, which silently
+    // breaks any contract that changed between versions.
+    const updated = await gitAutoUpdate()
+    if (updated && !once) {
+      console.log("[openclaw-poll] auto-update applied; exiting for supervisor restart")
+      process.exit(0)
+    }
   }
 
   console.log(
@@ -870,7 +879,11 @@ async function main() {
       process.env.OPENCLAW_AUTO_UPDATE_BRANCH &&
       tickCount % AUTO_UPDATE_EVERY_N_TICKS === 0
     ) {
-      await gitAutoUpdate()
+      const updated = await gitAutoUpdate()
+      if (updated) {
+        console.log("[openclaw-poll] auto-update applied; exiting for supervisor restart")
+        process.exit(0)
+      }
     }
     await sleep(intervalMs)
   }
