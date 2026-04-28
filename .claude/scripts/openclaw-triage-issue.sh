@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # .claude/scripts/openclaw-triage-issue.sh
 #
-# Triage one GitHub issue via OpenClaw + Qwen2.5-Coder:
+# Triage one GitHub issue via OpenClaw + Kimi K2.6:
 # - Refine the description (Context / Acceptance criteria / Done when)
-# - Recommend labels from the existing REMA taxonomy
+# - Recommend labels from the issue's repo taxonomy
 # - Estimate Fibonacci story points (1/2/3/5/8/13)
 # - Assign priority tier (P0/P1/P2/P3)
 #
@@ -11,6 +11,19 @@
 #   .claude/scripts/openclaw-triage-issue.sh <issue-number>          # preview only (default)
 #   .claude/scripts/openclaw-triage-issue.sh <issue-number> --apply  # apply after confirmation
 #   .claude/scripts/openclaw-triage-issue.sh <issue-number> --yes    # apply without confirmation
+#
+# Repo + project routing comes from environment variables. Defaults are
+# the rema-portal → Rubberfit (project 9) pair so direct human invocation
+# in the rema-portal clone keeps working unchanged. The watcher
+# (openclaw-triage-watch.sh) reads openclaw-targets.tsv and overrides
+# these per-repo when fanning out across multiple targets.
+#
+#   OPENCLAW_REPO            — "OWNER/NAME" of the issue's repo
+#   OPENCLAW_PROJECT_ID      — Project v2 node id (PVT_*) for pts/prio writes
+#   OPENCLAW_PRIO_FIELD_ID   — Priority single-select field id (PVTSSF_*)
+#   OPENCLAW_PTS_FIELD_ID    — Story Points single-select field id (PVTSSF_*)
+#   OPENCLAW_STACK_HINT      — short English stack description for the prompt
+#                              header. Helps Kimi tailor area-of-codebase guesses.
 
 set -euo pipefail
 
@@ -22,6 +35,12 @@ if [ -z "$ISSUE_NUM" ]; then
   exit 2
 fi
 
+OPENCLAW_REPO="${OPENCLAW_REPO:-Arc-and-Anchor/rema-portal}"
+OPENCLAW_PROJECT_ID="${OPENCLAW_PROJECT_ID:-PVT_kwDOD7DDt84BUM5C}"
+OPENCLAW_PRIO_FIELD_ID="${OPENCLAW_PRIO_FIELD_ID:-PVTSSF_lADOD7DDt84BUM5CzhBWq1s}"
+OPENCLAW_PTS_FIELD_ID="${OPENCLAW_PTS_FIELD_ID:-PVTSSF_lADOD7DDt84BUM5CzhBWwGs}"
+OPENCLAW_STACK_HINT="${OPENCLAW_STACK_HINT:-Next.js + Supabase cut-planner with a Rust nesting engine (REMA Portal monorepo)}"
+
 for cmd in openclaw gh jq; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "error: '$cmd' not on PATH" >&2
@@ -29,14 +48,14 @@ for cmd in openclaw gh jq; do
   fi
 done
 
-# The canonical label taxonomy for REMA. Excludes pts-* and prio-* so
-# OpenClaw can't hallucinate points as a regular label.
-LABELS_ALLOWED=$(gh label list --limit 100 --json name --jq '[.[].name] | map(select(startswith("pts-") | not) | select(startswith("prio-") | not)) | join(", ")')
+# The canonical label taxonomy for the target repo. Excludes pts-* and
+# prio-* so OpenClaw can't hallucinate points as a regular label.
+LABELS_ALLOWED=$(gh label list --repo "$OPENCLAW_REPO" --limit 100 --json name --jq '[.[].name] | map(select(startswith("pts-") | not) | select(startswith("prio-") | not)) | join(", ")')
 PTS_ALLOWED="pts-1, pts-2, pts-3, pts-5, pts-8, pts-13"
 PRIO_ALLOWED="prio-p0, prio-p1, prio-p2, prio-p3"
 
 # Pull the issue.
-ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json number,title,body,labels)
+ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --repo "$OPENCLAW_REPO" --json number,title,body,labels)
 ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r .title)
 ISSUE_BODY=$(echo "$ISSUE_JSON" | jq -r .body)
 ISSUE_LABELS=$(echo "$ISSUE_JSON" | jq -r '[.labels[].name] | join(", ")')
@@ -52,8 +71,8 @@ PROMPT_FILE=$(mktemp -t openclaw-triage.XXXXXX)
 trap 'rm -f "$PROMPT_FILE"' EXIT
 
 {
-  printf '%s\n' "You are triaging a GitHub issue for the REMA Portal monorepo"
-  printf '%s\n' "(Rust nesting engine + Next.js + Supabase cut-planner app)."
+  printf '%s\n' "You are triaging a GitHub issue for $OPENCLAW_REPO."
+  printf '%s\n' "Stack: $OPENCLAW_STACK_HINT."
   printf '\n'
   printf '%s\n' "Primary job: REFINE THE DESCRIPTION. Make it clearer, more actionable,"
   printf '%s\n' "with explicit acceptance criteria. Keep the author's intent; do not"
@@ -96,7 +115,7 @@ trap 'rm -f "$PROMPT_FILE"' EXIT
   printf '  "story_points": "pts-5",\n'
   printf '  "priority": "prio-p2",\n'
   printf '  "rationale": "One line explaining your points and priority call.",\n'
-  printf '  "technical_notes": "Markdown analysis posted as a triage comment. Include: **Area of the codebase** (pick from: Rust engine / Next.js app UI / Supabase schema / docs / CI+tooling — do NOT name specific files or crate names, you have not seen them), **Suggested approach** (2-4 bullets at conceptual level, not line-level), **Risks / dependencies** (what must ship first, what could break). Be terse. NEVER invent file paths, function names, module names, or class names — if unsure say `needs engineer walkthrough`."\n'
+  printf '  "technical_notes": "Markdown analysis posted as a triage comment. Include: **Area of the codebase** (high-level bucket — frontend / engine / data / shell / docs / CI+tooling — match the stack hint above; do NOT name specific files or crate names, you have not seen them), **Suggested approach** (2-4 bullets at conceptual level, not line-level), **Risks / dependencies** (what must ship first, what could break). Be terse. NEVER invent file paths, function names, module names, or class names — if unsure say `needs engineer walkthrough`."\n'
   printf '}\n'
 } > "$PROMPT_FILE"
 
@@ -256,11 +275,11 @@ fi
 
 # Labels: kinds only — points and priority go into the Project's
 # native fields (see apply_project_fields below), not the label list.
-gh issue edit "$ISSUE_NUM" --body "$IMPROVED" >/dev/null
-[ -n "$LABELS_NEW" ] && gh issue edit "$ISSUE_NUM" --add-label "$LABELS_NEW" >/dev/null
+gh issue edit "$ISSUE_NUM" --repo "$OPENCLAW_REPO" --body "$IMPROVED" >/dev/null
+[ -n "$LABELS_NEW" ] && gh issue edit "$ISSUE_NUM" --repo "$OPENCLAW_REPO" --add-label "$LABELS_NEW" >/dev/null
 
 # ── Project field apply ─────────────────────────────────────────────────
-# Write the Fibonacci points + priority into the "Rema Project" (v2)
+# Write the Fibonacci points + priority into the target Project's
 # native Story Points / Priority fields instead of stashing them as
 # labels. Pattern:
 #   1. Look up the issue's GraphQL node id
@@ -269,27 +288,14 @@ gh issue edit "$ISSUE_NUM" --body "$IMPROVED" >/dev/null
 #   3. Set the Priority + Story Points single-select fields
 # Option ids are fetched live so a project-admin reshape doesn't
 # silently rot the mapping.
-PROJECT_ID="PVT_kwDOD7DDt84BUM5C"
-PRIO_FIELD_ID="PVTSSF_lADOD7DDt84BUM5CzhBWq1s"
-PTS_FIELD_ID="PVTSSF_lADOD7DDt84BUM5CzhBWwGs"
 
 if [ -n "$PTS_LABEL" ] || [ -n "$PRIO_LABEL" ]; then
-  OPTIONS_JSON=$(gh api graphql -f query='query($pid:ID!, $ptsId:ID!) {
-    prio: node(id: $pid) {
-      ... on ProjectV2SingleSelectField { options { id name } }
-    }
-    pts: node(id: $ptsId) {
-      ... on ProjectV2SingleSelectField { options { id name } }
-    }
-  }' -F pid="$PRIO_FIELD_ID" -F ptsId="$PTS_FIELD_ID" 2>/dev/null || echo '{}')
-  # Override: the GraphQL alias shadows the outer "node" by field id,
-  # so fetch each explicitly.
   PRIO_OPTS=$(gh api graphql -f query='query($id:ID!) {
     node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } }
-  }' -F id="$PRIO_FIELD_ID" --jq '.data.node.options')
+  }' -F id="$OPENCLAW_PRIO_FIELD_ID" --jq '.data.node.options')
   PTS_OPTS=$(gh api graphql -f query='query($id:ID!) {
     node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } }
-  }' -F id="$PTS_FIELD_ID" --jq '.data.node.options')
+  }' -F id="$OPENCLAW_PTS_FIELD_ID" --jq '.data.node.options')
 
   # Map "prio-p1" → "P1" → option id
   PRIO_NAME=$(printf '%s' "$PRIO_LABEL" | sed -E 's/^prio-p([0-9])$/P\1/')
@@ -300,12 +306,12 @@ if [ -n "$PTS_LABEL" ] || [ -n "$PRIO_LABEL" ]; then
   PTS_OPT_ID=$(printf '%s' "$PTS_OPTS" | jq -r --arg n "$PTS_NAME" '.[] | select(.name == $n) | .id')
 
   # Need the issue's node id to add it to the project.
-  ISSUE_NODE_ID=$(gh api "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/issues/$ISSUE_NUM" --jq .node_id)
+  ISSUE_NODE_ID=$(gh api "repos/$OPENCLAW_REPO/issues/$ISSUE_NUM" --jq .node_id)
 
   # Add to project (idempotent — re-adding returns the existing item).
   ITEM_ID=$(gh api graphql -f query='mutation($p:ID!, $c:ID!) {
     addProjectV2ItemById(input: {projectId: $p, contentId: $c}) { item { id } }
-  }' -F p="$PROJECT_ID" -F c="$ISSUE_NODE_ID" --jq '.data.addProjectV2ItemById.item.id' 2>/dev/null || true)
+  }' -F p="$OPENCLAW_PROJECT_ID" -F c="$ISSUE_NODE_ID" --jq '.data.addProjectV2ItemById.item.id' 2>/dev/null || true)
 
   if [ -n "$ITEM_ID" ]; then
     if [ -n "$PRIO_OPT_ID" ]; then
@@ -314,7 +320,7 @@ if [ -n "$PTS_LABEL" ] || [ -n "$PRIO_LABEL" ]; then
           projectId: $p, itemId: $i, fieldId: $f,
           value: {singleSelectOptionId: $o}
         }) { projectV2Item { id } }
-      }' -F p="$PROJECT_ID" -F i="$ITEM_ID" -F f="$PRIO_FIELD_ID" -F o="$PRIO_OPT_ID" >/dev/null 2>&1 || \
+      }' -F p="$OPENCLAW_PROJECT_ID" -F i="$ITEM_ID" -F f="$OPENCLAW_PRIO_FIELD_ID" -F o="$PRIO_OPT_ID" >/dev/null 2>&1 || \
         echo "warning: failed to set Priority on project item" >&2
     fi
     if [ -n "$PTS_OPT_ID" ]; then
@@ -323,7 +329,7 @@ if [ -n "$PTS_LABEL" ] || [ -n "$PRIO_LABEL" ]; then
           projectId: $p, itemId: $i, fieldId: $f,
           value: {singleSelectOptionId: $o}
         }) { projectV2Item { id } }
-      }' -F p="$PROJECT_ID" -F i="$ITEM_ID" -F f="$PTS_FIELD_ID" -F o="$PTS_OPT_ID" >/dev/null 2>&1 || \
+      }' -F p="$OPENCLAW_PROJECT_ID" -F i="$ITEM_ID" -F f="$OPENCLAW_PTS_FIELD_ID" -F o="$PTS_OPT_ID" >/dev/null 2>&1 || \
         echo "warning: failed to set Story Points on project item" >&2
     fi
   else
@@ -342,7 +348,7 @@ COMMENT_FILE=$(mktemp -t openclaw-comment.XXXXXX)
     printf '\n---\n\n### Triage notes\n\n%s\n' "$TECH_NOTES"
   fi
 } > "$COMMENT_FILE"
-gh issue comment "$ISSUE_NUM" --body-file "$COMMENT_FILE" >/dev/null
+gh issue comment "$ISSUE_NUM" --repo "$OPENCLAW_REPO" --body-file "$COMMENT_FILE" >/dev/null
 rm -f "$COMMENT_FILE"
 
-echo "✓ applied to #$ISSUE_NUM"
+echo "✓ applied to $OPENCLAW_REPO#$ISSUE_NUM"
