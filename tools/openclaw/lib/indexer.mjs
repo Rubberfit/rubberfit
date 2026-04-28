@@ -215,6 +215,39 @@ function indexPath(repoRoot) {
 }
 
 /**
+ * Resolve the local index root for a given owner/name slug. Used by
+ * the multi-repo daemon to load the right repo's chunk index when
+ * iterating multiple repos from a single checkout.
+ *
+ * `OPENCLAW_INDEX_DIRS` is a JSON map of `{ "<owner/repo>": "<absolute-path>" }`.
+ * Each path should be the root of a CHECKED-OUT repo whose
+ * `.openclaw/index.json` was built via `tools/openclaw/index-repo.mjs`.
+ *
+ * Returns null when no entry matches the slug AND the JSON map was
+ * set — callers should treat null as "skip retrieval, no chunks for
+ * this repo." When the env var is unset entirely, returns
+ * `process.cwd()` so the single-repo install keeps working.
+ */
+export function resolveIndexRoot(ownerRepo) {
+  const raw = process.env.OPENCLAW_INDEX_DIRS?.trim()
+  if (!raw) return process.cwd()
+  try {
+    const map = JSON.parse(raw)
+    if (
+      map &&
+      typeof map === "object" &&
+      !Array.isArray(map) &&
+      typeof map[ownerRepo] === "string"
+    ) {
+      return map[ownerRepo].trim()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Load a previously-built index. Returns null when missing or version-
  * incompatible — callers should rebuild from scratch in that case rather
  * than trying to migrate.

@@ -24,7 +24,7 @@ import {
   stripMentionFromBody,
 } from "./lib/mention-detection.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
-import { loadIndex } from "./lib/indexer.mjs"
+import { loadIndex, resolveIndexRoot } from "./lib/indexer.mjs"
 import { retrieveRelatedChunks } from "./lib/retrieval.mjs"
 import { getInstallationToken, isAppAuthConfigured } from "./lib/github-app.mjs"
 import { getOwnerRepo } from "./lib/comments.mjs"
@@ -213,7 +213,8 @@ async function main() {
   const question = stripMentionFromBody(sourceComment.body)
 
   console.log(`[mention] #${number}: retrieving related code chunks...`)
-  const index = await loadIndex(process.cwd())
+  const indexRoot = resolveIndexRoot(ownerRepo)
+  const index = indexRoot ? await loadIndex(indexRoot) : null
   let retrievedChunks = []
   if (index) {
     try {
