@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  parseRepoList,
   shouldRunCiTriage,
   shouldRunCrTriage,
   shouldRunIssueTriage,
@@ -132,6 +133,41 @@ describe("shouldRunIssueTriage", () => {
         REPO_A
       )
     ).toBe(false)
+  })
+})
+
+describe("parseRepoList", () => {
+  it("returns empty for empty / whitespace input", () => {
+    expect(parseRepoList("")).toEqual([])
+    expect(parseRepoList("   ")).toEqual([])
+  })
+
+  it("parses a single valid slug", () => {
+    expect(parseRepoList("Arc-and-Anchor/rema-portal")).toEqual(["Arc-and-Anchor/rema-portal"])
+  })
+
+  it("parses comma-separated slugs and trims surrounding whitespace", () => {
+    expect(parseRepoList("Arc-and-Anchor/rema-portal,  Arc-and-Anchor/Rubberfit-Desktop ")).toEqual(
+      ["Arc-and-Anchor/rema-portal", "Arc-and-Anchor/Rubberfit-Desktop"]
+    )
+  })
+
+  it("deduplicates repeated slugs to prevent double-polling", () => {
+    expect(parseRepoList("a/b,a/b,c/d,a/b")).toEqual(["a/b", "c/d"])
+  })
+
+  it("throws on a malformed slug instead of silently dropping it", () => {
+    expect(() => parseRepoList("Arc-and-Anchor/rema-portal,Arc-and-Anchor/Rubberfit-Desktp ace")).toThrow(
+      /malformed entries.*"Arc-and-Anchor\/Rubberfit-Desktp ace"/
+    )
+  })
+
+  it("throws when no slug separator is present", () => {
+    expect(() => parseRepoList("rema-portal")).toThrow(/malformed/)
+  })
+
+  it("throws when slug has too many segments", () => {
+    expect(() => parseRepoList("a/b/c")).toThrow(/malformed/)
   })
 })
 

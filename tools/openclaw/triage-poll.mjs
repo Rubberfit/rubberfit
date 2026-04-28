@@ -491,23 +491,55 @@ async function scanRecentMentions(state, mentionDetector, repo) {
  * back to the local checkout's git remote so the single-repo install
  * keeps working unchanged.
  */
-async function getConfiguredRepos() {
-  const raw = process.env.OPENCLAW_REPOS?.trim()
-  if (raw) {
-    return raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => /^[^\s/]+\/[^\s/]+$/.test(s))
-  }
-  // Single-repo legacy: detect from the local checkout.
+/**
+ * Resolve the local checkout's repo via `gh repo view`. Used as a
+ * fallback when OPENCLAW_REPOS is unset, AND as the migration target
+ * for legacy unprefixed state keys (which were written by the old
+ * single-repo daemon and always belong to the checkout repo, not
+ * whichever repo happens to be first in OPENCLAW_REPOS).
+ */
+async function resolveCheckoutRepo() {
   try {
     const out = await gh(["repo", "view", "--json", "owner,name"])
     const json = JSON.parse(out)
-    return [`${json.owner.login}/${json.name}`]
+    return `${json.owner.login}/${json.name}`
   } catch (error) {
-    console.error(`[openclaw-poll] couldn't resolve repo via gh: ${error.message}`)
-    return []
+    console.warn(`[openclaw-poll] couldn't resolve checkout repo: ${error.message}`)
+    return null
   }
+}
+
+/**
+ * Validate `OPENCLAW_REPOS=owner/a,owner/b`. Throws on any malformed
+ * slug so a typo surfaces in the NSSM log on startup instead of
+ * silently degrading coverage. Returns a deduplicated list to prevent
+ * double-polling the same repo when it's listed twice.
+ */
+export function parseRepoList(raw) {
+  if (typeof raw !== "string") return []
+  const slug = /^[^\s/]+\/[^\s/]+$/
+  const entries = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  const bad = entries.filter((s) => !slug.test(s))
+  if (bad.length > 0) {
+    throw new Error(
+      `OPENCLAW_REPOS contains malformed entries: ${bad.map((s) => `"${s}"`).join(", ")}. ` +
+        `Each entry must be 'owner/name'.`
+    )
+  }
+  return [...new Set(entries)]
+}
+
+async function getConfiguredRepos() {
+  const raw = process.env.OPENCLAW_REPOS?.trim()
+  if (raw) {
+    return parseRepoList(raw)
+  }
+  // Single-repo legacy: detect from the local checkout.
+  const checkout = await resolveCheckoutRepo()
+  return checkout ? [checkout] : []
 }
 
 /**
@@ -629,9 +661,16 @@ async function tick() {
     console.warn("[openclaw-poll] no repos resolved; skipping tick")
     return
   }
-  // Migrate legacy state keys onto the first configured repo so the
-  // existing watermarks survive the cutover.
-  const state = await loadState(repos[0])
+  // Legacy unprefixed state keys were written by the old single-repo
+  // daemon, which always ran against the checkout repo. Resolve THAT
+  // repo here and use it as the migration target — falling back to
+  // repos[0] only when we can't determine the checkout (e.g. corrupt
+  // git remote). Otherwise an OPENCLAW_REPOS list whose first entry
+  // isn't the checkout repo would mis-assign existing watermarks and
+  // re-triage the checkout repo from scratch.
+  const checkout = await resolveCheckoutRepo()
+  const migrationTarget = checkout && repos.includes(checkout) ? checkout : repos[0]
+  const state = await loadState(migrationTarget)
   for (const repo of repos) {
     process.env.GH_REPO = repo
     await tickForRepo(repo, state)
@@ -650,6 +689,20 @@ async function main() {
       `OPENCLAW_POLL_INTERVAL_MS must be a number >= 5000 (got ${process.env.OPENCLAW_POLL_INTERVAL_MS})`
     )
     process.exit(2)
+  }
+
+  // Validate OPENCLAW_REPOS at startup so a typo surfaces in the NSSM
+  // log immediately instead of degrading coverage silently for hours.
+  if (process.env.OPENCLAW_REPOS) {
+    try {
+      const repos = parseRepoList(process.env.OPENCLAW_REPOS)
+      console.log(
+        `[openclaw-poll] OPENCLAW_REPOS configured: ${repos.length} repo(s) — ${repos.join(", ")}`
+      )
+    } catch (error) {
+      console.error(`[openclaw-poll] startup config error: ${error.message}`)
+      process.exit(2)
+    }
   }
 
   console.log(
