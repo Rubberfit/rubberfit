@@ -90,7 +90,12 @@ while IFS=$'\t' read -r REPO PROJECT_ID PRIO_FIELD_ID PTS_FIELD_ID STACK_HINT; d
     ''|'#'*) continue ;;
   esac
 
-  if [ -z "${PROJECT_ID:-}" ] || [ -z "${PRIO_FIELD_ID:-}" ] || [ -z "${PTS_FIELD_ID:-}" ]; then
+  # All five columns are required. STACK_HINT in particular: an empty
+  # value here would export OPENCLAW_STACK_HINT="" and let
+  # openclaw-triage-issue.sh fall back to its rema-portal default,
+  # which would feed the wrong stack context to non-portal repos.
+  # Be loud, not silent.
+  if [ -z "${PROJECT_ID:-}" ] || [ -z "${PRIO_FIELD_ID:-}" ] || [ -z "${PTS_FIELD_ID:-}" ] || [ -z "${STACK_HINT:-}" ]; then
     log "row $ROW_NUM: missing required column for $REPO_TRIMMED — skip"
     continue
   fi
@@ -112,12 +117,24 @@ while IFS=$'\t' read -r REPO PROJECT_ID PRIO_FIELD_ID PTS_FIELD_ID STACK_HINT; d
 
   # gh search returns issues >= `created:$LAST_SEEN`. Post-filter strictly
   # > LAST_SEEN below to avoid re-triaging the boundary issue every tick.
+  #
+  # Capture the gh exit code separately so 401 / rate-limit / bad-repo
+  # failures don't masquerade as "no new issues" — with multiple
+  # targets, one repo can fail silently while others succeed and the
+  # silent failure is much harder to notice in the log.
   QUERY="repo:$REPO_TRIMMED state:open created:>=$LAST_SEEN sort:created-asc"
-  ISSUES=$(gh api -X GET search/issues \
+  GH_ERR=$(mktemp -t openclaw-gh-err.XXXXXX)
+  if ! ISSUES=$(gh api -X GET search/issues \
     -f q="$QUERY" \
     -f per_page=50 \
     --jq '.items[] | select(.pull_request == null) | "\(.number)\t\(.created_at)\t\(.user.login)"' \
-    2>/dev/null || true)
+    2>"$GH_ERR"); then
+    GH_ERR_LINE=$(head -1 "$GH_ERR" 2>/dev/null || true)
+    log "  ✗ gh api failed for $REPO_TRIMMED: ${GH_ERR_LINE:-unknown error} — watermark unchanged, will retry next tick"
+    rm -f "$GH_ERR"
+    continue
+  fi
+  rm -f "$GH_ERR"
 
   if [ -z "$ISSUES" ]; then
     log "  no new issues in $REPO_TRIMMED"
