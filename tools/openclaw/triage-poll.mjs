@@ -52,19 +52,40 @@ function repoRoot() {
 }
 
 /**
- * State shape v5:
+ * State shape v6 (multi-repo):
  *   {
- *     handledRuns: { "<prNumber>": "<lastFailedRunId>" },
- *     handledCrComments: { "<prNumber>": <lastEvaluatedCommentId> },
- *     handledIssues: { "<issueNumber>": true },
- *     handledOverviewShas: { "<prNumber>": "<headSha>" },
- *     handledMentions: { "<commentId>": { handledAt, replyCommentId, surface } }
+ *     handledRuns: { "<repo>:<prNumber>": "<lastFailedRunId>" },
+ *     handledCrComments: { "<repo>:<prNumber>": <lastEvaluatedCommentId> },
+ *     handledIssues: { "<repo>:<issueNumber>": true },
+ *     handledOverviewShas: { "<repo>:<prNumber>": "<headSha>" },
+ *     handledMentions: { "<repo>:<commentId>": { handledAt, replyCommentId, surface } },
+ *     lastMentionScanAt: { "<repo>": <iso> }
  *   }
  *
- * Earlier shapes only had a subset; we initialize missing fields on
- * first read so migrations are invisible. Old `handledMentions: true`
- * boolean entries are upgraded transparently on first save.
+ * The keys are repo-namespaced so a single state file can drive
+ * every configured repo simultaneously. Legacy state files (where
+ * keys have no `<repo>:` prefix) are migrated on first load to the
+ * primary configured repo so existing watermarks survive the cutover.
  */
+function migrateLegacyKeys(map, primaryRepo) {
+  if (!map || typeof map !== "object") return {}
+  const out = {}
+  for (const [key, value] of Object.entries(map)) {
+    if (typeof key !== "string") continue
+    if (key.includes(":")) {
+      out[key] = value
+    } else if (primaryRepo) {
+      out[`${primaryRepo}:${key}`] = value
+    }
+  }
+  return out
+}
+
+function migrateLegacyMentionScan(value, primaryRepo) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value
+  if (typeof value === "string" && primaryRepo) return { [primaryRepo]: value }
+  return {}
+}
 const HANDLED_MENTION_TTL_MS = 180 * 24 * 60 * 60 * 1000 // 180 days
 
 function pruneHandledMentions(handled) {
@@ -85,20 +106,22 @@ function pruneHandledMentions(handled) {
   return out
 }
 
-async function loadState() {
+async function loadState(primaryRepo) {
   try {
     const raw = await readFile(resolve(repoRoot(), STATE_DIR, STATE_FILE), "utf8")
     const parsed = JSON.parse(raw)
     return {
-      handledRuns: parsed.handledRuns ?? {},
-      handledCrComments: parsed.handledCrComments ?? {},
-      handledIssues: parsed.handledIssues ?? {},
-      handledOverviewShas: parsed.handledOverviewShas ?? {},
-      handledMentions: pruneHandledMentions(parsed.handledMentions),
-      // Cursor for the mention scan — ISO timestamp of the most recent
-      // comment we've already considered. Initial scan starts 24h back
-      // so the daemon doesn't replay months of history on first run.
-      lastMentionScanAt: typeof parsed.lastMentionScanAt === "string" ? parsed.lastMentionScanAt : null,
+      handledRuns: migrateLegacyKeys(parsed.handledRuns, primaryRepo),
+      handledCrComments: migrateLegacyKeys(parsed.handledCrComments, primaryRepo),
+      handledIssues: migrateLegacyKeys(parsed.handledIssues, primaryRepo),
+      handledOverviewShas: migrateLegacyKeys(parsed.handledOverviewShas, primaryRepo),
+      handledMentions: pruneHandledMentions(
+        migrateLegacyKeys(parsed.handledMentions, primaryRepo)
+      ),
+      // Per-repo cursor map. Legacy single-string `lastMentionScanAt`
+      // is migrated under the primary repo so the daemon doesn't
+      // replay history on the cutover tick.
+      lastMentionScanAt: migrateLegacyMentionScan(parsed.lastMentionScanAt, primaryRepo),
     }
   } catch {
     return {
@@ -107,7 +130,7 @@ async function loadState() {
       handledIssues: {},
       handledOverviewShas: {},
       handledMentions: {},
-      lastMentionScanAt: null,
+      lastMentionScanAt: {},
     }
   }
 }
@@ -288,10 +311,12 @@ async function listOpenIssues() {
 
 /**
  * Decide whether to triage `issue` this tick. Pure for testability.
+ * `repo` namespaces the state key so an issue #5 in repo A doesn't
+ * mute an issue #5 in repo B.
  */
-export function shouldRunIssueTriage(issue, state) {
+export function shouldRunIssueTriage(issue, state, repo) {
   if (!issue || typeof issue.number !== "number") return false
-  return state.handledIssues?.[String(issue.number)] !== true
+  return state.handledIssues?.[`${repo}:${issue.number}`] !== true
 }
 
 /**
@@ -324,9 +349,9 @@ export async function latestCrCommentId(prNumber) {
  * Decide whether a PR needs a CI-triage spawn this tick. Pure function
  * so it's unit-testable without a live `gh`.
  */
-export function shouldRunCiTriage(pr, state) {
+export function shouldRunCiTriage(pr, state, repo) {
   if (!pr.latestFailedRunId) return false
-  return state.handledRuns?.[String(pr.number)] !== pr.latestFailedRunId
+  return state.handledRuns?.[`${repo}:${pr.number}`] !== pr.latestFailedRunId
 }
 
 /**
@@ -340,16 +365,16 @@ export function shouldRunCiTriage(pr, state) {
  * the daemon starts and finds an unhandled SHA) emits one overview
  * and then no-ops until the next push.
  */
-export function shouldRunPrOverview(pr, state) {
+export function shouldRunPrOverview(pr, state, repo) {
   if (!pr || typeof pr.number !== "number") return false
   if (typeof pr.headSha !== "string" || !pr.headSha) return false
-  const handled = state.handledOverviewShas?.[String(pr.number)]
+  const handled = state.handledOverviewShas?.[`${repo}:${pr.number}`]
   return handled !== pr.headSha
 }
 
-export function shouldRunCrTriage(pr, latestCrId, state) {
+export function shouldRunCrTriage(pr, latestCrId, state, repo) {
   if (latestCrId == null) return false
-  const handled = state.handledCrComments?.[String(pr.number)]
+  const handled = state.handledCrComments?.[`${repo}:${pr.number}`]
   // Numeric compare: only run when CR has posted a comment newer than
   // the last one we've evaluated for this PR.
   return typeof handled !== "number" || latestCrId > handled
@@ -396,10 +421,10 @@ function isKnownBotLogin(login) {
  * plus the latest `updated_at` we observed (caller advances the
  * cursor).
  */
-async function scanRecentMentions(state, mentionDetector) {
+async function scanRecentMentions(state, mentionDetector, repo) {
   // Default to 24h back on first run so we don't replay history.
   const since =
-    state.lastMentionScanAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    state.lastMentionScanAt?.[repo] ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   let raw
   try {
     raw = await gh([
@@ -430,7 +455,7 @@ async function scanRecentMentions(state, mentionDetector) {
   const matches = comments
     .filter((c) => !isKnownBotLogin(c.login))
     .filter((c) => mentionDetector(c.body, triggerList))
-    .filter((c) => !state.handledMentions?.[String(c.id)])
+    .filter((c) => !state.handledMentions?.[`${repo}:${c.id}`])
     .map((c) => {
       // issue_url ends in /issues/N or /pulls/N — we'll resolve the
       // surface in the script via a separate lookup since the issue
@@ -460,126 +485,156 @@ async function scanRecentMentions(state, mentionDetector) {
   return { matches, cursor: newest }
 }
 
-async function tick() {
-  const state = await loadState()
+/**
+ * Resolve the list of repos this daemon should watch. Set
+ * `OPENCLAW_REPOS=owner/a,owner/b` for multi-repo. When unset, falls
+ * back to the local checkout's git remote so the single-repo install
+ * keeps working unchanged.
+ */
+async function getConfiguredRepos() {
+  const raw = process.env.OPENCLAW_REPOS?.trim()
+  if (raw) {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => /^[^\s/]+\/[^\s/]+$/.test(s))
+  }
+  // Single-repo legacy: detect from the local checkout.
+  try {
+    const out = await gh(["repo", "view", "--json", "owner,name"])
+    const json = JSON.parse(out)
+    return [`${json.owner.login}/${json.name}`]
+  } catch (error) {
+    console.error(`[openclaw-poll] couldn't resolve repo via gh: ${error.message}`)
+    return []
+  }
+}
+
+/**
+ * Run the four triage flows for a single repo. The caller already set
+ * `process.env.GH_REPO` so every gh CLI invocation in here (and in
+ * spawned children) targets this repo automatically.
+ */
+async function tickForRepo(repo, state) {
   let prs
   try {
     prs = await listOpenPrs()
   } catch (error) {
-    console.error(`[openclaw-poll] gh pr list failed: ${error.message}`)
+    console.error(`[openclaw-poll][${repo}] gh pr list failed: ${error.message}`)
     return
   }
 
   for (const pr of prs) {
     // 1) CI-failure triage (v1 + v2)
-    if (shouldRunCiTriage(pr, state)) {
-      console.log(`[openclaw-poll] PR #${pr.number} -> CI triage (run ${pr.latestFailedRunId})`)
+    if (shouldRunCiTriage(pr, state, repo)) {
+      console.log(
+        `[openclaw-poll][${repo}] PR #${pr.number} -> CI triage (run ${pr.latestFailedRunId})`
+      )
       const result = await runTriage(pr.number, "ci")
-      // Only mark this run as handled when the child exited cleanly.
-      // A failed triage (model timeout, network blip, code bug) should
-      // retry on the next poll, not be silently swallowed.
       if (!result.error) {
-        state.handledRuns[String(pr.number)] = pr.latestFailedRunId
+        state.handledRuns[`${repo}:${pr.number}`] = pr.latestFailedRunId
         await saveState(state)
       } else {
         console.warn(
-          `[openclaw-poll] CI triage failed on PR #${pr.number}; will retry next tick.`
+          `[openclaw-poll][${repo}] CI triage failed on PR #${pr.number}; will retry next tick.`
         )
       }
     }
 
-    // 2) PR overview (v6) — fires on every push (head SHA changed).
-    // Posts a Greptile-style top-level comment summarizing the latest
-    // push: summary, important files, confidence, concerns. Edited
-    // in place via marker comment, so re-runs don't spam.
-    if (shouldRunPrOverview(pr, state)) {
-      console.log(`[openclaw-poll] PR #${pr.number} -> overview (head ${pr.headSha?.slice(0, 7)})`)
+    // 2) PR overview (v6)
+    if (shouldRunPrOverview(pr, state, repo)) {
+      console.log(
+        `[openclaw-poll][${repo}] PR #${pr.number} -> overview (head ${pr.headSha?.slice(0, 7)})`
+      )
       const result = await runTriage(pr.number, "overview")
       if (!result.error) {
-        state.handledOverviewShas[String(pr.number)] = pr.headSha
+        state.handledOverviewShas[`${repo}:${pr.number}`] = pr.headSha
         await saveState(state)
       } else {
         console.warn(
-          `[openclaw-poll] PR overview failed on #${pr.number}; will retry next tick.`
+          `[openclaw-poll][${repo}] PR overview failed on #${pr.number}; will retry next tick.`
         )
       }
     }
 
-    // 3) CodeRabbit-comment evaluator (v4) — only when CR has posted
-    // something new since our last evaluation pass on this PR.
+    // 3) CodeRabbit-comment evaluator (v4)
     const latestCrId = await latestCrCommentId(pr.number)
-    if (shouldRunCrTriage(pr, latestCrId, state)) {
-      console.log(`[openclaw-poll] PR #${pr.number} -> CR eval (latest comment ${latestCrId})`)
+    if (shouldRunCrTriage(pr, latestCrId, state, repo)) {
+      console.log(
+        `[openclaw-poll][${repo}] PR #${pr.number} -> CR eval (latest comment ${latestCrId})`
+      )
       const result = await runTriage(pr.number, "cr")
       if (!result.error) {
-        state.handledCrComments[String(pr.number)] = latestCrId
+        state.handledCrComments[`${repo}:${pr.number}`] = latestCrId
         await saveState(state)
       } else {
         console.warn(
-          `[openclaw-poll] CR triage failed on PR #${pr.number}; will retry next tick.`
+          `[openclaw-poll][${repo}] CR triage failed on PR #${pr.number}; will retry next tick.`
         )
       }
     }
   }
 
-  // 3) Issue triage (v5) — once per issue. Idempotency at both layers:
-  // the local handledIssues set AND the marker comment inside the
-  // script, so wiping the state file won't re-spam.
+  // Issue triage (v5)
   let issues = []
   try {
     issues = await listOpenIssues()
   } catch (error) {
-    console.error(`[openclaw-poll] gh issue list failed: ${error.message}`)
+    console.error(`[openclaw-poll][${repo}] gh issue list failed: ${error.message}`)
   }
   for (const issue of issues) {
-    if (!shouldRunIssueTriage(issue, state)) continue
-    console.log(`[openclaw-poll] Issue #${issue.number} -> triage (${issue.title})`)
+    if (!shouldRunIssueTriage(issue, state, repo)) continue
+    console.log(`[openclaw-poll][${repo}] Issue #${issue.number} -> triage (${issue.title})`)
     const result = await runTriage(issue.number, "issue")
     if (result.error) {
       console.warn(
-        `[openclaw-poll] Issue triage failed on #${issue.number}; will retry next tick.`
+        `[openclaw-poll][${repo}] Issue triage failed on #${issue.number}; will retry next tick.`
       )
       continue
     }
-    state.handledIssues[String(issue.number)] = true
+    state.handledIssues[`${repo}:${issue.number}`] = true
     await saveState(state)
   }
 
-  // 4) @-mention reply (v7) — single REST call returns all repo
-  // issue/PR top-level comments updated since the cursor; we scan
-  // those for unhandled, non-bot, real (not quoted) mentions and
-  // spawn one mention reply per match. The script auto-detects
-  // issue vs PR surface so we don't need to disambiguate here.
-  const { matches, cursor } = await scanRecentMentions(state, bodyMentionsBot)
-  let allMentionsSucceeded = matches.length === 0 || true
+  // @-mention reply (v7)
+  const { matches, cursor } = await scanRecentMentions(state, bodyMentionsBot, repo)
+  let allMentionsSucceeded = true
   for (const m of matches) {
     console.log(
-      `[openclaw-poll] @-mention on #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
+      `[openclaw-poll][${repo}] @-mention on #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
     )
     const result = await runTriage(m.number, "mention", [m.commentId, "auto"])
     if (result.error) {
       console.warn(
-        `[openclaw-poll] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
+        `[openclaw-poll][${repo}] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
       )
       allMentionsSucceeded = false
       continue
     }
-    state.handledMentions[String(m.commentId)] = {
+    state.handledMentions[`${repo}:${m.commentId}`] = {
       handledAt: new Date().toISOString(),
       surface: m.surface,
     }
     await saveState(state)
   }
-  // Only advance the cursor when every mention this tick was handled
-  // successfully. Otherwise a transient failure on one comment would
-  // be permanently dropped — handledMentions wouldn't have it, and
-  // the cursor would have already moved past its updated_at, so the
-  // next scan wouldn't return it. runTriage is idempotent (per-comment
-  // marker check inside the script), so reprocessing the successful
-  // ones costs nothing.
-  if (allMentionsSucceeded && cursor && cursor !== state.lastMentionScanAt) {
-    state.lastMentionScanAt = cursor
+  if (allMentionsSucceeded && cursor && cursor !== state.lastMentionScanAt[repo]) {
+    state.lastMentionScanAt[repo] = cursor
     await saveState(state)
+  }
+}
+
+async function tick() {
+  const repos = await getConfiguredRepos()
+  if (repos.length === 0) {
+    console.warn("[openclaw-poll] no repos resolved; skipping tick")
+    return
+  }
+  // Migrate legacy state keys onto the first configured repo so the
+  // existing watermarks survive the cutover.
+  const state = await loadState(repos[0])
+  for (const repo of repos) {
+    process.env.GH_REPO = repo
+    await tickForRepo(repo, state)
   }
 }
 

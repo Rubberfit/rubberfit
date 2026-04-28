@@ -40,7 +40,12 @@ param(
     # canonical project. When set, issue triage applies Priority +
     # Story Points to the project board after posting the comment.
     # Leave empty to skip project-field writes.
-    [string] $ProjectId = ""
+    [string] $ProjectId = "",
+    # Comma-separated list of repos to watch (e.g.
+    # "Arc-and-Anchor/rema-portal,Arc-and-Anchor/Rubberfit-Desktop").
+    # Leave empty to fall back to the local checkout's git remote
+    # (single-repo behavior, preserved for upgrade safety).
+    [string] $Repos = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -162,6 +167,9 @@ if (-not [string]::IsNullOrWhiteSpace($IssueSince)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($ProjectId)) {
     $envVars += "OPENCLAW_PROJECT_ID=$ProjectId"
+}
+if (-not [string]::IsNullOrWhiteSpace($Repos)) {
+    $envVars += "OPENCLAW_REPOS=$Repos"
 }
 Invoke-Nssm (@("set", $ServiceName, "AppEnvironmentExtra") + $envVars)
 

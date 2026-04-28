@@ -24,11 +24,17 @@ async function gh(args) {
 }
 
 /**
- * Resolve `owner/name` for the current repo via `gh repo view`. Used in
- * both auth modes since `gh repo view` works with any auth and the result
- * is just the slug (no API write).
+ * Resolve `owner/name` for the current repo. Honors `GH_REPO` (the
+ * env var the multi-repo poller sets per iteration so spawned scripts
+ * target the right repo) before falling back to `gh repo view`. The
+ * fallback path uses the local checkout's git remote, which is correct
+ * for single-repo installs.
  */
 export async function getOwnerRepo() {
+  const fromEnv = process.env.GH_REPO?.trim()
+  if (fromEnv && /^[^\s/]+\/[^\s/]+$/.test(fromEnv)) {
+    return fromEnv
+  }
   const out = await gh(["repo", "view", "--json", "owner,name"])
   const json = JSON.parse(out)
   return `${json.owner.login}/${json.name}`
