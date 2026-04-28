@@ -1,3 +1,4 @@
+/* eslint-env node */
 // Pure helpers for OpenClaw v7 — detect @-mentions in issue/PR
 // comments, build the prompt, parse the model's reply, format the
 // posted comment. No live model, no GitHub access. Mirrors the
@@ -46,15 +47,19 @@ export function getMentionTriggers() {
 }
 
 /**
- * Strip markdown blockquotes and fenced code blocks from a comment
- * body so a quoted prior message that mentioned the bot doesn't
- * re-trigger us. Common case: someone hits "Quote reply" on the
- * original mention and posts a reply without re-mentioning us.
+ * Strip markdown blockquotes, fenced code blocks, AND inline backtick
+ * spans from a comment body so a quoted prior message OR an in-code
+ * reference like `@openclaw-devops` doesn't re-trigger us. Common
+ * cases: "Quote reply" inserts a `> @openclaw-devops` block; doc
+ * comments and tests reference the handle inside backticks.
  */
 export function stripQuotesAndCode(body) {
   if (typeof body !== "string") return ""
-  // Remove fenced code blocks (greedy across newlines, non-greedy on length)
+  // Remove fenced code blocks first (greedy across newlines).
   let out = body.replace(/```[\s\S]*?```/g, "")
+  // Remove inline backtick spans — a single-line `...` group. Don't
+  // cross newlines; an unterminated backtick is benign and stays.
+  out = out.replace(/`[^`\n]*`/g, "")
   // Remove single-line blockquotes (`> ...`)
   out = out
     .split("\n")
@@ -138,6 +143,8 @@ export async function buildMentionPrompt(ctx) {
     `Type: ${ctx.surface}`,
     `Number: #${ctx.number}`,
     `Title: ${ctx.title}`,
+    "Body:",
+    truncate(ctx.body ?? "(no description)", LIMITS.threadComment),
     "",
     "[ASKER]",
     `@${ctx.askerLogin}`,

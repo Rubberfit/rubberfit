@@ -4,7 +4,7 @@
  * blocks, and known-bot authors all have to short-circuit before
  * we spend a model call.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 
 import {
   bodyMentionsBot,
@@ -32,6 +32,10 @@ describe("bodyMentionsBot", () => {
   it("ignores mentions inside blockquotes (someone quoting prior message)", () => {
     const body = "> @openclaw-devops what about X\n\nReplying to the above"
     expect(bodyMentionsBot(body)).toBe(false)
+  })
+
+  it("ignores mentions inside inline backtick spans (e.g. doc references)", () => {
+    expect(bodyMentionsBot("The handle is `@openclaw-devops` — see docs")).toBe(false)
   })
 
   it("does not match email-like prefixes", () => {
@@ -104,6 +108,10 @@ describe("stripQuotesAndCode", () => {
   it("removes blockquote lines", () => {
     const body = "> quoted\nactual question"
     expect(stripQuotesAndCode(body)).toBe("actual question")
+  })
+
+  it("removes inline backtick spans", () => {
+    expect(stripQuotesAndCode("see `@openclaw-devops` ref")).toBe("see  ref")
   })
 })
 

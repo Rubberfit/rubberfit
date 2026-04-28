@@ -551,6 +551,7 @@ async function tick() {
   // spawn one mention reply per match. The script auto-detects
   // issue vs PR surface so we don't need to disambiguate here.
   const { matches, cursor } = await scanRecentMentions(state, bodyMentionsBot)
+  let allMentionsSucceeded = matches.length === 0 || true
   for (const m of matches) {
     console.log(
       `[openclaw-poll] @-mention on #${m.number} comment ${m.commentId} (asker=${m.askerLogin})`
@@ -560,6 +561,7 @@ async function tick() {
       console.warn(
         `[openclaw-poll] Mention reply failed on #${m.number} comment ${m.commentId}; will retry next tick.`
       )
+      allMentionsSucceeded = false
       continue
     }
     state.handledMentions[String(m.commentId)] = {
@@ -568,10 +570,14 @@ async function tick() {
     }
     await saveState(state)
   }
-  // Advance cursor regardless of per-item outcomes — failures stay
-  // unhandled in handledMentions, so they retry; reprocessing the
-  // same comment would just hit idempotency and noop anyway.
-  if (cursor && cursor !== state.lastMentionScanAt) {
+  // Only advance the cursor when every mention this tick was handled
+  // successfully. Otherwise a transient failure on one comment would
+  // be permanently dropped — handledMentions wouldn't have it, and
+  // the cursor would have already moved past its updated_at, so the
+  // next scan wouldn't return it. runTriage is idempotent (per-comment
+  // marker check inside the script), so reprocessing the successful
+  // ones costs nothing.
+  if (allMentionsSucceeded && cursor && cursor !== state.lastMentionScanAt) {
     state.lastMentionScanAt = cursor
     await saveState(state)
   }

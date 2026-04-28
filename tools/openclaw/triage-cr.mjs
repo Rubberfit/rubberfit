@@ -170,8 +170,15 @@ function formatVerdictReply(verdict, prAuthor) {
     // gets its own framing instead of the static "this read holds up"
     // line. Fall back to the static phrase when the model didn't
     // produce one (older prompts, parse fallback, etc.).
+    //
+    // Reject openers containing `@` — the LLM output is interpolated
+    // nearly verbatim, and a stray `@username` would notify a real
+    // GitHub user. Static phrase wins over an unsafe opener.
     const opener = verdict.opener?.trim()
-    const trimmedOpener = opener ? opener.replace(/^[—–-]\s*/, "").replace(/[.!]+$/, "") : ""
+    const safeOpener = opener && !opener.includes("@") ? opener : ""
+    const trimmedOpener = safeOpener
+      ? safeOpener.replace(/^[—–-]\s*/, "").replace(/[.!]+$/, "")
+      : ""
     if (trimmedOpener) {
       lines.push(`${mention(prAuthor)}— ${trimmedOpener}.`)
     } else {
