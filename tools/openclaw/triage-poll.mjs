@@ -122,6 +122,11 @@ async function loadState(primaryRepo) {
       // is migrated under the primary repo so the daemon doesn't
       // replay history on the cutover tick.
       lastMentionScanAt: migrateLegacyMentionScan(parsed.lastMentionScanAt, primaryRepo),
+      // Per-repo first-seen timestamps. Used to skip the existing
+      // backlog of open issues on first sight of a new repo (matches
+      // the Mac shell watcher's bootstrap behavior).
+      firstSeenAt:
+        parsed.firstSeenAt && typeof parsed.firstSeenAt === "object" ? parsed.firstSeenAt : {},
     }
   } catch {
     return {
@@ -131,6 +136,7 @@ async function loadState(primaryRepo) {
       handledOverviewShas: {},
       handledMentions: {},
       lastMentionScanAt: {},
+      firstSeenAt: {},
     }
   }
 }
@@ -614,6 +620,25 @@ async function tickForRepo(repo, state) {
   } catch (error) {
     console.error(`[openclaw-poll][${repo}] gh issue list failed: ${error.message}`)
   }
+
+  // Bootstrap: on first sight of a repo (no firstSeenAt entry), mark
+  // every currently-open issue as handled WITHOUT triaging. The
+  // daemon shouldn't auto-triage a backlog of pre-existing issues
+  // when a new repo is added — it should only triage *new* issues
+  // going forward. Mirrors the Mac shell watcher's bootstrap.
+  if (!state.firstSeenAt[repo]) {
+    const skipped = issues.length
+    for (const issue of issues) {
+      state.handledIssues[`${repo}:${issue.number}`] = true
+    }
+    state.firstSeenAt[repo] = new Date().toISOString()
+    await saveState(state)
+    console.log(
+      `[openclaw-poll][${repo}] bootstrap: marked ${skipped} pre-existing open issue(s) as handled — only new issues from now on`
+    )
+    issues = []
+  }
+
   for (const issue of issues) {
     if (!shouldRunIssueTriage(issue, state, repo)) continue
     console.log(`[openclaw-poll][${repo}] Issue #${issue.number} -> triage (${issue.title})`)

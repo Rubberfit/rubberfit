@@ -248,7 +248,45 @@ async function main() {
       }
     }
 
-    const projectId = process.env.OPENCLAW_PROJECT_ID?.trim()
+    // Per-repo project mapping. OPENCLAW_PROJECT_IDS is a JSON map of
+    // `{ "<owner/repo>": "<projectV2NodeId>" }`. When the JSON parses
+    // successfully, the map is the source of truth for THIS repo —
+    // missing entry means "skip project field writes for this repo",
+    // NOT "fall back to OPENCLAW_PROJECT_ID" (that would reintroduce
+    // the cross-repo write bug this commit is fixing).
+    //
+    // The singular OPENCLAW_PROJECT_ID is only consulted when the
+    // JSON map env var is unset entirely OR fails to parse. That
+    // preserves the single-repo install path.
+    let projectId = ""
+    const idsRaw = process.env.OPENCLAW_PROJECT_IDS?.trim()
+    // `null` here means "env was set" — distinct from "env unset"
+    // (undefined). The fallback to OPENCLAW_PROJECT_ID only kicks in
+    // for unset OR parse-throws, so any successful parse (even to a
+    // non-map value like `null` / `"foo"` / `[]`) is treated as "user
+    // intends multi-repo mode; skip the legacy fallback."
+    let envUsed = false
+    if (idsRaw) {
+      try {
+        const map = JSON.parse(idsRaw)
+        envUsed = true
+        if (
+          map &&
+          typeof map === "object" &&
+          !Array.isArray(map) &&
+          typeof map[ownerRepo] === "string"
+        ) {
+          projectId = map[ownerRepo].trim()
+        }
+      } catch (error) {
+        console.warn(
+          `OPENCLAW_PROJECT_IDS is not valid JSON, falling back to OPENCLAW_PROJECT_ID: ${error.message}`
+        )
+      }
+    }
+    if (!projectId && !envUsed) {
+      projectId = process.env.OPENCLAW_PROJECT_ID?.trim() ?? ""
+    }
     if (projectId && issue.nodeId) {
       try {
         const graphql = async (query, variables) => {
