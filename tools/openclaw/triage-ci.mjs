@@ -21,8 +21,8 @@ import { isAbsolute, relative, resolve } from "node:path"
 
 import { buildTriagePrompt, extractMentionedFiles, parseConfidence } from "./lib/build-prompt.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
-import { postOrUpdateTriage } from "./lib/comments.mjs"
-import { loadIndex } from "./lib/indexer.mjs"
+import { getOwnerRepo, postOrUpdateTriage } from "./lib/comments.mjs"
+import { loadIndex, resolveIndexRoot } from "./lib/indexer.mjs"
 import { retrieveRelatedChunks } from "./lib/retrieval.mjs"
 
 const exec = promisify(execFile)
@@ -126,7 +126,8 @@ async function main() {
   // v3: layer on semantic-similarity retrieval from the codebase index.
   // Falls back to no-op when the index hasn't been built — the v2 file-
   // context heuristic alone still produces useful diagnoses.
-  const index = await loadIndex(process.cwd())
+  const indexRoot = resolveIndexRoot(await getOwnerRepo())
+  const index = indexRoot ? await loadIndex(indexRoot) : null
   let relatedChunks = []
   if (index) {
     const excludePaths = new Set(fileContexts.map((f) => f.path))

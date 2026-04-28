@@ -27,7 +27,7 @@ import {
   parseIssueTriageResponse,
 } from "./lib/issue-triage.mjs"
 import { ensureModelAvailable, generate } from "./lib/ollama.mjs"
-import { loadIndex } from "./lib/indexer.mjs"
+import { loadIndex, resolveIndexRoot } from "./lib/indexer.mjs"
 import { retrieveRelatedChunks } from "./lib/retrieval.mjs"
 import { getInstallationToken, isAppAuthConfigured } from "./lib/github-app.mjs"
 import { getOwnerRepo } from "./lib/comments.mjs"
@@ -176,8 +176,11 @@ async function main() {
 
   // v3 retrieval — find codebase chunks semantically related to the
   // issue body so the triage can name specific files instead of
-  // generic suggestions.
-  const index = await loadIndex(process.cwd())
+  // generic suggestions. For multi-repo installs `OPENCLAW_INDEX_DIRS`
+  // maps the current repo to its local checkout root; null means
+  // "no index built for this repo" → skip retrieval cleanly.
+  const indexRoot = resolveIndexRoot(await getOwnerRepo())
+  const index = indexRoot ? await loadIndex(indexRoot) : null
   let retrievedChunks = []
   if (index) {
     try {
