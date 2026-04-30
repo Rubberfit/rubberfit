@@ -67,10 +67,10 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 (`src/application/services/packing.service.interface.ts`). DI binds it
 based on environment:
 
-| Context | Implementation | Invocation |
-|---|---|---|
-| Server (Node runtime) | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout |
-| Browser | `ApiPackingService` | `fetch("/api/v2/pack", ...)` — the route handler resolves `RustPackingService` server-side |
+| Context               | Implementation       | Invocation                                                                                 |
+| --------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| Server (Node runtime) | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout                                   |
+| Browser               | `ApiPackingService`  | `fetch("/api/v2/pack", ...)` — the route handler resolves `RustPackingService` server-side |
 
 Single source of truth: every AutoNest pack — preview-grade or
 production — flows through `pack-cli`. There is no TS fallback.
@@ -91,6 +91,29 @@ The previous streaming protocol (`pack-cli --stream` NDJSON +
 `AbortSignal` cancellation) was removed alongside the browser-side
 short-circuit. Browser → `/api/v2/pack` → `pack-cli` is a single
 request/response cycle.
+
+### Pack-button UX (no live load)
+
+`/dashboard/cutting-engine` does NOT pack on every keystroke. The
+page wraps `NestingVisualizer` in a [`usePackGate`](app/dashboard/cutting-engine/_hooks/use-pack-gate.ts)
+state machine — `idle` → `packing` → `done`:
+
+- **`idle`** (default + after any input change): the Graph card shows
+  an empty sheet card with a **Pack** button. The visualizer skips
+  its sync preview generator, async worker-pool refinement, and
+  the Rust optimizer entirely.
+- **`packing`** (after the operator presses Pack): minimum 450 ms
+  display window so the loader is perceivable.
+- **`done`**: the visualizer mounts its preview generators + Rust
+  optimizer against the frozen inputs. Any subsequent input change
+  resets the gate to `idle`.
+
+Frozen layouts loaded from `cut_history.layout_json.auto.layouts`
+bypass the gate entirely — a saved cut always renders.
+
+The gate is purely UI-level. It does not reach into the packer; it
+just decides _when_ to let `IPackingService` run. The downstream
+solver is unchanged.
 
 ### Dev server
 
@@ -120,18 +143,23 @@ the server's first `IPackingService` resolve.
 Two valid flows, chosen based on the operation's complexity:
 
 **Simple (pure CRUD):**
+
 ```
 app/ hook or component  →  infrastructure service  →  Supabase
 ```
+
 Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
 
 **Complex (business rules or multi-service):**
+
 ```
 app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
+
 The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` resolves `ICreatePurchaseOrderUseCase` from the container and invokes `.execute(...)` → `purchaseOrderService` + `taxService`.
 
 **Use-case wiring:**
+
 - Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
 - Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
 - Resolved at call sites via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container.
@@ -140,12 +168,14 @@ The hook still owns UI concerns (toast, `router.push`, loading state). The use-c
 ### When to create a use-case
 
 Create one if the operation does **any** of:
+
 - Fires a side effect (notification, audit log, cache invalidation)
 - Touches more than one service (e.g., tax + PO + notification)
 - Enforces a business rule (status transition validation, threshold checks, EOQ math)
 - Will be reused from multiple entry points
 
 **Don't** create one for:
+
 - Pure read/list/get/delete — call the service directly from the hook
 - Single-field updates with no validation or side effect
 - Pass-through wrappers that add no logic
@@ -160,10 +190,10 @@ See `src/application/use-cases/` for current examples (7 use-cases across `purch
 
 There are **two separate tables**, read from different code paths:
 
-| Table | Purpose | Written by | Read by |
-|---|---|---|---|
-| `notifications` | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
-| `notification_queue` | Async email/SMS dispatch | `notificationService.queueNotification()` | `emailService.processEmailQueue()` |
+| Table                | Purpose                             | Written by                                                               | Read by                                              |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `notifications`      | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
+| `notification_queue` | Async email/SMS dispatch            | `notificationService.queueNotification()`                                | `emailService.processEmailQueue()`                   |
 
 The `notifications` table has a CHECK constraint on `type` (`low_stock | roll_depleted | cut_completed | system_alert`); non-low-stock events are persisted as `system_alert`. When adding new notification triggers, always route through `notificationService.sendX()` methods — they handle preferences, quiet hours, toast, DB persist, and queue in one call. Don't write directly to either table from use-cases or hooks.
 
@@ -182,10 +212,10 @@ Zustand stores follow a flat interface with `isLoading`, `isUpdating`, and `erro
 
 ### Hooks colocation (2-tier rule, S4 Task 4)
 
-| Scope                                 | Location                                       |
-| ------------------------------------- | ---------------------------------------------- |
-| Page-local (used by one surface only) | `app/dashboard/<surface>/_components/use-*.ts` |
-| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts` |
+| Scope                                         | Location                                       |
+| --------------------------------------------- | ---------------------------------------------- |
+| Page-local (used by one surface only)         | `app/dashboard/<surface>/_components/use-*.ts` |
+| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts`                           |
 
 No domain tier (`<surface>/_hooks/`) — if a surface grows past
 five shared hooks, revisit. Until then, two tiers is enough.

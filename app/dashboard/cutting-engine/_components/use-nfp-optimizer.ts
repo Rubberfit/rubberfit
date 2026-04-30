@@ -41,7 +41,15 @@ export function useNfpOptimizer(
   defaultCutHeight: number,
   defaultQty: number,
   defaultRollWidth: number,
-  defaultRollLength: number
+  defaultRollLength: number,
+  /**
+   * Pack-gate guard. The hook only fires the Rust pipeline when this
+   * is true. Wire it from `usePackGate().status === "done"` so packing
+   * happens on the Pack button click, not on every spec/stock edit.
+   * Defaults to true to preserve callers (test fixtures) that don't
+   * yet pass a gate.
+   */
+  enabled: boolean = true
 ): NFPOptimizerResult {
   const [optimizedResult, setOptimizedResult] = useState<NestingResult | null>(null)
   const [optimizedItems, setOptimizedItems] = useState<PreviewItem[] | null>(null)
@@ -83,6 +91,10 @@ export function useNfpOptimizer(
       setNfpError(null)
     })
     if (!simpleMode) return
+    // Pack-gate: bail out unless the operator pressed Pack. Without
+    // this guard the hook would fire the Rust pipeline on every
+    // spec/stock edit — exactly the live-load behaviour we removed.
+    if (!enabled) return
 
     /*
       If the passed partType is a cone, cylinder or trapezoid, then the NFP solver does not
@@ -188,6 +200,7 @@ export function useNfpOptimizer(
     defaultQty,
     defaultRollLength,
     defaultRollWidth,
+    enabled,
   ])
 
   return { optimizedResult, optimizedItems, placementView, isOptimizing, nfpError }

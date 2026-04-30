@@ -201,10 +201,14 @@ export default function NestingVisualizer({
   simplePart,
   simpleParts,
   frozenLayouts,
+  packGateStatus = "done",
   onMetricsChange,
   onTagMapChange,
   onLayoutChange,
 }: NestingVisualizerProps & { onLayoutChange?: (layouts: LayoutModel[]) => void }) {
+  // Pack-gate guard: only run the TS preview generators + Rust optimizer
+  // once the operator has pressed Pack. Saved layouts always render.
+  const packed = packGateStatus === "done" || (frozenLayouts?.length ?? 0) > 0
   const patternSeed = useId().replace(/:/g, "")
 
   const [viewMode, setViewMode] = useState<"stock" | "profile">("stock")
@@ -215,7 +219,13 @@ export default function NestingVisualizer({
   // circuit the preview pipeline with a synthetic empty preview so
   // the same downstream renderer is used whether cuts are placed
   // or not. Keeps the engine layout identical in both states.
-  const isEmptySheet = !hasFrozenLayouts && simpleParts !== undefined && simpleParts.length === 0
+  //
+  // Same short-circuit applies when the pack gate is idle / packing
+  // (operator hasn't clicked Pack yet) — render the empty sheet
+  // until the gate flips to `done`. Frozen layouts override both:
+  // a saved cut always renders even when the gate is idle.
+  const isEmptySheet =
+    !hasFrozenLayouts && ((simpleParts !== undefined && simpleParts.length === 0) || !packed)
 
   const activeSimpleSpecs = useMemo(() => {
     // Annotate every spec with its stable original index. Downstream code
@@ -341,6 +351,7 @@ export default function NestingVisualizer({
   useEffect(() => {
     if (hasFrozenLayouts) return // saved layouts are exact; don't let async packing replace them
     if (isEmptySheet) return // nothing to refine on a blank sheet
+    if (!packed) return // pack gate idle/packing — defer worker-pool refinement
     const key = asyncPreviewKey
     let cancelled = false
 
@@ -420,7 +431,9 @@ export default function NestingVisualizer({
       queueMicrotask(() => setViewMode("stock"))
   }, [activeSimpleSpecs])
 
-  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations
+  // Calls useNfpOptimizer to attempt to optimize the UI for long running generations.
+  // The hook is gated by `packed` so the Rust pipeline only fires after the
+  // operator presses Pack — not on every spec/stock edit.
   const optimizer = useNfpOptimizer(
     !hasFrozenLayouts,
     activeSimpleSpecs,
@@ -428,7 +441,8 @@ export default function NestingVisualizer({
     defaultCutHeight,
     defaultQty,
     defaultRollWidth,
-    defaultRollLength
+    defaultRollLength,
+    packed
   )
   const optimizedResult = hasFrozenLayouts ? null : optimizer.optimizedResult
   const optimizedItems = hasFrozenLayouts ? null : optimizer.optimizedItems

@@ -132,13 +132,15 @@ function CutPlannerPageInner() {
     "id" | "job_number" | "name" | "customer_name"
   > | null>(null)
 
-  // Pack-gate: the Graph card doesn't mount the NestingVisualizer
+  // Pack-gate: the Graph card shows an empty sheet (and the
+  // visualizer skips its TS preview generators + Rust optimizer)
   // until the operator presses **Pack**. Any change to parts,
   // stock, or cut-direction resets the gate to `idle` so the
   // operator has to re-pack against the current inputs — this kills
   // the old live-preview churn that nudged operators into cutting
   // before their inputs had settled.
   const packGate = usePackGate()
+  const { invalidate: invalidatePackGate, requestPack, status: packGateStatus } = packGate
 
   useEffect(() => {
     materialTypeService
@@ -378,6 +380,14 @@ function CutPlannerPageInner() {
     setLayouts([])
     setCutMetrics(null)
   }, [frozenLayouts, frozenLayoutInputSignature, currentFrozenLayoutInputSignature])
+
+  // Reset the pack gate to `idle` whenever the inputs the visualizer
+  // packs against change. The signature already encodes stock dims,
+  // selected templates, cut direction, and ratios — so this fires
+  // exactly when an operator edit invalidates the previous pack.
+  useEffect(() => {
+    invalidatePackGate()
+  }, [currentFrozenLayoutInputSignature, invalidatePackGate])
 
   const nestingSimpleParts = useMemo(
     () =>
@@ -784,16 +794,24 @@ function CutPlannerPageInner() {
                   <LayoutLabel />
                   4. Graph
                 </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {packGateStatus !== "done" && !activeFrozenLayouts && (
+                    <Button size="sm" onClick={requestPack} disabled={packGateStatus === "packing"}>
+                      {packGateStatus === "packing" ? "Packing…" : "Pack"}
+                    </Button>
+                  )}
+                  {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                    <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
+                      <Scissors className="mr-1.5 h-4 w-4" />
+                      {isRecordingCut ? "Recording…" : "Cut"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardDescription>
-                The graph starts from rectangular stock and shows the actual cut pieces placed on
-                that stock, with reusable offcut in amber and waste in red.
+                {packGateStatus === "done" || activeFrozenLayouts
+                  ? "The graph shows the actual cut pieces placed on the stock, with reusable offcut in amber and waste in red."
+                  : "Pick your parts and stock above, then press Pack to generate the layout. Reusable offcut renders in amber, waste in red."}
               </CardDescription>
             </CardHeader>
 
@@ -809,6 +827,7 @@ function CutPlannerPageInner() {
                 simpleParts={nestingSimpleParts}
                 simplePart={nestingSimplePart}
                 frozenLayouts={activeFrozenLayouts}
+                packGateStatus={packGateStatus}
               />
             </CardContent>
           </Card>

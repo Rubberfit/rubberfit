@@ -110,6 +110,20 @@ export interface NestingVisualizerProps {
    * sync/async packing so reloads do not drift from the saved cut.
    */
   frozenLayouts?: LayoutModel[]
+  /**
+   * Pack-gate status from `usePackGate`. Drives whether the visualizer
+   * runs the TS preview generators + Rust optimizer or shows an empty
+   * sheet waiting for the operator to press Pack.
+   *
+   * - `idle`: empty sheet ("Ready to pack" prompt).
+   * - `packing`: loader.
+   * - `done`: full preview + optimized layout.
+   *
+   * Defaults to `"done"` when omitted so legacy callers (free-roam,
+   * tests, screenshots) keep eager-render behaviour. New page-level
+   * callers should pass the gate so input edits don't trigger packs.
+   */
+  packGateStatus?: "idle" | "packing" | "done"
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
 }
