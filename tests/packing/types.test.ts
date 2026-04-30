@@ -8,7 +8,6 @@ import type {
   Placement,
   BinResult,
   PackResult,
-  PackProgress,
 } from "@/src/application/packing/types"
 
 describe("canonical types", () => {

@@ -4,17 +4,22 @@ import { container } from "tsyringe"
 import "@/di/resolve" // triggers registration
 import { TOKENS } from "@/di/tokens"
 import { PACKING_TOKENS } from "@/src/application/services/packing.service.interface"
-import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
+import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
 
-// After Phase 3 production rollout the legacy TS packer was removed —
-// pack-cli is now the only engine. DI fails fast in di-registration.ts
-// if the binary is missing (no more fallback). These tests therefore
-// assume the binary is present (pretest hook rebuilds it on every run).
+// AutoNest packing now resolves to one of two implementations depending
+// on environment:
+//   - Browser (typeof window !== "undefined"): ApiPackingService, which
+//     POSTs the PackRequest to /api/v2/pack.
+//   - Server: RustPackingService, which spawns the pack-cli subprocess.
+//
+// Vitest runs tests under jsdom by default — `window` is defined — so the
+// resolved service is ApiPackingService here. Server-side behaviour is
+// covered by tests/packing/rustPackingService.test.ts.
 
 describe("DI — IPackingService", () => {
-  it("resolves IPackingService to the Rust engine", () => {
+  it("resolves IPackingService (jsdom env: ApiPackingService)", () => {
     const svc = container.resolve(PACKING_TOKENS.IPackingService)
-    expect(svc).toBeInstanceOf(RustPackingService)
+    expect(svc).toBeInstanceOf(ApiPackingService)
   })
 
   it("is a singleton (same instance on repeated resolve)", () => {

@@ -5,6 +5,25 @@ import { execSync } from "node:child_process"
 
 const DELETED = [
   "nesting/vendor/fit/mathHelper.ts",
+  // GA-packer deadcode removed in the AutoNest Rust-server-side migration.
+  // The live TS NFP preview path (nfp-greedy-placer + nfp-pack-rotation) is
+  // still alive and uses vendor/fit/{part, bin, vector, util, polygon,
+  // bounding-box, indexed-vector, util-geometry}; the files below were the
+  // unreachable GA optimizer that was never wired in.
+  "nesting/vendor/fit/index.ts",
+  "nesting/vendor/fit/packer.ts",
+  "nesting/vendor/fit/placer.ts",
+  "nesting/vendor/fit/placement.ts",
+  "nesting/vendor/fit/gaussian.ts",
+  "nesting/vendor/fit/xorshift.ts",
+  "nesting/vendor/fit/ga/dna.ts",
+  "nesting/vendor/fit/ga/ga.ts",
+  // Engine-side: clipper2 wrapper had zero callers; removed to unblock
+  // future wasm work and shrink the rf-geom dep tree.
+  "engine/crates/rf-geom/src/infrastructure/clipper.rs",
+  // Subprocess streaming protocol — server-side IPackingService is now
+  // batch-only; browser callers use ApiPackingService over HTTP.
+  "tests/packing/rustServiceStreaming.test.ts",
   // "src/infrastructure/services/useRole.ts", // DEFERRED: 5 active importers in app/ — migration required first
   "src/infrastructure/scripts/theme-boot.tsx",
   "src/infrastructure/services/README.md",

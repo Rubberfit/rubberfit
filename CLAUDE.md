@@ -64,24 +64,33 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 ### Packing engine
 
 `IPackingService` is the canonical packing interface
-(`src/application/services/packing.service.interface.ts`). One
-implementation, `RustPackingService`, is registered through
-`di/di-registration.ts` as the sole binding — no TS fallback:
+(`src/application/services/packing.service.interface.ts`). DI binds it
+based on environment:
 
-| Engine | When | Invocation |
+| Context | Implementation | Invocation |
 |---|---|---|
-| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cutting-engine page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
+| Server (Node runtime) | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout |
+| Browser | `ApiPackingService` | `fetch("/api/v2/pack", ...)` — the route handler resolves `RustPackingService` server-side |
 
-The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
-2D grid warm-start (Task 19a) + sparrow-style Guided Local Search
-(Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON
-progress streaming with AbortSignal cancellation (Tasks 14-16).
-Benchmarks: `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+Single source of truth: every AutoNest pack — preview-grade or
+production — flows through `pack-cli`. There is no TS fallback.
 
-`LegacyPackingService` was removed after `pack_lbf_lns + polish`
-beat it on every parity fixture at the production Fab Score.
-`USE_RUST_ENGINE=false` is no longer honored; the Rust binary is
-the only path.
+Live shape previews in the cutting-engine UI (rect/circle/cone/
+trapezoid as the operator drags dimensions) still use a TS NFP path
+for sub-frame responsiveness; the `useNfpOptimizer` hook layers Rust
+on top with a 220 ms debounce. The TS path's GA-optimizer subtree in
+`nesting/vendor/fit/` was deleted in this migration; the alive
+remainder powers the synchronous geometry helpers only.
+
+The Rust path is the full S2.5 stack: FFD bin-assignment + 2D grid
+warm-start + sparrow-style Guided Local Search + cross-bin swap
+orchestrator. Benchmarks:
+`docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+
+The previous streaming protocol (`pack-cli --stream` NDJSON +
+`AbortSignal` cancellation) was removed alongside the browser-side
+short-circuit. Browser → `/api/v2/pack` → `pack-cli` is a single
+request/response cycle.
 
 ### Dev server
 
@@ -94,8 +103,10 @@ npm run build:engine    # one-time; ~2 min cold, seconds after
 npm run dev
 ```
 
-Without the binary, visiting `/dashboard/cutting-engine` surfaces a
-"pack-cli binary not found" error from the DI container.
+Without the binary, the first POST to `/api/v2/pack` (triggered by
+pressing **Pack** on `/dashboard/cutting-engine`) returns a 500
+with "pack-cli binary not found"; the DI container fails fast on
+the server's first `IPackingService` resolve.
 
 **Layer rules:**
 
@@ -232,7 +243,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Batch and Manual sub-modes were deleted in the same task; the single-job flow is the only surface. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
+- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Browser → `fetch("/api/v2/pack")` → server `RustPackingService` → `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). No streaming, no AbortSignal — single request/response. Live UI previews still run TS-side for responsiveness; the production pack always lands on Rust. Parity test fixture (`tests/packing/parity/`) runs under `npm run test:parity`.
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 

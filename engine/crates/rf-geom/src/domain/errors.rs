@@ -9,6 +9,4 @@ pub enum GeomError {
     SelfIntersecting,
     #[error("polygon has zero area")]
     ZeroArea,
-    #[error("clipper operation failed: {0}")]
-    ClipperFailed(String),
 }
