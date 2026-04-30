@@ -61,6 +61,11 @@ function dtoToCutHistory(dto: CutHistoryDto): CutHistory {
     cut_length: dto.cut_length,
     cut_width: dto.cut_width,
     cut_thickness: dto.cut_thickness,
+    // Rust DTO doesn't surface kerf yet — fall back to the column's
+    // default (0.125") so the TS model stays non-null. Promoting kerf
+    // onto `rf-domain` / `CutHistoryEntry` is a follow-up, same shape
+    // as the cost_per_sqft / stock_label gaps already noted below.
+    kerf: 0.125,
     part_custom_width: dto.part_custom_width ?? null,
     part_custom_height: dto.part_custom_height ?? null,
     part_selected_size: dto.part_selected_size ?? null,

@@ -70,6 +70,7 @@ export function useRecordManualCut(
           thickness: stock.thickness,
           material: stock.material,
           costPerSqft: stock.costPerSqft ?? null,
+          kerf: stock.kerf,
         },
       }
 
@@ -82,6 +83,7 @@ export function useRecordManualCut(
         cut_length: stock.length,
         cut_width: stock.width,
         cut_thickness: stock.thickness,
+        kerf: stock.kerf,
         cut_amount: cutMetrics.partsCompleted,
         parts_completed: cutMetrics.partsCompleted,
         cut_pieces: cutMetrics.cutPieces,

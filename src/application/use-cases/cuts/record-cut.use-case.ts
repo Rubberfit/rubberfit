@@ -19,6 +19,7 @@ import type {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const r2 = (n: number): number => Math.round(n * 100) / 100
+const r4 = (n: number): number => Math.round(n * 10000) / 10000
 
 export interface OffcutPiecePayload {
   width_in: number
@@ -34,6 +35,13 @@ export interface RecordCutInput {
   cut_length: number
   cut_width: number
   cut_thickness: number
+  /**
+   * Saw-blade kerf width in inches (inter-part clearance the packer
+   * enforced). Optional in the wire payload for back-compat with old
+   * clients; the DB column has a default so omitted values land as
+   * 0.125".
+   */
+  kerf?: number
   cut_amount: number
   part_custom_width?: number | null
   part_custom_height?: number | null
@@ -138,6 +146,9 @@ function buildInsertPayload(
     cut_length: r2(body.cut_length),
     cut_width: r2(body.cut_width),
     cut_thickness: r2(body.cut_thickness),
+    // Round to 4dp so a 0.125" kerf round-trips exactly. Defaulted to
+    // the column's default when omitted by the client.
+    kerf: body.kerf != null && isFinite(body.kerf) && body.kerf >= 0 ? r4(body.kerf) : 0.125,
     cut_amount: body.cut_amount,
     parts_completed: body.parts_completed,
     cut_pieces: body.cut_pieces,

@@ -1,5 +1,6 @@
 import React from "react"
 import type { PreviewItem, SimplePartPreview } from "./nesting-visualizer-types"
+import { polygonCentroid } from "./part-label"
 
 export type RenderPass = "background" | "foreground" | undefined
 
@@ -78,6 +79,13 @@ function PolygonShape({
         `${surfaceX + (pt.x - unitOriginX) * scale},${surfaceY + (pt.y - unitOriginY) * scale}`
     )
     .join(" ")
+  // Label position: area-weighted polygon centroid, NOT the bbox centre.
+  // For concave shapes (e.g. a 150° annular sector), the bbox centre
+  // lands outside the silhouette; the centroid sits inside the actual
+  // filled region.
+  const centroid = polygonCentroid(item.placedPolygon!)
+  const labelX = surfaceX + (centroid.x - unitOriginX) * scale
+  const labelY = surfaceY + (centroid.y - unitOriginY) * scale
   return (
     <g key={index + 1}>
       <polygon
@@ -87,8 +95,8 @@ function PolygonShape({
         strokeWidth="1.5"
       />
       <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2}
+        x={labelX}
+        y={labelY}
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-shape-label stroke-shape-label-halo"

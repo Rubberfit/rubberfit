@@ -1,6 +1,6 @@
 // Simple mode render for NestingVisualizer — sub-components in nesting-viz-simple-parts.tsx
 
-import React, { useMemo } from "react"
+import React from "react"
 import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
 import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
@@ -18,6 +18,8 @@ import { computeSimpleModeLayout, formatInches } from "./nesting-viz-simple-layo
 import { computeFabricationScore } from "./nesting-preview-builders"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
+import type { LayoutModel } from "./layout-model"
+import { CutLegend } from "./cut-legend"
 
 interface SimpleModeProps {
   preview: SimplePartPreview
@@ -31,7 +33,12 @@ interface SimpleModeProps {
   isOptimizing: boolean
   nfpError: string | null
   multiSheet?: MultiSheetResult | null
-  tagMap?: Map<string, string>
+  /**
+   * Source-of-truth `LayoutModel[]` from the Rust pack pipeline. Drives
+   * the `CutLegend` (tag → dimension-label table) so the descriptor is
+   * the part's actual dimensions rather than a tag-as-self lookup.
+   */
+  layouts?: LayoutModel[]
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -43,7 +50,6 @@ function SheetSvg({
   previewRollL,
   isMultiSheet,
   totalSheets,
-  tagMap,
 }: {
   sheet: SheetPreview
   layout: SimpleModeLayout
@@ -52,7 +58,6 @@ function SheetSvg({
   previewRollL: number
   isMultiSheet: boolean
   totalSheets: number
-  tagMap?: Map<string, string>
 }) {
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
@@ -350,7 +355,7 @@ function SheetSvg({
                 wastePatternId={sWastePat}
                 viewHeight={layout.viewHeight}
                 surfacePxW={layout.surfacePxW}
-                tagLetter={tagMap?.get(String(item.specIndex ?? -1))}
+                tagLetter={item.label}
                 zoom={zoom}
                 renderPass={pass}
               />
@@ -407,7 +412,7 @@ export default function NestingVizSimpleMode({
   isOptimizing,
   nfpError,
   multiSheet,
-  tagMap,
+  layouts,
 }: SimpleModeProps) {
   const layout = React.useMemo(
     () =>
@@ -447,39 +452,6 @@ export default function NestingVizSimpleMode({
     metricsPreview !== layout.displayPreview
       ? computeFabricationScore(metricsPreview, previewRollW, previewRollL)
       : layout.fabScore
-  // Build legend entries: resolve specIndex → human-readable label from placed items
-  const legendEntries = useMemo(() => {
-    if (!tagMap || tagMap.size === 0) return []
-    // Collect the first item label seen for each specIndex
-    const indexToLabel = new Map<string, string>()
-    const allItems = multiSheet
-      ? multiSheet.sheets.flatMap((s) => s.preview.items)
-      : layout.displayPreview.items
-    for (const item of allItems) {
-      const key = String(item.specIndex ?? -1)
-      if (tagMap.has(key) && !indexToLabel.has(key)) {
-        indexToLabel.set(key, item.label)
-      }
-    }
-    // Dedupe by tag — multiple specIndexes can share a partNumber (e.g. "G1"),
-    // which would otherwise produce duplicate React keys + duplicate legend rows.
-    // Prefer the first entry per tag whose label resolved, so the legend never
-    // falls back to a numeric specIndex when a sibling has a real label.
-    const legendByTag = new Map<string, { label: string; hasResolvedLabel: boolean }>()
-    for (const [key, tag] of tagMap.entries()) {
-      const resolvedLabel = indexToLabel.get(key)
-      const existing = legendByTag.get(tag)
-      if (!existing || (!existing.hasResolvedLabel && resolvedLabel)) {
-        legendByTag.set(tag, {
-          label: resolvedLabel ?? key,
-          hasResolvedLabel: Boolean(resolvedLabel),
-        })
-      }
-    }
-    return [...legendByTag.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([tag, { label }]) => ({ tag, label }))
-  }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
   ]
@@ -510,18 +482,7 @@ export default function NestingVizSimpleMode({
         multiSheet={multiSheet}
       />
 
-      {legendEntries.length > 0 && (
-        <div className="flex flex-wrap gap-3 border-b border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-          {legendEntries.map((entry) => (
-            <span key={entry.tag} className="flex items-center gap-1.5">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
-                {entry.tag}
-              </span>
-              <span>{entry.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
+      {layouts && layouts.length > 0 && <CutLegend layouts={layouts} />}
 
       <div
         className={`bg-card px-2 py-4 sm:px-4 ${isMultiSheet ? "flex flex-col gap-6 md:grid-cols-2" : "overflow-x-auto"}`}
@@ -536,7 +497,6 @@ export default function NestingVizSimpleMode({
             previewRollL={previewRollL}
             isMultiSheet={isMultiSheet}
             totalSheets={sheets.length}
-            tagMap={tagMap}
           />
         ))}
       </div>

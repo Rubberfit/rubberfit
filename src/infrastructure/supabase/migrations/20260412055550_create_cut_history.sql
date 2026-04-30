@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS cut_history (
   cut_length                    FLOAT NOT NULL,
   cut_width                     FLOAT NOT NULL,
   cut_thickness                 FLOAT NOT NULL,
+  -- Saw-blade kerf in inches (inter-part clearance the packer enforced).
+  -- Defaulted at the column level so pre-kerf rows + seed inserts that
+  -- predate the field load with the UI default (1/8").
+  kerf                          FLOAT NOT NULL DEFAULT 0.125,
   
   --Custom part sizes selected by the user (if applicable)
   part_custom_width            FLOAT NULL,
@@ -39,9 +43,10 @@ CREATE TABLE IF NOT EXISTS cut_history (
   updated_at                    TIMESTAMPTZ DEFAULT NOW(),
       
   -- Constraints
-  CONSTRAINT positive_cut_length CHECK (cut_length > 0),  
+  CONSTRAINT positive_cut_length CHECK (cut_length > 0),
   CONSTRAINT positive_cut_width CHECK (cut_width > 0),
   CONSTRAINT positive_cut_thickness CHECK (cut_thickness > 0),
+  CONSTRAINT non_negative_kerf CHECK (kerf >= 0),
   CONSTRAINT non_negative_custom_width  CHECK (part_custom_width IS NULL OR part_custom_width >= 0),
   CONSTRAINT non_negative_custom_height CHECK (part_custom_height IS NULL OR part_custom_height >= 0),
   CONSTRAINT valid_fab_score CHECK (fab_score >= 0 AND fab_score <= 1)
@@ -60,6 +65,7 @@ COMMENT ON COLUMN cut_history.part_id IS 'Foreign key referencing the part shape
 COMMENT ON COLUMN cut_history.cut_length IS 'The length of the cut piece.';
 COMMENT ON COLUMN cut_history.cut_width IS 'The width of the cut piece.';
 COMMENT ON COLUMN cut_history.cut_thickness IS 'The thickness of the cut piece.';
+COMMENT ON COLUMN cut_history.kerf IS 'Saw-blade kerf width in inches; the packer used this as inter-part clearance.';
 COMMENT ON COLUMN cut_history.part_custom_width IS 'Custom width specified by the user for the part, if applicable.';
 COMMENT ON COLUMN cut_history.part_custom_height IS 'Custom height specified by the user for the part, if applicable.';
 COMMENT ON COLUMN cut_history.part_selected_size IS 'Array of selected size IDs for the part, if applicable.';

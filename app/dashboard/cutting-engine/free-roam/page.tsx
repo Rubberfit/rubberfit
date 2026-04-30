@@ -5,7 +5,10 @@ import { useState } from "react"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import type { PartTemplate } from "../_components/PresetDimensionSelector"
-import type { StockConfig } from "../_components/stock-preview-configurator"
+import {
+  DEFAULT_KERF_IN,
+  type StockConfig,
+} from "../_components/stock-preview-configurator"
 
 /**
  * Free-roam nester — CAD-style manual part placement. Lives on its
@@ -33,6 +36,11 @@ const DEFAULT_STOCK: StockConfig = {
   length: 48,
   material: "",
   thickness: 0.5,
+  // Free-roam doesn't consume kerf today (manual placement, no packer
+  // clearance), but the field is required by `StockConfig` and the
+  // saved-layout snapshot persists it for round-trip parity with
+  // Auto-nest cuts loaded into the same canvas.
+  kerf: DEFAULT_KERF_IN,
 }
 
 // Sample parts seeded so the operator has something to click-place

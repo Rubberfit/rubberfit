@@ -19,6 +19,7 @@ import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
   StockPreviewConfigurator,
   STOCK_PRESETS,
+  DEFAULT_KERF_IN,
   type StockConfig,
 } from "./_components/stock-preview-configurator"
 import { CutConfigCard } from "./_components/cut-config-card"
@@ -28,7 +29,7 @@ import {
   parseCutRatios,
 } from "./_components/cut-planner-utils"
 import { buildTemplatesFromCutRecord } from "./_components/cut-load-utils"
-import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
+import { PART_OPTIONS } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
 import {
   type CutHistory,
@@ -46,6 +47,7 @@ import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { strategyFor } from "./_components/bin-allocation-strategy"
 import { templateToPart } from "./_components/template-to-part"
 import { usePackJob } from "./_components/use-pack-job"
+import { ReusableOffcutsCard } from "./_components/reusable-offcuts-card"
 import {
   MAX_SHEETS,
   estimateSheetCount,
@@ -60,6 +62,7 @@ const DEMO_STOCK: StockConfig = {
   length: 48,
   material: "",
   thickness: 0.5,
+  kerf: DEFAULT_KERF_IN,
 }
 
 // Helpers
@@ -71,6 +74,7 @@ function finiteOrNull(value: number | undefined): number | null {
 function buildFrozenLayoutInputSignature(
   stockWidth: number,
   stockLength: number,
+  stockKerf: number,
   templates: readonly PartTemplate[],
   cutDirection: SimpleCutDirection,
   cutRatios?: readonly number[]
@@ -78,6 +82,7 @@ function buildFrozenLayoutInputSignature(
   return JSON.stringify({
     stockWidth,
     stockLength,
+    stockKerf,
     cutDirection,
     cutRatios: cutRatios ?? null,
     templates: templates.map((template) => ({
@@ -199,6 +204,10 @@ function CutPlannerPageInner() {
       const materialName =
         cut.stock_label ?? stockPreset?.label ?? `${cut.cut_width}" × ${cut.cut_length}"`
       const matchedMt = materialTypes.find((mt) => mt.name === materialName)
+      // Kerf is a first-class column on cut_history; read it back so
+      // re-packing the saved cut uses the same clearance that was
+      // recorded. Pre-kerf rows DEFAULT to 0.125 server-side, so the
+      // nullish guard is purely defensive against a stale client cache.
       setStock({
         width: cut.cut_width,
         length: cut.cut_length,
@@ -206,6 +215,7 @@ function CutPlannerPageInner() {
         material: materialName,
         costPerSqft: cut.cost_per_sqft ?? undefined,
         materialTypeId: matchedMt?.id,
+        kerf: cut.kerf ?? DEFAULT_KERF_IN,
       })
 
       // 2. Reconstruct part templates (delegated to a pure helper so the
@@ -233,6 +243,7 @@ function CutPlannerPageInner() {
           ? buildFrozenLayoutInputSignature(
               cut.cut_width,
               cut.cut_length,
+              DEFAULT_KERF_IN,
               templates,
               nextCutDirection,
               undefined
@@ -293,6 +304,7 @@ function CutPlannerPageInner() {
         material: roll.material_type,
         costPerSqft: roll.cost_per_sqft ?? undefined,
         materialTypeId: matched?.id,
+        kerf: DEFAULT_KERF_IN,
       })
       setSourceRollId(roll.id)
       toast.success(`Loaded ${roll.material_type}`, {
@@ -370,11 +382,12 @@ function CutPlannerPageInner() {
       buildFrozenLayoutInputSignature(
         stock.width,
         stock.length,
+        stock.kerf,
         selectedTemplates,
         cutDirection,
         customCutRatios
       ),
-    [stock.width, stock.length, selectedTemplates, cutDirection, customCutRatios]
+    [stock.width, stock.length, stock.kerf, selectedTemplates, cutDirection, customCutRatios]
   )
   const activeFrozenLayouts =
     frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
@@ -417,7 +430,7 @@ function CutPlannerPageInner() {
   } = usePackJob({
     bins: packBins,
     parts: packParts,
-    clearance: 0.125,
+    clearance: stock.kerf,
     templates: selectedTemplates,
     tagByShapeId: tagByTemplateId,
     enabled: packGateStatus === "done",
@@ -564,6 +577,7 @@ function CutPlannerPageInner() {
         cut_width: stock.width,
         cut_length: stock.length,
         cut_thickness: stock.thickness,
+        kerf: stock.kerf,
         cut_amount: safeQuantity,
         part_custom_width: selectedTemplate.isCustom ? (selectedTemplate.width ?? null) : null,
         part_custom_height: selectedTemplate.isCustom
@@ -883,6 +897,8 @@ function CutPlannerPageInner() {
               />
             </CardContent>
           </Card>
+
+          <ReusableOffcutsCard layouts={activeFrozenLayouts ?? packLayouts ?? []} />
         </>
       ) : (
         <Card className="border border-slate-200 shadow-sm">

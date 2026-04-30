@@ -18,9 +18,19 @@ export interface StockConfig {
   length: number
   material: string
   thickness: number
+  /**
+   * Saw-blade kerf width in inches. Drives the inter-item separation
+   * the Rust packer enforces (forwarded as `PackRequest.clearance`).
+   * Wall-flush packing means this gap appears BETWEEN parts only,
+   * not against bin walls — operators don't trim sheet perimeters.
+   */
+  kerf: number
   materialTypeId?: string
   costPerSqft?: number
 }
+
+/** Default kerf in inches (1/8" — common rotary blade). */
+export const DEFAULT_KERF_IN = 0.125
 
 export const STOCK_PRESETS = [
   { id: "24x24", label: '24" × 24"', width: 24, length: 24 },
@@ -77,7 +87,7 @@ interface StockPreviewConfiguratorProps {
   materialTypes?: MaterialType[]
 }
 
-type StockField = "width" | "length" | "thickness"
+type StockField = "width" | "length" | "thickness" | "kerf"
 
 function formatDraftValue(value: number) {
   return Number.isFinite(value) ? String(value) : ""
@@ -94,6 +104,7 @@ export function StockPreviewConfigurator({
     width: formatDraftValue(stock.width),
     length: formatDraftValue(stock.length),
     thickness: formatDraftValue(stock.thickness),
+    kerf: formatDraftValue(stock.kerf),
   }))
 
   const updateDraft = (field: StockField, value: string) => {
@@ -207,7 +218,7 @@ export function StockPreviewConfigurator({
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label
               htmlFor="stock-width"
@@ -302,6 +313,40 @@ export function StockPreviewConfigurator({
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   commitDraft("thickness", event.currentTarget.value, 0.0625)
+                  event.currentTarget.blur()
+                }
+              }}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="stock-kerf"
+              className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500"
+              title="Saw-blade kerf — the gap the packer enforces between parts."
+            >
+              Kerf (in)
+            </label>
+            <Input
+              id="stock-kerf"
+              min={0}
+              step="0.001"
+              type="number"
+              value={getInputValue("kerf")}
+              onFocus={() => {
+                setActiveDraftField("kerf")
+                setDrafts((previous) => ({
+                  ...previous,
+                  kerf: formatDraftValue(stock.kerf),
+                }))
+              }}
+              onChange={(event) => updateDraft("kerf", event.target.value)}
+              onBlur={(event) => {
+                commitDraft("kerf", event.target.value, 0)
+                setActiveDraftField((previous) => (previous === "kerf" ? null : previous))
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  commitDraft("kerf", event.currentTarget.value, 0)
                   event.currentTarget.blur()
                 }
               }}

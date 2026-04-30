@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef } from "react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
@@ -33,7 +33,6 @@ interface NestingVisualizerExtraProps {
   onLayoutChange?: (layouts: LayoutModel[]) => void
 }
 
-// eslint-disable-next-line max-lines-per-function
 export default function NestingVisualizer({
   defaultRollWidth = 48,
   defaultRollLength = 96,
@@ -181,7 +180,7 @@ export default function NestingVisualizer({
       isOptimizing={packGateStatus === "packing"}
       nfpError={null}
       multiSheet={multiSheet}
-      tagMap={undefined}
+      layouts={activeLayouts ?? undefined}
     />
   )
 }

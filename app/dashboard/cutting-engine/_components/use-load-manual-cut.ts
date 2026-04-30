@@ -5,7 +5,7 @@ import { toast } from "sonner"
 
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./preset-template-data"
-import type { StockConfig } from "./stock-preview-configurator"
+import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
 import type { ManualPlacement } from "./free-roam-collision"
 
 interface LoadManualCutArgs {
@@ -77,6 +77,11 @@ export function useLoadManualCut({
           thickness: snapshot.stock.thickness,
           material: snapshot.stock.material ?? "",
           costPerSqft: snapshot.stock.costPerSqft ?? undefined,
+          // Kerf precedence: cut_history column → layout_json snapshot →
+          // UI default. Both copies are kept in sync at write time, but
+          // the column is canonical. Pre-kerf rows fall through to the
+          // UI default.
+          kerf: cut.kerf ?? snapshot.stock.kerf ?? DEFAULT_KERF_IN,
         })
       }
       toast.success("Layout loaded onto canvas")
