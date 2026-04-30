@@ -3,12 +3,14 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
-import {
-  supabase,
-  type PurchaseOrderWithDetails,
-  type Supplier,
-  type MaterialType,
+import type {
+  PurchaseOrderWithDetails,
+  Supplier,
+  MaterialType,
 } from "@/src/infrastructure/models/supabase"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 
 import { type TaxDetails } from "./po-tax-helpers"
 import { usePOFormState } from "./use-po-form-state"
@@ -46,30 +48,15 @@ export function usePurchaseOrders() {
     try {
       setLoading(true)
 
-      const { data: posData, error: posError } = await supabase
-        .from("purchase_orders")
-        .select(`*, supplier:suppliers(*), items:purchase_order_items(*)`)
-        .order("created_at", { ascending: false })
+      const [posData, suppliersData, materialsData] = await Promise.all([
+        purchaseOrderService.getAllPurchaseOrders(),
+        supplierService.getActiveSuppliers(),
+        materialTypeRepository.getAll(),
+      ])
 
-      if (posError) throw posError
-      setPurchaseOrders(posData || [])
-
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("active", true)
-        .order("name")
-
-      if (suppliersError) throw suppliersError
-      setSuppliers(suppliersData || [])
-
-      const { data: materialsData, error: materialsError } = await supabase
-        .from("material_types")
-        .select("*")
-        .order("name")
-
-      if (materialsError) throw materialsError
-      setMaterialTypes(materialsData || [])
+      setPurchaseOrders(posData)
+      setSuppliers(suppliersData)
+      setMaterialTypes(materialsData)
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {

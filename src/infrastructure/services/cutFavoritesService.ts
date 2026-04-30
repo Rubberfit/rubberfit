@@ -1,0 +1,60 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
+
+import type { ICutFavoritesService } from "@/src/application/services/cut-favorites.service.interface"
+
+export class CutFavoritesService implements ICutFavoritesService {
+  async listFavorites(client: SupabaseClient, userId: string): Promise<string[]> {
+    const { data, error } = await client
+      .from("cut_history_favorites")
+      .select("cut_history_id")
+      .eq("user_id", userId)
+
+    if (error) {
+      // Table may not exist yet (migration pending) — return empty list
+      // gracefully so the UI doesn't break in pre-migrated envs.
+      console.warn("cutFavoritesService.listFavorites:", error.message)
+      return []
+    }
+
+    return (data ?? []).map((row) => (row as { cut_history_id: string }).cut_history_id)
+  }
+
+  async toggleFavorite(
+    client: SupabaseClient,
+    userId: string,
+    cutHistoryId: string
+  ): Promise<{ isFavorite: boolean } | { error: string }> {
+    const { data: existing } = await client
+      .from("cut_history_favorites")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("cut_history_id", cutHistoryId)
+      .maybeSingle()
+
+    if (existing) {
+      const { error } = await client
+        .from("cut_history_favorites")
+        .delete()
+        .eq("user_id", userId)
+        .eq("cut_history_id", cutHistoryId)
+
+      if (error) {
+        console.warn("cutFavoritesService.toggleFavorite (delete):", error.message)
+        return { error: "Failed to remove favorite" }
+      }
+      return { isFavorite: false }
+    }
+
+    const { error } = await client
+      .from("cut_history_favorites")
+      .insert({ user_id: userId, cut_history_id: cutHistoryId })
+
+    if (error) {
+      console.warn("cutFavoritesService.toggleFavorite (insert):", error.message)
+      return { error: "Failed to add favorite" }
+    }
+    return { isFavorite: true }
+  }
+}
+
+export const cutFavoritesService = new CutFavoritesService()

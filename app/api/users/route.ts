@@ -1,15 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { listDirectoryUsers } from "@/src/infrastructure/services/userManagementService"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 /** GET /api/users
- *  Returns a list of users (id + full_name) for the admin / manager / supervisor dropdown.
- *  Restricted to callers who hold one of those three roles.
- *  Response: { data: { id: string; full_name: string | null }[] }
+ *  Returns a list of users (id + full_name + email) for the admin /
+ *  manager / supervisor dropdown. Restricted to callers who hold one
+ *  of those three roles.
  */
 export async function GET(request: NextRequest) {
-  const supabase = makeAuthClient(request)
-  if (!supabase) {
+  const authClient = makeAuthClient(request)
+  if (!authClient) {
     return NextResponse.json(
       { error: "Supabase environment variables are missing" },
       { status: 503 }
@@ -18,40 +20,42 @@ export async function GET(request: NextRequest) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await authClient.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-  if (profileError) {
-    console.error("users GET profile fetch error:", profileError)
+  const db = makeAdminClient()
+  if (!db) {
+    return NextResponse.json(
+      { error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" },
+      { status: 503 }
+    )
+  }
+
+  let access
+  try {
+    access = await getProfileAccess(db, user.id)
+  } catch (err) {
+    console.error("users GET profile fetch error:", err)
     return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 })
   }
-  const roles: string[] = (profile?.roles as string[] | null) ?? []
+
   const isPrivileged =
-    roles.includes("admin") || roles.includes("manager") || roles.includes("supervisor")
+    access.roles.includes("admin") ||
+    access.roles.includes("manager") ||
+    access.roles.includes("supervisor")
 
   if (!isPrivileged) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, email")
-    .order("full_name", { ascending: true })
-
-  if (error) {
-    console.error("users GET error:", error)
+  try {
+    const data = await listDirectoryUsers(db)
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error("users GET error:", err)
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
   }
-
-  return NextResponse.json({
-    data: (data ?? []) as { id: string; full_name: string | null; email: string | null }[],
-  })
 }

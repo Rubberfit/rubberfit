@@ -7,11 +7,7 @@ import {
   getRequiredPermission,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
-import type { Session } from "@supabase/supabase-js"
-
-interface ProfileRow {
-  super_admin: boolean | null
-}
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 function redirectWithCookies(
   url: URL,
@@ -44,7 +40,11 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request })
   const pendingCookies: Array<{ name: string; value: string; options?: CookieOptions }> = []
-  
+
+  // Cookie-bound client construction is unavoidable here — Next.js
+  // middleware sees the request/response cookie pair only via this
+  // factory. All non-auth `.from(...)` lookups go through `authService`
+  // so this file owns nothing but session hydration.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -72,48 +72,32 @@ export async function proxy(request: NextRequest) {
     // Preserve the full destination including query params so flows
     // like `/dashboard/inventory?scan=RF-000001` survive the login
     // round-trip (scanned QR label → login → drawer auto-opens).
-    const target = request.nextUrl.search
-      ? `${pathname}${request.nextUrl.search}`
-      : pathname
+    const target = request.nextUrl.search ? `${pathname}${request.nextUrl.search}` : pathname
     loginUrl.searchParams.set("redirectTo", target)
     return redirectWithCookies(loginUrl, pendingCookies)
   }
- 
+
   const requiredPermission = getRequiredPermission(pathname)
+  const needsAdmin = pathname.startsWith("/admin")
 
-  if (requiredPermission) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("roles")
-      .eq("id", user.id)
-      .single()
-
-    const userRoles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
-
-    if (!hasPermission(userRoles, requiredPermission)) {
+  if (requiredPermission || needsAdmin) {
+    let access
+    try {
+      access = await getProfileAccess(supabase, user.id)
+    } catch (_err) {
+      // Treat profile-load failures as denials rather than letting
+      // requests through unauthenticated.
       return redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
     }
-  } 
-  if (pathname.startsWith("/admin")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("super_admin")
-      .eq("id", user.id)
-      .single<ProfileRow>()
 
-    if (!profile?.super_admin) {
-      return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
+    if (requiredPermission) {
+      const userRoles = access.roles.length > 0 ? (access.roles as AppRole[]) : [...DEFAULT_ROLES]
+      if (!hasPermission(userRoles, requiredPermission)) {
+        return redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
+      }
     }
-  }
 
-  if (pathname.startsWith("/admin")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("super_admin")
-      .eq("id", user.id)
-      .single<ProfileRow>()
-
-    if (!profile?.super_admin) {
+    if (needsAdmin && !access.isSuperAdmin) {
       return redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
     }
   }

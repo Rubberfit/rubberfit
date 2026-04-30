@@ -9,6 +9,7 @@ import {
 import { PART_OPTIONS } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/cut-history-layout"
+import { uploadCutPdfBlob } from "@/src/infrastructure/services/cutPdfStorageService"
 
 const PART_TYPE_BY_PART_ID: Record<number, string> = {
   1: "rectangle",
@@ -84,59 +85,9 @@ export function buildCutPdfDataFromRow(cut: CutHistory, layouts: LayoutModel[]):
 }
 
 /**
- * Render + upload the PDF for a cut row using the admin Supabase client.
- * Uses a deterministic storage path (`${userId}/${cutId}.pdf`) with upsert so
- * repeated regeneration overwrites in place rather than orphaning files.
- * Returns the public URL on success or null on upload/update failure.
- */
-export async function uploadCutPdfWithAdmin(
-  admin: SupabaseClient,
-  cutId: string,
-  userId: string,
-  pdf: Blob
-): Promise<string | null> {
-  const fileName = `${userId}/${cutId}.pdf`
-  const { error: uploadError } = await admin.storage
-    .from("cut-history-pdfs")
-    .upload(fileName, pdf, {
-      cacheControl: "3600",
-      contentType: "application/pdf",
-      upsert: true,
-    })
-
-  if (uploadError) {
-    console.error("PDF upload failed:", uploadError)
-    return null
-  }
-
-  const { data: urlData } = admin.storage.from("cut-history-pdfs").getPublicUrl(fileName)
-  const publicUrl = urlData.publicUrl
-
-  const { error: updateError } = await admin
-    .from("cut_history")
-    .update({ pdf_url: publicUrl })
-    .eq("id", cutId)
-
-  if (updateError) {
-    // Surface the failure rather than returning the URL: callers treat
-    // any non-null return as "row healed", but with `pdf_url` still null
-    // in the DB the next page load would re-trigger this slow regen
-    // path. Better to fail loudly so the user knows + retries (the
-    // deterministic storage path means retry overwrites in place).
-    console.error("Failed to persist PDF URL (storage object exists):", {
-      cutId,
-      publicUrl,
-      updateError,
-    })
-    return null
-  }
-
-  return publicUrl
-}
-
-/**
- * End-to-end: render the PDF from the cut row + frozen layouts and persist
- * it. Returns the URL or null on any failure.
+ * End-to-end: render the PDF from the cut row + frozen layouts, then
+ * persist via the infra-layer storage service. Returns the URL or
+ * `null` on any failure.
  */
 export async function generateAndStoreCutPdf(
   admin: SupabaseClient,
@@ -146,5 +97,5 @@ export async function generateAndStoreCutPdf(
 ): Promise<string | null> {
   const data = buildCutPdfDataFromRow(cut, layouts)
   const blob = await generateCutPdf({ svgElements: [], layouts, data })
-  return uploadCutPdfWithAdmin(admin, cut.id, userId, blob)
+  return uploadCutPdfBlob(admin, cut.id, userId, blob)
 }

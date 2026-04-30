@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
+
 import {
   supabase,
   type Job,
@@ -584,3 +586,55 @@ export type {
 }
 
 export const jobsRepository = new JobsRepository()
+
+// ── Server-side (admin client) helpers ───────────────────────────────
+
+/**
+ * Run the post-cut auto-complete check for a job. Sums `job_parts.quantity`
+ * and `cut_history.parts_completed` for the job, compares against the
+ * current `jobs.status`, and flips to `completed` if the threshold is met.
+ *
+ * Best-effort: errors are logged and swallowed so the calling cut-record
+ * flow never fails because of an auto-complete hiccup. Pre-migration envs
+ * (missing column 42703 / missing table 42P01) are treated as benign.
+ */
+export async function maybeAutoCompleteJob(client: SupabaseClient, jobId: string): Promise<void> {
+  const [partsResult, cutsResult, jobResult] = await Promise.all([
+    client.from("job_parts").select("quantity").eq("job_id", jobId),
+    client.from("cut_history").select("parts_completed").eq("job_id", jobId),
+    client.from("jobs").select("status").eq("id", jobId).single(),
+  ])
+
+  const errs = [partsResult.error, cutsResult.error, jobResult.error].filter(
+    (e): e is NonNullable<typeof e> => Boolean(e)
+  )
+  if (errs.length > 0) {
+    const benign = errs.every((e) => e.code === "42703" || e.code === "42P01")
+    if (!benign) {
+      console.warn("maybeAutoCompleteJob skipped — query error", { jobId, errs })
+    }
+    return
+  }
+
+  const partsRows = (partsResult.data ?? []) as Array<{ quantity: number }>
+  const cutsRows = (cutsResult.data ?? []) as Array<{ parts_completed: number }>
+  const jobRow = jobResult.data as { status: string } | null
+  if (!jobRow) return
+
+  const needed = partsRows.reduce((sum, p) => sum + (p.quantity ?? 0), 0)
+  const completed = cutsRows.reduce((sum, c) => sum + (c.parts_completed ?? 0), 0)
+  if (!JobsRepository.shouldAutoComplete(needed, completed, jobRow.status)) return
+
+  const { error: jobUpdErr } = await client
+    .from("jobs")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("id", jobId)
+
+  if (jobUpdErr) {
+    console.error("maybeAutoCompleteJob update failed:", {
+      jobId,
+      message: jobUpdErr.message,
+      code: jobUpdErr.code,
+    })
+  }
+}

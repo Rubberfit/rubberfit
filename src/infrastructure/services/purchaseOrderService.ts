@@ -41,18 +41,20 @@ export class PurchaseOrderService implements IPurchaseOrderService {
         .select(
           `
           *,
-          supplier:suppliers(id, name),
-          items:purchase_order_items(count)
+          supplier:suppliers(*),
+          items:purchase_order_items(*)
         `
         )
         .order("created_at", { ascending: false })
 
       if (error) throw error
 
-      const ordersWithCount = data?.map(
-        (order: Record<string, unknown> & { items?: Array<{ count: number }> }) => ({
+      // Preserve `items_count` for callers that previously read it
+      // off the count-aggregate version of this query.
+      const ordersWithCount = (data ?? []).map(
+        (order: Record<string, unknown> & { items?: unknown[] }) => ({
           ...order,
-          items_count: order.items?.[0]?.count || 0,
+          items_count: order.items?.length ?? 0,
         })
       )
 
@@ -85,6 +87,28 @@ export class PurchaseOrderService implements IPurchaseOrderService {
       console.error("Error fetching purchase orders by status:", error)
       throw error
     }
+  }
+
+  async getPurchaseOrdersByStatuses(
+    statuses: PurchaseOrder["status"][]
+  ): Promise<PurchaseOrderWithDetails[]> {
+    if (statuses.length === 0) return []
+    const { data, error } = await supabase
+      .from("purchase_orders")
+      .select(
+        `
+        *,
+        items:purchase_order_items(
+          material_type_id,
+          quantity_sqft
+        )
+      `
+      )
+      .in("status", statuses)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+    return (data ?? []) as PurchaseOrderWithDetails[]
   }
 
   async getPurchaseOrderById(id: string): Promise<PurchaseOrderWithDetails> {

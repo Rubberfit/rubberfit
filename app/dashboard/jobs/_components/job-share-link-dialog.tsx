@@ -14,11 +14,8 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog"
 import { Input } from "@/app/components/ui/input"
-import { supabase } from "@/src/infrastructure/models/supabase"
-import {
-  JOB_PDF_SHARE_TTL_SECONDS,
-  uploadJobPdf,
-} from "@/src/infrastructure/services/jobService"
+import { authService } from "@/src/infrastructure/services/authService"
+import { JOB_PDF_SHARE_TTL_SECONDS, uploadJobPdf } from "@/src/infrastructure/services/jobService"
 import type { JobFullDetail } from "@/src/infrastructure/models/supabase"
 
 import { buildJobPdfBlob, jobPdfFileName } from "./job-pdf"
@@ -57,14 +54,8 @@ function formatExpiryHint(expiresAt: string): string {
   })}`
 }
 
-export function JobShareLinkDialog({
-  open,
-  onOpenChange,
-  job,
-}: JobShareLinkDialogProps) {
-  const [status, setStatus] = useState<"idle" | "working" | "ready" | "error">(
-    "idle"
-  )
+export function JobShareLinkDialog({ open, onOpenChange, job }: JobShareLinkDialogProps) {
+  const [status, setStatus] = useState<"idle" | "working" | "ready" | "error">("idle")
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -91,19 +82,11 @@ export function JobShareLinkDialog({
       // through a server action just to render a document the browser
       // already has all the pieces for.
       const blob = buildJobPdfBlob(job, { companyName: "Rubberfit" })
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser()
-      if (userErr || !user) {
+      const user = await authService.getCurrentUser()
+      if (!user) {
         throw new Error("Sign in before sharing job PDFs")
       }
-      const result = await uploadJobPdf(
-        user.id,
-        job.id,
-        blob,
-        jobPdfFileName(job)
-      )
+      const result = await uploadJobPdf(user.id, job.id, blob, jobPdfFileName(job))
       setSignedUrl(result.signedUrl)
       setExpiresAt(result.expiresAt)
       setStatus("ready")
@@ -135,9 +118,8 @@ export function JobShareLinkDialog({
             Share job PDF
           </DialogTitle>
           <DialogDescription>
-            Generates a {ttlDays}-day signed link to the customer-facing
-            job sheet. Share it in email or chat — the recipient doesn't
-            need a Rubberfit login.
+            Generates a {ttlDays}-day signed link to the customer-facing job sheet. Share it in
+            email or chat — the recipient doesn't need a Rubberfit login.
           </DialogDescription>
         </DialogHeader>
 
@@ -151,9 +133,7 @@ export function JobShareLinkDialog({
 
           {status === "error" && (
             <div className="space-y-2">
-              <p className="text-destructive text-sm">
-                {errorMsg ?? "Failed to share"}
-              </p>
+              <p className="text-destructive text-sm">{errorMsg ?? "Failed to share"}</p>
               <Button size="sm" variant="outline" onClick={generate}>
                 Try again
               </Button>
@@ -162,10 +142,7 @@ export function JobShareLinkDialog({
 
           {status === "ready" && signedUrl && (
             <div className="space-y-2">
-              <label
-                htmlFor="job-share-url"
-                className="font-medium text-foreground text-xs"
-              >
+              <label htmlFor="job-share-url" className="font-medium text-foreground text-xs">
                 Share link
               </label>
               <div className="flex gap-2">
@@ -176,20 +153,15 @@ export function JobShareLinkDialog({
                   className="font-mono text-xs"
                   onFocus={(e) => e.currentTarget.select()}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopy}
-                  className="shrink-0"
-                >
+                <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
                   <Copy className="size-3.5" />
                   Copy
                 </Button>
               </div>
               {expiresAt && (
                 <p className="text-muted-foreground text-[11px]">
-                  Link {formatExpiryHint(expiresAt)}. Click "Share job PDF"
-                  again later to issue a fresh link.
+                  Link {formatExpiryHint(expiresAt)}. Click "Share job PDF" again later to issue a
+                  fresh link.
                 </p>
               )}
             </div>

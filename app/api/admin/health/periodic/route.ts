@@ -1,35 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
-
-interface UptimeRow {
-  service_name:        string
-  uptime_24h:          number | null
-  uptime_7d:           number | null
-  uptime_30d:          number | null
-  avg_response_ms_24h: number | null
-  last_checked_at:     string | null
-  current_status:      string | null
-}
-
-interface CheckRow {
-  id:            number
-  service_name:  string
-  checked_at:    string
-  status:        string
-  response_ms:   number | null
-  http_status:   number | null
-  detail:        string | null
-  is_transition: boolean
-}
+import { healthCheckService } from "@/src/infrastructure/services/healthCheckService"
+import type { CheckRow, UptimeRow } from "@/src/application/services/health-check.service.interface"
 
 interface PeriodicResponse {
   uptime: {
-    overall24h:  number
-    overall7d:   number
-    overall30d:  number
-    perService:  UptimeRow[]
+    overall24h: number
+    overall7d: number
+    overall30d: number
+    perService: UptimeRow[]
   }
-  checks:    CheckRow[]
+  checks: CheckRow[]
   fetchedAt: string
 }
 
@@ -46,24 +27,23 @@ export async function GET(
   if (!guard.ok) return guard.response
   const { adminClient } = guard.ctx
 
-  const [uptimeResult, checksResult] = await Promise.all([
-    adminClient.rpc("get_all_endpoint_uptime"),
-    adminClient.rpc("get_recent_health_checks", { p_limit: 50 }),
-  ])
+  try {
+    const [perService, checks] = await Promise.all([
+      healthCheckService.getAllEndpointUptime(adminClient),
+      healthCheckService.getRecentChecks(adminClient, 50),
+    ])
 
-  if (uptimeResult.error) return NextResponse.json({ error: uptimeResult.error.message }, { status: 500 })
-  if (checksResult.error) return NextResponse.json({ error: checksResult.error.message }, { status: 500 })
-
-  const perService = (uptimeResult.data as UptimeRow[]) ?? []
-
-  return NextResponse.json({
-    uptime: {
-      overall24h: avg(perService.map((r) => r.uptime_24h)),
-      overall7d:  avg(perService.map((r) => r.uptime_7d)),
-      overall30d: avg(perService.map((r) => r.uptime_30d)),
-      perService,
-    },
-    checks:    (checksResult.data as CheckRow[]) ?? [],
-    fetchedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      uptime: {
+        overall24h: avg(perService.map((r) => r.uptime_24h)),
+        overall7d: avg(perService.map((r) => r.uptime_7d)),
+        overall30d: avg(perService.map((r) => r.uptime_30d)),
+        perService,
+      },
+      checks,
+      fetchedAt: new Date().toISOString(),
+    })
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+  }
 }

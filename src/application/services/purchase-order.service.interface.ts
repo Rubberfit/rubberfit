@@ -26,6 +26,9 @@ export interface POReceiptResult {
 export interface IPurchaseOrderService {
   getAllPurchaseOrders(): Promise<PurchaseOrderWithDetails[]>
   getPurchaseOrdersByStatus(status: PurchaseOrder["status"]): Promise<PurchaseOrderWithDetails[]>
+  getPurchaseOrdersByStatuses(
+    statuses: PurchaseOrder["status"][]
+  ): Promise<PurchaseOrderWithDetails[]>
   getPurchaseOrderById(id: string): Promise<PurchaseOrderWithDetails>
   createPurchaseOrder(order: CreatePurchaseOrder): Promise<PurchaseOrderWithDetails>
   updatePurchaseOrder(id: string, updates: UpdatePurchaseOrder): Promise<PurchaseOrderWithDetails>

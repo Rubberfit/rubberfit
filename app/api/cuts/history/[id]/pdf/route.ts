@@ -1,11 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { extractAutoLayouts, generateAndStoreCutPdf } from "@/app/api/_lib/cut-pdf-server"
 import {
-  extractAutoLayouts,
-  generateAndStoreCutPdf,
-} from "@/app/api/_lib/cut-pdf-server"
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
+  CutForbiddenError,
+  CutNotFoundError,
+  getCutByIdAuthorized,
+} from "@/src/infrastructure/services/cutHistoryService"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 /**
  * On-demand PDF generation for a cut history row.
@@ -32,10 +34,7 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 // embedded logo). Edge runtime would crash at module load.
 export const runtime = "nodejs"
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const authClient = makeAuthClient(request)
   if (!authClient) {
     return NextResponse.json(
@@ -66,27 +65,18 @@ export async function POST(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 })
   }
 
-  const { data: cut, error } = await db
-    .from("cut_history")
-    .select("*")
-    .eq("id", cutId)
-    .single()
-
-  if (error || !cut) {
-    if (error) console.error("cut_history GET error (pdf route):", error)
-    return NextResponse.json({ error: "Cut record not found" }, { status: 404 })
-  }
-
-  const cutRow = cut as CutHistory
-
-  const { data: profile } = await db.from("profiles").select("roles").eq("id", user.id).single()
-  const roles: string[] = (profile?.roles as string[] | null) ?? []
-  const isPrivileged =
-    roles.includes("admin") || roles.includes("manager") || roles.includes("supervisor")
-  const isOwnRecord = cutRow.user_id === user.id
-
-  if (!isPrivileged && !isOwnRecord) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  let cutRow
+  try {
+    const { roles } = await getProfileAccess(db, user.id)
+    cutRow = await getCutByIdAuthorized(db, cutId, user.id, roles)
+  } catch (err) {
+    if (err instanceof CutNotFoundError) {
+      return NextResponse.json({ error: "Cut record not found" }, { status: 404 })
+    }
+    if (err instanceof CutForbiddenError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    throw err
   }
 
   if (cutRow.pdf_url) {

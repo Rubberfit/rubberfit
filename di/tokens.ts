@@ -29,6 +29,12 @@ export const TOKENS = {
   // Admin portal services
   IUserManagementService: Symbol("IUserManagementService"),
   IHealthAlertService: Symbol("IHealthAlertService"),
+  IHealthCheckService: Symbol("IHealthCheckService"),
+  IAlertManagementService: Symbol("IAlertManagementService"),
+
+  // Cut history / inventory services (admin-client bound)
+  ICutFavoritesService: Symbol("ICutFavoritesService"),
+  IRollInventoryService: Symbol("IRollInventoryService"),
 
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
@@ -38,4 +44,5 @@ export const TOKENS = {
   IReceivePurchaseOrderUseCase: Symbol("IReceivePurchaseOrderUseCase"),
   IGenerateReorderSuggestionsUseCase: Symbol("IGenerateReorderSuggestionsUseCase"),
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
+  IRecordCutUseCase: Symbol("IRecordCutUseCase"),
 } as const

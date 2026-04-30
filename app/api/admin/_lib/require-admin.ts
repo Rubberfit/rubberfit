@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { makeAuthClient, makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 /**
  * Result of a successful admin authorization.
@@ -30,9 +31,7 @@ export type AdminGuardResult =
  * On failure it returns a ready-to-send NextResponse (401 / 403 / 500).
  * On success it returns an `AdminContext` with the clients and user id.
  */
-export async function requireAdmin(
-  request: Request
-): Promise<AdminGuardResult> {
+export async function requireAdmin(request: Request): Promise<AdminGuardResult> {
   const authClient = makeAuthClient(request as Parameters<typeof makeAuthClient>[0])
   if (!authClient) {
     return {
@@ -59,22 +58,17 @@ export async function requireAdmin(
     }
   }
 
-  const { data: profile, error } = await adminClient
-    .from("profiles")
-    .select("roles, super_admin")
-    .eq("id", user.id)
-    .single<{ roles: string[] | null; super_admin: boolean | null }>()
-
-  if (error) {
+  let access
+  try {
+    access = await getProfileAccess(adminClient, user.id)
+  } catch (_error) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Failed to load profile" }, { status: 500 }),
     }
   }
 
-  const isAuthorized =
-    profile?.super_admin === true ||
-    (Array.isArray(profile?.roles) && profile.roles.includes("admin"))
+  const isAuthorized = access.isSuperAdmin || access.roles.includes("admin")
 
   if (!isAuthorized) {
     return {
