@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
@@ -43,6 +43,15 @@ import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
 import type { JobFullDetail, Roll } from "@/src/infrastructure/models/supabase"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { strategyFor } from "./_components/bin-allocation-strategy"
+import { templateToPart } from "./_components/template-to-part"
+import { usePackJob } from "./_components/use-pack-job"
+import {
+  MAX_SHEETS,
+  estimateSheetCount,
+  estimateTotalPartAreaSqIn,
+} from "./_components/auto-fill-bin-allocator"
+import type { Bin, Part } from "@/src/application/packing/types"
 
 // Constants
 
@@ -381,6 +390,51 @@ function CutPlannerPageInner() {
     setCutMetrics(null)
   }, [frozenLayouts, frozenLayoutInputSignature, currentFrozenLayoutInputSignature])
 
+  // ── Rust pack pipeline (page-level) ───────────────────────────────────────
+  // The page builds canonical Parts + Bins and calls the Rust autonester via
+  // `usePackJob`. The visualizer becomes a thin LayoutModel renderer.
+
+  const allocator = useMemo(() => strategyFor("autoFill"), [])
+  const [autoBoost, setAutoBoost] = useState(0)
+
+  const packParts = useMemo<Part[]>(
+    () =>
+      selectedTemplates
+        .map((t) => templateToPart(t, tagByTemplateId.get(t.id)))
+        .filter((p): p is Part => p !== null),
+    [selectedTemplates, tagByTemplateId]
+  )
+
+  const packBins = useMemo<Bin[]>(
+    () => allocator.allocate({ stock, templates: selectedTemplates, manualBoost: autoBoost }),
+    [allocator, stock, selectedTemplates, autoBoost]
+  )
+
+  const {
+    layouts: packLayouts,
+    isPacking,
+    packError,
+  } = usePackJob({
+    bins: packBins,
+    parts: packParts,
+    clearance: 0.125,
+    templates: selectedTemplates,
+    tagByShapeId: tagByTemplateId,
+    enabled: packGateStatus === "done",
+  })
+
+  // ── Auto-boost on overflow ────────────────────────────────────────────────
+  // If Rust reports overflow, bump the bin count and let the gate-driven
+  // re-pack happen silently. Caps at MAX_SHEETS. `lastBoostedLayoutsRef`
+  // prevents a re-pack from chain-reacting if the same layouts ref re-enters
+  // the effect (e.g. via React strict-mode double-invoke).
+  const totalOverflow = useMemo(
+    () => (packLayouts ?? []).reduce((s, l) => s + l.overflowCount, 0),
+    [packLayouts]
+  )
+  const capToastFiredRef = useRef(false)
+  const lastBoostedLayoutsRef = useRef<LayoutModel[] | null>(null)
+
   // Reset the pack gate to `idle` whenever the inputs the visualizer
   // packs against change. The signature already encodes stock dims,
   // selected templates, cut direction, and ratios — so this fires
@@ -389,48 +443,47 @@ function CutPlannerPageInner() {
     invalidatePackGate()
   }, [currentFrozenLayoutInputSignature, invalidatePackGate])
 
-  const nestingSimpleParts = useMemo(
-    () =>
-      selectedTemplates.map((template) => ({
-        partType: template.partType,
-        quantity: template.quantity,
-        cutDirection,
-        cutRatios: customCutRatios,
-        width: template.width,
-        length: template.length,
-        diameter: template.diameter,
-        height: template.height,
-        topWidth: template.topWidth,
-        bottomWidth: template.bottomWidth,
-        innerRadius: template.innerRadius,
-        outerRadius: template.outerRadius,
-        arcDegrees: template.arcDegrees,
-        partNumber: template.partNumber,
-      })),
-    [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
-  )
+  // Reset auto-boost + cap-toast tracking on any input change. Each new
+  // pack starts fresh from the heuristic estimate.
+  useEffect(() => {
+    setAutoBoost(0)
+    capToastFiredRef.current = false
+    lastBoostedLayoutsRef.current = null
+  }, [currentFrozenLayoutInputSignature])
 
-  const nestingSimplePart = useMemo(
-    () =>
-      selectedTemplate
-        ? {
-            partType: selectedTemplate.partType,
-            quantity: safeQuantity,
-            cutDirection,
-            cutRatios: customCutRatios,
-            width: selectedTemplate.width,
-            length: selectedTemplate.length,
-            diameter: selectedTemplate.diameter,
-            height: selectedTemplate.height,
-            topWidth: selectedTemplate.topWidth,
-            bottomWidth: selectedTemplate.bottomWidth,
-            innerRadius: selectedTemplate.innerRadius,
-            outerRadius: selectedTemplate.outerRadius,
-            arcDegrees: selectedTemplate.arcDegrees,
-          }
-        : undefined,
-    [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
-  )
+  // Auto-boost effect: when Rust reports overflow, bump bin count.
+  useEffect(() => {
+    if (totalOverflow === 0 || !packLayouts) return
+    if (lastBoostedLayoutsRef.current === packLayouts) return
+    if (packBins.length >= MAX_SHEETS) {
+      if (!capToastFiredRef.current) {
+        toast.warning(
+          `${totalOverflow} part${totalOverflow === 1 ? "" : "s"} couldn't fit on ${MAX_SHEETS} sheets`,
+          { description: "Reduce part count, use larger stock, or split the job." }
+        )
+        capToastFiredRef.current = true
+      }
+      lastBoostedLayoutsRef.current = packLayouts
+      return
+    }
+    const totalRequestedArea = estimateTotalPartAreaSqIn(selectedTemplates)
+    const totalRequestedQty = selectedTemplates.reduce((s, t) => s + Math.max(1, t.quantity), 0)
+    const avgPartArea = totalRequestedQty > 0 ? totalRequestedArea / totalRequestedQty : 0
+    const overflowArea = totalOverflow * avgPartArea
+    const additionalSheets = Math.max(
+      1,
+      estimateSheetCount(overflowArea, stock.width, stock.length) - 1
+    )
+    lastBoostedLayoutsRef.current = packLayouts
+    setAutoBoost((b) => b + additionalSheets)
+  }, [totalOverflow, packLayouts, selectedTemplates, stock.width, stock.length, packBins.length])
+
+  // Surface any pack errors via a toast so the operator isn't left staring at
+  // an empty card with no feedback.
+  useEffect(() => {
+    if (!packError) return
+    toast.error("Pack failed", { description: packError })
+  }, [packError])
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -824,10 +877,9 @@ function CutPlannerPageInner() {
                 defaultQty={safeQuantity}
                 onMetricsChange={setCutMetrics}
                 onLayoutChange={setLayouts}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
+                layouts={packLayouts ?? []}
                 frozenLayouts={activeFrozenLayouts}
-                packGateStatus={packGateStatus}
+                packGateStatus={isPacking ? "packing" : packGateStatus}
               />
             </CardContent>
           </Card>
@@ -853,7 +905,7 @@ function CutPlannerPageInner() {
               defaultCutWidth={Math.max(1, stock.width / 4)}
               defaultCutHeight={Math.max(1, stock.length / 8)}
               defaultQty={0}
-              simpleParts={[]}
+              layouts={[]}
             />
             <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
               <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

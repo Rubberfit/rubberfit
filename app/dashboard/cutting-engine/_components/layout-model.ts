@@ -59,6 +59,13 @@ export interface PlacedPart {
 
   /** Actual placed polygon vertices (inches, post-rotation). Present for non-rect shapes. */
   polygon?: Array<{ x: number; y: number }>
+  /**
+   * Pack polygon — the surface jagua collided on, when it differs
+   * from `polygon` (today: the cone convex-hull overlay in default
+   * packing). Visualizer paints this as a translucent overlay so
+   * operators can see jagua's "mental model" of the shape.
+   */
+  packPolygon?: Array<{ x: number; y: number }>
   cutDirection?: SimpleCutDirection
   flipped?: boolean
   rotated90?: boolean
@@ -89,7 +96,23 @@ export interface LayoutModel {
   scrapAreaSqFt: number
   fabScore: number
 
-  source: "ts-nfp"
+  source: "ts-nfp" | "rust-rf-layout"
+  /**
+   * `"offcut-extract"` marks a synthetic sheet hoisted from a parent
+   * sheet's reusable offcut (≥ 40% of stock area). Plain layouts have
+   * `undefined` here. Currently rendered as just the parent sheet —
+   * the hoisting transform is a follow-up.
+   */
+  sheetKind?: "offcut-extract"
+  /** Index of the parent sheet when `sheetKind === "offcut-extract"`. */
+  parentSheetIndex?: number
+  /**
+   * Axis-aligned scrap rectangles below the reusable threshold,
+   * surfaced separately for the "Show inscribed rects" debug overlay.
+   * Polygon scrap (`scrap`) is the rendered red region; this array
+   * holds dashed dark-red outlines on top.
+   */
+  debugScrapRects?: LayoutRegion[]
 }
 
 // ── Runtime guards ──────────────────────────────────────────────────────────
@@ -183,7 +206,7 @@ export function isLayoutModel(value: unknown): value is LayoutModel {
     isFiniteNumber(value.reusableAreaSqFt) &&
     isFiniteNumber(value.scrapAreaSqFt) &&
     isFiniteNumber(value.fabScore) &&
-    value.source === "ts-nfp"
+    (value.source === "ts-nfp" || value.source === "rust-rf-layout")
   )
 }
 

@@ -75,12 +75,13 @@ based on environment:
 Single source of truth: every AutoNest pack — preview-grade or
 production — flows through `pack-cli`. There is no TS fallback.
 
-Live shape previews in the cutting-engine UI (rect/circle/cone/
-trapezoid as the operator drags dimensions) still use a TS NFP path
-for sub-frame responsiveness; the `useNfpOptimizer` hook layers Rust
-on top with a 220 ms debounce. The TS path's GA-optimizer subtree in
-`nesting/vendor/fit/` was deleted in this migration; the alive
-remainder powers the synchronous geometry helpers only.
+AutoNest runs Rust on every Pack click. There is no TS-side
+heuristic packer or live preview generator — operators select all
+parts, dial in stock, then press **Pack**. Multi-sheet allocation
+uses an auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total
+part area) capped at `MAX_SHEETS = 50`, with auto-boost on overflow
+that silently re-packs against more bins until everything fits or
+the cap is reached.
 
 The Rust path is the full S2.5 stack: FFD bin-assignment + 2D grid
 warm-start + sparrow-style Guided Local Search + cross-bin swap
@@ -95,25 +96,28 @@ request/response cycle.
 ### Pack-button UX (no live load)
 
 `/dashboard/cutting-engine` does NOT pack on every keystroke. The
-page wraps `NestingVisualizer` in a [`usePackGate`](app/dashboard/cutting-engine/_hooks/use-pack-gate.ts)
-state machine — `idle` → `packing` → `done`:
+page owns a [`usePackGate`](app/dashboard/cutting-engine/_hooks/use-pack-gate.ts)
+state machine — `idle` → `packing` → `done` — and feeds the Rust
+pipeline via [`usePackJob`](app/dashboard/cutting-engine/_components/use-pack-job.ts):
 
 - **`idle`** (default + after any input change): the Graph card shows
-  an empty sheet card with a **Pack** button. The visualizer skips
-  its sync preview generator, async worker-pool refinement, and
-  the Rust optimizer entirely.
+  an empty sheet card with a **Pack** button. `usePackJob` is
+  disabled, so no `/api/v2/pack` request fires.
 - **`packing`** (after the operator presses Pack): minimum 450 ms
-  display window so the loader is perceivable.
-- **`done`**: the visualizer mounts its preview generators + Rust
-  optimizer against the frozen inputs. Any subsequent input change
-  resets the gate to `idle`.
+  display window so the loader is perceivable; the hook resolves
+  `IPackingService` and sends a single `PackRequest`.
+- **`done`**: the hook returns `LayoutModel[]`; the visualizer
+  (`NestingVisualizer`) renders them via the existing simple-mode
+  renderer. Any subsequent input change resets the gate to `idle`
+  and clears `autoBoost`.
 
 Frozen layouts loaded from `cut_history.layout_json.auto.layouts`
 bypass the gate entirely — a saved cut always renders.
 
-The gate is purely UI-level. It does not reach into the packer; it
-just decides _when_ to let `IPackingService` run. The downstream
-solver is unchanged.
+The visualizer is now a thin `LayoutModel[]` consumer — there is no
+TS-side preview generator, no `useNfpOptimizer`, no
+`buildMultiSheet`, no async worker pool. Pre-Pack: empty sheet card.
+Post-Pack: rendered layouts straight from the Rust round-trip.
 
 ### Dev server
 

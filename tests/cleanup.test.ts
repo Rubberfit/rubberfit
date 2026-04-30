@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest"
 import fs from "node:fs"
-import path from "node:path"
 import { execSync } from "node:child_process"
 
 const DELETED = [
@@ -50,6 +49,25 @@ const DELETED = [
   "app/dashboard/trends/page.tsx",
   "app/dashboard/reports/page.tsx",
   "app/dashboard/waste-comparison/page.tsx",
+  // Phase 3c: NestingVisualizer became a thin LayoutModel renderer; the
+  // page-level usePackJob hook now drives the Rust pipeline. The
+  // TS-side NFP optimizer hook + heuristic packer cluster are gone.
+  "app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts",
+  "app/dashboard/cutting-engine/_components/nesting-nfp-helpers.ts",
+  "app/dashboard/cutting-engine/_components/nesting-tag-map.ts",
+  "app/dashboard/cutting-engine/_components/repack-strategies.ts",
+  "app/dashboard/cutting-engine/_components/nesting-shape-previews.ts",
+  "app/dashboard/cutting-engine/_components/nesting-shape-previews-basic.ts",
+  "app/dashboard/cutting-engine/_components/nesting-shape-previews-advanced.ts",
+  "app/dashboard/cutting-engine/_components/nesting-shape-previews-dispatch.ts",
+  "app/dashboard/cutting-engine/_components/nesting-global-packer-entry.ts",
+  "app/dashboard/cutting-engine/_components/nesting-global-packer.ts",
+  "app/dashboard/cutting-engine/_components/nesting-width-pair-packer.ts",
+  // Tests that exercised the deleted preview / packer cluster.
+  "tests/cutting-engine/issue-119-multi-sheet-cone-overflow.test.ts",
+  "tests/cutting-engine/issue-121-mixed-shape-tags.test.ts",
+  "tests/cutting-engine/issue-124-nesting-density.test.ts",
+  "tests/cutting-engine/issue-125-invalid-waste.test.ts",
 ]
 
 const BANNED_SYMBOLS = ["applyTrapezoidFields", "emailQueue", "QueuedEmail"]
@@ -76,26 +94,4 @@ describe("cleanup: banned symbols removed", () => {
       }
     })
   }
-})
-
-describe("handoff: IPackingService is the canonical Pack boundary", () => {
-  it("use-nfp-optimizer.ts does NOT import NFPSolver directly", () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, "../app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts"),
-      "utf-8"
-    )
-    // Direct engine instantiation was replaced with DI resolution in Phase 7.
-    expect(src).not.toMatch(/import\s+.*NFPSolver/)
-    expect(src).not.toMatch(/new\s+NFPSolver\s*\(/)
-  })
-
-  it("use-nfp-optimizer.ts resolves IPackingService via DI", () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, "../app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts"),
-      "utf-8"
-    )
-    expect(src).toMatch(
-      /container\.resolve.*PACKING_TOKENS\.IPackingService|TOKENS\.IPackingService/
-    )
-  })
 })
