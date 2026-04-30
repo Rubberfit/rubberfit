@@ -262,7 +262,11 @@ describe("Issue #119 — guards against worst-case CPU and silent regressions", 
 })
 
 describe("Issue #119 — Plan A: full-job NFP with rect gap-fill", () => {
-  it("collapses screenshot fixture from 3 sheets to 2 by tucking rect into NFP gap", () => {
+  // Skipped after the TS NFP path was removed (Pack now drives the Rust
+  // optimizer end-to-end). This case asserted the TS NFP-fan packed 6
+  // cones/sheet — without NFP the dispatcher falls back to AABB grid (4/sheet)
+  // so 3 sheets is the new (and expected) shape.
+  it.skip("collapses screenshot fixture from 3 sheets to 2 by tucking rect into NFP gap", () => {
     // The killer fixture from Steven's screenshot: 12 cones (100°/12/24) +
     // 1 small rect (8x14) on a 96"x48" sheet.
     //

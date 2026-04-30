@@ -125,9 +125,7 @@ function generateNfpPreviewForSpecs(
         spec.arcDegrees ?? 120,
         qty,
         spec.cutDirection,
-        spec.cutRatios,
-        undefined,
-        false
+        spec.cutRatios
       )
     } else if (spec.partType === "trapezoid") {
       preview = generateTrapezoidPreview(
@@ -138,9 +136,7 @@ function generateNfpPreviewForSpecs(
         spec.height ?? fallbackHeight,
         qty,
         spec.cutDirection,
-        spec.cutRatios,
-        undefined,
-        false
+        spec.cutRatios
       )
     }
     if (preview) {

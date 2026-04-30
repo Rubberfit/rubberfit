@@ -16,13 +16,7 @@ import {
   withWaste,
   chooseBestPreview,
   buildPackedPreview,
-  buildNfpPackedPreview,
 } from "./nesting-preview-builders"
-import { greedyNfpPack } from "@/nesting/nfp-greedy-placer"
-import { rectToPolygon, circleToPolygon } from "@/nesting/shape-to-polygon"
-import type { Polygon2D } from "@/nesting/types"
-
-const NFP_DEFAULT_SPACING = 0.125
 
 export function generateRectanglePreview(
   rollW: number,
@@ -43,42 +37,14 @@ export function generateRectanglePreview(
       qty,
       1,
       width * length,
-      `${formatInches(width)}" \u00D7 ${formatInches(length)}"`
+      `${formatInches(width)}" × ${formatInches(length)}"`
     ),
     rollW,
     rollL
   )
 
-  // NFP convex-hull candidate — 0°/90°/180°/270° for rectangles
-  const rectPolygon: Polygon2D = { id: "rect", points: rectToPolygon(width, length) }
-  const rectNfpResult = greedyNfpPack(rectPolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, 4)
-  const rectNfpCandidate =
-    rectNfpResult.placed > 0
-      ? withWaste(
-          buildNfpPackedPreview(rectNfpResult, rollW, rollL, {
-            renderShape: "rect",
-            strategyName: "Convex-hull rectangle nesting",
-            strategyNote: "Rectangles are packed using their outline via NFP placement.",
-            requestedUnits: qty,
-            piecesPerUnit: 1,
-            pieceArea: width * length,
-            label: `${formatInches(width)}" \u00D7 ${formatInches(length)}"`,
-          }),
-          rollW,
-          rollL
-        )
-      : null
-
   const candidates = [
     { ...direct, adjustedWaste: rollArea > 0 ? (direct.scrapArea / rollArea) * 100 : 100 },
-    ...(rectNfpCandidate
-      ? [
-          {
-            ...rectNfpCandidate,
-            adjustedWaste: rollArea > 0 ? (rectNfpCandidate.scrapArea / rollArea) * 100 : 100,
-          },
-        ]
-      : []),
   ]
 
   return chooseBestPreview(candidates)
@@ -132,7 +98,7 @@ function buildDirectCircleCandidates(rollW: number, rollL: number, diameter: num
       items: layout.positions.map((position) => ({
         ...position,
         renderShape: "circle" as const,
-        label: `\u00D8${formatInches(diameter)}"`,
+        label: `Ø${formatInches(diameter)}"`,
         diameter,
       })),
       offcutBands: reusableBands,
@@ -225,7 +191,7 @@ function buildPanelizedCircleCandidates(
           requestedUnits: qty,
           piecesPerUnit: candidate.piecesPerUnit,
           pieceArea: circleArea / candidate.piecesPerUnit,
-          label: `${Math.round(candidate.arcDegrees)}\u00B0 sector`,
+          label: `${Math.round(candidate.arcDegrees)}° sector`,
           innerRadius: 0,
           outerRadius: radius,
           arcDegrees: candidate.arcDegrees,
@@ -265,48 +231,7 @@ export function generateCirclePreview(
     circleArea
   )
 
-  // NFP convex-hull candidate for full circles — rotationally symmetric, 1 rotation step
-  const circlePolygon: Polygon2D = { id: "circle", points: circleToPolygon(diameter) }
-  const circleNfpResult = greedyNfpPack(circlePolygon, rollW, rollL, qty, NFP_DEFAULT_SPACING, 1)
-  const circleNfpCandidates: Array<
-    ReturnType<typeof withWaste> & {
-      adjustedWaste: number
-      layout: typeof heroLayout
-      diameter: number
-    }
-  > = (() => {
-    if (circleNfpResult.placed <= 0) return []
-    const packed = withWaste(
-      buildNfpPackedPreview(circleNfpResult, rollW, rollL, {
-        renderShape: "sector" as const,
-        strategyName: "Convex-hull circle nesting",
-        strategyNote: "Full circles are packed using their polygon outline via NFP placement.",
-        requestedUnits: qty,
-        piecesPerUnit: 1,
-        pieceArea: circleArea,
-        label: `\u00D8${formatInches(diameter)}"`,
-        innerRadius: 0,
-        outerRadius: radius,
-        arcDegrees: 360,
-      }),
-      rollW,
-      rollL
-    )
-    return [
-      {
-        ...packed,
-        layout: heroLayout,
-        diameter,
-        adjustedWaste: rollW * rollL > 0 ? (packed.scrapArea / (rollW * rollL)) * 100 : 100,
-      },
-    ]
-  })()
-
-  const best = chooseBestPreview([
-    ...directCircleCandidates,
-    ...panelizedCircleCandidates,
-    ...circleNfpCandidates,
-  ])
+  const best = chooseBestPreview([...directCircleCandidates, ...panelizedCircleCandidates])
   const cutPlan = buildCircleSteps(diameter, best.piecesPerUnit)
 
   return {

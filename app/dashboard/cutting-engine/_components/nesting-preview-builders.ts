@@ -326,7 +326,6 @@ export {
   buildOptimizedStockPreview,
   buildCustomPackedPreview,
   buildCustomPackedPreviewFromPackedResult,
-  buildNfpPackedPreview,
 } from "./nesting-stock-preview"
 
 /** Transform a base polygon for a specific placement (rotation, flip, translation). */

@@ -6,10 +6,6 @@ import { execSync } from "node:child_process"
 const DELETED = [
   "nesting/vendor/fit/mathHelper.ts",
   // GA-packer deadcode removed in the AutoNest Rust-server-side migration.
-  // The live TS NFP preview path (nfp-greedy-placer + nfp-pack-rotation) is
-  // still alive and uses vendor/fit/{part, bin, vector, util, polygon,
-  // bounding-box, indexed-vector, util-geometry}; the files below were the
-  // unreachable GA optimizer that was never wired in.
   "nesting/vendor/fit/index.ts",
   "nesting/vendor/fit/packer.ts",
   "nesting/vendor/fit/placer.ts",
@@ -18,6 +14,25 @@ const DELETED = [
   "nesting/vendor/fit/xorshift.ts",
   "nesting/vendor/fit/ga/dna.ts",
   "nesting/vendor/fit/ga/ga.ts",
+  // TS NFP preview path removed — the Pack button now strictly drives the
+  // Rust optimizer; live shape-edit previews use direct/shelf/hybrid TS
+  // candidates only. The full nfp-greedy + mixed-NFP + worker-pool stack
+  // and its vendor/fit/ NFP geometry helpers are gone.
+  "nesting/nfp-greedy-placer.ts",
+  "nesting/mixed-nfp-placer.ts",
+  "nesting/nfp-pack-rotation.ts",
+  "nesting/nfp-angle-worker.ts",
+  "nesting/worker-pool.ts",
+  "nesting/vendor/fit/bin.ts",
+  "nesting/vendor/fit/part.ts",
+  "nesting/vendor/fit/polygon.ts",
+  "nesting/vendor/fit/vector.ts",
+  "nesting/vendor/fit/util.ts",
+  "nesting/vendor/fit/util-geometry.ts",
+  "nesting/vendor/fit/bounding-box.ts",
+  "nesting/vendor/fit/indexed-vector.ts",
+  // Note: nesting/vendor/fit/clipper-lib.d.ts moved to nesting/clipper-lib.d.ts
+  // (still referenced by free-space.ts and free-roam-regions.ts).
   // Subprocess streaming protocol — server-side IPackingService is now
   // batch-only; browser callers use ApiPackingService over HTTP.
   "tests/packing/rustServiceStreaming.test.ts",
@@ -37,11 +52,7 @@ const DELETED = [
   "app/dashboard/waste-comparison/page.tsx",
 ]
 
-const BANNED_SYMBOLS = [
-  "applyTrapezoidFields",
-  "emailQueue",
-  "QueuedEmail",
-]
+const BANNED_SYMBOLS = ["applyTrapezoidFields", "emailQueue", "QueuedEmail"]
 
 describe("cleanup: deleted files stay deleted", () => {
   for (const p of DELETED) {
@@ -83,6 +94,8 @@ describe("handoff: IPackingService is the canonical Pack boundary", () => {
       path.join(__dirname, "../app/dashboard/cutting-engine/_components/use-nfp-optimizer.ts"),
       "utf-8"
     )
-    expect(src).toMatch(/container\.resolve.*PACKING_TOKENS\.IPackingService|TOKENS\.IPackingService/)
+    expect(src).toMatch(
+      /container\.resolve.*PACKING_TOKENS\.IPackingService|TOKENS\.IPackingService/
+    )
   })
 })
