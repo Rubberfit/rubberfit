@@ -24,6 +24,9 @@ export function buildPlacementView(result: PackResult, request: PackRequest): Pl
       occupiedWidth: br.occupiedWidth,
       occupiedHeight: br.occupiedHeight,
       efficiency: br.efficiency,
+      scrapRatio: br.scrapRatio,
+      freeRegions: br.freeRegions,
+      offcuts: br.offcuts,
     })
   }
 
@@ -40,9 +43,11 @@ export function buildPlacementView(result: PackResult, request: PackRequest): Pl
       width: p.width,
       height: p.height,
       polygon: p.polygon,
-      shapeSpec: src?.shapeSpec,
+      shapeSpec: src?.shapeSpec ?? undefined,
       renderShape,
-      difficulty: p.difficulty,
+      difficulty: p.difficulty ?? undefined,
+      tag: p.tag ?? undefined,
+      packPolygon: p.packPolygon,
     }
     const bin = binsById.get(p.binId)
     if (bin) bin.items.push(item)
@@ -56,6 +61,8 @@ export function buildPlacementView(result: PackResult, request: PackRequest): Pl
     overflowCount: result.overflowCount,
     totalUsedArea: result.totalUsedArea,
     totalWasteArea: result.totalWasteArea,
+    overallDensity: result.overallDensity,
+    runTimeMs: result.runTimeMs ?? undefined,
   }
 }
 

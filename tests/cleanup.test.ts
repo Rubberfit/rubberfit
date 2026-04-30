@@ -18,9 +18,6 @@ const DELETED = [
   "nesting/vendor/fit/xorshift.ts",
   "nesting/vendor/fit/ga/dna.ts",
   "nesting/vendor/fit/ga/ga.ts",
-  // Engine-side: clipper2 wrapper had zero callers; removed to unblock
-  // future wasm work and shrink the rf-geom dep tree.
-  "engine/crates/rf-geom/src/infrastructure/clipper.rs",
   // Subprocess streaming protocol — server-side IPackingService is now
   // batch-only; browser callers use ApiPackingService over HTTP.
   "tests/packing/rustServiceStreaming.test.ts",

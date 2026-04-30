@@ -53,10 +53,14 @@ const RESULT: PackResult = {
       occupiedWidth: 10,
       occupiedHeight: 5,
       efficiency: 1,
+      scrapRatio: 0,
+      freeRegions: [],
+      offcuts: [],
     },
   ],
   totalUsedArea: 50,
   totalWasteArea: 0,
+  overallDensity: 1,
 }
 
 describe("buildPlacementView", () => {
