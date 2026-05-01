@@ -49,7 +49,7 @@ describe("createUserWithProfile", () => {
       tables: {
         profiles: {
           select: { data: null, error: null },
-          update: { data: null, error: null },
+          update: { data: { id: "new-uid" }, error: null },
         },
       },
       auth: {
@@ -65,6 +65,33 @@ describe("createUserWithProfile", () => {
       roles: ["admin", "manager"],
     })
     expect(result).toEqual({ ok: true, userId: "new-uid" })
+  })
+
+  it("returns warning when the profile row is missing (silent 0-row update)", async () => {
+    const client = makeFakeClient({
+      tables: {
+        profiles: {
+          select: { data: null, error: null },
+          update: { data: null, error: null },
+        },
+      },
+      auth: {
+        admin: {
+          createUser: { data: { user: { id: "new-uid" } }, error: null },
+        },
+      },
+    })
+    const result = await createUserWithProfile(client, {
+      email: "alice@x.com",
+      password: "supersecret",
+      fullName: "Alice",
+      roles: ["member"],
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      userId: "new-uid",
+      warning: expect.any(String),
+    })
   })
 
   it("returns warning + userId when profile update fails (user was still created)", async () => {

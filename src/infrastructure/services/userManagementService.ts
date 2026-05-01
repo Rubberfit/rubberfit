@@ -142,12 +142,14 @@ export async function createUserWithProfile(
     return { ok: false, status: 400, error: message }
   }
 
-  const { error: profileError } = await client
+  const { data: profileRow, error: profileError } = await client
     .from("profiles")
     .update({ full_name: input.fullName.trim(), roles: input.roles })
     .eq("id", created.user.id)
+    .select("id")
+    .maybeSingle()
 
-  if (profileError) {
+  if (profileError || !profileRow) {
     console.error("createUserWithProfile profile update error:", profileError)
     return {
       ok: true,

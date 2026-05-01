@@ -50,8 +50,8 @@ export async function getPublicRollByPartNumberOrId(
   }
   if (byPart.data) return byPart.data as unknown as PublicRoll
 
-  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned)
-  if (!uuidLike) return null
+  const isUuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned)
+  if (!isUuidLike) return null
 
   const byId = await client
     .from("rolls")

@@ -19,19 +19,18 @@ describe("cutFavoritesService.listFavorites", () => {
     expect(ids).toEqual(["c1", "c2"])
   })
 
-  it("returns [] gracefully when the table doesn't exist (pre-migration)", async () => {
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+  it("throws when the query fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
     const client = makeFakeClient({
       tables: {
         cut_history_favorites: {
-          select: {
-            data: null,
-            error: { message: 'relation "cut_history_favorites" does not exist' },
-          },
+          select: { data: null, error: { message: "permission denied" } },
         },
       },
     })
-    expect(await cutFavoritesService.listFavorites(client, "u1")).toEqual([])
+    await expect(cutFavoritesService.listFavorites(client, "u1")).rejects.toThrow(
+      "Failed to list favorites"
+    )
     consoleSpy.mockRestore()
   })
 })

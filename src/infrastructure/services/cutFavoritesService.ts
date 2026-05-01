@@ -10,10 +10,8 @@ export class CutFavoritesService implements ICutFavoritesService {
       .eq("user_id", userId)
 
     if (error) {
-      // Table may not exist yet (migration pending) — return empty list
-      // gracefully so the UI doesn't break in pre-migrated envs.
-      console.warn("cutFavoritesService.listFavorites:", error.message)
-      return []
+      console.error("cutFavoritesService.listFavorites:", error.message)
+      throw new Error("Failed to list favorites")
     }
 
     return (data ?? []).map((row) => (row as { cut_history_id: string }).cut_history_id)
