@@ -76,4 +76,33 @@ describe("cutFavoritesService.toggleFavorite", () => {
     expect(result).toEqual({ error: "Failed to add favorite" })
     consoleSpy.mockRestore()
   })
+
+  it("returns an error structure on lookup failure", async () => {
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const client = makeFakeClient({
+      tables: {
+        cut_history_favorites: {
+          select: { data: null, error: { message: "lookup failed" } },
+        },
+      },
+    })
+    const result = await cutFavoritesService.toggleFavorite(client, "u1", "c1")
+    expect(result).toEqual({ error: "Failed to update favorite" })
+    consoleSpy.mockRestore()
+  })
+
+  it("returns an error structure on delete failure", async () => {
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    const client = makeFakeClient({
+      tables: {
+        cut_history_favorites: {
+          select: { data: [{ id: "f1" }], error: null },
+          delete: { data: null, error: { message: "delete failed" } },
+        },
+      },
+    })
+    const result = await cutFavoritesService.toggleFavorite(client, "u1", "c1")
+    expect(result).toEqual({ error: "Failed to remove favorite" })
+    consoleSpy.mockRestore()
+  })
 })
