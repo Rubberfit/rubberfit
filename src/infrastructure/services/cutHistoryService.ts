@@ -141,7 +141,7 @@ export async function getCutByIdAuthorized(
 
   if (error) {
     console.error("cut_history GET error:", error)
-    throw new CutNotFoundError()
+    throw error
   }
   if (!cut) throw new CutNotFoundError()
 
@@ -170,7 +170,11 @@ export async function deleteCutByIdAuthorized(
     .eq("id", cutId)
     .maybeSingle()
 
-  if (fetchError || !cut) throw new CutNotFoundError()
+  if (fetchError) {
+    console.error("cut_history delete fetch error:", fetchError)
+    throw fetchError
+  }
+  if (!cut) throw new CutNotFoundError()
 
   const isOwner = (cut as { user_id: string | null }).user_id === requesterUserId
   const isCutter = requesterRoles.includes("cutter")
@@ -273,7 +277,7 @@ export async function getCutByIdRaw(
 
   if (error) {
     console.error("cut_history raw fetch error:", error)
-    throw new CutNotFoundError()
+    throw error
   }
   if (!data) throw new CutNotFoundError()
   return data as CutHistory & { layout_json?: CutHistoryLayoutJson | null }

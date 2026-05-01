@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
   }
 
   const resolvedRoles: AppRole[] =
-    Array.isArray(roles) && roles.every(isValidRole) ? (roles as AppRole[]) : ["member"]
+    Array.isArray(roles) && roles.length > 0 && roles.every(isValidRole)
+      ? (roles as AppRole[])
+      : ["member"]
 
   const result = await createUserWithProfile(adminClient, {
     email,

@@ -116,6 +116,17 @@ export interface IHealthCheckService {
     limit: number
   ): Promise<IncidentRow[]>
 
+  // Probe paths — perform the actual liveness check against external
+  // services (Supabase Auth/REST/Storage, Resend) and return a
+  // `CheckResult` describing the outcome. Routes orchestrate them but
+  // the network calls live here so the route stays a thin handler.
+  checkApiGateway(): Promise<CheckResult>
+  checkDatabase(): Promise<CheckResult>
+  checkAuthService(): Promise<CheckResult>
+  checkJobQueue(): Promise<CheckResult>
+  checkFileStorage(): Promise<CheckResult>
+  checkEmailService(): Promise<CheckResult>
+
   // Write path — used by `run`, `run-endpoints`, and `cron`.
   getEndpointIds(client: SupabaseClient, names: readonly string[]): Promise<EndpointIdRow[]>
   recordChecks(client: SupabaseClient, inserts: HealthCheckInsert[]): Promise<void>

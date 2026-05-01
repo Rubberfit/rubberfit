@@ -111,12 +111,13 @@ function isAllowlisted(file: string): boolean {
   return ALLOWLIST.has(file.replace(/\\/g, "/"))
 }
 
-function* walk(dir: string): Generator<string> {
+function* walk(dir: string, skip: ReadonlySet<string> = new Set()): Generator<string> {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === "node_modules" || entry.name === ".next") continue
     const full = path.join(dir, entry.name)
+    if (skip.has(full)) continue
     if (entry.isDirectory()) {
-      yield* walk(full)
+      yield* walk(full, skip)
     } else if (entry.isFile() && SCAN_EXTENSIONS.has(path.extname(entry.name))) {
       yield full
     }
@@ -239,6 +240,15 @@ describe("architecture: no direct Supabase calls outside src/infrastructure/", (
 
     // Everything under app/.
     for (const file of walk(path.join(REPO_ROOT, "app"))) {
+      violations.push(...scanFile(file))
+    }
+
+    // Everything under src/ except src/infrastructure/ — services and
+    // repositories there ARE allowed to call Supabase. Anything else
+    // under src/ (entities, application/, interface-adapters/, etc.)
+    // must stay framework- and Supabase-agnostic.
+    const srcSkip = new Set([path.join(REPO_ROOT, "src", "infrastructure")])
+    for (const file of walk(path.join(REPO_ROOT, "src"), srcSkip)) {
       violations.push(...scanFile(file))
     }
 

@@ -47,12 +47,7 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
   const [materials, suppliersData, pendingPOs] = await Promise.all([
     materialTypeRepository.getAll(),
     supplierService.getActiveSuppliers(),
-    purchaseOrderService
-      .getPurchaseOrdersByStatuses(["draft", "pending", "approved", "ordered"])
-      .catch((err) => {
-        console.error("Error fetching pending POs:", err)
-        return []
-      }),
+    purchaseOrderService.getPurchaseOrdersByStatuses(["draft", "pending", "approved", "ordered"]),
   ])
 
   let suggestions: ReorderSuggestion[] = []

@@ -14,6 +14,60 @@ import type {
   UptimeRow,
 } from "@/src/application/services/health-check.service.interface"
 
+type ProbeOpts = {
+  url: string
+  headers: Record<string, string>
+  method?: "GET" | "HEAD"
+  timeoutMs: number
+  degradedAboveMs?: number
+  failedDetail?: string
+}
+
+// Wraps a single fetch-based probe with consistent timing,
+// timeout, and degraded/down classification. Centralizes the
+// pattern that every probe in `app/api/admin/health/run/route.ts`
+// repeated by hand.
+async function fetchProbe(serviceName: string, opts: ProbeOpts): Promise<CheckResult> {
+  const start = Date.now()
+  try {
+    const res = await fetch(opts.url, {
+      method: opts.method ?? "GET",
+      headers: opts.headers,
+      signal: AbortSignal.timeout(opts.timeoutMs),
+    })
+    const responseMs = Date.now() - start
+    if (!res.ok) {
+      return {
+        serviceName,
+        status: "down",
+        responseMs,
+        detail: `HTTP ${res.status}`,
+        httpStatus: res.status,
+      }
+    }
+    if (opts.degradedAboveMs !== undefined && responseMs > opts.degradedAboveMs) {
+      return {
+        serviceName,
+        status: "degraded",
+        responseMs,
+        detail: `High latency (${responseMs}ms)`,
+      }
+    }
+    return { serviceName, status: "operational", responseMs, detail: "OK" }
+  } catch (err) {
+    return {
+      serviceName,
+      status: "down",
+      responseMs: Date.now() - start,
+      detail: err instanceof Error ? err.message : (opts.failedDetail ?? "Probe failed"),
+    }
+  }
+}
+
+function unconfigured(serviceName: string, missing: string): CheckResult {
+  return { serviceName, status: "unknown", responseMs: null, detail: `${missing} not configured` }
+}
+
 export class HealthCheckService implements IHealthCheckService {
   async listEndpointsWithStatus(client: SupabaseClient): Promise<EndpointStatusRow[]> {
     const { data, error } = await client.rpc("get_health_endpoints_with_status")
@@ -92,6 +146,117 @@ export class HealthCheckService implements IHealthCheckService {
     if (inserts.length === 0) return
     const { error } = await client.rpc("record_health_checks", { p_checks: inserts })
     if (error) throw error
+  }
+
+  async checkApiGateway(): Promise<CheckResult> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const name = "API Gateway"
+    if (!url || !key) return unconfigured(name, "SUPABASE_URL")
+    return fetchProbe(name, {
+      url: `${url}/auth/v1/health`,
+      headers: { apikey: key },
+      timeoutMs: 8000,
+      degradedAboveMs: 2000,
+    })
+  }
+
+  async checkDatabase(): Promise<CheckResult> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const name = "Database Primary"
+    if (!url || !key) return unconfigured(name, "SUPABASE_URL")
+    return fetchProbe(name, {
+      url: `${url}/rest/v1/profiles?select=id&limit=1`,
+      method: "HEAD",
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      timeoutMs: 8000,
+      degradedAboveMs: 1500,
+      failedDetail: "Query failed",
+    })
+  }
+
+  async checkAuthService(): Promise<CheckResult> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const name = "Auth Service"
+    if (!url || !key) return unconfigured(name, "SUPABASE_URL")
+    return fetchProbe(name, {
+      url: `${url}/auth/v1/health`,
+      headers: { apikey: key },
+      timeoutMs: 8000,
+      degradedAboveMs: 2000,
+      failedDetail: "Auth check failed",
+    })
+  }
+
+  async checkJobQueue(): Promise<CheckResult> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const name = "Job Queue"
+    if (!url || !key) return unconfigured(name, "SUPABASE_URL")
+    return fetchProbe(name, {
+      url: `${url}/rest/v1/notification_queue?select=id&limit=1`,
+      method: "HEAD",
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      timeoutMs: 8000,
+      degradedAboveMs: 2000,
+      failedDetail: "Queue check failed",
+    })
+  }
+
+  async checkFileStorage(): Promise<CheckResult> {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const name = "File Storage"
+    if (!url || !key) return unconfigured(name, "SUPABASE_URL")
+    return fetchProbe(name, {
+      url: `${url}/storage/v1/bucket`,
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      timeoutMs: 8000,
+      degradedAboveMs: 2000,
+      failedDetail: "Storage check failed",
+    })
+  }
+
+  async checkEmailService(): Promise<CheckResult> {
+    const name = "Email Service"
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey) return unconfigured(name, "RESEND_API_KEY")
+    const start = Date.now()
+    try {
+      const res = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5000),
+      })
+      const responseMs = Date.now() - start
+      if (res.status === 401) {
+        return {
+          serviceName: name,
+          status: "down",
+          responseMs,
+          detail: "Invalid API key",
+          httpStatus: 401,
+        }
+      }
+      if (!res.ok) {
+        return {
+          serviceName: name,
+          status: "degraded",
+          responseMs,
+          detail: `HTTP ${res.status}`,
+          httpStatus: res.status,
+        }
+      }
+      return { serviceName: name, status: "operational", responseMs, detail: "API key valid" }
+    } catch (err) {
+      return {
+        serviceName: name,
+        status: "down",
+        responseMs: Date.now() - start,
+        detail: err instanceof Error ? err.message : "Email check failed",
+      }
+    }
   }
 
   async persistCheckResults(

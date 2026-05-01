@@ -84,7 +84,7 @@ export async function listDirectoryUsers(client: SupabaseClient): Promise<Direct
 
 export type CreateUserResult =
   | { ok: true; userId: string; warning?: string }
-  | { ok: false; status: 400 | 409; error: string }
+  | { ok: false; status: 400 | 409 | 500; error: string }
 
 export interface CreateUserInput {
   email: string
@@ -112,11 +112,16 @@ export async function createUserWithProfile(
 ): Promise<CreateUserResult> {
   const normalizedEmail = input.email.trim().toLowerCase()
 
-  const { data: existing } = await client
+  const { data: existing, error: existingError } = await client
     .from("profiles")
     .select("id")
     .eq("email", normalizedEmail)
     .maybeSingle()
+
+  if (existingError) {
+    console.error("createUserWithProfile precheck error:", existingError)
+    return { ok: false, status: 500, error: "Failed to verify email availability" }
+  }
 
   if (existing) {
     return { ok: false, status: 409, error: "An account with this email already exists" }
@@ -130,7 +135,11 @@ export async function createUserWithProfile(
   })
 
   if (createError || !created.user) {
-    return { ok: false, status: 400, error: createError?.message ?? "Failed to create user" }
+    const message = createError?.message ?? "Failed to create user"
+    if (createError && /already|exists|duplicate/i.test(message)) {
+      return { ok: false, status: 409, error: "An account with this email already exists" }
+    }
+    return { ok: false, status: 400, error: message }
   }
 
   const { error: profileError } = await client

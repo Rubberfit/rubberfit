@@ -44,9 +44,13 @@ export async function getPublicRollByPartNumberOrId(
     .select(PUBLIC_ROLL_COLUMNS)
     .eq("part_number", cleaned)
     .maybeSingle()
+  if (byPart.error) {
+    console.error("rollService.getPublicRollByPartNumberOrId byPart error:", byPart.error)
+    throw byPart.error
+  }
   if (byPart.data) return byPart.data as unknown as PublicRoll
 
-  const uuidLike = /^[0-9a-f-]{8,}$/i.test(cleaned)
+  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned)
   if (!uuidLike) return null
 
   const byId = await client
@@ -54,6 +58,10 @@ export async function getPublicRollByPartNumberOrId(
     .select(PUBLIC_ROLL_COLUMNS)
     .eq("id", cleaned)
     .maybeSingle()
+  if (byId.error) {
+    console.error("rollService.getPublicRollByPartNumberOrId byId error:", byId.error)
+    throw byId.error
+  }
 
   return (byId.data as unknown as PublicRoll | null) ?? null
 }
