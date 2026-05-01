@@ -2,7 +2,7 @@
 
 **Standard:** OWASP Application Security Verification Standard 5.0 (May 2025)
 **Target level:** L2 (covers L1 + L2 ≈ 70% of all ASVS requirements)
-**Application:** rema-portal — Next.js 14 + Supabase Postgres internal operations app for a manufacturing business
+**Application:** rema-portal — Next.js 16 + Supabase Postgres internal operations app for a manufacturing business
 **Date locked:** 2026-05-01
 **Owner:** Arc and Anchor
 
@@ -20,7 +20,7 @@ rema-portal handles authenticated business operations (suppliers, purchase order
 
 ## Application characteristics relevant to scope
 
-- **Stack:** Next.js 14 App Router, Supabase (Postgres + Auth + Storage), TypeScript strict, Tailwind, Zustand, TSyringe, Rust nesting engine via `child_process`.
+- **Stack:** Next.js 16 App Router (`^16.2.3`), Supabase (Postgres + Auth + Storage), TypeScript strict, Tailwind, Zustand, TSyringe, Rust nesting engine via `child_process`.
 - **Authentication:** Supabase Auth (email+password, Google OAuth, TOTP MFA). All password storage, session token issuance, OAuth state/PKCE handling is delegated to Supabase.
 - **Authorization:** App-layer RBAC (`src/application/permissions.ts`) + Postgres RLS (`src/infrastructure/supabase/migrations/`).
 - **API surface:** ~56 REST route handlers under `app/api/**`. No GraphQL, no WebSocket, no WebRTC.
@@ -43,7 +43,7 @@ Legend: ✅ in scope (full) · 🟡 in scope (partial — see notes) · ❌ out 
 | V5 | File Handling | 🟡 | No general file upload feature. **V5.2 partially applies** to the CSV import endpoint (`/api/v2/import/rolls/csv`) — size limit, content-type, UTF-8 handling. **V5.3 storage** applies to cut-history PDFs in Supabase Storage. **V5.4 download** applies to the PDF download route. |
 | V6 | Authentication | 🟡 | Supabase Auth handles password hashing (V6.2), TOTP MFA crypto (V6.5/V6.7), OAuth tokens. The **app's responsibility** is configuration of these flows: password policy in Supabase Dashboard, MFA enforcement for admin roles, lockout policy, recovery flows (`reset-password`, `update-password`), and the OAuth callback (`app/(auth)/callback/route.ts`). |
 | V7 | Session Management | 🟡 | Supabase SSR cookies. App's responsibility: cookie attributes (HttpOnly, Secure, SameSite), session timeout policy, termination on password change/logout, admin session-termination affordance. |
-| V8 | Authorization | ✅ | **Highest-priority chapter.** RBAC matrix (`permissions.ts`), admin guard (`require-admin.ts`), and Postgres RLS policies (`migrations/20240217000007_enable_rls_policies.sql`). Known gap: RLS policies are placeholder-permissive (`USING (true)`) on rolls/notifications/material_types. |
+| V8 | Authorization | ✅ | **Highest-priority chapter.** RBAC matrix (`permissions.ts`), admin guard (`require-admin.ts`), and Postgres RLS. The early permissive policies (`USING (true)`) added in `migrations/20240217000007_enable_rls_policies.sql` were dropped and replaced by per-user `auth.uid() = user_id` policies in `migrations/20240223000001_add_user_id_and_fix_rls.sql`; new tables (jobs, cut_history, etc.) follow the same pattern. The remaining V8 work is scope-confirmation, not a re-architecture. |
 | V9 | Self-contained Tokens | 🟡 | JWTs are issued, signed, and validated by Supabase. App requirement is that **any place** the app inspects JWT claims (RLS context via `auth.uid()`, custom token verification) follows V9.1/V9.2. Mostly delegated. |
 | V10 | OAuth & OIDC | 🟡 | Google OAuth is brokered via Supabase. App-side responsibilities: callback handling (state/PKCE delegated to Supabase), redirect-URL allowlist, consent screen content (out of app scope). Most V10 requirements are Supabase's responsibility. |
 | V11 | Cryptography | 🟡 | Most cryptographic operations are delegated (Supabase: password hashing, JWT signing, TLS termination at Vercel/Supabase). App's responsibility: any custom uses of `crypto`, `randomUUID`, hashing, signing, or encryption. Audit will grep the codebase for direct crypto API usage. |
@@ -85,8 +85,8 @@ For every in-scope requirement at L1 + L2:
 
 | Phase | Chapters | Status |
 |---|---|---|
-| A — Critical | V8, V13, V4, V2 | **In progress** — this engagement |
-| B — Hardening | V3, V16, V14, V15 | Deferred |
-| C — Cleanup | V1, V5, V12, V6, V7, V9, V10, V11 | Deferred |
+| A — Critical | V8, V13, V4, V2 | ✅ **Complete** — 2026-05-01 (see [phase-a-summary.md](phase-a-summary.md)) |
+| B — Hardening | V3, V16, V14, V15 | ⏳ Pending — gated on Phase A High tickets ([ARC-134](https://linear.app/arc-and-anchor/issue/ARC-134), [ARC-138](https://linear.app/arc-and-anchor/issue/ARC-138), [ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141), [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142)) |
+| C — Cleanup | V1, V5, V12, V6, V7, V9, V10, V11 | ⏳ Pending — runs after Phase B |
 
-After Phase A, a `phase-a-summary.md` is produced and B/C are scheduled separately.
+Phase A produced [phase-a-summary.md](phase-a-summary.md). The full multi-phase plan, prerequisites, and re-verification cadence live in [phases.md](phases.md).
