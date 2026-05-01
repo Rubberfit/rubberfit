@@ -1,9 +1,9 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
 
-import { supabase } from "@/src/infrastructure/models/supabase"
 import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
 import { uploadCutPdf } from "@/src/infrastructure/services/cutHistoryService"
+import { authService } from "@/src/infrastructure/services/authService"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
@@ -1148,9 +1148,9 @@ export async function buildAndUploadCutPdf(
   }
 
   const pdfBlob = await generateCutPdf({ svgElements, layouts: layouts ?? [], data: pdfData })
-  const { data: authData } = await supabase.auth.getUser()
-  if (authData.user) {
-    await uploadCutPdf(cutId, authData.user.id, pdfBlob)
+  const user = await authService.getCurrentUser()
+  if (user) {
+    await uploadCutPdf(cutId, user.id, pdfBlob)
   }
 }
 

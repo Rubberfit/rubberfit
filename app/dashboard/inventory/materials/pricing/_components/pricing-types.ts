@@ -1,16 +1,4 @@
-import type {
-  MaterialType,
-  MaterialSupplierWithDetails,
-  PriceHistory,
-  Supplier,
-} from "@/src/infrastructure/models/supabase"
-
-export interface PriceHistoryWithJoins extends PriceHistory {
-  material_supplier?: MaterialSupplierWithDetails & {
-    material_type?: MaterialType
-    supplier?: Supplier
-  }
-}
+export type { PriceHistoryWithJoins } from "@/src/infrastructure/services/priceHistoryService"
 
 export interface PriceComparisonData {
   materialTypeId: string
@@ -39,13 +27,4 @@ export interface PriceComparisonData {
   }
 }
 
-export interface PriceAlert {
-  id: string
-  materialName: string
-  supplierName: string
-  oldPrice: number
-  newPrice: number
-  changePercentage: number
-  changeDate: string
-  type: "increase" | "decrease"
-}
+export type { PriceAlert } from "@/src/infrastructure/services/pricingPageService"

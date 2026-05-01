@@ -326,6 +326,26 @@ export class PriceHistoryService implements IPriceHistoryService {
     }
   }
 
+  async getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]> {
+    const { data, error } = await supabase
+      .from("price_history")
+      .select(
+        `
+        *,
+        material_supplier:material_suppliers(
+          *,
+          material_type:material_types(*),
+          supplier:suppliers(*)
+        )
+      `
+      )
+      .gte("created_at", startDate.toISOString())
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+    return (data ?? []) as PriceHistoryWithJoins[]
+  }
+
   async bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]> {
     try {
       const user_id = await getCurrentUserId()

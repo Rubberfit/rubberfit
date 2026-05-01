@@ -1,8 +1,4 @@
-import {
-  supabase,
-  type PurchaseOrderWithDetails,
-  type Supplier,
-} from "@/src/infrastructure/models/supabase"
+import type { PurchaseOrderWithDetails, Supplier } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import type { ICreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"

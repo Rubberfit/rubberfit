@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
-
-type Action = "acknowledge" | "resolve"
+import { alertManagementService } from "@/src/infrastructure/services/alertManagementService"
+import type { AlertAction } from "@/src/application/services/alert-management.service.interface"
 
 interface PatchBody {
-  action: Action
+  action: AlertAction
 }
 
 function isPatchBody(value: unknown): value is PatchBody {
@@ -13,13 +13,9 @@ function isPatchBody(value: unknown): value is PatchBody {
   return action === "acknowledge" || action === "resolve"
 }
 
-// ── PATCH /api/admin/alerts/[id] ──────────────────────────────────────────────
-// Acknowledge or resolve an alert. Also writes an admin_activity_log entry.
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// PATCH /api/admin/alerts/[id] — acknowledge or resolve an alert and
+// write an admin_activity_log entry via the service layer.
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const guard = await requireAdmin(request)
   if (!guard.ok) return guard.response
   const { adminClient, userEmail, userId } = guard.ctx
@@ -39,34 +35,16 @@ export async function PATCH(
     )
   }
 
-  const now = new Date().toISOString()
-  const actorEmail = userEmail ?? ""
-  const { action } = body
-
-  const update =
-    action === "acknowledge"
-      ? { status: "investigating", acknowledged_by: actorEmail, acknowledged_at: now }
-      : { status: "resolved", resolved_by: actorEmail, resolved_at: now }
-
-  const { data: updated, error: updateError } = await adminClient
-    .schema("admin")
-    .from("alerts")
-    .update(update)
-    .eq("id", id)
-    .select()
-    .single()
-
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-
-  // Audit log
-  await adminClient.schema("admin").from("admin_activity_log").insert({
-    actor_id: userId,
-    actor_email: actorEmail,
-    action: action === "acknowledge" ? "acknowledged_alert" : "resolved_alert",
-    resource_type: "alert",
-    resource_id: id,
-    metadata: { new_status: update.status },
+  const result = await alertManagementService.applyAlertAction(adminClient, {
+    alertId: id,
+    action: body.action,
+    actorUserId: userId,
+    actorEmail: userEmail,
   })
 
-  return NextResponse.json({ alert: updated })
+  if (!result.ok) {
+    const status = result.error === "not_found" ? 404 : result.error === "invalid_state" ? 409 : 500
+    return NextResponse.json({ error: result.message }, { status })
+  }
+  return NextResponse.json({ alert: result.alert })
 }

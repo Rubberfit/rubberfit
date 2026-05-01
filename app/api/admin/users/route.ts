@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 import type { AppRole } from "@/src/application/permissions"
+import { createUserWithProfile } from "@/src/infrastructure/services/userManagementService"
 
 function isValidRole(role: unknown): role is AppRole {
   return (
@@ -19,11 +20,10 @@ export async function POST(request: NextRequest) {
   if (!guard.ok) return guard.response
   const { adminClient } = guard.ctx
 
- 
   let body: unknown
-  try{
-    body = await request.json();
-  }catch (error) {
+  try {
+    body = await request.json()
+  } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
@@ -43,45 +43,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "full_name is required" }, { status: 400 })
   }
 
-  const normalizedEmail = email.trim().toLowerCase()
+  const resolvedRoles: AppRole[] =
+    Array.isArray(roles) && roles.length > 0 && roles.every(isValidRole)
+      ? (roles as AppRole[])
+      : ["member"]
 
-  const resolvedRoles: string[] = Array.isArray(roles) && roles.every(isValidRole) ? roles : ["member"]
-
-  const { data: existing } = await adminClient
-    .from("profiles")
-    .select("id")
-    .eq("email", normalizedEmail)
-    .maybeSingle()
-
-  if (existing) {
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 })
+  let result: Awaited<ReturnType<typeof createUserWithProfile>>
+  try {
+    result = await createUserWithProfile(adminClient, {
+      email,
+      password,
+      fullName: full_name,
+      roles: resolvedRoles,
+    })
+  } catch (error) {
+    console.error("POST /api/admin/users:", error)
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
   }
 
-  const { data: created, error: createError } = await adminClient.auth.admin.createUser({
-    email: normalizedEmail,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: full_name.trim() },
-  })
-
-  if (createError) {
-    return NextResponse.json({ error: createError.message }, { status: 400 })
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
-  // Update the auto-created profile with the desired name + roles
-  const { error: profileError } = await adminClient
-    .from("profiles")
-    .update({ full_name: full_name.trim(), roles: resolvedRoles })
-    .eq("id", created.user.id)
-
-  if (profileError) {
-    // User was created — log the error but don't fail the request
-    console.error("Failed to update profile after user creation:", profileError)
+  if (result.warning) {
     return NextResponse.json(
-      { success: true, userId: created.user.id, warning: "User created but profile update failed" },
+      { success: true, userId: result.userId, warning: result.warning },
       { status: 201 }
     )
   }
-
-  return NextResponse.json({ success: true, userId: created.user.id }, { status: 201 })
+  return NextResponse.json({ success: true, userId: result.userId }, { status: 201 })
 }

@@ -1,5 +1,10 @@
-import { createClient } from "@supabase/supabase-js"
 import { jsPDF } from "jspdf"
+
+import { makeAdminClient } from "@/app/api/_lib/supabase-server"
+import {
+  getPublicRollByPartNumberOrId,
+  type PublicRoll,
+} from "@/src/infrastructure/services/rollService"
 
 export const dynamic = "force-dynamic"
 
@@ -7,59 +12,10 @@ interface RouteContext {
   params: Promise<{ partNumber: string }>
 }
 
-interface PublicRoll {
-  id: string
-  part_number: string | null
-  material_type: string
-  width: number
-  length: number
-  thickness: number
-  remaining_length: number
-  status: "active" | "depleted" | "reserved"
-  color: string | null
-  location: string | null
-  date_received: string | null
-  is_offcut: boolean
-  parent_roll_id: string | null
-}
-
-function makeReadOnlyAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !serviceKey) return null
-  return createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-}
-
 async function loadRoll(partNumber: string): Promise<PublicRoll | null> {
-  const client = makeReadOnlyAdminClient()
+  const client = makeAdminClient()
   if (!client) return null
-
-  const cleaned = partNumber.trim()
-  if (!cleaned) return null
-
-  const byPart = await client
-    .from("rolls")
-    .select(
-      "id, part_number, material_type, width, length, thickness, remaining_length, status, color, location, date_received, is_offcut, parent_roll_id"
-    )
-    .eq("part_number", cleaned)
-    .maybeSingle()
-  if (byPart.data) return byPart.data as PublicRoll
-
-  const uuidLike = /^[0-9a-f-]{8,}$/i.test(cleaned)
-  if (!uuidLike) return null
-
-  const byId = await client
-    .from("rolls")
-    .select(
-      "id, part_number, material_type, width, length, thickness, remaining_length, status, color, location, date_received, is_offcut, parent_roll_id"
-    )
-    .eq("id", cleaned)
-    .maybeSingle()
-
-  return (byId.data as PublicRoll | null) ?? null
+  return getPublicRollByPartNumberOrId(client, partNumber)
 }
 
 function formatDate(value: string | null): string {

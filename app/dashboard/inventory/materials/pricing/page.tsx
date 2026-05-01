@@ -27,7 +27,7 @@ import type {
   PriceComparisonData,
   PriceAlert,
 } from "./_components/pricing-types"
-import { fetchPricingData } from "./_components/pricing-data"
+import { fetchPricingPageData } from "@/src/infrastructure/services/pricingPageService"
 import { PricingHistoryTable } from "./_components/pricing-history-table"
 import { PricingStatsCards } from "./_components/pricing-stats-cards"
 import { PricingComparisonTable } from "./_components/pricing-comparison-table"
@@ -51,7 +51,7 @@ export default function PricingPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        const result = await fetchPricingData(dateRange)
+        const result = await fetchPricingPageData(dateRange)
         setMaterialTypes(result.materialTypes)
         setSuppliers(result.suppliers)
         setMaterialSuppliers(result.materialSuppliers)

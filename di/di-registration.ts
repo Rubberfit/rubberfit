@@ -24,6 +24,10 @@ import type { ITaxApiService } from "@/src/application/services/tax-api.service.
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
 import type { IUserManagementService } from "@/src/application/services/user-management.service.interface"
 import type { IHealthAlertService } from "@/src/application/services/health-alert.service.interface"
+import type { IHealthCheckService } from "@/src/application/services/health-check.service.interface"
+import type { IAlertManagementService } from "@/src/application/services/alert-management.service.interface"
+import type { ICutFavoritesService } from "@/src/application/services/cut-favorites.service.interface"
+import type { IRollInventoryService } from "@/src/application/services/roll-inventory.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -48,6 +52,10 @@ import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
 import { healthAlertService } from "@/src/infrastructure/services/healthAlertService"
+import { healthCheckService } from "@/src/infrastructure/services/healthCheckService"
+import { alertManagementService } from "@/src/infrastructure/services/alertManagementService"
+import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesService"
+import { rollInventoryService } from "@/src/infrastructure/services/rollInventoryService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -57,6 +65,7 @@ import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase
 import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
 import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -134,6 +143,16 @@ container.registerInstance<IUserManagementService>(
   userManagementService
 )
 container.registerInstance<IHealthAlertService>(TOKENS.IHealthAlertService, healthAlertService)
+container.registerInstance<IHealthCheckService>(TOKENS.IHealthCheckService, healthCheckService)
+container.registerInstance<IAlertManagementService>(
+  TOKENS.IAlertManagementService,
+  alertManagementService
+)
+container.registerInstance<ICutFavoritesService>(TOKENS.ICutFavoritesService, cutFavoritesService)
+container.registerInstance<IRollInventoryService>(
+  TOKENS.IRollInventoryService,
+  rollInventoryService
+)
 
 // Use cases — registered as class-based singletons so the container lazily
 // constructs them on first resolve, keeping use-case modules import-safe for
@@ -151,5 +170,6 @@ container.registerSingleton(
   TOKENS.ICreateReorderPurchaseOrderUseCase,
   CreateReorderPurchaseOrderUseCase
 )
+container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
 
 export { container }
