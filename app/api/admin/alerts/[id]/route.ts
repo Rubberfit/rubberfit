@@ -43,7 +43,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   })
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 500 })
+    const status = result.error === "not_found" ? 404 : result.error === "invalid_state" ? 409 : 500
+    return NextResponse.json({ error: result.message }, { status })
   }
   return NextResponse.json({ alert: result.alert })
 }

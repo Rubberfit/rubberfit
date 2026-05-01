@@ -18,7 +18,11 @@ export interface AlertRow {
   resolved_at: string | null
 }
 
-export type AlertUpdateResult = { ok: true; alert: AlertRow } | { ok: false; error: string }
+export type AlertUpdateErrorCode = "not_found" | "invalid_state" | "internal"
+
+export type AlertUpdateResult =
+  | { ok: true; alert: AlertRow }
+  | { ok: false; error: AlertUpdateErrorCode; message: string }
 
 export interface IAlertManagementService {
   /**
