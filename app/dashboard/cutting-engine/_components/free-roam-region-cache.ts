@@ -3,6 +3,7 @@ import type { PartTemplate } from "./PresetDimensionSelector"
 import type { ManualPlacement } from "./free-roam-collision"
 import {
   type ClipperPath,
+  type ComputedRegions,
   type SideGapBbox,
   computeEnvelopeWasteForPlacement,
   placementToSheetPolygon,
@@ -39,13 +40,24 @@ interface PlacementCacheEntry {
  *
  * Stock changes do not invalidate per-placement entries — stock only
  * feeds the pocket and gap passes, which always recompute.
+ *
+ * `previousResult` holds the last `ComputedRegions` returned by
+ * `computeAdaptiveRegions`. When the next call's `scrap` content is
+ * pointwise-equal to the cached one (and the `offcuts` reference is
+ * unchanged), the prior reference is returned verbatim so downstream
+ * `===` identity checks (`useFreeRoamLayout` bailout, `KonvaSheetRenderer`
+ * `React.memo`) can actually skip work during drag. Without this,
+ * `finalizeRegions` always allocates a fresh sorted array, so the
+ * upstream layout cache bailout never fires (`previous.scrap === scrap`
+ * is always false even when the content hasn't changed).
  */
 export interface RegionCache {
   perPlacement: Map<string, PlacementCacheEntry>
+  previousResult: ComputedRegions | null
 }
 
 export function makeRegionCache(): RegionCache {
-  return { perPlacement: new Map() }
+  return { perPlacement: new Map(), previousResult: null }
 }
 
 /**

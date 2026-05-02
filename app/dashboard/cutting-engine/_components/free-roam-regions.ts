@@ -19,6 +19,43 @@ import { syncRegionCache, type RegionCache } from "./free-roam-region-cache"
 const EMPTY_LAYOUT_REGIONS: readonly LayoutRegion[] = Object.freeze([])
 
 /**
+ * Pointwise content equality on two scrap arrays. `finalizeRegions`
+ * always allocates a fresh sorted array, so `prevScrap === nextScrap`
+ * is never true even when the geometry hasn't moved. Comparing per-
+ * region bbox + polygon coords lets `computeAdaptiveRegions` return
+ * the prior `ComputedRegions` reference whenever a drag tick produced
+ * the same content, so downstream React memos (`useFreeRoamLayout`
+ * bailout, `KonvaSheetRenderer` `React.memo`) can actually skip work.
+ *
+ * Cheap fast-paths first (length, then per-element ref-equality, then
+ * bbox numeric equality, then optional polygon vertex equality).
+ */
+function scrapContentEqual(
+  a: readonly LayoutRegion[],
+  b: readonly LayoutRegion[]
+): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const ra = a[i]
+    const rb = b[i]
+    if (ra === rb) continue
+    if (ra === undefined || rb === undefined) return false
+    if (ra.x !== rb.x || ra.y !== rb.y || ra.width !== rb.width || ra.height !== rb.height) {
+      return false
+    }
+    const pa = ra.polygon ?? null
+    const pb = rb.polygon ?? null
+    if (pa === pb) continue
+    if (pa == null || pb == null) return false
+    if (pa.length !== pb.length) return false
+    for (let j = 0; j < pa.length; j++) {
+      if (pa[j].x !== pb[j].x || pa[j].y !== pb[j].y) return false
+    }
+  }
+  return true
+}
+
+/**
  * Sheet-space polygon for a single placement. Rectangles expand to 4
  * rotated corners, discs to a 24-vertex approximation. Unknown /
  * missing templates collapse to an empty array so the caller can
@@ -651,14 +688,17 @@ export interface RegionComputeSample {
 
 const __regionTimingSink: RegionComputeSample[] = []
 
-/** Cap on dev-only timing sink to prevent unbounded growth in long
- * debug sessions. ~10-min drag at 60fps = 36K samples uncapped. */
-const REGION_TIMING_SINK_CAP = 1000
-
 /**
  * Dev-only: drain the per-stage timing samples collected since the last
  * call. Empty in production builds — the sample-recording branch is
  * gated on `process.env.NODE_ENV !== "production"` so DCE strips it.
+ *
+ * The dump button is the natural drain — calling this empties the sink.
+ * We deliberately do NOT roll-shift inside the timed code path:
+ * `Array.shift()` is O(n) and would contaminate the next sample's
+ * measurement. Worst-case unbounded growth is bounded in practice — a
+ * 10-minute drag at 60fps yields ~36K samples (~2 MB at ~64 B/sample),
+ * trivial for a dev-only diagnostic.
  */
 export function __dumpRegionTimings(): RegionComputeSample[] {
   return __regionTimingSink.splice(0, __regionTimingSink.length)
@@ -708,7 +748,26 @@ export function computeAdaptiveRegions(
   options?: ComputeAdaptiveRegionsOptions
 ): ComputedRegions {
   if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) {
-    return { offcuts: EMPTY_LAYOUT_REGIONS, scrap: EMPTY_LAYOUT_REGIONS }
+    // Both fields use the module-level frozen empty constant so the
+    // returned reference is identity-stable across calls. When a cache
+    // is provided, store this result so the next non-empty call can
+    // compare against it via the same memoization path.
+    const empty: ComputedRegions = {
+      offcuts: EMPTY_LAYOUT_REGIONS,
+      scrap: EMPTY_LAYOUT_REGIONS,
+    }
+    if (cache != null) {
+      const previous = cache.previousResult
+      if (
+        previous != null &&
+        previous.offcuts === empty.offcuts &&
+        previous.scrap === empty.scrap
+      ) {
+        return previous
+      }
+      cache.previousResult = empty
+    }
+    return empty
   }
 
   const skipPocket = options?.skipPocketPass === true
@@ -776,10 +835,26 @@ export function computeAdaptiveRegions(
       placementCount: placements.length,
       skipPocket,
     })
-    if (__regionTimingSink.length > REGION_TIMING_SINK_CAP) {
-      __regionTimingSink.shift()
-    }
   }
 
-  return finalizeRegions(merged)
+  const next = finalizeRegions(merged)
+
+  // Output-identity memo: when content matches the prior call's result
+  // (offcuts ref + scrap pointwise), return the previous reference so
+  // downstream `===` checks (`useFreeRoamLayout` cache bailout,
+  // `KonvaSheetRenderer` `React.memo`) can actually skip work. The
+  // bailout MUST run before storing the new result so we don't clobber
+  // the previous reference before comparing against it.
+  if (cache != null) {
+    const previous = cache.previousResult
+    if (
+      previous != null &&
+      previous.offcuts === next.offcuts &&
+      scrapContentEqual(previous.scrap, next.scrap)
+    ) {
+      return previous
+    }
+    cache.previousResult = next
+  }
+  return next
 }
