@@ -33,11 +33,21 @@ interface NestingVisualizerExtraProps {
   onLayoutChange?: (layouts: LayoutModel[]) => void
   /**
    * True while a Rust pack call is in flight (first pack OR auto-boost
-   * continuation). Drives the spinner + elapsed-seconds overlay. Distinct
-   * from `packGateStatus`: continuation re-packs keep the gate at "done"
-   * (so the previous sheet stays rendered) but still set `isPacking=true`.
+   * continuation). Combined with `isAutoBoostPending`, drives the
+   * spinner + elapsed-seconds overlay so a multi-round pack reads as
+   * one continuous measurement (the gap between rounds is microseconds
+   * and shouldn't reset the timer).
    */
   isPacking?: boolean
+  /**
+   * True when the most recent Rust round returned overflow and a
+   * follow-up round is queued. Suppresses the partial layout (the
+   * operator never sees an intermediate round) and keeps the spinner
+   * + timer running through the gap between rounds. False on first-
+   * round successes and when the MAX_SHEETS cap fires (the partial
+   * result is the final answer in that case).
+   */
+  isAutoBoostPending?: boolean
 }
 
 export default function NestingVisualizer({
@@ -50,11 +60,18 @@ export default function NestingVisualizer({
   onLayoutChange,
   debugOverlays,
   isPacking = false,
+  isAutoBoostPending = false,
 }: NestingVisualizerProps & NestingVisualizerExtraProps) {
   const patternSeed = useId().replace(/:/g, "")
   const hasFrozenLayouts = (frozenLayouts?.length ?? 0) > 0
   const hasLiveLayouts = (layouts?.length ?? 0) > 0
-  const showLive = !hasFrozenLayouts && packGateStatus === "done" && hasLiveLayouts
+  // Suppress the live layout while another auto-boost round is queued.
+  // The partial result would only flash on screen for a moment before
+  // being replaced by the next round's output — operators don't act on
+  // intermediate rounds, so we keep the empty-card "Packing…" view
+  // through the whole multi-round flow.
+  const showLive =
+    !hasFrozenLayouts && packGateStatus === "done" && hasLiveLayouts && !isAutoBoostPending
 
   // Renderer expects a non-null `SimplePartPreview` and a non-null sheet array.
   // Build these from `LayoutModel[]` via the inverse adapter that already
@@ -76,12 +93,13 @@ export default function NestingVisualizer({
   const previewRollW = activeLayouts?.[0]?.sheetWidth ?? defaultRollWidth
   const previewRollL = activeLayouts?.[0]?.sheetLength ?? defaultRollLength
 
+  const isPackingState = packGateStatus === "packing" || isPacking || isAutoBoostPending
   const emptyPreview = useMemo<RectLikePreview>(() => {
     const stockArea = previewRollW * previewRollL
     return {
       renderShape: "rect",
       strategyName: "Empty sheet",
-      strategyNote: packGateStatus === "packing" ? "Packing…" : "Press Pack to generate the layout",
+      strategyNote: isPackingState ? "Packing…" : "Press Pack to generate the layout",
       placementMode: "origin",
       wasteMode: "bands",
       cutPlanTitle: "",
@@ -105,7 +123,7 @@ export default function NestingVisualizer({
       label: "",
       fabricationScore: 0,
     }
-  }, [previewRollW, previewRollL, packGateStatus])
+  }, [previewRollW, previewRollL, isPackingState])
 
   const preview = useMemo(() => {
     if (multiSheet && multiSheet.sheets.length > 0) return multiSheet.sheets[0].preview
@@ -175,7 +193,9 @@ export default function NestingVisualizer({
     onLayoutChange(next)
   }, [activeLayouts, onLayoutChange])
 
-  const { packDurationMs, isPackLive, hasPackMeasurement } = usePackDurationMs(isPacking)
+  const { packDurationMs, isPackLive, hasPackMeasurement } = usePackDurationMs(
+    isPacking || isAutoBoostPending
+  )
   // Suppress the pill when a saved cut is loaded — that result wasn't
   // packed in this session, so attributing the live timer to it would
   // be misleading.
@@ -202,7 +222,11 @@ export default function NestingVisualizer({
   )
 }
 
-// Tracks the duration of the current (or most recent) Rust pack call:
+// Tracks the duration of the current (or most recent) pack flow.
+// `active` spans the entire multi-round auto-boost loop, not just a
+// single Rust call, so a pack that takes two rounds reads as one
+// continuous measurement (the gap between rounds is microseconds and
+// shouldn't reset the timer).
 //
 // - While `active` is true, ticks every 100 ms so the header pill shows a
 //   live "Time to Pack: 1.4s" counter.

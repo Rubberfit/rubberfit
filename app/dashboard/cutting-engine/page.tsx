@@ -397,8 +397,7 @@ function CutPlannerPageInner() {
   // Pairs with the `setCutMetrics(null)` reset below — even if metrics
   // ever lag the gate, the button can't appear over an empty sheet.
   const hasRenderedLayout =
-    (activeFrozenLayouts?.length ?? 0) > 0 ||
-    (packGateStatus === "done" && layouts.length > 0)
+    (activeFrozenLayouts?.length ?? 0) > 0 || (packGateStatus === "done" && layouts.length > 0)
 
   useEffect(() => {
     if (!frozenLayouts || !frozenLayoutInputSignature) return
@@ -450,6 +449,17 @@ function CutPlannerPageInner() {
   const totalOverflow = useMemo(
     () => (packLayouts ?? []).reduce((s, l) => s + l.overflowCount, 0),
     [packLayouts]
+  )
+  // True when the most recent Rust round returned overflow that still
+  // has room to be absorbed by another auto-boost round. While true,
+  // the visualizer suppresses the partial result (the operator never
+  // sees an intermediate round) and the timer treats the multi-round
+  // flow as one continuous measurement. Goes false the moment overflow
+  // is 0 (the round is the final answer) or the cap is hit (the
+  // partial is the best we can do, render it and fire the cap toast).
+  const isAutoBoostPending = useMemo(
+    () => totalOverflow > 0 && packBins.length < MAX_SHEETS,
+    [totalOverflow, packBins.length]
   )
   const capToastFiredRef = useRef(false)
   const lastBoostedLayoutsRef = useRef<LayoutModel[] | null>(null)
@@ -912,6 +922,7 @@ function CutPlannerPageInner() {
                     : packGateStatus
                 }
                 isPacking={isPacking}
+                isAutoBoostPending={isAutoBoostPending}
                 debugOverlays={debugOverlays}
               />
             </CardContent>
