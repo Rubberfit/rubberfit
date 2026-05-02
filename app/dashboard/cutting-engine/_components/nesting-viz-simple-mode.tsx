@@ -28,6 +28,14 @@ import { CutLegend } from "./cut-legend"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 
+// Solid amber outline drawn around each reusable-offcut polygon / rect
+// so its bbox reads at a glance against the bin-wide scrap pattern.
+// Same colour as Rubberfit-Desktop's `OFFCUT_OUTLINE` so the two
+// visualizers stay visually identical side-by-side. Solid (no dash)
+// to keep separation from the dashed dev-only AABB overlay.
+const OFFCUT_OUTLINE = "rgba(245, 158, 11, 0.75)"
+const OFFCUT_OUTLINE_WIDTH = 1.5
+
 // Single-pass min/max bounding box for an SVG render item. Used by the
 // dev-only "Show AABB" overlay. Falls back to the placement's
 // `x/y/width/height` when no rotated polygon is present (plain rects
@@ -442,6 +450,8 @@ function SheetSvg({
                     )
                     .join(" ")}
                   fill={`url(#${sOffcutPat})`}
+                  stroke={OFFCUT_OUTLINE}
+                  strokeWidth={OFFCUT_OUTLINE_WIDTH}
                   opacity="0.95"
                 />
               ) : (
@@ -452,6 +462,8 @@ function SheetSvg({
                   width={band.width * layout.scale}
                   height={band.height * layout.scale}
                   fill={`url(#${sOffcutPat})`}
+                  stroke={OFFCUT_OUTLINE}
+                  strokeWidth={OFFCUT_OUTLINE_WIDTH}
                   opacity="0.95"
                 />
               )
