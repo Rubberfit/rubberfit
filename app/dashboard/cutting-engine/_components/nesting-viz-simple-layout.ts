@@ -14,7 +14,6 @@ interface SimpleModeLayoutInput {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -78,7 +77,6 @@ export interface SimpleModeLayout {
   metricsAreEstimatedFromStock: boolean
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   preview: SimplePartPreview
 }
 
@@ -88,7 +86,6 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     preview,
     previewRollW,
     previewRollL,
-    wasRotated,
     patternSeed,
     viewMode,
     optimizedResult,
@@ -250,7 +247,6 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     metricsAreEstimatedFromStock,
     previewRollW,
     previewRollL,
-    wasRotated,
     preview,
   }
 }

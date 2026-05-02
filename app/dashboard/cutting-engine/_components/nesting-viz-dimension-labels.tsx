@@ -6,12 +6,10 @@ import { formatInches } from "./nesting-viz-simple-layout"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 
 export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
-  // wasRotated means the layout was rotated 90° CW, so the original length
-  // now runs horizontally and the original width runs vertically.
   const horzValue = layout.previewRollW
-  const horzLabel = layout.wasRotated ? "length" : "width"
+  const horzLabel = "width"
   const vertValue = layout.previewRollL
-  const vertLabel = layout.wasRotated ? "width" : "length"
+  const vertLabel = "length"
 
   return (
     <>

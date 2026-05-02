@@ -63,19 +63,10 @@ export default function NestingVisualizer({
   )
 
   // Display dimensions: prefer the first layout's saved sheet dimensions
-  // (frozen layouts already store post-rotation dims). Fall back to the
-  // page-supplied stock width/length for the empty-sheet card.
-  const firstLayoutWidth = activeLayouts?.[0]?.sheetWidth
-  const firstLayoutLength = activeLayouts?.[0]?.sheetLength
-  const previewRollW = firstLayoutWidth ?? defaultRollWidth
-  const previewRollL = firstLayoutLength ?? defaultRollLength
-  // `wasRotated`: true when the page handed us a portrait stock but the
-  // packed/frozen layout was packed landscape. We only know this when we
-  // have layouts; otherwise the empty card paints the page's stock dims as-is.
-  const wasRotated =
-    activeLayouts != null &&
-    firstLayoutWidth === defaultRollLength &&
-    firstLayoutLength === defaultRollWidth
+  // when available, otherwise fall back to the page-supplied stock
+  // width/length for the empty-sheet card.
+  const previewRollW = activeLayouts?.[0]?.sheetWidth ?? defaultRollWidth
+  const previewRollL = activeLayouts?.[0]?.sheetLength ?? defaultRollLength
 
   const emptyPreview = useMemo<RectLikePreview>(() => {
     const stockArea = previewRollW * previewRollL
@@ -173,7 +164,6 @@ export default function NestingVisualizer({
       preview={preview}
       previewRollW={previewRollW}
       previewRollL={previewRollL}
-      wasRotated={wasRotated}
       patternSeed={patternSeed}
       viewMode="stock"
       optimizedResult={null}

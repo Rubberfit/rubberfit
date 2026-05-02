@@ -137,7 +137,6 @@ interface SimpleModeProps {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -378,7 +377,7 @@ function SheetSvg({
           className="fill-muted-foreground"
           fontSize="12"
         >
-          {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
+          {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
         <clipPath id={sClip}>
@@ -536,7 +535,6 @@ function SheetSvg({
           surfaceX={layout.surfaceX}
           surfaceY={layout.surfaceY}
           scale={layout.scale}
-          wasRotated={layout.wasRotated}
         />
         <SimpleModeDimensionLabels layout={layout} />
       </svg>
@@ -548,7 +546,6 @@ export default function NestingVizSimpleMode({
   preview,
   previewRollW,
   previewRollL,
-  wasRotated,
   patternSeed,
   viewMode,
   optimizedResult,
@@ -565,7 +562,6 @@ export default function NestingVizSimpleMode({
         preview,
         previewRollW,
         previewRollL,
-        wasRotated,
         patternSeed,
         viewMode,
         optimizedResult,
@@ -575,7 +571,6 @@ export default function NestingVizSimpleMode({
       preview,
       previewRollW,
       previewRollL,
-      wasRotated,
       patternSeed,
       viewMode,
       optimizedResult,
