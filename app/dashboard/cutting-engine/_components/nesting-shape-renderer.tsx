@@ -68,6 +68,7 @@ function PolygonShape({
   usablePatternId,
   tagLetter,
   displayRotated,
+  zoom = 1,
 }: {
   item: PreviewItem
   index: number
@@ -80,6 +81,7 @@ function PolygonShape({
   usablePatternId: string
   tagLetter?: string
   displayRotated?: boolean
+  zoom?: number
 }) {
   const polyPoints = item
     .placedPolygon!.map(
@@ -101,6 +103,7 @@ function PolygonShape({
         fill={`url(#${usablePatternId})`}
         className="stroke-lime-500 dark:stroke-lime-400"
         strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
       />
       <text
         x={labelX}
@@ -111,7 +114,8 @@ function PolygonShape({
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
-        fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+        vectorEffect="non-scaling-stroke"
+        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
         {tagLetter ?? item.label}
@@ -129,6 +133,7 @@ function CircleShape({
   tagLetter,
   renderPass,
   displayRotated,
+  zoom = 1,
 }: {
   item: PreviewItem
   index: number
@@ -138,6 +143,7 @@ function CircleShape({
   tagLetter?: string
   renderPass?: RenderPass
   displayRotated?: boolean
+  zoom?: number
 }) {
   const showBg = renderPass !== "foreground"
   const showFg = renderPass !== "background"
@@ -174,6 +180,7 @@ function CircleShape({
             fill={`url(#${usablePatternId})`}
             className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
           />
           <text
             x={cx}
@@ -184,7 +191,8 @@ function CircleShape({
             className="fill-shape-label stroke-shape-label-halo"
             style={{ paintOrder: "stroke" }}
             strokeWidth={2}
-            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            vectorEffect="non-scaling-stroke"
+            fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
             {tagLetter ?? item.label}
@@ -204,6 +212,7 @@ function SectorShape({
   tagLetter,
   renderPass,
   displayRotated,
+  zoom = 1,
 }: {
   item: PreviewItem
   index: number
@@ -213,6 +222,7 @@ function SectorShape({
   tagLetter?: string
   renderPass?: RenderPass
   displayRotated?: boolean
+  zoom?: number
 }) {
   const showBg = renderPass !== "foreground"
   const showFg = renderPass !== "background"
@@ -270,6 +280,7 @@ function SectorShape({
             fill={`url(#${usablePatternId})`}
             className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
           />
           <text
             x={coords.px + coords.pw / 2}
@@ -284,7 +295,8 @@ function SectorShape({
             className="fill-shape-label stroke-shape-label-halo"
             style={{ paintOrder: "stroke" }}
             strokeWidth={2}
-            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            vectorEffect="non-scaling-stroke"
+            fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
             {tagLetter ?? item.label}
@@ -304,6 +316,7 @@ function TrapezoidShape({
   tagLetter,
   renderPass,
   displayRotated,
+  zoom = 1,
 }: {
   item: PreviewItem
   index: number
@@ -313,6 +326,7 @@ function TrapezoidShape({
   tagLetter?: string
   renderPass?: RenderPass
   displayRotated?: boolean
+  zoom?: number
 }) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -359,6 +373,7 @@ function TrapezoidShape({
             fill={`url(#${usablePatternId})`}
             className="stroke-lime-500 dark:stroke-lime-400"
             strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
           />
           <text
             x={coords.px + coords.pw / 2}
@@ -373,7 +388,8 @@ function TrapezoidShape({
             className="fill-shape-label stroke-shape-label-halo"
             style={{ paintOrder: "stroke" }}
             strokeWidth={2}
-            fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+            vectorEffect="non-scaling-stroke"
+            fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
             fontWeight="600"
           >
             {tagLetter ?? item.label}
@@ -391,6 +407,7 @@ function RectShape({
   usablePatternId,
   tagLetter,
   displayRotated,
+  zoom = 1,
 }: {
   item: PreviewItem
   index: number
@@ -398,6 +415,7 @@ function RectShape({
   usablePatternId: string
   tagLetter?: string
   displayRotated?: boolean
+  zoom?: number
 }) {
   return (
     <g key={index + 1}>
@@ -409,6 +427,7 @@ function RectShape({
         fill={`url(#${usablePatternId})`}
         className="stroke-lime-500 dark:stroke-lime-400"
         strokeWidth="1"
+        vectorEffect="non-scaling-stroke"
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -422,7 +441,8 @@ function RectShape({
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
-        fontSize={Math.max(0, Math.min(14, coords.pw * 0.3, coords.ph * 0.3))}
+        vectorEffect="non-scaling-stroke"
+        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
         {tagLetter ?? item.label}
@@ -447,7 +467,7 @@ export default function NestingShapeRenderer({
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
   tagLetter,
-  zoom: _zoom,
+  zoom = 1,
   renderPass,
   displayRotated,
 }: NestingShapeRendererProps) {
@@ -476,6 +496,7 @@ export default function NestingShapeRenderer({
         usablePatternId={usablePatternId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
+        zoom={zoom}
       />
     )
   }
@@ -491,6 +512,7 @@ export default function NestingShapeRenderer({
         tagLetter={tagLetter}
         renderPass={renderPass}
         displayRotated={displayRotated}
+        zoom={zoom}
       />
     )
   }
@@ -506,6 +528,7 @@ export default function NestingShapeRenderer({
         tagLetter={tagLetter}
         renderPass={renderPass}
         displayRotated={displayRotated}
+        zoom={zoom}
       />
     )
   }
@@ -521,6 +544,7 @@ export default function NestingShapeRenderer({
         tagLetter={tagLetter}
         renderPass={renderPass}
         displayRotated={displayRotated}
+        zoom={zoom}
       />
     )
   }
@@ -534,6 +558,7 @@ export default function NestingShapeRenderer({
       usablePatternId={usablePatternId}
       tagLetter={tagLetter}
       displayRotated={displayRotated}
+      zoom={zoom}
     />
   )
 }

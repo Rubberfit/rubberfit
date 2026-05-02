@@ -409,6 +409,7 @@ export function SimpleModeOffcutLabels({
   surfaceY,
   scale,
   displayRotated,
+  zoom = 1,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
@@ -420,6 +421,12 @@ export function SimpleModeOffcutLabels({
    * (centerX, centerY) so "Reusable offcut" + dims read upright.
    */
   displayRotated?: boolean
+  /**
+   * SheetSvg zoom factor. The label-size caps divide by zoom so a
+   * label that hits the cap stays at constant screen-pixel size as
+   * the operator zooms in.
+   */
+  zoom?: number
 }) {
   return (
     <>
@@ -443,8 +450,8 @@ export function SimpleModeOffcutLabels({
         const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
         const bandPxW = band.width * scale
         const bandPxH = band.height * scale
-        const titleSize = Math.max(0, Math.min(13, bandPxW * 0.12, bandPxH * 0.25))
-        const dimsSize = Math.max(0, Math.min(11, bandPxW * 0.1, bandPxH * 0.2))
+        const titleSize = Math.max(0, Math.min(13 / zoom, bandPxW * 0.12, bandPxH * 0.25))
+        const dimsSize = Math.max(0, Math.min(11 / zoom, bandPxW * 0.1, bandPxH * 0.2))
 
         return (
           <text

@@ -5,7 +5,17 @@ import React from "react"
 import { formatInches } from "./nesting-viz-simple-layout"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 
-export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
+export function SimpleModeDimensionLabels({
+  layout,
+  zoom = 1,
+}: {
+  layout: SimpleModeLayout
+  /**
+   * SheetSvg zoom factor. The dim label fontSize divides by zoom so
+   * the labels stay at constant screen-pixel size at any zoom level.
+   */
+  zoom?: number
+}) {
   // When displayRotated, the visual horizontal edge of the sheet is
   // the original length and the visual vertical edge is the original
   // width. Swap value+label together so "12" length" reads correctly.
@@ -33,6 +43,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         y2={layout.rowLabelY}
         className="stroke-muted-foreground"
         strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
       />
@@ -45,7 +56,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         y={layout.rowLabelY + 24}
         textAnchor="middle"
         className="fill-foreground"
-        fontSize="14"
+        fontSize={14 / zoom}
         fontWeight="600"
       >
         {`${formatInches(horzValue)}" ${horzLabel}`}
@@ -62,6 +73,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         }
         className="stroke-muted-foreground"
         strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
       />
@@ -70,7 +82,7 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         y={horzVertY}
         textAnchor="middle"
         className="fill-foreground"
-        fontSize="14"
+        fontSize={14 / zoom}
         fontWeight="600"
         transform={`rotate(90 ${layout.colLabelX + 26} ${horzVertY})`}
       >

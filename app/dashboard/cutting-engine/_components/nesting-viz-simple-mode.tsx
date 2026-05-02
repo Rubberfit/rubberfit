@@ -91,6 +91,7 @@ function SheetDebugOverlays({
             stroke="rgba(153, 27, 27, 0.85)"
             strokeWidth={1.25}
             strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
             style={{ pointerEvents: "none" }}
           />
         ))}
@@ -107,6 +108,7 @@ function SheetDebugOverlays({
               stroke="rgba(16, 185, 129, 0.95)"
               strokeWidth={1.0}
               strokeDasharray="6 3"
+              vectorEffect="non-scaling-stroke"
               style={{ pointerEvents: "none" }}
             />
           ))}
@@ -123,6 +125,7 @@ function SheetDebugOverlays({
                 stroke="rgba(124, 58, 237, 0.95)"
                 strokeWidth={1.5}
                 strokeDasharray="6 3"
+                vectorEffect="non-scaling-stroke"
                 style={{ pointerEvents: "none" }}
               />
             )
@@ -376,7 +379,7 @@ function SheetSvg({
           y="34"
           textAnchor="middle"
           className="fill-foreground"
-          fontSize="20"
+          fontSize={20 / zoom}
           fontWeight="700"
         >
           {"Rubber Sheet Nesting Layout"}
@@ -386,7 +389,7 @@ function SheetSvg({
           y="60"
           textAnchor="middle"
           className="fill-muted-foreground"
-          fontSize="12"
+          fontSize={12 / zoom}
         >
           {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
         </text>
@@ -407,6 +410,7 @@ function SheetSvg({
           fill={`url(#${sStockPat})`}
           className="stroke-border"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
         <g clipPath={`url(#${sClip})`}>
           <g transform={sheetTransform}>
@@ -463,6 +467,7 @@ function SheetSvg({
                     fill={`url(#${sOffcutPat})`}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
                     opacity="0.95"
                   />
                 ) : (
@@ -475,6 +480,7 @@ function SheetSvg({
                     fill={`url(#${sOffcutPat})`}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
                     opacity="0.95"
                   />
                 )
@@ -551,9 +557,10 @@ function SheetSvg({
             surfaceY={layout.surfaceY}
             scale={layout.scale}
             displayRotated={layout.displayRotated}
+            zoom={zoom}
           />
         </g>
-        <SimpleModeDimensionLabels layout={layout} />
+        <SimpleModeDimensionLabels layout={layout} zoom={zoom} />
       </svg>
     </div>
   )
