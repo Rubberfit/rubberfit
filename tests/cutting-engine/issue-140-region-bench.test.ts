@@ -29,9 +29,6 @@
  *   - Drag bodies (Case 1 + Case 3) duplicate ~90% of their logic.
  *     Collapse to `it.each([{ n: 10, budget: 8 }, { n: 20, budget: 16 }])`
  *     or a `runDragBench(n, budgetMs)` helper before unskipping.
- *   - `p95()` falls back to `?? 0` on empty input. Replace with an
- *     explicit `throw new Error("p95: empty samples")` so a future
- *     refactor can't silently produce a false green via empty array.
  *   - Test names embed literal thresholds ("under 8ms p95 at N=10").
  *     If the budget is retuned the title goes stale. Strip thresholds
  *     from titles ("drag-frame compute (N=10, skipPocketPass) within
@@ -80,8 +77,11 @@ function makePlacements(n: number): ManualPlacement[] {
 }
 
 function p95(samples: number[]): number {
+  if (samples.length === 0) throw new Error("p95: empty samples array")
   const sorted = [...samples].sort((a, b) => a - b)
-  return sorted[Math.floor(sorted.length * 0.95)] ?? 0
+  const value = sorted[Math.floor(sorted.length * 0.95)]
+  if (value === undefined) throw new Error("p95: index out of range")
+  return value
 }
 
 describe("ARC-91 / issue #140 — region perf budget", () => {

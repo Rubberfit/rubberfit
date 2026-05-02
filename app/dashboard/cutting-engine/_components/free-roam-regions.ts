@@ -651,6 +651,10 @@ export interface RegionComputeSample {
 
 const __regionTimingSink: RegionComputeSample[] = []
 
+/** Cap on dev-only timing sink to prevent unbounded growth in long
+ * debug sessions. ~10-min drag at 60fps = 36K samples uncapped. */
+const REGION_TIMING_SINK_CAP = 1000
+
 /**
  * Dev-only: drain the per-stage timing samples collected since the last
  * call. Empty in production builds — the sample-recording branch is
@@ -772,6 +776,9 @@ export function computeAdaptiveRegions(
       placementCount: placements.length,
       skipPocket,
     })
+    if (__regionTimingSink.length > REGION_TIMING_SINK_CAP) {
+      __regionTimingSink.shift()
+    }
   }
 
   return finalizeRegions(merged)
