@@ -318,7 +318,7 @@ describe("Issue #119 — Plan A: full-job NFP with rect gap-fill", () => {
     expect(result.sheets.length).toBeGreaterThanOrEqual(2)
     // v1 must respect the caller's sheet budget — the overflow re-pack
     // cannot produce MORE sheets than the raw packer used. Catches the
-    // CodeRabbit/OpenClaw "v1 sheet-count exceeds original" regression.
+    // CodeRabbit "v1 sheet-count exceeds original" regression.
     expect(result.sheets.length).toBeLessThanOrEqual(MAX_SHEETS)
 
     // No items dropped, no rect kinds (v1 path doesn't introduce them).
