@@ -1,4 +1,5 @@
-import { Scissors, Shapes, Ruler } from "lucide-react"
+import { useState } from "react"
+import { Scissors, Shapes } from "lucide-react"
 import { PartTemplate } from "./preset-template-data"
 import { SimpleCutDirection } from "./nesting-visualizer-types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -22,17 +23,7 @@ export function CutConfigCard({
   setCutDirection: (v: SimpleCutDirection) => void
   requestedSqFt: number
 }) {
-  // Group templates by shape type so the Part card can summarise
-  // mixed-shape selections (e.g. rectangles + cones) instead of
-  // surfacing only the first template's shape.
-  const partCounts = new Map<PartTemplate["partType"], number>()
-  for (const template of selectedTemplates) {
-    const qty = Math.max(1, template.quantity ?? 1)
-    partCounts.set(template.partType, (partCounts.get(template.partType) ?? 0) + qty)
-  }
-  const partGroups = Array.from(partCounts.entries())
-  const totalParts = partGroups.reduce((sum, [, qty]) => sum + qty, 0)
-  const isMultiShape = partGroups.length > 1
+  const isRect = selectedTemplate.partType === "rectangle"
 
   return (
     <Card className="border border-slate-200 shadow-sm">
@@ -47,107 +38,187 @@ export function CutConfigCard({
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
-              <Shapes className="h-3.5 w-3.5" />
-              Part
-            </div>
-            {isMultiShape ? (
-              <>
-                <ul className="mt-2 space-y-0.5 text-sm font-semibold">
-                  {partGroups.map(([shape, qty]) => (
-                    <li key={shape}>{`${qty} \u00D7 ${getPartLabel(shape)}`}</li>
-                  ))}
-                </ul>
-                <div className="mt-1.5 text-xs text-muted-foreground">
-                  {totalParts} parts total
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="mt-2 text-base font-semibold">
-                  {getPartLabel(selectedTemplate.partType)}
-                  {selectedTemplates.length > 1 ? ` \u00B7 ${selectedTemplates.length} sizes` : ""}
-                </div>
-                <div className="mt-1 text-xs">{selectedTemplate.summary}</div>
-              </>
-            )}
-          </div>
+      <CardContent className="space-y-4">
+        <SelectedPartsCard selectedTemplates={selectedTemplates} />
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4  dark:bg-card">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
-              <Ruler className="h-3.5 w-3.5" />
-              Size Selection
-            </div>
-            {selectedTemplates.length === 1 ? (
-              <>
-                <div className="mt-2 text-base font-semibold">{selectedTemplate.label}</div>
-                <div className="mt-1 text-xs">Standard size from the template list.</div>
-              </>
-            ) : (
-              <>
-                <ul className="mt-2 space-y-0.5 text-sm font-semibold">
-                  {selectedTemplates.map((template) => (
-                    <li key={template.id} className="truncate">
-                      {template.label}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-1.5 text-xs text-muted-foreground">
-                  {selectedTemplates.length} sizes
-                </div>
-              </>
-            )}
-          </div>
-
-          {selectedTemplate.partType !== "rectangle" && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-card ">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400  ">
-                <Scissors className="h-3.5 w-3.5" />
-                {getCutModeTitle(selectedTemplate.partType)}
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 ">
-                {getCutDirectionOptions(selectedTemplate.partType).map(({ value, label }) => {
-                  const direction = value
-                  const active = cutDirection === direction
-                  return (
-                    <button
-                      key={direction}
-                      type="button"
-                      onClick={() => setCutDirection(direction)}
-                      className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                        active
-                          ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/10 dark:text-blue-300 "
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700/70"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="mt-2 text-xs ">
-                {getCutModeDescription(selectedTemplate.partType)}
-              </div>
-            </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {!isRect && (
+            <CutModeCard
+              partType={selectedTemplate.partType}
+              cutDirection={cutDirection}
+              setCutDirection={setCutDirection}
+            />
           )}
-
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card ">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
-              <Scissors className="h-3.5 w-3.5" />
-              Requested Material
-            </div>
-            <div className="mt-2 text-base font-semibold">{requestedSqFt.toFixed(2)} sq ft</div>
-            <div className="mt-1 text-xs">
-              {selectedTemplate.partType === "rectangle"
-                ? "Based on the selected part shape and quantity."
-                : "Based on the finished part shape. Non-rectangle cut sections do not multiply the finished area."}
-            </div>
-          </div>
+          <RequestedMaterialCard
+            isRect={isRect}
+            requestedSqFt={requestedSqFt}
+          />
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// Group `selectedTemplates` by shape type so the operator gets a
+// shape → sizes tree instead of two parallel tiles. Each shape row
+// shows summed qty + size count; clicking expands to the per-
+// template labels (and per-template qty when > 1). Replaces the
+// old Part + Size Selection tile pair.
+function SelectedPartsCard({ selectedTemplates }: { selectedTemplates: PartTemplate[] }) {
+  const [expanded, setExpanded] = useState<Set<PartTemplate["partType"]>>(new Set())
+
+  const groups = new Map<
+    PartTemplate["partType"],
+    { totalQty: number; templates: PartTemplate[] }
+  >()
+  for (const template of selectedTemplates) {
+    const qty = Math.max(1, template.quantity ?? 1)
+    const existing = groups.get(template.partType)
+    if (existing) {
+      existing.totalQty += qty
+      existing.templates.push(template)
+    } else {
+      groups.set(template.partType, { totalQty: qty, templates: [template] })
+    }
+  }
+  const groupEntries = Array.from(groups.entries())
+  const totalParts = groupEntries.reduce((sum, [, g]) => sum + g.totalQty, 0)
+  const totalSizes = selectedTemplates.length
+
+  const toggle = (partType: PartTemplate["partType"]) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(partType)) next.delete(partType)
+      else next.add(partType)
+      return next
+    })
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 dark:bg-card">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide dark:border-slate-700 dark:text-slate-400">
+        <Shapes className="h-3.5 w-3.5" />
+        Selected Parts
+      </div>
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+        {groupEntries.map(([partType, group]) => {
+          const isOpen = expanded.has(partType)
+          const sizeCount = group.templates.length
+          return (
+            <li key={partType}>
+              <button
+                type="button"
+                onClick={() => toggle(partType)}
+                aria-expanded={isOpen}
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <ChevronGlyph open={isOpen} />
+                <span className="flex-1 font-semibold">{`${group.totalQty} × ${getPartLabel(partType)}`}</span>
+                <span className="text-xs text-muted-foreground">
+                  {sizeCount} {sizeCount === 1 ? "size" : "sizes"}
+                </span>
+              </button>
+              {isOpen && (
+                <ul className="bg-white px-4 pb-2 pt-0.5 dark:bg-slate-900/40">
+                  {group.templates.map((template) => {
+                    const qty = Math.max(1, template.quantity ?? 1)
+                    return (
+                      <li
+                        key={template.id}
+                        className="flex items-center gap-2 py-0.5 pl-5 text-xs"
+                      >
+                        <span className="flex-1 truncate font-mono">{template.label}</span>
+                        {qty > 1 && (
+                          <span className="text-muted-foreground tabular-nums">{`× ${qty}`}</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <div className="border-t border-slate-200 px-4 py-2 text-xs text-muted-foreground dark:border-slate-700">
+        {`${totalParts} ${totalParts === 1 ? "part" : "parts"} · ${totalSizes} ${totalSizes === 1 ? "size" : "sizes"}`}
+      </div>
+    </div>
+  )
+}
+
+function ChevronGlyph({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      className={`shrink-0 text-muted-foreground transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+    >
+      <path d="M3 1 L7 5 L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function CutModeCard({
+  partType,
+  cutDirection,
+  setCutDirection,
+}: {
+  partType: PartTemplate["partType"]
+  cutDirection: SimpleCutDirection
+  setCutDirection: (v: SimpleCutDirection) => void
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:bg-card">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
+        <Scissors className="h-3.5 w-3.5" />
+        {getCutModeTitle(partType)}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {getCutDirectionOptions(partType).map(({ value, label }) => {
+          const active = cutDirection === value
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setCutDirection(value)}
+              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                active
+                  ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/10 dark:text-blue-300"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700/70"
+              }`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      <div className="mt-2 text-xs">{getCutModeDescription(partType)}</div>
+    </div>
+  )
+}
+
+function RequestedMaterialCard({
+  isRect,
+  requestedSqFt,
+}: {
+  isRect: boolean
+  requestedSqFt: number
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
+        <Scissors className="h-3.5 w-3.5" />
+        Requested Material
+      </div>
+      <div className="mt-2 text-base font-semibold">{requestedSqFt.toFixed(2)} sq ft</div>
+      <div className="mt-1 text-xs">
+        {isRect
+          ? "Based on the selected part shape and quantity."
+          : "Based on the finished part shape. Non-rectangle cut sections do not multiply the finished area."}
+      </div>
+    </div>
   )
 }
