@@ -9,6 +9,16 @@ import type { ManualPlacement } from "./free-roam-collision"
 import { syncRegionCache, type RegionCache } from "./free-roam-region-cache"
 
 /**
+ * Module-level frozen empty `LayoutRegion[]` used everywhere
+ * `finalizeRegions` / `computeAdaptiveRegions` would otherwise return
+ * a fresh `[]`. Keeping the reference stable lets downstream memos
+ * (`useFreeRoamLayout`, `KonvaSheetRenderer`) bail out via `===`
+ * across drag ticks when the region set is empty (the common case
+ * for `offcuts` in Free-roam — see `finalizeRegions` rationale).
+ */
+const EMPTY_LAYOUT_REGIONS: readonly LayoutRegion[] = Object.freeze([])
+
+/**
  * Sheet-space polygon for a single placement. Rectangles expand to 4
  * rotated corners, discs to a 24-vertex approximation. Unknown /
  * missing templates collapse to an empty array so the caller can
@@ -66,8 +76,8 @@ export function placementsToPolygons(
 }
 
 export interface ComputedRegions {
-  offcuts: LayoutRegion[]
-  scrap: LayoutRegion[]
+  offcuts: readonly LayoutRegion[]
+  scrap: readonly LayoutRegion[]
 }
 
 /**
@@ -602,8 +612,10 @@ function finalizeRegions(merged: ReadonlyArray<Point2D[]>): ComputedRegions {
   // (y, x, width, height) — top-to-bottom, then left-to-right.
   scrap.sort((a, b) => a.y - b.y || a.x - b.x || a.width - b.width || a.height - b.height)
   // Offcuts deliberately empty — the amber sheet background already
-  // paints the reusable semantic.
-  return { offcuts: [], scrap }
+  // paints the reusable semantic. Reuse the module-level frozen empty
+  // array so downstream `===` identity checks across drag ticks see
+  // the same reference and skip reconciliation.
+  return { offcuts: EMPTY_LAYOUT_REGIONS, scrap }
 }
 
 export interface ComputeAdaptiveRegionsOptions {
@@ -692,7 +704,7 @@ export function computeAdaptiveRegions(
   options?: ComputeAdaptiveRegionsOptions
 ): ComputedRegions {
   if (placements.length === 0 || stock.width <= 0 || stock.length <= 0) {
-    return { offcuts: [], scrap: [] }
+    return { offcuts: EMPTY_LAYOUT_REGIONS, scrap: EMPTY_LAYOUT_REGIONS }
   }
 
   const skipPocket = options?.skipPocketPass === true
