@@ -1,9 +1,14 @@
-# Re-indexes this repo into the OpenClaw Cloudflare Vectorize store on
-# every push to `dev` (active development) or `main` (customer-facing
+# Re-indexes this repo into the Cloudflare Vectorize store used by
+# Arc-Copilot (the openclaw-worker bot, deployed on Cloudflare Workers)
+# on every push to `dev` (active development) or `main` (customer-facing
 # release). The bot's retrieval reflects whichever branch most recently
 # changed — both reindex into the same namespace (lowercased repo name)
-# so the latest push wins. That matches how OpenClaw is supposed to read
-# this repo: developers push dev as they work, main lags behind.
+# so the latest push wins. That matches how Arc-Copilot is supposed to
+# read this repo: developers push dev as they work, main lags behind.
+#
+# Retrieval feeds issue triage, CI failure triage, and @-mention
+# replies. PR review + PR overview do not use retrieval — they work
+# from the diff alone.
 #
 # Implementation lives at
 # Arc-and-Anchor/openclaw-worker/.github/workflows/codebase-index.yml.
@@ -18,9 +23,11 @@
 #   - OPENCLAW_REPO_TOKEN     (fine-grained PAT, Contents:Read on
 #                              Arc-and-Anchor/openclaw-worker — required
 #                              because the runner's default GITHUB_TOKEN
-#                              can't clone the private indexer source)
+#                              can't clone the private indexer source.
+#                              Secret name retained for compatibility
+#                              with the upstream reusable workflow.)
 
-name: OpenClaw codebase index
+name: Codebase vector index
 
 on:
   push:

@@ -106,8 +106,3 @@ release/
 
 # Rust engine build artefacts
 engine/target/
-
-# OpenClaw — local codebase index + bot credentials. Each developer /
-# self-hosted runner builds its own; the .pem private key for the
-# GitHub App lives outside the repo entirely.
-.openclaw/
