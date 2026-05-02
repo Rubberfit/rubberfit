@@ -295,6 +295,17 @@ function SheetSvg({
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
 
+  // Display rotation transform (right-to-left in SVG): undo portrait
+  // surface origin → scale up to landscape pixel-density → rotate
+  // -90° (puts the original LEFT edge at the new BOTTOM) → translate
+  // to the rotated surface's bottom-left. When displayRotated is
+  // false, sheetTransform is undefined so the inner `<g>` is a no-op.
+  const sheetTransform = layout.displayRotated
+    ? `translate(${layout.effSurfaceX} ${layout.effSurfaceY + layout.effSurfacePxH}) ` +
+      `rotate(-90) scale(${layout.effScale / layout.scale}) ` +
+      `translate(${-layout.surfaceX} ${-layout.surfaceY})`
+    : undefined
+
   return (
     <div className="group relative">
       {/* Zoom controls — visible on hover */}
@@ -382,160 +393,166 @@ function SheetSvg({
         {/* Clip everything to stock boundary */}
         <clipPath id={sClip}>
           <rect
-            x={layout.surfaceX}
-            y={layout.surfaceY}
-            width={layout.surfacePxW}
-            height={layout.surfacePxH}
+            x={layout.effSurfaceX}
+            y={layout.effSurfaceY}
+            width={layout.effSurfacePxW}
+            height={layout.effSurfacePxH}
           />
         </clipPath>
         <rect
-          x={layout.surfaceX}
-          y={layout.surfaceY}
-          width={layout.surfacePxW}
-          height={layout.surfacePxH}
+          x={layout.effSurfaceX}
+          y={layout.effSurfaceY}
+          width={layout.effSurfacePxW}
+          height={layout.effSurfacePxH}
           fill={`url(#${sStockPat})`}
           className="stroke-border"
           strokeWidth="2"
         />
         <g clipPath={`url(#${sClip})`}>
-          {!layout.shapeFirstView &&
-            sheet.preview.items.some(
-              (item) => item.placedPolygon && item.placedPolygon.length > 0
-            ) && (
-              <rect
-                x={layout.surfaceX}
-                y={layout.surfaceY}
-                width={layout.surfacePxW}
-                height={layout.surfacePxH}
-                fill={`url(#${sWastePat})`}
-                opacity="0.95"
-              />
-            )}
-          {!layout.shapeFirstView &&
-            sheet.preview.scrapBands.map((band, index) =>
-              band.polygon ? (
-                <polygon
-                  key={`scrap-band-${index + 1}`}
-                  points={band.polygon
-                    .map(
-                      (pt) =>
-                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                    )
-                    .join(" ")}
+          <g transform={sheetTransform}>
+            {!layout.shapeFirstView &&
+              sheet.preview.items.some(
+                (item) => item.placedPolygon && item.placedPolygon.length > 0
+              ) && (
+                <rect
+                  x={layout.surfaceX}
+                  y={layout.surfaceY}
+                  width={layout.surfacePxW}
+                  height={layout.surfacePxH}
                   fill={`url(#${sWastePat})`}
                   opacity="0.95"
                 />
-              ) : (
-                <rect
-                  key={`scrap-band-${index + 1}`}
-                  x={layout.surfaceX + band.x * layout.scale}
-                  y={layout.surfaceY + band.y * layout.scale}
-                  width={band.width * layout.scale}
-                  height={band.height * layout.scale}
-                  fill={`url(#${sWastePat})`}
-                  opacity="0.95"
-                />
-              )
-            )}
-          {!layout.shapeFirstView &&
-            sheet.preview.offcutBands.map((band, index) =>
-              band.polygon ? (
-                <polygon
-                  key={`band-${index + 1}`}
-                  points={band.polygon
-                    .map(
-                      (pt) =>
-                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                    )
-                    .join(" ")}
-                  fill={`url(#${sOffcutPat})`}
-                  stroke={OFFCUT_OUTLINE}
-                  strokeWidth={OFFCUT_OUTLINE_WIDTH}
-                  opacity="0.95"
-                />
-              ) : (
-                <rect
-                  key={`band-${index + 1}`}
-                  x={layout.surfaceX + band.x * layout.scale}
-                  y={layout.surfaceY + band.y * layout.scale}
-                  width={band.width * layout.scale}
-                  height={band.height * layout.scale}
-                  fill={`url(#${sOffcutPat})`}
-                  stroke={OFFCUT_OUTLINE}
-                  strokeWidth={OFFCUT_OUTLINE_WIDTH}
-                  opacity="0.95"
-                />
-              )
-            )}
-          {/* Dev-only debug overlays. `IS_DEV` is a build-time constant
+              )}
+            {!layout.shapeFirstView &&
+              sheet.preview.scrapBands.map((band, index) =>
+                band.polygon ? (
+                  <polygon
+                    key={`scrap-band-${index + 1}`}
+                    points={band.polygon
+                      .map(
+                        (pt) =>
+                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                      )
+                      .join(" ")}
+                    fill={`url(#${sWastePat})`}
+                    opacity="0.95"
+                  />
+                ) : (
+                  <rect
+                    key={`scrap-band-${index + 1}`}
+                    x={layout.surfaceX + band.x * layout.scale}
+                    y={layout.surfaceY + band.y * layout.scale}
+                    width={band.width * layout.scale}
+                    height={band.height * layout.scale}
+                    fill={`url(#${sWastePat})`}
+                    opacity="0.95"
+                  />
+                )
+              )}
+            {!layout.shapeFirstView &&
+              sheet.preview.offcutBands.map((band, index) =>
+                band.polygon ? (
+                  <polygon
+                    key={`band-${index + 1}`}
+                    points={band.polygon
+                      .map(
+                        (pt) =>
+                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                      )
+                      .join(" ")}
+                    fill={`url(#${sOffcutPat})`}
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    opacity="0.95"
+                  />
+                ) : (
+                  <rect
+                    key={`band-${index + 1}`}
+                    x={layout.surfaceX + band.x * layout.scale}
+                    y={layout.surfaceY + band.y * layout.scale}
+                    width={band.width * layout.scale}
+                    height={band.height * layout.scale}
+                    fill={`url(#${sOffcutPat})`}
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    opacity="0.95"
+                  />
+                )
+              )}
+            {/* Dev-only debug overlays. `IS_DEV` is a build-time constant
               (Next.js inlines `process.env.NODE_ENV === "development"`),
               so SWC dead-code-eliminates this whole branch — and
               tree-shakes the unreferenced `SheetDebugOverlays` /
               `itemAabb` helpers — in production bundles. */}
-          {IS_DEV && (
-            <SheetDebugOverlays
-              sheet={sheet}
-              layout={layout}
-              layoutModel={layoutModel}
-              debugOverlays={debugOverlays}
-            />
-          )}
-          {(["background", "foreground"] as const).map((pass) =>
-            sheet.preview.items.map((item, index) => (
-              <NestingShapeRenderer
-                key={`${pass}-${index}`}
-                item={item}
-                index={index}
-                surfaceX={layout.surfaceX}
-                surfaceY={layout.surfaceY}
-                unitOriginX={layout.unitOriginX}
-                unitOriginY={layout.unitOriginY}
-                scale={layout.scale}
-                shapeFirstView={layout.shapeFirstView}
-                preview={preview}
-                displayPreview={sheet.preview}
-                usablePatternId={sUsablePat}
-                wastePatternId={sWastePat}
-                viewHeight={layout.viewHeight}
-                surfacePxW={layout.surfacePxW}
-                tagLetter={item.label}
-                zoom={zoom}
-                renderPass={pass}
+            {IS_DEV && (
+              <SheetDebugOverlays
+                sheet={sheet}
+                layout={layout}
+                layoutModel={layoutModel}
+                debugOverlays={debugOverlays}
               />
-            ))
-          )}
+            )}
+            {(["background", "foreground"] as const).map((pass) =>
+              sheet.preview.items.map((item, index) => (
+                <NestingShapeRenderer
+                  key={`${pass}-${index}`}
+                  item={item}
+                  index={index}
+                  surfaceX={layout.surfaceX}
+                  surfaceY={layout.surfaceY}
+                  unitOriginX={layout.unitOriginX}
+                  unitOriginY={layout.unitOriginY}
+                  scale={layout.scale}
+                  shapeFirstView={layout.shapeFirstView}
+                  preview={preview}
+                  displayPreview={sheet.preview}
+                  usablePatternId={sUsablePat}
+                  wastePatternId={sWastePat}
+                  viewHeight={layout.viewHeight}
+                  surfacePxW={layout.surfacePxW}
+                  tagLetter={item.label}
+                  zoom={zoom}
+                  renderPass={pass}
+                  displayRotated={layout.displayRotated}
+                />
+              ))
+            )}
+          </g>
         </g>
-        <SimpleModeOffcutLabels
-          offcutLabelBands={
-            !layout.shapeFirstView && sheet.preview.offcutBands.length > 0
-              ? [...sheet.preview.offcutBands]
-                  .sort((a, b) => b.width * b.height - a.width * a.height)
-                  .reduce<typeof sheet.preview.offcutBands>((kept, band) => {
-                    const pw = band.width * layout.scale
-                    const ph = band.height * layout.scale
-                    if (Math.min(pw * 0.12, ph * 0.25) < 1.5) return kept
-                    const cx = band.x + band.width / 2
-                    const cy = band.y + band.height / 2
-                    const overlaps = kept.some(
-                      (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
-                    )
-                    if (overlaps) return kept
-                    const BAND_DIMENSION_TOLERANCE = 0.5
-                    const sameDims = kept.some(
-                      (k) =>
-                        Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
-                        Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
-                    )
-                    if (sameDims) return kept
-                    kept.push(band)
-                    return kept
-                  }, [])
-              : []
-          }
-          surfaceX={layout.surfaceX}
-          surfaceY={layout.surfaceY}
-          scale={layout.scale}
-        />
+        <g transform={sheetTransform}>
+          <SimpleModeOffcutLabels
+            offcutLabelBands={
+              !layout.shapeFirstView && sheet.preview.offcutBands.length > 0
+                ? [...sheet.preview.offcutBands]
+                    .sort((a, b) => b.width * b.height - a.width * a.height)
+                    .reduce<typeof sheet.preview.offcutBands>((kept, band) => {
+                      const pw = band.width * layout.scale
+                      const ph = band.height * layout.scale
+                      if (Math.min(pw * 0.12, ph * 0.25) < 1.5) return kept
+                      const cx = band.x + band.width / 2
+                      const cy = band.y + band.height / 2
+                      const overlaps = kept.some(
+                        (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
+                      )
+                      if (overlaps) return kept
+                      const BAND_DIMENSION_TOLERANCE = 0.5
+                      const sameDims = kept.some(
+                        (k) =>
+                          Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
+                          Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
+                      )
+                      if (sameDims) return kept
+                      kept.push(band)
+                      return kept
+                    }, [])
+                : []
+            }
+            surfaceX={layout.surfaceX}
+            surfaceY={layout.surfaceY}
+            scale={layout.scale}
+            displayRotated={layout.displayRotated}
+          />
+        </g>
         <SimpleModeDimensionLabels layout={layout} />
       </svg>
     </div>
@@ -567,15 +584,7 @@ export default function NestingVizSimpleMode({
         optimizedResult,
         optimizedItems,
       }),
-    [
-      preview,
-      previewRollW,
-      previewRollL,
-      patternSeed,
-      viewMode,
-      optimizedResult,
-      optimizedItems,
-    ]
+    [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1

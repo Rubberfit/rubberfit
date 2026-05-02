@@ -22,6 +22,12 @@ interface NestingShapeRendererProps {
   tagLetter?: string
   zoom?: number
   renderPass?: RenderPass
+  /**
+   * When the SheetSvg wrapper is rotated -90° via `<g transform>`,
+   * each tag `<text>` counter-rotates so labels read upright. Pivot
+   * is the text's own (x, y) so it stays anchored over its part.
+   */
+  displayRotated?: boolean
 }
 
 interface ShapeCoords {
@@ -61,6 +67,7 @@ function PolygonShape({
   scale,
   usablePatternId,
   tagLetter,
+  displayRotated,
 }: {
   item: PreviewItem
   index: number
@@ -72,6 +79,7 @@ function PolygonShape({
   scale: number
   usablePatternId: string
   tagLetter?: string
+  displayRotated?: boolean
 }) {
   const polyPoints = item
     .placedPolygon!.map(
@@ -97,6 +105,7 @@ function PolygonShape({
       <text
         x={labelX}
         y={labelY}
+        transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-shape-label stroke-shape-label-halo"
@@ -119,6 +128,7 @@ function CircleShape({
   wastePatternId,
   tagLetter,
   renderPass,
+  displayRotated,
 }: {
   item: PreviewItem
   index: number
@@ -127,6 +137,7 @@ function CircleShape({
   wastePatternId: string
   tagLetter?: string
   renderPass?: RenderPass
+  displayRotated?: boolean
 }) {
   const showBg = renderPass !== "foreground"
   const showFg = renderPass !== "background"
@@ -167,6 +178,7 @@ function CircleShape({
           <text
             x={cx}
             y={cy}
+            transform={displayRotated ? `rotate(90 ${cx} ${cy})` : undefined}
             textAnchor="middle"
             dominantBaseline="middle"
             className="fill-shape-label stroke-shape-label-halo"
@@ -191,6 +203,7 @@ function SectorShape({
   wastePatternId,
   tagLetter,
   renderPass,
+  displayRotated,
 }: {
   item: PreviewItem
   index: number
@@ -199,6 +212,7 @@ function SectorShape({
   wastePatternId: string
   tagLetter?: string
   renderPass?: RenderPass
+  displayRotated?: boolean
 }) {
   const showBg = renderPass !== "foreground"
   const showFg = renderPass !== "background"
@@ -260,6 +274,11 @@ function SectorShape({
           <text
             x={coords.px + coords.pw / 2}
             y={coords.py + coords.ph / 2}
+            transform={
+              displayRotated
+                ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2})`
+                : undefined
+            }
             textAnchor="middle"
             dominantBaseline="middle"
             className="fill-shape-label stroke-shape-label-halo"
@@ -284,6 +303,7 @@ function TrapezoidShape({
   wastePatternId,
   tagLetter,
   renderPass,
+  displayRotated,
 }: {
   item: PreviewItem
   index: number
@@ -292,6 +312,7 @@ function TrapezoidShape({
   wastePatternId: string
   tagLetter?: string
   renderPass?: RenderPass
+  displayRotated?: boolean
 }) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -342,6 +363,11 @@ function TrapezoidShape({
           <text
             x={coords.px + coords.pw / 2}
             y={coords.py + coords.ph / 2}
+            transform={
+              displayRotated
+                ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2})`
+                : undefined
+            }
             textAnchor="middle"
             dominantBaseline="middle"
             className="fill-shape-label stroke-shape-label-halo"
@@ -364,12 +390,14 @@ function RectShape({
   coords,
   usablePatternId,
   tagLetter,
+  displayRotated,
 }: {
   item: PreviewItem
   index: number
   coords: ShapeCoords
   usablePatternId: string
   tagLetter?: string
+  displayRotated?: boolean
 }) {
   return (
     <g key={index + 1}>
@@ -385,6 +413,11 @@ function RectShape({
       <text
         x={coords.px + coords.pw / 2}
         y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
+        transform={
+          displayRotated
+            ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)})`
+            : undefined
+        }
         textAnchor="middle"
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
@@ -416,6 +449,7 @@ export default function NestingShapeRenderer({
   tagLetter,
   zoom: _zoom,
   renderPass,
+  displayRotated,
 }: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
     item,
@@ -441,6 +475,7 @@ export default function NestingShapeRenderer({
         scale={scale}
         usablePatternId={usablePatternId}
         tagLetter={tagLetter}
+        displayRotated={displayRotated}
       />
     )
   }
@@ -455,6 +490,7 @@ export default function NestingShapeRenderer({
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
         renderPass={renderPass}
+        displayRotated={displayRotated}
       />
     )
   }
@@ -469,6 +505,7 @@ export default function NestingShapeRenderer({
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
         renderPass={renderPass}
+        displayRotated={displayRotated}
       />
     )
   }
@@ -483,6 +520,7 @@ export default function NestingShapeRenderer({
         wastePatternId={wastePatternId}
         tagLetter={tagLetter}
         renderPass={renderPass}
+        displayRotated={displayRotated}
       />
     )
   }
@@ -495,6 +533,7 @@ export default function NestingShapeRenderer({
       coords={coords}
       usablePatternId={usablePatternId}
       tagLetter={tagLetter}
+      displayRotated={displayRotated}
     />
   )
 }

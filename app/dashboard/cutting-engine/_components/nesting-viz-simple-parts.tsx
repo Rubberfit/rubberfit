@@ -408,11 +408,18 @@ export function SimpleModeOffcutLabels({
   surfaceX,
   surfaceY,
   scale,
+  displayRotated,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
   surfaceY: number
   scale: number
+  /**
+   * When the parent `<g>` is rotated -90° (tall sheet display
+   * rotation), each label `<text>` counter-rotates around its own
+   * (centerX, centerY) so "Reusable offcut" + dims read upright.
+   */
+  displayRotated?: boolean
 }) {
   return (
     <>
@@ -444,6 +451,7 @@ export function SimpleModeOffcutLabels({
             key={`offcut-label-${index + 1}`}
             x={centerX}
             y={centerY}
+            transform={displayRotated ? `rotate(90 ${centerX} ${centerY})` : undefined}
             textAnchor="middle"
             fill="#78350f"
             fontWeight="600"
