@@ -681,6 +681,7 @@ export interface RegionComputeSample {
   pocketMs: number
   gapMs: number
   unionMs: number
+  finalizeMs: number
   totalMs: number
   placementCount: number
   skipPocket: boolean
@@ -824,6 +825,9 @@ export function computeAdaptiveRegions(
   const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste, ...sideGapWaste], [])
   const tUnion = mark()
 
+  const next = finalizeRegions(merged)
+  const tFinalize = mark()
+
   if (recordTimings) {
     __regionTimingSink.push({
       syncMs: tSync - t0,
@@ -831,13 +835,12 @@ export function computeAdaptiveRegions(
       pocketMs: tPocket - tEnv,
       gapMs: tGap - tPocket,
       unionMs: tUnion - tGap,
-      totalMs: tUnion - t0,
+      finalizeMs: tFinalize - tUnion,
+      totalMs: tFinalize - t0,
       placementCount: placements.length,
       skipPocket,
     })
   }
-
-  const next = finalizeRegions(merged)
 
   // Output-identity memo: when content matches the prior call's result
   // (offcuts ref + scrap pointwise), return the previous reference so
