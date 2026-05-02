@@ -407,6 +407,13 @@ function CutPlannerPageInner() {
     frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
       ? frozenLayouts
       : undefined
+  // Save Cut button visibility belt: only show when a real layout is
+  // on screen, either restored from cut history or freshly packed.
+  // Pairs with the `setCutMetrics(null)` reset below — even if metrics
+  // ever lag the gate, the button can't appear over an empty sheet.
+  const hasRenderedLayout =
+    (activeFrozenLayouts?.length ?? 0) > 0 ||
+    (packGateStatus === "done" && layouts.length > 0)
 
   useEffect(() => {
     if (!frozenLayouts || !frozenLayoutInputSignature) return
@@ -466,8 +473,13 @@ function CutPlannerPageInner() {
   // packs against change. The signature already encodes stock dims,
   // selected templates, cut direction, and ratios — so this fires
   // exactly when an operator edit invalidates the previous pack.
+  // Also clear `cutMetrics` here: the visualizer's metrics-emit
+  // effect early-returns when its `activeLayouts` becomes empty, so
+  // without this reset the prior pack's metrics would linger and the
+  // Save Cut button would stay visible against an empty sheet.
   useEffect(() => {
     invalidatePackGate()
+    setCutMetrics(null)
   }, [currentFrozenLayoutInputSignature, invalidatePackGate])
 
   // Reset auto-boost + cap-toast tracking on any input change. Each new
@@ -746,8 +758,8 @@ function CutPlannerPageInner() {
         <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1">
-            Cut loaded from history — all fields are editable. Adjust and click <strong>Cut</strong>{" "}
-            to record a new entry.
+            Cut loaded from history — all fields are editable. Adjust and click{" "}
+            <strong>Save Cut</strong> to record a new entry.
           </span>
           <button
             type="button"
@@ -903,10 +915,10 @@ function CutPlannerPageInner() {
                       {packGateStatus === "packing" ? "Packing…" : "Pack"}
                     </Button>
                   )}
-                  {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                  {hasRenderedLayout && cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
                     <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
                       <Scissors className="mr-1.5 h-4 w-4" />
-                      {isRecordingCut ? "Recording…" : "Cut"}
+                      {isRecordingCut ? "Saving…" : "Save Cut"}
                     </Button>
                   )}
                 </div>
