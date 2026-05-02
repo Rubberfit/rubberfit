@@ -1,7 +1,12 @@
 // Simple mode render for NestingVisualizer — sub-components in nesting-viz-simple-parts.tsx
 
 import React from "react"
-import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
+import type {
+  DebugOverlayOptions,
+  PreviewItem,
+  MultiSheetResult,
+  SheetPreview,
+} from "./nesting-visualizer-types"
 import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
 import {
@@ -21,6 +26,105 @@ import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 import type { LayoutModel } from "./layout-model"
 import { CutLegend } from "./cut-legend"
 
+const IS_DEV = process.env.NODE_ENV === "development"
+
+// Single-pass min/max bounding box for an SVG render item. Used by the
+// dev-only "Show AABB" overlay. Falls back to the placement's
+// `x/y/width/height` when no rotated polygon is present (plain rects
+// where Rust skipped polygon materialisation).
+function itemAabb(item: PreviewItem): { x: number; y: number; width: number; height: number } {
+  if (item.placedPolygon && item.placedPolygon.length >= 3) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const pt of item.placedPolygon) {
+      if (pt.x < minX) minX = pt.x
+      if (pt.y < minY) minY = pt.y
+      if (pt.x > maxX) maxX = pt.x
+      if (pt.y > maxY) maxY = pt.y
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+  }
+  return { x: item.x, y: item.y, width: item.width, height: item.height }
+}
+
+// Dev-only debug overlays painted between the offcut/scrap fills and
+// the parts pass. Hoisted out of `SheetSvg` so the `IS_DEV && ...`
+// guard at the call site stays a single short-circuit (DCE-friendly)
+// without growing `SheetSvg`'s cyclomatic complexity. Returns `null`
+// when neither overlay is requested so React skips the whole subtree.
+function SheetDebugOverlays({
+  sheet,
+  layout,
+  layoutModel,
+  debugOverlays,
+}: {
+  sheet: SheetPreview
+  layout: SimpleModeLayout
+  layoutModel?: LayoutModel
+  debugOverlays?: DebugOverlayOptions
+}) {
+  const showScrap = debugOverlays?.showScrapRects === true
+  const showAabb = debugOverlays?.showAabb === true
+  if (!showScrap && !showAabb) return null
+
+  return (
+    <>
+      {showScrap &&
+        layoutModel?.debugScrapRects?.map((region, i) => (
+          <rect
+            key={`debug-scrap-${i}`}
+            x={layout.surfaceX + region.x * layout.scale}
+            y={layout.surfaceY + region.y * layout.scale}
+            width={region.width * layout.scale}
+            height={region.height * layout.scale}
+            fill="none"
+            stroke="rgba(153, 27, 27, 0.85)"
+            strokeWidth={1.25}
+            strokeDasharray="4 3"
+            style={{ pointerEvents: "none" }}
+          />
+        ))}
+      {showAabb && (
+        <>
+          {sheet.preview.offcutBands.map((band, i) => (
+            <rect
+              key={`debug-aabb-offcut-${i}`}
+              x={layout.surfaceX + band.x * layout.scale}
+              y={layout.surfaceY + band.y * layout.scale}
+              width={band.width * layout.scale}
+              height={band.height * layout.scale}
+              fill="none"
+              stroke="rgba(16, 185, 129, 0.95)"
+              strokeWidth={1.0}
+              strokeDasharray="6 3"
+              style={{ pointerEvents: "none" }}
+            />
+          ))}
+          {sheet.preview.items.map((item, i) => {
+            const aabb = itemAabb(item)
+            return (
+              <rect
+                key={`debug-aabb-part-${i}`}
+                x={layout.surfaceX + aabb.x * layout.scale}
+                y={layout.surfaceY + aabb.y * layout.scale}
+                width={aabb.width * layout.scale}
+                height={aabb.height * layout.scale}
+                fill="none"
+                stroke="rgba(124, 58, 237, 0.95)"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                style={{ pointerEvents: "none" }}
+              />
+            )
+          })}
+        </>
+      )}
+    </>
+  )
+}
+
 interface SimpleModeProps {
   preview: SimplePartPreview
   previewRollW: number
@@ -39,6 +143,12 @@ interface SimpleModeProps {
    * the part's actual dimensions rather than a tag-as-self lookup.
    */
   layouts?: LayoutModel[]
+  /**
+   * Dev-only diagnostic overlays. Both default off and the renderer
+   * gates the actual paint on `IS_DEV` so production bundles ship no
+   * overlay code.
+   */
+  debugOverlays?: DebugOverlayOptions
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -50,6 +160,8 @@ function SheetSvg({
   previewRollL,
   isMultiSheet,
   totalSheets,
+  layoutModel,
+  debugOverlays,
 }: {
   sheet: SheetPreview
   layout: SimpleModeLayout
@@ -58,6 +170,13 @@ function SheetSvg({
   previewRollL: number
   isMultiSheet: boolean
   totalSheets: number
+  /**
+   * The matching `LayoutModel` for this sheet, when available. Source
+   * of `debugScrapRects` for the dev-only "Show inscribed scrap rects"
+   * overlay; otherwise unused for rendering.
+   */
+  layoutModel?: LayoutModel
+  debugOverlays?: DebugOverlayOptions
 }) {
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
@@ -337,6 +456,19 @@ function SheetSvg({
                 />
               )
             )}
+          {/* Dev-only debug overlays. `IS_DEV` is a build-time constant
+              (Next.js inlines `process.env.NODE_ENV === "development"`),
+              so SWC dead-code-eliminates this whole branch — and
+              tree-shakes the unreferenced `SheetDebugOverlays` /
+              `itemAabb` helpers — in production bundles. */}
+          {IS_DEV && (
+            <SheetDebugOverlays
+              sheet={sheet}
+              layout={layout}
+              layoutModel={layoutModel}
+              debugOverlays={debugOverlays}
+            />
+          )}
           {(["background", "foreground"] as const).map((pass) =>
             sheet.preview.items.map((item, index) => (
               <NestingShapeRenderer
@@ -413,6 +545,7 @@ export default function NestingVizSimpleMode({
   nfpError,
   multiSheet,
   layouts,
+  debugOverlays,
 }: SimpleModeProps) {
   const layout = React.useMemo(
     () =>
@@ -497,6 +630,8 @@ export default function NestingVizSimpleMode({
             previewRollL={previewRollL}
             isMultiSheet={isMultiSheet}
             totalSheets={sheets.length}
+            layoutModel={layouts?.[sheet.sheetIndex]}
+            debugOverlays={debugOverlays}
           />
         ))}
       </div>

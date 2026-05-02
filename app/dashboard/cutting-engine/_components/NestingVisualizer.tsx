@@ -41,6 +41,7 @@ export default function NestingVisualizer({
   packGateStatus = "done",
   onMetricsChange,
   onLayoutChange,
+  debugOverlays,
 }: NestingVisualizerProps & NestingVisualizerExtraProps) {
   const patternSeed = useId().replace(/:/g, "")
   const hasFrozenLayouts = (frozenLayouts?.length ?? 0) > 0
@@ -181,6 +182,7 @@ export default function NestingVisualizer({
       nfpError={null}
       multiSheet={multiSheet}
       layouts={activeLayouts ?? undefined}
+      debugOverlays={debugOverlays}
     />
   )
 }

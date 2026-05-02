@@ -96,6 +96,25 @@ export interface SimpleCutMetrics {
   offcutPieces: OffcutPieceMetric[]
 }
 
+/**
+ * Dev-only diagnostic overlays painted on top of the auto-nest SVG.
+ *
+ * Both fields default off; the toggle UI and the renderer's overlay
+ * branch are gated on `process.env.NODE_ENV === "development"` so the
+ * production bundle ships zero overlay code.
+ *
+ * - `showAabb`: violet dashed AABB outline per placed part, emerald
+ *   dashed outline per reusable offcut. Lets devs verify rotation +
+ *   placement transforms against polygon vertices.
+ * - `showScrapRects`: dashed dark-red outline over each rectangle the
+ *   Rust extractor classified below the reusable threshold (sourced
+ *   from `LayoutModel.debugScrapRects`).
+ */
+export interface DebugOverlayOptions {
+  showAabb: boolean
+  showScrapRects: boolean
+}
+
 export interface NestingVisualizerProps {
   defaultRollWidth?: number
   defaultRollLength?: number
@@ -126,6 +145,7 @@ export interface NestingVisualizerProps {
   packGateStatus?: "idle" | "packing" | "done"
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
+  debugOverlays?: DebugOverlayOptions
 }
 
 export interface SimpleRectLayout {
