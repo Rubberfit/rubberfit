@@ -27,8 +27,6 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
   const [legendOpen, setLegendOpen] = useState(true)
   if (tagged.length === 0) return null
 
-  const maxDim = Math.max(...tagged.map((t) => Math.max(t.region.width, t.region.height)))
-
   return (
     <Card className="border border-slate-200 shadow-sm">
       <CardHeader>
@@ -85,7 +83,6 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
               heightIn={t.region.height}
               areaSqFt={t.areaSqFt}
               sourceSheetNumber={t.sourceSheetNumber}
-              maxDim={maxDim}
             />
           ))}
         </div>
@@ -114,16 +111,14 @@ function OffcutTile({
   heightIn,
   areaSqFt,
   sourceSheetNumber,
-  maxDim,
 }: {
   tag: string
   widthIn: number
   heightIn: number
   areaSqFt: number
   sourceSheetNumber: number
-  maxDim: number
 }) {
-  const scale = TILE_MAX_PX / Math.max(maxDim, 0.0001)
+  const scale = TILE_MAX_PX / Math.max(widthIn, heightIn, 0.0001)
   const w = Math.max(8, widthIn * scale)
   const h = Math.max(8, heightIn * scale)
   return (
