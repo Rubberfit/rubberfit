@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { Loader2 } from "lucide-react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
@@ -168,61 +167,74 @@ export default function NestingVisualizer({
     onLayoutChange(next)
   }, [activeLayouts, onLayoutChange])
 
+  const { packDurationMs, isPackLive, hasPackMeasurement } = usePackDurationMs(isPacking)
+  // Suppress the pill when a saved cut is loaded — that result wasn't
+  // packed in this session, so attributing the live timer to it would
+  // be misleading.
+  const showPackTimer = hasPackMeasurement && !hasFrozenLayouts
+
   return (
-    <div className="relative">
-      <NestingVizSimpleMode
-        preview={preview}
-        previewRollW={previewRollW}
-        previewRollL={previewRollL}
-        patternSeed={patternSeed}
-        viewMode="stock"
-        optimizedResult={null}
-        optimizedItems={null}
-        isOptimizing={packGateStatus === "packing"}
-        nfpError={null}
-        multiSheet={multiSheet}
-        layouts={activeLayouts ?? undefined}
-        debugOverlays={debugOverlays}
-      />
-      <PackTimerOverlay active={isPacking} />
-    </div>
+    <NestingVizSimpleMode
+      preview={preview}
+      previewRollW={previewRollW}
+      previewRollL={previewRollL}
+      patternSeed={patternSeed}
+      viewMode="stock"
+      optimizedResult={null}
+      optimizedItems={null}
+      isOptimizing={packGateStatus === "packing"}
+      nfpError={null}
+      multiSheet={multiSheet}
+      layouts={activeLayouts ?? undefined}
+      debugOverlays={debugOverlays}
+      packDurationMs={packDurationMs}
+      isPackLive={isPackLive}
+      hasPackMeasurement={showPackTimer}
+    />
   )
 }
 
-// Small badge that ticks elapsed seconds while a pack is in flight. Lives in
-// the top-right of the visualizer so the operator can see how long the
-// current Rust call has been running — useful both during the empty/loading
-// state of a first pack and during auto-boost continuations where the
-// previous sheet stays on screen.
-function PackTimerOverlay({ active }: { active: boolean }) {
-  const elapsedMs = useElapsedMs(active)
-  if (!active) return null
-  return (
-    <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 dark:text-blue-400" />
-      <span className="text-xs font-medium tabular-nums text-slate-700 dark:text-slate-200">
-        {(elapsedMs / 1000).toFixed(1)}s
-      </span>
-    </div>
-  )
-}
+// Tracks the duration of the current (or most recent) Rust pack call:
+//
+// - While `active` is true, ticks every 100 ms so the header pill shows a
+//   live "Time to Pack: 1.4s" counter.
+// - When `active` flips false, freezes at the final duration so the operator
+//   can see how long the last pack took (the pill stays on screen between
+//   packs).
+// - Resets to 0 when `active` flips back true (next pack starts).
+//
+// `hasPackMeasurement` is false only on the very first render of a session
+// before any pack has run — that's when the pill should be hidden.
+function usePackDurationMs(active: boolean): {
+  packDurationMs: number
+  isPackLive: boolean
+  hasPackMeasurement: boolean
+} {
+  const [packDurationMs, setPackDurationMs] = useState(0)
+  const [hasPackMeasurement, setHasPackMeasurement] = useState(false)
+  const startRef = useRef<number | null>(null)
 
-// Tracks elapsed milliseconds since `active` last flipped true. Resets to 0
-// when `active` flips false. Updates every 100 ms — fine-grained enough to
-// show tenths of a second without burning frames at 60 fps.
-function useElapsedMs(active: boolean): number {
-  const [elapsedMs, setElapsedMs] = useState(0)
   useEffect(() => {
     if (!active) {
-      setElapsedMs(0)
+      // Pack just ended — capture the exact final duration (the last
+      // interval tick may be up to 100 ms stale).
+      if (startRef.current !== null) {
+        setPackDurationMs(performance.now() - startRef.current)
+        setHasPackMeasurement(true)
+        startRef.current = null
+      }
       return
     }
-    const start = performance.now()
-    setElapsedMs(0)
+    startRef.current = performance.now()
+    setPackDurationMs(0)
+    setHasPackMeasurement(true)
     const id = setInterval(() => {
-      setElapsedMs(performance.now() - start)
+      if (startRef.current !== null) {
+        setPackDurationMs(performance.now() - startRef.current)
+      }
     }, 100)
     return () => clearInterval(id)
   }, [active])
-  return elapsedMs
+
+  return { packDurationMs, isPackLive: active, hasPackMeasurement }
 }

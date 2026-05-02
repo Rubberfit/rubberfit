@@ -2,6 +2,7 @@
 // Split from nesting-viz-simple-mode.tsx to keep files under 500 lines
 
 import React from "react"
+import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
 import { formatInches } from "./nesting-layout-utils"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
@@ -77,6 +78,9 @@ export function SimpleModeHeader({
   isOptimizing,
   nfpError,
   multiSheet,
+  packDurationMs,
+  isPackLive,
+  hasPackMeasurement,
 }: {
   previewTitle: string
   layoutNote: string
@@ -94,6 +98,9 @@ export function SimpleModeHeader({
   isOptimizing: boolean
   nfpError: string | null
   multiSheet?: MultiSheetResult | null
+  packDurationMs?: number
+  isPackLive?: boolean
+  hasPackMeasurement?: boolean
 }) {
   const { isMultiSheet, showReusable, reusablePctDisplay, scrapPctDisplay } = computeHeaderMetrics(
     multiSheet,
@@ -146,6 +153,16 @@ export function SimpleModeHeader({
           {isOptimizing && !isOptimizedResult && (
             <span className="rounded-full border border-stone-500/40 bg-stone-500/10 px-3 py-1 font-medium text-stone-400 animate-pulse">
               Optimizing...
+            </span>
+          )}
+          {hasPackMeasurement && (isPackLive || displayPreview.piecesShown > 0) && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-medium text-indigo-600 dark:text-indigo-300">
+              {isPackLive && (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              )}
+              <span className="tabular-nums">
+                Time to Pack: {((packDurationMs ?? 0) / 1000).toFixed(1)}s
+              </span>
             </span>
           )}
           {nfpError && (

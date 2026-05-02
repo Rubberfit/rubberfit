@@ -159,6 +159,12 @@ interface SimpleModeProps {
    * overlay code.
    */
   debugOverlays?: DebugOverlayOptions
+  /** Duration of the current (or most recent) Rust pack call, in ms. */
+  packDurationMs?: number
+  /** True while a Rust pack call is in flight — drives the spinner on the pill. */
+  isPackLive?: boolean
+  /** False before any pack has run — hides the pill on a fresh session. */
+  hasPackMeasurement?: boolean
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -579,6 +585,9 @@ export default function NestingVizSimpleMode({
   multiSheet,
   layouts,
   debugOverlays,
+  packDurationMs,
+  isPackLive,
+  hasPackMeasurement,
 }: SimpleModeProps) {
   const layout = React.useMemo(
     () =>
@@ -636,6 +645,9 @@ export default function NestingVizSimpleMode({
         isOptimizing={isOptimizing}
         nfpError={nfpError}
         multiSheet={multiSheet}
+        packDurationMs={packDurationMs}
+        isPackLive={isPackLive}
+        hasPackMeasurement={hasPackMeasurement}
       />
 
       {layouts && layouts.length > 0 && <CutLegend layouts={layouts} />}
