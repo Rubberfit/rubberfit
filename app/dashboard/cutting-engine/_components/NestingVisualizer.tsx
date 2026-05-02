@@ -120,7 +120,15 @@ export default function NestingVisualizer({
   const lastEmittedMetricsSigRef = useRef<string | null>(null)
   useEffect(() => {
     if (!onMetricsChange) return
-    if (!activeLayouts || activeLayouts.length === 0) return
+    if (!activeLayouts || activeLayouts.length === 0) {
+      // Reset the dedupe key so the next non-empty pack will re-emit
+      // even if its metrics signature is identical to the previous
+      // pack's. Without this, an invalidate → re-pack with unchanged
+      // inputs would dedupe the emit and leave `cutMetrics` null,
+      // which keeps Save Cut hidden over a valid layout.
+      lastEmittedMetricsSigRef.current = null
+      return
+    }
 
     const bandToPiece = (band: { width: number; height: number }) => ({
       widthIn: Number(band.width.toFixed(4)),

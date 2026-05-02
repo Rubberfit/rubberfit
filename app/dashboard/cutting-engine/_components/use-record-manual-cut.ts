@@ -48,6 +48,14 @@ export function useRecordManualCut(
       // layouts dropdown has something human-readable to show.
       const stockLabel = `Manual ${stock.width}" × ${stock.length}" × ${stock.thickness}"`
 
+      // Sanitize kerf before persisting: NaN / Infinity / negative
+      // values would propagate into both the snapshot and the canonical
+      // row. `stock.kerf` should already be valid (the kerf input has
+      // min=0 etc.) but defending here keeps the persisted history
+      // payload trustworthy regardless of upstream state drift.
+      const normalizedKerf =
+        Number.isFinite(stock.kerf) && stock.kerf >= 0 ? stock.kerf : 0
+
       // Snapshot everything needed to re-hydrate the canvas. `parts`
       // is cast to `unknown[]` in the DB type because the column is
       // a pass-through JSONB blob (the client owns the schema).
@@ -70,7 +78,7 @@ export function useRecordManualCut(
           thickness: stock.thickness,
           material: stock.material,
           costPerSqft: stock.costPerSqft ?? null,
-          kerf: stock.kerf,
+          kerf: normalizedKerf,
         },
       }
 
@@ -83,7 +91,7 @@ export function useRecordManualCut(
         cut_length: stock.length,
         cut_width: stock.width,
         cut_thickness: stock.thickness,
-        kerf: stock.kerf,
+        kerf: normalizedKerf,
         cut_amount: cutMetrics.partsCompleted,
         parts_completed: cutMetrics.partsCompleted,
         cut_pieces: cutMetrics.cutPieces,

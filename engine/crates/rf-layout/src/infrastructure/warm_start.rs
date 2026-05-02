@@ -204,6 +204,17 @@ pub fn greedy_rectangle_pack_with_strategy(
             continue;
         }
 
+        // shape_id is the canonical identifier for a Part; duplicates
+        // would silently overwrite the earlier entry while the items
+        // loop above still counted both quantities into total_requested,
+        // leaving the solver with fewer demands than the overflow math
+        // expects. Fail fast — duplicates are an upstream contract bug.
+        if part_meta.contains_key(&part.shape_id) {
+            return Err(PackError::EngineFailed(format!(
+                "duplicate shape_id '{}' in warm-start items",
+                part.shape_id
+            )));
+        }
         part_meta.insert(
             part.shape_id.clone(),
             PartMeta {

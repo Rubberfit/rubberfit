@@ -249,7 +249,7 @@ function CutPlannerPageInner() {
           ? buildFrozenLayoutInputSignature(
               cut.cut_width,
               cut.cut_length,
-              DEFAULT_KERF_IN,
+              cut.kerf ?? DEFAULT_KERF_IN,
               templates,
               nextCutDirection
             )

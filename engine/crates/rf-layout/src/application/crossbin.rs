@@ -305,13 +305,18 @@ fn apply_move(
         if let Some(br) = result.per_bin.iter_mut().find(|b| b.bin_id == bin.bin_id) {
             br.used_area = used_area;
             br.waste_area = waste_area;
+            // A bin emptied by cross-bin moves has zero occupied extent
+            // by definition. Falling back to the full stock dimensions
+            // (the previous behavior) made cleared bins look fully
+            // occupied to downstream metrics consumers, erasing the
+            // benefit of the accepted move in subsequent iterations.
             br.occupied_width = if this_bin_placements.is_empty() {
-                bin.width
+                0.0
             } else {
                 max_x
             };
             br.occupied_height = if this_bin_placements.is_empty() {
-                bin.height
+                0.0
             } else {
                 max_y
             };

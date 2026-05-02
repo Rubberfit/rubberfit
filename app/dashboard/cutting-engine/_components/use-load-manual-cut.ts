@@ -71,17 +71,26 @@ export function useLoadManualCut({
         }))
       )
       if (snapshot.stock) {
+        // Kerf precedence: cut_history column → layout_json snapshot →
+        // UI default. Both copies are kept in sync at write time, but
+        // the column is canonical. Pre-kerf rows fall through to the
+        // UI default. We additionally reject NaN, Infinity, and
+        // negative values to defend against DB drift / malformed
+        // imports, which `??` alone wouldn't catch.
+        const candidateKerf = cut.kerf ?? snapshot.stock.kerf
+        const kerf =
+          typeof candidateKerf === "number" &&
+          Number.isFinite(candidateKerf) &&
+          candidateKerf >= 0
+            ? candidateKerf
+            : DEFAULT_KERF_IN
         onStockChange({
           width: snapshot.stock.width,
           length: snapshot.stock.length,
           thickness: snapshot.stock.thickness,
           material: snapshot.stock.material ?? "",
           costPerSqft: snapshot.stock.costPerSqft ?? undefined,
-          // Kerf precedence: cut_history column → layout_json snapshot →
-          // UI default. Both copies are kept in sync at write time, but
-          // the column is canonical. Pre-kerf rows fall through to the
-          // UI default.
-          kerf: cut.kerf ?? snapshot.stock.kerf ?? DEFAULT_KERF_IN,
+          kerf,
         })
       }
       toast.success("Layout loaded onto canvas")

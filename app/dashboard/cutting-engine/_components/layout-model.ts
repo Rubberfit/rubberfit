@@ -184,6 +184,7 @@ function isPlacedPart(value: unknown): value is PlacedPart {
     hasOptionalFiniteNumber(value, "outerRadius") &&
     hasOptionalFiniteNumber(value, "arcDegrees") &&
     (value.polygon === undefined || isPointArray(value.polygon)) &&
+    (value.packPolygon === undefined || isPointArray(value.packPolygon)) &&
     (value.flipped === undefined || typeof value.flipped === "boolean") &&
     (value.rotated90 === undefined || typeof value.rotated90 === "boolean")
   )
@@ -206,7 +207,12 @@ export function isLayoutModel(value: unknown): value is LayoutModel {
     isFiniteNumber(value.reusableAreaSqFt) &&
     isFiniteNumber(value.scrapAreaSqFt) &&
     isFiniteNumber(value.fabScore) &&
-    (value.source === "ts-nfp" || value.source === "rust-rf-layout")
+    (value.source === "ts-nfp" || value.source === "rust-rf-layout") &&
+    (value.sheetKind === undefined || value.sheetKind === "offcut-extract") &&
+    (value.parentSheetIndex === undefined ||
+      (isFiniteNumber(value.parentSheetIndex) && Number.isInteger(value.parentSheetIndex))) &&
+    (value.debugScrapRects === undefined ||
+      (Array.isArray(value.debugScrapRects) && value.debugScrapRects.every(isLayoutRegion)))
   )
 }
 

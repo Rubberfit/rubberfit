@@ -91,7 +91,7 @@ export function templateToPart(template: PartTemplate, tag: string | undefined):
       default:
         return null
     }
-  } catch {
+  } catch (_error) {
     // buildPart throws on degenerate dimensions (negative widths,
     // sub-3-vertex polygons, etc.) — drop the part rather than
     // crashing the page.

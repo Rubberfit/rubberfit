@@ -186,7 +186,7 @@ export function usePackJob({
       } catch (err) {
         if (runIdRef.current !== runId) return
         setIsPacking(false)
-        setPackError((err as Error).message)
+        setPackError(err instanceof Error ? err.message : String(err))
         return
       }
 
@@ -220,21 +220,33 @@ export function usePackJob({
         // over-allocates (~1.54×) so jagua never starves; the empties
         // shouldn't reach the visualizer as blank "Sheet N of M" cards.
         const nonEmpty = next.filter((m) => m.placedCount > 0)
+        // When every bin came back empty but Rust still reports
+        // overflow, surface a single carrier layout so the auto-boost
+        // effect (and visualizer overflow badge) sees a non-zero
+        // job-level count. Without this, a job that doesn't fit any
+        // part on the first iteration leaves the operator on an empty
+        // graph card with no feedback.
+        const visible =
+          nonEmpty.length > 0
+            ? nonEmpty
+            : result.overflowCount > 0
+              ? next.slice(-1)
+              : nonEmpty
         // Rust reports overflow as a single job-level count. Attach it
         // to the last surviving layout so the auto-boost effect
         // (and visualizer overflow badge) sees per-layout overflow.
         // The adapter sets overflowCount: 0 on every layout to preserve
         // its 1-bin → 1-LayoutModel contract; this is where the
         // job-level total enters the visible model.
-        if (nonEmpty.length > 0 && result.overflowCount > 0) {
-          const last = nonEmpty.length - 1
-          nonEmpty[last] = { ...nonEmpty[last], overflowCount: result.overflowCount }
+        if (visible.length > 0 && result.overflowCount > 0) {
+          const last = visible.length - 1
+          visible[last] = { ...visible[last], overflowCount: result.overflowCount }
         }
-        setLayouts(nonEmpty)
+        setLayouts(visible)
         setIsPacking(false)
       } catch (err) {
         if (runIdRef.current !== runId) return
-        setPackError((err as Error).message)
+        setPackError(err instanceof Error ? err.message : String(err))
         setIsPacking(false)
       }
     }
