@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./preset-template-data"
 import type { ManualPlacement } from "./free-roam-collision"
-import type { StockConfig } from "./stock-preview-configurator"
+import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 
 /**
@@ -53,8 +53,12 @@ export function useRecordManualCut(
       // row. `stock.kerf` should already be valid (the kerf input has
       // min=0 etc.) but defending here keeps the persisted history
       // payload trustworthy regardless of upstream state drift.
+      // Falls back to DEFAULT_KERF_IN (matching the load-side path in
+      // `use-load-manual-cut.ts`) so a malformed value gets repaired
+      // to the standard default rather than persisted as a misleading
+      // zero-clearance cut.
       const normalizedKerf =
-        Number.isFinite(stock.kerf) && stock.kerf >= 0 ? stock.kerf : 0
+        Number.isFinite(stock.kerf) && stock.kerf >= 0 ? stock.kerf : DEFAULT_KERF_IN
 
       // Snapshot everything needed to re-hydrate the canvas. `parts`
       // is cast to `unknown[]` in the DB type because the column is

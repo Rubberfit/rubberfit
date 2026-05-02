@@ -244,10 +244,18 @@ fn read_optional_usize(
             key
         )));
     };
-    if n < 0.0 || n.is_nan() {
+    if !n.is_finite() || n < 0.0 {
         return Err(PackError::EngineFailed(format!(
-            "shape_spec param '{}' must be non-negative",
+            "shape_spec param '{}' must be a finite non-negative number",
             key
+        )));
+    }
+    // Mirror `read_usize`: reject fractional values explicitly rather
+    // than silently truncating via `as usize`.
+    if n.fract() != 0.0 {
+        return Err(PackError::EngineFailed(format!(
+            "shape_spec param '{}' must be an integer (got {})",
+            key, n
         )));
     }
     Ok(Some(n as usize))

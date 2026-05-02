@@ -210,7 +210,9 @@ export function isLayoutModel(value: unknown): value is LayoutModel {
     (value.source === "ts-nfp" || value.source === "rust-rf-layout") &&
     (value.sheetKind === undefined || value.sheetKind === "offcut-extract") &&
     (value.parentSheetIndex === undefined ||
-      (isFiniteNumber(value.parentSheetIndex) && Number.isInteger(value.parentSheetIndex))) &&
+      (isFiniteNumber(value.parentSheetIndex) &&
+        Number.isInteger(value.parentSheetIndex) &&
+        value.parentSheetIndex >= 0)) &&
     (value.debugScrapRects === undefined ||
       (Array.isArray(value.debugScrapRects) && value.debugScrapRects.every(isLayoutRegion)))
   )

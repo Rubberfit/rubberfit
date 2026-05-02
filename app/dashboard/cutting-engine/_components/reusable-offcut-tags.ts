@@ -37,6 +37,15 @@ export function buildTaggedReusableOffcuts(layouts: LayoutModel[]): TaggedOffcut
       // field, so reaching this branch implies an in-memory adapter
       // bug worth surfacing as missing data.
       if (layout.parentSheetIndex === undefined) {
+        if (process.env.NODE_ENV !== "production") {
+          // Dev-only warning so an adapter regression that drops
+          // parentSheetIndex is observable instead of silently
+          // omitting offcuts from the card.
+          console.warn(
+            "buildTaggedReusableOffcuts: missing parentSheetIndex for offcut-extract layout",
+            { layout }
+          )
+        }
         continue
       }
       const sourceNumber = layout.parentSheetIndex + 1
