@@ -2,9 +2,12 @@
  * Perf budget bench for `computeAdaptiveRegions` in the Free-roam canvas
  * (issue #140 / ARC-91 — main-thread stall when adding shapes).
  *
- * This suite is intentionally `describe(...)` — it locks the
- * regression target before the perf fix lands. It will be unskipped
- * once the optimization in PR #142 ships.
+ * Locks the per-tick compute budget for the production drag path
+ * (`skipPocketPass: true`) and the on-drop full-pipeline path. Trace
+ * evidence (docs/superpowers/benchmarks/2026-05-01-arc-91-trace.md)
+ * confirmed compute was never the dominant ARC-91 cost — the residual
+ * cost was React commit fanout, addressed by Fix C-4. These budgets
+ * prevent compute regression sliding back into the problem space.
  *
  * Budgets:
  *   - drag-frame compute (skipPocketPass): under 8ms p95 at N=10
