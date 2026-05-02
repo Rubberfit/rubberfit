@@ -36,6 +36,7 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
@@ -78,19 +79,19 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
-// IPackingService: native Rust engine (pack-cli binary). The legacy TS
-// fallback was removed after pack_lbf_lns + polish matched / beat it on
-// every parity fixture and on the production Fab Score. If the binary
-// is missing the app must fail fast — there is no longer a TS backup.
+// IPackingService: server resolves to RustPackingService (spawns the
+// pack-cli subprocess). Browser resolves to ApiPackingService, which
+// POSTs the PackRequest to `/api/v2/pack` — that route then spawns the
+// same RustPackingService server-side. Single Rust source of truth, no
+// TS NFP fallback.
 //
-// Binary path + existence check live in a server-only helper so this
-// file is safe to import from client components (Turbopack refuses to
-// bundle `node:fs` / `node:path`). The helper runs the first time the
-// packing service is resolved — which only ever happens server-side,
-// because RustPackingService.spawn uses node:child_process.
-export const RUST_PACK_BINARY = `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli`
+// The pack-cli binary check runs lazily, server-side only, on first
+// resolve. If the binary is missing the call fails fast at the point
+// of use rather than at module load.
+const IS_SERVER = typeof window === "undefined"
+const BINARY_EXT = typeof process !== "undefined" && process.platform === "win32" ? ".exe" : ""
+export const RUST_PACK_BINARY = `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli${BINARY_EXT}`
 function verifyRustBinary(): void {
-  if (typeof window !== "undefined") return // client-side — nothing to verify.
   if (typeof process === "undefined" || !process.versions?.node) return
   // Wrapped in eval() to keep `require` opaque to the bundler's static
   // analysis — Turbopack treats `require("node:fs")` as an external
@@ -105,14 +106,13 @@ function verifyRustBinary(): void {
     )
   }
 }
-// Use a cached factory so the binaryPath constructor arg stays out of
-// TSyringe's constructor reflection (reflect-metadata can't see string).
-// Check runs lazily — client components that pull this module in for
-// its *other* registrations never trigger the packing-binary check.
 container.register(TOKENS.IPackingService, {
   useFactory: instanceCachingFactory(() => {
-    verifyRustBinary()
-    return new RustPackingService()
+    if (IS_SERVER) {
+      verifyRustBinary()
+      return new RustPackingService()
+    }
+    return new ApiPackingService()
   }),
 })
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)

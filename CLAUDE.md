@@ -64,24 +64,60 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 ### Packing engine
 
 `IPackingService` is the canonical packing interface
-(`src/application/services/packing.service.interface.ts`). One
-implementation, `RustPackingService`, is registered through
-`di/di-registration.ts` as the sole binding — no TS fallback:
+(`src/application/services/packing.service.interface.ts`). DI binds it
+based on environment:
 
-| Engine | When | Invocation |
-|---|---|---|
-| `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cutting-engine page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
+| Context               | Implementation       | Invocation                                                                                 |
+| --------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| Server (Node runtime) | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout                                   |
+| Browser               | `ApiPackingService`  | `fetch("/api/v2/pack", ...)` — the route handler resolves `RustPackingService` server-side |
 
-The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
-2D grid warm-start (Task 19a) + sparrow-style Guided Local Search
-(Tasks 5-9) + cross-bin swap orchestrator (Tasks 11-13) + NDJSON
-progress streaming with AbortSignal cancellation (Tasks 14-16).
-Benchmarks: `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+Single source of truth: every AutoNest pack — preview-grade or
+production — flows through `pack-cli`. There is no TS fallback.
 
-`LegacyPackingService` was removed after `pack_lbf_lns + polish`
-beat it on every parity fixture at the production Fab Score.
-`USE_RUST_ENGINE=false` is no longer honored; the Rust binary is
-the only path.
+AutoNest runs Rust on every Pack click. There is no TS-side
+heuristic packer or live preview generator — operators select all
+parts, dial in stock, then press **Pack**. Multi-sheet allocation
+uses an auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total
+part area) capped at `MAX_SHEETS = 50`, with auto-boost on overflow
+that silently re-packs against more bins until everything fits or
+the cap is reached.
+
+The Rust path is the full S2.5 stack: FFD bin-assignment + 2D grid
+warm-start + sparrow-style Guided Local Search + cross-bin swap
+orchestrator. Benchmarks:
+`docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`.
+
+The previous streaming protocol (`pack-cli --stream` NDJSON +
+`AbortSignal` cancellation) was removed alongside the browser-side
+short-circuit. Browser → `/api/v2/pack` → `pack-cli` is a single
+request/response cycle.
+
+### Pack-button UX (no live load)
+
+`/dashboard/cutting-engine` does NOT pack on every keystroke. The
+page owns a [`usePackGate`](app/dashboard/cutting-engine/_hooks/use-pack-gate.ts)
+state machine — `idle` → `packing` → `done` — and feeds the Rust
+pipeline via [`usePackJob`](app/dashboard/cutting-engine/_components/use-pack-job.ts):
+
+- **`idle`** (default + after any input change): the Graph card shows
+  an empty sheet card with a **Pack** button. `usePackJob` is
+  disabled, so no `/api/v2/pack` request fires.
+- **`packing`** (after the operator presses Pack): minimum 450 ms
+  display window so the loader is perceivable; the hook resolves
+  `IPackingService` and sends a single `PackRequest`.
+- **`done`**: the hook returns `LayoutModel[]`; the visualizer
+  (`NestingVisualizer`) renders them via the existing simple-mode
+  renderer. Any subsequent input change resets the gate to `idle`
+  and clears `autoBoost`.
+
+Frozen layouts loaded from `cut_history.layout_json.auto.layouts`
+bypass the gate entirely — a saved cut always renders.
+
+The visualizer is now a thin `LayoutModel[]` consumer — there is no
+TS-side preview generator, no `useNfpOptimizer`, no
+`buildMultiSheet`, no async worker pool. Pre-Pack: empty sheet card.
+Post-Pack: rendered layouts straight from the Rust round-trip.
 
 ### Dev server
 
@@ -94,8 +130,10 @@ npm run build:engine    # one-time; ~2 min cold, seconds after
 npm run dev
 ```
 
-Without the binary, visiting `/dashboard/cutting-engine` surfaces a
-"pack-cli binary not found" error from the DI container.
+Without the binary, the first POST to `/api/v2/pack` (triggered by
+pressing **Pack** on `/dashboard/cutting-engine`) returns a 500
+with "pack-cli binary not found"; the DI container fails fast on
+the server's first `IPackingService` resolve.
 
 **Layer rules:**
 
@@ -109,18 +147,23 @@ Without the binary, visiting `/dashboard/cutting-engine` surfaces a
 Two valid flows, chosen based on the operation's complexity:
 
 **Simple (pure CRUD):**
-```
+
+```text
 app/ hook or component  →  infrastructure service  →  Supabase
 ```
+
 Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
 
 **Complex (business rules or multi-service):**
-```
+
+```text
 app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
+
 The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` resolves `ICreatePurchaseOrderUseCase` from the container and invokes `.execute(...)` → `purchaseOrderService` + `taxService`.
 
 **Use-case wiring:**
+
 - Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
 - Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
 - Resolved at call sites via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container.
@@ -129,12 +172,14 @@ The hook still owns UI concerns (toast, `router.push`, loading state). The use-c
 ### When to create a use-case
 
 Create one if the operation does **any** of:
+
 - Fires a side effect (notification, audit log, cache invalidation)
 - Touches more than one service (e.g., tax + PO + notification)
 - Enforces a business rule (status transition validation, threshold checks, EOQ math)
 - Will be reused from multiple entry points
 
 **Don't** create one for:
+
 - Pure read/list/get/delete — call the service directly from the hook
 - Single-field updates with no validation or side effect
 - Pass-through wrappers that add no logic
@@ -149,10 +194,10 @@ See `src/application/use-cases/` for current examples (7 use-cases across `purch
 
 There are **two separate tables**, read from different code paths:
 
-| Table | Purpose | Written by | Read by |
-|---|---|---|---|
-| `notifications` | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
-| `notification_queue` | Async email/SMS dispatch | `notificationService.queueNotification()` | `emailService.processEmailQueue()` |
+| Table                | Purpose                             | Written by                                                               | Read by                                              |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `notifications`      | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
+| `notification_queue` | Async email/SMS dispatch            | `notificationService.queueNotification()`                                | `emailService.processEmailQueue()`                   |
 
 The `notifications` table has a CHECK constraint on `type` (`low_stock | roll_depleted | cut_completed | system_alert`); non-low-stock events are persisted as `system_alert`. When adding new notification triggers, always route through `notificationService.sendX()` methods — they handle preferences, quiet hours, toast, DB persist, and queue in one call. Don't write directly to either table from use-cases or hooks.
 
@@ -171,10 +216,10 @@ Zustand stores follow a flat interface with `isLoading`, `isUpdating`, and `erro
 
 ### Hooks colocation (2-tier rule, S4 Task 4)
 
-| Scope                                 | Location                                       |
-| ------------------------------------- | ---------------------------------------------- |
-| Page-local (used by one surface only) | `app/dashboard/<surface>/_components/use-*.ts` |
-| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts` |
+| Scope                                         | Location                                       |
+| --------------------------------------------- | ---------------------------------------------- |
+| Page-local (used by one surface only)         | `app/dashboard/<surface>/_components/use-*.ts` |
+| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts`                           |
 
 No domain tier (`<surface>/_hooks/`) — if a surface grows past
 five shared hooks, revisit. Until then, two tiers is enough.
@@ -232,7 +277,7 @@ catch (_error) {         // use when error is intentionally ignored
 
 ## Key Domain Features
 
-- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Runs Rust `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap + progress/cancel streaming) — no TS fallback. Batch and Manual sub-modes were deleted in the same task; the single-job flow is the only surface. Parity test fixture (`tests/packing/parity/`) still runs under `npm run test:parity` as a regression gate.
+- **Cutting Engine** (`app/dashboard/cutting-engine/`, renamed from Cut Planner in S4 Task 8): 2D nesting via `IPackingService`. Browser → `fetch("/api/v2/pack")` → server `RustPackingService` → `pack-cli` (full S2.5 stack: FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). No streaming, no AbortSignal — single request/response. Live UI previews still run TS-side for responsiveness; the production pack always lands on Rust. Parity test fixture (`tests/packing/parity/`) runs under `npm run test:parity`.
 - **RBAC**: Roles are `admin`, `cutter`, `manager`, `member`, `supervisor`, `viewer`. Permission definitions live in `src/application/permissions.ts`; route protection via `canAccessPath()` in `app/lib/rbac.ts`
 - **Database**: Supabase PostgreSQL with RLS on all tables. Migrations live in `supabase/migrations/`. Triggers auto-deplete rolls at zero length and fire low-stock notifications
 

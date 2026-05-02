@@ -2,6 +2,7 @@
 // Split from nesting-viz-simple-mode.tsx to keep files under 500 lines
 
 import React from "react"
+import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
 import { formatInches } from "./nesting-layout-utils"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
@@ -77,6 +78,9 @@ export function SimpleModeHeader({
   isOptimizing,
   nfpError,
   multiSheet,
+  packDurationMs,
+  isPackLive,
+  hasPackMeasurement,
 }: {
   previewTitle: string
   layoutNote: string
@@ -94,6 +98,9 @@ export function SimpleModeHeader({
   isOptimizing: boolean
   nfpError: string | null
   multiSheet?: MultiSheetResult | null
+  packDurationMs?: number
+  isPackLive?: boolean
+  hasPackMeasurement?: boolean
 }) {
   const { isMultiSheet, showReusable, reusablePctDisplay, scrapPctDisplay } = computeHeaderMetrics(
     multiSheet,
@@ -146,6 +153,16 @@ export function SimpleModeHeader({
           {isOptimizing && !isOptimizedResult && (
             <span className="rounded-full border border-stone-500/40 bg-stone-500/10 px-3 py-1 font-medium text-stone-400 animate-pulse">
               Optimizing...
+            </span>
+          )}
+          {hasPackMeasurement && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-medium text-indigo-600 dark:text-indigo-300">
+              {isPackLive && (
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              )}
+              <span className="tabular-nums">
+                Time to Pack: {((packDurationMs ?? 0) / 1000).toFixed(1)}s
+              </span>
             </span>
           )}
           {nfpError && (
@@ -408,13 +425,25 @@ export function SimpleModeOffcutLabels({
   surfaceX,
   surfaceY,
   scale,
-  wasRotated,
+  displayRotated,
+  zoom = 1,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
   surfaceY: number
   scale: number
-  wasRotated: boolean
+  /**
+   * When the parent `<g>` is rotated -90° (tall sheet display
+   * rotation), each label `<text>` counter-rotates around its own
+   * (centerX, centerY) so "Reusable offcut" + dims read upright.
+   */
+  displayRotated?: boolean
+  /**
+   * SheetSvg zoom factor. The label-size caps divide by zoom so a
+   * label that hits the cap stays at constant screen-pixel size as
+   * the operator zooms in.
+   */
+  zoom?: number
 }) {
   return (
     <>
@@ -435,19 +464,18 @@ export function SimpleModeOffcutLabels({
           centerX = surfaceX + (band.x + band.width / 2) * scale
           centerY = surfaceY + (band.y + band.height / 2) * scale
         }
-        const labelW = wasRotated ? band.height : band.width
-        const labelH = wasRotated ? band.width : band.height
-        const dims = `${formatInches(labelW)}" \u00D7 ${formatInches(labelH)}"`
+        const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
         const bandPxW = band.width * scale
         const bandPxH = band.height * scale
-        const titleSize = Math.max(0, Math.min(13, bandPxW * 0.12, bandPxH * 0.25))
-        const dimsSize = Math.max(0, Math.min(11, bandPxW * 0.1, bandPxH * 0.2))
+        const titleSize = Math.max(0, Math.min(13 / zoom, bandPxW * 0.12, bandPxH * 0.25))
+        const dimsSize = Math.max(0, Math.min(11 / zoom, bandPxW * 0.1, bandPxH * 0.2))
 
         return (
           <text
             key={`offcut-label-${index + 1}`}
             x={centerX}
             y={centerY}
+            transform={displayRotated ? `rotate(90 ${centerX} ${centerY})` : undefined}
             textAnchor="middle"
             fill="#78350f"
             fontWeight="600"

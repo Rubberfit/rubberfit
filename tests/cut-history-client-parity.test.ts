@@ -43,6 +43,7 @@ function makeV1Row(): CutHistory {
     cut_length: 96.0,
     cut_width: 24.0,
     cut_thickness: 0.5,
+    kerf: 0.125,
     part_custom_width: null,
     part_custom_height: null,
     part_selected_size: [24],

@@ -10,11 +10,16 @@ import {
   buildOptimizedStockPreview,
 } from "./nesting-preview-builders"
 
+// Aspect ratio above which the sheet rotates 90° on screen so the long
+// edge runs along the bottom of the graph card. Purely visual — Rust
+// still packs the original orientation; LayoutModel polygons are
+// untouched.
+const ROTATE_THRESHOLD = 1.5
+
 interface SimpleModeLayoutInput {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -53,6 +58,27 @@ export interface SimpleModeLayout {
   unitOriginY: number
   canvasUnitsW: number
   canvasUnitsH: number
+  /**
+   * True when the sheet renders rotated 90° on screen so the long
+   * edge runs along the bottom. Always false for shape-first views.
+   * Drives the SVG `<g transform>` wrapper in SheetSvg and the label
+   * swap in SimpleModeDimensionLabels.
+   */
+  displayRotated: boolean
+  /**
+   * Effective rendered surface — equal to `surfaceX/Y/PxW/PxH/scale`
+   * when `displayRotated` is false, swapped to landscape dims when
+   * true. SheetSvg uses these for the stock background, the
+   * clipPath, and the dimension-line endpoints; the parts, offcuts,
+   * scrap, and AABB overlays continue to render against the portrait
+   * `surfaceX/Y/scale` and are mapped into the landscape rectangle
+   * by the rotation transform.
+   */
+  effSurfaceX: number
+  effSurfaceY: number
+  effSurfacePxW: number
+  effSurfacePxH: number
+  effScale: number
   stockPatternId: string
   offcutPatternId: string
   wastePatternId: string
@@ -78,7 +104,6 @@ export interface SimpleModeLayout {
   metricsAreEstimatedFromStock: boolean
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   preview: SimplePartPreview
 }
 
@@ -88,7 +113,6 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     preview,
     previewRollW,
     previewRollL,
-    wasRotated,
     patternSeed,
     viewMode,
     optimizedResult,
@@ -154,6 +178,26 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
   const surfaceX = padLeft + (drawWidth - surfacePxW) / 2
   const surfaceY = padTop + (drawHeight - surfacePxH) / 2
 
+  // Display rotation: tall portrait sheets render landscape with the
+  // long side at the bottom for screen readability. The portrait
+  // reference (canvasUnitsW/H, surfaceX/Y, surfacePxW/H, scale) stays
+  // untouched — shape renderers continue to compute part positions
+  // against it, and the SVG `<g>` wrapper rotates the portrait-coord
+  // output into the landscape rectangle. The eff* fields describe
+  // the rendered surface; SheetSvg uses them for the stock background
+  // + clipPath, and SimpleModeDimensionLabels uses them for line
+  // endpoints. When displayRotated is false, eff* === original.
+  const displayRotated = !shapeFirstView && previewRollL > previewRollW * ROTATE_THRESHOLD
+  const effCanvasUnitsW = displayRotated ? canvasUnitsH : canvasUnitsW
+  const effCanvasUnitsH = displayRotated ? canvasUnitsW : canvasUnitsH
+  const effScale = displayRotated
+    ? Math.min(drawWidth / effCanvasUnitsW, drawHeight / effCanvasUnitsH)
+    : scale
+  const effSurfacePxW = effCanvasUnitsW * effScale
+  const effSurfacePxH = effCanvasUnitsH * effScale
+  const effSurfaceX = padLeft + (drawWidth - effSurfacePxW) / 2
+  const effSurfaceY = padTop + (drawHeight - effSurfacePxH) / 2
+
   // Pattern IDs
   const stockPatternId = `stock-${patternSeed}`
   const offcutPatternId = `offcut-${patternSeed}`
@@ -161,9 +205,10 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
   const usablePatternId = `usable-${patternSeed}`
   const markerId = `arrow-${patternSeed}`
 
-  // Label positions
-  const rowLabelY = surfaceY + surfacePxH + 50
-  const colLabelX = surfaceX + surfacePxW + 50
+  // Label positions — anchored to the rendered surface so dim arrows
+  // sit at the landscape edges when displayRotated.
+  const rowLabelY = effSurfaceY + effSurfacePxH + 50
+  const colLabelX = effSurfaceX + effSurfacePxW + 50
 
   // Metrics
   const metricsAreEstimatedFromStock = false
@@ -225,6 +270,12 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     unitOriginY,
     canvasUnitsW,
     canvasUnitsH,
+    displayRotated,
+    effSurfaceX,
+    effSurfaceY,
+    effSurfacePxW,
+    effSurfacePxH,
+    effScale,
     stockPatternId,
     offcutPatternId,
     wastePatternId,
@@ -250,7 +301,6 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
     metricsAreEstimatedFromStock,
     previewRollW,
     previewRollL,
-    wasRotated,
     preview,
   }
 }

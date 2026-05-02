@@ -68,6 +68,48 @@ function getCutModeDescription(partType: PartTemplate["partType"]) {
   }
 }
 
+/**
+ * Per-template surface area in square inches, qty-multiplied across
+ * every supported shape kind. Returned in sq in (not sq ft) because
+ * the auto-fill bin allocator divides by sheet area in sq in.
+ *
+ * Note: `getRequestedSqFt` historically forces qty=1 for non-rectangle
+ * shapes, which is a pre-existing under-count bug we preserve in that
+ * function to avoid changing observed UI totals. This helper does NOT
+ * carry that quirk — it qty-multiplies every shape so the bin
+ * allocator estimates capacity correctly when an operator orders, e.g.,
+ * 10 cones.
+ */
+function partTemplateAreaSqIn(template: PartTemplate): number {
+  const qty = Math.max(1, template.quantity)
+  switch (template.partType) {
+    case "circle": {
+      const radius = (template.diameter ?? 0) / 2
+      return Math.PI * radius * radius * qty
+    }
+    case "cylinder": {
+      const diameter = template.diameter ?? 0
+      const height = template.height ?? 0
+      return Math.PI * diameter * height * qty
+    }
+    case "cone": {
+      const innerRadius = template.innerRadius ?? 0
+      const outerRadius = template.outerRadius ?? 0
+      const arcDegrees = template.arcDegrees ?? 0
+      return (arcDegrees / 360) * Math.PI * (outerRadius ** 2 - innerRadius ** 2) * qty
+    }
+    case "trapezoid": {
+      const topWidth = template.topWidth ?? 0
+      const bottomWidth = template.bottomWidth ?? 0
+      const height = template.height ?? 0
+      return ((topWidth + bottomWidth) / 2) * height * qty
+    }
+    case "rectangle":
+    default:
+      return (template.width ?? 0) * (template.length ?? 0) * qty
+  }
+}
+
 function getRequestedSqFt(templates: PartTemplate[]) {
   if (templates.length === 0) {
     return 0
@@ -119,24 +161,6 @@ function getDefaultCutDirection(partType: PartTemplate["partType"]): SimpleCutDi
   }
 }
 
-function parseCutRatios(input: string, count: number) {
-  if (count <= 1) {
-    return undefined
-  }
-
-  const trimmed = input.trim()
-  if (!trimmed) {
-    return undefined
-  }
-
-  const values = trimmed.split(",").map((value) => Number.parseFloat(value.trim()))
-  if (values.length !== count || values.some((value) => !Number.isFinite(value) || value <= 0)) {
-    return undefined
-  }
-
-  return values
-}
-
 function parseDimsFromLabel(
   partType: SimplePartType,
   label: string,
@@ -183,10 +207,10 @@ function parseDimsFromLabel(
 export {
   getRequestedSqFt,
   getDefaultCutDirection,
-  parseCutRatios,
   parseDimsFromLabel,
   getPartLabel,
   getCutDirectionOptions,
   getCutModeTitle,
   getCutModeDescription,
+  partTemplateAreaSqIn,
 }

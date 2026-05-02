@@ -49,7 +49,7 @@ import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { StockConfig } from "@/app/dashboard/cutting-engine/_components/stock-preview-configurator"
 
-const STOCK: StockConfig = { width: 96, length: 192, thickness: 0.06, material: "EPDM" }
+const STOCK: StockConfig = { width: 96, length: 192, thickness: 0.06, material: "EPDM", kerf: 0.125 }
 
 function rectTemplate(id: string, width: number, length: number): PartTemplate {
   return {

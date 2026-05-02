@@ -47,6 +47,14 @@ export interface PartTemplate {
   polygon?: Point2D[]
 }
 
+/**
+ * Hard cap on per-template quantity. Used by the +/- increment, the
+ * direct-typed numeric clamp, and the input-width sizing (4 digits).
+ * Centralised here so the limits can't drift between the hook and the
+ * grid component.
+ */
+export const MAX_TEMPLATE_QUANTITY = 1000
+
 export type RectangleDraft = { width: string; length: string }
 export type CylinderDraft = { diameter: string; height: string }
 export type ConeDraft = { innerRadius: string; outerRadius: string; arcDegrees: string }

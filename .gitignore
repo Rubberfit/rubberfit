@@ -87,6 +87,8 @@ docs/superpowers/plans/
 .claude/**/ROADMAP.md
 .claude/**/roadmap.md
 .claude/**/roadmap/
+# Per-user permission state — every dev's allow-list differs.
+.claude/settings.local.json
 
 # TypeScript
 *.tsbuildinfo

@@ -96,6 +96,25 @@ export interface SimpleCutMetrics {
   offcutPieces: OffcutPieceMetric[]
 }
 
+/**
+ * Dev-only diagnostic overlays painted on top of the auto-nest SVG.
+ *
+ * Both fields default off; the toggle UI and the renderer's overlay
+ * branch are gated on `process.env.NODE_ENV === "development"` so the
+ * production bundle ships zero overlay code.
+ *
+ * - `showAabb`: violet dashed AABB outline per placed part, emerald
+ *   dashed outline per reusable offcut. Lets devs verify rotation +
+ *   placement transforms against polygon vertices.
+ * - `showScrapRects`: dashed dark-red outline over each rectangle the
+ *   Rust extractor classified below the reusable threshold (sourced
+ *   from `LayoutModel.debugScrapRects`).
+ */
+export interface DebugOverlayOptions {
+  showAabb: boolean
+  showScrapRects: boolean
+}
+
 export interface NestingVisualizerProps {
   defaultRollWidth?: number
   defaultRollLength?: number
@@ -110,8 +129,23 @@ export interface NestingVisualizerProps {
    * sync/async packing so reloads do not drift from the saved cut.
    */
   frozenLayouts?: LayoutModel[]
+  /**
+   * Pack-gate status from `usePackGate`. Drives whether the visualizer
+   * runs the TS preview generators + Rust optimizer or shows an empty
+   * sheet waiting for the operator to press Pack.
+   *
+   * - `idle`: empty sheet ("Ready to pack" prompt).
+   * - `packing`: loader.
+   * - `done`: full preview + optimized layout.
+   *
+   * Defaults to `"done"` when omitted so legacy callers (free-roam,
+   * tests, screenshots) keep eager-render behaviour. New page-level
+   * callers should pass the gate so input edits don't trigger packs.
+   */
+  packGateStatus?: "idle" | "packing" | "done"
   onMetricsChange?: (metrics: SimpleCutMetrics) => void
   onTagMapChange?: (tagMap: Map<string, string>) => void
+  debugOverlays?: DebugOverlayOptions
 }
 
 export interface SimpleRectLayout {

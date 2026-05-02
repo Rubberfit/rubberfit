@@ -5,27 +5,45 @@ import React from "react"
 import { formatInches } from "./nesting-viz-simple-layout"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 
-export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout }) {
-  // wasRotated means the layout was rotated 90° CW, so the original length
-  // now runs horizontally and the original width runs vertically.
-  const horzValue = layout.previewRollW
-  const horzLabel = layout.wasRotated ? "length" : "width"
-  const vertValue = layout.previewRollL
-  const vertLabel = layout.wasRotated ? "width" : "length"
+export function SimpleModeDimensionLabels({
+  layout,
+  zoom = 1,
+}: {
+  layout: SimpleModeLayout
+  /**
+   * SheetSvg zoom factor. The dim label fontSize divides by zoom so
+   * the labels stay at constant screen-pixel size at any zoom level.
+   */
+  zoom?: number
+}) {
+  // When displayRotated, the visual horizontal edge of the sheet is
+  // the original length and the visual vertical edge is the original
+  // width. Swap value+label together so "12" length" reads correctly.
+  const horzValue = layout.displayRotated ? layout.previewRollL : layout.previewRollW
+  const horzLabel = layout.displayRotated ? "length" : "width"
+  const vertValue = layout.displayRotated ? layout.previewRollW : layout.previewRollL
+  const vertLabel = layout.displayRotated ? "width" : "length"
+
+  // Line endpoints anchor to the rendered surface (effSurface*),
+  // which equals surface* when not rotated.
+  const horzVertY = layout.shapeFirstView
+    ? layout.localBlankY + layout.localBlankH / 2
+    : layout.effSurfaceY + layout.effSurfacePxH / 2
 
   return (
     <>
       <line
-        x1={layout.shapeFirstView ? layout.localBlankX : layout.surfaceX}
+        x1={layout.shapeFirstView ? layout.localBlankX : layout.effSurfaceX}
         y1={layout.rowLabelY}
         x2={
           layout.shapeFirstView
             ? layout.localBlankX + layout.localBlankW
-            : layout.surfaceX + layout.surfacePxW
+            : layout.effSurfaceX + layout.effSurfacePxW
         }
         y2={layout.rowLabelY}
         className="stroke-muted-foreground"
         strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
       />
@@ -33,12 +51,12 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
         x={
           layout.shapeFirstView
             ? layout.localBlankX + layout.localBlankW / 2
-            : layout.surfaceX + layout.surfacePxW / 2
+            : layout.effSurfaceX + layout.effSurfacePxW / 2
         }
         y={layout.rowLabelY + 24}
         textAnchor="middle"
         className="fill-foreground"
-        fontSize="14"
+        fontSize={14 / zoom}
         fontWeight="600"
       >
         {`${formatInches(horzValue)}" ${horzLabel}`}
@@ -46,30 +64,27 @@ export function SimpleModeDimensionLabels({ layout }: { layout: SimpleModeLayout
 
       <line
         x1={layout.colLabelX}
-        y1={layout.shapeFirstView ? layout.localBlankY : layout.surfaceY}
+        y1={layout.shapeFirstView ? layout.localBlankY : layout.effSurfaceY}
         x2={layout.colLabelX}
         y2={
           layout.shapeFirstView
             ? layout.localBlankY + layout.localBlankH
-            : layout.surfaceY + layout.surfacePxH
+            : layout.effSurfaceY + layout.effSurfacePxH
         }
         className="stroke-muted-foreground"
         strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
         markerStart={`url(#${layout.markerId})`}
         markerEnd={`url(#${layout.markerId})`}
       />
       <text
         x={layout.colLabelX + 26}
-        y={
-          layout.shapeFirstView
-            ? layout.localBlankY + layout.localBlankH / 2
-            : layout.surfaceY + layout.surfacePxH / 2
-        }
+        y={horzVertY}
         textAnchor="middle"
         className="fill-foreground"
-        fontSize="14"
+        fontSize={14 / zoom}
         fontWeight="600"
-        transform={`rotate(90 ${layout.colLabelX + 26} ${layout.shapeFirstView ? layout.localBlankY + layout.localBlankH / 2 : layout.surfaceY + layout.surfacePxH / 2})`}
+        transform={`rotate(90 ${layout.colLabelX + 26} ${horzVertY})`}
       >
         {`${formatInches(vertValue)}" ${vertLabel}`}
       </text>

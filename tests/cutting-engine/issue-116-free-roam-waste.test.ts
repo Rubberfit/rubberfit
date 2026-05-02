@@ -69,6 +69,7 @@ const STOCK: StockConfig = {
   length: 48,
   thickness: 0.06,
   material: "EPDM",
+  kerf: 0.125,
 }
 
 describe("issue #116 — free-roam waste classification", () => {
