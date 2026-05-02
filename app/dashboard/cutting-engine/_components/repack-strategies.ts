@@ -403,7 +403,7 @@ function rePackHomogeneousOverflowSheets(
   // the cones don't tessellate as densely as the AABB grid for a particular
   // geometry), regressing total sheet count even though every spec keeps its
   // items. Plan A enforces the same constraint via its own gate at line ~360.
-  // See PR #150 review (CodeRabbit + OpenClaw flagged ACCEPT).
+  // See PR #150 review (CodeRabbit flagged ACCEPT).
   const overflowSheetCap = Math.min(sheetCap, overflowSheets.length)
   const repackedSheets = expandNfpSheets(
     pooledSpecs,
