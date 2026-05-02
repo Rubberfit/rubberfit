@@ -369,7 +369,7 @@ interface KonvaSheetRendererProps {
   showGrid?: boolean
 }
 
-export default function KonvaSheetRenderer({
+function KonvaSheetRenderer({
   layout,
   className,
   onPartDragEnd,
@@ -492,3 +492,15 @@ export default function KonvaSheetRenderer({
     </div>
   )
 }
+
+/**
+ * Memoized so the renderer's body skips re-execution when the parent
+ * re-renders without changing any visible prop (issue #140 / ARC-91
+ * Fix C-4). Default shallow compare is sufficient because:
+ *   - `layout` ref is stable across drag ticks when content-equal
+ *     (see `useFreeRoamLayout`'s `layoutCache` bailout).
+ *   - `zoomPct`, `showGrid`, `selectedPartId`, `defaultFill` are
+ *     primitives.
+ *   - Handler props are `useCallback`'d in `free-roam-content.tsx`.
+ */
+export default memo(KonvaSheetRenderer)

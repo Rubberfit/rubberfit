@@ -5,7 +5,7 @@ import type { LayoutRegion } from "./layout-model"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { ManualPlacement } from "./free-roam-collision"
 
-function regionsAreaSqIn(regions: LayoutRegion[]): number {
+function regionsAreaSqIn(regions: readonly LayoutRegion[]): number {
   let total = 0
   for (const r of regions) {
     // Scrap regions may carry a concave waste polygon that hugs the
@@ -42,7 +42,7 @@ export function deriveManualMetrics(
   placements: ManualPlacement[],
   parts: PartTemplate[],
   stock: StockConfig,
-  regions: { offcuts: LayoutRegion[]; scrap: LayoutRegion[] }
+  regions: { offcuts: readonly LayoutRegion[]; scrap: readonly LayoutRegion[] }
 ): SimpleCutMetrics | null {
   if (placements.length === 0) return null
   const byId = new Map(parts.map((p) => [p.id, p]))

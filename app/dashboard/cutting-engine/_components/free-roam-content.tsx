@@ -16,11 +16,52 @@ import { deriveManualMetrics } from "./free-roam-metrics"
 import { useFreeRoamPlacements } from "./use-free-roam-placements"
 import { FreeRoamSavedLayoutsRail } from "./free-roam-saved-layouts-rail"
 import { useFreeRoamRegions } from "./use-free-roam-regions"
+import { __dumpRegionTimings } from "./free-roam-regions"
 import { useDragSnapshot } from "./use-drag-snapshot"
 import { useRecordManualCut } from "./use-record-manual-cut"
 import { useLoadManualCut } from "./use-load-manual-cut"
 import { FreeRoamAddShapeDialog } from "./free-roam-add-shape-dialog"
 import { CutLoader } from "./cut-loader"
+
+/**
+ * Dev-only: drains the per-stage timing sink and prints a `console.table`
+ * + a one-line p95 / placement-range summary. Module-level so it doesn't
+ * count toward the host component's line budget — and so the production
+ * build can DCE it via `process.env.NODE_ENV !== "production"` at the
+ * single call site below.
+ */
+function dumpRegionTimingsToConsole(): void {
+  const samples = __dumpRegionTimings()
+  if (samples.length === 0) {
+    console.log("[arc-91] No region timing samples — drag a part to collect.")
+    return
+  }
+  console.table(samples)
+  const sortedTotal = [...samples].map((s) => s.totalMs).sort((a, b) => a - b)
+  const p95Total = sortedTotal[Math.floor(sortedTotal.length * 0.95)] ?? 0
+  const placementCounts = samples.map((s) => s.placementCount)
+  console.log(
+    `[arc-91] N=${samples.length} samples; p95 totalMs=${p95Total.toFixed(2)}; placement count range=${Math.min(...placementCounts)}-${Math.max(...placementCounts)}`
+  )
+}
+
+/**
+ * Dev-only floating button (top-right of the canvas) that dumps
+ * collected per-stage region-compute timings to the console. Production
+ * builds strip this entire component via the `process.env.NODE_ENV`
+ * guard at its single call site.
+ */
+function DumpRegionTimingsButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute right-2 top-2 rounded border border-amber-400 bg-amber-50 px-2 py-1 text-xs text-amber-900 shadow-sm hover:bg-amber-100 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      Dump region timings
+    </button>
+  )
+}
 
 /**
  * Inline help overlay shown on the empty canvas. Bottom-centered, no
@@ -221,6 +262,11 @@ export default function FreeRoamContent({
     dragSnapshot != null
   )
 
+  // Dev-only handler for the "Dump region timings" overlay button.
+  // Body lives in `dumpRegionTimingsToConsole` (module-level) so it's
+  // DCE-friendly and doesn't bloat the component.
+  const handleDumpRegionTimings = useCallback(() => dumpRegionTimingsToConsole(), [])
+
   const layout = useFreeRoamLayout(
     effectivePlacements,
     parts,
@@ -283,6 +329,9 @@ export default function FreeRoamContent({
                 hasParts={parts.length > 0}
                 hasPlacements={placements.length > 0}
               />
+              {process.env.NODE_ENV !== "production" && (
+                <DumpRegionTimingsButton onClick={handleDumpRegionTimings} />
+              )}
             </div>
           </div>
         </WorkspaceColumn>
