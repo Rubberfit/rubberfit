@@ -5,7 +5,7 @@
 
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import {
   Card,
   CardContent,
@@ -24,6 +24,7 @@ const TILE_MAX_PX = 140
 
 export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
   const tagged = useMemo(() => buildTaggedReusableOffcuts(layouts), [layouts])
+  const [legendOpen, setLegendOpen] = useState(true)
   if (tagged.length === 0) return null
 
   const maxDim = Math.max(...tagged.map((t) => Math.max(t.region.width, t.region.height)))
@@ -43,21 +44,37 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
-          {tagged.map((t) => (
-            <span key={t.tag} className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[10px] font-bold leading-none text-amber-700">
-                {t.tag}
-              </span>
-              <span className="text-foreground">
-                {`${formatInches(t.region.width)}" × ${formatInches(t.region.height)}"`}
-              </span>
-              <span>·</span>
-              <span>{t.areaSqFt.toFixed(2)} ft²</span>
-              <span>·</span>
-              <span>from Sheet {t.sourceSheetNumber}</span>
+        <div className="rounded-md border border-border bg-muted/30 text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => setLegendOpen((v) => !v)}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left font-medium hover:bg-muted/60"
+            aria-expanded={legendOpen}
+          >
+            <ChevronGlyph open={legendOpen} />
+            <span>Offcut Legend</span>
+            <span className="text-muted-foreground/70">
+              ({tagged.length} {tagged.length === 1 ? "offcut" : "offcuts"})
             </span>
-          ))}
+          </button>
+          {legendOpen && (
+            <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 px-3 pb-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {tagged.map((t) => (
+                <div key={t.tag} className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[10px] font-bold leading-none text-amber-700">
+                    {t.tag}
+                  </span>
+                  <span className="truncate text-foreground">
+                    {`${formatInches(t.region.width)}" × ${formatInches(t.region.height)}"`}
+                  </span>
+                  <span>·</span>
+                  <span className="shrink-0">{t.areaSqFt.toFixed(2)} ft²</span>
+                  <span>·</span>
+                  <span className="shrink-0">from Sheet {t.sourceSheetNumber}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-end gap-4">
           {tagged.map((t) => (
@@ -74,6 +91,20 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function ChevronGlyph({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      className={`shrink-0 transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+    >
+      <path d="M3 1 L7 5 L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
   )
 }
 
