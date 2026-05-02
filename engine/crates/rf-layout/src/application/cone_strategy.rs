@@ -337,9 +337,10 @@ fn ensure_ccw(points: Vec<Point2D>) -> Vec<Point2D> {
     if n < 3 {
         return points;
     }
-    // Trapezoid signed-area: positive == CW in screen (y-down) coords.
-    // Reverse to get CCW so jagua/rf-geom consumers see the standard
-    // math-coord winding the rest of the codebase produces.
+    // Ensure CCW winding for math-coord (y-up) consumers — the
+    // convention jagua-rs / rf-geom expect. The trapezoid shoelace form
+    // below returns a positive sum for CW polygons in math coords; we
+    // reverse those so all downstream code can assume CCW.
     let mut signed = 0.0;
     for i in 0..n {
         let a = points[i];

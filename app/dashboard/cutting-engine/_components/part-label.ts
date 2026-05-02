@@ -63,10 +63,17 @@ export function polygonCentroid(points: ReadonlyArray<{ x: number; y: number }>)
   x: number
   y: number
 } {
+  const n = points.length
+  // Empty input would otherwise fall through both loops and divide
+  // 0/0 in the fallback averaging branch, returning NaN coordinates
+  // that SVG silently coerces to 0 — wrong but invisible. Return a
+  // safe origin point instead so downstream consumers see real data.
+  if (n === 0) {
+    return { x: 0, y: 0 }
+  }
   let cx = 0
   let cy = 0
   let area2 = 0
-  const n = points.length
   for (let i = 0; i < n; i++) {
     const p0 = points[i]
     const p1 = points[(i + 1) % n]

@@ -148,7 +148,7 @@ Two valid flows, chosen based on the operation's complexity:
 
 **Simple (pure CRUD):**
 
-```
+```text
 app/ hook or component  →  infrastructure service  →  Supabase
 ```
 
@@ -156,7 +156,7 @@ Used for list/get/delete and single-field updates. Example: `app/dashboard/inven
 
 **Complex (business rules or multi-service):**
 
-```
+```text
 app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
 

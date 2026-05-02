@@ -1013,6 +1013,10 @@ mod tests {
                 .any(|o| matches!(o.kind, OffcutKind::Reusable)),
             "expected at least one Reusable offcut"
         );
+        assert!(
+            offcuts.iter().any(|o| matches!(o.kind, OffcutKind::Scrap)),
+            "expected at least one Scrap offcut"
+        );
     }
 
     #[test]
@@ -1035,7 +1039,15 @@ mod tests {
             .sum();
 
         let (_, offcuts) = extract_free_space_two_signal(&bin, &[&p]);
-        let post_reusable_sum: f64 = offcuts.iter().map(|o| o.width * o.height).sum();
+        // Mirror the pre-sum's Reusable filter. Without it, if the
+        // partition ever emits a Scrap rectangle for this fixture the
+        // test would fail on a totals mismatch and stop validating the
+        // intended "reusable area survives partition" invariant.
+        let post_reusable_sum: f64 = offcuts
+            .iter()
+            .filter(|o| matches!(o.kind, OffcutKind::Reusable))
+            .map(|o| o.width * o.height)
+            .sum();
 
         assert!(
             (pre_reusable_sum - post_reusable_sum).abs() < 1e-6,

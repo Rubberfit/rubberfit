@@ -124,16 +124,13 @@ function OffcutTile({
   return (
     <div className="flex flex-col items-center gap-1 text-center">
       <div
-        className="relative"
+        className="relative flex items-end justify-center"
         style={{
           width: TILE_MAX_PX,
           height: TILE_MAX_PX,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
         }}
       >
-        <svg width={w} height={h} style={{ display: "block" }}>
+        <svg width={w} height={h} className="block">
           <defs>
             <pattern
               id={`offcut-tile-${tag}`}

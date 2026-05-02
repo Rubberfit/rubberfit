@@ -83,8 +83,16 @@ function PolygonShape({
   displayRotated?: boolean
   zoom?: number
 }) {
-  const polyPoints = item
-    .placedPolygon!.map(
+  // Caller only invokes PolygonShape on items that already carry a
+  // placedPolygon; the type system can't see that, so narrow once via
+  // an early return rather than spraying `!` across the renderer.
+  const placedPolygon = item.placedPolygon
+  if (!placedPolygon || placedPolygon.length === 0) {
+    return null
+  }
+
+  const polyPoints = placedPolygon
+    .map(
       (pt) =>
         `${surfaceX + (pt.x - unitOriginX) * scale},${surfaceY + (pt.y - unitOriginY) * scale}`
     )
@@ -93,7 +101,7 @@ function PolygonShape({
   // For concave shapes (e.g. a 150° annular sector), the bbox centre
   // lands outside the silhouette; the centroid sits inside the actual
   // filled region.
-  const centroid = polygonCentroid(item.placedPolygon!)
+  const centroid = polygonCentroid(placedPolygon)
   const labelX = surfaceX + (centroid.x - unitOriginX) * scale
   const labelY = surfaceY + (centroid.y - unitOriginY) * scale
   return (

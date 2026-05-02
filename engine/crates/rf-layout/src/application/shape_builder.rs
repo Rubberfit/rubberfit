@@ -213,10 +213,19 @@ fn read_f64(params: &HashMap<String, serde_json::Value>, key: &str) -> Result<f6
 
 fn read_usize(params: &HashMap<String, serde_json::Value>, key: &str) -> Result<usize, PackError> {
     let n = read_f64(params, key)?;
-    if n < 0.0 || n.is_nan() {
+    if !n.is_finite() || n < 0.0 {
         return Err(PackError::EngineFailed(format!(
-            "shape_spec param '{}' must be non-negative",
+            "shape_spec param '{}' must be a finite non-negative number",
             key
+        )));
+    }
+    // Reject fractional values explicitly — `as usize` would silently
+    // truncate (6.9 → 6) and the caller would misinterpret the result
+    // as the integer they intended.
+    if n.fract() != 0.0 {
+        return Err(PackError::EngineFailed(format!(
+            "shape_spec param '{}' must be an integer (got {})",
+            key, n
         )));
     }
     Ok(n as usize)

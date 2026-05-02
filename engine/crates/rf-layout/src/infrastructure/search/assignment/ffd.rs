@@ -202,7 +202,7 @@ pub(crate) fn materialize_parts(
     original_items: &[Part],
 ) -> Vec<Part> {
     // Collect sorted shape_ids for deterministic iteration.
-    let mut shape_ids: Vec<&String> = counts.keys().filter(|_| true).collect();
+    let mut shape_ids: Vec<&String> = counts.keys().collect();
     shape_ids.sort();
 
     shape_ids

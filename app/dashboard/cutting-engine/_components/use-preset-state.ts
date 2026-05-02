@@ -19,6 +19,7 @@ import {
   EMPTY_CUSTOM_TEMPLATES,
   CUSTOM_TEMPLATE_STORAGE_KEY,
   LEGACY_CUSTOM_TEMPLATE_STORAGE_KEY,
+  MAX_TEMPLATE_QUANTITY,
 } from "./preset-template-data"
 import {
   buildCustomTemplate,
@@ -512,7 +513,9 @@ export function usePresetState(
   }
 
   const handleQuantityChange = (templateId: string, qty: number) => {
-    const clamped = Number.isFinite(qty) ? Math.max(1, Math.min(1000, Math.round(qty))) : 1
+    const clamped = Number.isFinite(qty)
+      ? Math.max(1, Math.min(MAX_TEMPLATE_QUANTITY, Math.round(qty)))
+      : 1
     setQuantities((previous) => {
       const next = new Map(previous)
       if (clamped <= 1) {

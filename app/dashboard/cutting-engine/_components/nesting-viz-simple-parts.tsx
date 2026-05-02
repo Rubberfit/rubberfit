@@ -155,7 +155,7 @@ export function SimpleModeHeader({
               Optimizing...
             </span>
           )}
-          {hasPackMeasurement && (isPackLive || displayPreview.piecesShown > 0) && (
+          {hasPackMeasurement && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-medium text-indigo-600 dark:text-indigo-300">
               {isPackLive && (
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />

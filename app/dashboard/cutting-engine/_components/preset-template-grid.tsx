@@ -3,15 +3,20 @@
 import { useEffect, useState } from "react"
 import { Minus, Pencil, Plus } from "lucide-react"
 import type { PartTemplate } from "./preset-template-data"
-import { CAT_BADGE } from "./preset-template-data"
+import { CAT_BADGE, MAX_TEMPLATE_QUANTITY } from "./preset-template-data"
 import { getTemplateAreaSqFt } from "./preset-utils"
+
+interface QtyInputProps {
+  value: number
+  onChange: (next: number) => void
+}
 
 // Quantity field that lets the operator type a value directly while
 // keeping the +/- buttons intact. Local draft state holds the typed
 // string so an in-progress edit (e.g. cleared field) doesn't snap
 // back to "1" mid-keystroke; the parent's onChange runs on blur or
-// Enter, where `handleQuantityChange` clamps to [1, 1000].
-function QtyInput({ value, onChange }: { value: number; onChange: (next: number) => void }) {
+// Enter, where `handleQuantityChange` clamps to [1, MAX_TEMPLATE_QUANTITY].
+function QtyInput({ value, onChange }: QtyInputProps) {
   const [draft, setDraft] = useState(String(value))
   useEffect(() => {
     setDraft(String(value))
@@ -182,7 +187,7 @@ export function PresetTemplateGrid({
                             event.preventDefault()
                             event.stopPropagation()
                             const current = quantities.get(template.id) ?? 1
-                            onQuantityChange(template.id, Math.min(1000, current + 1))
+                            onQuantityChange(template.id, Math.min(MAX_TEMPLATE_QUANTITY, current + 1))
                           }}
                           className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
                         >

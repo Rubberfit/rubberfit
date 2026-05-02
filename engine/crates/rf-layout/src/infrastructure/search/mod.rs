@@ -1058,8 +1058,11 @@ mod tests {
 
     #[test]
     fn fixed_bin_repack_never_worse_than_bssf_baseline() {
-        // 4 small squares in a bin that only fits 3 â€” sparrow should place
-        // at least the BSSF baseline's count (3) and never fewer.
+        // 4 squares of side 10 in a 30×30 bin (fits up to 9). BSSF
+        // places all 4; sparrow must match — never drop a part it
+        // could have kept. Previously the assertion was `>= 3`, which
+        // would have silently passed if a regression dropped one of
+        // the four placements.
         let bin = Bin {
             bin_id: "b".into(),
             width: 30.0,
@@ -1076,11 +1079,12 @@ mod tests {
         };
         let out = fixed_bin_sparrow_repack(&bin, &items, 0.0, config).unwrap();
 
-        // BSSF grid packer fits 9 (3Ã—3 of 10Ã—10 in 30Ã—30). Our spike must
-        // return at least that many. Feasibility contract: never worse.
-        assert!(
-            out.placements.len() >= 3,
-            "repack must return at least BSSF baseline, got {} placements",
+        // Feasibility contract: never worse than BSSF. With this
+        // fixture BSSF places all 4 requested copies.
+        assert_eq!(
+            out.placements.len(),
+            4,
+            "repack must place all 4 squares (BSSF baseline), got {} placements",
             out.placements.len()
         );
         assert!(

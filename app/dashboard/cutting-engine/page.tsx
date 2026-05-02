@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Checkbox } from "@/app/components/ui/checkbox"
+import { DebugOverlayToggles, type DebugOverlays } from "./_components/debug-overlay-toggles"
 import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import { usePackGate } from "./_hooks/use-pack-gate"
@@ -148,7 +148,7 @@ function CutPlannerPageInner() {
   // Dev-only diagnostic overlays painted on top of the auto-nest SVG.
   // The state is harmless in prod (default-false, the UI that flips it
   // and the renderer's overlay branch are both gated on `IS_DEV`).
-  const [debugOverlays, setDebugOverlays] = useState({
+  const [debugOverlays, setDebugOverlays] = useState<DebugOverlays>({
     showAabb: false,
     showScrapRects: false,
   })
@@ -870,26 +870,10 @@ function CutPlannerPageInner() {
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   {IS_DEV && (
-                    <>
-                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={debugOverlays.showAabb}
-                          onCheckedChange={(v) =>
-                            setDebugOverlays((o) => ({ ...o, showAabb: v === true }))
-                          }
-                        />
-                        Show AABB
-                      </label>
-                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={debugOverlays.showScrapRects}
-                          onCheckedChange={(v) =>
-                            setDebugOverlays((o) => ({ ...o, showScrapRects: v === true }))
-                          }
-                        />
-                        Show inscribed scrap rects
-                      </label>
-                    </>
+                    <DebugOverlayToggles
+                      debugOverlays={debugOverlays}
+                      setDebugOverlays={setDebugOverlays}
+                    />
                   )}
                   {packGateStatus !== "done" && !activeFrozenLayouts && (
                     <Button size="sm" onClick={requestPack} disabled={packGateStatus === "packing"}>
@@ -945,24 +929,10 @@ function CutPlannerPageInner() {
               </CardTitle>
               {IS_DEV && (
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Checkbox
-                      checked={debugOverlays.showAabb}
-                      onCheckedChange={(v) =>
-                        setDebugOverlays((o) => ({ ...o, showAabb: v === true }))
-                      }
-                    />
-                    Show AABB
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Checkbox
-                      checked={debugOverlays.showScrapRects}
-                      onCheckedChange={(v) =>
-                        setDebugOverlays((o) => ({ ...o, showScrapRects: v === true }))
-                      }
-                    />
-                    Show inscribed scrap rects
-                  </label>
+                  <DebugOverlayToggles
+                    debugOverlays={debugOverlays}
+                    setDebugOverlays={setDebugOverlays}
+                  />
                 </div>
               )}
             </div>

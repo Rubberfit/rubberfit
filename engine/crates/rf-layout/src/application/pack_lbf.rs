@@ -416,13 +416,16 @@ pub fn is_axis_aligned_rect(p: &crate::domain::Part) -> bool {
         return false;
     }
     // Axis-aligned: every edge is either horizontal or vertical.
+    // 1e-6 matches the rest of this file (e.g. parity assertions); a
+    // rectangle that drifts past 1e-9 on chained transforms shouldn't
+    // be falsely rejected and forced down the slower polygon path.
     for i in 0..4 {
         let a = poly[i];
         let b = poly[(i + 1) % 4];
         let dx = (a.x - b.x).abs();
         let dy = (a.y - b.y).abs();
-        let horizontal = dy < 1e-9 && dx > 1e-9;
-        let vertical = dx < 1e-9 && dy > 1e-9;
+        let horizontal = dy < 1e-6 && dx > 1e-6;
+        let vertical = dx < 1e-6 && dy > 1e-6;
         if !(horizontal || vertical) {
             return false;
         }

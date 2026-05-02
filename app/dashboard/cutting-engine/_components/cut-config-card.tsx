@@ -3,6 +3,7 @@ import { Scissors, Shapes } from "lucide-react"
 import { PartTemplate } from "./preset-template-data"
 import { SimpleCutDirection } from "./nesting-visualizer-types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { cn } from "@/app/lib/utils"
 import {
   getCutDirectionOptions,
   getCutModeDescription,
@@ -184,11 +185,12 @@ function CutModeCard({
               key={value}
               type="button"
               onClick={() => setCutDirection(value)}
-              className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+              className={cn(
+                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-900/10 dark:text-blue-300"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:bg-slate-700/70"
-              }`}
+              )}
             >
               {label}
             </button>

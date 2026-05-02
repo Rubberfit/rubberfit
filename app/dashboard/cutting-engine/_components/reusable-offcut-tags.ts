@@ -29,7 +29,17 @@ export function buildTaggedReusableOffcuts(layouts: LayoutModel[]): TaggedOffcut
 
   for (const layout of layouts) {
     if (layout.sheetKind === "offcut-extract") {
-      const sourceNumber = (layout.parentSheetIndex ?? 0) + 1
+      // An offcut-extract sheet without a parentSheetIndex has no
+      // provenance to attribute; silently mapping to sheet 1 (the
+      // previous behavior) produced wrong source labels in the
+      // offcuts card. Skip rather than fabricate. The runtime guard
+      // in `isLayoutModel` already rejects frozen rows missing this
+      // field, so reaching this branch implies an in-memory adapter
+      // bug worth surfacing as missing data.
+      if (layout.parentSheetIndex === undefined) {
+        continue
+      }
+      const sourceNumber = layout.parentSheetIndex + 1
       for (const region of layout.offcuts) {
         collected.push({ region, sourceSheetNumber: sourceNumber })
       }
