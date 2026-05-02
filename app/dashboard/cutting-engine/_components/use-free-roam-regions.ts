@@ -18,6 +18,8 @@ interface UseFreeRoamRegionsResult {
   committedRegions: ComputedRegions
 }
 
+const TIMINGS_ENABLED = process.env.NODE_ENV !== "production"
+
 /**
  * Owns the per-tick region computation for the Free-roam canvas.
  *
@@ -36,6 +38,10 @@ interface UseFreeRoamRegionsResult {
  * hook's lifetime via `useState` lazy init (React 19 lint forbids ref
  * reads during render). Issue #117 invalidation rules live in
  * `free-roam-region-cache.ts`.
+ *
+ * Dev-only: drag-frame calls pass `enableTimings: true` so per-stage
+ * costs land in `__regionTimingSink` (drained via `__dumpRegionTimings()`).
+ * Production builds strip the branch via `process.env.NODE_ENV` DCE.
  */
 export function useFreeRoamRegions(
   placements: ManualPlacement[],
@@ -56,6 +62,7 @@ export function useFreeRoamRegions(
       isDragging
         ? computeAdaptiveRegions(effectivePlacements, parts, stock, regionCache, {
             skipPocketPass: true,
+            enableTimings: TIMINGS_ENABLED,
           })
         : committedRegions,
     [isDragging, effectivePlacements, parts, stock, regionCache, committedRegions]
