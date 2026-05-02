@@ -1,0 +1,97 @@
+/**
+ * Perf budget bench for `computeAdaptiveRegions` in the Free-roam canvas
+ * (issue #140 / ARC-91 — main-thread stall when adding shapes).
+ *
+ * This suite is intentionally `describe.skip(...)` — it locks the
+ * regression target before the perf fix lands. It will be unskipped
+ * once the optimization in PR #142 ships.
+ *
+ * Budgets:
+ *   - drag-frame compute (skipPocketPass): under 8ms p95 at N=10
+ *   - drop-frame compute (full pipeline):  under 50ms max at N=10
+ *   - drag-frame compute at N=20 scaling:  under 16ms p95
+ */
+import { describe, expect, it } from "vitest"
+import { computeAdaptiveRegions } from "@/app/dashboard/cutting-engine/_components/free-roam-regions"
+import { makeRegionCache } from "@/app/dashboard/cutting-engine/_components/free-roam-region-cache"
+import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
+import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
+import type { StockConfig } from "@/app/dashboard/cutting-engine/_components/stock-preview-configurator"
+
+const STOCK: StockConfig = { width: 96, length: 192, thickness: 0.06, material: "EPDM" }
+
+function rectTemplate(id: string, width: number, length: number): PartTemplate {
+  return {
+    id,
+    partType: "rectangle",
+    label: id,
+    summary: `${width}x${length}`,
+    quantity: 1,
+    category: "custom",
+    width,
+    length,
+  }
+}
+
+const RECT: PartTemplate = rectTemplate("rect-12x12", 12, 12)
+
+function makePlacements(n: number): ManualPlacement[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `p-${i}`,
+    templateId: RECT.id,
+    x: 4 + (i % 6) * 14,
+    y: 4 + Math.floor(i / 6) * 14,
+    rotationRad: 0,
+  }))
+}
+
+function p95(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length * 0.95)] ?? 0
+}
+
+describe.skip("ARC-91 / issue #140 — region perf budget", () => {
+  it("drag-frame compute stays under 8ms p95 at N=10 with cache (skipPocketPass)", () => {
+    const cache = makeRegionCache()
+    const placements = makePlacements(10)
+    for (let i = 0; i < 3; i++) {
+      computeAdaptiveRegions(placements, [RECT], STOCK, cache, { skipPocketPass: true })
+    }
+    const samples: number[] = []
+    for (let i = 0; i < 30; i++) {
+      const moving = placements.map((p, idx) => (idx === 0 ? { ...p, x: p.x + i * 0.1 } : p))
+      const t0 = performance.now()
+      computeAdaptiveRegions(moving, [RECT], STOCK, cache, { skipPocketPass: true })
+      samples.push(performance.now() - t0)
+    }
+    expect(p95(samples)).toBeLessThan(8)
+  })
+
+  it("drop-frame compute stays under 50ms at N=10 (full pipeline)", () => {
+    const cache = makeRegionCache()
+    const placements = makePlacements(10)
+    const samples: number[] = []
+    for (let i = 0; i < 5; i++) {
+      const t0 = performance.now()
+      computeAdaptiveRegions(placements, [RECT], STOCK, cache)
+      samples.push(performance.now() - t0)
+    }
+    expect(Math.max(...samples)).toBeLessThan(50)
+  })
+
+  it("scales to N=20 within 16ms p95 on drag (skipPocketPass)", () => {
+    const cache = makeRegionCache()
+    const placements = makePlacements(20)
+    for (let i = 0; i < 3; i++) {
+      computeAdaptiveRegions(placements, [RECT], STOCK, cache, { skipPocketPass: true })
+    }
+    const samples: number[] = []
+    for (let i = 0; i < 30; i++) {
+      const moving = placements.map((p, idx) => (idx === 0 ? { ...p, x: p.x + i * 0.1 } : p))
+      const t0 = performance.now()
+      computeAdaptiveRegions(moving, [RECT], STOCK, cache, { skipPocketPass: true })
+      samples.push(performance.now() - t0)
+    }
+    expect(p95(samples)).toBeLessThan(16)
+  })
+})
