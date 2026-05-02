@@ -6,7 +6,7 @@ import type {
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
-import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { generateReorderSuggestions, type ReorderSuggestion } from "./reorder-suggestions"
 
@@ -45,14 +45,9 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
   }
 
   const [materials, suppliersData, pendingPOs] = await Promise.all([
-    materialTypeRepository.getAll(),
+    materialTypeService.getAll(),
     supplierService.getActiveSuppliers(),
-    purchaseOrderService
-      .getPurchaseOrdersByStatuses(["draft", "pending", "approved", "ordered"])
-      .catch((err) => {
-        console.error("Error fetching pending POs:", err)
-        return []
-      }),
+    purchaseOrderService.getPurchaseOrdersByStatuses(["draft", "pending", "approved", "ordered"]),
   ])
 
   let suggestions: ReorderSuggestion[] = []

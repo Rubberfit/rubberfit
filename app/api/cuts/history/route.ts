@@ -131,24 +131,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  // Make sure DI registrations are loaded before resolving the use-case.
-  await import("@/di/di-registration")
-  const useCase = resolveUseCase<IRecordCutUseCase>(TOKENS.IRecordCutUseCase)
-  const result = await useCase.execute(db, body, user.id)
+  try {
+    // Make sure DI registrations are loaded before resolving the use-case.
+    await import("@/di/di-registration")
+    const useCase = resolveUseCase<IRecordCutUseCase>(TOKENS.IRecordCutUseCase)
+    const result = await useCase.execute(db, body, user.id)
 
-  if (!result.ok) {
-    if (result.status === 400) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+    if (!result.ok) {
+      if (result.status === 400) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+      return NextResponse.json(
+        {
+          error: result.error,
+          detail: result.detail,
+          code: result.code,
+        },
+        { status: result.status }
+      )
     }
-    return NextResponse.json(
-      {
-        error: result.error,
-        detail: result.detail,
-        code: result.code,
-      },
-      { status: result.status }
-    )
-  }
 
-  return NextResponse.json({ data: result.cut }, { status: 201 })
+    return NextResponse.json({ data: result.cut }, { status: 201 })
+  } catch (err) {
+    console.error("POST /api/cuts/history:", err)
+    return NextResponse.json({ error: "Failed to record cut history" }, { status: 500 })
+  }
 }

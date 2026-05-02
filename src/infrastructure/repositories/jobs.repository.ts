@@ -629,6 +629,7 @@ export async function maybeAutoCompleteJob(client: SupabaseClient, jobId: string
     .from("jobs")
     .update({ status: "completed", completed_at: new Date().toISOString() })
     .eq("id", jobId)
+    .eq("status", jobRow.status)
 
   if (jobUpdErr) {
     console.error("maybeAutoCompleteJob update failed:", {

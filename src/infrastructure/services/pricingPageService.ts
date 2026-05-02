@@ -1,14 +1,28 @@
+import { subDays } from "date-fns"
+
 import type {
   MaterialType,
   MaterialSupplierWithDetails,
   Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { subDays } from "date-fns"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
-import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
-import type { PriceHistoryWithJoins, PriceAlert } from "./pricing-types"
+import {
+  priceHistoryService,
+  type PriceHistoryWithJoins,
+} from "@/src/infrastructure/services/priceHistoryService"
+
+export interface PriceAlert {
+  id: string
+  materialName: string
+  supplierName: string
+  oldPrice: number
+  newPrice: number
+  changePercentage: number
+  changeDate: string
+  type: "increase" | "decrease"
+}
 
 export interface PricingFetchResult {
   materialTypes: MaterialType[]
@@ -34,7 +48,7 @@ export function generatePriceAlerts(history: PriceHistoryWithJoins[]): PriceAler
     }))
 }
 
-export async function fetchPricingData(dateRange: string): Promise<PricingFetchResult> {
+export async function fetchPricingPageData(dateRange: string): Promise<PricingFetchResult> {
   const startDate = subDays(new Date(), parseInt(dateRange))
 
   const [materialTypes, suppliers, materialSuppliers, priceHistory] = await Promise.all([

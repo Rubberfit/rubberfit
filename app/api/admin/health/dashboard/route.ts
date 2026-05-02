@@ -83,6 +83,7 @@ export async function GET(
 
     return NextResponse.json({ services, incidents, fetchedAt: new Date().toISOString() })
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+    console.error("admin/health/dashboard:", err)
+    return NextResponse.json({ error: "Failed to load health dashboard" }, { status: 500 })
   }
 }

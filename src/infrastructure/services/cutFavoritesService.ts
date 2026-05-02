@@ -10,10 +10,8 @@ export class CutFavoritesService implements ICutFavoritesService {
       .eq("user_id", userId)
 
     if (error) {
-      // Table may not exist yet (migration pending) — return empty list
-      // gracefully so the UI doesn't break in pre-migrated envs.
-      console.warn("cutFavoritesService.listFavorites:", error.message)
-      return []
+      console.error("cutFavoritesService.listFavorites:", error.message)
+      throw new Error("Failed to list favorites")
     }
 
     return (data ?? []).map((row) => (row as { cut_history_id: string }).cut_history_id)
@@ -24,12 +22,17 @@ export class CutFavoritesService implements ICutFavoritesService {
     userId: string,
     cutHistoryId: string
   ): Promise<{ isFavorite: boolean } | { error: string }> {
-    const { data: existing } = await client
+    const { data: existing, error: lookupError } = await client
       .from("cut_history_favorites")
       .select("id")
       .eq("user_id", userId)
       .eq("cut_history_id", cutHistoryId)
       .maybeSingle()
+
+    if (lookupError) {
+      console.warn("cutFavoritesService.toggleFavorite (lookup):", lookupError.message)
+      return { error: "Failed to update favorite" }
+    }
 
     if (existing) {
       const { error } = await client

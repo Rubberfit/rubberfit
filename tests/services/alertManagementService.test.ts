@@ -40,6 +40,7 @@ describe("alertManagementService.applyAlertAction", () => {
       schemas: {
         admin: {
           alerts: {
+            select: { data: { status: "active" }, error: null },
             update: {
               data: [{ id: "a1", status: "investigating" }],
               error: null,
@@ -58,11 +59,49 @@ describe("alertManagementService.applyAlertAction", () => {
     expect(result.ok).toBe(true)
   })
 
-  it("returns failure when the update fails", async () => {
+  it("returns not_found when the alert does not exist", async () => {
     const client = makeFakeClient({
       schemas: {
         admin: {
-          alerts: { update: { data: null, error: { message: "rls denied" } } },
+          alerts: { select: { data: null, error: null } },
+        },
+      },
+    })
+    const result = await alertManagementService.applyAlertAction(client, {
+      alertId: "missing",
+      action: "resolve",
+      actorUserId: "u1",
+      actorEmail: "u@example.com",
+    })
+    expect(result).toEqual({ ok: false, error: "not_found", message: "Alert not found" })
+  })
+
+  it("returns invalid_state when acknowledging a resolved alert", async () => {
+    const client = makeFakeClient({
+      schemas: {
+        admin: {
+          alerts: { select: { data: { status: "resolved" }, error: null } },
+        },
+      },
+    })
+    const result = await alertManagementService.applyAlertAction(client, {
+      alertId: "a1",
+      action: "acknowledge",
+      actorUserId: "u1",
+      actorEmail: "u@example.com",
+    })
+    expect(result).toEqual({
+      ok: false,
+      error: "invalid_state",
+      message: "Cannot acknowledge alert in 'resolved' state",
+    })
+  })
+
+  it("returns internal when the fetch fails", async () => {
+    const client = makeFakeClient({
+      schemas: {
+        admin: {
+          alerts: { select: { data: null, error: { message: "rls denied" } } },
         },
       },
     })
@@ -72,6 +111,26 @@ describe("alertManagementService.applyAlertAction", () => {
       actorUserId: "u1",
       actorEmail: null,
     })
-    expect(result).toEqual({ ok: false, error: "rls denied" })
+    expect(result).toEqual({ ok: false, error: "internal", message: "rls denied" })
+  })
+
+  it("returns internal when the update fails", async () => {
+    const client = makeFakeClient({
+      schemas: {
+        admin: {
+          alerts: {
+            select: { data: { status: "active" }, error: null },
+            update: { data: null, error: { message: "rls denied" } },
+          },
+        },
+      },
+    })
+    const result = await alertManagementService.applyAlertAction(client, {
+      alertId: "a1",
+      action: "resolve",
+      actorUserId: "u1",
+      actorEmail: null,
+    })
+    expect(result).toEqual({ ok: false, error: "internal", message: "rls denied" })
   })
 })

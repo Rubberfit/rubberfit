@@ -44,14 +44,22 @@ export async function POST(request: NextRequest) {
   }
 
   const resolvedRoles: AppRole[] =
-    Array.isArray(roles) && roles.every(isValidRole) ? (roles as AppRole[]) : ["member"]
+    Array.isArray(roles) && roles.length > 0 && roles.every(isValidRole)
+      ? (roles as AppRole[])
+      : ["member"]
 
-  const result = await createUserWithProfile(adminClient, {
-    email,
-    password,
-    fullName: full_name,
-    roles: resolvedRoles,
-  })
+  let result: Awaited<ReturnType<typeof createUserWithProfile>>
+  try {
+    result = await createUserWithProfile(adminClient, {
+      email,
+      password,
+      fullName: full_name,
+      roles: resolvedRoles,
+    })
+  } catch (error) {
+    console.error("POST /api/admin/users:", error)
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
+  }
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status })

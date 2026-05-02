@@ -363,14 +363,11 @@ export async function upsertProfileFromAuth(
   email: string | null,
   fullName: string | null
 ): Promise<void> {
-  const { error } = await client.from("profiles").upsert(
-    {
-      id: userId,
-      email: email ?? "",
-      full_name: fullName ?? "",
-    },
-    { onConflict: "id" }
-  )
+  const payload: { id: string; email?: string; full_name?: string } = { id: userId }
+  if (email !== null) payload.email = email
+  if (fullName !== null) payload.full_name = fullName
+
+  const { error } = await client.from("profiles").upsert(payload, { onConflict: "id" })
   if (error) {
     console.error("authService.upsertProfileFromAuth error:", error)
     throw error
