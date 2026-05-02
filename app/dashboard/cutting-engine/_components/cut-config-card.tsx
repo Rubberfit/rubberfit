@@ -1,4 +1,3 @@
-import { Input } from "@/app/components/ui/input"
 import { Scissors, Shapes, Ruler } from "lucide-react"
 import { PartTemplate } from "./preset-template-data"
 import { SimpleCutDirection } from "./nesting-visualizer-types"
@@ -13,24 +12,28 @@ import {
 export function CutConfigCard({
   selectedTemplate,
   selectedTemplates,
-  safeQuantity,
   cutDirection,
   setCutDirection,
-  customCutRatioInput,
-  setCustomCutRatioInput,
-  customCutRatios,
   requestedSqFt,
 }: {
   selectedTemplate: PartTemplate
   selectedTemplates: PartTemplate[]
-  safeQuantity: number
   cutDirection: SimpleCutDirection
   setCutDirection: (v: SimpleCutDirection) => void
-  customCutRatioInput: string
-  setCustomCutRatioInput: (v: string) => void
-  customCutRatios: number[] | undefined
   requestedSqFt: number
 }) {
+  // Group templates by shape type so the Part card can summarise
+  // mixed-shape selections (e.g. rectangles + cones) instead of
+  // surfacing only the first template's shape.
+  const partCounts = new Map<PartTemplate["partType"], number>()
+  for (const template of selectedTemplates) {
+    const qty = Math.max(1, template.quantity ?? 1)
+    partCounts.set(template.partType, (partCounts.get(template.partType) ?? 0) + qty)
+  }
+  const partGroups = Array.from(partCounts.entries())
+  const totalParts = partGroups.reduce((sum, [, qty]) => sum + qty, 0)
+  const isMultiShape = partGroups.length > 1
+
   return (
     <Card className="border border-slate-200 shadow-sm">
       <CardHeader className="pb-4">
@@ -51,11 +54,26 @@ export function CutConfigCard({
               <Shapes className="h-3.5 w-3.5" />
               Part
             </div>
-            <div className="mt-2 text-base font-semibold">
-              {getPartLabel(selectedTemplate.partType)}
-              {selectedTemplates.length > 1 ? ` \u00B7 ${selectedTemplates.length} sizes` : ""}
-            </div>
-            <div className="mt-1 text-xs">{selectedTemplate.summary}</div>
+            {isMultiShape ? (
+              <>
+                <ul className="mt-2 space-y-0.5 text-sm font-semibold">
+                  {partGroups.map(([shape, qty]) => (
+                    <li key={shape}>{`${qty} \u00D7 ${getPartLabel(shape)}`}</li>
+                  ))}
+                </ul>
+                <div className="mt-1.5 text-xs text-muted-foreground">
+                  {totalParts} parts total
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mt-2 text-base font-semibold">
+                  {getPartLabel(selectedTemplate.partType)}
+                  {selectedTemplates.length > 1 ? ` \u00B7 ${selectedTemplates.length} sizes` : ""}
+                </div>
+                <div className="mt-1 text-xs">{selectedTemplate.summary}</div>
+              </>
+            )}
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4  dark:bg-card">
@@ -63,16 +81,25 @@ export function CutConfigCard({
               <Ruler className="h-3.5 w-3.5" />
               Size Selection
             </div>
-            <div className="mt-2 text-base font-semibold">
-              {selectedTemplates.length === 1
-                ? selectedTemplate.label
-                : `${selectedTemplate.label} + ${selectedTemplates.length - 1} more`}
-            </div>
-            <div className="mt-1 text-xs">
-              {selectedTemplates.length === 1
-                ? "Standard size from the template list."
-                : "The graph stacks every selected standard size in the preview."}
-            </div>
+            {selectedTemplates.length === 1 ? (
+              <>
+                <div className="mt-2 text-base font-semibold">{selectedTemplate.label}</div>
+                <div className="mt-1 text-xs">Standard size from the template list.</div>
+              </>
+            ) : (
+              <>
+                <ul className="mt-2 space-y-0.5 text-sm font-semibold">
+                  {selectedTemplates.map((template) => (
+                    <li key={template.id} className="truncate">
+                      {template.label}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-1.5 text-xs text-muted-foreground">
+                  {selectedTemplates.length} sizes
+                </div>
+              </>
+            )}
           </div>
 
           {selectedTemplate.partType !== "rectangle" && (
@@ -104,38 +131,6 @@ export function CutConfigCard({
               <div className="mt-2 text-xs ">
                 {getCutModeDescription(selectedTemplate.partType)}
               </div>
-            </div>
-          )}
-
-          {selectedTemplate.partType !== "rectangle" && safeQuantity > 1 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2 dark:bg-card">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide  ">
-                <Scissors className="h-3.5 w-3.5" />
-                Custom Cut Sizes
-              </div>
-              <div className="mt-3">
-                <Input
-                  type="text"
-                  value={customCutRatioInput}
-                  onChange={(event) => setCustomCutRatioInput(event.target.value)}
-                  placeholder={Array.from({ length: safeQuantity }, () => "1").join(", ")}
-                />
-              </div>
-              <div className="mt-2 text-xs text-slate-600 dark:text-slate-100">
-                Optional. Enter {safeQuantity} comma-separated weights like{" "}
-                <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {Array.from({ length: safeQuantity }, (_, index) =>
-                    index === safeQuantity - 1 ? "2" : "1"
-                  ).join(", ")}
-                </span>{" "}
-                to make some cut sections larger than others.
-              </div>
-              {customCutRatioInput.trim() && !customCutRatios && (
-                <div className="mt-2 text-xs font-medium text-amber-700">
-                  Enter exactly {safeQuantity} positive numbers to customize the cut sizes. Leaving
-                  it blank keeps the cuts even.
-                </div>
-              )}
             </div>
           )}
 

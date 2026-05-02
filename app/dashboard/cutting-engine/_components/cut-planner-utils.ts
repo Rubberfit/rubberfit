@@ -161,24 +161,6 @@ function getDefaultCutDirection(partType: PartTemplate["partType"]): SimpleCutDi
   }
 }
 
-function parseCutRatios(input: string, count: number) {
-  if (count <= 1) {
-    return undefined
-  }
-
-  const trimmed = input.trim()
-  if (!trimmed) {
-    return undefined
-  }
-
-  const values = trimmed.split(",").map((value) => Number.parseFloat(value.trim()))
-  if (values.length !== count || values.some((value) => !Number.isFinite(value) || value <= 0)) {
-    return undefined
-  }
-
-  return values
-}
-
 function parseDimsFromLabel(
   partType: SimplePartType,
   label: string,
@@ -225,7 +207,6 @@ function parseDimsFromLabel(
 export {
   getRequestedSqFt,
   getDefaultCutDirection,
-  parseCutRatios,
   parseDimsFromLabel,
   getPartLabel,
   getCutDirectionOptions,

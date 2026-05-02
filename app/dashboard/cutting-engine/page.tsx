@@ -24,11 +24,7 @@ import {
   type StockConfig,
 } from "./_components/stock-preview-configurator"
 import { CutConfigCard } from "./_components/cut-config-card"
-import {
-  getRequestedSqFt,
-  getDefaultCutDirection,
-  parseCutRatios,
-} from "./_components/cut-planner-utils"
+import { getRequestedSqFt, getDefaultCutDirection } from "./_components/cut-planner-utils"
 import { buildTemplatesFromCutRecord } from "./_components/cut-load-utils"
 import { PART_OPTIONS } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
@@ -82,15 +78,13 @@ function buildFrozenLayoutInputSignature(
   stockLength: number,
   stockKerf: number,
   templates: readonly PartTemplate[],
-  cutDirection: SimpleCutDirection,
-  cutRatios?: readonly number[]
+  cutDirection: SimpleCutDirection
 ): string {
   return JSON.stringify({
     stockWidth,
     stockLength,
     stockKerf,
     cutDirection,
-    cutRatios: cutRatios ?? null,
     templates: templates.map((template) => ({
       partType: template.partType,
       quantity: template.quantity ?? 1,
@@ -119,7 +113,6 @@ function CutPlannerPageInner() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
-  const [customCutRatioInput, setCustomCutRatioInput] = useState("")
   const [stock, setStock] = useState(DEMO_STOCK)
   const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
   // LayoutModel[] emitted by NestingVisualizer — used by cut-history-pdf
@@ -250,7 +243,6 @@ function CutPlannerPageInner() {
       setUploadedParts([])
       setPresetParts(templates)
       setCutDirection(nextCutDirection)
-      setCustomCutRatioInput("")
       setFrozenLayouts(restoredLayouts)
       setFrozenLayoutInputSignature(
         restoredLayouts
@@ -259,8 +251,7 @@ function CutPlannerPageInner() {
               cut.cut_length,
               DEFAULT_KERF_IN,
               templates,
-              nextCutDirection,
-              undefined
+              nextCutDirection
             )
           : null
       )
@@ -353,7 +344,6 @@ function CutPlannerPageInner() {
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
     setCutDirection(getDefaultCutDirection(templates[0]?.partType ?? "rectangle"))
-    setCustomCutRatioInput("")
   }, [])
 
   const handleUploadedParts = (parts: ExtractedPart[], stockWidth?: number) => {
@@ -384,10 +374,6 @@ function CutPlannerPageInner() {
   }
 
   const safeQuantity = Math.max(1, selectedTemplate?.quantity ?? 1)
-  const customCutRatios = useMemo(
-    () => parseCutRatios(customCutRatioInput, safeQuantity),
-    [customCutRatioInput, safeQuantity]
-  )
   const activeStockPreset = STOCK_PRESETS.find(
     (preset) => preset.width === stock.width && preset.length === stock.length
   )?.id
@@ -398,10 +384,9 @@ function CutPlannerPageInner() {
         stock.length,
         stock.kerf,
         selectedTemplates,
-        cutDirection,
-        customCutRatios
+        cutDirection
       ),
-    [stock.width, stock.length, stock.kerf, selectedTemplates, cutDirection, customCutRatios]
+    [stock.width, stock.length, stock.kerf, selectedTemplates, cutDirection]
   )
   const activeFrozenLayouts =
     frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
@@ -871,12 +856,8 @@ function CutPlannerPageInner() {
           <CutConfigCard
             selectedTemplate={selectedTemplate}
             selectedTemplates={selectedTemplates}
-            safeQuantity={safeQuantity}
             cutDirection={cutDirection}
             setCutDirection={setCutDirection}
-            customCutRatioInput={customCutRatioInput}
-            setCustomCutRatioInput={setCustomCutRatioInput}
-            customCutRatios={customCutRatios}
             requestedSqFt={requestedSqFt}
           />
 
