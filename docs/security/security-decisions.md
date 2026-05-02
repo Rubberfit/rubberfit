@@ -249,10 +249,52 @@ Three trade-offs worth recording:
 
 3. **`@supabase/ssr` cookie adapter inline in `proxy.ts` vs. extracted helper.** `createServerClient` is called directly in `proxy.ts` rather than wrapped in `src/infrastructure/supabase/`. This is the documented architectural exception (see [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts) allowlist) — the cookie adapter is too tightly coupled to `NextRequest` / `NextResponse` to extract cleanly without leaking the request into a service interface.
 
-### Server Functions caveat
+### Server actions ([ARC-147](https://linear.app/arc-and-anchor/issue/ARC-147))
 
-Next.js [docs](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#execution-order) state:
+Use-case orchestration runs through `app/actions/<domain>.ts` server actions, not browser-side `resolveUseCase` calls. The `"use server"` directive makes each export a hash-callable RPC endpoint; the orchestration boundary is enforced by the bundler, not by convention.
+
+**Per-action auth check is mandatory.** Next.js [docs](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#execution-order):
 
 > Server Functions are not separate routes in this chain. They are handled as POST requests to the route where they are used, so a Proxy matcher that excludes a path will also skip Server Function calls on that path.
 
-The app does not currently use server actions (`"use server"`). When/if they are introduced, **the auth check stays in the action body, not delegated to proxy alone.** A matcher refactor that moves a Server Function to a different route can silently remove proxy coverage. This rule is enforced by convention — Phase A's V8 work has the per-action authz pattern.
+Action IDs ship in the client bundle and are callable by hash. `proxy.ts` gates page navigation but does NOT see action invocations. Every action's first lines are:
+
+```typescript
+const actor = await requireAuthenticatedUser()
+requirePermission(actor, "manageRolls")
+```
+
+`requireAuthenticatedUser` (from `app/server/auth/require-authenticated-user.ts`) builds a cookie-bound `createServerClient`, calls `auth.getUser()`, and reads the caller's profile row in a single round-trip. It fails closed on missing profile (no `["member"]` default-grant), missing session, or `is_deleted = true` — the deactivation gap that `sign-in` checks but `getProfileAccess` historically did not.
+
+**Error model.**
+
+| Class | Code | HTTP-equivalent | When |
+|---|---|---|---|
+| `UnauthorizedError` | `UNAUTHORIZED` | 401 | No session, missing profile, deactivated account, or profile-read RLS failure |
+| `ForbiddenError` | `FORBIDDEN` | 403 | Authenticated but lacking the required permission |
+| `AuthConfigError` | `AUTH_CONFIG` | 5xx | Server misconfiguration (missing Supabase env vars) |
+
+Catch wrappers discriminate on `code`, not `instanceof` — errors lose their prototype chain across the RPC boundary. Production messages are sanitized; full errors log server-side.
+
+**Use-case input shape.** All write use-cases accept `actor: ActionActor` in their input. The action layer extracts the actor from `requireAuthenticatedUser()` and threads it through; client callers never provide it (`Omit<UseCaseInput, "actor">`). This:
+- Eliminates the previous browser-side `getCurrentUserId()` lookup, which used the browser Supabase singleton and would silently fail in a server-action context.
+- Gives the use-case body the caller's identity for downstream side effects (notifications, audit logging — see [ARC-31](https://linear.app/arc-and-anchor/issue/ARC-31)).
+- Makes use-cases pure: tests register fake services and pass an actor, no global mocking.
+
+**Cache invalidation.** Each action documents two surfaces:
+- `revalidatePath(...)` — RSC and route-segment caches
+- React Query `invalidateQueries({ queryKey: [...] })` — client-side cache, called from the hook after `await action(...)`
+
+Forgetting either creates a stale-data bug. If the pattern starts showing drift, wrap actions in a helper that takes both as required params.
+
+**Server vs. API route trade-off.** Actions for use-case orchestration; API routes (`app/api/**`) for external/Bearer-token entry points (e.g., the Rust API client paths and `app/api/internal/tax/po-preview/route.ts`). Actions don't replace API routes — they replace the browser-side `resolveUseCase` pattern.
+
+### Architectural exceptions (`no-direct-supabase` allowlist)
+
+The auth helper at `app/server/auth/require-authenticated-user.ts` constructs a cookie-bound `createServerClient` and reads `profiles` directly. Both patterns are flagged by `tests/architecture/no-direct-supabase.test.ts`, so the file is in that test's `ALLOWLIST` alongside `proxy.ts` and `app/(auth)/callback/route.ts`. The cookie binding is unavoidable here. Future cleanup: extend `getProfileAccess` in `authService.ts` to include `is_deleted`, then move the helper's profile read into that service so the action helper stays in `app/` without needing `.from('profiles')`.
+
+### Pre-existing gaps tracked as follow-ups
+
+- **`proxy.ts` deactivation hole.** Middleware does not check `profiles.is_deleted`. A user with valid session cookies but a deactivated profile passes `proxy.ts` page checks today; `requireAuthenticatedUser` closes the gap for actions but not for plain page navigation. Open follow-up.
+- **`getCurrentUserId()` browser fallback in `purchaseOrderService`.** The service still falls back to the browser singleton `getCurrentUserId()` when callers don't pass `userId`. Action-path callers always pass it; legacy callers (e.g., `reorder-po-handlers.ts::handleCreateBulkPO`) keep the fallback. Once those callers migrate, `userId` becomes required and the fallback drops.
+- **Next 16 server-action CSRF.** No `serverActions.allowedOrigins` config in `next.config.mjs`. Next 16 enforces same-origin by default; verify production hostnames before merge if a reverse proxy is in front of the app.

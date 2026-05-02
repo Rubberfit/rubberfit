@@ -33,7 +33,7 @@
     - supabase/ — generated types + SQL migrations
       - `migrations/20260421000002_roll_barcodes_and_scan_pdf.sql` — roll barcode asset columns + `roll-barcodes` storage bucket
   - interface-adapters/
-    - Reserved for controllers. Currently empty — no server actions exist yet, so client hooks fill the controller role.
+    - Reserved for controllers. Stays empty — server actions in `app/actions/<domain>.ts` fill the controller role.
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
@@ -51,9 +51,10 @@
 ## Data Flow
 
 - Simple (pure CRUD): `app/ hook → infrastructure service → Supabase`
-- Complex (rules/side effects): `app/ hook → src/application/use-cases/ → service(s) → Supabase`
-- Hooks own UI concerns (toast, router, loading). Use-cases own business logic (tax calc, cross-service coordination, notifications).
-- Use-cases are TSyringe-registered. Classes use `@injectable()` + `@inject(TOKEN)`; call sites resolve via `resolveUseCase<IFoo>(TOKENS.IFoo)` from `@/di/resolve`. No module-level singletons — class files are import-safe for unit tests.
+- Orchestrated (rules/side effects/auth-bound): `app/ hook → app/actions/<domain>.ts → src/application/use-cases/ → service(s) → Supabase`. Each action calls `requireAuthenticatedUser()` + `requirePermission(actor, ...)` from `app/server/auth/` then resolves the use-case via DI. The `actor: ActionActor` field on use-case inputs threads caller identity through (no global `getCurrentUserId` lookup). Public action input is `Omit<UseCaseInput, "actor">` — clients can't spoof identity. Three error classes: `UnauthorizedError` (401), `ForbiddenError` (403), `AuthConfigError` (5xx).
+- Hooks own UI concerns (toast, router, loading). Actions enforce auth + RBAC. Use-cases own business logic (tax calc, cross-service coordination, notifications).
+- Use-cases are TSyringe-registered. Classes use `@injectable()` + `@inject(TOKEN)`; the action layer resolves them via `resolveUseCase<IFoo>(TOKENS.IFoo)` from `@/di/resolve`. No module-level singletons; never put request-scoped state into the container (singletons are reused across serverless requests).
+- Cache invalidation per action: `revalidatePath()` server-side + React Query `invalidateQueries` client-side. Forgetting either creates stale data.
 - Create a use-case when the op fires side effects, touches >1 service, or enforces rules. Skip for list/get/delete.
-- Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`.
+- Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`. Architectural exception: `app/server/auth/require-authenticated-user.ts` constructs a cookie-bound `createServerClient` (allowlisted in `tests/architecture/no-direct-supabase.test.ts`).
 - Notifications: `notifications` table (in-app feed) and `notification_queue` (email/SMS) are separate. Always go through `notificationService.sendX()` — it writes both. Type CHECK limits `notifications.type` to `low_stock | roll_depleted | cut_completed | system_alert`; everything else persists as `system_alert`.

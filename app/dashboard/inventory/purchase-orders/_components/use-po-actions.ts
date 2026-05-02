@@ -8,9 +8,7 @@ import {
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
-import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
-import { resolveUseCase } from "@/di/resolve"
-import { TOKENS } from "@/di/tokens"
+import { approvePurchaseOrder } from "@/app/actions/purchase-orders"
 import { toast } from "sonner"
 
 import { type TaxDetails, fetchTaxDetails as fetchTaxDetailsHelper } from "./po-tax-helpers"
@@ -59,15 +57,13 @@ export function usePOActions({
   const updatePOStatus = async (poId: string, newStatus: PurchaseOrder["status"]) => {
     try {
       if (newStatus === "approved") {
-        // Approve continues through the existing DI-registered use
-        // case so the in-app notification side effect still fires
-        // under flag-OFF. The SDK's flag-ON path fires the same
-        // notification via `send_po_approved` in rf-application,
-        // so the behavior is equivalent either way.
-        const useCase = resolveUseCase<IApprovePurchaseOrderUseCase>(
-          TOKENS.IApprovePurchaseOrderUseCase
-        )
-        await useCase.execute({ purchaseOrderId: poId })
+        // Approve continues through the orchestration use case (now
+        // wrapped in the `approvePurchaseOrder` server action) so the
+        // in-app notification side effect still fires under flag-OFF.
+        // The SDK's flag-ON path fires the same notification via
+        // `send_po_approved` in rf-application, so the behavior is
+        // equivalent either way.
+        await approvePurchaseOrder({ purchaseOrderId: poId })
       } else {
         // SDK delegates to Rust under `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true`
         // and to the legacy service otherwise. Flag-ON rejects
@@ -110,10 +106,9 @@ export function usePOActions({
       // directly here yet — follow-up UX ticket will expose them
       // as a picker on the toast.
       if (err.code === "RECEIVED_REQUIRES_RECEIVE_FLOW") {
-        toast.error(
-          "Use the receive flow on the PO detail view to mark items as received.",
-          { description: "Status can't go to `received` through the row menu." }
-        )
+        toast.error("Use the receive flow on the PO detail view to mark items as received.", {
+          description: "Status can't go to `received` through the row menu.",
+        })
         return
       }
       if (err.code === "INVALID_STATE_TRANSITION") {

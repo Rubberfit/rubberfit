@@ -66,6 +66,12 @@ const ALLOWLIST = new Set<string>([
   // `@/src/infrastructure/supabase/server-clients` — kept to avoid
   // breaking imports in this PR's diff.
   "app/api/_lib/supabase-server.ts",
+  // Server-action auth boundary (ARC-147). Constructs a cookie-bound
+  // `createServerClient` via `next/headers` and reads the caller's own
+  // profile row. The cookie binding is unavoidable here. Future
+  // cleanup: move the profile read into a new `getActionActor` service
+  // function so the `.from('profiles')` call leaves `app/`.
+  "app/server/auth/require-authenticated-user.ts",
 
   // ── #155 in-flight: removed as migrations land ────────────────────
 ])

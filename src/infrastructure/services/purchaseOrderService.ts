@@ -136,10 +136,18 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     }
   }
 
-  async createPurchaseOrder(order: CreatePurchaseOrder): Promise<PurchaseOrderWithDetails> {
+  async createPurchaseOrder(
+    order: CreatePurchaseOrder,
+    userId?: string
+  ): Promise<PurchaseOrderWithDetails> {
     try {
       const poNumber = await this.generatePONumber()
-      const user_id = await getCurrentUserId()
+      // Server-action callers (use-cases invoked from `app/actions/`)
+      // pass `userId` explicitly. Legacy browser-side callers fall
+      // back to the deprecated `getCurrentUserId()` browser-singleton
+      // lookup. Once those callers migrate to actions, the fallback
+      // can be removed and `userId` made required.
+      const user_id = userId ?? (await getCurrentUserId())
 
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -246,11 +254,13 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 
   async addItemToPurchaseOrder(
-    item: CreatePurchaseOrderItem
+    item: CreatePurchaseOrderItem,
+    userId?: string
   ): Promise<PurchaseOrderItemWithDetails> {
     try {
       const lineTotal = item.quantity_sqft * item.unit_cost
-      const user_id = await getCurrentUserId()
+      // See createPurchaseOrder note re: legacy fallback.
+      const user_id = userId ?? (await getCurrentUserId())
 
       const { data: existingItems, error: countError } = await supabase
         .from("purchase_order_items")
