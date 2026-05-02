@@ -512,7 +512,7 @@ export function usePresetState(
   }
 
   const handleQuantityChange = (templateId: string, qty: number) => {
-    const clamped = Number.isFinite(qty) ? Math.max(1, Math.min(99, Math.round(qty))) : 1
+    const clamped = Number.isFinite(qty) ? Math.max(1, Math.min(1000, Math.round(qty))) : 1
     setQuantities((previous) => {
       const next = new Map(previous)
       if (clamped <= 1) {
