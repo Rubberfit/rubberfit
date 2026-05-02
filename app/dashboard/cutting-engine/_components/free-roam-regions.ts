@@ -617,6 +617,35 @@ export interface ComputeAdaptiveRegionsOptions {
    * remain accurate for live drag feedback.
    */
   skipPocketPass?: boolean
+  /**
+   * Dev-only: when true, record per-stage timing in a module-local
+   * sink readable via `__dumpRegionTimings()`. Production builds
+   * strip this branch via `process.env.NODE_ENV` DCE; pass
+   * `enableTimings: true` only from a dev-mode caller.
+   */
+  enableTimings?: boolean
+}
+
+export interface RegionComputeSample {
+  syncMs: number
+  envelopeMs: number
+  pocketMs: number
+  gapMs: number
+  unionMs: number
+  totalMs: number
+  placementCount: number
+  skipPocket: boolean
+}
+
+const __regionTimingSink: RegionComputeSample[] = []
+
+/**
+ * Dev-only: drain the per-stage timing samples collected since the last
+ * call. Empty in production builds — the sample-recording branch is
+ * gated on `process.env.NODE_ENV !== "production"` so DCE strips it.
+ */
+export function __dumpRegionTimings(): RegionComputeSample[] {
+  return __regionTimingSink.splice(0, __regionTimingSink.length)
 }
 
 /**
@@ -667,14 +696,29 @@ export function computeAdaptiveRegions(
   }
 
   const skipPocket = options?.skipPocketPass === true
+  const recordTimings = process.env.NODE_ENV !== "production" && options?.enableTimings === true
+
+  // Closure: returns `performance.now()` only when timing is on, else
+  // 0. Centralizing the conditional here keeps `computeAdaptiveRegions`
+  // under the cyclomatic-complexity budget while still costing nothing
+  // in production builds (DCE flattens `recordTimings` to `false`).
+  const mark = (): number => (recordTimings ? performance.now() : 0)
+
   let envelopeWaste: Point2D[][]
   let pocketWaste: Point2D[][]
   let sideGapWaste: Point2D[][]
+
+  const t0 = mark()
+  let tSync = t0
+  let tEnv = t0
+  let tPocket = t0
+  let tGap = t0
 
   if (cache != null) {
     // Cached path — sync the cache to the current placement set, then
     // pull pre-computed envelope/path/bbox per placement.
     const entries = syncRegionCache(cache, placements, parts)
+    tSync = mark()
     envelopeWaste = []
     const partPaths: ClipperPath[] = []
     const bboxes: SideGapBbox[] = []
@@ -685,17 +729,38 @@ export function computeAdaptiveRegions(
       if (!skipPocket) partPaths.push(entry.sheetPath)
       bboxes.push(entry.bbox)
     }
+    tEnv = mark()
     pocketWaste = skipPocket ? [] : computeTrappedPocketWasteFromPaths(partPaths, stock)
+    tPocket = mark()
     sideGapWaste = computePerSideGapWasteFromBboxes(bboxes, stock)
+    tGap = mark()
   } else {
     envelopeWaste = computeShapeEnvelopeWaste(placements, parts)
+    tEnv = mark()
     pocketWaste = skipPocket ? [] : computeTrappedPocketWaste(placements, parts, stock)
+    tPocket = mark()
     sideGapWaste = computePerSideGapWaste(placements, parts, stock)
+    tGap = mark()
   }
 
   // Union all three signals via Clipper so overlapping waste (e.g. a
   // corner crescent that abuts a side gap) renders as one uniformly-
   // coloured region instead of compounding into darker patches.
   const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste, ...sideGapWaste], [])
+  const tUnion = mark()
+
+  if (recordTimings) {
+    __regionTimingSink.push({
+      syncMs: tSync - t0,
+      envelopeMs: tEnv - tSync,
+      pocketMs: tPocket - tEnv,
+      gapMs: tGap - tPocket,
+      unionMs: tUnion - tGap,
+      totalMs: tUnion - t0,
+      placementCount: placements.length,
+      skipPocket,
+    })
+  }
+
   return finalizeRegions(merged)
 }
