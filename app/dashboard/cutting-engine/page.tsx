@@ -922,7 +922,12 @@ function CutPlannerPageInner() {
                 onLayoutChange={setLayouts}
                 layouts={packLayouts ?? []}
                 frozenLayouts={activeFrozenLayouts}
-                packGateStatus={isPacking ? "packing" : packGateStatus}
+                packGateStatus={
+                  isPacking && (!packLayouts || packLayouts.length === 0)
+                    ? "packing"
+                    : packGateStatus
+                }
+                isPacking={isPacking}
                 debugOverlays={debugOverlays}
               />
             </CardContent>

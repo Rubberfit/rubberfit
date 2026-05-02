@@ -170,10 +170,12 @@ export function usePackJob({
     }
 
     const runId = ++runIdRef.current
-    // Clear stale layouts on the LEADING edge so the visualizer
-    // shows the loading header instead of the previous result
-    // until the new pack resolves.
-    setLayouts(null)
+    // Don't clear layouts on the leading edge. The early-return
+    // branch above already nulls layouts on real invalidation
+    // (enabled=false, e.g. when `invalidatePackGate` fires from an
+    // input change). Preserving layouts here lets auto-boost
+    // continuation re-packs keep the previous result on screen
+    // instead of flashing empty between rounds.
     setIsPacking(true)
     setPackError(null)
 

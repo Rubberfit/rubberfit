@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { Loader2 } from "lucide-react"
 
 // Re-export types needed by external consumers
 export type { SimplePartType, SimpleCutDirection } from "./nesting-visualizer-types"
@@ -31,6 +32,13 @@ import NestingVizSimpleMode from "./nesting-viz-simple-mode"
 interface NestingVisualizerExtraProps {
   layouts?: LayoutModel[]
   onLayoutChange?: (layouts: LayoutModel[]) => void
+  /**
+   * True while a Rust pack call is in flight (first pack OR auto-boost
+   * continuation). Drives the spinner + elapsed-seconds overlay. Distinct
+   * from `packGateStatus`: continuation re-packs keep the gate at "done"
+   * (so the previous sheet stays rendered) but still set `isPacking=true`.
+   */
+  isPacking?: boolean
 }
 
 export default function NestingVisualizer({
@@ -42,6 +50,7 @@ export default function NestingVisualizer({
   onMetricsChange,
   onLayoutChange,
   debugOverlays,
+  isPacking = false,
 }: NestingVisualizerProps & NestingVisualizerExtraProps) {
   const patternSeed = useId().replace(/:/g, "")
   const hasFrozenLayouts = (frozenLayouts?.length ?? 0) > 0
@@ -160,19 +169,60 @@ export default function NestingVisualizer({
   }, [activeLayouts, onLayoutChange])
 
   return (
-    <NestingVizSimpleMode
-      preview={preview}
-      previewRollW={previewRollW}
-      previewRollL={previewRollL}
-      patternSeed={patternSeed}
-      viewMode="stock"
-      optimizedResult={null}
-      optimizedItems={null}
-      isOptimizing={packGateStatus === "packing"}
-      nfpError={null}
-      multiSheet={multiSheet}
-      layouts={activeLayouts ?? undefined}
-      debugOverlays={debugOverlays}
-    />
+    <div className="relative">
+      <NestingVizSimpleMode
+        preview={preview}
+        previewRollW={previewRollW}
+        previewRollL={previewRollL}
+        patternSeed={patternSeed}
+        viewMode="stock"
+        optimizedResult={null}
+        optimizedItems={null}
+        isOptimizing={packGateStatus === "packing"}
+        nfpError={null}
+        multiSheet={multiSheet}
+        layouts={activeLayouts ?? undefined}
+        debugOverlays={debugOverlays}
+      />
+      <PackTimerOverlay active={isPacking} />
+    </div>
   )
+}
+
+// Small badge that ticks elapsed seconds while a pack is in flight. Lives in
+// the top-right of the visualizer so the operator can see how long the
+// current Rust call has been running — useful both during the empty/loading
+// state of a first pack and during auto-boost continuations where the
+// previous sheet stays on screen.
+function PackTimerOverlay({ active }: { active: boolean }) {
+  const elapsedMs = useElapsedMs(active)
+  if (!active) return null
+  return (
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+      <span className="text-xs font-medium tabular-nums text-slate-700 dark:text-slate-200">
+        {(elapsedMs / 1000).toFixed(1)}s
+      </span>
+    </div>
+  )
+}
+
+// Tracks elapsed milliseconds since `active` last flipped true. Resets to 0
+// when `active` flips false. Updates every 100 ms — fine-grained enough to
+// show tenths of a second without burning frames at 60 fps.
+function useElapsedMs(active: boolean): number {
+  const [elapsedMs, setElapsedMs] = useState(0)
+  useEffect(() => {
+    if (!active) {
+      setElapsedMs(0)
+      return
+    }
+    const start = performance.now()
+    setElapsedMs(0)
+    const id = setInterval(() => {
+      setElapsedMs(performance.now() - start)
+    }, 100)
+    return () => clearInterval(id)
+  }, [active])
+  return elapsedMs
 }
