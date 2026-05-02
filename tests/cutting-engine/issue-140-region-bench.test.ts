@@ -2,7 +2,7 @@
  * Perf budget bench for `computeAdaptiveRegions` in the Free-roam canvas
  * (issue #140 / ARC-91 — main-thread stall when adding shapes).
  *
- * This suite is intentionally `describe.skip(...)` — it locks the
+ * This suite is intentionally `describe(...)` — it locks the
  * regression target before the perf fix lands. It will be unskipped
  * once the optimization in PR #142 ships.
  *
@@ -81,7 +81,7 @@ function p95(samples: number[]): number {
   return sorted[Math.floor(sorted.length * 0.95)] ?? 0
 }
 
-describe.skip("ARC-91 / issue #140 — region perf budget", () => {
+describe("ARC-91 / issue #140 — region perf budget", () => {
   it("drag-frame compute stays under 8ms p95 at N=10 with cache (skipPocketPass)", () => {
     const cache = makeRegionCache()
     const placements = makePlacements(10)
