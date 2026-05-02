@@ -11,6 +11,37 @@
  *   - drop-frame compute (full pipeline):  under 50ms max at N=10
  *   - drag-frame compute at N=20 scaling:  under 16ms p95
  */
+/**
+ * TODO(arc-91 unskip): When this suite is unskipped after the perf fix
+ * lands (plan Task 7), revisit these bench-hygiene items:
+ *
+ *   - Drop-frame test (N=10, full pipeline) currently uses N=5 samples
+ *     with no warm-up and a Math.max assertion. Either bump to >=10
+ *     samples + p95, or add 1-2 warm-up iterations and document the
+ *     "no warm-up = cold-cache worst case" intent inline. As written
+ *     it is the most flake-prone shape on shared CI hardware.
+ *   - p95 at N=30 only excludes the single worst sample. For reliable
+ *     CI behaviour bump samples to >=100 or fall back to median / p90
+ *     at N=30.
+ *   - Drag bodies (Case 1 + Case 3) duplicate ~90% of their logic.
+ *     Collapse to `it.each([{ n: 10, budget: 8 }, { n: 20, budget: 16 }])`
+ *     or a `runDragBench(n, budgetMs)` helper before unskipping.
+ *   - `p95()` falls back to `?? 0` on empty input. Replace with an
+ *     explicit `throw new Error("p95: empty samples")` so a future
+ *     refactor can't silently produce a false green via empty array.
+ *   - Test names embed literal thresholds ("under 8ms p95 at N=10").
+ *     If the budget is retuned the title goes stale. Strip thresholds
+ *     from titles ("drag-frame compute (N=10, skipPocketPass) within
+ *     p95 budget") and let the assertion failure surface the number.
+ *   - STOCK.length = 192 here vs 48 in issue-117 fixtures — chosen to
+ *     fit 20 placements at 14" pitch without collision. Add inline
+ *     comment so future readers don't assume copy-paste drift.
+ *   - Displacement loop uses `i * 0.1` (max 2.9" at i=29). Stays
+ *     in-stock and non-colliding only because of the specific seed in
+ *     makePlacements. Add `Math.min(p.x + i * 0.1, STOCK.width - 12)`
+ *     clamp or document the bound so a future seed change doesn't
+ *     silently push the moved placement off-stock.
+ */
 import { describe, expect, it } from "vitest"
 import { computeAdaptiveRegions } from "@/app/dashboard/cutting-engine/_components/free-roam-regions"
 import { makeRegionCache } from "@/app/dashboard/cutting-engine/_components/free-roam-region-cache"
