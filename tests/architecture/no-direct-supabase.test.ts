@@ -72,6 +72,14 @@ const ALLOWLIST = new Set<string>([
   // cleanup: move the profile read into a new `getActionActor` service
   // function so the `.from('profiles')` call leaves `app/`.
   "app/server/auth/require-authenticated-user.ts",
+  // Server-action database factory (ARC-147 follow-up). Builds a
+  // request-scoped, cookie-bound `createServerClient` and registers
+  // it via `registerServerDatabaseClientFactory`. The Next.js
+  // `cookies()` binding is the same framework boundary as the auth
+  // helper above, so this file must live in `app/`. No `.from(...)`
+  // or `.rpc(...)` calls are made here directly — only client
+  // construction.
+  "app/server/database/register-factory.ts",
 
   // ── #155 in-flight: removed as migrations land ────────────────────
 ])

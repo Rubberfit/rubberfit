@@ -17,6 +17,7 @@ import type {
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
+import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
 const REORDER_PATH = "/dashboard/inventory/reorder"
 const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
@@ -24,6 +25,7 @@ const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 export async function createReorderPurchaseOrder(
   input: Omit<CreateReorderPurchaseOrderInput, "actor">
 ): Promise<CreateReorderPurchaseOrderResult> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
@@ -44,6 +46,7 @@ export async function createReorderPurchaseOrder(
 export async function generateReorderSuggestions(
   input: GenerateReorderSuggestionsInput
 ): Promise<ReorderSuggestionOutput[]> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 

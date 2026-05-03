@@ -117,9 +117,13 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
 
     const rule = reorderRules.find((r) => r.material_type_id === suggestion.materialTypeId)
     if (rule) {
-      await this.reorderService.updateReorderRule(rule.id, {
-        last_triggered_at: new Date().toISOString(),
-      })
+      await this.reorderService.updateReorderRule(
+        rule.id,
+        {
+          last_triggered_at: new Date().toISOString(),
+        },
+        input.actor.id
+      )
     }
 
     try {

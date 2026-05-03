@@ -28,6 +28,7 @@ import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
+import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
 const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 
@@ -56,6 +57,7 @@ const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 export async function createPurchaseOrder(
   input: Omit<CreatePurchaseOrderInput, "actor">
 ): Promise<CreatePurchaseOrderResult> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
@@ -68,6 +70,7 @@ export async function createPurchaseOrder(
 export async function updatePurchaseOrder(
   input: Omit<UpdatePurchaseOrderInput, "actor">
 ): Promise<UpdatePurchaseOrderResult> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
@@ -80,6 +83,7 @@ export async function updatePurchaseOrder(
 export async function approvePurchaseOrder(input: {
   purchaseOrderId: string
 }): Promise<PurchaseOrder> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
@@ -93,6 +97,7 @@ export async function rejectPurchaseOrder(input: {
   purchaseOrderId: string
   reason?: string
 }): Promise<PurchaseOrder> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
@@ -107,6 +112,7 @@ export async function receivePurchaseOrder(input: {
   items: POReceiptItem[]
   receivedBy?: string
 }): Promise<POReceiptResult> {
+  ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 

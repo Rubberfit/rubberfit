@@ -268,20 +268,22 @@ requirePermission(actor, "manageRolls")
 
 **Error model.**
 
-| Class | Code | HTTP-equivalent | When |
-|---|---|---|---|
-| `UnauthorizedError` | `UNAUTHORIZED` | 401 | No session, missing profile, deactivated account, or profile-read RLS failure |
-| `ForbiddenError` | `FORBIDDEN` | 403 | Authenticated but lacking the required permission |
-| `AuthConfigError` | `AUTH_CONFIG` | 5xx | Server misconfiguration (missing Supabase env vars) |
+| Class               | Code           | HTTP-equivalent | When                                                                          |
+| ------------------- | -------------- | --------------- | ----------------------------------------------------------------------------- |
+| `UnauthorizedError` | `UNAUTHORIZED` | 401             | No session, missing profile, deactivated account, or profile-read RLS failure |
+| `ForbiddenError`    | `FORBIDDEN`    | 403             | Authenticated but lacking the required permission                             |
+| `AuthConfigError`   | `AUTH_CONFIG`  | 5xx             | Server misconfiguration (missing Supabase env vars)                           |
 
 Catch wrappers discriminate on `code`, not `instanceof` — errors lose their prototype chain across the RPC boundary. Production messages are sanitized; full errors log server-side.
 
 **Use-case input shape.** All write use-cases accept `actor: ActionActor` in their input. The action layer extracts the actor from `requireAuthenticatedUser()` and threads it through; client callers never provide it (`Omit<UseCaseInput, "actor">`). This:
+
 - Eliminates the previous browser-side `getCurrentUserId()` lookup, which used the browser Supabase singleton and would silently fail in a server-action context.
 - Gives the use-case body the caller's identity for downstream side effects (notifications, audit logging — see [ARC-31](https://linear.app/arc-and-anchor/issue/ARC-31)).
 - Makes use-cases pure: tests register fake services and pass an actor, no global mocking.
 
 **Cache invalidation.** Each action documents two surfaces:
+
 - `revalidatePath(...)` — RSC and route-segment caches
 - React Query `invalidateQueries({ queryKey: [...] })` — client-side cache, called from the hook after `await action(...)`
 
@@ -289,9 +291,21 @@ Forgetting either creates a stale-data bug. If the pattern starts showing drift,
 
 **Server vs. API route trade-off.** Actions for use-case orchestration; API routes (`app/api/**`) for external/Bearer-token entry points (e.g., the Rust API client paths and `app/api/internal/tax/po-preview/route.ts`). Actions don't replace API routes — they replace the browser-side `resolveUseCase` pattern.
 
+### Database client resolution (RLS preserved end-to-end)
+
+ARC-147 surfaced a real RLS bug: server actions resolved the actor correctly via cookies, then services wrote with the **browser-singleton** `supabase` (built from `createBrowserClient`, session in `localStorage`). On a Node runtime the singleton has no JWT, so Postgres saw `auth.uid() = NULL` and rejected every insert with `42501` even though the caller was signed in. The naïve fix would be a service-role bypass; we explicitly rejected that — service-role escapes are a last resort, and RLS is the security model.
+
+The Phase 0 fix:
+
+- **`src/infrastructure/supabase/get-database-client.ts`** exposes `getDatabaseClient()` and `registerServerDatabaseClientFactory(factory)`. Services call `await getDatabaseClient()` and get the right client for the runtime — a cookie-bound `createServerClient` server-side or the browser singleton client-side. Factory registration is **process-global, request-scoped at invocation**: the factory captures `next/headers cookies()` per-call, which Next.js threads via its own AsyncLocalStorage, so concurrent requests each see their own cookies.
+- **`app/server/database/register-factory.ts`** owns the cookie-bound factory and exposes `ensureDatabaseFactoryRegistered()` (idempotent). Server actions call this as their first line. We deliberately do **not** register the factory as a `app/layout.tsx` side effect: per Codex review, Next.js does not contractually guarantee layout module evaluation before a server-action POST in serverless workers. Action-entry registration removes that risk.
+- **No service-role bypass.** The factory uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`, identical to the browser client. RLS continues to enforce `auth.uid() = user_id`; the only difference is _where_ the JWT comes from (cookies on the server, localStorage in the browser). The service-role helpers in `src/infrastructure/supabase/server-clients.ts` (`makeAdminClient`) stay reserved for explicitly-authorized admin route handlers.
+- **Migration scope.** Phase 0 migrated every infrastructure service reachable from the seven ARC-147 server actions: `purchaseOrderService`, `supplierService`, `reorderService`, `taxService`, `reorderCalculations`, `notificationService`, plus the `notifications.repository`. Methods that previously used `import { supabase }` now do `const supabase = await getDatabaseClient()` at the top of each method. The shape is identity-preserving for browser callers (the helper resolves the same singleton via dynamic import). Use-cases that need to write user-scoped rows (e.g., `updateReorderRule`) take `userId` from `actor.id` instead of relying on a browser-side `getCurrentUserId()` lookup.
+- **Phase 1+** (follow-up tickets) migrates the remaining ~57 dashboard browser-direct callers off the singleton entirely, so all DB interactions route through the server.
+
 ### Architectural exceptions (`no-direct-supabase` allowlist)
 
-The auth helper at `app/server/auth/require-authenticated-user.ts` constructs a cookie-bound `createServerClient` and reads `profiles` directly. Both patterns are flagged by `tests/architecture/no-direct-supabase.test.ts`, so the file is in that test's `ALLOWLIST` alongside `proxy.ts` and `app/(auth)/callback/route.ts`. The cookie binding is unavoidable here. Future cleanup: extend `getProfileAccess` in `authService.ts` to include `is_deleted`, then move the helper's profile read into that service so the action helper stays in `app/` without needing `.from('profiles')`.
+The auth helper at `app/server/auth/require-authenticated-user.ts` constructs a cookie-bound `createServerClient` and reads `profiles` directly. The factory wrapper at `app/server/database/register-factory.ts` constructs a cookie-bound `createServerClient` (no `.from(...)` calls — only client construction). Both patterns are flagged by `tests/architecture/no-direct-supabase.test.ts`, so both files are in that test's `ALLOWLIST` alongside `proxy.ts` and `app/(auth)/callback/route.ts`. The `next/headers cookies()` binding is unavoidable in `app/`. Future cleanup: extend `getProfileAccess` in `authService.ts` to include `is_deleted`, then move the helper's profile read into that service so the action helper stays in `app/` without needing `.from('profiles')`.
 
 ### Pre-existing gaps tracked as follow-ups
 

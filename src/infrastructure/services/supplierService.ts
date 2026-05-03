@@ -1,5 +1,4 @@
 import {
-  supabase,
   type Supplier,
   type MaterialSupplier,
   type MaterialSupplierWithDetails,
@@ -8,6 +7,7 @@ import {
   type CreateMaterialSupplier,
   type UpdateMaterialSupplier,
 } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { priceHistoryService } from "./priceHistoryService"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
@@ -18,6 +18,7 @@ import { injectable } from "tsyringe"
 export class SupplierService implements ISupplierService {
   async getAllSuppliers(): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
@@ -33,6 +34,7 @@ export class SupplierService implements ISupplierService {
 
   async getActiveSuppliers(): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
@@ -50,6 +52,7 @@ export class SupplierService implements ISupplierService {
 
   async getPreferredSuppliers(): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
@@ -68,6 +71,7 @@ export class SupplierService implements ISupplierService {
 
   async getSupplierById(id: string): Promise<Supplier> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase.from("suppliers").select("*").eq("id", id).single()
 
       if (error) throw error
@@ -80,6 +84,7 @@ export class SupplierService implements ISupplierService {
 
   async createSupplier(supplier: CreateSupplier): Promise<Supplier> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("suppliers")
@@ -97,6 +102,7 @@ export class SupplierService implements ISupplierService {
 
   async updateSupplier(id: string, updates: UpdateSupplier): Promise<Supplier> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .update(updates)
@@ -113,6 +119,7 @@ export class SupplierService implements ISupplierService {
   }
 
   async deleteSupplier(id: string): Promise<boolean> {
+    const supabase = await getDatabaseClient()
     const { error } = await supabase.from("suppliers").delete().eq("id", id)
     if (error) throw error
     return true
@@ -123,7 +130,7 @@ export class SupplierService implements ISupplierService {
       if (rating < 0 || rating > 5) {
         throw new Error("Rating must be between 0 and 5")
       }
-
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .update({ rating })
@@ -143,6 +150,7 @@ export class SupplierService implements ISupplierService {
     materialSupplier: CreateMaterialSupplier
   ): Promise<MaterialSupplierWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("material_suppliers")
@@ -180,6 +188,7 @@ export class SupplierService implements ISupplierService {
 
   async unlinkMaterialFromSupplier(materialSupplierId: string): Promise<boolean> {
     try {
+      const supabase = await getDatabaseClient()
       const { error } = await supabase
         .from("material_suppliers")
         .delete()
@@ -198,6 +207,7 @@ export class SupplierService implements ISupplierService {
     updates: UpdateMaterialSupplier
   ): Promise<MaterialSupplierWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .update(updates)
@@ -222,6 +232,7 @@ export class SupplierService implements ISupplierService {
 
   async getSuppliersByMaterialType(materialTypeId: string): Promise<MaterialSupplierWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .select(
@@ -245,6 +256,7 @@ export class SupplierService implements ISupplierService {
 
   async getMaterialsBySupplier(supplierId: string): Promise<MaterialSupplierWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .select(
@@ -269,6 +281,7 @@ export class SupplierService implements ISupplierService {
     materialTypeId: string
   ): Promise<MaterialSupplierWithDetails | null> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .select(
@@ -295,6 +308,7 @@ export class SupplierService implements ISupplierService {
     supplierId: string
   ): Promise<MaterialSupplierWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const { error: unsetError } = await supabase
         .from("material_suppliers")
         .update({ preferred_supplier: false })
@@ -329,6 +343,7 @@ export class SupplierService implements ISupplierService {
     supplierId: string
   ): Promise<MaterialSupplier | null> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .select("id")
@@ -346,6 +361,7 @@ export class SupplierService implements ISupplierService {
 
   async bulkCreateSuppliers(suppliers: CreateSupplier[]): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("suppliers")
@@ -364,6 +380,7 @@ export class SupplierService implements ISupplierService {
     materialSuppliers: CreateMaterialSupplier[]
   ): Promise<MaterialSupplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("material_suppliers")
         .insert(materialSuppliers)
@@ -379,6 +396,7 @@ export class SupplierService implements ISupplierService {
 
   async getAllSuppliersOrdered(): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
@@ -398,6 +416,7 @@ export class SupplierService implements ISupplierService {
     filterPreferred?: boolean
   }): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       let query = supabase.from("suppliers").select("*")
 
       if (options?.filterActive) {
@@ -422,6 +441,7 @@ export class SupplierService implements ISupplierService {
 
   async searchSuppliers(query: string): Promise<Supplier[]> {
     try {
+      const supabase = await getDatabaseClient()
       const sanitized = query.replace(/[%,.*()]/g, "")
       const { data, error } = await supabase
         .from("suppliers")

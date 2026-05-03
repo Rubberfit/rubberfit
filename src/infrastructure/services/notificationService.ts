@@ -1,8 +1,8 @@
 import {
-  supabase,
   type NotificationPreferences,
   type NotificationQueue,
 } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { emailService } from "./emailService"
 import { notificationRepository } from "@/src/infrastructure/repositories/notifications.repository"
@@ -55,6 +55,7 @@ export class NotificationService implements INotificationService {
    */
   private async loadUserPreferences(): Promise<void> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
@@ -85,6 +86,7 @@ export class NotificationService implements INotificationService {
     }
 
     // Load from database
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("notification_preferences")
       .select("*")
@@ -274,6 +276,7 @@ export class NotificationService implements INotificationService {
   ): Promise<void> {
     try {
       const scheduledFor = params.scheduledFor || new Date()
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
 
       await supabase.from("notification_queue").insert({
@@ -462,6 +465,7 @@ export class NotificationService implements INotificationService {
     preferences: Partial<NotificationPreferences>
   ): Promise<void> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("notification_preferences")

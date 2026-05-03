@@ -68,8 +68,8 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 implementation, `RustPackingService`, is registered through
 `di/di-registration.ts` as the sole binding — no TS fallback:
 
-| Engine | When | Invocation |
-|---|---|---|
+| Engine               | When                                                                                                                                                                     | Invocation                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | `RustPackingService` | Always. If `engine/target/release/pack-cli` is missing, first `IPackingService` resolve throws and the cutting-engine page errors. Build it with `npm run build:engine`. | `child_process.spawn` with JSON stdin/stdout |
 
 The Rust path is the full S2.5 stack: FFD bin-assignment (Task 10) +
@@ -109,44 +109,60 @@ Without the binary, visiting `/dashboard/cutting-engine` surfaces a
 Three valid flows, chosen by the operation's complexity:
 
 **Simple (pure CRUD):**
+
 ```
 app/ hook or component  →  infrastructure service  →  Supabase
 ```
+
 Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
 
 **Orchestrated (multi-service writes, side effects, auth-bound work):**
+
 ```
 app/ hook  →  app/actions/<domain>.ts (server action)  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
+
 Server actions enforce the orchestration boundary as a hard physical line — the use-case body runs server-side, never in the browser bundle. Each action's first lines are `requireAuthenticatedUser()` (resolves the caller via cookies, throws on unauthenticated/deactivated/missing-profile) and `requirePermission(actor, ...)` (RBAC check). The use-case takes `actor: ActionActor` in its input so audit logging and side effects have the caller's identity without reaching for a global. Cache invalidation is per-action: `revalidatePath()` for RSC routes plus React Query `invalidateQueries` from the client. Example: `app/actions/purchase-orders.ts::createPurchaseOrder` wraps `ICreatePurchaseOrderUseCase`; [`po-action-handlers.ts::createPO`](app/dashboard/inventory/purchase-orders/_components/po-action-handlers.ts) imports the action and `await`s it.
 
 **Legacy direct-use-case (browser-side, deprecated):**
+
 ```
 app/ hook  →  resolveUseCase<I*>(TOKENS.*)  →  use-case  →  service
 ```
+
 Browser-side `resolveUseCase` calls are bypassable by anyone with devtools (the use-case body runs client-side and individual services can be invoked directly). New work uses the orchestrated flow above. Existing in-flight callers (e.g., `reorder-po-handlers.ts::handleCreateBulkPO`) are tracked for migration as follow-up tickets.
 
 **Use-case wiring:**
+
 - Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
 - Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
 - Resolved server-side at the action layer via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container. **Never** put request-scoped state into TSyringe singletons — they're shared across serverless requests on the same worker.
 - No module-level singleton exports — use-case class files are import-safe in isolation. Unit tests register fakes with `container.registerInstance(TOKENS.IDependency, fake)` before resolving the use-case, without pulling Supabase at import time.
 
 **Action wiring:**
+
 - Each domain has one file under `app/actions/<domain>.ts` with `"use server"` at the top.
 - Public action input is `Omit<UseCaseInput, "actor">` — clients can't spoof identity. The action injects `actor` from `requireAuthenticatedUser()` before invoking the use-case.
 - Errors propagate via three typed classes: `UnauthorizedError` (401-class), `ForbiddenError` (403-class), `AuthConfigError` (5xx-class). Catch wrappers discriminate on `code`, not `instanceof` (errors lose prototype chain across the RPC boundary).
 - `app/server/auth/require-authenticated-user.ts` is in [`tests/architecture/no-direct-supabase.test.ts`](tests/architecture/no-direct-supabase.test.ts)'s allowlist — its cookie-bound `createServerClient` is the unavoidable framework boundary, like `proxy.ts`.
 
+**Database client resolution:**
+
+- Infrastructure services do **not** import the browser-singleton `supabase` from `@/src/infrastructure/models/supabase` directly. Instead, they call `await getDatabaseClient()` from [`@/src/infrastructure/supabase/get-database-client`](src/infrastructure/supabase/get-database-client.ts). The helper returns the right client for the runtime: a cookie-bound `createServerClient` on the server (RLS-respecting — Postgres sees `auth.uid()` from the request JWT) or the browser singleton in the client bundle.
+- Server actions and route handlers must call `ensureDatabaseFactoryRegistered()` from [`@/app/server/database/register-factory`](app/server/database/register-factory.ts) as the first line of every entry point that may touch the database. The call is idempotent. Codex review flagged layout-based registration as risky in serverless runtimes (Next.js does not contractually guarantee layout module evaluation before a server-action POST), so registration happens at action entry instead.
+- **Never** use the service-role key for normal CRUD. RLS is the security model; the anon-key + cookie pattern preserves it. Service-role escapes (`makeAdminClient` in `src/infrastructure/supabase/server-clients.ts`) are reserved for explicitly-authorized admin route handlers.
+
 ### When to create a use-case
 
 Create one if the operation does **any** of:
+
 - Fires a side effect (notification, audit log, cache invalidation)
 - Touches more than one service (e.g., tax + PO + notification)
 - Enforces a business rule (status transition validation, threshold checks, EOQ math)
 - Will be reused from multiple entry points
 
 **Don't** create one for:
+
 - Pure read/list/get/delete — call the service directly from the hook
 - Single-field updates with no validation or side effect
 - Pass-through wrappers that add no logic
@@ -161,10 +177,10 @@ See `src/application/use-cases/` for current examples (7 use-cases across `purch
 
 There are **two separate tables**, read from different code paths:
 
-| Table | Purpose | Written by | Read by |
-|---|---|---|---|
-| `notifications` | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
-| `notification_queue` | Async email/SMS dispatch | `notificationService.queueNotification()` | `emailService.processEmailQueue()` |
+| Table                | Purpose                             | Written by                                                               | Read by                                              |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `notifications`      | In-app UI feed (notifications page) | `notificationService.persistInAppNotification()` + low-stock DB triggers | `notificationCrudService` / `notificationRepository` |
+| `notification_queue` | Async email/SMS dispatch            | `notificationService.queueNotification()`                                | `emailService.processEmailQueue()`                   |
 
 The `notifications` table has a CHECK constraint on `type` (`low_stock | roll_depleted | cut_completed | system_alert`); non-low-stock events are persisted as `system_alert`. When adding new notification triggers, always route through `notificationService.sendX()` methods — they handle preferences, quiet hours, toast, DB persist, and queue in one call. Don't write directly to either table from use-cases or hooks.
 
@@ -183,10 +199,10 @@ Zustand stores follow a flat interface with `isLoading`, `isUpdating`, and `erro
 
 ### Hooks colocation (2-tier rule, S4 Task 4)
 
-| Scope                                 | Location                                       |
-| ------------------------------------- | ---------------------------------------------- |
-| Page-local (used by one surface only) | `app/dashboard/<surface>/_components/use-*.ts` |
-| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts` |
+| Scope                                         | Location                                       |
+| --------------------------------------------- | ---------------------------------------------- |
+| Page-local (used by one surface only)         | `app/dashboard/<surface>/_components/use-*.ts` |
+| App-wide (multiple surfaces or cross-cutting) | `app/hooks/use-*.ts`                           |
 
 No domain tier (`<surface>/_hooks/`) — if a surface grows past
 five shared hooks, revisit. Until then, two tiers is enough.
