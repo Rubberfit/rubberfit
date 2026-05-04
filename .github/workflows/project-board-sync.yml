@@ -21,7 +21,13 @@ on:
         closed,
       ]
   schedule:
-    - cron: "0 15 * * *"
+    # Run every 15 minutes. GitHub Actions has no `projects_v2_item`
+    # trigger (it's a webhook event but not exposed to Actions), so the
+    # "Status moved to Done → close issue" sync runs from the rollover
+    # path on this cron. 15 min is the smallest cron Actions guarantees
+    # in practice (5 min is the documented minimum but routinely
+    # delayed under load).
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -36,8 +42,22 @@ permissions:
   pull-requests: write
   repository-projects: write
 
+# Serialize sync runs across all triggers so the every-15-minute cron can't
+# race a webhook-driven run (e.g. an issue-closed event firing while the
+# rollover is mid-pagination). Without this, two runs can apply conflicting
+# Status field mutations to the same item. `cancel-in-progress: false`
+# queues subsequent runs instead of dropping them — every event still gets
+# processed, just sequentially.
+concurrency:
+  group: project-board-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
+    # Cap each run so a hung GraphQL/REST call (network blip, GitHub
+    # incident, infinite loop) can't park the serialized queue forever.
+    # The script normally finishes in < 30s; 10 min gives generous slack.
+    timeout-minutes: 10
     if: >
       (github.event_name != 'create' || github.event.ref_type == 'branch') &&
       (
