@@ -285,15 +285,33 @@ export class AuthService implements IAuthService {
   }
 
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-          callback(await buildAuthUser(session.user))
-        } else if (event === "SIGNED_OUT") {
+    // Per the supabase-js docstring on `onAuthStateChange`: the callback
+    // runs synchronously inside the auth state-change pipeline, so any
+    // `await` on another Supabase method (here `buildAuthUser` →
+    // `from("profiles")…` which internally calls `auth.getSession()`)
+    // deadlocks against `_initialize`'s lock-held SIGNED_IN broadcast.
+    // We saw this manifest as `/mfa-challenge` getting stuck on
+    // "Loading your authenticator factor…" in production, because the
+    // form's `getPrimaryFactor()` waits on `initializePromise` which
+    // never resolves while this callback is mid-Supabase-call. The
+    // upstream-recommended fix is to defer the body to a fresh task.
+    return supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      setTimeout(async () => {
+        try {
+          if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
+            callback(await buildAuthUser(session.user))
+          } else if (event === "SIGNED_OUT") {
+            callback(null)
+          }
+        } catch (err) {
+          // Fire-and-forget setTimeout means an exception here surfaces
+          // as an unhandled rejection. Log and fall back to a null user
+          // so AuthContext doesn't get pinned at `loading: true`.
+          console.error("[auth] onAuthStateChange handler failed:", err)
           callback(null)
         }
-      }
-    )
+      }, 0)
+    })
   }
 }
 
