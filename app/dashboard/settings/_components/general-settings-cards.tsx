@@ -1,6 +1,6 @@
 "use client"
 
-import { Settings, Database, Globe } from "lucide-react"
+import { Database, Globe } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Input } from "@/app/components/ui/input"
@@ -203,7 +203,7 @@ export function GeneralSettingsCards({ settings, onSettingChange }: GeneralSetti
             <div className="space-y-0.5">
               <Label>Show Cut Diagram</Label>
               <p className="text-sm text-muted-foreground">
-                Display visual cutting diagrams in the Cut Planner
+                Display visual cutting diagrams in the Cutting Engine
               </p>
             </div>
             <Switch

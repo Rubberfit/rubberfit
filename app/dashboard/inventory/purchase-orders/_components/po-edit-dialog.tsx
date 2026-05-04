@@ -198,7 +198,7 @@ function EditOrderDetailsCard({
               (() => {
                 const sel = suppliers.find((s) => s.id === editFormData.supplier_id)
                 return sel && (sel.city || sel.state) ? (
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     <MapPin className="inline h-3 w-3 mr-1" />
                     {sel.city && `${sel.city}, `}
                     {sel.state} {sel.zip_code}

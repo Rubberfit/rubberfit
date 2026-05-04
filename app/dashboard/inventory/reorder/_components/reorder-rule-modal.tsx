@@ -18,7 +18,7 @@ import {
   type CreateReorderRule,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { ReorderRuleFormFields } from "./reorder-rule-form-fields"
 
 interface ReorderRuleModalProps {
@@ -136,7 +136,10 @@ export function ReorderRuleModal({
           supplier_id: supplier_id || null,
         } as UpdateReorderRule
 
-        const response = await reorderService.updateReorderRule(rule.id, updateData)
+        const response = await reorderRulesSdk.update(
+          rule.id,
+          updateData as unknown as Parameters<typeof reorderRulesSdk.update>[1]
+        )
         if (!response) throw new Error("Failed to update reorder rule")
 
         toast.success("Reorder rule updated successfully")
@@ -146,7 +149,9 @@ export function ReorderRuleModal({
           supplier_id: formData.supplier_id || undefined,
         } as CreateReorderRule
 
-        const response = await reorderService.createReorderRule(createData)
+        const response = await reorderRulesSdk.create(
+          createData as unknown as Parameters<typeof reorderRulesSdk.create>[0]
+        )
         if (!response) throw new Error("Failed to create reorder rule")
 
         toast.success("Reorder rule created successfully")

@@ -4,6 +4,7 @@ import type {
 } from "@/src/application/services/reorder.service.interface"
 
 export interface IReorderCalculationsService {
+  getAverageDailyUsage(): Promise<number>
   calculateOptimalOrderQuantity(
     materialTypeId: string,
     supplierId?: string

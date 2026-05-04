@@ -1,7 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
-import { ExternalLink, FileText, Star, Trash2 } from "lucide-react"
+import { ExternalLink, FileText, Loader2, Star, Trash2 } from "lucide-react"
 
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
@@ -15,7 +15,7 @@ import {
 } from "@/app/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/app/components/ui/tooltip"
 
-import { type CutHistoryRow, PART_LABELS } from "./use-cut-history"
+import { canViewPdf, type CutHistoryRow, PART_LABELS } from "./use-cut-history"
 
 // FabScoreBadge
 
@@ -25,6 +25,54 @@ function FabScoreBadge({ score }: { score: number }) {
   return <Badge variant={variant}>{pct}%</Badge>
 }
 
+// PdfActionButton — issue #127: always rendered. Three states:
+//   - has pdf_url           → click opens it
+//   - recoverable layout    → click hits the on-demand regen route
+//   - neither               → disabled with explanatory tooltip
+function PdfActionButton({
+  cut,
+  isPending,
+  onViewPdf,
+}: {
+  cut: CutHistoryRow
+  isPending: boolean
+  onViewPdf: (id: string) => void
+}) {
+  const hasUrl = Boolean(cut.pdf_url)
+  const recoverable = canViewPdf(cut)
+  const tooltipLabel = hasUrl
+    ? "View PDF"
+    : recoverable
+      ? isPending
+        ? "Generating PDF…"
+        : "Generate PDF"
+      : "PDF unavailable — no layout snapshot was stored for this cut"
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+            onClick={() => onViewPdf(cut.id)}
+            disabled={!recoverable || isPending}
+            aria-label={tooltipLabel}
+          >
+            {isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltipLabel}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 // Props
 
 interface CutHistoryTableProps {
@@ -32,9 +80,11 @@ interface CutHistoryTableProps {
   loading: boolean
   totalColSpan: number
   canDelete: boolean
+  pendingPdfIds: Set<string>
   onToggleFavorite: (id: string) => void
   onDeleteRequest: (cutId: string) => void
   onReopen: (cutId: string) => void
+  onViewPdf: (cutId: string) => void
 }
 
 // Component
@@ -44,9 +94,11 @@ export function CutHistoryTable({
   loading,
   totalColSpan,
   canDelete,
+  pendingPdfIds,
   onToggleFavorite,
   onDeleteRequest,
   onReopen,
+  onViewPdf,
 }: CutHistoryTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -112,7 +164,17 @@ export function CutHistoryTable({
 
                 {/* Part */}
                 <TableCell className="font-medium">
-                  {PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`}
+                  <div className="flex items-center gap-1.5">
+                    <span>{PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`}</span>
+                    {cut.source === "manual" && (
+                      <Badge
+                        variant="outline"
+                        className="h-5 px-1.5 text-[10px] font-medium border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-50/60 dark:bg-sky-950/30"
+                      >
+                        Manual
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Stock dimensions */}
@@ -142,22 +204,11 @@ export function CutHistoryTable({
                 {/* Actions */}
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    {cut.pdf_url && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                            onClick={() => window.open(cut.pdf_url ?? "", "_blank")}
-                            aria-label="View PDF"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View PDF</TooltipContent>
-                      </Tooltip>
-                    )}
+                    <PdfActionButton
+                      cut={cut}
+                      isPending={pendingPdfIds.has(cut.id)}
+                      onViewPdf={onViewPdf}
+                    />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -165,12 +216,12 @@ export function CutHistoryTable({
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onReopen(cut.id)}
-                          aria-label="Reopen in Cut Planner"
+                          aria-label="Reopen in Cutting Engine"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Reopen in Cut Planner</TooltipContent>
+                      <TooltipContent>Reopen in Cutting Engine</TooltipContent>
                     </Tooltip>
                     {canDelete && (
                       <Tooltip>

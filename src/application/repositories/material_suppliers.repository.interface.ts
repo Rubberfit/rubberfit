@@ -1,16 +1,10 @@
-import type {
-  MaterialSupplier,
-  MaterialSupplierWithDetails,
-  CreateMaterialSupplier,
-  UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
+import type { MaterialSupplierWithDetails } from "@/src/infrastructure/models/supabase"
 
 export interface IMaterialSuppliersRepository {
-  findById(id: string): Promise<MaterialSupplier | null>
-  findAll(userId: string): Promise<MaterialSupplier[]>
-  findByMaterialType(userId: string, materialTypeId: string): Promise<MaterialSupplierWithDetails[]>
-  findBySupplierId(userId: string, supplierId: string): Promise<MaterialSupplierWithDetails[]>
-  create(data: CreateMaterialSupplier): Promise<MaterialSupplier>
-  update(id: string, data: UpdateMaterialSupplier): Promise<MaterialSupplier>
-  delete(id: string): Promise<void>
+  /**
+   * Returns every active material-supplier link with the joined
+   * `material_type` and `supplier` rows. Used by the pricing dashboard
+   * to render the comparison table.
+   */
+  getActiveWithDetails(): Promise<MaterialSupplierWithDetails[]>
 }

@@ -82,4 +82,7 @@ port = 54326
 
 # Edge Functions configuration
 [functions]
-# No edge functions configured for this project yet
+
+# Vision-based cut dimension extraction (invoked by visionExtractionService)
+[functions.extract-cut-dimensions]
+verify_jwt = true

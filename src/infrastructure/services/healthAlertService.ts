@@ -120,12 +120,25 @@ export class HealthAlertService implements IHealthAlertService {
             },
           ],
         }
-        await fetch(slackWebhookUrl, {
+        // fetch() only rejects on network errors, so a 4xx/5xx
+        // response from Slack (expired webhook, rate limit, bad
+        // channel) would silently drop the alert. Check .ok and log
+        // — we still swallow the failure below because an alert that
+        // didn't reach Slack shouldn't take down the health check,
+        // but the operator at least sees it in server logs.
+        const response = await fetch(slackWebhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(5000),
         })
+        if (!response.ok) {
+          const body = await response.text().catch(() => "<unreadable body>")
+          console.warn("[healthAlert] Slack webhook returned non-ok", {
+            status: response.status,
+            body: body.slice(0, 200),
+          })
+        }
       } catch (_error) {
         // Slack failure must not throw
       }

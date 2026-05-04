@@ -35,9 +35,7 @@ export function NavUser({
   const { signOut, user: authUser } = useAuth()
   const router = useRouter()
 
-  const isAdminPanelVisible =
-    authUser?.isSuperAdmin === true 
-    //LATER: authUser.email.toLowerCase().endsWith("@archandanchor.com")
+  const isAdminPanelVisible = authUser?.isSuperAdmin === true
 
   const handleSignOut = async () => {
     try {
@@ -48,7 +46,7 @@ export function NavUser({
   }
 
   const handleAccountClick = () => {
-    router.push("/dashboard/account")
+    router.push("/dashboard/settings/profile")
   }
 
   const handleNotificationsClick = () => {

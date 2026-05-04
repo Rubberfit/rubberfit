@@ -93,6 +93,13 @@ Converts geometric shapes to polygon vertex arrays for the nesting engine.
 | ------------------------------------------------------ | --------------------- | --------------------------------------------------- |
 | `rectToPolygon(w, h)`                                  | Rectangle             | 4 vertices                                          |
 | `circleToPolygon(d, segments=24)`                      | Circle                | N vertices on circumference                         |
+| `ellipseToPolygon(w, h, segments=48)`                  | Ellipse               | N vertices on perimeter                             |
+| `triangleToPolygon(base, h)`                           | Isoceles triangle     | 3 vertices, apex on top                             |
+| `rightTriangleToPolygon(base, h)`                      | Right triangle        | 3 vertices, right angle bottom-left                 |
+| `ngonToPolygon(sides, radius)`                         | Regular n-gon         | `sides` vertices distributed on a circle            |
+| `starToPolygon(points, rOut, rIn)`                     | N-pointed star        | `points × 2` alternating outer/inner vertices       |
+| `ringToPolygon(outerD, innerD, segments=48)`           | Annulus (with hole)   | Outer CCW + bridge + inner CW (Clipper-normalized)  |
+| `ringOuterOnlyPolygon(outerD, segments=48)`            | Annulus (outer only)  | For renderers that can't handle holes               |
 | `trapezoidToPolygon(topW, bottomW, h)`                 | Trapezoid             | 4 vertices, centered                                |
 | `sectorToPolygon(innerR, outerR, arcDeg, segments=24)` | Annular sector (cone) | ~50 vertices: outer arc forward + inner arc reverse |
 
@@ -167,25 +174,6 @@ export function extractMaximalFreeRects(
 
 // Classify: "reusable" if ≥ 11.5"×12" offcut or ≥ 6"×24" strip
 export function classifyFreeRegion(region: FreeRegion): "reusable" | "scrap"
-```
-
-### nfp-solver.ts
-
-Wraps the vendored Fit packer library for mixed-shape nesting. Converts `NestingInput` into Fit packer format, runs the GA-based optimizer, and converts results back to `NestingResult`.
-
-```typescript
-export class NFPSolver {
-  solve(
-    input: NestingInput,
-    callbacks: {
-      onProgress?: (result: NestingResult) => void
-      onComplete: (result: NestingResult) => void
-      onError?: (message: string) => void
-    }
-  ): () => void // returns cancel function
-
-  cancel(): void
-}
 ```
 
 ## vendor/fit/

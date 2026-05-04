@@ -1,5 +1,5 @@
 import "reflect-metadata"
-import { container } from "tsyringe"
+import { container, instanceCachingFactory } from "tsyringe"
 import { TOKENS } from "./tokens"
 
 // Application service interfaces
@@ -24,6 +24,10 @@ import type { ITaxApiService } from "@/src/application/services/tax-api.service.
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
 import type { IUserManagementService } from "@/src/application/services/user-management.service.interface"
 import type { IHealthAlertService } from "@/src/application/services/health-alert.service.interface"
+import type { IHealthCheckService } from "@/src/application/services/health-check.service.interface"
+import type { IAlertManagementService } from "@/src/application/services/alert-management.service.interface"
+import type { ICutFavoritesService } from "@/src/application/services/cut-favorites.service.interface"
+import type { IRollInventoryService } from "@/src/application/services/roll-inventory.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -32,6 +36,8 @@ import { cutService } from "@/src/infrastructure/services/cutService"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
+import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -47,6 +53,10 @@ import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
 import { healthAlertService } from "@/src/infrastructure/services/healthAlertService"
+import { healthCheckService } from "@/src/infrastructure/services/healthCheckService"
+import { alertManagementService } from "@/src/infrastructure/services/alertManagementService"
+import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesService"
+import { rollInventoryService } from "@/src/infrastructure/services/rollInventoryService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -56,6 +66,7 @@ import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase
 import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
 import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -68,6 +79,42 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
+// IPackingService: server resolves to RustPackingService (spawns the
+// pack-cli subprocess). Browser resolves to ApiPackingService, which
+// POSTs the PackRequest to `/api/v2/pack` — that route then spawns the
+// same RustPackingService server-side. Single Rust source of truth, no
+// TS NFP fallback.
+//
+// The pack-cli binary check runs lazily, server-side only, on first
+// resolve. If the binary is missing the call fails fast at the point
+// of use rather than at module load.
+const IS_SERVER = typeof window === "undefined"
+const BINARY_EXT = typeof process !== "undefined" && process.platform === "win32" ? ".exe" : ""
+export const RUST_PACK_BINARY = `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli${BINARY_EXT}`
+function verifyRustBinary(): void {
+  if (typeof process === "undefined" || !process.versions?.node) return
+  // Wrapped in eval() to keep `require` opaque to the bundler's static
+  // analysis — Turbopack treats `require("node:fs")` as an external
+  // dependency it can't resolve for client chunks, even under a
+  // runtime guard. This is the documented escape hatch.
+  const nodeRequire = eval("require") as (m: string) => typeof import("node:fs")
+  const fs = nodeRequire("node:fs")
+  if (!fs.existsSync(RUST_PACK_BINARY)) {
+    throw new Error(
+      `[packing] pack-cli binary not found at ${RUST_PACK_BINARY}. ` +
+        `Run "npm run build:engine" to build the Rust nesting engine.`
+    )
+  }
+}
+container.register(TOKENS.IPackingService, {
+  useFactory: instanceCachingFactory(() => {
+    if (IS_SERVER) {
+      verifyRustBinary()
+      return new RustPackingService()
+    }
+    return new ApiPackingService()
+  }),
+})
 container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(
@@ -96,6 +143,16 @@ container.registerInstance<IUserManagementService>(
   userManagementService
 )
 container.registerInstance<IHealthAlertService>(TOKENS.IHealthAlertService, healthAlertService)
+container.registerInstance<IHealthCheckService>(TOKENS.IHealthCheckService, healthCheckService)
+container.registerInstance<IAlertManagementService>(
+  TOKENS.IAlertManagementService,
+  alertManagementService
+)
+container.registerInstance<ICutFavoritesService>(TOKENS.ICutFavoritesService, cutFavoritesService)
+container.registerInstance<IRollInventoryService>(
+  TOKENS.IRollInventoryService,
+  rollInventoryService
+)
 
 // Use cases — registered as class-based singletons so the container lazily
 // constructs them on first resolve, keeping use-case modules import-safe for
@@ -113,5 +170,6 @@ container.registerSingleton(
   TOKENS.ICreateReorderPurchaseOrderUseCase,
   CreateReorderPurchaseOrderUseCase
 )
+container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
 
 export { container }

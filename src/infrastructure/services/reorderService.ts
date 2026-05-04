@@ -6,6 +6,7 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
+import { generatePoNumber } from "./generatePoNumber"
 import type {
   IReorderService,
   ReorderSuggestion,
@@ -384,16 +385,15 @@ export class ReorderService implements IReorderService {
   async generatePONumber(): Promise<string> {
     const date = new Date()
     const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
 
-    const startOfMonth = new Date(year, date.getMonth(), 1).toISOString()
+    const startOfYear = new Date(year, 0, 1).toISOString()
     const { count, error: _error } = await supabase
       .from("purchase_orders")
       .select("*", { count: "exact", head: true })
-      .gte("created_at", startOfMonth)
+      .gte("created_at", startOfYear)
 
-    const sequence = String((count || 0) + 1).padStart(4, "0")
-    return `PO-${year}${month}-${sequence}`
+    const sequence = (count || 0) + 1
+    return generatePoNumber(year, sequence)
   }
 
   // Delegate helpers to reorderCalculations instance

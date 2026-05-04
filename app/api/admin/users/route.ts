@@ -1,74 +1,29 @@
-import { createClient } from "@supabase/supabase-js"
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { ALL_ROLES } from "@/src/application/permissions"
+import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
+import type { AppRole } from "@/src/application/permissions"
+import { createUserWithProfile } from "@/src/infrastructure/services/userManagementService"
 
-function isValidRole(role: unknown): role is (typeof ALL_ROLES)[number] {
-  return typeof role === "string" && (ALL_ROLES as readonly string[]).includes(role)
-}
-
-/** Verify the caller is an authenticated admin. Returns null on success, or an error response. */
-async function requireAdmin(): Promise<{ userId: string } | NextResponse> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json(
-      { error: "Supabase configuration is incomplete" },
-      { status: 500 }
-    )
-  }
-  const cookieStore = await cookies()
-
-  const caller = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    { cookies: { getAll: () => cookieStore.getAll() } }
+function isValidRole(role: unknown): role is AppRole {
+  return (
+    role === "admin" ||
+    role === "cutter" ||
+    role === "manager" ||
+    role === "member" ||
+    role === "supervisor" ||
+    role === "viewer"
   )
-
-  const {
-    data: { user },
-  } = await caller.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { data: profile } = await caller
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-
-  const roles: unknown = profile?.roles
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
-    return NextResponse.json({ error: "Forbidden — admin role required" }, { status: 403 })
-  }
-
-  return { userId: user.id }
 }
 
 /** POST /api/admin/users — create a new auth user + profile */
 export async function POST(request: NextRequest) {
-  const authResult = await requireAdmin()
-  if (authResult instanceof NextResponse) return authResult
+  const guard = await requireAdmin(request)
+  if (!guard.ok) return guard.response
+  const { adminClient } = guard.ctx
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    return NextResponse.json(
-      {
-        error:
-          "User creation is not configured. Set SUPABASE_SERVICE_ROLE_KEY in your environment.",
-      },
-      { status: 501 }
-    )
-  }
-
- 
   let body: unknown
-  try{
-    body = await request.json();
-  }catch (error) {
+  try {
+    body = await request.json()
+  } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
@@ -88,47 +43,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "full_name is required" }, { status: 400 })
   }
 
-  const normalizedEmail = email.trim().toLowerCase()
+  const resolvedRoles: AppRole[] =
+    Array.isArray(roles) && roles.length > 0 && roles.every(isValidRole)
+      ? (roles as AppRole[])
+      : ["member"]
 
-  const resolvedRoles: string[] = Array.isArray(roles) && roles.every(isValidRole) ? roles : ["member"]
-
-  const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
-
-  const { data: existing } = await adminClient
-    .from("profiles")
-    .select("id")
-    .eq("email", normalizedEmail)
-    .maybeSingle()
-
-  if (existing) {
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 })
+  let result: Awaited<ReturnType<typeof createUserWithProfile>>
+  try {
+    result = await createUserWithProfile(adminClient, {
+      email,
+      password,
+      fullName: full_name,
+      roles: resolvedRoles,
+    })
+  } catch (error) {
+    console.error("POST /api/admin/users:", error)
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
   }
 
-  const { data: created, error: createError } = await adminClient.auth.admin.createUser({
-    email: normalizedEmail,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: full_name.trim() },
-  })
-
-  if (createError) {
-    return NextResponse.json({ error: createError.message }, { status: 400 })
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
-  // Update the auto-created profile with the desired name + roles
-  const { error: profileError } = await adminClient
-    .from("profiles")
-    .update({ full_name: full_name.trim(), roles: resolvedRoles })
-    .eq("id", created.user.id)
-
-  if (profileError) {
-    // User was created — log the error but don't fail the request
-    console.error("Failed to update profile after user creation:", profileError)
+  if (result.warning) {
     return NextResponse.json(
-      { success: true, userId: created.user.id, warning: "User created but profile update failed" },
+      { success: true, userId: result.userId, warning: result.warning },
       { status: 201 }
     )
   }
-
-  return NextResponse.json({ success: true, userId: created.user.id }, { status: 201 })
+  return NextResponse.json({ success: true, userId: result.userId }, { status: 201 })
 }

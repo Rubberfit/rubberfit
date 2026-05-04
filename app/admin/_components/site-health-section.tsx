@@ -214,7 +214,7 @@ function GridLayout({ services }: { services: DashboardService[] }) {
                 </span>
               </div>
             </div>
-            <Sparkline status={status} avgResponseMs={svc.avgResponseMs} data={svc.timeseries} height={40} />
+            <Sparkline status={status} data={svc.timeseries} height={40} />
             <p className="text-[10px] text-zinc-600 -mt-1">Response time — last 24h</p>
             <div className="pt-2 border-t border-zinc-800">
               <UptimeBadges svc={svc} />
@@ -263,7 +263,7 @@ function ListLayout({ services }: { services: DashboardService[] }) {
               {STATUS_LABEL[status]}
             </span>
             <div className="flex-1 min-w-0">
-              <Sparkline status={status} avgResponseMs={svc.avgResponseMs} data={svc.timeseries} height={28} />
+              <Sparkline status={status} data={svc.timeseries} height={28} />
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {uptime.map((u) => (

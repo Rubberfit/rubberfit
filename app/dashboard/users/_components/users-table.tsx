@@ -116,7 +116,7 @@ export function UsersTable({
                       <TableCell className="text-sm">{user.email ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {user.roles.map((role) => (
+                          {(user.roles ?? []).map((role) => (
                             <RoleBadge key={role} role={role} />
                           ))}
                         </div>

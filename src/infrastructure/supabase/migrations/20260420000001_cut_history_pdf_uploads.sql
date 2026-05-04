@@ -60,3 +60,17 @@ CREATE POLICY "cut_history_pdfs_delete"
     bucket_id = 'cut-history-pdfs'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ─────────────────────────────────────────────────────────────
+-- Fix: cut_history_update_own policy was declared FOR INSERT by
+-- mistake (see 20260412055559_add_cut_history.sql). Without a real
+-- UPDATE policy, .update({ pdf_url }) silently matched zero rows
+-- and the pdf_url column stayed null after every cut.
+-- ─────────────────────────────────────────────────────────────
+
+DROP POLICY IF EXISTS cut_history_update_own ON cut_history;
+
+CREATE POLICY cut_history_update_own
+  ON cut_history FOR UPDATE
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());

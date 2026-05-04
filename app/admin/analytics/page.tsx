@@ -5,17 +5,17 @@ import { GrowthTrendChart } from "../_components/growth-trend-chart"
 import { StatCard } from "../_components/stat-card"
 
 const TOP_ORGS = [
-  { name: "Apex Fabrics", members: 34, nestingJobs: "1,204", apiCalls: "142k", plan: "Enterprise", lastActive: "Today" },
+  { name: "Apex Fabrics", members: 34, nestingJobs: "1,204", apiCalls: "142k", plan: "Max", lastActive: "Today" },
   { name: "NexThread Co.", members: 18, nestingJobs: "887", apiCalls: "98k", plan: "Pro", lastActive: "Today" },
   { name: "Horizon Textiles", members: 12, nestingJobs: "541", apiCalls: "67k", plan: "Pro", lastActive: "Yesterday" },
-  { name: "Stitch & Scale", members: 9, nestingJobs: "312", apiCalls: "44k", plan: "Starter", lastActive: "2 days ago" },
-  { name: "Fabric Forward", members: 5, nestingJobs: "178", apiCalls: "21k", plan: "Starter", lastActive: "4 days ago" },
+  { name: "Stitch & Scale", members: 9, nestingJobs: "312", apiCalls: "44k", plan: "Standard", lastActive: "2 days ago" },
+  { name: "Fabric Forward", members: 5, nestingJobs: "178", apiCalls: "21k", plan: "Standard", lastActive: "4 days ago" },
 ]
 
 const PLAN_STYLES: Record<string, string> = {
-  Enterprise: "text-violet-400 bg-violet-900/40",
+  Max: "text-violet-400 bg-violet-900/40",
   Pro: "text-sky-400 bg-sky-900/40",
-  Starter: "text-zinc-400 bg-zinc-800",
+  Standard: "text-zinc-400 bg-zinc-800",
 }
 
 export default function AnalyticsPage() {

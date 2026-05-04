@@ -65,9 +65,11 @@ service_role key: your-service-role-key
 Create a `.env.local` file in your app directory with:
 
 ```env
-SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=your-anon-key-from-above
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-from-above
 ```
+
+> Note: S4 (Tauri migration) will remove the `NEXT_PUBLIC_` prefix. Code and README will be updated together at that time.
 
 ## Database Schema Overview
 
@@ -182,6 +184,18 @@ supabase logs
 # Stop Supabase
 supabase stop
 ```
+
+## Client initialization
+
+The browser Supabase client lives in a separate file at
+`src/infrastructure/models/supabase.ts` and is **lazy-init'd**. Importing the
+module does not construct a client or read env vars — construction happens on
+the first call to `getSupabaseClient()` (or the first property access on the
+exported `supabase` Proxy). This keeps DI-touching tests import-safe without
+env stubs and lets non-web builds (e.g. Tauri) evaluate infrastructure modules
+even when `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are not
+baked in at module-eval time. Env vars must be present whenever a caller first
+uses the client.
 
 ## Support
 

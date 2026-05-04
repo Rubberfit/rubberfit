@@ -1,0 +1,4898 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RF backend API",
+    "description": "HTTP surface for the Rust RF backend. Frontend calls go via Next.js route handlers at `/api/v2/*`, which bridge the Supabase session cookie to a bearer JWT before forwarding here.",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v2/cuts/favorites": {
+      "get": {
+        "tags": [
+          "cuts"
+        ],
+        "operationId": "list_favorites",
+        "responses": {
+          "200": {
+            "description": "Favorited cut-history entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CutHistoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/cuts/history": {
+      "get": {
+        "tags": [
+          "cuts"
+        ],
+        "operationId": "list_history",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size. Clamped to 200 server-side; defaults to 50 when omitted.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Zero-based offset from the newest entry.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Lower bound on `cut_date` (ISO-8601, inclusive).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "Upper bound on `cut_date` (ISO-8601, inclusive).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cut-history entries, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CutHistoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/cuts/history/{id}": {
+      "get": {
+        "tags": [
+          "cuts"
+        ],
+        "operationId": "get_history_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Cut-history row id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cut-history entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CutHistoryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found or hidden by RLS"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/import/rolls": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "import_rolls_json",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRollsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Import receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/import/rolls/csv": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "import_rolls_csv",
+        "requestBody": {
+          "description": "CSV with required columns material_type, width, length, thickness and optional color, location, date_received, supplier, cost_per_sqft, notes. Header row is case-insensitive; whitespace → underscore.",
+          "content": {
+            "text/csv": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "CSV missing required columns or empty"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "413": {
+            "description": "CSV body exceeds 10 MiB"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-suppliers": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_material_suppliers",
+        "parameters": [
+          {
+            "name": "material_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Material-supplier rows with embedded material_type + supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialSupplierDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_material_supplier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaterialSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate (material_type, supplier) pair — `DUPLICATE_PAIR`"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-suppliers/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row with embedded parents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaterialSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialSupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_material_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-supplier row UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-types": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_material_types",
+        "responses": {
+          "200": {
+            "description": "All material types, ordered by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialTypeDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_material_type",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaterialTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/material-types/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The material type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found or hidden by RLS"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaterialTypeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialTypeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_material_type",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Material-type UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Blocked — rolls reference this type (`FK_VIOLATION_ROLLS_EXIST`)"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_rolls",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by status (active / depleted / reserved).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "material_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "ILIKE sweep across material_type / color / location / supplier / notes.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching rolls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad filter (unknown status)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_roll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRollBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or unknown material_type_id"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "FK conflict / check violation"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/recent": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "recent_rolls",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of rows to return. Clamped server-side to 200.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Most-recent active rolls by created_at",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/growth-percentage": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "inventory_growth",
+        "responses": {
+          "200": {
+            "description": "Roll-count growth percentage, last-7d vs previous-7d",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryGrowthDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/inventory-value": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "inventory_value",
+        "responses": {
+          "200": {
+            "description": "Total inventory value in USD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryValueDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/stats/low-stock-count": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "low_stock_count",
+        "responses": {
+          "200": {
+            "description": "Count of material types below their min_stock_alert threshold",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LowStockCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/rolls/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The roll",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRollBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RollDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed / invalid depletion state"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_roll",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Roll UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/suppliers": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "list_suppliers",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "description": "When set, only return suppliers matching the given active flag.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "preferred",
+            "in": "query",
+            "description": "When set, only return suppliers matching the given preferred flag.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "ILIKE search across name / contact_person / email / city.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size. Clamped to 200 server-side.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Zero-based offset.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suppliers, preferred first then alphabetical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "create_supplier",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/inventory/suppliers/{id}": {
+      "get": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "get_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "update_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSupplierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Duplicate name — `DUPLICATE_NAME` code in body"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "inventory"
+        ],
+        "operationId": "delete_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Supplier UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Row not found"
+          },
+          "409": {
+            "description": "Blocked — material_supplier rows reference this supplier"
+          },
+          "500": {
+            "description": "Downstream infrastructure failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "list_purchase_orders",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "auto_generated",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All POs matching filters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PurchaseOrderDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_purchase_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Conflict (FK / duplicate / check violation)"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/tax/preview": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "tax_preview",
+        "parameters": [
+          {
+            "name": "supplier_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subtotal",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tax preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "subtotal must be a finite non-negative number"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "500": {
+            "description": "TAX_PROXY_BASE not configured or downstream failure"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/{id}": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "get_purchase_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The PO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_purchase_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict (FK / check violation)"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "delete_purchase_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/{id}/receive": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "receive_purchase_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceivePurchaseOrderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Receive flow completed (or partial)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiveReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (empty items, bad quantity, etc.)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "PO_ALREADY_RECEIVED / PO_NOT_FOUND / PO_ITEM_NOT_FOUND / CHECK_VIOLATION / FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/{id}/status": {
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_purchase_order_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Purchase order UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOrderStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown status string"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "PO not found"
+          },
+          "409": {
+            "description": "Invalid transition. Body is `{ code: \"INVALID_STATE_TRANSITION\" | \"RECEIVED_REQUIRES_RECEIVE_FLOW\", details: { allowedTargets: [...] } }`. Received is only reachable via /api/v2/po/{id}/receive (Task 5)."
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/{po_id}/items": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "list_po_items",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "description": "Parent PO UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All items for the PO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PurchaseOrderItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "add_po_item",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "description": "Parent PO UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePurchaseOrderItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Line item added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "Conflict — `LINE_NUMBER_RACE` or FK violation"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/po/{po_id}/items/{item_id}": {
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_po_item",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "description": "Parent PO UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Line item UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOrderItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Line item updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "delete_po_item",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "description": "Parent PO UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Line item UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "list_reorder_rules",
+        "responses": {
+          "200": {
+            "description": "All reorder rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "DUPLICATE_MATERIAL_RULE, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/create-bulk-po": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_bulk",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoBulkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Bulk PO created (1 PO, N line items)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING (transactional — any failure rolls back the entire bulk PO)"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/create-pos": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoBatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "All N items succeeded; response is an ordered array of N receipts. IMPORTANT: the handler is NOT transactional across items — each input runs its own RPC and commits independently. A mid-batch failure returns 4xx/5xx and earlier successes persist in the DB but are NOT returned in the response body. Clients should refetch the PO list (or retry just the failing items) after a partial-batch error rather than trust the current response body on failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (empty items / negative quantity / etc.)"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING. Earlier items in the batch may have committed (see 201 notes)."
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/suggestions": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "reorder_suggestions",
+        "parameters": [
+          {
+            "name": "include_pending",
+            "in": "query",
+            "description": "Default `false` — rules with at least one non-draft PO\nline item are excluded. Set to `true` to show them anyway\n(the UI's \"review pending\" affordance).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestions (sorted by urgency)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReorderSuggestionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/{id}": {
+      "get": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "get_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "update_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReorderRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderRuleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "CHECK_VIOLATION or FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "delete_reorder_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/api/v2/reorder-rules/{id}/create-po": {
+      "post": {
+        "tags": [
+          "procurement"
+        ],
+        "operationId": "create_reorder_po_row",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder rule UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPoRowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "PO created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPoReceiptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed"
+          },
+          "401": {
+            "description": "Missing or invalid bearer token"
+          },
+          "409": {
+            "description": "RULE_NOT_FOUND, RULE_INACTIVE, SUPPLIER_NOT_FOUND, DUPLICATE_RULE_IDS, CHECK_VIOLATION, or FK_VIOLATION_PARENT_MISSING"
+          }
+        },
+        "security": [
+          {
+            "supabase_jwt": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service liveness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateMaterialSupplierBody": {
+        "type": "object",
+        "required": [
+          "material_type_id",
+          "supplier_id",
+          "cost_per_sqft"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "supplier_material_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateMaterialTypeBody": {
+        "type": "object",
+        "description": "Request body for POST — mandatory `name`, everything else\noptional. The handler validates constraints through the use\ncase; the adapter maps a DB unique violation to a stable\n`DUPLICATE_NAME` conflict code.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePurchaseOrderBody": {
+        "type": "object",
+        "description": "Body for POST. `status` defaults to `draft` server-side if omitted.",
+        "required": [
+          "supplier_id"
+        ],
+        "properties": {
+          "auto_generated": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "billing_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "tax_amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "CreatePurchaseOrderItemBody": {
+        "type": "object",
+        "required": [
+          "material_type_id",
+          "description",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "CreateReorderPoBatchBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReorderPoBatchItemBody"
+            }
+          }
+        }
+      },
+      "CreateReorderPoBulkBody": {
+        "type": "object",
+        "required": [
+          "supplier_id",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReorderPoBulkItemBody"
+            }
+          },
+          "supplier_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateReorderPoRowBody": {
+        "type": "object",
+        "required": [
+          "supplier_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CreateReorderRuleBody": {
+        "type": "object",
+        "required": [
+          "material_type_id",
+          "reorder_point",
+          "reorder_quantity",
+          "lead_time_days"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "auto_reorder": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateRollBody": {
+        "type": "object",
+        "description": "Create body. Caller sends `material_type_id`; the server looks\nup the corresponding name. Any `material_type` string in the\nbody is ignored.",
+        "required": [
+          "material_type_id",
+          "width",
+          "length",
+          "thickness",
+          "remaining_length"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "CreateSupplierBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CutHistoryDto": {
+        "type": "object",
+        "description": "Response DTO — thin wrapper over the domain entry. Separated from\n`CutHistoryEntry` so the HTTP contract can evolve independently\nof domain schema. Today the mapping is 1:1; renaming / derived\nfields will land here first when we start splitting concerns.",
+        "required": [
+          "id",
+          "material_id",
+          "part_id",
+          "cut_length",
+          "cut_width",
+          "cut_thickness",
+          "cut_amount",
+          "parts_completed",
+          "material_used_sqft",
+          "reusable_offset_sqft",
+          "scrap_sqft",
+          "fab_score",
+          "cut_pieces"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cut_amount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cut_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cut_length": {
+            "type": "number",
+            "format": "double"
+          },
+          "cut_pieces": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cut_thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "cut_width": {
+            "type": "number",
+            "format": "double"
+          },
+          "fab_score": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "material_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "material_used_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "part_custom_height": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "part_custom_width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "part_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "part_selected_label": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "part_selected_size": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "part_selected_size_text": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "parts_completed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reusable_offset_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "scrap_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`auto` | `manual` — which cutting-engine surface recorded this\ncut. Pre-migration rows can still omit this field."
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportReceiptDto": {
+        "type": "object",
+        "required": [
+          "imported",
+          "skipped",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRowErrorDto"
+            }
+          },
+          "imported": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ImportRollRowBody": {
+        "type": "object",
+        "description": "Matches `CsvImportRow` on the wire. `material_type_id` is\noptional and null-safe — the dedicated review page fills it\nwhen the row matches an existing material, and leaves it null\nwhen the user typed a new name.",
+        "required": [
+          "material_type",
+          "width",
+          "length",
+          "thickness"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ImportRollsBody": {
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRollRowBody"
+            }
+          }
+        }
+      },
+      "ImportRowErrorDto": {
+        "type": "object",
+        "required": [
+          "row_number",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "row_number": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "InventoryGrowthDto": {
+        "type": "object",
+        "required": [
+          "percentage"
+        ],
+        "properties": {
+          "percentage": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage growth vs. the prior 7 days."
+          }
+        }
+      },
+      "InventoryValueDto": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "number",
+            "format": "double",
+            "description": "Total value in USD."
+          }
+        }
+      },
+      "LowStockCountDto": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "MaterialSupplierDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type_id",
+          "supplier_id",
+          "cost_per_sqft",
+          "preferred_supplier",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "cost_per_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "material_type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MaterialTypeDto",
+                "description": "The embedded material_types row, present on list/get, absent\non create/update response (PostgREST Prefer:\nreturn=representation doesn't include embeds)."
+              }
+            ]
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": "boolean"
+          },
+          "supplier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupplierDto"
+              }
+            ]
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "supplier_material_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MaterialTypeDto": {
+        "type": "object",
+        "description": "Response DTO — mirrors the domain struct 1:1 today. Separated\nfrom `MaterialType` so the HTTP contract can evolve without\nreaching into the domain type.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PurchaseOrderDto": {
+        "type": "object",
+        "description": "Response DTO — mirrors the domain struct. Separate so the HTTP\nsurface can diverge from the domain without a domain change.",
+        "required": [
+          "id",
+          "po_number",
+          "supplier_id",
+          "status",
+          "subtotal",
+          "tax_amount",
+          "shipping_cost",
+          "total_amount",
+          "auto_generated"
+        ],
+        "properties": {
+          "actual_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approved_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_generated": {
+            "type": "boolean"
+          },
+          "billing_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "po_number": {
+            "type": "string"
+          },
+          "reorder_rule_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "tax_amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "total_amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PurchaseOrderItemDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "purchase_order_id",
+          "material_type_id",
+          "line_number",
+          "description",
+          "quantity_sqft",
+          "unit_cost",
+          "line_total",
+          "quantity_received"
+        ],
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "line_number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "line_total": {
+            "type": "number",
+            "format": "double"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purchase_order_id": {
+            "type": "string"
+          },
+          "quantity_received": {
+            "type": "number",
+            "format": "double"
+          },
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "received_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ReceiveItemBody": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "quantity_received"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string"
+          },
+          "quantity_received": {
+            "type": "number",
+            "format": "double"
+          },
+          "roll_data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReceiveRollDataBody"
+              }
+            ]
+          }
+        }
+      },
+      "ReceivePurchaseOrderBody": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiveItemBody"
+            }
+          }
+        }
+      },
+      "ReceiveReceiptDto": {
+        "type": "object",
+        "description": "Response DTO — JSON representation of `ReceiveReceipt`. Kept\nseparate so the HTTP shape can evolve without touching the\nuse-case struct.",
+        "required": [
+          "po_id",
+          "items_received",
+          "roll_ids",
+          "partial"
+        ],
+        "properties": {
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items_received": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "po_id": {
+            "type": "string"
+          },
+          "roll_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReceiveRollDataBody": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPoBatchItemBody": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "supplier_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPoBulkItemBody": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "quantity_sqft",
+          "unit_cost"
+        ],
+        "properties": {
+          "quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "unit_cost": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReorderPoReceiptDto": {
+        "type": "object",
+        "description": "Response DTO — mirrors `ReorderPoReceipt` in snake_case.",
+        "required": [
+          "po_id",
+          "po_number",
+          "supplier_id",
+          "items_count",
+          "subtotal",
+          "rule_ids",
+          "bulk"
+        ],
+        "properties": {
+          "bulk": {
+            "type": "boolean"
+          },
+          "items_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "po_id": {
+            "type": "string"
+          },
+          "po_number": {
+            "type": "string"
+          },
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReorderRuleDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type_id",
+          "reorder_point",
+          "reorder_quantity",
+          "lead_time_days",
+          "auto_reorder",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "auto_reorder": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_triggered_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReorderSuggestionDto": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "material_type_id",
+          "material_name",
+          "current_stock_sqft",
+          "threshold_sqft",
+          "reorder_quantity_sqft",
+          "urgency",
+          "pending_quantity_sqft",
+          "has_pending_po"
+        ],
+        "properties": {
+          "current_stock_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "days_until_stockout": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "estimated_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "has_pending_po": {
+            "type": "boolean"
+          },
+          "material_name": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": "string"
+          },
+          "pending_quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "reorder_quantity_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threshold_sqft": {
+            "type": "number",
+            "format": "double"
+          },
+          "urgency": {
+            "type": "string"
+          }
+        }
+      },
+      "RollDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "material_type",
+          "width",
+          "length",
+          "thickness",
+          "remaining_length",
+          "status"
+        ],
+        "properties": {
+          "barcode_asset_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "barcode_format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "barcode_generated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_offcut": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "length": {
+            "type": "number",
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type": {
+            "type": "string"
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_roll_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "part_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": "number",
+            "format": "double"
+          },
+          "status": {
+            "type": "string"
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": "number",
+            "format": "double"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "width": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "SupplierDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "preferred",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": "boolean"
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TaxPreviewDto": {
+        "type": "object",
+        "description": "Response shape — mirrors the TS service's `TaxCalculation` minus\nthe redundant `subtotal` / `total` fields (the client already has\nthose). `tax_level` is one of `\"state\"`, `\"city\"`, `\"zip_code\"`,\n`\"default\"`, `\"exempt\"`, `\"override\"`, or `\"api\"`; `tax_name`\nis the human-readable label the PO dialog shows (`\"Texas State\"`,\n`\"Tax Exempt\"`, `\"Supplier Override Rate\"`, etc.). Both are\npassed through verbatim — treated as opaque at this layer.",
+        "required": [
+          "tax_amount",
+          "tax_rate",
+          "tax_level",
+          "tax_name"
+        ],
+        "properties": {
+          "tax_amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "tax_level": {
+            "type": "string"
+          },
+          "tax_name": {
+            "type": "string"
+          },
+          "tax_rate": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "UpdateMaterialSupplierBody": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "effective_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiration_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "minimum_order_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred_supplier": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "supplier_material_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateMaterialTypeBody": {
+        "type": "object",
+        "description": "Request body for PUT. Every field is optional so the HTTP surface\ncan evolve to PATCH semantics later without breaking callers —\nfor now, the UI always sends a full replacement. Nullable fields\nuse `Option<Option<T>>` via `serde_with`-style manual handling:\n`null` in JSON explicitly clears the column, omitted means leave\nas-is.\n\nTo keep the DTO simple we expose the fields as plain `Option<T>`\nhere. Semantics: present-and-non-null replaces the column,\npresent-and-null is the same as omitting (the UI today never\nneeds to explicitly null a column). If that distinction matters\nlater we'll promote to `Option<Option<T>>` + a custom visitor.",
+        "properties": {
+          "default_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "min_stock_alert": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdatePurchaseOrderBody": {
+        "type": "object",
+        "description": "Body for PUT — status is NOT on this type. Status changes go\nthrough `PUT /api/v2/po/{id}/status` (Task 3), which enforces the\nstate machine + blocks `received` from the generic path.",
+        "properties": {
+          "billing_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requested_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shipping_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "UpdatePurchaseOrderItemBody": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "unit_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "UpdatePurchaseOrderStatusBody": {
+        "type": "object",
+        "description": "`PUT /api/v2/po/{id}/status` body. `status` is the lowercase\nstring variant (`draft` / `pending` / `approved` / `ordered` /\n`cancelled`). `received` is accepted on the wire but rejected\nin the use case with a 409 — we deliberately don't drop it at\nparse time so the error carries the structured\n`allowedTargets` payload the UI consumes.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateReorderRuleBody": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "auto_reorder": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lead_time_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_stock_level": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "reorder_quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "safety_stock_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "supplier_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateRollBody": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_per_sqft": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "date_received": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "material_type_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remaining_length": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supplier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thickness": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "width": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "UpdateSupplierBody": {
+        "type": "object",
+        "description": "Update body — all fields optional. Single-level `Option<T>` for\nsimplicity; explicit null-ing of columns isn't something the UI\nneeds today. When it does, promote to Option<Option<T>>.",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contact_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preferred": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rating": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "zip_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "supabase_jwt": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabase-issued RS256 JWT. Forwarded to PostgREST so RLS scopes rows to the caller."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "meta",
+      "description": "Service metadata + health"
+    },
+    {
+      "name": "cuts",
+      "description": "Cut-history + favorites"
+    },
+    {
+      "name": "inventory",
+      "description": "Rolls, material types, suppliers"
+    },
+    {
+      "name": "procurement",
+      "description": "Purchase orders, reorder rules + suggestions, CSV import"
+    }
+  ]
+}

@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS cuts (
   cut_width DECIMAL(10,3) NOT NULL CHECK (cut_width > 0),
   cut_length DECIMAL(10,3) NOT NULL CHECK (cut_length > 0),
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  -- Saw-blade kerf width in inches. Used by the cutting-engine packer
+  -- as inter-part clearance. Default 1/8" matches a common rotary blade.
+  kerf DECIMAL(10,4) NOT NULL DEFAULT 0.125 CHECK (kerf >= 0),
   waste_sqft DECIMAL(10,4) CHECK (waste_sqft >= 0),
   waste_percentage DECIMAL(5,2) CHECK (waste_percentage >= 0 AND waste_percentage <= 100),
   total_sqft_used DECIMAL(10,4) CHECK (total_sqft_used >= 0),
@@ -21,6 +24,7 @@ COMMENT ON COLUMN cuts.roll_id IS 'Foreign key reference to the source roll (nul
 COMMENT ON COLUMN cuts.cut_width IS 'Width of cut piece in inches';
 COMMENT ON COLUMN cuts.cut_length IS 'Length of cut piece in inches';
 COMMENT ON COLUMN cuts.quantity IS 'Number of pieces cut with these dimensions';
+COMMENT ON COLUMN cuts.kerf IS 'Saw-blade kerf width in inches (inter-part clearance the packer enforced).';
 COMMENT ON COLUMN cuts.waste_sqft IS 'Waste material in square feet';
 COMMENT ON COLUMN cuts.waste_percentage IS 'Percentage of material wasted (0-100%)';
 COMMENT ON COLUMN cuts.total_sqft_used IS 'Total material consumed including waste';

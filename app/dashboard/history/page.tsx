@@ -36,9 +36,11 @@ export default function CutHistoryPage() {
     canDelete,
     roleLoading,
     userId,
+    pendingPdfIds,
     handleToggleFavorite,
     handleConfirmDelete,
     handleReopen,
+    handleViewPdf,
     exportToCsv,
   } = useCutHistory()
 
@@ -129,9 +131,11 @@ export default function CutHistoryPage() {
               loading={loading}
               totalColSpan={totalColSpan}
               canDelete={canDelete}
+              pendingPdfIds={pendingPdfIds}
               onToggleFavorite={handleToggleFavorite}
               onDeleteRequest={(cutId) => setDeleteConfirm({ open: true, cutId })}
               onReopen={handleReopen}
+              onViewPdf={handleViewPdf}
             />
           </CardContent>
         </Card>

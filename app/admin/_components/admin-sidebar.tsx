@@ -88,7 +88,7 @@ export function AdminSidebar() {
       <div className="h-12 flex items-center justify-between px-4 border-b border-zinc-800 overflow-hidden">
         {!isCollapsed && (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-mono font-bold text-zinc-100 tracking-tight truncate">REMA OPS</span>
+            <span className="font-mono font-bold text-zinc-100 tracking-tight truncate">A&amp;A Ops</span>
             <span className="text-[10px] font-semibold bg-violet-600 text-white px-1.5 py-0.5 rounded shrink-0">
               ADMIN
             </span>

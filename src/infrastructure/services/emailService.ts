@@ -26,20 +26,8 @@ interface EmailOptions {
   tags?: { name: string; value: string }[]
 }
 
-interface QueuedEmail {
-  id: string
-  to: string
-  subject: string
-  html: string
-  priority: "low" | "normal" | "high" | "critical"
-  scheduledFor?: Date
-  retryCount: number
-  maxRetries: number
-}
-
 @injectable()
 export class EmailService implements IEmailService {
-  private emailQueue: QueuedEmail[] = []
   private isProcessing = false
   private _resend: Resend | null = null
 
@@ -534,4 +522,4 @@ export default emailService
 export { emailService }
 
 // Export types for use in other modules
-export type { EmailOptions, QueuedEmail }
+export type { EmailOptions }

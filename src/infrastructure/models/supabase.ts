@@ -1,20 +1,39 @@
 import { createBrowserClient } from "@supabase/ssr"
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables")
+// Layout JSON types live in their own file (issue #126) — imported here so
+// `CutHistory.layout_json` can reference the discriminated union.
+import type { CutHistoryLayoutJson } from "./cut-history-layout"
+
+// Lazy-init Supabase client.
+//
+// The client is NOT constructed at module load. Importing this module is a
+// no-op w.r.t. env vars — only the first call to `getSupabaseClient()` (or
+// the first property access on the `supabase` Proxy) triggers construction
+// and env validation. This keeps DI-touching tests import-safe without env
+// stubs, and keeps the Tauri build evaluable when env is not baked in at
+// module-eval time.
+//
+// HMR stability: the resolved client is pinned to globalThis in dev so
+// hot-reloads reuse a single GoTrue auth instance. Without this, each
+// reload creates a new client whose background refresh timer competes
+// for the same Web Lock on the auth token, causing authenticated requests
+// to hang. In production the dev-only branch is dead-code-eliminated and
+// only one client is ever created per page load.
+
+type SupabaseBrowserClient = ReturnType<typeof createBrowserClient>
+
+const globalRef = globalThis as unknown as {
+  __supabaseClient?: SupabaseBrowserClient
 }
 
-// Database context
-//
-// Pinned to globalThis in dev so HMR re-evaluations reuse a single
-// GoTrue auth instance. Without this, each hot-reload creates a new
-// client whose background refresh timer competes for the same Web
-// Lock on the auth token, causing authenticated requests to hang.
-// In production the if-block is dead-code-eliminated and only one
-// client is ever created per page load.
-function createSupabaseClient() {
+function buildSupabaseClient(): SupabaseBrowserClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Supabase env vars missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    )
+  }
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       debug: process.env.NODE_ENV === "development",
@@ -22,15 +41,32 @@ function createSupabaseClient() {
   })
 }
 
-const globalRef = globalThis as unknown as {
-  __supabaseClient?: ReturnType<typeof createSupabaseClient>
+export function getSupabaseClient(): SupabaseBrowserClient {
+  if (globalRef.__supabaseClient) return globalRef.__supabaseClient
+  const client = buildSupabaseClient()
+  if (process.env.NODE_ENV !== "production") {
+    globalRef.__supabaseClient = client
+  } else {
+    // In prod, still cache on the same slot so repeated getSupabaseClient()
+    // calls within a single page load reuse one client.
+    globalRef.__supabaseClient = client
+  }
+  return client
 }
 
-export const supabase = globalRef.__supabaseClient ?? createSupabaseClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalRef.__supabaseClient = supabase
-}
+// Back-compat: preserve the named `supabase` export. The Proxy forwards all
+// property reads to the lazily-resolved client, so existing call sites like
+// `supabase.from("rolls")` work identically — they just trigger lazy-init
+// on first access instead of at module load.
+export const supabase = new Proxy({} as SupabaseBrowserClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient()
+    const value = Reflect.get(client as object, prop, receiver)
+    return typeof value === "function"
+      ? (value as (...a: unknown[]) => unknown).bind(client)
+      : value
+  },
+})
 
 // Database Types
 export interface MaterialType {
@@ -60,6 +96,30 @@ export interface Roll {
   remaining_length: number
   status: "active" | "depleted" | "reserved"
   notes?: string
+  /**
+   * Points at the source roll when this row is a reusable offcut
+   * spawned by a cut operation. Null on purchased / original rolls.
+   */
+  parent_roll_id?: string | null
+  /** Flags reusable-offcut rows so inventory UI can badge them. */
+  is_offcut?: boolean
+  /**
+   * Human-readable unique identifier (RF-000001, RF-000002, …)
+   * assigned by a DB trigger on insert. Shared namespace across
+   * originals and offcuts; suitable for barcode labels and
+   * shop-floor scanning.
+   */
+  part_number?: string
+  /**
+   * Render format of the stored barcode asset. We keep
+   * `part_number` as the canonical payload to avoid a redundant
+   * second text identifier column.
+   */
+  barcode_format?: "code128"
+  /** Supabase Storage object path of the generated barcode PNG. */
+  barcode_asset_path?: string | null
+  /** When the current barcode PNG was last generated/uploaded. */
+  barcode_generated_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -71,6 +131,8 @@ export interface Cut {
   cut_width: number
   cut_length: number
   quantity: number
+  /** Saw-blade kerf width in inches. Defaulted DB-side (0.125") for pre-kerf rows. */
+  kerf: number
   waste_sqft?: number
   waste_percentage?: number
   total_sqft_used?: number
@@ -181,6 +243,8 @@ export interface PurchaseOrder {
   approved_at?: string
   auto_generated: boolean
   reorder_rule_id?: string
+  /** Job this PO was raised for, when the operator came from the job sufficiency check. */
+  job_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -273,6 +337,28 @@ export interface NotificationQueue {
   updated_at: string
 }
 
+// User profile — mirrors the `profiles` table shape so admin and
+// auth layers have a single typed handle on it. `last_sign_in_at`
+// is an admin-surface addition: mirrored from `auth.users` into
+// `profiles` via a DB trigger so the admin users table can sort
+// by activity without a separate auth call.
+export interface UserProfile {
+  id: string
+  email: string | null
+  full_name: string | null
+  avatar_url: string | null
+  roles: string[] | null
+  super_admin: boolean | null
+  is_deleted: boolean | null
+  last_sign_in_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type UpdateUserProfile = Partial<
+  Pick<UserProfile, "full_name" | "email" | "roles" | "is_deleted" | "super_admin" | "avatar_url">
+>
+
 // Extended types for joins and computed fields
 export interface MaterialSupplierWithDetails extends MaterialSupplier {
   material_type?: MaterialType
@@ -358,11 +444,31 @@ export interface PartCustomDimensions {
 export interface CutHistory {
   id: string
   user_id: string | null
+  /**
+   * Inventory roll that sourced this cut, if the engine was
+   * opened via `?loadRoll=<id>`. Null for legacy cuts and for
+   * cuts where the operator set stock dimensions manually.
+   */
+  roll_id: string | null
+  /**
+   * Job this cut fulfilled, if the engine was opened via
+   * `?loadJob=<id>` from a job drawer. Null for general-cutter
+   * flows and pre-jobs-feature cuts.
+   */
+  job_id: string | null
+  /**
+   * Specific job_part this cut corresponds to, when the operator
+   * picks a line item. Null when the cut is tied to the job as a
+   * whole but not a particular part row.
+   */
+  job_part_id: string | null
   material_id: number
   part_id: number
   cut_length: number
   cut_width: number
   cut_thickness: number
+  /** Saw-blade kerf width in inches. Defaulted DB-side (0.125") for pre-kerf rows. */
+  kerf: number
   part_custom_width: number | null
   part_custom_height: number | null
   part_selected_size: number[] | null
@@ -379,9 +485,126 @@ export interface CutHistory {
   stock_label: string | null
   cost_per_sqft: number | null
   pdf_url: string | null
+  /**
+   * Which cutting-engine surface recorded this cut:
+   *  - `auto`   — pack-cli computed the layout (Auto-nest tab)
+   *  - `manual` — operator authored the layout on the Free-roam canvas
+   *
+   * Defaulted to `auto` in the DB so rows pre-dating the migration
+   * and any caller that hasn't been updated read as auto-nest.
+   */
+  source: "auto" | "manual"
+  /**
+   * Free-roam canvas snapshot, populated when `source = manual` so
+   * the Saved-layouts dropdown can re-load the layout onto the CAD
+   * surface. Null for auto-nest rows (their layout is recomputable
+   * from `part_custom_dimensions` + pack-cli) and for manual rows
+   * recorded before the `layout_json` column was added.
+   */
+  layout_json: CutHistoryLayoutJson | null
   cut_date: string
   created_at: string
   updated_at: string
+}
+
+// `CutHistoryLayoutJson*` types live in `./cut-history-layout` so this file
+// stays under the 500-line lint limit. Re-exported below for back-compat.
+export type {
+  CutHistoryLayoutJson,
+  CutHistoryLayoutJsonAuto,
+  CutHistoryLayoutJsonManual,
+  CutHistoryPartTypeLiteral,
+} from "./cut-history-layout"
+
+export interface RollReusableOffcutSummary {
+  roll_id: string
+  cut_count: number
+  total_used_sqft: number
+  total_reusable_sqft: number
+  total_scrap_sqft: number
+  last_cut_at: string | null
+}
+
+export type JobStatus = "draft" | "scheduled" | "in_progress" | "completed" | "cancelled"
+
+export interface Job {
+  id: string
+  user_id: string
+  /** Auto-assigned by the `jobs_assign_number` trigger (J-000001, …). */
+  job_number: string
+  name: string
+  description: string | null
+  /** Customer info lives inline on the job — no separate customers table. */
+  customer_name: string | null
+  customer_email: string | null
+  customer_phone: string | null
+  customer_po_number: string | null
+  status: JobStatus
+  due_date: string | null
+  completed_at: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobPart {
+  id: string
+  user_id: string
+  job_id: string
+  material_type_id: string | null
+  material_type: string | null
+  /** Customer-supplied part number for this line item, not our internal roll barcode. */
+  part_number: string | null
+  description: string | null
+  width: number
+  length: number
+  thickness: number | null
+  quantity: number
+  unit_price: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobWithParts extends Job {
+  parts: JobPart[]
+}
+
+export type JobAssigneeRole = "lead" | "worker"
+
+export interface JobAssignee {
+  id: string
+  user_id: string
+  job_id: string
+  name: string
+  role: JobAssigneeRole
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JobRollAllocation {
+  id: string
+  user_id: string
+  job_id: string
+  roll_id: string
+  allocated_length: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Join shape used by the job detail page + PDF export. */
+export interface JobRollAllocationWithRoll extends JobRollAllocation {
+  roll: Pick<
+    Roll,
+    "id" | "part_number" | "material_type" | "width" | "length" | "remaining_length" | "location"
+  > | null
+}
+
+export interface JobFullDetail extends JobWithParts {
+  assignees: JobAssignee[]
+  allocations: JobRollAllocationWithRoll[]
 }
 
 export interface CutHistoryWithProfile extends CutHistory {
@@ -394,18 +617,3 @@ export interface CutHistoryFavorite {
   cut_history_id: string
   created_at: string | null
 }
-
-export interface UserProfile {
-  id: string
-  full_name: string | null
-  email: string | null
-  roles: string[]
-  is_deleted: boolean
-  last_sign_in_at: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type UpdateUserProfile = Partial<
-  Pick<UserProfile, "full_name" | "email" | "roles" | "is_deleted">
->

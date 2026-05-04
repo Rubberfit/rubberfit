@@ -1,0 +1,122 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`parity fixtures — rust baseline > rust: circle-grid.json > rust_circle-grid.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.146,
+    },
+  ],
+  "placedCount": 12,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: cone-array.json > rust_cone-array.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.041,
+    },
+  ],
+  "placedCount": 4,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: mixed-rect-circle.json > rust_mixed-rect-circle.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.065,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: multi-rect-same-size.json > rust_multi-rect-same-size.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.065,
+    },
+  ],
+  "placedCount": 6,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: multi-sheet-remnant.json > rust_multi-sheet-remnant.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.417,
+    },
+    {
+      "binId": "b2",
+      "efficiency": 0.239,
+    },
+  ],
+  "placedCount": 15,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: overflow.json > rust_overflow.json 1`] = `
+{
+  "overflowCount": 2,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.694,
+    },
+  ],
+  "placedCount": 4,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: rect-grid.json > rust_rect-grid.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.156,
+    },
+  ],
+  "placedCount": 20,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: single-rect.json > rust_single-rect.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.063,
+    },
+  ],
+  "placedCount": 1,
+}
+`;
+
+exports[`parity fixtures — rust baseline > rust: trapezoid-mix.json > rust_trapezoid-mix.json 1`] = `
+{
+  "overflowCount": 0,
+  "perBin": [
+    {
+      "binId": "b1",
+      "efficiency": 0.037,
+    },
+  ],
+  "placedCount": 6,
+}
+`;

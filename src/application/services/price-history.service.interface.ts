@@ -73,6 +73,14 @@ export interface IPriceHistoryService {
     thresholdPercentage?: number,
     daysBack?: number
   ): Promise<PriceHistoryWithJoins[]>
+  /**
+   * Returns price-history rows with full material-supplier/supplier/
+   * material-type joins, filtered to `created_at >= startDate`. Used by
+   * the pricing dashboard's date-range selector — distinct from
+   * `getSignificantPriceChanges`, which filters by threshold + days
+   * back and returns lean joins.
+   */
+  getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]>
   bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]>
   calculateValueScore(supplier: MaterialSupplierWithDetails): number
 }

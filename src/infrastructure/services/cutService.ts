@@ -10,6 +10,7 @@ import type {
 } from "@/src/application/services/cut.service.interface"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
+import { startOfWeek, endOfWeek, subWeeks } from "date-fns"
 
 export type { WasteStats, WasteTrend, CutWithRoll, OptimizeCutRequirements, OptimizeCutResult }
 
@@ -25,24 +26,8 @@ export class CutService implements ICutService {
 
     if (error) throw error
 
-    if (cut.roll_id) {
-      const { data: roll } = await supabase
-        .from("rolls")
-        .select("remaining_length")
-        .eq("id", cut.roll_id)
-        .single()
-
-      if (roll) {
-        const newLength = roll.remaining_length - cut.cut_length * cut.quantity
-        await supabase
-          .from("rolls")
-          .update({
-            remaining_length: Math.max(0, newLength),
-            status: newLength <= 0 ? "depleted" : "active",
-          })
-          .eq("id", cut.roll_id)
-      }
-    }
+    // Roll remaining_length/status is maintained by the DB trigger
+    // `cuts_update_roll` (see migration 20240217000006). Do not decrement here.
 
     return data as Cut
   }
@@ -103,10 +88,20 @@ export class CutService implements ICutService {
     }
 
     if (data && data.length > 0) {
-      stats.totalWasteSqft = data.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0)
-      stats.totalMaterialUsed = data.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
+      stats.totalWasteSqft = data.reduce(
+        (sum: number, cut: { waste_sqft?: number | null }) => sum + (cut.waste_sqft || 0),
+        0
+      )
+      stats.totalMaterialUsed = data.reduce(
+        (sum: number, cut: { total_sqft_used?: number | null }) => sum + (cut.total_sqft_used || 0),
+        0
+      )
       stats.averageWastePercentage =
-        data.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / data.length
+        data.reduce(
+          (sum: number, cut: { waste_percentage?: number | null }) =>
+            sum + (cut.waste_percentage || 0),
+          0
+        ) / data.length
     }
 
     return stats
@@ -132,7 +127,13 @@ export class CutService implements ICutService {
       return { recommendations: [], message: "No suitable rolls found" }
     }
 
-    const recommendations = eligibleRolls.map((roll) => {
+    interface EligibleRoll {
+      width: number
+      remaining_length: number
+      cost_per_sqft?: number | null
+      [key: string]: unknown
+    }
+    const recommendations = eligibleRolls.map((roll: EligibleRoll) => {
       const totalLengthNeeded = requirements.length * requirements.quantity
       const materialUsedSqft = (requirements.width * totalLengthNeeded) / 144
       const totalConsumedSqft = (roll.width * totalLengthNeeded) / 144
@@ -152,7 +153,7 @@ export class CutService implements ICutService {
       }
     })
 
-    recommendations.sort((a, b) => a.score - b.score)
+    recommendations.sort((a: { score: number }, b: { score: number }) => a.score - b.score)
 
     return {
       recommendations: recommendations.slice(0, 3),
@@ -199,27 +200,37 @@ export class CutService implements ICutService {
       return 0
     }
 
-    return data.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
+    return data.reduce(
+      (sum: number, cut: { total_sqft_used?: number | null }) => sum + (cut.total_sqft_used || 0),
+      0
+    )
   }
 
   async getCutsGrowthPercentage(): Promise<number> {
     try {
+      // Align with the dashboard card, which reports cuts in the current
+      // calendar week (Mon → Sun). Using a rolling 7-day window here made
+      // the card show "0 cuts / +83% vs last week" early Monday morning,
+      // because the two queries disagreed on where "this week" starts.
       const now = new Date()
-      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+      const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+      const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 })
+      const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+      const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
 
       const { data: thisWeek, error: thisWeekError } = await supabase
         .from("cuts")
         .select("id")
-        .gte("created_at", oneWeekAgo.toISOString())
+        .gte("created_at", thisWeekStart.toISOString())
+        .lte("created_at", thisWeekEnd.toISOString())
 
       if (thisWeekError) throw thisWeekError
 
       const { data: lastWeek, error: lastWeekError } = await supabase
         .from("cuts")
         .select("id")
-        .gte("created_at", twoWeeksAgo.toISOString())
-        .lt("created_at", oneWeekAgo.toISOString())
+        .gte("created_at", lastWeekStart.toISOString())
+        .lte("created_at", lastWeekEnd.toISOString())
 
       if (lastWeekError) throw lastWeekError
 
@@ -314,7 +325,11 @@ export class CutService implements ICutService {
 
       const avg =
         data && data.length > 0
-          ? data.reduce((sum, c) => sum + (c.waste_percentage || 0), 0) / data.length
+          ? data.reduce(
+              (sum: number, c: { waste_percentage?: number | null }) =>
+                sum + (c.waste_percentage || 0),
+              0
+            ) / data.length
           : 0
 
       result.push({
@@ -349,12 +364,20 @@ export class CutService implements ICutService {
 
       const thisMonthAvg =
         thisMonth && thisMonth.length > 0
-          ? thisMonth.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / thisMonth.length
+          ? thisMonth.reduce(
+              (sum: number, cut: { waste_percentage?: number | null }) =>
+                sum + (cut.waste_percentage || 0),
+              0
+            ) / thisMonth.length
           : 0
 
       const lastMonthAvg =
         lastMonth && lastMonth.length > 0
-          ? lastMonth.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / lastMonth.length
+          ? lastMonth.reduce(
+              (sum: number, cut: { waste_percentage?: number | null }) =>
+                sum + (cut.waste_percentage || 0),
+              0
+            ) / lastMonth.length
           : 0
 
       if (lastMonthAvg === 0) {

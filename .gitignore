@@ -62,6 +62,33 @@ temp/
 
 # Shell scripts that might contain secrets
 *.sh
+# …except operator scripts that only read secrets from env vars —
+# these are explicitly audited and safe to commit.
+!engine/crates/rf-api/scripts/smoke.sh
+!.claude/scripts/*.sh
+
+# Internal planning docs — working files for us, not part of the
+# repo. Specs + benchmarks under docs/superpowers/ stay tracked;
+# only per-task plans are local-only.
+docs/superpowers/plans/
+
+# Per-session Claude Code scratch — handoffs, research, worktrees,
+# roadmaps, and per-sprint plan drafts (S5+). All local-only: never
+# commit these. Keeps public log focused on shipped code. Roadmap
+# globs are scoped under .claude/ so `.claude/roadmap*` or
+# `.claude/**/roadmap.md` match but repo-wide `ROADMAP.md` at a
+# product-docs path would still be committable.
+.claude/handoff/
+.claude/research/
+.claude/worktrees/
+.claude/tmp/
+.claude/scratch/
+.claude/roadmap*
+.claude/**/ROADMAP.md
+.claude/**/roadmap.md
+.claude/**/roadmap/
+# Per-user permission state — every dev's allow-list differs.
+.claude/settings.local.json
 
 # TypeScript
 *.tsbuildinfo
@@ -79,9 +106,5 @@ release/
 *.backup
 *.bak
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Rust engine build artefacts
+engine/target/

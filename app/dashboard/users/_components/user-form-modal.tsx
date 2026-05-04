@@ -168,14 +168,15 @@ interface EditUserFormProps {
 
 function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, onClose }: EditUserFormProps) {
   const isSelf = user.id === currentUserId
-  const isAdmin = user.roles.includes("admin")
+  const userRoles = user.roles ?? []
+  const isAdmin = userRoles.includes("admin")
 
   const form = useForm<EditFormData>({
     resolver: zodResolver(editSchema),
     defaultValues: {
       full_name: user.full_name ?? "",
       email: user.email ?? "",
-      roles: user.roles,
+      roles: userRoles,
     },
   })
 
@@ -184,9 +185,9 @@ function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, 
     form.reset({
       full_name: user.full_name ?? "",
       email: user.email ?? "",
-      roles: user.roles,
+      roles: userRoles,
     })
-  }, [user.id, form])
+  }, [user.id, form, userRoles])
 
   const [submitting, setSubmitting] = useState(false)
   const [adminConfirmOpen, setAdminConfirmOpen] = useState(false)

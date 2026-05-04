@@ -14,6 +14,7 @@ import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import { PageHeader, PageShell } from "@/app/components/patterns"
 import { Progress } from "@/app/components/ui/progress"
 import {
   Select,
@@ -88,14 +89,16 @@ export default function ReorderRulesPage() {
   )
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Auto-Reorder Management</h1>
-        <p className="text-muted-foreground">
-          Configure automatic reorder rules and manage stock levels
-        </p>
-      </div>
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Inventory", href: "/dashboard/inventory" },
+          { label: "Reorder" },
+        ]}
+        title="Auto-Reorder"
+        subtitle="Automatic reorder rules, low-stock suggestions, and reorder-point analytics."
+      />
 
       <ReorderQuickStats reorderRules={reorderRules} suggestions={suggestions} />
 
@@ -187,7 +190,7 @@ export default function ReorderRulesPage() {
           setIsRuleModalOpen(false)
         }}
       />
-    </div>
+    </PageShell>
   )
 }
 

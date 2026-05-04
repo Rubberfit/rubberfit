@@ -1,7 +1,13 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
 import { getBrowserAppUrl } from "@/app/lib/app-url"
 import { normalizeRoles } from "@/src/application/rbac"
-import type { AuthError, User as SupabaseUser } from "@supabase/supabase-js"
+import type {
+  AuthChangeEvent,
+  AuthError,
+  Session,
+  SupabaseClient,
+  User as SupabaseUser,
+} from "@supabase/supabase-js"
 import type {
   IAuthService,
   AuthUser,
@@ -279,14 +285,91 @@ export class AuthService implements IAuthService {
   }
 
   onAuthStateChange(callback: (user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-        callback(await buildAuthUser(session.user))
-      } else if (event === "SIGNED_OUT") {
-        callback(null)
+    return supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
+          callback(await buildAuthUser(session.user))
+        } else if (event === "SIGNED_OUT") {
+          callback(null)
+        }
       }
-    })
+    )
   }
 }
 
 export const authService = new AuthService()
+
+// ── Server-side (admin client) helpers ───────────────────────────────
+// Mirror of `cutHistoryService` server-side helpers: API routes pass
+// a service-role client and we own all DB access. Keeps `.from(...)`
+// calls out of the route layer.
+
+export interface ProfileAccess {
+  roles: string[]
+  isSuperAdmin: boolean
+}
+
+/**
+ * Fetches `profiles.roles` + `profiles.super_admin` for an
+ * already-authenticated user. Used by the admin guard helper to
+ * centralize the RBAC lookup that every admin route needs.
+ */
+export async function getProfileAccess(
+  client: SupabaseClient,
+  userId: string
+): Promise<ProfileAccess> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("roles, super_admin")
+    .eq("id", userId)
+    .maybeSingle<{ roles: string[] | null; super_admin: boolean | null }>()
+
+  if (error) {
+    console.error("authService.getProfileAccess error:", error)
+    throw error
+  }
+  return {
+    roles: Array.isArray(data?.roles) ? (data?.roles ?? []) : [],
+    isSuperAdmin: data?.super_admin === true,
+  }
+}
+
+/**
+ * Returns just the `super_admin` flag — used by `proxy.ts` middleware
+ * which only needs that bit (no role list).
+ */
+export async function getSuperAdminFlag(client: SupabaseClient, userId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("super_admin")
+    .eq("id", userId)
+    .maybeSingle<{ super_admin: boolean | null }>()
+
+  if (error) {
+    console.error("authService.getSuperAdminFlag error:", error)
+    return false
+  }
+  return data?.super_admin === true
+}
+
+/**
+ * Upsert helper for the OAuth callback: creates or updates the
+ * `profiles` row from a fresh auth user. Defers default-role
+ * assignment to the database trigger.
+ */
+export async function upsertProfileFromAuth(
+  client: SupabaseClient,
+  userId: string,
+  email: string | null,
+  fullName: string | null
+): Promise<void> {
+  const payload: { id: string; email?: string; full_name?: string } = { id: userId }
+  if (email !== null) payload.email = email
+  if (fullName !== null) payload.full_name = fullName
+
+  const { error } = await client.from("profiles").upsert(payload, { onConflict: "id" })
+  if (error) {
+    console.error("authService.upsertProfileFromAuth error:", error)
+    throw error
+  }
+}

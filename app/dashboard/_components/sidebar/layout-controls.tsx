@@ -4,7 +4,6 @@ import { Settings } from "lucide-react"
 
 import { Button } from "@/app/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/app/components/ui/popover"
-import type { FontKey } from "@/app/lib/fonts/registry"
 import type {
   ContentLayout,
   NavbarStyle,
@@ -13,24 +12,19 @@ import type {
 } from "@/app/lib/preferences/layout-config"
 import {
   applyContentLayout,
-  applyFont,
   applyNavbarStyle,
   applySidebarCollapsible,
   applySidebarVariant,
 } from "@/app/lib/preferences/layout-utils"
 import { PREFERENCE_DEFAULTS } from "@/app/lib/preferences/preferences-config"
 import { persistPreference } from "@/app/lib/preferences/preferences-storage"
-import { type ThemeMode, type ThemePreset } from "@/app/lib/preferences/theme"
-import { applyThemePreset } from "@/app/lib/preferences/theme-utils"
+import { type ThemeMode } from "@/app/lib/preferences/theme"
 import { usePreferencesStore } from "@/app/stores/preferences/preferences-provider"
 import { LayoutControlsOptions } from "./layout-controls-options"
 
 export function LayoutControls() {
   const themeMode = usePreferencesStore((s) => s.themeMode)
-  const resolvedThemeMode = usePreferencesStore((s) => s.resolvedThemeMode)
   const setThemeMode = usePreferencesStore((s) => s.setThemeMode)
-  const themePreset = usePreferencesStore((s) => s.themePreset)
-  const setThemePreset = usePreferencesStore((s) => s.setThemePreset)
   const contentLayout = usePreferencesStore((s) => s.contentLayout)
   const setContentLayout = usePreferencesStore((s) => s.setContentLayout)
   const navbarStyle = usePreferencesStore((s) => s.navbarStyle)
@@ -39,14 +33,6 @@ export function LayoutControls() {
   const setSidebarVariant = usePreferencesStore((s) => s.setSidebarVariant)
   const collapsible = usePreferencesStore((s) => s.sidebarCollapsible)
   const setSidebarCollapsible = usePreferencesStore((s) => s.setSidebarCollapsible)
-  const font = usePreferencesStore((s) => s.font)
-  const setFont = usePreferencesStore((s) => s.setFont)
-
-  const onThemePresetChange = async (preset: ThemePreset) => {
-    applyThemePreset(preset)
-    setThemePreset(preset)
-    persistPreference("theme_preset", preset)
-  }
 
   const onThemeModeChange = async (mode: ThemeMode | "") => {
     if (!mode) return
@@ -82,21 +68,12 @@ export function LayoutControls() {
     persistPreference("sidebar_collapsible", value)
   }
 
-  const onFontChange = async (value: FontKey | "") => {
-    if (!value) return
-    applyFont(value)
-    setFont(value)
-    persistPreference("font", value)
-  }
-
   const handleRestore = () => {
-    onThemePresetChange(PREFERENCE_DEFAULTS.theme_preset)
     onThemeModeChange(PREFERENCE_DEFAULTS.theme_mode)
     onContentLayoutChange(PREFERENCE_DEFAULTS.content_layout)
     onNavbarStyleChange(PREFERENCE_DEFAULTS.navbar_style)
     onSidebarStyleChange(PREFERENCE_DEFAULTS.sidebar_variant)
     onSidebarCollapseModeChange(PREFERENCE_DEFAULTS.sidebar_collapsible)
-    onFontChange(PREFERENCE_DEFAULTS.font)
   }
 
   return (
@@ -113,27 +90,18 @@ export function LayoutControls() {
             <p className="text-muted-foreground text-xs">
               Customize your dashboard layout preferences.
             </p>
-            <p className="font-medium text-muted-foreground text-xs">
-              *Preferences use cookies by default. You can switch between cookies, localStorage, or
-              no storage in code.
-            </p>
           </div>
           <LayoutControlsOptions
-            themePreset={themePreset}
             themeMode={themeMode}
-            resolvedThemeMode={resolvedThemeMode}
             contentLayout={contentLayout}
             navbarStyle={navbarStyle}
             variant={variant}
             collapsible={collapsible}
-            font={font}
-            onThemePresetChange={onThemePresetChange}
             onThemeModeChange={onThemeModeChange}
             onContentLayoutChange={onContentLayoutChange}
             onNavbarStyleChange={onNavbarStyleChange}
             onSidebarStyleChange={onSidebarStyleChange}
             onSidebarCollapseModeChange={onSidebarCollapseModeChange}
-            onFontChange={onFontChange}
           />
           <Button
             type="button"

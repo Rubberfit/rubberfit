@@ -87,8 +87,11 @@ COMMENT ON COLUMN admin.health_endpoints.interval_seconds IS 'Per-endpoint check
 COMMENT ON COLUMN admin.health_endpoints.secret_ref       IS 'Supabase Vault secret name holding the auth credential. Never store raw keys here.';
 
 -- Seed: canonical six monitored services
+-- API Gateway url uses /auth/v1/health — publicly accessible, returns 200
+-- with a tiny JSON body, doesn't need the apikey header /rest/v1/ requires.
+-- Absolute URL so the HttpAdapter's fetch() works in Node.
 INSERT INTO admin.health_endpoints (service_name, description, method, url, tier, check_type) VALUES
-  ('API Gateway',      'Supabase REST API gateway — lightweight availability check',  'GET',      '/rest/v1/',                       'critical', 'http'),
+  ('API Gateway',      'Supabase REST API gateway — lightweight availability check',  'GET',      'https://mwwqklbbyvqcijarqdql.supabase.co/auth/v1/health', 'critical', 'http'),
   ('Database Primary', 'PostgreSQL primary — SELECT round-trip via service role',     'INTERNAL', 'internal://db/ping',              'critical', 'db'),
   ('Auth Service',     'Supabase GoTrue — admin listUsers liveness check',            'INTERNAL', 'internal://auth/listUsers',       'critical', 'auth'),
   ('File Storage',     'Supabase Storage — bucket list availability check',           'INTERNAL', 'internal://storage/buckets',      'standard', 'storage'),

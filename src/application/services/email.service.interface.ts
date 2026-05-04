@@ -8,17 +8,6 @@ export interface EmailOptions {
   tags?: { name: string; value: string }[]
 }
 
-export interface QueuedEmail {
-  id: string
-  to: string
-  subject: string
-  html: string
-  priority: "low" | "normal" | "high" | "critical"
-  scheduledFor?: Date
-  retryCount: number
-  maxRetries: number
-}
-
 export interface IEmailService {
   sendEmail(
     options: EmailOptions

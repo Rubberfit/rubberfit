@@ -59,7 +59,7 @@ export default function UsersPage() {
         !term ||
         user.full_name?.toLowerCase().includes(term) ||
         user.email?.toLowerCase().includes(term) ||
-        user.roles.some((r) => r.toLowerCase().includes(term))
+        (user.roles ?? []).some((r) => r.toLowerCase().includes(term))
       return matchesTab && matchesSearch
     })
   }, [users, tab, searchTerm])

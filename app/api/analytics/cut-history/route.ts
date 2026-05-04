@@ -1,9 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-
-const MAX_ROWS = 10000
+import { getCutAnalytics } from "@/src/infrastructure/services/cutHistoryService"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 export async function GET(request: NextRequest) {
   const authClient = makeAuthClient(request)
@@ -30,20 +29,6 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Resolve caller's role
-  const { data: callerProfile } = await db
-    .from("profiles")
-    .select("roles")
-    .eq("id", user.id)
-    .single()
-
-  const callerRoles: string[] = (callerProfile?.roles as string[] | null) ?? []
-  const isPrivileged =
-    callerRoles.includes("admin") ||
-    callerRoles.includes("manager") ||
-    callerRoles.includes("supervisor")
-
-  // Parse query params
   const { searchParams } = new URL(request.url)
   const from = searchParams.get("from")
   const to = searchParams.get("to")
@@ -63,32 +48,18 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Build query — return all rows in range for analytics (capped at MAX_ROWS)
-  let query = db
-    .from("cut_history")
-    .select("*")
-    .gte("cut_date", from)
-    .order("cut_date", { ascending: true })
-    .limit(MAX_ROWS)
-
-  if (to !== null) {
-    query = query.lte("cut_date", to)
-  }
-
-  // Authorization: privileged users may scope to a specific user or see all;
-  // non-privileged users always see only their own records.
-  if (isPrivileged && filterUserId !== null) {
-    query = query.eq("user_id", filterUserId)
-  } else if (!isPrivileged) {
-    query = query.eq("user_id", user.id)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("analytics cut_history query error:", error)
+  try {
+    const { roles } = await getProfileAccess(db, user.id)
+    const data = await getCutAnalytics(db, {
+      from,
+      to,
+      requesterUserId: user.id,
+      requesterRoles: roles,
+      filterUserId,
+    })
+    return NextResponse.json({ data })
+  } catch (err) {
+    console.error("analytics cut_history query error:", err)
     return NextResponse.json({ error: "Failed to fetch analytics data" }, { status: 500 })
   }
-
-  return NextResponse.json({ data: (data ?? []) as CutHistory[] })
 }

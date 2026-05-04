@@ -198,16 +198,6 @@ export class SupplierService implements ISupplierService {
     updates: UpdateMaterialSupplier
   ): Promise<MaterialSupplierWithDetails> {
     try {
-      let oldPrice: number | undefined
-      if (updates.cost_per_sqft !== undefined) {
-        const { data: current } = await supabase
-          .from("material_suppliers")
-          .select("cost_per_sqft")
-          .eq("id", id)
-          .single()
-        oldPrice = current?.cost_per_sqft
-      }
-
       const { data, error } = await supabase
         .from("material_suppliers")
         .update(updates)
@@ -222,19 +212,6 @@ export class SupplierService implements ISupplierService {
         .single()
 
       if (error) throw error
-
-      if (data && updates.cost_per_sqft !== undefined && oldPrice !== updates.cost_per_sqft) {
-        try {
-          await priceHistoryService.trackPriceChange(
-            id,
-            oldPrice,
-            updates.cost_per_sqft,
-            "Price updated"
-          )
-        } catch (e) {
-          console.error("Failed to track price change:", e)
-        }
-      }
 
       return data as MaterialSupplierWithDetails
     } catch (error) {

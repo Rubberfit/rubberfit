@@ -7,7 +7,7 @@ const ORGS = [
   {
     id: "org-001",
     name: "Apex Fabrics",
-    plan: "Enterprise",
+    plan: "Max",
     members: 34,
     rollsUsed: 218,
     lastActive: "Today",
@@ -40,7 +40,7 @@ const ORGS = [
   {
     id: "org-004",
     name: "Stitch & Scale",
-    plan: "Starter",
+    plan: "Standard",
     members: 9,
     rollsUsed: 44,
     lastActive: "2 days ago",
@@ -51,7 +51,7 @@ const ORGS = [
   {
     id: "org-005",
     name: "Fabric Forward",
-    plan: "Starter",
+    plan: "Standard",
     members: 5,
     rollsUsed: 21,
     lastActive: "4 days ago",
@@ -73,7 +73,7 @@ const ORGS = [
   {
     id: "org-007",
     name: "CutRight Labs",
-    plan: "Starter",
+    plan: "Standard",
     members: 3,
     rollsUsed: 8,
     lastActive: "41 days ago",
@@ -95,9 +95,9 @@ const ORGS = [
 ]
 
 const PLAN_STYLES: Record<string, string> = {
-  Enterprise: "text-violet-400 bg-violet-900/40",
+  Max: "text-violet-400 bg-violet-900/40",
   Pro: "text-sky-400 bg-sky-900/40",
-  Starter: "text-zinc-400 bg-zinc-800",
+  Standard: "text-zinc-400 bg-zinc-800",
 }
 
 const STATUS_STYLES = {

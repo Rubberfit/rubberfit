@@ -1,0 +1,15 @@
+[package]
+name = "pack-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "stdin/stdout JSON delivery for rf-layout"
+
+[dependencies]
+rf-layout = { path = "../rf-layout" }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "pack-cli"
+path = "src/main.rs"

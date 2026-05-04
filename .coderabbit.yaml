@@ -26,6 +26,13 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # CodeRabbit only auto-reviews PRs whose base is the default branch (main)
+    # OR is listed here. Without `dev`, the integration branch sees
+    # "Auto reviews are disabled on base/target branches other than the
+    # default branch" — see PR #129. Adding `dev` so feature → dev PRs get
+    # reviewed without manually invoking @coderabbitai review.
+    base_branches:
+      - dev
   path_instructions:
     - path: "app/src/services/**"
       instructions: |
@@ -85,7 +92,10 @@ issue_enrichment:
     auto_planning:
       enabled: false
   labeling:
-    auto_apply_labels: true
+    # Auto-labeling is intentionally disabled — issue triage / labeling
+    # runs out-of-band and CodeRabbit applying labels here caused duplicates
+    # and unwanted tags (e.g. `request`, `intern`) to re-appear on issues.
+    auto_apply_labels: false
     labeling_instructions:
       - label: request
         instructions: Apply when the issue is clearly client-requested work or a stakeholder asks for a new change.

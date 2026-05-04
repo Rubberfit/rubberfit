@@ -3,7 +3,6 @@ import type { ReactNode } from "react"
 import { AdminSidebar } from "./_components/admin-sidebar"
 import { AdminTopbar } from "./_components/admin-topbar"
 import { AdminProtectedRoute } from "./_components/admin-protected-route"
-// TODO: wrap with admin-only ProtectedRoute when auth guard is implemented
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (

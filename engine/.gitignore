@@ -1,0 +1,4 @@
+# engine/.gitignore
+target/
+Cargo.lock.bak
+*.rs.bk
