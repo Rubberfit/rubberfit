@@ -1,0 +1,68 @@
+[package]
+name = "rema-portal-functions"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.94"
+publish = false
+
+[lib]
+path = "src-rs/lib.rs"
+
+[[bin]]
+name = "pack"
+path = "api/v2/pack.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+vercel_runtime = { version = "=2.1.1", features = ["axum"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+http = "1"
+http-body-util = "0.1"
+once_cell = "1"
+async-trait = "0.1"
+thiserror = "2"
+
+# Path dep into the engine workspace. Cargo resolves rf-layout's own
+# transitive deps (jagua-rs, rayon, clipper2, etc.) — root has its own
+# dep graph independent of engine/'s workspace lock.
+rf-layout = { path = "engine/crates/rf-layout" }
+
+# Supabase JWT verification — mirrors engine/crates/rf-api/src/jwks.rs
+# (lifted into src-rs/jwks.rs to keep the function bundle small; full
+# rf-api would drag in axum/tower/rf-supabase).
+#
+# `aws_lc_rs` feature: jsonwebtoken 10.x has its OWN CryptoProvider
+# system (independent of rustls). The defaults enable neither
+# `rust_crypto` nor `aws_lc_rs`, which compiles fine but panics on
+# the first verify() call with "Could not automatically determine
+# the process-level CryptoProvider from jsonwebtoken crate features".
+# Explicitly select aws_lc_rs to match the rustls provider — keeps
+# one crypto backend across the binary.
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
+# `rustls-tls-webpki-roots-no-provider` (instead of `rustls-tls`)
+# avoids pulling BOTH `aws-lc-rs` AND `ring` into rustls's feature
+# set — when both are present, rustls 0.23 refuses to pick a default
+# provider and panics on the first TLS handshake even if we call
+# `install_default`. The `-no-provider` variant gives us webpki
+# roots + an unprovided rustls; we install aws-lc-rs ourselves below.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots-no-provider"] }
+# Sole CryptoProvider in the dep graph. `pack.rs::main` calls
+# `aws_lc_rs::default_provider().install_default()` once at cold
+# start so the JWKS fetch's TLS handshake finds a provider.
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# jagua-rs 0.7.1 has two over-aggressive debug_asserts that fire on
+# legitimate inputs (full context in engine/Cargo.toml). Mirror the
+# overrides so root-level builds don't panic on production fixtures.
+[profile.test.package.jagua-rs]
+debug-assertions = false
+
+[profile.dev.package.jagua-rs]
+debug-assertions = false
