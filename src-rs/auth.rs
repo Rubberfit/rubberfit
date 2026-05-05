@@ -19,7 +19,7 @@ pub enum AuthError {
     Missing,
     #[error("malformed Authorization header (expected `Bearer <jwt>`)")]
     Malformed,
-    #[error("token uses unsupported algorithm (expected RS256)")]
+    #[error("token uses unsupported algorithm (expected RS256 or ES256)")]
     UnsupportedAlg,
     #[error("JWKS unreachable")]
     JwksUnavailable,
@@ -78,7 +78,10 @@ pub fn parse_bearer(header_value: &str) -> Result<&str, AuthError> {
 /// or a structured `AuthError` the handler can map to HTTP status.
 pub async fn verify(token: &str) -> Result<SupabaseClaims, AuthError> {
     let header = decode_header(token).map_err(|_| AuthError::Malformed)?;
-    if header.alg != Algorithm::RS256 {
+    // Supabase asymmetric JWTs sign with either RSA (RS256) or
+    // ECDSA P-256 (ES256). Accept both — the project's chosen
+    // algorithm is the one carried by the JWT header.
+    if !matches!(header.alg, Algorithm::RS256 | Algorithm::ES256) {
         return Err(AuthError::UnsupportedAlg);
     }
     let kid = header.kid.ok_or(AuthError::Malformed)?;
@@ -90,7 +93,7 @@ pub async fn verify(token: &str) -> Result<SupabaseClaims, AuthError> {
         Err(_) => return Err(AuthError::JwksUnavailable),
     };
 
-    let mut validation = Validation::new(Algorithm::RS256);
+    let mut validation = Validation::new(header.alg);
     validation.set_issuer(&[expected_issuer()?]);
     validation.leeway = 30;
     validation.validate_aud = false;
