@@ -90,10 +90,14 @@ container.registerInstance<INotificationService>(TOKENS.INotificationService, no
 //   - `vercel dev` (forwards to the Rust function but local pack-cli
 //     is still convenient for raw Node tests + benchmarks)
 //
-// In production the server-side branch is unreachable (the only
-// previous caller, `app/api/v2/pack/route.ts`, is deleted) — we map
-// to ApiPackingService as a safe fallback so any stray resolve gets
-// a useful HTTP failure instead of a "binary not found" crash.
+// In production the server-side branch is unreachable: the only
+// previous caller (`app/api/v2/pack/route.ts`) is deleted, and the
+// Vercel Rust function is invoked directly by the browser. A
+// production server resolve here would silently return
+// `ApiPackingService`, which is browser-only — its first call to
+// `getSupabaseClient().auth.getSession()` would crash. Throw loudly
+// so any stray server resolve becomes a visible misconfiguration
+// instead of an obscure runtime error.
 const IS_SERVER = typeof window === "undefined"
 const IS_DEV = typeof process !== "undefined" && process.env.NODE_ENV !== "production"
 const BINARY_EXT = typeof process !== "undefined" && process.platform === "win32" ? ".exe" : ""
@@ -121,6 +125,14 @@ container.register(TOKENS.IPackingService, {
     if (IS_SERVER && IS_DEV) {
       verifyRustBinary()
       return new RustPackingService()
+    }
+    if (IS_SERVER) {
+      throw new Error(
+        "[packing] Server-side IPackingService resolution is unsupported in production — " +
+          "the browser must POST directly to /api/v2/pack (the Vercel Rust function). " +
+          "If this fires, an unexpected server-side caller is resolving IPackingService; " +
+          "trace the call site rather than papering over with ApiPackingService."
+      )
     }
     return new ApiPackingService()
   }),
