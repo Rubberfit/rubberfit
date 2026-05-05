@@ -1,0 +1,13 @@
+# Per Vercel's Rust runtime docs: ignore the cargo target/ directory
+# except for release binaries (Vercel needs them to package the
+# function bundle). The local cache is huge (gigabytes) and shouldn't
+# upload as part of the deploy.
+target/**
+!target/release
+!target/x86_64-unknown-linux-gnu/release/**
+!target/aarch64-unknown-linux-gnu/release/**
+
+# engine/ workspace's own target dir — same reasoning. We only need
+# the engine source tree on Vercel (so the root Cargo.toml's path
+# deps resolve), not its compiled artefacts.
+engine/target/**
