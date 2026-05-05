@@ -35,30 +35,36 @@ pub enum AuthError {
     Misconfigured,
 }
 
-static JWKS_CACHE: OnceCell<JwksCache> = OnceCell::new();
-static EXPECTED_ISSUER: OnceCell<String> = OnceCell::new();
+/// Process-global auth configuration. Stored as a single `OnceCell`
+/// so the cache and issuer are always populated together — the
+/// previous two-cell setup had a small window where `JWKS_CACHE.get()`
+/// returned `Some` but `EXPECTED_ISSUER.get()` returned `None` for a
+/// concurrent caller, causing a spurious `Misconfigured` error.
+struct AuthConfig {
+    jwks: JwksCache,
+    /// Expected `iss` claim — `${SUPABASE_URL}/auth/v1`.
+    issuer: String,
+}
 
-fn jwks_cache() -> Result<&'static JwksCache, AuthError> {
-    if let Some(cache) = JWKS_CACHE.get() {
-        return Ok(cache);
+static AUTH_CONFIG: OnceCell<AuthConfig> = OnceCell::new();
+
+fn auth_config() -> Result<&'static AuthConfig, AuthError> {
+    if let Some(cfg) = AUTH_CONFIG.get() {
+        return Ok(cfg);
     }
     let supabase_url = env::var("SUPABASE_URL")
         .or_else(|_| env::var("NEXT_PUBLIC_SUPABASE_URL"))
         .map_err(|_| AuthError::Misconfigured)?;
     let fetcher = Arc::new(HttpJwksFetcher::new(&supabase_url));
-    let cache = JwksCache::new(fetcher);
-    let issuer = format!("{}/auth/v1", supabase_url.trim_end_matches('/'));
-    let _ = JWKS_CACHE.set(cache);
-    let _ = EXPECTED_ISSUER.set(issuer);
-    Ok(JWKS_CACHE.get().expect("JWKS_CACHE just set"))
-}
-
-fn expected_issuer() -> Result<&'static str, AuthError> {
-    jwks_cache()?;
-    EXPECTED_ISSUER
-        .get()
-        .map(|s| s.as_str())
-        .ok_or(AuthError::Misconfigured)
+    let cfg = AuthConfig {
+        jwks: JwksCache::new(fetcher),
+        issuer: format!("{}/auth/v1", supabase_url.trim_end_matches('/')),
+    };
+    // Race-safe: if a concurrent caller initialized AUTH_CONFIG
+    // between our `.get()` above and `.set()` here, our value is
+    // dropped and we read the winner via the trailing `.get()`.
+    let _ = AUTH_CONFIG.set(cfg);
+    Ok(AUTH_CONFIG.get().expect("AUTH_CONFIG just set"))
 }
 
 /// Extract `Bearer <jwt>` from an `Authorization` header value.
@@ -86,15 +92,15 @@ pub async fn verify(token: &str) -> Result<SupabaseClaims, AuthError> {
     }
     let kid = header.kid.ok_or(AuthError::Malformed)?;
 
-    let cache = jwks_cache()?;
-    let key = match cache.get_decoding_key(&kid).await {
+    let cfg = auth_config()?;
+    let key = match cfg.jwks.get_decoding_key(&kid).await {
         Ok(k) => k,
         Err(JwksError::UnknownKid { .. }) => return Err(AuthError::UnknownKid),
         Err(_) => return Err(AuthError::JwksUnavailable),
     };
 
     let mut validation = Validation::new(header.alg);
-    validation.set_issuer(&[expected_issuer()?]);
+    validation.set_issuer(&[cfg.issuer.as_str()]);
     validation.leeway = 30;
     validation.validate_aud = false;
 
