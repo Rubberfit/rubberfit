@@ -85,7 +85,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <Link prefetch={false} href={homeHref}>
-                <img src="/archanchorlogo.png" alt="Arc & Anchor" className="size-5 shrink-0" />
+                <img src="/rubberfit-mark.svg" alt="Rubberfit" className="size-5 shrink-0" />
                 <span className="font-semibold text-base">{APP_CONFIG.name}</span>
               </Link>
             </SidebarMenuButton>

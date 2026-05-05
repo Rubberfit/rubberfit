@@ -9,7 +9,7 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
       <div className="grid h-dvh justify-center p-2 lg:grid-cols-2">
         <div className="relative order-2 hidden h-full rounded-3xl bg-primary lg:flex">
           <div className="absolute top-10 space-y-1 px-10 text-primary-foreground">
-            <img src="/archanchorlogo.png" alt="Arc & Anchor" className="size-10" />
+            <img src="/rubberfit-mark.svg" alt="Rubberfit" className="size-10" />
             <h1 className="font-medium text-2xl">RubberFit</h1>
             <p className="text-sm">Optimize. Track. Save. Excel.</p>
           </div>
