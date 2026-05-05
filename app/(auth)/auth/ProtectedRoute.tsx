@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { canAccessPath } from "@/app/lib/rbac"
@@ -11,12 +11,32 @@ interface ProtectedRouteProps {
   fallback?: ReactNode
 }
 
+const SPINNER_TIMEOUT_MS = 8000
+
 export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [spinnerTimedOut, setSpinnerTimedOut] = useState(false)
+
+  // Backstop: if AuthContext's bootstrap timeout doesn't fire (e.g.
+  // because a different code path stuck loading=true), force-redirect
+  // to login rather than holding the user on a permanent spinner.
+  useEffect(() => {
+    if (!loading) return
+    const timer = setTimeout(() => setSpinnerTimedOut(true), SPINNER_TIMEOUT_MS)
+    return () => {
+      clearTimeout(timer)
+      setSpinnerTimedOut(false)
+    }
+  }, [loading])
 
   useEffect(() => {
+    if (loading && spinnerTimedOut) {
+      router.replace("/login")
+      return
+    }
+
     if (!loading && !user) {
       router.replace("/login")
       return
@@ -25,10 +45,13 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
     if (!loading && user && !canAccessPath(user.roles, pathname)) {
       router.replace("/unauthorized")
     }
-  }, [user, loading, pathname, router])
+  }, [user, loading, pathname, router, spinnerTimedOut])
 
   // Show loading spinner while checking authentication
-  if (loading || (user && !canAccessPath(user.roles, pathname))) {
+  if (
+    (loading && !spinnerTimedOut) ||
+    (user && !canAccessPath(user.roles, pathname))
+  ) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <div className="flex flex-col items-center gap-4">

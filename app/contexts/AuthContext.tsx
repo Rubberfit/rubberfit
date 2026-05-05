@@ -63,28 +63,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter()
 
   useEffect(() => {
-    const getInitialUser = async () => {
-      try {
-        const currentUser = await authService.getCurrentUser()
-        setUser(currentUser)
-      } catch (error) {
-        console.error("Error getting initial user:", error)
-        setUser(null)
-      } finally {
-        setLoading(false)
-      }
-    }
+    let cancelled = false
 
-    getInitialUser()
+    // Backstop: if Supabase never fires INITIAL_SESSION (network
+    // failure, init bug, etc.), bail out of the spinner after 5s and
+    // treat as unauthenticated. Better to redirect to /login than to
+    // hold every protected route on a permanent spinner.
+    const BOOTSTRAP_TIMEOUT_MS = 5000
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return
+      setUser(null)
+      setLoading(false)
+    }, BOOTSTRAP_TIMEOUT_MS)
 
+    // authService.onAuthStateChange now handles INITIAL_SESSION,
+    // SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, and
+    // PASSWORD_RECOVERY — every event that affects the AuthUser the
+    // app cares about. The subscription is the single source of truth.
     const {
       data: { subscription },
     } = authService.onAuthStateChange((authUser) => {
+      if (cancelled) return
+      clearTimeout(timeoutId)
       setUser(authUser)
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = useMemo(() => createSignIn(setUser, setLoading, router), [router])

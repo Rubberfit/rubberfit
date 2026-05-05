@@ -44,6 +44,13 @@ function getUserAuthProvider(user: SupabaseUser): string | undefined {
   return typeof provider === "string" ? provider : undefined
 }
 
+// Deliberately uncached. TOKEN_REFRESHED fires roughly every 50min
+// per active tab and re-runs this query — caching would lower DB
+// load (~12 reads/hr/tab) but would also delay the propagation of
+// admin-driven role / super_admin changes until the affected user
+// signs out. The DB cost is trivial and the security property
+// (privilege changes take effect within one token refresh) is worth
+// keeping. Revisit only if profile reads become a measured hotspot.
 async function getProfileRoles(userId: string): Promise<ProfileData> {
   try {
     const { data, error } = await supabase
@@ -87,6 +94,16 @@ async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
     createdAt: user.created_at,
   }
 }
+
+// Mid-session identity events that should ONLY rebuild the AuthUser
+// when Supabase delivers a real session. INITIAL_SESSION + SIGNED_OUT
+// are handled separately because their null-session semantics differ.
+const IDENTITY_EVENTS_REQUIRING_SESSION = new Set<AuthChangeEvent>([
+  "SIGNED_IN",
+  "PASSWORD_RECOVERY",
+  "TOKEN_REFRESHED",
+  "USER_UPDATED",
+])
 
 @injectable()
 export class AuthService implements IAuthService {
@@ -207,7 +224,7 @@ export class AuthService implements IAuthService {
   async resetPassword(email: string): Promise<{ error: AuthError | null }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: getBrowserAppUrl("/auth/v2/reset-password?mode=recovery"),
+        redirectTo: getBrowserAppUrl("/reset-password?mode=recovery"),
       })
       return { error }
     } catch (error) {
@@ -291,23 +308,38 @@ export class AuthService implements IAuthService {
     // `from("profiles")…` which internally calls `auth.getSession()`)
     // deadlocks against `_initialize`'s lock-held SIGNED_IN broadcast.
     // We saw this manifest as `/mfa-challenge` getting stuck on
-    // "Loading your authenticator factor…" in production, because the
-    // form's `getPrimaryFactor()` waits on `initializePromise` which
-    // never resolves while this callback is mid-Supabase-call. The
+    // "Loading your authenticator factor…" in production. The
     // upstream-recommended fix is to defer the body to a fresh task.
     return supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       setTimeout(async () => {
         try {
-          if ((event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") && session?.user) {
-            callback(await buildAuthUser(session.user))
-          } else if (event === "SIGNED_OUT") {
+          if (event === "SIGNED_OUT") {
             callback(null)
+            return
           }
-        } catch (err) {
+
+          // INITIAL_SESSION is the cold-load source of truth — null
+          // session here genuinely means "no cached session," so we
+          // propagate null to clear AuthContext's loading state.
+          if (event === "INITIAL_SESSION") {
+            callback(session?.user ? await buildAuthUser(session.user) : null)
+            return
+          }
+
+          // Mid-session events (SIGNED_IN, PASSWORD_RECOVERY,
+          // TOKEN_REFRESHED, USER_UPDATED) can fire with a null
+          // session during transient refresh failures. Ignore those —
+          // Supabase emits SIGNED_OUT separately when the session is
+          // actually gone, so logging the user out on every transient
+          // refresh blip would be a regression.
+          if (IDENTITY_EVENTS_REQUIRING_SESSION.has(event) && session?.user) {
+            callback(await buildAuthUser(session.user))
+          }
+        } catch (error) {
           // Fire-and-forget setTimeout means an exception here surfaces
           // as an unhandled rejection. Log and fall back to a null user
-          // so AuthContext doesn't get pinned at `loading: true`.
-          console.error("[auth] onAuthStateChange handler failed:", err)
+          // so AuthContext doesn't get pinned at loading: true.
+          console.error("[auth] onAuthStateChange handler failed:", event, error)
           callback(null)
         }
       }, 0)

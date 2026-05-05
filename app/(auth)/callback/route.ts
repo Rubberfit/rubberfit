@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    return redirectWithCookies(requestUrl, "/login", pendingCookies, loginParams)
   }
 
   if (!code) {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    return redirectWithCookies(requestUrl, "/login", pendingCookies, loginParams)
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       loginParams.set("redirectTo", requestedPath)
     }
 
-    return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    return redirectWithCookies(requestUrl, "/login", pendingCookies, loginParams)
   }
 
   let roles: AppRole[] = [...DEFAULT_ROLES]
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
         "error",
         "This account has been deactivated. Please contact your administrator."
       )
-      return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+      return redirectWithCookies(requestUrl, "/login", pendingCookies, loginParams)
     }
 
     roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]

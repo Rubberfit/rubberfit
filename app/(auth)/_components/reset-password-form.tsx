@@ -201,10 +201,10 @@ export function ResetPasswordForm({ recoveryMode = false }: ResetPasswordFormPro
         </div>
         <div className="flex flex-col gap-2">
           <Button asChild className="w-full">
-            <Link href="/auth/v2/forgot-password">Request a new reset email</Link>
+            <Link href="/forgot-password">Request a new reset email</Link>
           </Button>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/auth/v2/login">Back to login</Link>
+            <Link href="/login">Back to login</Link>
           </Button>
         </div>
       </div>

@@ -73,6 +73,11 @@ export function createSignIn(setUser: SetUser, setLoading: SetLoading, router: A
         setLoading(false)
         return { success: true, mfaRequired: true, factorId }
       }
+      // Clear loading before navigating — otherwise the destination
+      // layout's ProtectedRoute mounts with loading=true and only
+      // unsticks when onAuthStateChange fires, which can be delayed
+      // and leaves users staring at a spinner.
+      setLoading(false)
       router.push(resolvePostAuthRedirect(authUser.roles, redirectTo))
       return { success: true }
     } catch (error) {
@@ -159,7 +164,7 @@ export function createSignOut(setUser: SetUser, setLoading: SetLoading, router: 
     try {
       await authService.signOut()
       setUser(null)
-      router.push("/auth/v2/login")
+      router.push("/login")
     } catch (error) {
       console.error("Sign out error:", error)
     } finally {

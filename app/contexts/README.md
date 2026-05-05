@@ -67,7 +67,7 @@ export function createSignIn(setUser: SetUser, setLoading: SetLoading, router: A
 
 export function createSignInWithGoogle() {
   return async (redirectTo?: string | null): Promise<AuthResult> => {
-    const callbackUrl = new URL(getBrowserAppUrl("/auth/v2/callback"))
+    const callbackUrl = new URL(getBrowserAppUrl("/callback"))
     const safeRedirect = sanitizeRedirectPath(redirectTo)
     if (safeRedirect) callbackUrl.searchParams.set("next", safeRedirect)
     const { error } = await supabase.auth.signInWithOAuth({

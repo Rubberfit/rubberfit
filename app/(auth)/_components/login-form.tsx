@@ -238,7 +238,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         </Button>
         <div className="text-center">
           <Link
-            href="/auth/v2/forgot-password"
+            href="/forgot-password"
             className="text-muted-foreground text-sm underline-offset-4 hover:text-primary hover:underline"
           >
             Forgot your password?
