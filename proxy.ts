@@ -157,11 +157,15 @@ export const config = {
   /*
    * Default-deny matcher: every request flows through the proxy, then
    * the auth allowlist inside decides which paths bypass auth. The
-   * exclusions below cover static assets only — anything served from
-   * /public with a recognized image extension, plus Next.js build
-   * artifacts and the root favicon.
+   * exclusions below cover static assets and the Vercel Rust function
+   * at `api/v2/pack.rs` — the proxy is a Next.js Edge Middleware and
+   * its `NextResponse.next()` resolves within the Next.js routing
+   * pipeline, so it would shadow the top-level Rust function and
+   * Next.js would render a `__next_error__` page for the now-missing
+   * route. The Rust handler validates the Supabase JWT itself, so
+   * bypassing the proxy here does not weaken auth.
    */
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/v2/pack|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 }

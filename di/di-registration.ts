@@ -79,18 +79,32 @@ container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPd
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
-// IPackingService: server resolves to RustPackingService (spawns the
-// pack-cli subprocess). Browser resolves to ApiPackingService, which
-// POSTs the PackRequest to `/api/v2/pack` — that route then spawns the
-// same RustPackingService server-side. Single Rust source of truth, no
-// TS NFP fallback.
+// IPackingService: production now lives in `api/v2/pack.rs` (a Vercel
+// Rust serverless function), so the browser POSTs the PackRequest to
+// /api/v2/pack and the Rust function runs the pack in-process — no
+// Node subprocess, no `pack-cli` binary on Vercel.
 //
-// The pack-cli binary check runs lazily, server-side only, on first
-// resolve. If the binary is missing the call fails fast at the point
-// of use rather than at module load.
+// Server-side resolution is only meaningful in dev / tests:
+//   - `next dev` server code paths that resolve via container
+//   - Vitest server-context tests
+//   - `vercel dev` (forwards to the Rust function but local pack-cli
+//     is still convenient for raw Node tests + benchmarks)
+//
+// In production the server-side branch is unreachable: the only
+// previous caller (`app/api/v2/pack/route.ts`) is deleted, and the
+// Vercel Rust function is invoked directly by the browser. A
+// production server resolve here would silently return
+// `ApiPackingService`, which is browser-only — its first call to
+// `getSupabaseClient().auth.getSession()` would crash. Throw loudly
+// so any stray server resolve becomes a visible misconfiguration
+// instead of an obscure runtime error.
 const IS_SERVER = typeof window === "undefined"
+const IS_DEV = typeof process !== "undefined" && process.env.NODE_ENV !== "production"
 const BINARY_EXT = typeof process !== "undefined" && process.platform === "win32" ? ".exe" : ""
-export const RUST_PACK_BINARY = `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli${BINARY_EXT}`
+// PACK_CLI_PATH lets local dev override the binary location.
+export const RUST_PACK_BINARY =
+  (typeof process !== "undefined" ? process.env?.PACK_CLI_PATH : undefined) ??
+  `${typeof process !== "undefined" ? process.cwd?.() : ""}/engine/target/release/pack-cli${BINARY_EXT}`
 function verifyRustBinary(): void {
   if (typeof process === "undefined" || !process.versions?.node) return
   // Wrapped in eval() to keep `require` opaque to the bundler's static
@@ -108,9 +122,17 @@ function verifyRustBinary(): void {
 }
 container.register(TOKENS.IPackingService, {
   useFactory: instanceCachingFactory(() => {
-    if (IS_SERVER) {
+    if (IS_SERVER && IS_DEV) {
       verifyRustBinary()
       return new RustPackingService()
+    }
+    if (IS_SERVER) {
+      throw new Error(
+        "[packing] Server-side IPackingService resolution is unsupported in production — " +
+          "the browser must POST directly to /api/v2/pack (the Vercel Rust function). " +
+          "If this fires, an unexpected server-side caller is resolving IPackingService; " +
+          "trace the call site rather than papering over with ApiPackingService."
+      )
     }
     return new ApiPackingService()
   }),
