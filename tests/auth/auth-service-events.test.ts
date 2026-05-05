@@ -76,13 +76,30 @@ function captureSupabaseHandler() {
   }
 }
 
+// authService.onAuthStateChange wraps its body in setTimeout(0) to
+// avoid the GoTrue init deadlock (PR #170). Tests need to fire the
+// event AND flush the deferred work before asserting on the
+// callback. Multiple ticks because buildAuthUser awaits getProfileRoles.
+async function fireAndFlush(
+  handler: SupabaseAuthHandler,
+  event: string,
+  session: Parameters<SupabaseAuthHandler>[1]
+) {
+  handler(event, session)
+  // Flush the setTimeout(0) macrotask + any microtasks queued by the
+  // deferred async body. Two ticks is enough for the
+  // setTimeout → await buildAuthUser → await getProfileRoles chain.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe("authService.onAuthStateChange: event mapping", () => {
   it("propagates INITIAL_SESSION with a user", async () => {
     const getHandler = captureSupabaseHandler()
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("INITIAL_SESSION", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "INITIAL_SESSION", { user: FIXTURE_USER })
 
     expect(callback).toHaveBeenCalledTimes(1)
     expect(callback).toHaveBeenCalledWith(
@@ -95,7 +112,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("INITIAL_SESSION", null)
+    await fireAndFlush(getHandler(), "INITIAL_SESSION", null)
 
     expect(callback).toHaveBeenCalledExactlyOnceWith(null)
   })
@@ -105,7 +122,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("SIGNED_IN", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "SIGNED_IN", { user: FIXTURE_USER })
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1" })
@@ -117,7 +134,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("SIGNED_OUT", null)
+    await fireAndFlush(getHandler(), "SIGNED_OUT", null)
 
     expect(callback).toHaveBeenCalledExactlyOnceWith(null)
   })
@@ -127,7 +144,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("TOKEN_REFRESHED", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "TOKEN_REFRESHED", { user: FIXTURE_USER })
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1", roles: ["member"] })
@@ -143,7 +160,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("TOKEN_REFRESHED", null)
+    await fireAndFlush(getHandler(), "TOKEN_REFRESHED", null)
 
     expect(callback).not.toHaveBeenCalled()
   })
@@ -153,7 +170,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("USER_UPDATED", null)
+    await fireAndFlush(getHandler(), "USER_UPDATED", null)
 
     expect(callback).not.toHaveBeenCalled()
   })
@@ -167,7 +184,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("USER_UPDATED", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "USER_UPDATED", { user: FIXTURE_USER })
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ roles: ["admin"], isSuperAdmin: true })
@@ -179,7 +196,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("PASSWORD_RECOVERY", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "PASSWORD_RECOVERY", { user: FIXTURE_USER })
 
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1" })
@@ -191,7 +208,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await getHandler()("MFA_CHALLENGE_VERIFIED", { user: FIXTURE_USER })
+    await fireAndFlush(getHandler(), "MFA_CHALLENGE_VERIFIED", { user: FIXTURE_USER })
 
     expect(callback).not.toHaveBeenCalled()
   })
@@ -206,10 +223,11 @@ describe("authService.onAuthStateChange: event mapping", () => {
     const callback = vi.fn()
 
     authService.onAuthStateChange(callback)
-    await expect(
-      getHandler()("SIGNED_IN", { user: FIXTURE_USER })
-    ).resolves.not.toThrow()
+    await fireAndFlush(getHandler(), "SIGNED_IN", { user: FIXTURE_USER })
 
+    // The deferred body's catch + getProfileRoles' own catch combine
+    // to produce a default-roles user without ever throwing out of
+    // the setTimeout (which would surface as an unhandled rejection).
     expect(callback).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1" })
     )
@@ -238,7 +256,7 @@ describe("authService.onAuthStateChange: event mapping", () => {
     })
 
     authService.onAuthStateChange(callback)
-    await getHandler()("SIGNED_IN", { user: poisonedUser as never })
+    await fireAndFlush(getHandler(), "SIGNED_IN", { user: poisonedUser as never })
 
     expect(callback).toHaveBeenCalledExactlyOnceWith(null)
     expect(errorSpy).toHaveBeenCalled()
