@@ -41,6 +41,7 @@
     "@react-email/render": "^2.0.6",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.38.0",
+    "@vercel/speed-insights": "^2.0.0",
     "bwip-js": "^4.9.2",
     "class-variance-authority": "^0.7.1",
     "clipper-lib": "^6.4.2",
