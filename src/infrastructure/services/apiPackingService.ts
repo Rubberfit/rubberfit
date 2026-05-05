@@ -11,10 +11,15 @@ import { getSupabaseClient } from "@/src/infrastructure/models/supabase"
 @injectable()
 export class ApiPackingService implements IPackingService {
   async pack(request: PackRequest): Promise<PackResult> {
-    const {
-      data: { session },
-    } = await getSupabaseClient().auth.getSession()
-    const token = session?.access_token
+    // Surface the real Supabase error if `getSession()` fails (network
+    // issue, refresh-token expired, broken local storage, etc.) rather
+    // than masking it as "not signed in" — that ambiguity made earlier
+    // deploy debugging harder than it had to be.
+    const { data, error } = await getSupabaseClient().auth.getSession()
+    if (error) {
+      throw new Error(`pack auth error: failed to load Supabase session — ${error.message}`)
+    }
+    const token = data.session?.access_token
     if (!token) {
       throw new Error("not signed in — cannot call /api/v2/pack")
     }
