@@ -35,14 +35,18 @@ static PACK_PERMITS: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     // rustls 0.23+ requires a process-level default CryptoProvider
-    // installed before the first TLS handshake. reqwest 0.12's
-    // `rustls-tls` feature with `default-features = false` pulls
-    // aws-lc-rs into the dep graph but does NOT auto-install it as
-    // the default — without this call the first JWKS fetch panics
-    // with "no process-level CryptoProvider available". Ignoring
-    // the error covers the (impossible-on-cold-start, harmless-on-
-    // warm) case where another caller already installed a provider.
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    // installed before the first TLS handshake. We use the
+    // `rustls-tls-webpki-roots-no-provider` reqwest feature so
+    // rustls's dep graph contains only `aws-lc-rs` (no `ring`),
+    // making the install unambiguous. If another caller already
+    // installed a provider on a warm instance, `install_default`
+    // returns Err and we log that we kept the existing one.
+    match rustls::crypto::aws_lc_rs::default_provider().install_default() {
+        Ok(()) => eprintln!("[pack] rustls crypto provider: aws_lc_rs installed"),
+        Err(_existing) => {
+            eprintln!("[pack] rustls crypto provider: already installed (warm reuse)")
+        }
+    }
     run(service_fn(handler)).await
 }
 

@@ -32,13 +32,17 @@ rf-layout = { path = "engine/crates/rf-layout" }
 # (lifted into src-rs/jwks.rs to keep the function bundle small; full
 # rf-api would drag in axum/tower/rf-supabase).
 jsonwebtoken = "10"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-# rustls 0.23+ requires installing a process-level default CryptoProvider
-# before the first TLS handshake. reqwest's rustls-tls feature pulls
-# aws-lc-rs into the dep graph but does not auto-install it. Without
-# the manual install_default() call in pack.rs::main(), the first
-# JWKS fetch panics with "no process-level CryptoProvider available".
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+# `rustls-tls-webpki-roots-no-provider` (instead of `rustls-tls`)
+# avoids pulling BOTH `aws-lc-rs` AND `ring` into rustls's feature
+# set — when both are present, rustls 0.23 refuses to pick a default
+# provider and panics on the first TLS handshake even if we call
+# `install_default`. The `-no-provider` variant gives us webpki
+# roots + an unprovided rustls; we install aws-lc-rs ourselves below.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots-no-provider"] }
+# Sole CryptoProvider in the dep graph. `pack.rs::main` calls
+# `aws_lc_rs::default_provider().install_default()` once at cold
+# start so the JWKS fetch's TLS handshake finds a provider.
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
 [profile.release]
 opt-level = 3
