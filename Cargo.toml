@@ -31,7 +31,15 @@ rf-layout = { path = "engine/crates/rf-layout" }
 # Supabase JWT verification — mirrors engine/crates/rf-api/src/jwks.rs
 # (lifted into src-rs/jwks.rs to keep the function bundle small; full
 # rf-api would drag in axum/tower/rf-supabase).
-jsonwebtoken = "10"
+#
+# `aws_lc_rs` feature: jsonwebtoken 10.x has its OWN CryptoProvider
+# system (independent of rustls). The defaults enable neither
+# `rust_crypto` nor `aws_lc_rs`, which compiles fine but panics on
+# the first verify() call with "Could not automatically determine
+# the process-level CryptoProvider from jsonwebtoken crate features".
+# Explicitly select aws_lc_rs to match the rustls provider — keeps
+# one crypto backend across the binary.
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 # `rustls-tls-webpki-roots-no-provider` (instead of `rustls-tls`)
 # avoids pulling BOTH `aws-lc-rs` AND `ring` into rustls's feature
 # set — when both are present, rustls 0.23 refuses to pick a default
