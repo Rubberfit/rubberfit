@@ -108,3 +108,5 @@ release/
 
 # Rust engine build artefacts
 engine/target/
+# Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
+/target/
