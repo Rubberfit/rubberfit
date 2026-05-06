@@ -170,7 +170,7 @@ export default function DashboardPage() {
     [period, data.weekLabel, periodLabel]
   )
 
-  const subtitle = useMemo(() => tenantDisplayName, [])
+  const subtitle = tenantDisplayName
 
   // Client-side aggregation per utilization period — swaps whenever
   // the operator clicks 7d / 30d / 90d without any refetch.
