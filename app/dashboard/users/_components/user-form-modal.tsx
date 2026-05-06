@@ -8,7 +8,7 @@ import { toast } from "sonner"
 
 import type { UserProfile } from "@/src/infrastructure/models/supabase"
 import type { AppRole } from "@/src/application/permissions"
-import { userManagementService } from "@/src/infrastructure/services/userManagementService"
+import { updateUser } from "@/app/actions/users"
 import {
   Dialog,
   DialogContent,
@@ -99,7 +99,13 @@ interface RoleCheckboxGroupProps {
   error?: string
 }
 
-function RoleCheckboxGroup({ value, onChange, lockedRoles = [], onAdminAdd, error }: RoleCheckboxGroupProps) {
+function RoleCheckboxGroup({
+  value,
+  onChange,
+  lockedRoles = [],
+  onAdminAdd,
+  error,
+}: RoleCheckboxGroupProps) {
   function toggle(role: AppRole) {
     if (lockedRoles.includes(role)) return
     if (value.includes(role)) {
@@ -124,7 +130,7 @@ function RoleCheckboxGroup({ value, onChange, lockedRoles = [], onAdminAdd, erro
               key={role}
               className={cn(
                 "flex items-start gap-2 rounded-md border p-3 transition-colors",
-                isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50",
+                isLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/50"
               )}
             >
               <Checkbox
@@ -166,7 +172,14 @@ interface EditUserFormProps {
   onClose: () => void
 }
 
-function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, onClose }: EditUserFormProps) {
+function EditUserForm({
+  user,
+  allUsers,
+  currentUserId,
+  onUserChange,
+  onSuccess,
+  onClose,
+}: EditUserFormProps) {
   const isSelf = user.id === currentUserId
   const userRoles = user.roles ?? []
   const isAdmin = userRoles.includes("admin")
@@ -204,7 +217,8 @@ function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, 
   async function onSubmit(data: EditFormData) {
     setSubmitting(true)
     try {
-      await userManagementService.updateUser(user.id, {
+      await updateUser({
+        userId: user.id,
         full_name: data.full_name,
         email: data.email,
         roles: data.roles as AppRole[],
@@ -224,10 +238,13 @@ function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, 
         {/* User email selector */}
         <div className="space-y-1.5">
           <Label>User</Label>
-          <Select value={user.id} onValueChange={(id) => {
-            const next = allUsers.find((u) => u.id === id)
-            if (next) onUserChange(next)
-          }}>
+          <Select
+            value={user.id}
+            onValueChange={(id) => {
+              const next = allUsers.find((u) => u.id === id)
+              if (next) onUserChange(next)
+            }}
+          >
             <SelectTrigger className="min-h-[44px]">
               <SelectValue placeholder="Select a user" />
             </SelectTrigger>
@@ -316,9 +333,7 @@ function EditUserForm({ user, allUsers, currentUserId, onUserChange, onSuccess, 
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAdminAdd}>
-              Yes, grant admin
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmAdminAdd}>Yes, grant admin</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -342,7 +357,7 @@ function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
       const schema = allowRef.current ? createSchemaOpen : createSchema
       return zodResolver(schema)(values, context, options)
     },
-    [],
+    []
   )
 
   const form = useForm<CreateFormData>({
@@ -429,7 +444,8 @@ function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
                   htmlFor="allow-internal-domain"
                   className="text-xs text-muted-foreground cursor-pointer select-none"
                 >
-                  Allow <span className="font-medium text-foreground">@archandanchor.com</span> email
+                  Allow <span className="font-medium text-foreground">@archandanchor.com</span>{" "}
+                  email
                 </label>
               </div>
             </FormItem>
@@ -442,7 +458,12 @@ function CreateUserForm({ onSuccess, onClose }: CreateUserFormProps) {
             <FormItem>
               <FormLabel>Temporary Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Min. 6 characters" {...field} className="min-h-[44px]" />
+                <Input
+                  type="password"
+                  placeholder="Min. 6 characters"
+                  {...field}
+                  className="min-h-[44px]"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -493,7 +514,14 @@ interface UserFormModalProps {
   onSuccess: () => void
 }
 
-export function UserFormModal({ open, onOpenChange, user, allUsers, currentUserId, onSuccess }: UserFormModalProps) {
+export function UserFormModal({
+  open,
+  onOpenChange,
+  user,
+  allUsers,
+  currentUserId,
+  onSuccess,
+}: UserFormModalProps) {
   const isEdit = user !== null
   const [activeUser, setActiveUser] = useState<UserProfile | null>(user)
 

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import type { UserProfile } from "@/src/infrastructure/models/supabase"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
+import { deactivateUser, reactivateUser } from "@/app/actions/users"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -20,7 +21,7 @@ type TabValue = "active" | "all"
 
 export default function UsersPage() {
   const { userId: currentUserId, isAdmin, isLoading: isRoleLoading } = useRole()
- 
+
   const [users, setUsers] = useState<UserProfile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -83,11 +84,14 @@ export default function UsersPage() {
     if (!userToDeactivate) return
     setIsDeactivating(true)
     try {
-      await userManagementService.deactivateUser(userToDeactivate.id)
+      await deactivateUser({ userId: userToDeactivate.id })
       toast.success(`${userToDeactivate.full_name ?? "User"} has been deactivated`)
       await fetchUsers()
-    } catch (_error) {
-      toast.error("Failed to deactivate user")
+    } catch (error) {
+      // Surface the action's own error message — actions throw with
+      // human-readable messages for permission failures and the
+      // "cannot deactivate your own account" guard.
+      toast.error(error instanceof Error ? error.message : "Failed to deactivate user")
     } finally {
       setIsDeactivating(false)
       setDeactivateDialogOpen(false)
@@ -97,11 +101,11 @@ export default function UsersPage() {
 
   async function handleReactivate(user: UserProfile) {
     try {
-      await userManagementService.reactivateUser(user.id)
+      await reactivateUser({ userId: user.id })
       toast.success(`${user.full_name ?? "User"} has been reactivated`)
       await fetchUsers()
-    } catch (_error) {
-      toast.error("Failed to reactivate user")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reactivate user")
     }
   }
 
@@ -110,7 +114,7 @@ export default function UsersPage() {
   }
 
   if (!isAdmin) {
-    console.log(isRoleLoading, "isAdmin", isAdmin);
+    console.log(isRoleLoading, "isAdmin", isAdmin)
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -126,9 +130,7 @@ export default function UsersPage() {
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-muted-foreground">
-            Manage user accounts, roles, and access control
-          </p>
+          <p className="text-muted-foreground">Manage user accounts, roles, and access control</p>
         </div>
         <Button onClick={handleCreateUser} size="lg" className="min-h-[44px]">
           <Plus className="mr-2 h-5 w-5" />
