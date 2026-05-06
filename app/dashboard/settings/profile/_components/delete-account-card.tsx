@@ -15,17 +15,11 @@ import {
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
 import { Button } from "@/app/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import { useAuth } from "@/app/contexts/AuthContext"
-import { profileService } from "@/src/infrastructure/services/profileService"
+import { requestSelfDelete } from "@/app/actions/profile"
 
 /**
  * Self-serve account deletion (soft-delete).
@@ -47,28 +41,28 @@ export function DeleteAccountCard() {
 
   if (!user) return null
 
-  const emailMatches =
-    user.email.trim().toLowerCase() === confirmEmail.trim().toLowerCase()
+  const emailMatches = user.email.trim().toLowerCase() === confirmEmail.trim().toLowerCase()
 
   const handleDelete = async () => {
     if (!emailMatches || submitting) return
     setSubmitting(true)
     try {
-      const result = await profileService.requestSelfDelete(user.id)
-      if (!result.success) {
+      const result = await requestSelfDelete()
+      if (!result.ok) {
         toast.error("Couldn't delete account", {
-          description: result.error ?? "Please contact support.",
+          description: result.error,
         })
         return
       }
       toast.success("Account deleted", {
         description: "You'll be signed out and redirected to the login page.",
       })
-      // Small delay so the toast is readable before the sign-out
-      // redirect yanks the user away.
-      setTimeout(() => {
-        void signOut()
-      }, 600)
+      // Sign out immediately on success — chained, not setTimeout'd.
+      // The previous 600ms delay (toast-readability) opened a window
+      // where the account was soft-deleted but still session-valid.
+      // Sonner persists toasts across navigation, so the success
+      // message is still readable on the login page.
+      await signOut()
     } catch (err) {
       toast.error("Couldn't delete account", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -87,10 +81,9 @@ export function DeleteAccountCard() {
             Delete account
           </CardTitle>
           <CardDescription>
-            Marks your account as deleted and signs you out. Data retention
-            follows the Data Processing Agreement — deletion from production
-            systems within 30 days, backups within 90 days. An administrator
-            can restore the account during that window if needed.
+            Marks your account as deleted and signs you out. Data retention follows the Data
+            Processing Agreement — deletion from production systems within 30 days, backups within
+            90 days. An administrator can restore the account during that window if needed.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,12 +105,11 @@ export function DeleteAccountCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This marks your account as deleted. You'll be signed out
-              immediately and won't be able to sign in again. Your customer
-              records and job history remain on your tenant for any
-              administrator action; if you're the sole administrator,
-              contact <span className="font-medium">support@arcandanchor.com</span> to
-              close the tenant entirely.
+              This marks your account as deleted. You'll be signed out immediately and won't be able
+              to sign in again. Your customer records and job history remain on your tenant for any
+              administrator action; if you're the sole administrator, contact{" "}
+              <span className="font-medium">support@arcandanchor.com</span> to close the tenant
+              entirely.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
