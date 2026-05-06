@@ -3,12 +3,14 @@
 Consolidated settings surface (S4 Task 10). Tabbed layout with
 four sub-routes under `/dashboard/settings/*`:
 
-| Tab | Route | What |
-|---|---|---|
-| General | `/settings/general` | Company, timezone, currency, inventory thresholds, cutting defaults, system settings |
-| Profile & account | `/settings/profile` | Profile info, avatar, password, account metadata (absorbed the prior `/dashboard/account` route) |
-| Materials | `/settings/materials` | Material-type configuration + stock alert thresholds |
-| Notifications | `/settings/notifications` | In-app feed + email dispatch preferences + quiet hours |
+| Tab           | Route                     | What                                                                                             |
+| ------------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
+| General       | `/settings/general`       | Company, timezone, currency, inventory thresholds, cutting defaults, system settings             |
+| Profile       | `/settings/profile`       | Profile info, avatar, password, account metadata (absorbed the prior `/dashboard/account` route) |
+| Materials     | `/settings/materials`     | Material-type configuration + stock alert thresholds                                             |
+| Notifications | `/settings/notifications` | In-app feed + email dispatch preferences + quiet hours                                           |
+
+**Phase 2 (PR 1):** the tab strip is now mono uppercase underlined (replaces the Phase 1 `bg-muted` chip strip). Sub-pages are still on the Phase 1 shadcn defaults — they get rebuilt with the new form primitives in PR 2-3. See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` for the locked design and `app/components/ui/forms/README.md` for the new primitives.
 
 `/dashboard/settings` root redirects to `/settings/general`.
 
