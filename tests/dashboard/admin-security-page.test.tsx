@@ -3,8 +3,9 @@
  * Security & Audit surface at /dashboard/admin/security. Mocks
  * `useRole` and `sonner`; relies on the existing Radix Select
  * stub pattern. Pins:
- *   - Admin gate fallback for non-admins.
- *   - Hero metrics + role-matrix render under admin role.
+ *   - Permission gate fallback for callers without `manageUsers`.
+ *   - Hero metrics + role-matrix render once `manageUsers` is granted,
+ *     including the `manageUsers && !isAdmin` divergence path.
  *   - Audit DataTable shows fixture rows.
  *   - Access policy save toast fires after a draft change.
  *
@@ -13,8 +14,31 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
 
+import type { Permission } from "@/src/application/permissions"
+
 const useRole = vi.hoisted(() => vi.fn())
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+
+// Build a useRole return shape that mirrors the real hook closely
+// enough for the page (only `can` + `isLoading` are read), while
+// letting each test pin which permissions resolve true.
+function roleStub({
+  granted,
+  isAdmin,
+  isLoading = false,
+}: {
+  granted: ReadonlyArray<Permission>
+  isAdmin: boolean
+  isLoading?: boolean
+}) {
+  const set = new Set<Permission>(granted)
+  return {
+    userId: "u1",
+    isLoading,
+    isAdmin,
+    can: (permission: Permission) => set.has(permission),
+  }
+}
 
 vi.mock("@/src/infrastructure/services/useRole", () => ({ useRole }))
 vi.mock("sonner", () => ({ toast }))
@@ -114,15 +138,25 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
     toast.error.mockClear()
   })
 
-  it("renders the access-restricted fallback for non-admins", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: false, isLoading: false })
+  it("renders the access-restricted fallback when manageUsers is denied", () => {
+    useRole.mockReturnValue(roleStub({ granted: [], isAdmin: false }))
     render(<AdminSecurityPage />)
     expect(screen.getByText("Access restricted")).not.toBeNull()
     expect(screen.queryByText("Security & Audit")).toBeNull()
   })
 
-  it("renders the four hero metrics for admins", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: true, isLoading: false })
+  it("renders content for non-admins who hold manageUsers (gate divergence)", () => {
+    // Pins the gate to the declared `ROUTE_PERMISSIONS` permission so
+    // a future broadening of `manageUsers` keeps the page and sidebar
+    // in lockstep instead of silently 403'ing on `isAdmin`.
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: false }))
+    render(<AdminSecurityPage />)
+    expect(screen.getByText("Security & Audit")).not.toBeNull()
+    expect(screen.getByText("Active sessions")).not.toBeNull()
+  })
+
+  it("renders the four hero metrics when manageUsers is granted", () => {
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
     expect(screen.getByText("Active sessions")).not.toBeNull()
     expect(screen.getByText("MFA enrolled")).not.toBeNull()
@@ -131,7 +165,7 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
   })
 
   it("renders the three section eyebrows under Security & Audit", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: true, isLoading: false })
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
     expect(screen.getByText("Access policy")).not.toBeNull()
     expect(screen.getByText("Roles & permissions")).not.toBeNull()
@@ -139,7 +173,7 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
   })
 
   it("Save is disabled until the access-policy draft changes; toast fires on save", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: true, isLoading: false })
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
 
     const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement
@@ -157,7 +191,7 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
   })
 
   it("renders audit log fixture rows with severity labels", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: true, isLoading: false })
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
     // Action codes from the fixture set.
     expect(screen.getByText("policy.mfa.enabled")).not.toBeNull()
@@ -168,13 +202,16 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
   })
 
   it("renders the read-only roles matrix headers", () => {
-    useRole.mockReturnValue({ userId: "u1", isAdmin: true, isLoading: false })
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
-    // The matrix prints uppercase role names as table headers; the
-    // table renders them lowercase but with mono uppercase styling.
-    // Check the (case-insensitive) presence of every role.
+    // Anchor the assertion to <th> column headers so a broken header
+    // row can't slip through on stray body-text matches.
     ;["admin", "manager", "supervisor", "cutter", "member", "viewer"].forEach((role) => {
-      expect(screen.getAllByText(role).length).toBeGreaterThan(0)
+      expect(
+        screen.getByRole("columnheader", {
+          name: new RegExp(`^${role}$`, "i"),
+        })
+      ).not.toBeNull()
     })
   })
 })

@@ -14,8 +14,11 @@ import { RolesMatrixSection } from "./_components/roles-matrix-section"
  * Admin Security & Audit — Phase 2 PR 5.
  *
  * Sits at `/dashboard/admin/security` (not `/dashboard/security`,
- * which is the customer-facing Trust & Security page). Admin-gated
- * via `useRole().isAdmin`. Surfaces:
+ * which is the customer-facing Trust & Security page). Gated on
+ * `manageUsers` to match the declared `ROUTE_PERMISSIONS` entry —
+ * if that permission is ever broadened beyond admin, the page and
+ * the sidebar visibility stay in lockstep instead of silently
+ * 403'ing on `isAdmin`. Surfaces:
  *
  *   - Hero — 4 `<StatCard>`s (sessions / MFA% / events 7d / failed
  *     logins).
@@ -32,13 +35,13 @@ import { RolesMatrixSection } from "./_components/roles-matrix-section"
  * See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
  */
 export default function AdminSecurityPage() {
-  const { isAdmin, isLoading: isRoleLoading } = useRole()
+  const { can, isLoading: isRoleLoading } = useRole()
 
   if (isRoleLoading) {
     return null
   }
 
-  if (!isAdmin) {
+  if (!can("manageUsers")) {
     return (
       <PageShell variant="overview">
         <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-3 py-20 text-center">
@@ -47,7 +50,7 @@ export default function AdminSecurityPage() {
             Access restricted
           </h2>
           <p className="text-sm text-muted-foreground">
-            Only admins can view security policy and the audit log.
+            You don&apos;t have permission to view security policy or the audit log.
           </p>
         </div>
       </PageShell>
