@@ -5,6 +5,7 @@ import {
   type RollReusableOffcutSummary,
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
 
 export class RollsRepository implements IRollsRepository {
@@ -36,9 +37,17 @@ export class RollsRepository implements IRollsRepository {
     return data as Roll
   }
 
-  async addRoll(roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">): Promise<Roll> {
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
+  async addRoll(
+    roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
+  ): Promise<Roll> {
+    // Server-action callers pass actor.id explicitly (the browser-
+    // singleton-backed `getCurrentUserId` has no session in Node).
+    // Browser callers can omit it; the fallback keeps legacy paths
+    // working until they migrate.
+    const user_id = userId ?? (await getCurrentUserId())
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("rolls")
       .insert([{ ...roll, user_id }])
       .select()
