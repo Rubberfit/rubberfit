@@ -37,7 +37,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <span className="auth-eyebrow">Session login</span>
         <h1 className="auth-heading">Welcome back.</h1>
 
-        {authError ? <div className="auth-alert">{authError}</div> : null}
+        {authError ? (
+          <div className="auth-alert" role="alert" aria-live="polite">
+            {authError}
+          </div>
+        ) : null}
 
         <GoogleButton redirectTo={redirectTo} />
 

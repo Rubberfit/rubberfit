@@ -55,7 +55,7 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
   }, [redirectTo, router])
 
   const handleSubmit = async () => {
-    if (!factorId) return
+    if (submitting || !factorId) return
     const trimmed = code.replace(/\s+/g, "")
     if (!/^\d{6}$/.test(trimmed)) {
       setError("Enter the 6-digit code from your authenticator app.")
@@ -99,6 +99,7 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
           value={code}
           maxLength={6}
           pattern="[0-9]*"
+          disabled={submitting}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

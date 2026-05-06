@@ -63,7 +63,18 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return
       }
 
-      if (result.mfaRequired && result.factorId) {
+      if (result.mfaRequired) {
+        if (!result.factorId) {
+          // Defense-in-depth: signIn shouldn't return mfaRequired without
+          // a factorId, but if it ever does, treat the missing factor as
+          // a hard failure rather than falling through to the success
+          // toast and silently letting the user past the challenge.
+          toast.error("Sign in failed", {
+            description:
+              "Multi-factor verification could not be started. Please try again.",
+          })
+          return
+        }
         setMfaFactorId(result.factorId)
         setMfaCode("")
         setMfaError(null)
@@ -84,7 +95,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   const handleMfaSubmit = async () => {
-    if (!mfaFactorId) return
+    if (mfaSubmitting || !mfaFactorId) return
     const trimmed = mfaCode.replace(/\s+/g, "")
     if (!/^\d{6}$/.test(trimmed)) {
       setMfaError("Enter the 6-digit code from your authenticator app.")
@@ -124,6 +135,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             value={mfaCode}
             maxLength={6}
             pattern="[0-9]*"
+            disabled={mfaSubmitting}
             onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
