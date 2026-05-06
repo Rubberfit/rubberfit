@@ -43,7 +43,7 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
           router.replace(redirectTo ?? "/dashboard")
         }
       })
-      .catch(() => {
+      .catch((_err) => {
         if (!cancelled) setError("Could not load MFA factor.")
       })
       .finally(() => {
@@ -113,7 +113,11 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
         <p className="auth-helper">Enter the code from your authenticator app to finish signing in.</p>
       </div>
 
-      {error ? <p className="auth-input-error">{error}</p> : null}
+      {error ? (
+        <p className="auth-input-error" role="alert" aria-live="polite">
+          {error}
+        </p>
+      ) : null}
 
       <button
         type="button"
@@ -128,6 +132,7 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
         <button
           type="button"
           onClick={handleCancel}
+          disabled={submitting}
           className="auth-link auth-link-button"
         >
           Sign out

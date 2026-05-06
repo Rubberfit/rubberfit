@@ -149,7 +149,11 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           <p className="auth-helper">Enter the code from your authenticator app.</p>
         </div>
 
-        {mfaError ? <p className="auth-input-error">{mfaError}</p> : null}
+        {mfaError ? (
+          <p className="auth-input-error" role="alert" aria-live="polite">
+            {mfaError}
+          </p>
+        ) : null}
 
         <button
           type="button"
@@ -167,6 +171,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             setMfaCode("")
             setMfaError(null)
           }}
+          disabled={mfaSubmitting}
           className="auth-link auth-link-button auth-spaced"
         >
           ← Return to sign-in
