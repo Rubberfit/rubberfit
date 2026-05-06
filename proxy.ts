@@ -140,8 +140,14 @@ function buildUnauthenticatedResponse(
   // Preserve the full destination including query params so flows
   // like `/dashboard/inventory?scan=RF-000001` survive the login
   // round-trip (scanned QR label → login → drawer auto-opens).
-  const target = search ? `${pathname}${search}` : pathname
-  loginUrl.searchParams.set("redirectTo", target)
+  // Suppress the redirectTo query string for the bare root `/`: the
+  // post-login landing page already redirects unauthenticated traffic
+  // back to /dashboard, so carrying `redirectTo=%2F` adds visible URL
+  // noise on every first visit without changing the destination.
+  if (pathname !== "/" || search) {
+    const target = search ? `${pathname}${search}` : pathname
+    loginUrl.searchParams.set("redirectTo", target)
+  }
   return redirectWithCookies(loginUrl, pendingCookies)
 }
 
