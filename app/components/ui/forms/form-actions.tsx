@@ -20,6 +20,8 @@ export interface FormActionsProps extends React.HTMLAttributes<HTMLDivElement> {
   savedHint?: React.ReactNode
   /** `type` for the save button — set to "submit" when nesting inside a `<form>`. Defaults to `button`. */
   saveType?: "button" | "submit"
+  /** Hide the Cancel button entirely. Use for sections where cancel doesn't apply (e.g., the surface reloads after save). */
+  hideCancel?: boolean
 }
 
 /**
@@ -36,6 +38,7 @@ export function FormActions({
   isSaving,
   savedHint,
   saveType = "button",
+  hideCancel,
   className,
   ...props
 }: FormActionsProps) {
@@ -52,9 +55,11 @@ export function FormActions({
         {savedHint ?? null}
       </p>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
-          {cancelLabel}
-        </Button>
+        {hideCancel ? null : (
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
+            {cancelLabel}
+          </Button>
+        )}
         <Button
           type={saveType}
           variant="default"
