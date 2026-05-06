@@ -171,6 +171,28 @@ describe("app/actions/reorder", () => {
     expect(result).toEqual([])
   })
 
+  it("generateReorderSuggestions strips top-level smuggled keys before forwarding to the use-case", async () => {
+    // Symmetric coverage with the two PO-creation paths: even though
+    // this action is read-only, smuggled keys could affect future
+    // enrichment / filtering logic added to the use-case. The action
+    // boundary should drop them before they reach the use-case body.
+    const execute = vi.fn().mockResolvedValue([])
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
+    const smuggled = {
+      rules: [VALID_RULE],
+      pendingPOs: [],
+      includeArchived: true,
+      adminBypass: "yes",
+    } as unknown as { rules: ReorderRuleWithDetails[]; pendingPOs: never[] }
+    await generateReorderSuggestions(smuggled)
+
+    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(calledWith.includeArchived).toBeUndefined()
+    expect(calledWith.adminBypass).toBeUndefined()
+  })
+
   it("rejects unauthenticated callers before resolving the use-case", async () => {
     requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
 

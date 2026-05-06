@@ -57,11 +57,18 @@ const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 
 const uuid = z.string().uuid({ message: "Invalid id" })
 
-// Date strings come from `<input type="date">` (e.g. "2026-01-15") or
-// can be empty when the form field is blank — we accept either rather
-// than forcing the client to send `undefined`. The use-case treats
-// empty + undefined identically.
-const dateString = z.string().max(50).optional()
+// Date strings come from `<input type="date">` (always emits ISO
+// `YYYY-MM-DD`) or can be empty when the form field is blank — we
+// accept either rather than forcing the client to send `undefined`.
+// The use-case treats empty + undefined identically. Refine catches
+// values like `"tomorrow"` or `"abc"` that the form would never emit
+// but a malicious client could; rejecting at parse keeps the failure
+// mode local rather than letting a bad value propagate to the DB.
+const dateString = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Invalid date")
+  .optional()
 
 const purchaseOrderItemSchema = z.object({
   materialTypeId: uuid,
