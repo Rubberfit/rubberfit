@@ -145,7 +145,7 @@ export function DataTable<T>({
                 <TableHead
                   key={column.id}
                   className={cn(
-                    "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+                    "font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground",
                     alignClass[column.align ?? "left"],
                     column.className,
                     column.headerClassName

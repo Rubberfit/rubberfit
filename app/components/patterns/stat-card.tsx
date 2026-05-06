@@ -96,10 +96,12 @@ export function StatCard({
     <>
       <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon && <span className="flex size-3.5 items-center justify-center [&_svg]:size-3.5">{icon}</span>}
-        <span className="font-medium text-[11px] uppercase tracking-wider">{label}</span>
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.22em]">
+          {label}
+        </span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="tabular font-semibold text-3xl text-foreground tracking-tight">
+        <span className="tabular font-display font-semibold text-4xl text-foreground tracking-tight">
           {value}
         </span>
         {unit && (
@@ -145,7 +147,7 @@ export function StatCard({
   )
 
   const cardClasses = cn(
-    "flex flex-col gap-2 rounded-lg border bg-card p-4 transition-colors",
+    "flex flex-col gap-3 rounded-md border border-border-subtle bg-card p-5 transition-colors",
     href && "hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
     className
   )

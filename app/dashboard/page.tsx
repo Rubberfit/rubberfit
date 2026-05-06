@@ -162,13 +162,15 @@ export default function DashboardPage() {
     [period, data.weekLabel]
   )
 
-  const subtitle = useMemo(
+  const eyebrow = useMemo(
     () =>
       period === "week"
-        ? `${tenantDisplayName} · Week · ${data.weekLabel}`
-        : `${tenantDisplayName} · ${periodLabel}`,
+        ? `Operations / Week · ${data.weekLabel}`
+        : `Operations / ${periodLabel}`,
     [period, data.weekLabel, periodLabel]
   )
+
+  const subtitle = useMemo(() => tenantDisplayName, [])
 
   // Client-side aggregation per utilization period — swaps whenever
   // the operator clicks 7d / 30d / 90d without any refetch.
@@ -220,6 +222,7 @@ export default function DashboardPage() {
   return (
     <PageShell variant="overview">
       <PageHeader
+        eyebrow={eyebrow}
         title="Operations overview"
         subtitle={subtitle}
         actions={
@@ -280,22 +283,25 @@ function buildPeriodLabel(period: Period, weekLabel: string): string {
 }
 
 function PeriodToggle({ value, onChange }: { value: Period; onChange: (next: Period) => void }) {
+  // Mono uppercase segmented control per Kimi §6 — active tab inverts
+  // surface (graphite bg + Mill-paper text) so it reads like a
+  // pressed industrial actuator rather than a SaaS pill.
   const options: Array<{ id: Period; label: string }> = [
     { id: "week", label: "This week" },
     { id: "month", label: "Month" },
     { id: "quarter", label: "Quarter" },
   ]
   return (
-    <div className="inline-flex rounded-md border bg-card p-0.5 text-xs">
+    <div className="inline-flex items-center gap-1 rounded-md bg-muted p-1">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            "rounded px-2 py-1 font-medium transition-colors",
+            "rounded-sm px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.12em] transition-colors",
             value === option.id
-              ? "bg-muted text-foreground"
+              ? "bg-foreground text-background"
               : "text-muted-foreground hover:text-foreground"
           )}
         >

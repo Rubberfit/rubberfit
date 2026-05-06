@@ -108,3 +108,7 @@ release/
 
 # Rust engine build artefacts
 engine/target/
+
+# Rust build artifacts (engine workspace)
+target/
+engine/target/
