@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { ALL_ROLES } from "@/src/application/permissions"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+import { ForbiddenError } from "@/app/server/auth/errors"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
@@ -81,8 +82,13 @@ export async function deactivateUser(input: DeactivateUserActionInput): Promise<
   // (immediate self-lockout — they can't undo it on the next request
   // because their own auth check now fails). The UI guards this
   // separately; this is the server-side belt to the UI's suspenders.
+  //
+  // Throwing `ForbiddenError` (not a plain `Error`) keeps this on the
+  // documented action error contract — clients discriminate on
+  // `error.code === "FORBIDDEN"` across the RPC boundary, not
+  // `instanceof` (the prototype chain doesn't survive serialization).
   if (parsed.userId === actor.id) {
-    throw new Error("Cannot deactivate your own account")
+    throw new ForbiddenError("Cannot deactivate your own account")
   }
 
   const result = await userManagementService.deactivateUser(parsed.userId)

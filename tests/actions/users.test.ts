@@ -172,12 +172,23 @@ describe("app/actions/users", () => {
 
   // ── deactivateUser ─────────────────────────────────────────────
 
-  it("deactivateUser refuses self-deactivation", async () => {
+  it("deactivateUser refuses self-deactivation with a typed ForbiddenError", async () => {
     const { deactivateUser } = await import("@/app/actions/users")
 
-    await expect(deactivateUser({ userId: ADMIN.id })).rejects.toThrow(
-      /cannot deactivate your own account/i
-    )
+    // Self-deactivation throws `ForbiddenError` (code: "FORBIDDEN")
+    // rather than a plain `Error` so client-side catch wrappers can
+    // discriminate on `error.code` across the RPC boundary — the
+    // prototype chain doesn't survive serialization, so `instanceof`
+    // alone is not load-bearing.
+    let captured: unknown
+    try {
+      await deactivateUser({ userId: ADMIN.id })
+    } catch (error) {
+      captured = error
+    }
+    expect(captured).toBeInstanceOf(Error)
+    expect((captured as Error).message).toMatch(/cannot deactivate your own account/i)
+    expect((captured as { code?: string }).code).toBe("FORBIDDEN")
     expect(deactivateUserSvcMock).not.toHaveBeenCalled()
   })
 
