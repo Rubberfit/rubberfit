@@ -40,7 +40,13 @@ export class NotificationRepository implements INotificationRepository {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase.from("notifications").select("id").limit(1)
 
-    if (error) return false
+    // Match the rest of this repository's contract: throw on error so
+    // callers can distinguish "no rows" from "DB unreachable / RLS
+    // denial / auth-config bug". Swallowing the error and returning
+    // false collapses every infra failure into "no notifications,"
+    // which is a silent feature loss for any UI that hides the bell
+    // icon when this returns false.
+    if (error) throw error
     return (data?.length ?? 0) > 0
   }
 

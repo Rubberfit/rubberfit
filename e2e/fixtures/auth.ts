@@ -77,7 +77,16 @@ export async function createTestUser(options: CreateTestUserOptions = {}): Promi
   }
   const userId = created.user.id
 
-  const { error: updateError } = await adminClient
+  // `.update().eq().select()` returns the affected rows so we can
+  // verify the `handle_new_user` trigger has actually inserted the
+  // profile row before we update it. Without `.select()`, supabase-js
+  // happily reports success even when zero rows matched — which would
+  // leave the test user with the trigger's defaults
+  // (`roles=['member']`, `super_admin=false`) instead of the requested
+  // RBAC state, then surface as a confusing test failure way
+  // downstream. Asserting `data.length === 1` here pins the failure
+  // to setup.
+  const { data: updated, error: updateError } = await adminClient
     .from("profiles")
     .update({
       roles: options.roles ?? ["member"],
@@ -85,10 +94,12 @@ export async function createTestUser(options: CreateTestUserOptions = {}): Promi
       is_deleted: options.isDeleted ?? false,
     })
     .eq("id", userId)
+    .select("id")
 
-  if (updateError) {
+  if (updateError || !updated || updated.length !== 1) {
     await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
-    throw new Error(`createTestUser: profile update failed — ${updateError.message}`)
+    const detail = updateError?.message ?? `expected 1 affected row, got ${updated?.length ?? 0}`
+    throw new Error(`createTestUser: profile update failed — ${detail}`)
   }
 
   return { id: userId, email, password }

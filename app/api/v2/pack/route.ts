@@ -2,7 +2,9 @@ import "reflect-metadata"
 import { container } from "tsyringe"
 import { type NextRequest, NextResponse } from "next/server"
 
-import { makeAuthClient } from "@/app/api/_lib/supabase-server"
+import { AuthConfigError, ForbiddenError, UnauthorizedError } from "@/app/server/auth/errors"
+import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
+import { requirePermission } from "@/app/server/auth/require-permission"
 import { TOKENS } from "@/di/tokens"
 import "@/di/di-registration"
 import type { IPackingService } from "@/src/application/services/packing.service.interface"
@@ -56,18 +58,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     )
   }
 
-  const authClient = makeAuthClient(request)
-  if (!authClient) {
-    return NextResponse.json(
-      { error: "Supabase environment variables are missing" },
-      { status: 503 }
-    )
-  }
-  const {
-    data: { user },
-  } = await authClient.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  // Reuse the action-layer auth gate so dev exercises the same policy
+  // production does (cookie session → profile load → is_deleted check
+  // → role/permission check). Calling `auth.getUser()` alone leaves a
+  // weaker dev policy than prod, which masks regressions in CI.
+  //
+  // `accessCutPlanner` is the same permission `proxy.ts` enforces on
+  // `/dashboard/cutting-engine`, so any user who can reach the page
+  // can also reach this route.
+  try {
+    const actor = await requireAuthenticatedUser()
+    requirePermission(actor, "accessCutPlanner")
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    if (error instanceof AuthConfigError) {
+      return NextResponse.json(
+        { error: "Supabase environment variables are missing" },
+        { status: 503 }
+      )
+    }
+    throw error
   }
 
   let body: PackRequest

@@ -27,7 +27,10 @@ import { expect, test } from "@playwright/test"
 
 import { createTestUser, deleteTestUser, signInAs, type TestUser } from "./fixtures/auth"
 
-let cutter: TestUser
+// `T | undefined` so a beforeAll throw doesn't make afterAll deref
+// `cutter.id` and mask the original failure. Same pattern as
+// `e2e/admin-gating.spec.ts`.
+let cutter: TestUser | undefined
 
 test.beforeAll(async () => {
   // accessCutPlanner permission allows admin OR cutter. Use the
@@ -37,10 +40,16 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  await deleteTestUser(cutter.id)
+  if (cutter) await deleteTestUser(cutter.id)
 })
 
+function ensureSetup(label: string, value: TestUser | undefined): TestUser {
+  if (!value) throw new Error(`Test setup did not initialize ${label}; check beforeAll output`)
+  return value
+}
+
 test("packing a single rectangle preset returns 2xx from /api/v2/pack", async ({ page }) => {
+  const user = ensureSetup("cutter", cutter)
   const consoleMessages: string[] = []
   const packNetworkLog: string[] = []
 
@@ -52,7 +61,7 @@ test("packing a single rectangle preset returns 2xx from /api/v2/pack", async ({
     }
   })
 
-  await signInAs(page, cutter)
+  await signInAs(page, user)
   await page.goto("/dashboard/cutting-engine")
 
   // First-hit dev compile can be slow — wait generously for the page
