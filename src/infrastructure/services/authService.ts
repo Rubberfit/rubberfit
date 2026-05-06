@@ -325,12 +325,34 @@ export const authService = new AuthService()
 export interface ProfileAccess {
   roles: string[]
   isSuperAdmin: boolean
+  /**
+   * Soft-delete flag from `profiles.is_deleted`. Sign-in already rejects
+   * deactivated accounts, but a user deactivated mid-session keeps a
+   * valid JWT until it expires — so callers (middleware, route guards,
+   * action helpers) MUST check this and fail closed.
+   *
+   * `null` means "no profile row found" — we surface the missing-row
+   * case as `is_deleted: true` so callers can default-deny without
+   * needing to special-case it.
+   */
+  isDeleted: boolean
+  /**
+   * `true` when the profile row exists. Distinguishes "no row" from
+   * "row with is_deleted=true" for callers that want to log the
+   * missing-row case loudly without changing the deny outcome.
+   */
+  hasProfile: boolean
 }
 
 /**
- * Fetches `profiles.roles` + `profiles.super_admin` for an
- * already-authenticated user. Used by the admin guard helper to
- * centralize the RBAC lookup that every admin route needs.
+ * Fetches `profiles.roles` + `profiles.super_admin` + `profiles.is_deleted`
+ * for an already-authenticated user. Used by the admin guard helper,
+ * the proxy middleware, and `requireAuthenticatedUser` to centralize
+ * the RBAC + deactivation lookup that every protected boundary needs.
+ *
+ * Returns is_deleted=true (and hasProfile=false) when no profile row
+ * exists, so callers can fail-closed with a single `if (access.isDeleted)`
+ * check instead of separately handling the missing-row case.
  */
 export async function getProfileAccess(
   client: SupabaseClient,
@@ -338,17 +360,26 @@ export async function getProfileAccess(
 ): Promise<ProfileAccess> {
   const { data, error } = await client
     .from("profiles")
-    .select("roles, super_admin")
+    .select("roles, super_admin, is_deleted")
     .eq("id", userId)
-    .maybeSingle<{ roles: string[] | null; super_admin: boolean | null }>()
+    .maybeSingle<{
+      roles: string[] | null
+      super_admin: boolean | null
+      is_deleted: boolean | null
+    }>()
 
   if (error) {
     console.error("authService.getProfileAccess error:", error)
     throw error
   }
+  if (!data) {
+    return { roles: [], isSuperAdmin: false, isDeleted: true, hasProfile: false }
+  }
   return {
-    roles: Array.isArray(data?.roles) ? (data?.roles ?? []) : [],
-    isSuperAdmin: data?.super_admin === true,
+    roles: Array.isArray(data.roles) ? (data.roles ?? []) : [],
+    isSuperAdmin: data.super_admin === true,
+    isDeleted: data.is_deleted === true,
+    hasProfile: true,
   }
 }
 
