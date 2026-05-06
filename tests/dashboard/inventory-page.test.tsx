@@ -9,7 +9,7 @@
  * Spec: `.claude/handoff/dashboard-phase3-synthesis.md`
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 
 const useRole = vi.hoisted(() => vi.fn())
 const useAuth = vi.hoisted(() => vi.fn())

@@ -1,29 +1,20 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Package2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import type { Roll } from "@/src/infrastructure/models/supabase"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/app/components/ui/alert-dialog"
 import { DataTable, initialSortState, useTableSort } from "@/app/components/patterns/data-table"
 import { EmptyState } from "@/app/components/patterns"
-import { cn } from "@/app/lib/utils"
 
+import { DestructiveRollActionDialog } from "./destructive-roll-action-dialog"
 import { RollDetailDrawer } from "./roll-detail-drawer"
 import { RollFormDialog } from "./roll-form-dialog"
 import { TablePagination } from "./table-pagination"
 import { useInventoryColumns } from "./use-inventory-columns"
+import { usePagedRolls } from "./use-paged-rolls"
 import { useRolls } from "./use-rolls"
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
@@ -78,8 +69,6 @@ export function InventoryTable({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [pending, setPending] = useState<PendingAction>(null)
   const scanHandledRef = useRef<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
 
   const [sort, setSort] = useTableSort({
     ...initialSortState,
@@ -107,14 +96,22 @@ export function InventoryTable({
     onDelete: handleDeleteRequest,
   })
 
-  const totalRolls = rolls.length
-  const totalPages = Math.max(1, Math.ceil(totalRolls / pageSize))
-  // `page` can hold a stale value when search / dataset shrinks the
-  // list; `safePage` is the authoritative render value.
-  const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageStart = (safePage - 1) * pageSize
-  const pageEnd = Math.min(pageStart + pageSize, totalRolls)
-  const pageRolls = useMemo(() => rolls.slice(pageStart, pageEnd), [rolls, pageStart, pageEnd])
+  const {
+    pageRolls,
+    setPage,
+    pageSize,
+    setPageSize,
+    safePage,
+    pageStart,
+    pageEnd,
+    totalPages,
+    totalRolls,
+  } = usePagedRolls({
+    rolls,
+    columns,
+    sort,
+    defaultPageSize: DEFAULT_PAGE_SIZE,
+  })
 
   // Resolve a scan-in part number as soon as the rolls list is
   // loaded. Compared against `part_number` first, then falls back
@@ -265,36 +262,11 @@ export function InventoryTable({
         />
       )}
 
-      <AlertDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pending?.type === "delete" ? "Delete this roll?" : "Mark roll as depleted?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.type === "delete"
-                ? "This permanently removes the roll from inventory. Cut history records that reference it stay intact."
-                : "Marks this roll as fully used. Remaining length is set to zero and it stops appearing in available-material checks."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmPending}
-              className={cn(
-                pending?.type === "delete" && "bg-danger text-danger-foreground hover:bg-danger/90"
-              )}
-            >
-              {pending?.type === "delete" ? "Delete roll" : "Mark depleted"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveRollActionDialog
+        pendingKind={pending?.type ?? null}
+        onConfirm={confirmPending}
+        onCancel={() => setPending(null)}
+      />
     </>
   )
 }

@@ -37,7 +37,7 @@ export function useInventoryStats(refreshKey?: number): UseInventoryStatsResult 
     try {
       const data = await rollsSdk.list({ status: "active" })
       if (!signal.cancelled) setRolls(data ?? [])
-    } catch {
+    } catch (_error) {
       if (!signal.cancelled) setRolls([])
     } finally {
       if (!signal.cancelled) setIsLoading(false)
