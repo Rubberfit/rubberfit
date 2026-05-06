@@ -36,22 +36,33 @@ const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 //
 // Reorder-specific wrinkle: `suggestion`s and `reorderRules` are
 // composite objects mirroring use-case-output / DB-row shapes, with
-// joined columns the use-case ignores. We use `.passthrough()` on
-// nested objects so adding a new joined column upstream doesn't break
-// the action — strict checks live on the fields the use-case actually
-// consumes (`material_type.name`, `material_type.default_cost`, ids,
-// numeric ranges).
+// joined columns the use-case reads. The strip/passthrough policy is
+// asymmetric on purpose:
 //
-// Why TS public types come from the use-case input, not `z.input<>`:
-// callers pass full `ReorderRuleWithDetails[]` rows fetched from
-// Supabase (with `user_id`, `lead_time_days`, etc.). The Zod schema
-// is intentionally a subset — encoding every DB column would couple
-// the action to schema migrations. So the public type stays
-// `Omit<UseCaseInput, "actor">` for compile-time alignment with the
-// caller; Zod is a runtime tripwire that catches malformed UUIDs,
-// missing required fields, and type confusion. The use-case extracts
-// known fields and never spreads `input` into a service write, so
-// smuggled extras can't reach the DB.
+//   - **Top-level wrappers** (`{ suggestion, reorderRules }`,
+//     `{ suggestions, reorderRules }`, `{ rules, pendingPOs }`):
+//     default-strip. Closed shapes — no legitimate top-level extras.
+//     A client smuggling e.g. `bulkOverride: true` gets it stripped
+//     before the use-case sees it.
+//   - **`reorderRuleSchema` and its nested objects**: `.passthrough()`.
+//     Callers pass full `ReorderRuleWithDetails[]` rows fetched from
+//     Supabase (with `user_id`, `lead_time_days`, joined material_type
+//     fields, etc.). Encoding every DB column in Zod would couple the
+//     action to schema migrations; passthrough preserves the unknown
+//     joined columns the use-case actually reads.
+//
+// We forward the parsed result (not raw `input`) into the use-case,
+// so the strip policy is enforced at the action boundary rather than
+// trusting the use-case body to extract known fields. (Earlier rev
+// passed raw `input`; Sigilix flagged that as a defense-in-depth gap
+// — a future use-case spread would silently re-introduce smuggling.)
+//
+// TS public types stay `Omit<UseCaseInput, "actor">` because callers
+// pass DB-row-shaped objects; the runtime cast on the parsed object
+// bridges Zod's passthrough output type (with `[k: string]: unknown`
+// index signatures from `.passthrough()`) and the explicit nullable
+// columns on `ReorderRuleWithDetails`. The shape is identical at
+// runtime — the cast is purely a TS ergonomics tax.
 
 const uuid = z.string().uuid({ message: "Invalid id" })
 
@@ -131,16 +142,21 @@ export async function createReorderPurchaseOrder(
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  // Runtime tripwire — throws on malformed input. Result is discarded
-  // because we forward the original `input` (typed as the use-case
-  // input) so the use-case sees full DB-row shapes including joined
-  // columns Zod's subset doesn't enumerate.
-  createReorderPurchaseOrderSchema.parse(input)
+  // Forward the parsed result (default-strip on the wrapper, passthrough
+  // on rules) so smuggled top-level keys can't reach the use-case.
+  // Cast through `unknown` bridges Zod's passthrough output (which
+  // doesn't enumerate every column on `ReorderRuleWithDetails`) to the
+  // use-case's explicit type. The runtime shape is correct — passthrough
+  // preserves the unknown columns the use-case reads.
+  const parsed = createReorderPurchaseOrderSchema.parse(input) as unknown as Omit<
+    CreateReorderPurchaseOrderInput,
+    "actor"
+  >
 
   const useCase = resolveUseCase<ICreateReorderPurchaseOrderUseCase>(
     TOKENS.ICreateReorderPurchaseOrderUseCase
   )
-  const result = await useCase.execute({ ...input, actor })
+  const result = await useCase.execute({ ...parsed, actor })
   revalidatePath(REORDER_PATH)
   revalidatePath(PO_LIST_PATH)
   return result
@@ -163,12 +179,15 @@ export async function createBulkReorderPurchaseOrder(
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  createBulkReorderPurchaseOrderSchema.parse(input)
+  const parsed = createBulkReorderPurchaseOrderSchema.parse(input) as unknown as Omit<
+    CreateBulkReorderPurchaseOrderInput,
+    "actor"
+  >
 
   const useCase = resolveUseCase<ICreateBulkReorderPurchaseOrderUseCase>(
     TOKENS.ICreateBulkReorderPurchaseOrderUseCase
   )
-  const result = await useCase.execute({ ...input, actor })
+  const result = await useCase.execute({ ...parsed, actor })
 
   if (result.purchaseOrders.length > 0) {
     revalidatePath(REORDER_PATH)
@@ -188,10 +207,12 @@ export async function generateReorderSuggestions(
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  generateReorderSuggestionsSchema.parse(input)
+  const parsed = generateReorderSuggestionsSchema.parse(
+    input
+  ) as unknown as GenerateReorderSuggestionsInput
 
   const useCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
     TOKENS.IGenerateReorderSuggestionsUseCase
   )
-  return useCase.execute(input)
+  return useCase.execute(parsed)
 }

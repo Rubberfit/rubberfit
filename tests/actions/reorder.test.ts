@@ -105,6 +105,53 @@ describe("app/actions/reorder", () => {
     expect(resolveUseCaseMock).not.toHaveBeenCalled()
   })
 
+  it("createReorderPurchaseOrder strips top-level smuggled keys before forwarding to the use-case", async () => {
+    // Defense-in-depth: even though `Omit<UseCaseInput, "actor">` types
+    // out the public surface at compile time, the RPC wire format is
+    // untyped JSON. A malicious client can attach arbitrary top-level
+    // keys; the action layer must drop them before they reach the
+    // use-case. (Per-rule extras still survive — `reorderRuleSchema`
+    // uses .passthrough() because callers legitimately pass DB-row
+    // shapes with joined columns Zod's subset doesn't enumerate.)
+    const execute = vi.fn().mockResolvedValue({ purchaseOrder: { id: PO_ID } })
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    const smuggled = {
+      suggestion: VALID_SUGGESTION,
+      reorderRules: [VALID_RULE],
+      bulkOverride: true,
+      forgedActorId: "00000000-0000-4000-8000-000000000666",
+    } as unknown as { suggestion: typeof VALID_SUGGESTION; reorderRules: ReorderRuleWithDetails[] }
+    await createReorderPurchaseOrder(smuggled)
+
+    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(calledWith.bulkOverride).toBeUndefined()
+    expect(calledWith.forgedActorId).toBeUndefined()
+    // Real actor still threaded from the session, not from input.
+    expect(calledWith.actor).toEqual(ACTOR)
+  })
+
+  it("createBulkReorderPurchaseOrder strips top-level smuggled keys", async () => {
+    const execute = vi.fn().mockResolvedValue({ purchaseOrders: [], skipped: [] })
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    const smuggled = {
+      suggestions: [VALID_SUGGESTION],
+      reorderRules: [VALID_RULE],
+      skipApprovalGate: true,
+    } as unknown as {
+      suggestions: (typeof VALID_SUGGESTION)[]
+      reorderRules: ReorderRuleWithDetails[]
+    }
+    await createBulkReorderPurchaseOrder(smuggled)
+
+    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(calledWith.skipApprovalGate).toBeUndefined()
+    expect(calledWith.actor).toEqual(ACTOR)
+  })
+
   it("generateReorderSuggestions enforces auth + permission but does NOT pass actor (read-only)", async () => {
     const execute = vi.fn().mockResolvedValue([])
     resolveUseCaseMock.mockReturnValue({ execute })
