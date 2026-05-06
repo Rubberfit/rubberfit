@@ -11,3 +11,11 @@ target/**
 # the engine source tree on Vercel (so the root Cargo.toml's path
 # deps resolve), not its compiled artefacts.
 engine/target/**
+
+# Dev-only Next.js fallback for /api/v2/pack. Production traffic is
+# served by api/v2/pack.rs (Vercel Rust function declared in
+# vercel.json). Vercel's tie-breaker between a top-level Rust function
+# and an app/api/.../route.ts at the same URL is undefined, so we keep
+# the TS handler out of Vercel deploys entirely. See route.ts header
+# for the full rationale + the runtime VERCEL=1 belt-and-suspenders.
+app/api/v2/pack/
