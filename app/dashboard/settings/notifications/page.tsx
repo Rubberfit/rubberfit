@@ -1,204 +1,302 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import Link from "next/link"
-import { Mail, Bell, Package, AlertTriangle } from "lucide-react"
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Label } from "@/app/components/ui/label"
-import { Switch } from "@/app/components/ui/switch"
-import { Button } from "@/app/components/ui/button"
 import { toast } from "sonner"
+
+import { Input } from "@/app/components/ui/input"
+import { Switch } from "@/app/components/ui/switch"
 import {
-  InlineNotice,
-  PageHeader,
-  PageShell,
-} from "@/app/components/patterns"
+  FormActions,
+  FormField,
+  FormFieldGroup,
+  FormFieldset,
+  FormSectionHeader,
+} from "@/app/components/ui/forms"
+import { InlineNotice, PageHeader, PageShell } from "@/app/components/patterns"
 
 /**
- * Notification preferences — toggles that gate which events
- * trigger in-app / email dispatch. The feed of *delivered*
- * notifications still lives at `/dashboard/notifications`;
- * this surface is preferences only.
+ * Notification preferences — Phase 2 PR 3.
  *
- * Backend wiring to `notification_preferences` table is
- * deferred to S6 post-tech-debt pass. For now, the toggles
- * persist to local state + toast on save.
+ * Three sections per the locked spec §4:
+ *   1. Thresholds — low-stock threshold (sq ft).
+ *   2. Channels — Email / In-app / Push / SMS switches. Push and
+ *      SMS render disabled with a "Coming soon" helper because the
+ *      backend dispatcher only supports email + in-app today.
+ *   3. Quiet hours — enabled switch + start/end + tz read-only.
+ *
+ * State is local-only; backend wiring to `notification_preferences`
+ * is deferred to S6 tech-debt pass. The delivered notifications
+ * feed lives at `/dashboard/notifications` (operator inbox); this
+ * surface is preferences only.
+ *
+ * See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
  */
 
-interface NotificationPrefs {
-  emailLowStock: boolean
-  emailRollDepleted: boolean
-  emailCutCompleted: boolean
-  emailSystemAlerts: boolean
-  inAppLowStock: boolean
-  inAppRollDepleted: boolean
-  inAppCutCompleted: boolean
-  inAppSystemAlerts: boolean
-  quietHoursEnabled: boolean
+interface ThresholdsState {
+  lowStockThreshold: string
+}
+
+interface ChannelsState {
+  inApp: boolean
+  email: boolean
+  push: boolean
+  sms: boolean
+}
+
+interface QuietHoursState {
+  enabled: boolean
+  startTime: string
+  endTime: string
+}
+
+const THRESHOLD_DEFAULTS: ThresholdsState = {
+  lowStockThreshold: "100",
+}
+
+const CHANNEL_DEFAULTS: ChannelsState = {
+  inApp: true,
+  email: true,
+  push: false,
+  sms: false,
+}
+
+const QUIET_DEFAULTS: QuietHoursState = {
+  enabled: false,
+  startTime: "19:00",
+  endTime: "07:00",
 }
 
 export default function NotificationSettingsPage() {
-  const [prefs, setPrefs] = useState<NotificationPrefs>({
-    emailLowStock: true,
-    emailRollDepleted: true,
-    emailCutCompleted: false,
-    emailSystemAlerts: true,
-    inAppLowStock: true,
-    inAppRollDepleted: true,
-    inAppCutCompleted: true,
-    inAppSystemAlerts: true,
-    quietHoursEnabled: false,
-  })
-
-  const setPref = <K extends keyof NotificationPrefs>(key: K, value: NotificationPrefs[K]) => {
-    setPrefs((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const handleSave = () => {
-    toast.success("Notification preferences saved")
-  }
-
   return (
     <PageShell variant="form">
       <PageHeader
-        crumbs={[
-          { label: "Settings", href: "/dashboard/settings" },
-          { label: "Notifications" },
-        ]}
-        title="Notification preferences"
-        subtitle="Control which events trigger in-app feed items and email dispatch."
-        actions={
-          <Button size="sm" onClick={handleSave}>
-            Save preferences
-          </Button>
-        }
+        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: "Notifications" }]}
+        title="Notifications"
+        subtitle="Control which events trigger feed items and email dispatch."
       />
 
-      <InlineNotice intent="info" title="Preferences-only surface">
-        The delivered notifications feed lives at{" "}
-        <Link href="/dashboard/notifications" className="underline underline-offset-2">
-          /dashboard/notifications
-        </Link>
-        . Toggles below gate which events produce feed items + emails.
-      </InlineNotice>
+      <div className="mx-auto w-full max-w-2xl space-y-10 pb-20">
+        <InlineNotice intent="info" title="Preferences-only surface">
+          The delivered notifications feed lives at{" "}
+          <Link href="/dashboard/notifications" className="underline underline-offset-2">
+            /dashboard/notifications
+          </Link>
+          . Toggles below gate which events produce feed items + emails.
+        </InlineNotice>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Bell className="size-4" />
-            In-app feed
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PrefToggle
-            icon={<Package className="size-4" />}
-            label="Low-stock alerts"
-            description="Fire when a material dips below its minimum stock alert."
-            checked={prefs.inAppLowStock}
-            onChange={(v) => setPref("inAppLowStock", v)}
-          />
-          <PrefToggle
-            icon={<AlertTriangle className="size-4" />}
-            label="Roll depleted"
-            description="Fire when a roll's remaining length reaches zero."
-            checked={prefs.inAppRollDepleted}
-            onChange={(v) => setPref("inAppRollDepleted", v)}
-          />
-          <PrefToggle
-            label="Cut completed"
-            description="Fire when a cut job is finalized and recorded."
-            checked={prefs.inAppCutCompleted}
-            onChange={(v) => setPref("inAppCutCompleted", v)}
-          />
-          <PrefToggle
-            label="System alerts"
-            description="Platform-level events, engine failures, and administrative notices."
-            checked={prefs.inAppSystemAlerts}
-            onChange={(v) => setPref("inAppSystemAlerts", v)}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Mail className="size-4" />
-            Email dispatch
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PrefToggle
-            label="Low-stock email"
-            description="Queue an email when low-stock alerts fire."
-            checked={prefs.emailLowStock}
-            onChange={(v) => setPref("emailLowStock", v)}
-          />
-          <PrefToggle
-            label="Roll-depleted email"
-            description="Queue an email when a roll depletes."
-            checked={prefs.emailRollDepleted}
-            onChange={(v) => setPref("emailRollDepleted", v)}
-          />
-          <PrefToggle
-            label="Cut-completion email"
-            description="Queue an email on every completed cut (usually off — noisy)."
-            checked={prefs.emailCutCompleted}
-            onChange={(v) => setPref("emailCutCompleted", v)}
-          />
-          <PrefToggle
-            label="System alert email"
-            description="Queue an email for engine failures and critical system events."
-            checked={prefs.emailSystemAlerts}
-            onChange={(v) => setPref("emailSystemAlerts", v)}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Quiet hours</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PrefToggle
-            label="Enable quiet hours"
-            description="Suppress non-critical emails outside business hours (07:00 – 19:00 in your timezone)."
-            checked={prefs.quietHoursEnabled}
-            onChange={(v) => setPref("quietHoursEnabled", v)}
-          />
-        </CardContent>
-      </Card>
+        <ThresholdsSection isFirst />
+        <ChannelsSection />
+        <QuietHoursSection />
+      </div>
     </PageShell>
   )
 }
 
-function PrefToggle({
-  icon,
+function ThresholdsSection({ isFirst }: { isFirst?: boolean }) {
+  const [baseline, setBaseline] = useState<ThresholdsState>(THRESHOLD_DEFAULTS)
+  const [draft, setDraft] = useState<ThresholdsState>(THRESHOLD_DEFAULTS)
+
+  const isDirty = draft.lowStockThreshold !== baseline.lowStockThreshold
+
+  const handleSave = useCallback(() => {
+    setBaseline(draft)
+    toast.success("Thresholds saved")
+  }, [draft])
+
+  const handleCancel = useCallback(() => {
+    setDraft(baseline)
+  }, [baseline])
+
+  return (
+    <FormFieldset isFirst={isFirst}>
+      <FormSectionHeader
+        eyebrow="Thresholds"
+        title="Stock alerts"
+        description="Sets when low-stock alerts fire across the workspace. Per-material overrides live on the Materials tab."
+      />
+      <div className="mt-6 space-y-5">
+        <FormFieldGroup>
+          <FormField
+            label="Low-stock threshold"
+            htmlFor="low-stock-threshold"
+            helperText="Alert fires when a material drops below this level (sq ft)."
+            required
+          >
+            <Input
+              id="low-stock-threshold"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="10"
+              value={draft.lowStockThreshold}
+              onChange={(event) => setDraft({ lowStockThreshold: event.target.value })}
+            />
+          </FormField>
+        </FormFieldGroup>
+        <FormActions saveDisabled={!isDirty} onSave={handleSave} onCancel={handleCancel} />
+      </div>
+    </FormFieldset>
+  )
+}
+
+function ChannelsSection() {
+  const [baseline, setBaseline] = useState<ChannelsState>(CHANNEL_DEFAULTS)
+  const [draft, setDraft] = useState<ChannelsState>(CHANNEL_DEFAULTS)
+
+  const isDirty =
+    draft.inApp !== baseline.inApp ||
+    draft.email !== baseline.email ||
+    draft.push !== baseline.push ||
+    draft.sms !== baseline.sms
+
+  const handleSave = useCallback(() => {
+    setBaseline(draft)
+    toast.success("Channel preferences saved")
+  }, [draft])
+
+  const handleCancel = useCallback(() => {
+    setDraft(baseline)
+  }, [baseline])
+
+  return (
+    <FormFieldset>
+      <FormSectionHeader
+        eyebrow="Channels"
+        title="Where notifications dispatch"
+        description="Pick which channels deliver notifications. SMS and Push are coming soon — the dispatcher only supports email and the in-app feed today."
+      />
+      <div className="mt-6">
+        <div className="space-y-1">
+          <ChannelRow
+            label="In-app feed"
+            description="Items appear in /dashboard/notifications."
+            checked={draft.inApp}
+            onChange={(value) => setDraft((prev) => ({ ...prev, inApp: value }))}
+          />
+          <ChannelRow
+            label="Email"
+            description="Queued via the email dispatcher with quiet-hours respected."
+            checked={draft.email}
+            onChange={(value) => setDraft((prev) => ({ ...prev, email: value }))}
+          />
+          <ChannelRow
+            label="Push"
+            description="Coming soon — desktop and mobile push are not yet wired."
+            checked={draft.push}
+            onChange={(value) => setDraft((prev) => ({ ...prev, push: value }))}
+            disabled
+            comingSoon
+          />
+          <ChannelRow
+            label="SMS"
+            description="Coming soon — text dispatch awaits a Twilio integration."
+            checked={draft.sms}
+            onChange={(value) => setDraft((prev) => ({ ...prev, sms: value }))}
+            disabled
+            comingSoon
+          />
+        </div>
+        <FormActions saveDisabled={!isDirty} onSave={handleSave} onCancel={handleCancel} />
+      </div>
+    </FormFieldset>
+  )
+}
+
+function QuietHoursSection() {
+  const [baseline, setBaseline] = useState<QuietHoursState>(QUIET_DEFAULTS)
+  const [draft, setDraft] = useState<QuietHoursState>(QUIET_DEFAULTS)
+
+  const isDirty =
+    draft.enabled !== baseline.enabled ||
+    draft.startTime !== baseline.startTime ||
+    draft.endTime !== baseline.endTime
+
+  const handleSave = useCallback(() => {
+    setBaseline(draft)
+    toast.success("Quiet hours saved")
+  }, [draft])
+
+  const handleCancel = useCallback(() => {
+    setDraft(baseline)
+  }, [baseline])
+
+  return (
+    <FormFieldset>
+      <FormSectionHeader
+        eyebrow="Quiet hours"
+        title="Suppress non-critical notifications"
+        description="When enabled, email and push delivery skip the listed window. In-app feed items still post — the operator can read them at any time."
+      />
+      <div className="mt-6 space-y-5">
+        <ChannelRow
+          label="Enable quiet hours"
+          description="Suppress non-critical emails outside the listed window."
+          checked={draft.enabled}
+          onChange={(value) => setDraft((prev) => ({ ...prev, enabled: value }))}
+        />
+        <FormFieldGroup>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Start time" htmlFor="quiet-start">
+              <Input
+                id="quiet-start"
+                type="time"
+                value={draft.startTime}
+                disabled={!draft.enabled}
+                onChange={(event) =>
+                  setDraft((prev) => ({ ...prev, startTime: event.target.value }))
+                }
+              />
+            </FormField>
+            <FormField label="End time" htmlFor="quiet-end">
+              <Input
+                id="quiet-end"
+                type="time"
+                value={draft.endTime}
+                disabled={!draft.enabled}
+                onChange={(event) => setDraft((prev) => ({ ...prev, endTime: event.target.value }))}
+              />
+            </FormField>
+          </div>
+        </FormFieldGroup>
+        <FormActions saveDisabled={!isDirty} onSave={handleSave} onCancel={handleCancel} />
+      </div>
+    </FormFieldset>
+  )
+}
+
+function ChannelRow({
   label,
   description,
   checked,
   onChange,
+  disabled,
+  comingSoon,
 }: {
-  icon?: React.ReactNode
   label: string
   description: string
   checked: boolean
   onChange: (value: boolean) => void
+  disabled?: boolean
+  comingSoon?: boolean
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex items-start gap-2">
-        {icon && (
-          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            {icon}
-          </span>
-        )}
-        <div className="space-y-0.5">
-          <Label className="font-medium">{label}</Label>
-          <p className="text-muted-foreground text-xs">{description}</p>
+    <div
+      data-disabled={disabled || undefined}
+      className="flex items-start justify-between gap-6 border-t border-border-subtle py-4 first:border-t-0 first:pt-0"
+    >
+      <div className="space-y-0.5">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          {comingSoon ? (
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Coming soon
+            </span>
+          ) : null}
         </div>
+        <p className="text-xs text-muted-foreground">{description}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   )
 }

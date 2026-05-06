@@ -12,7 +12,8 @@ four sub-routes under `/dashboard/settings/*`:
 
 **Phase 2 PR 1:** mono uppercase underlined tab strip (replaces the Phase 1 `bg-muted` chip strip).
 **Phase 2 PR 2a:** General sub-page rebuilt with the new `forms/` primitives — sectioned `<FormSectionHeader>` + per-section `<FormActions>` save/cancel + Sonner toast confirmation.
-**Phase 2 PR 2b (this commit):** Profile sub-page rebuilt — Personal info + Password + Two-factor + Account information + Danger-zone Delete sections all sitting on the new `<FormFieldset>` chrome. Materials + Notifications restyle is PR 3; Users + Security come in PR 4.
+**Phase 2 PR 2b:** Profile sub-page rebuilt — Personal info + Password + Two-factor + Account information + Danger-zone Delete sections all sitting on the new `<FormFieldset>` chrome.
+**Phase 2 PR 3 (this commit):** Materials moves to `<DataTable>` + right-side `<Sheet>` drawer for Add/Edit (replacing the per-row card layout and Add `<Dialog>`); Notifications rebuilt as three sections (Thresholds / Channels / Quiet hours) with Push and SMS rendered disabled with `Coming soon` badges. Users + Security come in PR 4.
 
 See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` for the locked design and `app/components/ui/forms/README.md` for the new primitives.
 
@@ -42,6 +43,12 @@ Notifications tab here is preferences only.
   `authMfaService`, soft-delete via `profileService.requestSelfDelete`)
   is unchanged from S4 Task 10 — only the visual chrome moved
   from shadcn `<Card>` to the Phase 2 primitives.
-- **materials/** -- Material-type configuration surface (existing).
-- **notifications/** -- Preferences stub. Backend wiring to
-  `notification_preferences` deferred to S6 tech-debt pass.
+- **materials/** -- Phase 2 `<DataTable>` of material types with a
+  right-side `<Sheet>` drawer for Add/Edit and a destructive
+  `<AlertDialog>` for delete (FK-protected via `rollService` +
+  `purchaseOrderService` checks). Wired against `materialTypeService`
+  — same Supabase calls used in S4 Task 10.
+- **notifications/** -- Phase 2 sectioned form (Thresholds / Channels /
+  Quiet hours). Push + SMS rows render disabled with `Coming soon`.
+  State is local-only; backend wiring to `notification_preferences`
+  is deferred to S6 tech-debt pass.
