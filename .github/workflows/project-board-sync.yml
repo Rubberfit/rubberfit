@@ -3,10 +3,12 @@ name: Project Board Sync
 on:
   create:
   # Issue close events sync the project board to the Done column.
+  # Reopen events let handleIssueEvent move the card out of Done so the
+  # next cron tick doesn't re-close the issue via closeIssueIfOpen.
   # New-issue triggers are intentionally not wired here — issue
   # triage runs out-of-band.
   issues:
-    types: [closed]
+    types: [closed, reopened]
   pull_request_target:
     types:
       [

@@ -12,5 +12,11 @@
       "path": "/api/admin/health/cron?tier=extended",
       "schedule": "*/30 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/v2/pack.rs": {
+      "maxDuration": 300,
+      "memory": 3008
+    }
+  }
 }

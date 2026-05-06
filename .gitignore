@@ -109,6 +109,5 @@ release/
 # Rust engine build artefacts
 engine/target/
 
-# Rust build artifacts (engine workspace)
-target/
-engine/target/
+# Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
+/target/
