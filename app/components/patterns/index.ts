@@ -31,7 +31,11 @@ export { LoadingCard, type LoadingCardProps } from "./loading-card"
 export { LoadingTable, type LoadingTableProps } from "./loading-table"
 export { ErrorState, type ErrorStateProps } from "./error-state"
 export { EntityRow, type EntityRowProps } from "./entity-row"
-export { ActivityFeedRow, type ActivityFeedRowProps } from "./activity-feed-row"
+export {
+  ActivityFeedRow,
+  type ActivityFeedRowProps,
+  type ActivityIntent,
+} from "./activity-feed-row"
 
 // Task 2c — navigation + toolbar + data-table
 export { ViewToolbar, type ViewToolbarProps } from "./view-toolbar"
