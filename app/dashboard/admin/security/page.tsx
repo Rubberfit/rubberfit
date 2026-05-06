@@ -38,7 +38,17 @@ export default function AdminSecurityPage() {
   const { can, isLoading: isRoleLoading } = useRole()
 
   if (isRoleLoading) {
-    return null
+    return (
+      <PageShell variant="form">
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex min-h-[16rem] items-center justify-center text-sm text-muted-foreground"
+        >
+          Loading security &amp; audit settings…
+        </div>
+      </PageShell>
+    )
   }
 
   if (!can("manageUsers")) {

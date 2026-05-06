@@ -40,6 +40,20 @@ function roleStub({
   }
 }
 
+function asButton(element: HTMLElement): HTMLButtonElement {
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new TypeError("Expected element to be a button")
+  }
+  return element
+}
+
+function asSelect(element: HTMLElement): HTMLSelectElement {
+  if (!(element instanceof HTMLSelectElement)) {
+    throw new TypeError("Expected element to be a select")
+  }
+  return element
+}
+
 vi.mock("@/src/infrastructure/services/useRole", () => ({ useRole }))
 vi.mock("sonner", () => ({ toast }))
 
@@ -172,17 +186,37 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
     expect(screen.getByText("Audit log")).not.toBeNull()
   })
 
-  it("Save is disabled until the access-policy draft changes; toast fires on save", () => {
+  it("Save is disabled until the MFA switch flips; toast fires on save", () => {
     useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
 
-    const save = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement
+    const save = asButton(screen.getByRole("button", { name: "Save" }))
     expect(save.disabled).toBe(true)
 
-    const mfaSwitch = screen.getByRole("switch", {
-      name: /Require multi-factor authentication/i,
-    }) as HTMLButtonElement
+    const mfaSwitch = asButton(
+      screen.getByRole("switch", { name: /Require multi-factor authentication/i })
+    )
     fireEvent.click(mfaSwitch)
+    expect(save.disabled).toBe(false)
+
+    fireEvent.click(save)
+    expect(toast.success).toHaveBeenCalledWith("Access policy saved")
+    expect(save.disabled).toBe(true)
+  })
+
+  it("changing the session-timeout select also enables Save and fires the toast", () => {
+    // Mirrors the MFA case, but exercises the second `isDirty` branch
+    // (`sessionTimeoutHours` change) so a regression in the
+    // onValueChange wiring or the comparison can't slip through.
+    useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
+    render(<AdminSecurityPage />)
+
+    const save = asButton(screen.getByRole("button", { name: "Save" }))
+    expect(save.disabled).toBe(true)
+
+    const timeout = asSelect(screen.getByRole("combobox", { name: /Session timeout/i }))
+    expect(timeout.value).toBe("8")
+    fireEvent.change(timeout, { target: { value: "24" } })
     expect(save.disabled).toBe(false)
 
     fireEvent.click(save)
