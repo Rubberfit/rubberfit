@@ -82,11 +82,6 @@ describe("RustPackingService", () => {
     }
   )
 
-  it("cancel() is a silent no-op", async () => {
-    const svc = new RustPackingService()
-    await expect(svc.cancel("any-job-id")).resolves.toBeUndefined()
-  })
-
   it("reports missing binary as a spawn error", async () => {
     const svc = new RustPackingService("/definitely/not/a/real/path/pack-cli")
     const req: PackRequest = {

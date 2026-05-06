@@ -2,8 +2,18 @@ import { describe, it, expect } from "vitest"
 import { buildPart } from "@/src/application/packing/buildPart"
 import type { ShapeSpec } from "@/src/application/packing/types"
 
-describe("buildPart — rect", () => {
-  it("produces a 4-vertex CCW polygon with min-corner at (0,0)", () => {
+// Polygon math for spec-able shapes (rect, circle, trapezoid, ngon,
+// sector) lives in Rust now (`engine/crates/rf-layout/src/application/
+// shape_builder.rs`). buildPart's job for spec inputs is just to
+// pass `shapeSpec` through; polygon is left undefined and Rust
+// materialises it pre-pack.
+//
+// Polygon math is still exercised TS-side for raw-geometry callers
+// (DXF imports, hand-drawn parts), so the polygon-passthrough +
+// normalization tests live below.
+
+describe("buildPart — spec-only (polygon materialised by Rust)", () => {
+  it("rect spec: polygon left undefined, shapeSpec passed through", () => {
     const spec: ShapeSpec = { kind: "rect", params: { width: 10, height: 5 } }
     const part = buildPart({
       shapeId: "r1",
@@ -11,223 +21,82 @@ describe("buildPart — rect", () => {
       shapeSpec: spec,
       allowRotation: true,
     })
-
-    expect(part.polygon).toHaveLength(4)
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
-    expect(Math.min(...xs)).toBe(0)
-    expect(Math.min(...ys)).toBe(0)
-    expect(Math.max(...xs)).toBeCloseTo(10, 6)
-    expect(Math.max(...ys)).toBeCloseTo(5, 6)
+    expect(part.polygon).toBeUndefined()
+    expect(part.shapeSpec).toEqual(spec)
+    expect(part.shapeId).toBe("r1")
+    expect(part.quantity).toBe(1)
+    expect(part.allowRotation).toBe(true)
   })
 
-  it("preserves shapeSpec as UI hint", () => {
-    const spec: ShapeSpec = { kind: "rect", params: { width: 10, height: 5 } }
+  it("circle spec: polygon left undefined, shapeSpec passed through", () => {
+    const spec: ShapeSpec = { kind: "circle", params: { diameter: 10 } }
     const part = buildPart({
-      shapeId: "r1",
+      shapeId: "c1",
       quantity: 1,
       shapeSpec: spec,
       allowRotation: true,
     })
+    expect(part.polygon).toBeUndefined()
     expect(part.shapeSpec).toEqual(spec)
   })
 
-  it("throws on zero width", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "r1",
-        quantity: 1,
-        shapeSpec: { kind: "rect", params: { width: 0, height: 5 } },
-        allowRotation: true,
-      })
-    ).toThrow(/width must be positive/i)
-  })
-})
-
-describe("buildPart — circle", () => {
-  it("produces a 24-vertex polygon by default", () => {
-    const part = buildPart({
-      shapeId: "c1",
-      quantity: 1,
-      shapeSpec: { kind: "circle", params: { diameter: 10 } },
-      allowRotation: true,
-    })
-    expect(part.polygon).toHaveLength(24)
-  })
-
-  it("polygon spans diameter with min-corner at (0,0)", () => {
-    const part = buildPart({
-      shapeId: "c1",
-      quantity: 1,
-      shapeSpec: { kind: "circle", params: { diameter: 10 } },
-      allowRotation: true,
-    })
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
-    expect(Math.min(...xs)).toBeCloseTo(0, 3)
-    expect(Math.min(...ys)).toBeCloseTo(0, 3)
-    expect(Math.max(...xs)).toBeCloseTo(10, 3)
-    expect(Math.max(...ys)).toBeCloseTo(10, 3)
-  })
-
-  it("honors segments parameter", () => {
-    const part = buildPart({
-      shapeId: "c1",
-      quantity: 1,
-      shapeSpec: { kind: "circle", params: { diameter: 10, segments: 48 } },
-      allowRotation: true,
-    })
-    expect(part.polygon).toHaveLength(48)
-  })
-
-  it("throws on zero diameter", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "c1",
-        quantity: 1,
-        shapeSpec: { kind: "circle", params: { diameter: 0 } },
-        allowRotation: true,
-      })
-    ).toThrow(/diameter must be positive/i)
-  })
-})
-
-describe("buildPart — trapezoid", () => {
-  it("produces a 4-vertex CCW polygon with min-corner at (0,0)", () => {
+  it("trapezoid spec: polygon left undefined, shapeSpec passed through", () => {
+    const spec: ShapeSpec = {
+      kind: "trapezoid",
+      params: { topWidth: 6, bottomWidth: 10, height: 4 },
+    }
     const part = buildPart({
       shapeId: "t1",
       quantity: 1,
-      shapeSpec: {
-        kind: "trapezoid",
-        params: { topWidth: 6, bottomWidth: 10, height: 4 },
-      },
+      shapeSpec: spec,
       allowRotation: true,
     })
-    expect(part.polygon).toHaveLength(4)
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
-    expect(Math.min(...xs)).toBe(0)
-    expect(Math.min(...ys)).toBe(0)
-    expect(Math.max(...xs)).toBeCloseTo(10, 6)
-    expect(Math.max(...ys)).toBeCloseTo(4, 6)
+    expect(part.polygon).toBeUndefined()
+    expect(part.shapeSpec).toEqual(spec)
   })
 
-  it("throws on zero height", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "t1",
-        quantity: 1,
-        shapeSpec: {
-          kind: "trapezoid",
-          params: { topWidth: 6, bottomWidth: 10, height: 0 },
-        },
-        allowRotation: true,
-      })
-    ).toThrow(/height must be positive/i)
-  })
-})
-
-describe("buildPart — sector (annular)", () => {
-  it("produces polygon spanning outer diameter at y=0 through arc", () => {
+  it("sector spec: polygon left undefined, shapeSpec passed through", () => {
+    const spec: ShapeSpec = {
+      kind: "sector",
+      params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 },
+    }
     const part = buildPart({
       shapeId: "s1",
       quantity: 1,
-      shapeSpec: {
-        kind: "sector",
-        params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 },
-      },
+      shapeSpec: spec,
       allowRotation: true,
     })
-    expect(part.polygon.length).toBeGreaterThan(8)
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
-    expect(Math.min(...xs)).toBeCloseTo(0, 3)
-    expect(Math.min(...ys)).toBeCloseTo(0, 3)
+    expect(part.polygon).toBeUndefined()
+    expect(part.shapeSpec).toEqual(spec)
   })
 
-  it("has exactly 2*(segments+1) vertices at default 24 segments", () => {
-    const part = buildPart({
-      shapeId: "s2",
-      quantity: 1,
-      shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 } },
-      allowRotation: true,
-    })
-    expect(part.polygon).toHaveLength(50)
-  })
-
-  it("90-degree sector with outerR=5 has bounding box max ≈ 5 on both axes", () => {
-    const part = buildPart({
-      shapeId: "s3",
-      quantity: 1,
-      shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 90 } },
-      allowRotation: true,
-    })
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
-    expect(Math.max(...xs)).toBeCloseTo(5, 3)
-    expect(Math.max(...ys)).toBeCloseTo(5, 3)
-  })
-
-  it("throws when outerRadius <= innerRadius", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "s4",
-        quantity: 1,
-        shapeSpec: { kind: "sector", params: { innerRadius: 5, outerRadius: 5, arcDegrees: 90 } },
-        allowRotation: true,
-      })
-    ).toThrow(/outerRadius must exceed innerRadius/i)
-  })
-
-  it("throws when arcDegrees is 360 (full annulus not supported)", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "s5",
-        quantity: 1,
-        shapeSpec: { kind: "sector", params: { innerRadius: 2, outerRadius: 5, arcDegrees: 360 } },
-        allowRotation: true,
-      })
-    ).toThrow(/arcDegrees/i)
-  })
-})
-
-describe("buildPart — ngon (regular polygon)", () => {
-  it("produces polygon with exactly N sides", () => {
+  it("ngon spec: polygon left undefined, shapeSpec passed through", () => {
+    const spec: ShapeSpec = { kind: "ngon", params: { sides: 6, radius: 5 } }
     const part = buildPart({
       shapeId: "n1",
       quantity: 1,
-      shapeSpec: { kind: "ngon", params: { sides: 6, radius: 5 } },
+      shapeSpec: spec,
       allowRotation: true,
     })
-    expect(part.polygon).toHaveLength(6)
+    expect(part.polygon).toBeUndefined()
+    expect(part.shapeSpec).toEqual(spec)
   })
 
-  it("throws for sides < 3", () => {
-    expect(() =>
-      buildPart({
-        shapeId: "n1",
-        quantity: 1,
-        shapeSpec: { kind: "ngon", params: { sides: 2, radius: 5 } },
-        allowRotation: true,
-      })
-    ).toThrow(/sides must be at least 3/i)
-  })
-
-  it("vertex 0 is at the top (smallest y)", () => {
+  it("optional fields (grainAxis, difficulty, tag) round-trip onto Part", () => {
     const part = buildPart({
-      shapeId: "n2",
-      quantity: 1,
-      shapeSpec: { kind: "ngon", params: { sides: 6, radius: 5 } },
-      allowRotation: true,
+      shapeId: "r1",
+      quantity: 3,
+      shapeSpec: { kind: "rect", params: { width: 10, height: 5 } },
+      allowRotation: false,
+      grainAxis: "width",
+      difficulty: 1.5,
+      tag: "G2",
     })
-    const minY = Math.min(...part.polygon.map((p) => p.y))
-    // After normalization the top vertex lands at y=0
-    expect(minY).toBeCloseTo(0, 6)
-    // And x should be at the horizontal center of the bounding box
-    const xs = part.polygon.map((p) => p.x)
-    const centerX = (Math.max(...xs) + Math.min(...xs)) / 2
-    const topVertex = part.polygon.find((p) => Math.abs(p.y - minY) < 1e-6)!
-    expect(topVertex.x).toBeCloseTo(centerX, 6)
+    expect(part.grainAxis).toBe("width")
+    expect(part.difficulty).toBe(1.5)
+    expect(part.tag).toBe("G2")
+    expect(part.allowRotation).toBe(false)
+    expect(part.quantity).toBe(3)
   })
 })
 
@@ -260,8 +129,9 @@ describe("buildPart — custom / DXF passthrough", () => {
       ],
       allowRotation: true,
     })
-    const xs = part.polygon.map((p) => p.x)
-    const ys = part.polygon.map((p) => p.y)
+    expect(part.polygon).toBeDefined()
+    const xs = part.polygon!.map((p) => p.x)
+    const ys = part.polygon!.map((p) => p.y)
     expect(Math.min(...xs)).toBe(0)
     expect(Math.min(...ys)).toBe(0)
   })
@@ -288,5 +158,21 @@ describe("buildPart — custom / DXF passthrough", () => {
         allowRotation: true,
       })
     ).toThrow(/shapeSpec or polygon/i)
+  })
+
+  it("polygon + shapeSpec both supplied: polygon wins (Rust short-circuits when present)", () => {
+    const part = buildPart({
+      shapeId: "mix",
+      quantity: 1,
+      polygon: [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+      ],
+      shapeSpec: { kind: "rect", params: { width: 10, height: 5 } },
+      allowRotation: true,
+    })
+    expect(part.polygon).toHaveLength(3)
+    expect(part.shapeSpec).toEqual({ kind: "rect", params: { width: 10, height: 5 } })
   })
 })

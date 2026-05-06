@@ -8,7 +8,6 @@ import type {
   Placement,
   BinResult,
   PackResult,
-  PackProgress,
 } from "@/src/application/packing/types"
 
 describe("canonical types", () => {
@@ -17,8 +16,8 @@ describe("canonical types", () => {
     expectTypeOf<Point2D>().toHaveProperty("y").toBeNumber()
   })
 
-  it("Part requires polygon, allowRotation, shapeId, quantity", () => {
-    expectTypeOf<Part>().toHaveProperty("polygon").toEqualTypeOf<Point2D[]>()
+  it("Part requires allowRotation, shapeId, quantity; polygon is optional (Rust materialises from shapeSpec)", () => {
+    expectTypeOf<Part>().toHaveProperty("polygon").toEqualTypeOf<Point2D[] | undefined>()
     expectTypeOf<Part>().toHaveProperty("allowRotation").toBeBoolean()
     expectTypeOf<Part>().toHaveProperty("shapeId").toBeString()
     expectTypeOf<Part>().toHaveProperty("quantity").toBeNumber()

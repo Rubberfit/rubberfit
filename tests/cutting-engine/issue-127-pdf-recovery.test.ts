@@ -79,6 +79,7 @@ function makeCut(overrides: Partial<CutHistory> = {}): CutHistory {
     cut_length: 96,
     cut_width: 48,
     cut_thickness: 0.5,
+    kerf: 0.125,
     part_custom_width: null,
     part_custom_height: null,
     part_selected_size: null,

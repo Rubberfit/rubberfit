@@ -1,9 +1,59 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Minus, Pencil, Plus } from "lucide-react"
 import type { PartTemplate } from "./preset-template-data"
-import { CAT_BADGE } from "./preset-template-data"
+import { CAT_BADGE, MAX_TEMPLATE_QUANTITY } from "./preset-template-data"
 import { getTemplateAreaSqFt } from "./preset-utils"
+
+interface QtyInputProps {
+  value: number
+  onChange: (next: number) => void
+}
+
+// Quantity field that lets the operator type a value directly while
+// keeping the +/- buttons intact. Local draft state holds the typed
+// string so an in-progress edit (e.g. cleared field) doesn't snap
+// back to "1" mid-keystroke; the parent's onChange runs on blur or
+// Enter, where `handleQuantityChange` clamps to [1, MAX_TEMPLATE_QUANTITY].
+function QtyInput({ value, onChange }: QtyInputProps) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  const commit = () => {
+    const parsed = Number(draft)
+    onChange(Number.isFinite(parsed) ? parsed : value)
+    setDraft(String(value))
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="\d*"
+      value={draft}
+      aria-label="Quantity"
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.select()
+      }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onChange={(event) => setDraft(event.target.value.replace(/\D/g, "").slice(0, 4))}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === "Enter") {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
+      }}
+      className="w-10 bg-transparent text-center text-xs font-semibold tabular-nums outline-none focus:ring-1 focus:ring-blue-300 dark:focus:ring-blue-500"
+    />
+  )
+}
 
 interface PresetTemplateGridProps {
   visible: PartTemplate[]
@@ -126,9 +176,10 @@ export function PresetTemplateGrid({
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums">
-                          {quantities.get(template.id) ?? 1}
-                        </span>
+                        <QtyInput
+                          value={quantities.get(template.id) ?? 1}
+                          onChange={(next) => onQuantityChange(template.id, next)}
+                        />
                         <button
                           type="button"
                           aria-label="Increase quantity"
@@ -136,7 +187,7 @@ export function PresetTemplateGrid({
                             event.preventDefault()
                             event.stopPropagation()
                             const current = quantities.get(template.id) ?? 1
-                            onQuantityChange(template.id, Math.min(99, current + 1))
+                            onQuantityChange(template.id, Math.min(MAX_TEMPLATE_QUANTITY, current + 1))
                           }}
                           className="flex h-5 w-5 items-center justify-center text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
                         >

@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { DebugOverlayToggles, type DebugOverlays } from "./_components/debug-overlay-toggles"
 import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import { usePackGate } from "./_hooks/use-pack-gate"
@@ -19,16 +20,13 @@ import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
   StockPreviewConfigurator,
   STOCK_PRESETS,
+  DEFAULT_KERF_IN,
   type StockConfig,
 } from "./_components/stock-preview-configurator"
 import { CutConfigCard } from "./_components/cut-config-card"
-import {
-  getRequestedSqFt,
-  getDefaultCutDirection,
-  parseCutRatios,
-} from "./_components/cut-planner-utils"
+import { getRequestedSqFt, getDefaultCutDirection } from "./_components/cut-planner-utils"
 import { buildTemplatesFromCutRecord } from "./_components/cut-load-utils"
-import { PART_OPTIONS, type SupportedPartType } from "./_components/preset-template-data"
+import { PART_OPTIONS } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
 import {
   type CutHistory,
@@ -43,6 +41,16 @@ import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
 import type { JobFullDetail, Roll } from "@/src/infrastructure/models/supabase"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { strategyFor } from "./_components/bin-allocation-strategy"
+import { templateToPart } from "./_components/template-to-part"
+import { usePackJob } from "./_components/use-pack-job"
+import { ReusableOffcutsCard } from "./_components/reusable-offcuts-card"
+import {
+  MAX_SHEETS,
+  estimateSheetCount,
+  estimateTotalPartAreaSqIn,
+} from "./_components/auto-fill-bin-allocator"
+import type { Bin, Part } from "@/src/application/packing/types"
 
 // Constants
 
@@ -51,7 +59,13 @@ const DEMO_STOCK: StockConfig = {
   length: 48,
   material: "",
   thickness: 0.5,
+  kerf: DEFAULT_KERF_IN,
 }
+
+// Build-time gate for the AABB / scrap-rect debug overlays. Next.js
+// inlines this comparison and SWC dead-code-eliminates the toggle UI
+// + overlay paint code from production bundles.
+const IS_DEV = process.env.NODE_ENV === "development"
 
 // Helpers
 
@@ -62,15 +76,15 @@ function finiteOrNull(value: number | undefined): number | null {
 function buildFrozenLayoutInputSignature(
   stockWidth: number,
   stockLength: number,
+  stockKerf: number,
   templates: readonly PartTemplate[],
-  cutDirection: SimpleCutDirection,
-  cutRatios?: readonly number[]
+  cutDirection: SimpleCutDirection
 ): string {
   return JSON.stringify({
     stockWidth,
     stockLength,
+    stockKerf,
     cutDirection,
-    cutRatios: cutRatios ?? null,
     templates: templates.map((template) => ({
       partType: template.partType,
       quantity: template.quantity ?? 1,
@@ -99,7 +113,6 @@ function CutPlannerPageInner() {
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
-  const [customCutRatioInput, setCustomCutRatioInput] = useState("")
   const [stock, setStock] = useState(DEMO_STOCK)
   const [cutMetrics, setCutMetrics] = useState<SimpleCutMetrics | null>(null)
   // LayoutModel[] emitted by NestingVisualizer — used by cut-history-pdf
@@ -132,13 +145,23 @@ function CutPlannerPageInner() {
     "id" | "job_number" | "name" | "customer_name"
   > | null>(null)
 
-  // Pack-gate: the Graph card doesn't mount the NestingVisualizer
+  // Dev-only diagnostic overlays painted on top of the auto-nest SVG.
+  // The state is harmless in prod (default-false, the UI that flips it
+  // and the renderer's overlay branch are both gated on `IS_DEV`).
+  const [debugOverlays, setDebugOverlays] = useState<DebugOverlays>({
+    showAabb: false,
+    showScrapRects: false,
+  })
+
+  // Pack-gate: the Graph card shows an empty sheet (and the
+  // visualizer skips its TS preview generators + Rust optimizer)
   // until the operator presses **Pack**. Any change to parts,
   // stock, or cut-direction resets the gate to `idle` so the
   // operator has to re-pack against the current inputs — this kills
   // the old live-preview churn that nudged operators into cutting
   // before their inputs had settled.
   const packGate = usePackGate()
+  const { invalidate: invalidatePackGate, requestPack, status: packGateStatus } = packGate
 
   useEffect(() => {
     materialTypeService
@@ -188,6 +211,10 @@ function CutPlannerPageInner() {
       const materialName =
         cut.stock_label ?? stockPreset?.label ?? `${cut.cut_width}" × ${cut.cut_length}"`
       const matchedMt = materialTypes.find((mt) => mt.name === materialName)
+      // Kerf is a first-class column on cut_history; read it back so
+      // re-packing the saved cut uses the same clearance that was
+      // recorded. Pre-kerf rows DEFAULT to 0.125 server-side, so the
+      // nullish guard is purely defensive against a stale client cache.
       setStock({
         width: cut.cut_width,
         length: cut.cut_length,
@@ -195,6 +222,7 @@ function CutPlannerPageInner() {
         material: materialName,
         costPerSqft: cut.cost_per_sqft ?? undefined,
         materialTypeId: matchedMt?.id,
+        kerf: cut.kerf ?? DEFAULT_KERF_IN,
       })
 
       // 2. Reconstruct part templates (delegated to a pure helper so the
@@ -215,16 +243,15 @@ function CutPlannerPageInner() {
       setUploadedParts([])
       setPresetParts(templates)
       setCutDirection(nextCutDirection)
-      setCustomCutRatioInput("")
       setFrozenLayouts(restoredLayouts)
       setFrozenLayoutInputSignature(
         restoredLayouts
           ? buildFrozenLayoutInputSignature(
               cut.cut_width,
               cut.cut_length,
+              cut.kerf ?? DEFAULT_KERF_IN,
               templates,
-              nextCutDirection,
-              undefined
+              nextCutDirection
             )
           : null
       )
@@ -282,6 +309,7 @@ function CutPlannerPageInner() {
         material: roll.material_type,
         costPerSqft: roll.cost_per_sqft ?? undefined,
         materialTypeId: matched?.id,
+        kerf: DEFAULT_KERF_IN,
       })
       setSourceRollId(roll.id)
       toast.success(`Loaded ${roll.material_type}`, {
@@ -316,7 +344,6 @@ function CutPlannerPageInner() {
   const handleTemplateApply = useCallback((templates: PartTemplate[]) => {
     setPresetParts(templates)
     setCutDirection(getDefaultCutDirection(templates[0]?.partType ?? "rectangle"))
-    setCustomCutRatioInput("")
   }, [])
 
   const handleUploadedParts = (parts: ExtractedPart[], stockWidth?: number) => {
@@ -347,10 +374,6 @@ function CutPlannerPageInner() {
   }
 
   const safeQuantity = Math.max(1, selectedTemplate?.quantity ?? 1)
-  const customCutRatios = useMemo(
-    () => parseCutRatios(customCutRatioInput, safeQuantity),
-    [customCutRatioInput, safeQuantity]
-  )
   const activeStockPreset = STOCK_PRESETS.find(
     (preset) => preset.width === stock.width && preset.length === stock.length
   )?.id
@@ -359,16 +382,22 @@ function CutPlannerPageInner() {
       buildFrozenLayoutInputSignature(
         stock.width,
         stock.length,
+        stock.kerf,
         selectedTemplates,
-        cutDirection,
-        customCutRatios
+        cutDirection
       ),
-    [stock.width, stock.length, selectedTemplates, cutDirection, customCutRatios]
+    [stock.width, stock.length, stock.kerf, selectedTemplates, cutDirection]
   )
   const activeFrozenLayouts =
     frozenLayouts && currentFrozenLayoutInputSignature === frozenLayoutInputSignature
       ? frozenLayouts
       : undefined
+  // Save Cut button visibility belt: only show when a real layout is
+  // on screen, either restored from cut history or freshly packed.
+  // Pairs with the `setCutMetrics(null)` reset below — even if metrics
+  // ever lag the gate, the button can't appear over an empty sheet.
+  const hasRenderedLayout =
+    (activeFrozenLayouts?.length ?? 0) > 0 || (packGateStatus === "done" && layouts.length > 0)
 
   useEffect(() => {
     if (!frozenLayouts || !frozenLayoutInputSignature) return
@@ -379,48 +408,116 @@ function CutPlannerPageInner() {
     setCutMetrics(null)
   }, [frozenLayouts, frozenLayoutInputSignature, currentFrozenLayoutInputSignature])
 
-  const nestingSimpleParts = useMemo(
+  // ── Rust pack pipeline (page-level) ───────────────────────────────────────
+  // The page builds canonical Parts + Bins and calls the Rust autonester via
+  // `usePackJob`. The visualizer becomes a thin LayoutModel renderer.
+
+  const allocator = useMemo(() => strategyFor("autoFill"), [])
+  const [autoBoost, setAutoBoost] = useState(0)
+
+  const packParts = useMemo<Part[]>(
     () =>
-      selectedTemplates.map((template) => ({
-        partType: template.partType,
-        quantity: template.quantity,
-        cutDirection,
-        cutRatios: customCutRatios,
-        width: template.width,
-        length: template.length,
-        diameter: template.diameter,
-        height: template.height,
-        topWidth: template.topWidth,
-        bottomWidth: template.bottomWidth,
-        innerRadius: template.innerRadius,
-        outerRadius: template.outerRadius,
-        arcDegrees: template.arcDegrees,
-        partNumber: template.partNumber,
-      })),
-    [selectedTemplates, safeQuantity, cutDirection, customCutRatios]
+      selectedTemplates
+        .map((t) => templateToPart(t, tagByTemplateId.get(t.id)))
+        .filter((p): p is Part => p !== null),
+    [selectedTemplates, tagByTemplateId]
   )
 
-  const nestingSimplePart = useMemo(
-    () =>
-      selectedTemplate
-        ? {
-            partType: selectedTemplate.partType,
-            quantity: safeQuantity,
-            cutDirection,
-            cutRatios: customCutRatios,
-            width: selectedTemplate.width,
-            length: selectedTemplate.length,
-            diameter: selectedTemplate.diameter,
-            height: selectedTemplate.height,
-            topWidth: selectedTemplate.topWidth,
-            bottomWidth: selectedTemplate.bottomWidth,
-            innerRadius: selectedTemplate.innerRadius,
-            outerRadius: selectedTemplate.outerRadius,
-            arcDegrees: selectedTemplate.arcDegrees,
-          }
-        : undefined,
-    [selectedTemplate, safeQuantity, cutDirection, customCutRatios]
+  const packBins = useMemo<Bin[]>(
+    () => allocator.allocate({ stock, templates: selectedTemplates, manualBoost: autoBoost }),
+    [allocator, stock, selectedTemplates, autoBoost]
   )
+
+  const {
+    layouts: packLayouts,
+    isPacking,
+    packError,
+  } = usePackJob({
+    bins: packBins,
+    parts: packParts,
+    clearance: stock.kerf,
+    templates: selectedTemplates,
+    tagByShapeId: tagByTemplateId,
+    enabled: packGateStatus === "done",
+  })
+
+  // ── Auto-boost on overflow ────────────────────────────────────────────────
+  // If Rust reports overflow, bump the bin count and let the gate-driven
+  // re-pack happen silently. Caps at MAX_SHEETS. `lastBoostedLayoutsRef`
+  // prevents a re-pack from chain-reacting if the same layouts ref re-enters
+  // the effect (e.g. via React strict-mode double-invoke).
+  const totalOverflow = useMemo(
+    () => (packLayouts ?? []).reduce((s, l) => s + l.overflowCount, 0),
+    [packLayouts]
+  )
+  // True when the most recent Rust round returned overflow that still
+  // has room to be absorbed by another auto-boost round. While true,
+  // the visualizer suppresses the partial result (the operator never
+  // sees an intermediate round) and the timer treats the multi-round
+  // flow as one continuous measurement. Goes false the moment overflow
+  // is 0 (the round is the final answer) or the cap is hit (the
+  // partial is the best we can do, render it and fire the cap toast).
+  const isAutoBoostPending = useMemo(
+    () => totalOverflow > 0 && packBins.length < MAX_SHEETS,
+    [totalOverflow, packBins.length]
+  )
+  const capToastFiredRef = useRef(false)
+  const lastBoostedLayoutsRef = useRef<LayoutModel[] | null>(null)
+
+  // Reset the pack gate to `idle` whenever the inputs the visualizer
+  // packs against change. The signature already encodes stock dims,
+  // selected templates, cut direction, and ratios — so this fires
+  // exactly when an operator edit invalidates the previous pack.
+  // Also clear `cutMetrics` here: the visualizer's metrics-emit
+  // effect early-returns when its `activeLayouts` becomes empty, so
+  // without this reset the prior pack's metrics would linger and the
+  // Save Cut button would stay visible against an empty sheet.
+  useEffect(() => {
+    invalidatePackGate()
+    setCutMetrics(null)
+  }, [currentFrozenLayoutInputSignature, invalidatePackGate])
+
+  // Reset auto-boost + cap-toast tracking on any input change. Each new
+  // pack starts fresh from the heuristic estimate.
+  useEffect(() => {
+    setAutoBoost(0)
+    capToastFiredRef.current = false
+    lastBoostedLayoutsRef.current = null
+  }, [currentFrozenLayoutInputSignature])
+
+  // Auto-boost effect: when Rust reports overflow, bump bin count.
+  useEffect(() => {
+    if (totalOverflow === 0 || !packLayouts) return
+    if (lastBoostedLayoutsRef.current === packLayouts) return
+    if (packBins.length >= MAX_SHEETS) {
+      if (!capToastFiredRef.current) {
+        toast.warning(
+          `${totalOverflow} part${totalOverflow === 1 ? "" : "s"} couldn't fit on ${MAX_SHEETS} sheets`,
+          { description: "Reduce part count, use larger stock, or split the job." }
+        )
+        capToastFiredRef.current = true
+      }
+      lastBoostedLayoutsRef.current = packLayouts
+      return
+    }
+    const totalRequestedArea = estimateTotalPartAreaSqIn(selectedTemplates)
+    const totalRequestedQty = selectedTemplates.reduce((s, t) => s + Math.max(1, t.quantity), 0)
+    const avgPartArea = totalRequestedQty > 0 ? totalRequestedArea / totalRequestedQty : 0
+    const overflowArea = totalOverflow * avgPartArea
+    const additionalSheets = Math.max(
+      1,
+      estimateSheetCount(overflowArea, stock.width, stock.length) - 1
+    )
+    lastBoostedLayoutsRef.current = packLayouts
+    setAutoBoost((b) => b + additionalSheets)
+  }, [totalOverflow, packLayouts, selectedTemplates, stock.width, stock.length, packBins.length])
+
+  // Surface any pack errors via a toast so the operator isn't left staring at
+  // an empty card with no feedback.
+  useEffect(() => {
+    if (!packError) return
+    toast.error("Pack failed", { description: packError })
+  }, [packError])
 
   // eslint-disable-next-line complexity
   const handleRecordCut = useCallback(async () => {
@@ -501,6 +598,7 @@ function CutPlannerPageInner() {
         cut_width: stock.width,
         cut_length: stock.length,
         cut_thickness: stock.thickness,
+        kerf: stock.kerf,
         cut_amount: safeQuantity,
         part_custom_width: selectedTemplate.isCustom ? (selectedTemplate.width ?? null) : null,
         part_custom_height: selectedTemplate.isCustom
@@ -655,8 +753,8 @@ function CutPlannerPageInner() {
         <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="flex-1">
-            Cut loaded from history — all fields are editable. Adjust and click <strong>Cut</strong>{" "}
-            to record a new entry.
+            Cut loaded from history — all fields are editable. Adjust and click{" "}
+            <strong>Save Cut</strong> to record a new entry.
           </span>
           <button
             type="button"
@@ -768,12 +866,8 @@ function CutPlannerPageInner() {
           <CutConfigCard
             selectedTemplate={selectedTemplate}
             selectedTemplates={selectedTemplates}
-            safeQuantity={safeQuantity}
             cutDirection={cutDirection}
             setCutDirection={setCutDirection}
-            customCutRatioInput={customCutRatioInput}
-            setCustomCutRatioInput={setCustomCutRatioInput}
-            customCutRatios={customCutRatios}
             requestedSqFt={requestedSqFt}
           />
 
@@ -784,16 +878,30 @@ function CutPlannerPageInner() {
                   <LayoutLabel />
                   4. Graph
                 </CardTitle>
-                {cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
-                  <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
-                    <Scissors className="mr-1.5 h-4 w-4" />
-                    {isRecordingCut ? "Recording…" : "Cut"}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {IS_DEV && (
+                    <DebugOverlayToggles
+                      debugOverlays={debugOverlays}
+                      setDebugOverlays={setDebugOverlays}
+                    />
+                  )}
+                  {packGateStatus !== "done" && !activeFrozenLayouts && (
+                    <Button size="sm" onClick={requestPack} disabled={packGateStatus === "packing"}>
+                      {packGateStatus === "packing" ? "Packing…" : "Pack"}
+                    </Button>
+                  )}
+                  {hasRenderedLayout && cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
+                    <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
+                      <Scissors className="mr-1.5 h-4 w-4" />
+                      {isRecordingCut ? "Saving…" : "Save Cut"}
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardDescription>
-                The graph starts from rectangular stock and shows the actual cut pieces placed on
-                that stock, with reusable offcut in amber and waste in red.
+                {packGateStatus === "done" || activeFrozenLayouts
+                  ? "The graph shows the actual cut pieces placed on the stock, with reusable offcut in amber and waste in red."
+                  : "Pick your parts and stock above, then press Pack to generate the layout. Reusable offcut renders in amber, waste in red."}
               </CardDescription>
             </CardHeader>
 
@@ -806,12 +914,21 @@ function CutPlannerPageInner() {
                 defaultQty={safeQuantity}
                 onMetricsChange={setCutMetrics}
                 onLayoutChange={setLayouts}
-                simpleParts={nestingSimpleParts}
-                simplePart={nestingSimplePart}
+                layouts={packLayouts ?? []}
                 frozenLayouts={activeFrozenLayouts}
+                packGateStatus={
+                  isPacking && (!packLayouts || packLayouts.length === 0)
+                    ? "packing"
+                    : packGateStatus
+                }
+                isPacking={isPacking}
+                isAutoBoostPending={isAutoBoostPending}
+                debugOverlays={debugOverlays}
               />
             </CardContent>
           </Card>
+
+          <ReusableOffcutsCard layouts={activeFrozenLayouts ?? packLayouts ?? []} />
         </>
       ) : (
         <Card className="border border-slate-200 shadow-sm">
@@ -821,6 +938,14 @@ function CutPlannerPageInner() {
                 <LayoutLabel />
                 4. Graph
               </CardTitle>
+              {IS_DEV && (
+                <div className="flex items-center gap-2">
+                  <DebugOverlayToggles
+                    debugOverlays={debugOverlays}
+                    setDebugOverlays={setDebugOverlays}
+                  />
+                </div>
+              )}
             </div>
             <CardDescription>
               The loaded stock sheet — no cuts placed yet. Pick a part above to start nesting onto
@@ -834,7 +959,8 @@ function CutPlannerPageInner() {
               defaultCutWidth={Math.max(1, stock.width / 4)}
               defaultCutHeight={Math.max(1, stock.length / 8)}
               defaultQty={0}
-              simpleParts={[]}
+              layouts={[]}
+              debugOverlays={debugOverlays}
             />
             <div className="mt-4 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600 text-xs dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
               <Shapes className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />

@@ -416,6 +416,103 @@ const rest = async (path, { method = "GET", body } = {}) => {
   return response.json();
 };
 
+const PROJECT_ITEMS_PAGE_SIZE = 100;
+
+// Single source of truth for the per-item GraphQL selection. Inlined into
+// both the initial ProjectContext query AND the fetchProjectItemsPage
+// continuation query so page 1 and later pages can never drift on shape.
+const PROJECT_ITEM_SELECTION = `
+  id
+  content {
+    __typename
+    ... on Issue {
+      id
+      number
+      state
+      closedAt
+      issueType {
+        id
+        name
+      }
+      repository {
+        nameWithOwner
+      }
+    }
+  }
+  fieldValues(first: 50) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      __typename
+      ... on ProjectV2ItemFieldSingleSelectValue {
+        name
+        field {
+          ... on ProjectV2SingleSelectField {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldIterationValue {
+        iterationId
+        title
+        field {
+          ... on ProjectV2IterationField {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldDateValue {
+        date
+        field {
+          ... on ProjectV2Field {
+            name
+          }
+        }
+      }
+      ... on ProjectV2ItemFieldTextValue {
+        text
+        field {
+          ... on ProjectV2Field {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
+const fetchProjectItemsPage = async (projectId, cursor) => {
+  const data = await graphql(
+    `
+      query ProjectItemsPage($projectId: ID!, $cursor: String, $pageSize: Int!) {
+        node(id: $projectId) {
+          ... on ProjectV2 {
+            items(first: $pageSize, after: $cursor) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                ${PROJECT_ITEM_SELECTION}
+              }
+            }
+          }
+        }
+      }
+    `,
+    { projectId, cursor, pageSize: PROJECT_ITEMS_PAGE_SIZE },
+    "ProjectItemsPage",
+  );
+
+  const items = data?.node?.items;
+  if (!items) {
+    throw new Error(`Failed to fetch project items page (cursor=${cursor || "<start>"}).`);
+  }
+  return items;
+};
+
 const getProjectContext = async () => {
   const data = await graphql(
     `
@@ -473,71 +570,13 @@ const getProjectContext = async () => {
                 }
               }
             }
-            items(first: 100) {
+            items(first: ${PROJECT_ITEMS_PAGE_SIZE}) {
               pageInfo {
                 hasNextPage
                 endCursor
               }
               nodes {
-                id
-                content {
-                  __typename
-                  ... on Issue {
-                    id
-                    number
-                    state
-                    closedAt
-                    issueType {
-                      id
-                      name
-                    }
-                    repository {
-                      nameWithOwner
-                    }
-                  }
-                }
-                fieldValues(first: 50) {
-                  pageInfo {
-                    hasNextPage
-                    endCursor
-                  }
-                  nodes {
-                    __typename
-                    ... on ProjectV2ItemFieldSingleSelectValue {
-                      name
-                      field {
-                        ... on ProjectV2SingleSelectField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldIterationValue {
-                      iterationId
-                      title
-                      field {
-                        ... on ProjectV2IterationField {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldDateValue {
-                      date
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                    ... on ProjectV2ItemFieldTextValue {
-                      text
-                      field {
-                        ... on ProjectV2Field {
-                          name
-                        }
-                      }
-                    }
-                  }
-                }
+                ${PROJECT_ITEM_SELECTION}
               }
             }
           }
@@ -592,7 +631,6 @@ const getProjectContext = async () => {
   }
 
   assertConnectionComplete("project fields", project.fields.pageInfo);
-  assertConnectionComplete("project items", project.items.pageInfo);
 
   const statusOptionIds = new Map(statusField.options.map((option) => [option.name, option.id]));
   const priorityOptionIds = new Map(priorityField.options.map((option) => [option.name, option.id]));
@@ -601,7 +639,18 @@ const getProjectContext = async () => {
   const currentIteration = getCurrentIteration(sprintField);
   const itemsByIssueNumber = new Map();
 
-  for (const node of project.items.nodes) {
+  // Paginate items via cursor — the initial query returns the first 100;
+  // any extra pages are pulled here. This keeps the rollover safety net
+  // working once the board grows past 100 items (CR finding on PR #134).
+  const allItemNodes = [...project.items.nodes];
+  let itemsPage = project.items.pageInfo;
+  while (itemsPage?.hasNextPage) {
+    const nextPage = await fetchProjectItemsPage(project.id, itemsPage.endCursor);
+    allItemNodes.push(...nextPage.nodes);
+    itemsPage = nextPage.pageInfo;
+  }
+
+  for (const node of allItemNodes) {
     assertConnectionComplete(
       node.content?.__typename === "Issue"
         ? `project field values for issue #${node.content.number}`
@@ -1414,6 +1463,35 @@ const updatePullRequestBody = async (pullRequestNumber, body, issueNumber) => {
   console.log(`Updated PR #${pullRequestNumber} body with Closes #${issueNumber}`);
 };
 
+// Returns `{ isClosed, closedNow }` so callers can update their local
+// `item.issueState` even when the issue was already closed by something
+// else — without that, the next rollover tick repeats the same GET to
+// confirm closure for the same item indefinitely (CR finding on PR #134).
+const closeIssueIfOpen = async (issueNumber, reason = "completed") => {
+  if (!issueNumber) return { isClosed: false, closedNow: false };
+  const stateReason = reason === "not_planned" ? "not_planned" : "completed";
+
+  if (DRY_RUN) {
+    console.log(`[dry-run] close issue #${issueNumber} (state_reason=${stateReason})`);
+    return { isClosed: true, closedNow: true };
+  }
+
+  // Skip the PATCH if the issue is already closed — avoids no-op REST
+  // traffic and keeps the GitHub event log clean (no spurious "closed"
+  // events). Still report `isClosed: true` so the caller can stop checking.
+  const current = await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`);
+  if (current?.state === "closed") {
+    return { isClosed: true, closedNow: false };
+  }
+
+  await rest(`/repos/${repoOwner}/${repoName}/issues/${issueNumber}`, {
+    method: "PATCH",
+    body: { state: "closed", state_reason: stateReason },
+  });
+  console.log(`Closed issue #${issueNumber} (state_reason=${stateReason})`);
+  return { isClosed: true, closedNow: true };
+};
+
 const syncIssue = async (project, issue, statusName, options = {}) => {
   const item = await ensureItem(project, issue);
   await setStatus(project, item, statusName);
@@ -1579,6 +1657,18 @@ const runRollover = async () => {
     if (CLOSED_STATUS_NAMES.has(item.status)) {
       if (!item.targetDate) {
         await setTargetDate(project, item, item.issueClosedAt || formatDate(new Date()));
+      }
+      // The rollover (every 15 minutes — see project-board-sync.yml) is the
+      // sole mechanism for the "Status moved to Done/Canceled → close issue"
+      // sync, since GitHub Actions doesn't expose `projects_v2_item` as a
+      // workflow trigger. Any item whose Status is Done/Canceled but whose
+      // linked issue is still OPEN gets closed here.
+      if (item.issueState !== "CLOSED" && item.issueNumber) {
+        const reason = item.status === "Canceled" ? "not_planned" : "completed";
+        const result = await closeIssueIfOpen(item.issueNumber, reason);
+        // Mark as closed locally even if it was already closed upstream —
+        // otherwise the next tick re-runs the same GET to re-confirm.
+        if (result.isClosed) item.issueState = "CLOSED";
       }
       continue;
     }

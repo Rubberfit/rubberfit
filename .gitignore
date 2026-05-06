@@ -87,6 +87,8 @@ docs/superpowers/plans/
 .claude/**/ROADMAP.md
 .claude/**/roadmap.md
 .claude/**/roadmap/
+# Per-user permission state — every dev's allow-list differs.
+.claude/settings.local.json
 
 # TypeScript
 *.tsbuildinfo
@@ -106,3 +108,5 @@ release/
 
 # Rust engine build artefacts
 engine/target/
+# Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
+/target/

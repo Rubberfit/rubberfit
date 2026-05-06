@@ -95,7 +95,13 @@ export function useRole(): UseRoleReturn {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      fetchRoles()
+      // Defer to a fresh task so we don't call back into Supabase
+      // (`getSession` / `from(profiles)`) while the auth state-change
+      // pipeline is still holding the GoTrue init lock — same deadlock
+      // shape that wedged the /mfa-challenge form on cold OAuth loads.
+      setTimeout(() => {
+        fetchRoles()
+      }, 0)
     })
 
     return () => {

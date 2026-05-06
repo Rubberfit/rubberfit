@@ -131,6 +131,8 @@ export interface Cut {
   cut_width: number
   cut_length: number
   quantity: number
+  /** Saw-blade kerf width in inches. Defaulted DB-side (0.125") for pre-kerf rows. */
+  kerf: number
   waste_sqft?: number
   waste_percentage?: number
   total_sqft_used?: number
@@ -465,6 +467,8 @@ export interface CutHistory {
   cut_length: number
   cut_width: number
   cut_thickness: number
+  /** Saw-blade kerf width in inches. Defaulted DB-side (0.125") for pre-kerf rows. */
+  kerf: number
   part_custom_width: number | null
   part_custom_height: number | null
   part_selected_size: number[] | null

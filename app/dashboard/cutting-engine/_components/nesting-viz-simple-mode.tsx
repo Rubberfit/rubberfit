@@ -1,7 +1,12 @@
 // Simple mode render for NestingVisualizer — sub-components in nesting-viz-simple-parts.tsx
 
-import React, { useMemo } from "react"
-import type { PreviewItem, MultiSheetResult, SheetPreview } from "./nesting-visualizer-types"
+import React from "react"
+import type {
+  DebugOverlayOptions,
+  PreviewItem,
+  MultiSheetResult,
+  SheetPreview,
+} from "./nesting-visualizer-types"
 import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
 import {
@@ -18,12 +23,123 @@ import { computeSimpleModeLayout, formatInches } from "./nesting-viz-simple-layo
 import { computeFabricationScore } from "./nesting-preview-builders"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
+import type { LayoutModel } from "./layout-model"
+import { CutLegend } from "./cut-legend"
+
+const IS_DEV = process.env.NODE_ENV === "development"
+
+// Solid amber outline drawn around each reusable-offcut polygon / rect
+// so its bbox reads at a glance against the bin-wide scrap pattern.
+// Same colour as Rubberfit-Desktop's `OFFCUT_OUTLINE` so the two
+// visualizers stay visually identical side-by-side. Solid (no dash)
+// to keep separation from the dashed dev-only AABB overlay.
+const OFFCUT_OUTLINE = "rgba(245, 158, 11, 0.75)"
+const OFFCUT_OUTLINE_WIDTH = 1.5
+
+// Single-pass min/max bounding box for an SVG render item. Used by the
+// dev-only "Show AABB" overlay. Falls back to the placement's
+// `x/y/width/height` when no rotated polygon is present (plain rects
+// where Rust skipped polygon materialisation).
+function itemAabb(item: PreviewItem): { x: number; y: number; width: number; height: number } {
+  if (item.placedPolygon && item.placedPolygon.length >= 3) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const pt of item.placedPolygon) {
+      if (pt.x < minX) minX = pt.x
+      if (pt.y < minY) minY = pt.y
+      if (pt.x > maxX) maxX = pt.x
+      if (pt.y > maxY) maxY = pt.y
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+  }
+  return { x: item.x, y: item.y, width: item.width, height: item.height }
+}
+
+// Dev-only debug overlays painted between the offcut/scrap fills and
+// the parts pass. Hoisted out of `SheetSvg` so the `IS_DEV && ...`
+// guard at the call site stays a single short-circuit (DCE-friendly)
+// without growing `SheetSvg`'s cyclomatic complexity. Returns `null`
+// when neither overlay is requested so React skips the whole subtree.
+function SheetDebugOverlays({
+  sheet,
+  layout,
+  layoutModel,
+  debugOverlays,
+}: {
+  sheet: SheetPreview
+  layout: SimpleModeLayout
+  layoutModel?: LayoutModel
+  debugOverlays?: DebugOverlayOptions
+}) {
+  const showScrap = debugOverlays?.showScrapRects === true
+  const showAabb = debugOverlays?.showAabb === true
+  if (!showScrap && !showAabb) return null
+
+  return (
+    <>
+      {showScrap &&
+        layoutModel?.debugScrapRects?.map((region, i) => (
+          <rect
+            key={`debug-scrap-${i}`}
+            x={layout.surfaceX + region.x * layout.scale}
+            y={layout.surfaceY + region.y * layout.scale}
+            width={region.width * layout.scale}
+            height={region.height * layout.scale}
+            fill="none"
+            stroke="rgba(153, 27, 27, 0.85)"
+            strokeWidth={1.25}
+            strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke"
+            style={{ pointerEvents: "none" }}
+          />
+        ))}
+      {showAabb && (
+        <>
+          {sheet.preview.offcutBands.map((band, i) => (
+            <rect
+              key={`debug-aabb-offcut-${i}`}
+              x={layout.surfaceX + band.x * layout.scale}
+              y={layout.surfaceY + band.y * layout.scale}
+              width={band.width * layout.scale}
+              height={band.height * layout.scale}
+              fill="none"
+              stroke="rgba(16, 185, 129, 0.95)"
+              strokeWidth={1.0}
+              strokeDasharray="6 3"
+              vectorEffect="non-scaling-stroke"
+              style={{ pointerEvents: "none" }}
+            />
+          ))}
+          {sheet.preview.items.map((item, i) => {
+            const aabb = itemAabb(item)
+            return (
+              <rect
+                key={`debug-aabb-part-${i}`}
+                x={layout.surfaceX + aabb.x * layout.scale}
+                y={layout.surfaceY + aabb.y * layout.scale}
+                width={aabb.width * layout.scale}
+                height={aabb.height * layout.scale}
+                fill="none"
+                stroke="rgba(124, 58, 237, 0.95)"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                vectorEffect="non-scaling-stroke"
+                style={{ pointerEvents: "none" }}
+              />
+            )
+          })}
+        </>
+      )}
+    </>
+  )
+}
 
 interface SimpleModeProps {
   preview: SimplePartPreview
   previewRollW: number
   previewRollL: number
-  wasRotated: boolean
   patternSeed: string
   viewMode: "stock" | "profile"
   optimizedResult: NestingResult | null
@@ -31,7 +147,24 @@ interface SimpleModeProps {
   isOptimizing: boolean
   nfpError: string | null
   multiSheet?: MultiSheetResult | null
-  tagMap?: Map<string, string>
+  /**
+   * Source-of-truth `LayoutModel[]` from the Rust pack pipeline. Drives
+   * the `CutLegend` (tag → dimension-label table) so the descriptor is
+   * the part's actual dimensions rather than a tag-as-self lookup.
+   */
+  layouts?: LayoutModel[]
+  /**
+   * Dev-only diagnostic overlays. Both default off and the renderer
+   * gates the actual paint on `IS_DEV` so production bundles ship no
+   * overlay code.
+   */
+  debugOverlays?: DebugOverlayOptions
+  /** Duration of the current (or most recent) Rust pack call, in ms. */
+  packDurationMs?: number
+  /** True while a Rust pack call is in flight — drives the spinner on the pill. */
+  isPackLive?: boolean
+  /** False before any pack has run — hides the pill on a fresh session. */
+  hasPackMeasurement?: boolean
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -43,7 +176,8 @@ function SheetSvg({
   previewRollL,
   isMultiSheet,
   totalSheets,
-  tagMap,
+  layoutModel,
+  debugOverlays,
 }: {
   sheet: SheetPreview
   layout: SimpleModeLayout
@@ -52,7 +186,13 @@ function SheetSvg({
   previewRollL: number
   isMultiSheet: boolean
   totalSheets: number
-  tagMap?: Map<string, string>
+  /**
+   * The matching `LayoutModel` for this sheet, when available. Source
+   * of `debugScrapRects` for the dev-only "Show inscribed scrap rects"
+   * overlay; otherwise unused for rendering.
+   */
+  layoutModel?: LayoutModel
+  debugOverlays?: DebugOverlayOptions
 }) {
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
@@ -164,6 +304,17 @@ function SheetSvg({
   const vbW = layout.viewWidth / zoom
   const vbH = layout.viewHeight / zoom
 
+  // Display rotation transform (right-to-left in SVG): undo portrait
+  // surface origin → scale up to landscape pixel-density → rotate
+  // -90° (puts the original LEFT edge at the new BOTTOM) → translate
+  // to the rotated surface's bottom-left. When displayRotated is
+  // false, sheetTransform is undefined so the inner `<g>` is a no-op.
+  const sheetTransform = layout.displayRotated
+    ? `translate(${layout.effSurfaceX} ${layout.effSurfaceY + layout.effSurfacePxH}) ` +
+      `rotate(-90) scale(${layout.effScale / layout.scale}) ` +
+      `translate(${-layout.surfaceX} ${-layout.surfaceY})`
+    : undefined
+
   return (
     <div className="group relative">
       {/* Zoom controls — visible on hover */}
@@ -234,7 +385,7 @@ function SheetSvg({
           y="34"
           textAnchor="middle"
           className="fill-foreground"
-          fontSize="20"
+          fontSize={20 / zoom}
           fontWeight="700"
         >
           {"Rubber Sheet Nesting Layout"}
@@ -244,152 +395,178 @@ function SheetSvg({
           y="60"
           textAnchor="middle"
           className="fill-muted-foreground"
-          fontSize="12"
+          fontSize={12 / zoom}
         >
-          {`Typical ${formatInches(layout.wasRotated ? previewRollL : previewRollW)}" \u00D7 ${formatInches(layout.wasRotated ? previewRollW : previewRollL)}" stock sheet`}
+          {`Typical ${formatInches(previewRollW)}" \u00D7 ${formatInches(previewRollL)}" stock sheet`}
         </text>
         {/* Clip everything to stock boundary */}
         <clipPath id={sClip}>
           <rect
-            x={layout.surfaceX}
-            y={layout.surfaceY}
-            width={layout.surfacePxW}
-            height={layout.surfacePxH}
+            x={layout.effSurfaceX}
+            y={layout.effSurfaceY}
+            width={layout.effSurfacePxW}
+            height={layout.effSurfacePxH}
           />
         </clipPath>
         <rect
-          x={layout.surfaceX}
-          y={layout.surfaceY}
-          width={layout.surfacePxW}
-          height={layout.surfacePxH}
+          x={layout.effSurfaceX}
+          y={layout.effSurfaceY}
+          width={layout.effSurfacePxW}
+          height={layout.effSurfacePxH}
           fill={`url(#${sStockPat})`}
           className="stroke-border"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
         <g clipPath={`url(#${sClip})`}>
-          {!layout.shapeFirstView &&
-            sheet.preview.items.some(
-              (item) => item.placedPolygon && item.placedPolygon.length > 0
-            ) && (
-              <rect
-                x={layout.surfaceX}
-                y={layout.surfaceY}
-                width={layout.surfacePxW}
-                height={layout.surfacePxH}
-                fill={`url(#${sWastePat})`}
-                opacity="0.95"
-              />
-            )}
-          {!layout.shapeFirstView &&
-            sheet.preview.scrapBands.map((band, index) =>
-              band.polygon ? (
-                <polygon
-                  key={`scrap-band-${index + 1}`}
-                  points={band.polygon
-                    .map(
-                      (pt) =>
-                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                    )
-                    .join(" ")}
+          <g transform={sheetTransform}>
+            {!layout.shapeFirstView &&
+              sheet.preview.items.some(
+                (item) => item.placedPolygon && item.placedPolygon.length > 0
+              ) && (
+                <rect
+                  x={layout.surfaceX}
+                  y={layout.surfaceY}
+                  width={layout.surfacePxW}
+                  height={layout.surfacePxH}
                   fill={`url(#${sWastePat})`}
                   opacity="0.95"
                 />
-              ) : (
-                <rect
-                  key={`scrap-band-${index + 1}`}
-                  x={layout.surfaceX + band.x * layout.scale}
-                  y={layout.surfaceY + band.y * layout.scale}
-                  width={band.width * layout.scale}
-                  height={band.height * layout.scale}
-                  fill={`url(#${sWastePat})`}
-                  opacity="0.95"
-                />
-              )
-            )}
-          {!layout.shapeFirstView &&
-            sheet.preview.offcutBands.map((band, index) =>
-              band.polygon ? (
-                <polygon
-                  key={`band-${index + 1}`}
-                  points={band.polygon
-                    .map(
-                      (pt) =>
-                        `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                    )
-                    .join(" ")}
-                  fill={`url(#${sOffcutPat})`}
-                  opacity="0.95"
-                />
-              ) : (
-                <rect
-                  key={`band-${index + 1}`}
-                  x={layout.surfaceX + band.x * layout.scale}
-                  y={layout.surfaceY + band.y * layout.scale}
-                  width={band.width * layout.scale}
-                  height={band.height * layout.scale}
-                  fill={`url(#${sOffcutPat})`}
-                  opacity="0.95"
-                />
-              )
-            )}
-          {(["background", "foreground"] as const).map((pass) =>
-            sheet.preview.items.map((item, index) => (
-              <NestingShapeRenderer
-                key={`${pass}-${index}`}
-                item={item}
-                index={index}
-                surfaceX={layout.surfaceX}
-                surfaceY={layout.surfaceY}
-                unitOriginX={layout.unitOriginX}
-                unitOriginY={layout.unitOriginY}
-                scale={layout.scale}
-                shapeFirstView={layout.shapeFirstView}
-                preview={preview}
-                displayPreview={sheet.preview}
-                usablePatternId={sUsablePat}
-                wastePatternId={sWastePat}
-                viewHeight={layout.viewHeight}
-                surfacePxW={layout.surfacePxW}
-                tagLetter={tagMap?.get(String(item.specIndex ?? -1))}
-                zoom={zoom}
-                renderPass={pass}
+              )}
+            {!layout.shapeFirstView &&
+              sheet.preview.scrapBands.map((band, index) =>
+                band.polygon ? (
+                  <polygon
+                    key={`scrap-band-${index + 1}`}
+                    points={band.polygon
+                      .map(
+                        (pt) =>
+                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                      )
+                      .join(" ")}
+                    fill={`url(#${sWastePat})`}
+                    opacity="0.95"
+                  />
+                ) : (
+                  <rect
+                    key={`scrap-band-${index + 1}`}
+                    x={layout.surfaceX + band.x * layout.scale}
+                    y={layout.surfaceY + band.y * layout.scale}
+                    width={band.width * layout.scale}
+                    height={band.height * layout.scale}
+                    fill={`url(#${sWastePat})`}
+                    opacity="0.95"
+                  />
+                )
+              )}
+            {!layout.shapeFirstView &&
+              sheet.preview.offcutBands.map((band, index) =>
+                band.polygon ? (
+                  <polygon
+                    key={`band-${index + 1}`}
+                    points={band.polygon
+                      .map(
+                        (pt) =>
+                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                      )
+                      .join(" ")}
+                    fill={`url(#${sOffcutPat})`}
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
+                    opacity="0.95"
+                  />
+                ) : (
+                  <rect
+                    key={`band-${index + 1}`}
+                    x={layout.surfaceX + band.x * layout.scale}
+                    y={layout.surfaceY + band.y * layout.scale}
+                    width={band.width * layout.scale}
+                    height={band.height * layout.scale}
+                    fill={`url(#${sOffcutPat})`}
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
+                    opacity="0.95"
+                  />
+                )
+              )}
+            {/* Dev-only debug overlays. `IS_DEV` is a build-time constant
+              (Next.js inlines `process.env.NODE_ENV === "development"`),
+              so SWC dead-code-eliminates this whole branch — and
+              tree-shakes the unreferenced `SheetDebugOverlays` /
+              `itemAabb` helpers — in production bundles. */}
+            {IS_DEV && (
+              <SheetDebugOverlays
+                sheet={sheet}
+                layout={layout}
+                layoutModel={layoutModel}
+                debugOverlays={debugOverlays}
               />
-            ))
-          )}
+            )}
+            {(["background", "foreground"] as const).map((pass) =>
+              sheet.preview.items.map((item, index) => (
+                <NestingShapeRenderer
+                  key={`${pass}-${index}`}
+                  item={item}
+                  index={index}
+                  surfaceX={layout.surfaceX}
+                  surfaceY={layout.surfaceY}
+                  unitOriginX={layout.unitOriginX}
+                  unitOriginY={layout.unitOriginY}
+                  scale={layout.scale}
+                  shapeFirstView={layout.shapeFirstView}
+                  preview={preview}
+                  displayPreview={sheet.preview}
+                  usablePatternId={sUsablePat}
+                  wastePatternId={sWastePat}
+                  viewHeight={layout.viewHeight}
+                  surfacePxW={layout.surfacePxW}
+                  tagLetter={item.label}
+                  zoom={zoom}
+                  renderPass={pass}
+                  displayRotated={layout.displayRotated}
+                />
+              ))
+            )}
+          </g>
         </g>
-        <SimpleModeOffcutLabels
-          offcutLabelBands={
-            !layout.shapeFirstView && sheet.preview.offcutBands.length > 0
-              ? [...sheet.preview.offcutBands]
-                  .sort((a, b) => b.width * b.height - a.width * a.height)
-                  .reduce<typeof sheet.preview.offcutBands>((kept, band) => {
-                    const pw = band.width * layout.scale
-                    const ph = band.height * layout.scale
-                    if (Math.min(pw * 0.12, ph * 0.25) < 1.5) return kept
-                    const cx = band.x + band.width / 2
-                    const cy = band.y + band.height / 2
-                    const overlaps = kept.some(
-                      (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
-                    )
-                    if (overlaps) return kept
-                    const BAND_DIMENSION_TOLERANCE = 0.5
-                    const sameDims = kept.some(
-                      (k) =>
-                        Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
-                        Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
-                    )
-                    if (sameDims) return kept
-                    kept.push(band)
-                    return kept
-                  }, [])
-              : []
-          }
-          surfaceX={layout.surfaceX}
-          surfaceY={layout.surfaceY}
-          scale={layout.scale}
-          wasRotated={layout.wasRotated}
-        />
-        <SimpleModeDimensionLabels layout={layout} />
+        <g transform={sheetTransform}>
+          <SimpleModeOffcutLabels
+            offcutLabelBands={
+              !layout.shapeFirstView && sheet.preview.offcutBands.length > 0
+                ? [...sheet.preview.offcutBands]
+                    .sort((a, b) => b.width * b.height - a.width * a.height)
+                    .reduce<typeof sheet.preview.offcutBands>((kept, band) => {
+                      const pw = band.width * layout.scale
+                      const ph = band.height * layout.scale
+                      if (Math.min(pw * 0.12, ph * 0.25) < 1.5) return kept
+                      const cx = band.x + band.width / 2
+                      const cy = band.y + band.height / 2
+                      const overlaps = kept.some(
+                        (k) => cx >= k.x && cx <= k.x + k.width && cy >= k.y && cy <= k.y + k.height
+                      )
+                      if (overlaps) return kept
+                      const BAND_DIMENSION_TOLERANCE = 0.5
+                      const sameDims = kept.some(
+                        (k) =>
+                          Math.abs(k.width - band.width) < BAND_DIMENSION_TOLERANCE &&
+                          Math.abs(k.height - band.height) < BAND_DIMENSION_TOLERANCE
+                      )
+                      if (sameDims) return kept
+                      kept.push(band)
+                      return kept
+                    }, [])
+                : []
+            }
+            surfaceX={layout.surfaceX}
+            surfaceY={layout.surfaceY}
+            scale={layout.scale}
+            displayRotated={layout.displayRotated}
+            zoom={zoom}
+          />
+        </g>
+        <SimpleModeDimensionLabels layout={layout} zoom={zoom} />
       </svg>
     </div>
   )
@@ -399,7 +576,6 @@ export default function NestingVizSimpleMode({
   preview,
   previewRollW,
   previewRollL,
-  wasRotated,
   patternSeed,
   viewMode,
   optimizedResult,
@@ -407,7 +583,11 @@ export default function NestingVizSimpleMode({
   isOptimizing,
   nfpError,
   multiSheet,
-  tagMap,
+  layouts,
+  debugOverlays,
+  packDurationMs,
+  isPackLive,
+  hasPackMeasurement,
 }: SimpleModeProps) {
   const layout = React.useMemo(
     () =>
@@ -415,22 +595,12 @@ export default function NestingVizSimpleMode({
         preview,
         previewRollW,
         previewRollL,
-        wasRotated,
         patternSeed,
         viewMode,
         optimizedResult,
         optimizedItems,
       }),
-    [
-      preview,
-      previewRollW,
-      previewRollL,
-      wasRotated,
-      patternSeed,
-      viewMode,
-      optimizedResult,
-      optimizedItems,
-    ]
+    [preview, previewRollW, previewRollL, patternSeed, viewMode, optimizedResult, optimizedItems]
   )
 
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
@@ -447,39 +617,6 @@ export default function NestingVizSimpleMode({
     metricsPreview !== layout.displayPreview
       ? computeFabricationScore(metricsPreview, previewRollW, previewRollL)
       : layout.fabScore
-  // Build legend entries: resolve specIndex → human-readable label from placed items
-  const legendEntries = useMemo(() => {
-    if (!tagMap || tagMap.size === 0) return []
-    // Collect the first item label seen for each specIndex
-    const indexToLabel = new Map<string, string>()
-    const allItems = multiSheet
-      ? multiSheet.sheets.flatMap((s) => s.preview.items)
-      : layout.displayPreview.items
-    for (const item of allItems) {
-      const key = String(item.specIndex ?? -1)
-      if (tagMap.has(key) && !indexToLabel.has(key)) {
-        indexToLabel.set(key, item.label)
-      }
-    }
-    // Dedupe by tag — multiple specIndexes can share a partNumber (e.g. "G1"),
-    // which would otherwise produce duplicate React keys + duplicate legend rows.
-    // Prefer the first entry per tag whose label resolved, so the legend never
-    // falls back to a numeric specIndex when a sibling has a real label.
-    const legendByTag = new Map<string, { label: string; hasResolvedLabel: boolean }>()
-    for (const [key, tag] of tagMap.entries()) {
-      const resolvedLabel = indexToLabel.get(key)
-      const existing = legendByTag.get(tag)
-      if (!existing || (!existing.hasResolvedLabel && resolvedLabel)) {
-        legendByTag.set(tag, {
-          label: resolvedLabel ?? key,
-          hasResolvedLabel: Boolean(resolvedLabel),
-        })
-      }
-    }
-    return [...legendByTag.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([tag, { label }]) => ({ tag, label }))
-  }, [tagMap, multiSheet, layout.displayPreview.items])
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
   ]
@@ -508,20 +645,12 @@ export default function NestingVizSimpleMode({
         isOptimizing={isOptimizing}
         nfpError={nfpError}
         multiSheet={multiSheet}
+        packDurationMs={packDurationMs}
+        isPackLive={isPackLive}
+        hasPackMeasurement={hasPackMeasurement}
       />
 
-      {legendEntries.length > 0 && (
-        <div className="flex flex-wrap gap-3 border-b border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-          {legendEntries.map((entry) => (
-            <span key={entry.tag} className="flex items-center gap-1.5">
-              <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-foreground text-[10px] font-bold text-background">
-                {entry.tag}
-              </span>
-              <span>{entry.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
+      {layouts && layouts.length > 0 && <CutLegend layouts={layouts} />}
 
       <div
         className={`bg-card px-2 py-4 sm:px-4 ${isMultiSheet ? "flex flex-col gap-6 md:grid-cols-2" : "overflow-x-auto"}`}
@@ -536,7 +665,8 @@ export default function NestingVizSimpleMode({
             previewRollL={previewRollL}
             isMultiSheet={isMultiSheet}
             totalSheets={sheets.length}
-            tagMap={tagMap}
+            layoutModel={layouts?.[sheet.sheetIndex]}
+            debugOverlays={debugOverlays}
           />
         ))}
       </div>

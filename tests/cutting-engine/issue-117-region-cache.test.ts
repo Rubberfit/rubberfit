@@ -68,7 +68,13 @@ function place(id: string, templateId: string, x: number, y: number, rot = 0): M
   return { id, templateId, x, y, rotationRad: rot }
 }
 
-const STOCK: StockConfig = { width: 96, length: 48, thickness: 0.06, material: "EPDM" }
+const STOCK: StockConfig = {
+  width: 96,
+  length: 48,
+  thickness: 0.06,
+  material: "EPDM",
+  kerf: 0.125,
+}
 
 /**
  * Deep equality on the parts of `ComputedRegions` that the canvas
@@ -342,6 +348,7 @@ describe("issue #117 — fuzz equivalence (cached vs uncached)", () => {
       length: 30,
       thickness: 0.06,
       material: "EPDM",
+      kerf: 0.125,
     }
     expectRegionsEqual(
       computeAdaptiveRegions(placements, parts, resizedStock, cache),

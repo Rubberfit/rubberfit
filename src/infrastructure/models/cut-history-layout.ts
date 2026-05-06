@@ -36,6 +36,13 @@ export interface CutHistoryLayoutJsonManual {
     thickness: number
     material?: string
     costPerSqft?: number | null
+    /**
+     * Saw-blade kerf width in inches. Optional for back-compat with rows
+     * saved before the field existed — those rows are loaded with the
+     * UI's default kerf (1/8"). New rows always serialize the user's
+     * kerf so reload preserves it.
+     */
+    kerf?: number
   }
 }
 

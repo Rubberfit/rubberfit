@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "predev": "npm run build:engine",
     "prebuild": "npm run build:engine",
     "build": "next build",
     "vercel-build": "next build",
