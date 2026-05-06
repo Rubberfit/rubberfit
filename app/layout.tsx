@@ -16,19 +16,19 @@ import { PreferencesStoreProvider } from "@/app/stores/preferences/preferences-p
 
 import "./globals.css"
 
-const inter = Inter({
+const INTER = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
 })
 
-const manrope = Manrope({
+const MANROPE = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
   display: "swap",
 })
 
-const jetbrainsMono = JetBrains_Mono({
+const JETBRAINS_MONO = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-jetbrains-mono",
@@ -58,7 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <ThemeBootScript />
       </head>
       <body
-        className={`${inter.variable} ${manrope.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
+        className={`${INTER.variable} ${MANROPE.variable} ${JETBRAINS_MONO.variable} min-h-screen antialiased`}
       >
         <AuthProvider>
           <PreferencesStoreProvider

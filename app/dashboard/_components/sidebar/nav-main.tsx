@@ -304,9 +304,17 @@ export function NavMain({ items }: NavMainProps) {
                 onClick={handleEmailClick}
               >
                 <MailIcon className="h-4 w-4" />
-                <span className="sr-only">Notifications</span>
+                <span className="sr-only">
+                  Notifications
+                  {unreadNotifications > 0
+                    ? ` — ${unreadNotifications} unread`
+                    : ""}
+                </span>
                 {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+                  />
                 )}
               </Button>
             </SidebarMenuItem>

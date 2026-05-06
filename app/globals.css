@@ -26,8 +26,8 @@
   /* Typography */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", SFMono-Regular,
-    Menlo, monospace;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono",
+    "SFMono-Regular", "Menlo", monospace;
 
   /* Primitives wired to CSS vars */
   --color-background: var(--background);
@@ -139,7 +139,13 @@
   --popover-foreground: #14171b;
 
   --primary: #ee5a24;
-  --primary-foreground: #ffffff;
+  /* Graphite-on-orange (4.62:1) — passes WCAG AA. White-on-orange
+   * is 3.45:1 which fails AA for the 11px mono caps the Quick
+   * Create + active-route surfaces use. Per Kimi's WCAG
+   * follow-up: graphite is the authentic industrial pairing
+   * (stamped ink on a safety tag), keeping the orange field
+   * intact while gaining the contrast the standard demands. */
+  --primary-foreground: #14171b;
 
   --secondary: rgba(20, 23, 27, 0.06);
   --secondary-foreground: #14171b;
@@ -169,7 +175,7 @@
   --sidebar: #f6f5f2;
   --sidebar-foreground: #14171b;
   --sidebar-primary: #ee5a24;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: #14171b;
   --sidebar-accent: rgba(238, 90, 36, 0.08);
   --sidebar-accent-foreground: #14171b;
   --sidebar-border: rgba(20, 23, 27, 0.08);
