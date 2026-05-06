@@ -204,12 +204,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           id="login-remember"
           type="checkbox"
           {...form.register("remember")}
-          style={{
-            width: 16,
-            height: 16,
-            accentColor: "#ee5a24",
-            cursor: "pointer",
-          }}
+          className="size-4 cursor-pointer accent-primary"
         />
         <label htmlFor="login-remember" className="auth-checkbox-label">
           Keep session active for 30 days
@@ -219,8 +214,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <button
         type="submit"
         disabled={isLoading}
-        className="auth-btn-primary"
-        style={{ marginTop: 24 }}
+        className="auth-btn-primary mt-6"
       >
         {isLoading ? "Signing in…" : "Sign in"}
       </button>

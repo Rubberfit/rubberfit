@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <>
       <div className="auth-corner">
         No account?{" "}
-        <Link prefetch={false} href="/register" className="auth-link auth-link-strong" style={{ marginLeft: 4 }}>
+        <Link prefetch={false} href="/register" className="auth-link auth-link-strong ml-1">
           Register
         </Link>
       </div>
