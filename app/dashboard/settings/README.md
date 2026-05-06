@@ -10,7 +10,10 @@ four sub-routes under `/dashboard/settings/*`:
 | Materials     | `/settings/materials`     | Material-type configuration + stock alert thresholds                                             |
 | Notifications | `/settings/notifications` | In-app feed + email dispatch preferences + quiet hours                                           |
 
-**Phase 2 (PR 1):** the tab strip is now mono uppercase underlined (replaces the Phase 1 `bg-muted` chip strip). Sub-pages are still on the Phase 1 shadcn defaults — they get rebuilt with the new form primitives in PR 2-3. See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` for the locked design and `app/components/ui/forms/README.md` for the new primitives.
+**Phase 2 PR 1:** mono uppercase underlined tab strip (replaces the Phase 1 `bg-muted` chip strip).
+**Phase 2 PR 2 (this commit):** General sub-page rebuilt with the new `forms/` primitives — sectioned `<FormSectionHeader>` + per-section `<FormActions>` save/cancel + Sonner toast confirmation. Profile is in flight as PR 2b. Materials + Notifications restyle is PR 3; Users + Security come in PR 4.
+
+See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` for the locked design and `app/components/ui/forms/README.md` for the new primitives.
 
 `/dashboard/settings` root redirects to `/settings/general`.
 
@@ -30,7 +33,7 @@ Notifications tab here is preferences only.
 
 ## Subdirectories
 
-- **general/** -- GeneralSettingsCards + SystemSettingsCards.
+- **general/** -- Phase 2 sectioned form using `app/components/ui/forms/` primitives. Per-section Save/Cancel + Sonner toast. State is in-memory scaffold today; backend wiring is a follow-up task.
 - **profile/** -- ProfileCard + SecurityCard + MfaCard +
   AccountInfoCard + DeleteAccountCard (moved from the removed
   `/dashboard/account` in S4 Task 10). Self-serve account deletion
@@ -40,5 +43,3 @@ Notifications tab here is preferences only.
 - **materials/** -- Material-type configuration surface (existing).
 - **notifications/** -- Preferences stub. Backend wiring to
   `notification_preferences` deferred to S6 tech-debt pass.
-- **\_components/** -- Shared cards used across tabs
-  (GeneralSettingsCards, SystemSettingsCards).
