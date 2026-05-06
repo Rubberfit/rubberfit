@@ -183,7 +183,8 @@ export class RollsRepository implements IRollsRepository {
   }
 
   async existsByMaterialType(materialTypeName: string): Promise<boolean> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("rolls")
       .select("id")
       .eq("material_type", materialTypeName)

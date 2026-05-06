@@ -6,8 +6,7 @@ import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { createMaterialType, deleteMaterialType, updateMaterialType } from "@/app/actions/materials"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
 
@@ -73,7 +72,8 @@ export default function MaterialSettingsPage() {
   const handleSave = async (materialId: string) => {
     try {
       const values = editedValues[materialId]
-      await materialTypeService.update(materialId, {
+      await updateMaterialType({
+        id: materialId,
         min_stock_alert: values.min_stock_alert,
         default_cost: values.default_cost,
       })
@@ -93,7 +93,7 @@ export default function MaterialSettingsPage() {
     }
 
     try {
-      await materialTypeService.create({
+      await createMaterialType({
         name: newMaterial.name.trim(),
         description: newMaterial.description.trim(),
         default_cost: newMaterial.default_cost,
@@ -117,41 +117,22 @@ export default function MaterialSettingsPage() {
 
   const handleDeleteMaterial = async (materialId: string) => {
     try {
-      // Check if there are any rolls using this material
-      const materialName = materials.find((m) => m.id === materialId)?.name || ""
-      const hasRolls = await rollService.existsByMaterialType(materialName)
-
-      if (hasRolls) {
+      // FK pre-flight + delete is now in the action — the result
+      // tells us which guard fired (or that delete succeeded).
+      const result = await deleteMaterialType({ id: materialId })
+      if (!result.ok) {
         toast.error("Cannot delete material", {
-          description: "This material is being used by existing rolls",
+          description: result.message,
         })
         return
       }
-
-      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialId)
-      if (hasPOItems) {
-        toast.error("Cannot delete material", {
-          description: "This material is referenced by existing purchase orders",
-        })
-        return
-      }
-
-      await materialTypeService.delete(materialId)
       toast.success("Material deleted successfully")
       setDeleteMaterialDialog(null)
       fetchMaterials()
     } catch (error) {
-      const isFkError =
-        typeof error === "object" &&
-        error !== null &&
-        (("code" in error && (error as { code?: string }).code === "23503") ||
-          ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+      // Auth / permission / config errors propagate as throws.
       toast.error("Failed to delete material", {
-        description: isFkError
-          ? "This material is referenced by other records and cannot be deleted"
-          : error instanceof Error
-            ? error.message
-            : undefined,
+        description: error instanceof Error ? error.message : undefined,
       })
     }
   }
@@ -159,10 +140,7 @@ export default function MaterialSettingsPage() {
   return (
     <PageShell variant="form">
       <PageHeader
-        crumbs={[
-          { label: "Settings", href: "/dashboard/settings" },
-          { label: "Materials" },
-        ]}
+        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: "Materials" }]}
         title="Material settings"
         subtitle="Configure material types and stock thresholds."
         actions={
