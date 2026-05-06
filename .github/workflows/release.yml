@@ -1,0 +1,105 @@
+name: Release
+
+# Tag-triggered. Push a tag like `v1.2.0` from `main` to cut a release:
+#   git tag v1.2.0
+#   git push --tags
+#
+# Auto-generates release notes from merged PRs since the last tag,
+# then back-links the latest Arc-and-Anchor/Rubberfit-Desktop release
+# into the body. Cross-link is idempotent and tolerates a missing
+# sibling release (404 -> log + skip).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Refuse to release a tag whose commit isn't on main. Without
+      # this, anyone with push access can publish a release from any
+      # branch — including unreviewed work — by pushing `v*` against
+      # an arbitrary commit. The check asserts the tagged commit is
+      # reachable from origin/main (i.e., it lives on main's history).
+      # The inverse direction (origin/main is-ancestor HEAD) would
+      # incorrectly pass any feature branch forked from main's tip —
+      # `--is-ancestor A B` returns true when A is in B's history, so
+      # HEAD must be the first arg.
+      - name: Assert tag is on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
+
+      - name: Create release with auto-generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Rubberfit $TAG" \
+            --generate-notes
+
+      - name: Cross-link to latest desktop release
+        env:
+          # Two tokens, scoped by call:
+          # - GH_TOKEN (default for `gh release view`/`edit` against
+          #   THIS repo) is GITHUB_TOKEN, which has write access here.
+          # - CROSS_GH_TOKEN is the only token used for the cross-repo
+          #   lookup. Set CROSS_REPO_TOKEN as a PAT (or GitHub App
+          #   token) with `contents:read` on Rubberfit-Desktop —
+          #   GITHUB_TOKEN can't read private repos in the same org.
+          #   Falls back to GITHUB_TOKEN if unset (works for public
+          #   siblings; silently 404s on private — handled below).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CROSS_GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN || secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Distinguish "release not visible" (404 — either the repo
+          # has no release yet OR GITHUB_TOKEN can't access it; GitHub
+          # deliberately returns 404 not 403 for private repos to
+          # avoid leaking their existence) from other API failures
+          # (5xx, rate limit, malformed response, etc.). All paths
+          # exit 0 so a transient lookup failure doesn't fail the
+          # whole release, but real errors hit stderr instead of
+          # being silently dropped.
+          err_log=$(mktemp)
+          trap 'rm -f "$err_log"' EXIT
+
+          if ! desktop_release=$(GH_TOKEN="$CROSS_GH_TOKEN" gh api repos/Arc-and-Anchor/Rubberfit-Desktop/releases/latest 2>"$err_log"); then
+            # gh's stderr phrasing isn't strictly stable; tolerate
+            # "HTTP 404", "Not Found", "not found", etc.
+            if grep -qE "(HTTP 404|[Nn]ot [Ff]ound)" "$err_log"; then
+              echo "No paired Rubberfit-Desktop release found (or sibling repo inaccessible). Skipping cross-link footer."
+            else
+              echo "Cross-link API call failed; skipping footer." >&2
+              cat "$err_log" >&2
+            fi
+            exit 0
+          fi
+
+          desktop_tag=$(echo "$desktop_release" | jq -r '.tag_name // empty')
+          desktop_url=$(echo "$desktop_release" | jq -r '.html_url // empty')
+
+          if [[ -z "$desktop_tag" || -z "$desktop_url" ]]; then
+            echo "Sibling release lookup returned an unexpected shape; skipping footer."
+            exit 0
+          fi
+
+          marker="<!-- crosslink:rubberfit-desktop -->"
+          current_body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body // empty')
+          # Idempotent: drop the prior marker line and everything after it, then re-append fresh.
+          trimmed_body=$(printf '%s' "$current_body" | awk -v m="$marker" 'index($0, m) > 0 { exit } { print }')
+          new_body=$(printf '%s\n\n%s\n\n---\n\n🖥️ **Desktop app**: [Rubberfit-Desktop %s](%s)\n' "$trimmed_body" "$marker" "$desktop_tag" "$desktop_url")
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$new_body"

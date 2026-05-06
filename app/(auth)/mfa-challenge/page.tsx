@@ -24,13 +24,9 @@ export default async function MfaChallengePage({ searchParams }: PageProps) {
   const redirectTo = redirectToRaw ?? null
 
   return (
-    <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-      <div className="space-y-2 text-center">
-        <h1 className="font-medium text-3xl">Verification needed</h1>
-        <p className="text-muted-foreground text-sm">
-          Enter the 6-digit code from your authenticator app to finish signing in.
-        </p>
-      </div>
+    <div>
+      <span className="auth-eyebrow">Multi-factor auth</span>
+      <h1 className="auth-heading">Verify identity.</h1>
       <Suspense fallback={null}>
         <MfaChallengeForm redirectTo={redirectTo} />
       </Suspense>

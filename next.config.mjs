@@ -25,6 +25,28 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // Host-based redirect from legacy app.* and dashboard.* subdomains
+      // to the apex rubberfit.app. 308 (permanent) so bookmarks and
+      // email links migrate cleanly. Path + query string are preserved.
+      // www.rubberfit.app is also folded to apex for the same reason.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "app.rubberfit.app" }],
+        destination: "https://rubberfit.app/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "dashboard.rubberfit.app" }],
+        destination: "https://rubberfit.app/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.rubberfit.app" }],
+        destination: "https://rubberfit.app/:path*",
+        permanent: true,
+      },
       // S4 Task 3 — IA consolidation. `permanent: true` emits HTTP 308
       // so bookmarks keep working across customers. These redirects
       // are the contract for pre-S4 URLs; do not remove without a
