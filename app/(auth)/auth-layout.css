@@ -468,3 +468,22 @@
 .dark .auth-illustration .auth-illustration-stamp {
   fill: rgba(246, 245, 242, 0.5);
 }
+
+/* Link-styled button (resets <button> chrome so it inherits .auth-link visuals) */
+.auth-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* Vertical spacing utilities for the auth surfaces */
+.auth-spaced {
+  margin-top: 16px;
+}
+
+.auth-spaced-row-center {
+  margin-top: 16px;
+  text-align: center;
+}

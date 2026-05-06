@@ -143,8 +143,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           type="button"
           onClick={() => void handleMfaSubmit()}
           disabled={mfaSubmitting}
-          className="auth-btn-primary"
-          style={{ marginTop: 16 }}
+          className="auth-btn-primary auth-spaced"
         >
           {mfaSubmitting ? "Verifying…" : "Verify"}
         </button>
@@ -156,8 +155,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             setMfaCode("")
             setMfaError(null)
           }}
-          className="auth-link"
-          style={{ background: "none", border: 0, padding: 0, marginTop: 16, cursor: "pointer" }}
+          className="auth-link auth-link-button auth-spaced"
         >
           ← Return to sign-in
         </button>
@@ -227,7 +225,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         {isLoading ? "Signing in…" : "Sign in"}
       </button>
 
-      <div style={{ marginTop: 16 }}>
+      <div className="auth-spaced">
         <Link href="/forgot-password" className="auth-link">
           Forgot password?
         </Link>
