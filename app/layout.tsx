@@ -3,7 +3,7 @@ import "@/di/di-registration"
 import type { ReactNode } from "react"
 
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Inter, Manrope, JetBrains_Mono } from "next/font/google"
 
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -16,14 +16,23 @@ import { PreferencesStoreProvider } from "@/app/stores/preferences/preferences-p
 
 import "./globals.css"
 
-const geistSans = Geist({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  variable: "--font-inter",
+  display: "swap",
 })
 
-const geistMono = Geist_Mono({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-manrope",
+  display: "swap",
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -49,7 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <ThemeBootScript />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
+        className={`${inter.variable} ${manrope.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
       >
         <AuthProvider>
           <PreferencesStoreProvider

@@ -290,23 +290,23 @@ export function NavMain({ items }: NavMainProps) {
               {canManageRolls && (
                 <SidebarMenuButton
                   tooltip="Quick Create"
-                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                  className="min-w-8 bg-primary font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-primary-foreground transition-colors hover:bg-accent-fg hover:text-primary-foreground active:scale-[0.98] active:bg-accent-fg active:text-primary-foreground"
                   onClick={handleQuickCreate}
                 >
-                  <PlusCircleIcon />
+                  <PlusCircleIcon className="size-4" />
                   <span>Quick Create</span>
                 </SidebarMenuButton>
               )}
               <Button
                 size="icon"
-                className="h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0 active:bg-primary active:text-primary-foreground relative"
+                className="relative h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0"
                 variant="outline"
                 onClick={handleEmailClick}
               >
                 <MailIcon className="h-4 w-4" />
                 <span className="sr-only">Notifications</span>
                 {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
                 )}
               </Button>
             </SidebarMenuItem>
