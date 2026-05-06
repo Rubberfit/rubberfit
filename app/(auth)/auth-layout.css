@@ -1,0 +1,470 @@
+/* ============================================================
+   Auth surface — industrial spec-sheet voice
+   Two-pane layout on Mill paper. Left pane = work order. Right
+   pane = drawing sheet (technical illustration only — no
+   marketing copy). Both panes share a single hairline border.
+   ============================================================ */
+
+.auth-root {
+  display: flex;
+  min-height: 100dvh;
+  background-color: #f6f5f2;
+  color: #14171b;
+}
+
+.auth-pane-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  padding: 2rem;
+}
+
+@media (min-width: 768px) {
+  .auth-pane-left {
+    width: 50%;
+    min-width: 420px;
+    max-width: 560px;
+    padding: clamp(2rem, 5vw, 3.5rem);
+    border-right: 1px solid rgba(20, 23, 27, 0.08);
+  }
+}
+
+.auth-pane-right {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .auth-pane-right {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background-color: #f6f5f2;
+  }
+}
+
+/* Top brand row: small mark + mono caption */
+.auth-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-brand-mark {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+}
+
+.auth-brand-caption {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #8a8f97;
+}
+
+.auth-pane-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  margin: 48px 0;
+}
+
+.auth-pane-content > * + * {
+  margin-top: 16px;
+}
+
+/* Header typography pair (eyebrow + display) */
+.auth-eyebrow {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #8a8f97;
+  margin-bottom: 12px;
+}
+
+.auth-heading {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: #14171b;
+  margin: 0 0 32px 0;
+}
+
+/* Inputs */
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field + .auth-field {
+  margin-top: 16px;
+}
+
+.auth-input-label {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #4a525c;
+}
+
+.auth-input-minimal {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 15px;
+  color: #14171b;
+  background-color: transparent;
+  border: 1px solid rgba(74, 82, 92, 0.25);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.auth-input-minimal::placeholder {
+  color: #8a8f97;
+  opacity: 0.6;
+}
+
+.auth-input-minimal:focus,
+.auth-input-minimal:focus-visible {
+  border-color: #ee5a24;
+}
+
+.auth-input-error {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 12px;
+  color: #c54214;
+  margin-top: 4px;
+}
+
+/* Buttons */
+.auth-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #0f1216;
+  background-color: #ee5a24;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.auth-btn-primary:hover {
+  background-color: #c54214;
+}
+
+.auth-btn-primary:active {
+  transform: translateY(1px);
+}
+
+.auth-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-btn-oauth {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #14171b;
+  background-color: transparent;
+  border: 1px solid rgba(74, 82, 92, 0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.auth-btn-oauth:hover {
+  background-color: rgba(20, 23, 27, 0.03);
+  border-color: rgba(74, 82, 92, 0.4);
+}
+
+.auth-btn-oauth:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* "OR" divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.auth-divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: rgba(20, 23, 27, 0.1);
+}
+
+.auth-divider-text {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #8a8f97;
+}
+
+/* Checkbox + label row */
+.auth-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.auth-checkbox-label {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  color: #4a525c;
+  cursor: pointer;
+}
+
+/* Utility links */
+.auth-link {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  color: #4a525c;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition:
+    color 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.auth-link:hover {
+  color: #ee5a24;
+  text-decoration-color: rgba(238, 90, 36, 0.6);
+}
+
+.auth-link-strong {
+  color: #14171b;
+  font-weight: 600;
+}
+
+/* Top corner: register prompt */
+.auth-corner {
+  display: flex;
+  justify-content: flex-end;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  color: #8a8f97;
+}
+
+/* Footer */
+.auth-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auth-footer-mono {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #8a8f97;
+}
+
+.auth-footer-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  color: #4a525c;
+}
+
+/* Inline alert (auth error from query) */
+.auth-alert {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid rgba(197, 66, 20, 0.35);
+  background-color: rgba(238, 90, 36, 0.06);
+  color: #c54214;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+/* MFA single-field input — serial-number entry feel */
+.auth-mfa-input {
+  display: block;
+  width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: 24px;
+  letter-spacing: 0.25em;
+  text-align: center;
+  color: #14171b;
+  background-color: transparent;
+  border: 1px solid rgba(74, 82, 92, 0.25);
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.auth-mfa-input::placeholder {
+  color: #8a8f97;
+  opacity: 0.4;
+}
+
+.auth-mfa-input:focus,
+.auth-mfa-input:focus-visible {
+  border-color: #ee5a24;
+}
+
+.auth-helper {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #8a8f97;
+  margin: 8px 0 0 0;
+}
+
+/* Right-pane illustration */
+.auth-illustration {
+  width: 70%;
+  max-width: 380px;
+  height: auto;
+  opacity: 0.92;
+}
+
+/* Dark-mode pass-through (the marketing site is light-only,
+   but the dashboard supports dark — match Inkwell when the
+   Tailwind .dark class is present at any ancestor) */
+.dark .auth-root {
+  background-color: #0f1216;
+  color: #f6f5f2;
+}
+
+.dark .auth-pane-left {
+  border-right-color: rgba(246, 245, 242, 0.08);
+}
+
+.dark .auth-pane-right {
+  background-color: #0f1216;
+}
+
+.dark .auth-heading {
+  color: #f6f5f2;
+}
+
+.dark .auth-eyebrow,
+.dark .auth-brand-caption,
+.dark .auth-footer-mono {
+  color: rgba(246, 245, 242, 0.5);
+}
+
+.dark .auth-input-label {
+  color: rgba(246, 245, 242, 0.7);
+}
+
+.dark .auth-input-minimal {
+  color: #f6f5f2;
+  border-color: rgba(246, 245, 242, 0.18);
+}
+
+.dark .auth-input-minimal::placeholder {
+  color: rgba(246, 245, 242, 0.45);
+}
+
+.dark .auth-input-minimal:focus,
+.dark .auth-input-minimal:focus-visible {
+  border-color: #ee5a24;
+}
+
+.dark .auth-btn-oauth {
+  color: #f6f5f2;
+  border-color: rgba(246, 245, 242, 0.18);
+}
+
+.dark .auth-btn-oauth:hover {
+  background-color: rgba(246, 245, 242, 0.04);
+}
+
+.dark .auth-divider-line {
+  background-color: rgba(246, 245, 242, 0.1);
+}
+
+.dark .auth-checkbox-label,
+.dark .auth-link {
+  color: rgba(246, 245, 242, 0.65);
+}
+
+.dark .auth-link-strong {
+  color: #f6f5f2;
+}
+
+.dark .auth-corner {
+  color: rgba(246, 245, 242, 0.5);
+}
+
+.dark .auth-footer-lang {
+  color: rgba(246, 245, 242, 0.65);
+}
+
+.dark .auth-mfa-input {
+  color: #f6f5f2;
+  border-color: rgba(246, 245, 242, 0.18);
+}
+
+.dark .auth-helper {
+  color: rgba(246, 245, 242, 0.5);
+}
+
+.dark .auth-illustration .auth-illustration-stroke {
+  stroke: rgba(246, 245, 242, 0.5);
+}
+
+.dark .auth-illustration .auth-illustration-faint {
+  stroke: rgba(246, 245, 242, 0.2);
+}
+
+.dark .auth-illustration .auth-illustration-stamp {
+  fill: rgba(246, 245, 242, 0.5);
+}
