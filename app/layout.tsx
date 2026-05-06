@@ -5,6 +5,8 @@ import type { ReactNode } from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
+import { SpeedInsights } from "@vercel/speed-insights/next"
+
 import { Toaster } from "@/app/components/ui/sonner"
 import { APP_CONFIG } from "@/config/app-config"
 import { AuthProvider } from "@/app/contexts/AuthContext"
@@ -59,6 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             <Toaster />
           </PreferencesStoreProvider>
         </AuthProvider>
+        <SpeedInsights />
       </body>
     </html>
   )
