@@ -15,13 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
 import { Button } from "@/app/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card"
+import { FormFieldset, FormSectionHeader } from "@/app/components/ui/forms"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import { useAuth } from "@/app/contexts/AuthContext"
@@ -47,8 +41,7 @@ export function DeleteAccountCard() {
 
   if (!user) return null
 
-  const emailMatches =
-    user.email.trim().toLowerCase() === confirmEmail.trim().toLowerCase()
+  const emailMatches = user.email.trim().toLowerCase() === confirmEmail.trim().toLowerCase()
 
   const handleDelete = async () => {
     if (!emailMatches || submitting) return
@@ -80,20 +73,18 @@ export function DeleteAccountCard() {
 
   return (
     <>
-      <Card className="border-danger-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-danger-foreground">
-            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-            Delete account
-          </CardTitle>
-          <CardDescription>
-            Marks your account as deleted and signs you out. Data retention
-            follows the Data Processing Agreement — deletion from production
-            systems within 30 days, backups within 90 days. An administrator
-            can restore the account during that window if needed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <FormFieldset className="border-t-danger-border/60">
+        <FormSectionHeader
+          eyebrow="Danger zone"
+          title={
+            <span className="inline-flex items-center gap-2 text-danger-foreground">
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              Delete account
+            </span>
+          }
+          description="Marks your account as deleted and signs you out. Data retention follows the Data Processing Agreement — deletion from production systems within 30 days, backups within 90 days. An administrator can restore the account during that window if needed."
+        />
+        <div className="mt-6">
           <Button
             variant="outline"
             className="border-danger-border text-danger-foreground hover:bg-danger-bg hover:text-danger-foreground"
@@ -104,20 +95,19 @@ export function DeleteAccountCard() {
           >
             Delete my account
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </FormFieldset>
 
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This marks your account as deleted. You'll be signed out
-              immediately and won't be able to sign in again. Your customer
-              records and job history remain on your tenant for any
-              administrator action; if you're the sole administrator,
-              contact <span className="font-medium">support@arcandanchor.com</span> to
-              close the tenant entirely.
+              This marks your account as deleted. You'll be signed out immediately and won't be able
+              to sign in again. Your customer records and job history remain on your tenant for any
+              administrator action; if you're the sole administrator, contact{" "}
+              <span className="font-medium">support@arcandanchor.com</span> to close the tenant
+              entirely.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
