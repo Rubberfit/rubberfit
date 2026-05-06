@@ -14,16 +14,19 @@ import type {
   UpdatePurchaseOrderResult,
   IUpdatePurchaseOrderUseCase,
 } from "@/src/application/use-cases/purchase-orders/update-purchase-order.use-case"
-import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
-import type { IRejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
+import type {
+  ApprovePurchaseOrderInput,
+  IApprovePurchaseOrderUseCase,
+} from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
+import type {
+  RejectPurchaseOrderInput,
+  IRejectPurchaseOrderUseCase,
+} from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
 import type {
   ReceivePurchaseOrderInput,
   IReceivePurchaseOrderUseCase,
 } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
-import type {
-  POReceiptItem,
-  POReceiptResult,
-} from "@/src/application/services/purchase-order.service.interface"
+import type { POReceiptResult } from "@/src/application/services/purchase-order.service.interface"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
@@ -80,9 +83,9 @@ export async function updatePurchaseOrder(
   return result
 }
 
-export async function approvePurchaseOrder(input: {
-  purchaseOrderId: string
-}): Promise<PurchaseOrder> {
+export async function approvePurchaseOrder(
+  input: Omit<ApprovePurchaseOrderInput, "actor">
+): Promise<PurchaseOrder> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
@@ -93,10 +96,9 @@ export async function approvePurchaseOrder(input: {
   return result
 }
 
-export async function rejectPurchaseOrder(input: {
-  purchaseOrderId: string
-  reason?: string
-}): Promise<PurchaseOrder> {
+export async function rejectPurchaseOrder(
+  input: Omit<RejectPurchaseOrderInput, "actor">
+): Promise<PurchaseOrder> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
@@ -107,18 +109,15 @@ export async function rejectPurchaseOrder(input: {
   return result
 }
 
-export async function receivePurchaseOrder(input: {
-  purchaseOrderId: string
-  items: POReceiptItem[]
-  receivedBy?: string
-}): Promise<POReceiptResult> {
+export async function receivePurchaseOrder(
+  input: Omit<ReceivePurchaseOrderInput, "actor">
+): Promise<POReceiptResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
   const useCase = resolveUseCase<IReceivePurchaseOrderUseCase>(TOKENS.IReceivePurchaseOrderUseCase)
-  const useCaseInput: ReceivePurchaseOrderInput = { ...input, actor }
-  const result = await useCase.execute(useCaseInput)
+  const result = await useCase.execute({ ...input, actor })
   revalidatePath(PO_LIST_PATH)
   return result
 }

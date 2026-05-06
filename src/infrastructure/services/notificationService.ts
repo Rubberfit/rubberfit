@@ -80,9 +80,11 @@ export class NotificationService implements INotificationService {
    * Get user notification preferences
    */
   async getUserPreferences(userIdentifier: string): Promise<NotificationPreferences | null> {
-    // Check cache first
-    if (this.userPreferences.has(userIdentifier)) {
-      return this.userPreferences.get(userIdentifier)!
+    // Check cache first. Read-into-local instead of `.has(...)` + `.get(...)!`
+    // so the no-non-null-assertion lint stays happy.
+    const cached = this.userPreferences.get(userIdentifier)
+    if (cached) {
+      return cached
     }
 
     // Load from database

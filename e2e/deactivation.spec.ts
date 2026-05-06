@@ -40,9 +40,12 @@ test("deactivated user cannot sign in", async ({ page }) => {
 
   await fillLoginAndSubmit(page, user)
 
-  // Sign-in fails → stays on /login. Give the network call ~2.5s to
-  // settle, then assert we never navigated away.
-  await page.waitForTimeout(2_500)
+  // Sign-in fails → stays on /login. The form fires an async POST to
+  // Supabase and surfaces a sonner toast on rejection — both happen
+  // without a navigation. Wait for an idle network and assert we
+  // never left /login. Toast text isn't asserted because exact copy
+  // can change.
+  await page.waitForLoadState("networkidle", { timeout: 10_000 })
   expect(page.url()).toContain("/login")
 })
 

@@ -73,7 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: PackRequest
   try {
     body = (await request.json()) as PackRequest
-  } catch {
+  } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
   if (!body || !Array.isArray(body.bins) || !Array.isArray(body.items)) {
@@ -87,9 +87,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const service = container.resolve<IPackingService>(TOKENS.IPackingService)
     const result = await service.pack(body)
     return NextResponse.json(result)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    console.error("[api/v2/pack] dev pack-cli failed:", err)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    console.error("[api/v2/pack] dev pack-cli failed:", error)
     return NextResponse.json({ error: "Pack failed", detail: message }, { status: 500 })
   }
 }

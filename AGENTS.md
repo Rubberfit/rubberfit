@@ -37,6 +37,9 @@
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
+  - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `Omit<UseCaseInput, "actor">` so clients can't spoof identity.
+  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
+  - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
 

@@ -38,9 +38,10 @@ export class NotificationRepository implements INotificationRepository {
 
   async exists(): Promise<boolean> {
     const supabase = await getDatabaseClient()
-    const { error } = await supabase.from("notifications").select("id").limit(1)
+    const { data, error } = await supabase.from("notifications").select("id").limit(1)
 
-    return !error
+    if (error) return false
+    return (data?.length ?? 0) > 0
   }
 
   async create(

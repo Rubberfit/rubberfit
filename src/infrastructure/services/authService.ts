@@ -376,7 +376,7 @@ export async function getProfileAccess(
     return { roles: [], isSuperAdmin: false, isDeleted: true, hasProfile: false }
   }
   return {
-    roles: Array.isArray(data.roles) ? (data.roles ?? []) : [],
+    roles: Array.isArray(data.roles) ? data.roles : [],
     isSuperAdmin: data.super_admin === true,
     isDeleted: data.is_deleted === true,
     hasProfile: true,

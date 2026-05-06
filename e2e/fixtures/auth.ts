@@ -59,9 +59,7 @@ export interface CreateTestUserOptions {
  * Caller MUST tear down via deleteTestUser(user.id) — typically in
  * an afterAll hook.
  */
-export async function createTestUser(
-  options: CreateTestUserOptions = {}
-): Promise<TestUser> {
+export async function createTestUser(options: CreateTestUserOptions = {}): Promise<TestUser> {
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const email = `e2e-${stamp}@example.test`
   const password = `e2e-pw-${stamp}`
@@ -99,7 +97,17 @@ export async function createTestUser(
 export async function deleteTestUser(userId: string): Promise<void> {
   // ON DELETE CASCADE on profiles.id REFERENCES auth.users(id) handles
   // the profile row.
-  await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
+  //
+  // Errors are surfaced (logged with userId, then rethrown) rather than
+  // swallowed: silent failures here leak test users in the project's
+  // auth.users table and hide regressions in the auth-admin API. The
+  // calling test still fails loudly so CI catches the leak.
+  const { error } = await adminClient.auth.admin.deleteUser(userId)
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error(`deleteTestUser: failed to delete ${userId}`, error)
+    throw new Error(`deleteTestUser: ${error.message}`)
+  }
 }
 
 export async function setUserDeactivated(userId: string, isDeleted: boolean): Promise<void> {

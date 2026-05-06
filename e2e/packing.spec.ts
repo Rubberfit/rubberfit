@@ -8,13 +8,16 @@
  *   browser ApiPackingService → POST /api/v2/pack → server handler
  *   → child_process.spawn(pack-cli) → Rust packer → JSON back
  *
- * Currently fails on `arc-147`: the Next.js fallback route at
- * `app/api/v2/pack/route.ts` was removed in commit ace7dfb when the
- * pack handler migrated to the Vercel Rust runtime
- * (`api/v2/pack.rs`). The Vercel Rust function only serves prod
- * traffic, so `npm run dev` returns Next.js's 404 HTML page for
- * every pack request. Restore a dev handler (or a thin Next.js
- * proxy that spawns pack-cli) to flip this green.
+ * Regression guard for the dev/prod pack-route split: production
+ * traffic to `/api/v2/pack` is served by the Vercel Rust function
+ * at `api/v2/pack.rs`, but `npm run dev` doesn't run Vercel Rust
+ * functions. Without a Next.js fallback, every Pack click in dev
+ * returns a 404 HTML page. Commit `ace7dfb` removed the fallback
+ * during the Rust-runtime migration; ARC-147 restored it at
+ * `app/api/v2/pack/route.ts` with two-layer protection
+ * (`.vercelignore` + a runtime `VERCEL=1` short-circuit) so it
+ * only ever serves dev traffic. This test fails fast if the
+ * fallback gets removed again.
  *
  * The test logs the response status, a body snippet, and console
  * messages on every run so the failure mode is visible from
@@ -45,9 +48,7 @@ test("packing a single rectangle preset returns 2xx from /api/v2/pack", async ({
   page.on("pageerror", (err) => consoleMessages.push(`[uncaught] ${err.message}`))
   page.on("response", (response) => {
     if (response.url().includes("/api/v2/pack")) {
-      packNetworkLog.push(
-        `${response.request().method()} ${response.url()} → ${response.status()}`
-      )
+      packNetworkLog.push(`${response.request().method()} ${response.url()} → ${response.status()}`)
     }
   })
 
@@ -89,20 +90,13 @@ test("packing a single rectangle preset returns 2xx from /api/v2/pack", async ({
   console.log(
     `[pack] ${packResponse.request().method()} ${packResponse.url()} → ${status}\n` +
       `[pack] body[0..300]:\n${bodySnippet}` +
-      (consoleMessages.length > 0
-        ? `\n[pack] console:\n${consoleMessages.join("\n")}`
-        : "") +
-      (packNetworkLog.length > 0
-        ? `\n[pack] network log:\n${packNetworkLog.join("\n")}`
-        : "")
+      (consoleMessages.length > 0 ? `\n[pack] console:\n${consoleMessages.join("\n")}` : "") +
+      (packNetworkLog.length > 0 ? `\n[pack] network log:\n${packNetworkLog.join("\n")}` : "")
   )
 
   expect(
     status,
     `pack returned HTTP ${status}; body[0..300]: ${bodySnippet}`
   ).toBeGreaterThanOrEqual(200)
-  expect(
-    status,
-    `pack returned HTTP ${status}; body[0..300]: ${bodySnippet}`
-  ).toBeLessThan(300)
+  expect(status, `pack returned HTTP ${status}; body[0..300]: ${bodySnippet}`).toBeLessThan(300)
 })

@@ -29,11 +29,12 @@ describe("requirePermission", () => {
     )
   })
 
-  it("throws ForbiddenError on empty roles even when DEFAULT_ROLES would otherwise grant", () => {
-    // `manageRolls` is restricted to ["admin", "manager"], so the
-    // default ["member"] fallback wouldn't pass anyway. Pick a
-    // permission `member` does have to verify the normalize-on-empty
-    // behavior is intentional.
+  it("falls back to DEFAULT_ROLES (['member']) when actor.roles is empty", () => {
+    // Documents the normalize-on-empty contract: an empty roles array
+    // resolves to `["member"]` via `normalizeRoles`, so any permission
+    // members hold (e.g., `viewInventory`) still passes. If we ever
+    // tighten this to deny-on-empty, flip this to `.toThrow(ForbiddenError)`
+    // and update `requireAuthenticatedUser` to reject the same case.
     expect(() => requirePermission(actor({ roles: [] }), "viewInventory")).not.toThrow()
   })
 })

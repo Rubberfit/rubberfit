@@ -84,6 +84,69 @@ const ALLOWLIST = new Set<string>([
   // ── #155 in-flight: removed as migrations land ────────────────────
 ])
 
+/**
+ * Files in `src/infrastructure/` that legitimately keep using the
+ * browser-singleton `supabase` import (or haven't migrated yet).
+ *
+ * Categories:
+ *   • permanent: the resolver itself, browser-only auth flows, storage
+ *     helpers that need browser-context cookies/localStorage.
+ *   • pre-ARC-147: services not yet reachable from server actions; each
+ *     server-action migration that pulls one of these server-side
+ *     should also flip it to `getDatabaseClient` and remove the entry.
+ *
+ * Used by both architectural tests below — single source of truth so
+ * the existence check can't drift from the violation check.
+ */
+const INFRA_ALLOWLIST = new Set<string>([
+  // ── permanent: the resolver itself ────────────────────────────
+  // get-database-client wraps the singleton — that's the whole
+  // point. Without this exemption the rule would block its
+  // implementation.
+  "src/infrastructure/supabase/get-database-client.ts",
+
+  // ── auth flows — singleton is correct here ────────────────────
+  // Browser-side sign-in/out, MFA enrollment, OAuth redirect,
+  // password reset. Cookie-bound server clients can't drive the
+  // browser auth state machine, so these stay on the singleton.
+  "src/infrastructure/services/authService.ts",
+  "src/infrastructure/services/authMfaService.ts",
+  // The deprecated browser-side userId helper. Tracked for
+  // removal once `record-cut.use-case` and the cuts API route
+  // migrate to per-route auth.
+  "src/infrastructure/services/getCurrentUserId.ts",
+  // Browser-side role hook. Reads the current session.
+  "src/infrastructure/services/useRole.ts",
+
+  // ── storage / bucket helpers ──────────────────────────────────
+  // Storage uploads (avatars, roll barcodes, PDFs) currently use
+  // the browser singleton because they're called from browser
+  // contexts. Migrating storage to getDatabaseClient is a separate
+  // pass — the cookie-bound server client supports storage too.
+  "src/infrastructure/services/jobPdfShareService.ts",
+  "src/infrastructure/services/rollBarcodeAssetService.ts",
+  "src/infrastructure/services/visionExtractionService.ts",
+  "src/infrastructure/repositories/profiles.repository.ts",
+
+  // ── pre-ARC-147, not yet reachable from server actions ────────
+  // These services have legitimate callers but none from server
+  // actions today, so the RLS hazard hasn't surfaced. Each
+  // migration that pulls them server-side should also flip them
+  // to getDatabaseClient and remove the entry here.
+  "src/infrastructure/services/csvService.ts",
+  "src/infrastructure/services/cutHistoryService.ts",
+  "src/infrastructure/services/cutService.ts",
+  "src/infrastructure/services/emailService.ts",
+  "src/infrastructure/services/priceHistoryService.ts",
+  "src/infrastructure/services/purchaseOrderAnalytics.ts",
+  "src/infrastructure/repositories/jobs.repository.ts",
+  "src/infrastructure/repositories/material-suppliers.repository.ts",
+  // Has both migrated (addRoll, existsByMaterialType) and
+  // unmigrated methods. Removing this entry is blocked on
+  // migrating the rest.
+  "src/infrastructure/repositories/rolls.repository.ts",
+])
+
 interface Violation {
   file: string
   line: number
@@ -306,55 +369,9 @@ describe("architecture: no direct Supabase calls outside src/infrastructure/", (
     //
     // Type-only imports (`import { type Roll }`) are fine — only the
     // VALUE binding (the live client) is the hazard.
-    const INFRA_ALLOWLIST = new Set<string>([
-      // ── permanent: the resolver itself ────────────────────────────
-      // get-database-client wraps the singleton — that's the whole
-      // point. Without this exemption the rule would block its
-      // implementation.
-      "src/infrastructure/supabase/get-database-client.ts",
-
-      // ── auth flows — singleton is correct here ────────────────────
-      // Browser-side sign-in/out, MFA enrollment, OAuth redirect,
-      // password reset. Cookie-bound server clients can't drive the
-      // browser auth state machine, so these stay on the singleton.
-      "src/infrastructure/services/authService.ts",
-      "src/infrastructure/services/authMfaService.ts",
-      // The deprecated browser-side userId helper. Tracked for
-      // removal once `record-cut.use-case` and the cuts API route
-      // migrate to per-route auth.
-      "src/infrastructure/services/getCurrentUserId.ts",
-      // Browser-side role hook. Reads the current session.
-      "src/infrastructure/services/useRole.ts",
-
-      // ── storage / bucket helpers ──────────────────────────────────
-      // Storage uploads (avatars, roll barcodes, PDFs) currently use
-      // the browser singleton because they're called from browser
-      // contexts. Migrating storage to getDatabaseClient is a separate
-      // pass — the cookie-bound server client supports storage too.
-      "src/infrastructure/services/jobPdfShareService.ts",
-      "src/infrastructure/services/rollBarcodeAssetService.ts",
-      "src/infrastructure/services/visionExtractionService.ts",
-      "src/infrastructure/repositories/profiles.repository.ts",
-
-      // ── pre-ARC-147, not yet reachable from server actions ────────
-      // These services have legitimate callers but none from server
-      // actions today, so the RLS hazard hasn't surfaced. Each
-      // migration that pulls them server-side should also flip them
-      // to getDatabaseClient and remove the entry here.
-      "src/infrastructure/services/csvService.ts",
-      "src/infrastructure/services/cutHistoryService.ts",
-      "src/infrastructure/services/cutService.ts",
-      "src/infrastructure/services/emailService.ts",
-      "src/infrastructure/services/priceHistoryService.ts",
-      "src/infrastructure/services/purchaseOrderAnalytics.ts",
-      "src/infrastructure/repositories/jobs.repository.ts",
-      "src/infrastructure/repositories/material-suppliers.repository.ts",
-      // Has both migrated (addRoll, existsByMaterialType) and
-      // unmigrated methods. Removing this entry is blocked on
-      // migrating the rest.
-      "src/infrastructure/repositories/rolls.repository.ts",
-    ])
-
+    //
+    // The allowlist itself lives at module scope so the existence check
+    // below can reuse it without drift.
     const infraDir = path.join(REPO_ROOT, "src", "infrastructure")
     const violations: Violation[] = []
 
@@ -403,27 +420,12 @@ describe("architecture: no direct Supabase calls outside src/infrastructure/", (
   })
 
   it("infra allowlist entries actually exist on disk", () => {
-    const INFRA_ALLOWLIST_PATHS = [
-      "src/infrastructure/supabase/get-database-client.ts",
-      "src/infrastructure/services/authService.ts",
-      "src/infrastructure/services/authMfaService.ts",
-      "src/infrastructure/services/getCurrentUserId.ts",
-      "src/infrastructure/services/useRole.ts",
-      "src/infrastructure/services/jobPdfShareService.ts",
-      "src/infrastructure/services/rollBarcodeAssetService.ts",
-      "src/infrastructure/services/visionExtractionService.ts",
-      "src/infrastructure/repositories/profiles.repository.ts",
-      "src/infrastructure/services/csvService.ts",
-      "src/infrastructure/services/cutHistoryService.ts",
-      "src/infrastructure/services/cutService.ts",
-      "src/infrastructure/services/emailService.ts",
-      "src/infrastructure/services/priceHistoryService.ts",
-      "src/infrastructure/services/purchaseOrderAnalytics.ts",
-      "src/infrastructure/repositories/jobs.repository.ts",
-      "src/infrastructure/repositories/material-suppliers.repository.ts",
-      "src/infrastructure/repositories/rolls.repository.ts",
-    ]
-    const missing = INFRA_ALLOWLIST_PATHS.filter((p) => !fs.existsSync(path.join(REPO_ROOT, p)))
+    // Reuses the module-scope INFRA_ALLOWLIST so this check stays in
+    // sync with the violation check above. Renamed/migrated files
+    // whose entry was forgotten get caught here.
+    const missing = Array.from(INFRA_ALLOWLIST).filter(
+      (p) => !fs.existsSync(path.join(REPO_ROOT, p))
+    )
     expect(missing, `Infra allowlist references nonexistent files: ${missing.join(", ")}`).toEqual(
       []
     )
