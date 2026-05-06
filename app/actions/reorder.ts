@@ -10,6 +10,11 @@ import type {
   ICreateReorderPurchaseOrderUseCase,
 } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import type {
+  CreateBulkReorderPurchaseOrderInput,
+  CreateBulkReorderPurchaseOrderResult,
+  ICreateBulkReorderPurchaseOrderUseCase,
+} from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
+import type {
   GenerateReorderSuggestionsInput,
   IGenerateReorderSuggestionsUseCase,
   ReorderSuggestionOutput,
@@ -35,6 +40,36 @@ export async function createReorderPurchaseOrder(
   const result = await useCase.execute({ ...input, actor })
   revalidatePath(REORDER_PATH)
   revalidatePath(PO_LIST_PATH)
+  return result
+}
+
+/**
+ * Bulk variant: groups suggestions by supplier and emits one PO per
+ * supplier with multiple line items. Uses the real tax service
+ * (replacing the previous browser-side hardcoded 8% rate) and mirrors
+ * single-PO notification semantics so bulk and single produce
+ * consistent reorder-triggered streams.
+ *
+ * Returns partial results: `purchaseOrders` for successes,
+ * `skipped` with stable reason codes for items that didn't make it
+ * onto a PO. Throws only on auth / permission / config errors.
+ */
+export async function createBulkReorderPurchaseOrder(
+  input: Omit<CreateBulkReorderPurchaseOrderInput, "actor">
+): Promise<CreateBulkReorderPurchaseOrderResult> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  requirePermission(actor, "manageRolls")
+
+  const useCase = resolveUseCase<ICreateBulkReorderPurchaseOrderUseCase>(
+    TOKENS.ICreateBulkReorderPurchaseOrderUseCase
+  )
+  const result = await useCase.execute({ ...input, actor })
+
+  if (result.purchaseOrders.length > 0) {
+    revalidatePath(REORDER_PATH)
+    revalidatePath(PO_LIST_PATH)
+  }
   return result
 }
 

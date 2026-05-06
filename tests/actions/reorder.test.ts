@@ -81,4 +81,54 @@ describe("app/actions/reorder", () => {
     )
     expect(resolveUseCaseMock).not.toHaveBeenCalled()
   })
+
+  it("createBulkReorderPurchaseOrder threads actor and revalidates when POs are created", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      purchaseOrders: [{ id: "po-1" }],
+      skipped: [],
+    })
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    const result = await createBulkReorderPurchaseOrder({
+      suggestions: [{ materialTypeId: "m-1" } as never],
+      reorderRules: [],
+    })
+
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ actor: ACTOR }))
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/reorder")
+    expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/purchase-orders")
+    expect(result.purchaseOrders).toHaveLength(1)
+  })
+
+  it("createBulkReorderPurchaseOrder skips revalidation when no POs are created", async () => {
+    // All-skipped result (e.g. every suggestion missing a supplier).
+    // Revalidating the route in this case would invalidate the cache
+    // unnecessarily, including the suggestion list the user is still
+    // looking at.
+    const execute = vi.fn().mockResolvedValue({
+      purchaseOrders: [],
+      skipped: [{ suggestion: {}, reason: "no_supplier", message: "no supplier" }],
+    })
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    await createBulkReorderPurchaseOrder({
+      suggestions: [{ materialTypeId: "m-1" } as never],
+      reorderRules: [],
+    })
+
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it("createBulkReorderPurchaseOrder rejects unauthenticated callers", async () => {
+    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    await expect(
+      createBulkReorderPurchaseOrder({ suggestions: [], reorderRules: [] })
+    ).rejects.toThrow("unauth")
+    expect(resolveUseCaseMock).not.toHaveBeenCalled()
+  })
 })

@@ -66,6 +66,7 @@ import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase
 import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
 import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
+import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 
 // Register all service singletons with the container.
@@ -191,6 +192,10 @@ container.registerSingleton(
 container.registerSingleton(
   TOKENS.ICreateReorderPurchaseOrderUseCase,
   CreateReorderPurchaseOrderUseCase
+)
+container.registerSingleton(
+  TOKENS.ICreateBulkReorderPurchaseOrderUseCase,
+  CreateBulkReorderPurchaseOrderUseCase
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
 
