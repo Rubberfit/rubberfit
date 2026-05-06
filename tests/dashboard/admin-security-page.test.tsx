@@ -216,6 +216,17 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
     expect(screen.getByText("Active sessions")).not.toBeNull()
   })
 
+  it("denies access when isAdmin is true but manageUsers is not granted", () => {
+    // Inverse of the divergence case: a buggy gate like
+    // `isAdmin || can("manageUsers")` would pass the previous tests
+    // but flunk this one. Pins the contract that the page reads
+    // *only* the declared permission, never the role bag.
+    useRole.mockReturnValue(roleStub({ granted: [], isAdmin: true }))
+    render(<AdminSecurityPage />)
+    expect(screen.getByText("Access restricted")).not.toBeNull()
+    expect(screen.queryByText("Security & Audit")).toBeNull()
+  })
+
   it("renders the four hero metrics when manageUsers is granted", () => {
     useRole.mockReturnValue(roleStub({ granted: ["manageUsers"], isAdmin: true }))
     render(<AdminSecurityPage />)
