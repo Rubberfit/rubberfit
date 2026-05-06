@@ -4,35 +4,31 @@ import { Edit, UserCheck, UserX } from "lucide-react"
 import { formatDistanceToNow, parseISO } from "date-fns"
 
 import type { UserProfile } from "@/src/infrastructure/models/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table"
-import { Badge } from "@/app/components/ui/badge"
+  DataTable,
+  initialSortState,
+  useTableSort,
+  type ColumnDef,
+} from "@/app/components/patterns/data-table"
+import { EmptyState } from "@/app/components/patterns/empty-state"
+import { StatusBadge, type StatusBadgeProps } from "@/app/components/patterns/status-badge"
 
-const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  manager: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  supervisor: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  cutter: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  member: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  viewer: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400",
+const ROLE_INTENT: Record<string, NonNullable<StatusBadgeProps["intent"]>> = {
+  admin: "danger",
+  manager: "info",
+  supervisor: "accent",
+  cutter: "warning",
+  member: "success",
+  viewer: "neutral",
 }
 
 function RoleBadge({ role }: { role: string }) {
-  const colorClass = ROLE_COLORS[role] ?? ROLE_COLORS.viewer
+  const intent = ROLE_INTENT[role] ?? "neutral"
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${colorClass}`}
-    >
+    <StatusBadge intent={intent} className="capitalize">
       {role}
-    </span>
+    </StatusBadge>
   )
 }
 
@@ -49,6 +45,9 @@ interface UsersTableProps {
   users: UserProfile[]
   isLoading: boolean
   currentUserId: string | null
+  /** When set, that user's Reactivate button shows a pending state and ignores clicks. */
+  reactivatingUserId?: string | null
+  onInvite: () => void
   onEdit: (user: UserProfile) => void
   onDeactivate: (user: UserProfile) => void
   onReactivate: (user: UserProfile) => void
@@ -58,124 +57,165 @@ export function UsersTable({
   users,
   isLoading,
   currentUserId,
+  reactivatingUserId,
+  onInvite,
   onEdit,
   onDeactivate,
   onReactivate,
 }: UsersTableProps) {
+  const [sort, setSort] = useTableSort({
+    ...initialSortState,
+    columnId: "name",
+    direction: "asc",
+  })
+
+  const columns: ColumnDef<UserProfile>[] = [
+    {
+      id: "name",
+      header: "Name",
+      cell: (row) => {
+        const isSelf = row.id === currentUserId
+        return (
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium text-foreground">
+                {row.full_name ?? <span className="text-muted-foreground">—</span>}
+              </span>
+              {isSelf ? (
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                  You
+                </span>
+              ) : null}
+            </div>
+            <p className="truncate text-xs text-muted-foreground">{row.email ?? "—"}</p>
+          </div>
+        )
+      },
+      sortFn: (row) => row.full_name?.toLowerCase() ?? "",
+      defaultSort: "asc",
+      className: "min-w-0 max-w-[40%]",
+    },
+    {
+      id: "roles",
+      header: "Roles",
+      cell: (row) => {
+        const roles = row.roles ?? []
+        return (
+          <div className="flex flex-wrap gap-1">
+            {roles.length === 0 ? (
+              <span className="text-xs text-muted-foreground">—</span>
+            ) : (
+              roles.map((role) => <RoleBadge key={role} role={role} />)
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (row) => (
+        <StatusBadge
+          intent={row.is_deleted ? "neutral" : "success"}
+          variant={row.is_deleted ? "outline" : "solid"}
+        >
+          {row.is_deleted ? "Deactivated" : "Active"}
+        </StatusBadge>
+      ),
+      sortFn: (row) => (row.is_deleted ? 1 : 0),
+    },
+    {
+      id: "last_sign_in",
+      header: "Last sign-in",
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">{relativeTime(row.last_sign_in_at)}</span>
+      ),
+      sortFn: (row) =>
+        row.last_sign_in_at ? new Date(row.last_sign_in_at).getTime() : Number.MIN_SAFE_INTEGER,
+      defaultSort: "desc",
+    },
+    {
+      id: "joined",
+      header: "Joined",
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">{relativeTime(row.created_at)}</span>
+      ),
+      sortFn: (row) =>
+        row.created_at ? new Date(row.created_at).getTime() : Number.MIN_SAFE_INTEGER,
+      defaultSort: "desc",
+    },
+    {
+      id: "actions",
+      header: <span className="sr-only">Actions</span>,
+      cell: (row) => {
+        const isSelf = row.id === currentUserId
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(event) => {
+                event.stopPropagation()
+                onEdit(row)
+              }}
+              aria-label={`Edit ${row.full_name ?? row.email ?? "user"}`}
+            >
+              <Edit className="size-3.5" aria-hidden="true" />
+            </Button>
+            {row.is_deleted ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onReactivate(row)
+                }}
+                disabled={isSelf || reactivatingUserId === row.id}
+                aria-label={`Reactivate ${row.full_name ?? row.email ?? "user"}`}
+              >
+                <UserCheck className="size-3.5" aria-hidden="true" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDeactivate(row)
+                }}
+                disabled={isSelf}
+                aria-label={`Deactivate ${row.full_name ?? row.email ?? "user"}`}
+              >
+                <UserX className="size-3.5" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        )
+      },
+      align: "right",
+      className: "w-[120px]",
+    },
+  ]
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>User List</CardTitle>
-        <CardDescription>
-          {users.length} user{users.length !== 1 ? "s" : ""} found
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Sign In</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                    Loading users…
-                  </TableCell>
-                </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                    No users found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((user) => {
-                  const isSelf = user.id === currentUserId
-                  return (
-                    <TableRow
-                      key={user.id}
-                      className={user.is_deleted ? "opacity-50" : undefined}
-                    >
-                      <TableCell>
-                        <div className="font-medium">
-                          {user.full_name ?? <span className="text-muted-foreground">—</span>}
-                        </div>
-                        {isSelf && (
-                          <span className="text-xs text-muted-foreground">(you)</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">{user.email ?? "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {(user.roles ?? []).map((role) => (
-                            <RoleBadge key={role} role={role} />
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.is_deleted ? "secondary" : "default"}>
-                          {user.is_deleted ? "Deactivated" : "Active"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {relativeTime(user.last_sign_in_at)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {relativeTime(user.created_at)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onEdit(user)}
-                            className="min-h-[36px] min-w-[36px]"
-                            title="Edit user"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {user.is_deleted ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onReactivate(user)}
-                              className="min-h-[36px] min-w-[36px] hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950"
-                              title="Reactivate user"
-                              disabled={isSelf}
-                            >
-                              <UserCheck className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onDeactivate(user)}
-                              className="min-h-[36px] min-w-[36px] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
-                              title="Deactivate user"
-                              disabled={isSelf}
-                            >
-                              <UserX className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+    <DataTable
+      columns={columns}
+      rows={users}
+      rowKey={(row) => row.id}
+      density="comfortable"
+      isLoading={isLoading}
+      sort={sort}
+      onSortChange={setSort}
+      rowClassName={(row) => (row.is_deleted ? "opacity-60" : undefined)}
+      empty={
+        <EmptyState
+          variant="blank"
+          title="No users yet"
+          description="Invite your first teammate to start collaborating."
+          primaryAction={<Button onClick={onInvite}>Invite user</Button>}
+        />
+      }
+    />
   )
 }
