@@ -58,33 +58,72 @@ vi.mock("@/src/infrastructure/services/useRole", () => ({ useRole }))
 vi.mock("sonner", () => ({ toast }))
 
 vi.mock("@/app/components/ui/select", () => {
-  const React = require("react") as typeof import("react")
+  const React: typeof import("react") = require("react")
   type ChangeFn = (value: string) => void
   const TRIGGER = Symbol("trigger")
   const ITEM = Symbol("item")
 
-  const SelectTrigger = (props: { "aria-label"?: string; children?: React.ReactNode }) => {
-    void props
-    return null
+  // Each stub function carries a `__mockType` brand symbol so the
+  // tree walker can identify it without matching on identity (which
+  // breaks across React.cloneElement boundaries) or component name
+  // (which breaks under minification). Both the brand and the props
+  // shapes live in dedicated interfaces so we don't need `as` casts
+  // at any of the lookup sites.
+  interface MockTagged {
+    __mockType?: symbol
   }
-  ;(SelectTrigger as unknown as { __mockType: symbol }).__mockType = TRIGGER
-
-  const SelectItem = (props: { value: string; children?: React.ReactNode }) => {
-    void props
-    return null
+  interface MockTriggerProps {
+    "aria-label"?: string
+    children?: React.ReactNode
   }
-  ;(SelectItem as unknown as { __mockType: symbol }).__mockType = ITEM
+  interface MockItemProps {
+    value: string
+    children?: React.ReactNode
+  }
+  interface MockChildProps {
+    children?: React.ReactNode
+  }
 
-  function collect(node: React.ReactNode, items: React.ReactElement[]) {
+  const SelectTrigger: React.FC<MockTriggerProps> & MockTagged = () => null
+  SelectTrigger.__mockType = TRIGGER
+
+  const SelectItem: React.FC<MockItemProps> & MockTagged = () => null
+  SelectItem.__mockType = ITEM
+
+  function brandOf(element: React.ReactElement): symbol | undefined {
+    const type = element.type
+    if (typeof type !== "function") return undefined
+    if ("__mockType" in type && typeof type.__mockType === "symbol") {
+      return type.__mockType
+    }
+    return undefined
+  }
+
+  function isMockItem(element: React.ReactElement): element is React.ReactElement<MockItemProps> {
+    return brandOf(element) === ITEM
+  }
+
+  function isMockTrigger(
+    element: React.ReactElement
+  ): element is React.ReactElement<MockTriggerProps> {
+    return brandOf(element) === TRIGGER
+  }
+
+  function hasChildren(element: React.ReactElement): element is React.ReactElement<MockChildProps> {
+    const { props } = element
+    return typeof props === "object" && props !== null && "children" in props
+  }
+
+  function collect(node: React.ReactNode, items: React.ReactElement<MockItemProps>[]): void {
     React.Children.forEach(node, (child) => {
       if (!React.isValidElement(child)) return
-      const fn = child.type as unknown as { __mockType?: symbol }
-      if (fn?.__mockType === ITEM) {
+      if (isMockItem(child)) {
         items.push(child)
         return
       }
-      const props = child.props as { children?: React.ReactNode }
-      if (props.children !== undefined) collect(props.children, items)
+      if (hasChildren(child) && child.props.children !== undefined) {
+        collect(child.props.children, items)
+      }
     })
   }
 
@@ -92,14 +131,12 @@ vi.mock("@/app/components/ui/select", () => {
     let label: string | undefined
     React.Children.forEach(node, (child) => {
       if (!React.isValidElement(child) || label !== undefined) return
-      const fn = child.type as unknown as { __mockType?: symbol }
-      const props = child.props as { ["aria-label"]?: string; children?: React.ReactNode }
-      if (fn?.__mockType === TRIGGER) {
-        label = props["aria-label"]
+      if (isMockTrigger(child)) {
+        label = child.props["aria-label"]
         return
       }
-      if (props.children !== undefined) {
-        const nested = findLabel(props.children)
+      if (hasChildren(child) && child.props.children !== undefined) {
+        const nested = findLabel(child.props.children)
         if (nested !== undefined) label = nested
       }
     })
@@ -117,7 +154,7 @@ vi.mock("@/app/components/ui/select", () => {
       children: React.ReactNode
     }) => {
       const ariaLabel = findLabel(children)
-      const items: React.ReactElement[] = []
+      const items: React.ReactElement<MockItemProps>[] = []
       collect(children, items)
       return (
         <select
@@ -125,14 +162,11 @@ vi.mock("@/app/components/ui/select", () => {
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
         >
-          {items.map((item) => {
-            const itemProps = item.props as { value: string; children?: React.ReactNode }
-            return (
-              <option key={itemProps.value} value={itemProps.value}>
-                {itemProps.children}
-              </option>
-            )
-          })}
+          {items.map((item) => (
+            <option key={item.props.value} value={item.props.value}>
+              {item.props.children}
+            </option>
+          ))}
         </select>
       )
     },
@@ -156,6 +190,19 @@ describe("Admin Security & Audit page (Phase 2 PR 5)", () => {
     useRole.mockReturnValue(roleStub({ granted: [], isAdmin: false }))
     render(<AdminSecurityPage />)
     expect(screen.getByText("Access restricted")).not.toBeNull()
+    expect(screen.queryByText("Security & Audit")).toBeNull()
+  })
+
+  it("renders the loading status while useRole is still resolving", () => {
+    // Pins the cold-load behavior: the shell stays mounted with a
+    // role="status" placeholder and no protected content leaks
+    // through, so a regression that flashes either the access
+    // restricted fallback or the audit log mid-load fails loudly.
+    useRole.mockReturnValue(roleStub({ granted: [], isAdmin: false, isLoading: true }))
+    render(<AdminSecurityPage />)
+    const status = screen.getByRole("status")
+    expect(status.textContent ?? "").toMatch(/Loading security/i)
+    expect(screen.queryByText("Access restricted")).toBeNull()
     expect(screen.queryByText("Security & Audit")).toBeNull()
   })
 
