@@ -101,7 +101,7 @@ export function StatCard({
         </span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="tabular font-display font-semibold text-4xl text-foreground tracking-tight">
+        <span className="tabular font-display font-semibold text-[28px] leading-8 text-foreground tracking-tight">
           {value}
         </span>
         {unit && (
