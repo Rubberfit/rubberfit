@@ -30,25 +30,28 @@ export function useInventoryStats(refreshKey?: number): UseInventoryStatsResult 
   // effect *body* — React 19's `react-hooks/set-state-in-effect` rule
   // permits setState inside async callbacks but not synchronously in
   // an effect body. The signal arg lets the effect short-circuit
-  // post-unmount setState; an empty `{ cancelled }` is enough since
+  // post-unmount setState; an `{ isCancelled }` flag is enough since
   // we only need a one-bit gate.
-  const fetchStats = useCallback(async (signal: { cancelled: boolean }) => {
+  const fetchStats = useCallback(async (signal: { isCancelled: boolean }) => {
     setIsLoading(true)
     try {
       const data = await rollsSdk.list({ status: "active" })
-      if (!signal.cancelled) setRolls(data ?? [])
-    } catch (_error) {
-      if (!signal.cancelled) setRolls([])
+      if (!signal.isCancelled) setRolls(data ?? [])
+    } catch (error) {
+      if (!signal.isCancelled) {
+        console.error("[useInventoryStats] failed to fetch rolls:", error)
+        setRolls([])
+      }
     } finally {
-      if (!signal.cancelled) setIsLoading(false)
+      if (!signal.isCancelled) setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    const signal = { cancelled: false }
+    const signal = { isCancelled: false }
     void fetchStats(signal)
     return () => {
-      signal.cancelled = true
+      signal.isCancelled = true
     }
   }, [fetchStats, refreshKey])
 
@@ -59,7 +62,7 @@ export function useInventoryStats(refreshKey?: number): UseInventoryStatsResult 
       0
     )
     const totalValueUsd = rolls.reduce(
-      (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
+      (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft ?? 0)) / 144,
       0
     )
     // TODO(ARC-DASHBOARD-INVENTORY): wire to reorder-suggestions count in PR 3e.

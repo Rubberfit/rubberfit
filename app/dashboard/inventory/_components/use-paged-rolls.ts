@@ -69,7 +69,11 @@ export function usePagedRolls({
 
   return {
     pageRolls,
-    page,
+    // Always expose the clamped page through the public surface so
+    // consumers can't observe a stale internal value when the
+    // dataset shrinks below the active page. `safePage` stays
+    // available too for the rare caller that wants both.
+    page: safePage,
     setPage,
     pageSize,
     setPageSize,

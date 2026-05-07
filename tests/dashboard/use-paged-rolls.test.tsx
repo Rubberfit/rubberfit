@@ -23,10 +23,12 @@ const COLUMNS: ColumnDef<Roll>[] = [
 ]
 
 function makeRoll(id: number, remaining: number): Roll {
-  // Cast through unknown — the test only uses fields the column
-  // sortFn touches; full Supabase shape isn't needed.
+  // Typed factory — every required `Roll` field is set explicitly
+  // so a future schema change fails this test at typecheck rather
+  // than slipping through behind a cast.
   return {
     id: `roll-${id}`,
+    user_id: "user-test",
     part_number: `RF-${id.toString().padStart(4, "0")}`,
     material_type: "EPDM",
     width: 36,
@@ -38,7 +40,9 @@ function makeRoll(id: number, remaining: number): Roll {
     date_received: "2026-01-01",
     cost_per_sqft: 1,
     is_offcut: false,
-  } as unknown as Roll
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  }
 }
 
 describe("usePagedRolls", () => {

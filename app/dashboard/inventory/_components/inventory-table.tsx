@@ -215,7 +215,9 @@ export function InventoryTable({
         onSortChange={setSort}
         density="comfortable"
         onRowClick={(row) => openDrawer(row)}
-        rowClassName={(row) => (row.id === drawerRoll?.id ? "bg-muted/50" : undefined)}
+        rowClassName={(row) =>
+          drawerOpen && row.id === drawerRoll?.id ? "bg-muted/50" : undefined
+        }
         empty={
           <EmptyState
             icon={<Package2 className="size-5" />}
