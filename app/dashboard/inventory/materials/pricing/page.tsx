@@ -1,16 +1,19 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Download } from "lucide-react"
 import { format } from "date-fns"
+import { toast } from "sonner"
 
 import {
-  type MaterialType,
   type MaterialSupplierWithDetails,
+  type MaterialType,
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { exportService } from "@/src/infrastructure/services/exportService"
+import { fetchPricingPageData } from "@/src/infrastructure/services/pricingPageService"
 import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -19,21 +22,19 @@ import {
   SelectValue,
 } from "@/app/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
-import { PageHeader, PageShell } from "@/app/components/patterns"
-import { exportService } from "@/src/infrastructure/services/exportService"
-import { toast } from "sonner"
-import type {
-  PriceHistoryWithJoins,
-  PriceComparisonData,
-  PriceAlert,
-} from "./_components/pricing-types"
-import { fetchPricingPageData } from "@/src/infrastructure/services/pricingPageService"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
+
+import { MaterialCostsTable } from "./_components/material-costs-table"
+import { PricingAlertsCard } from "./_components/pricing-alerts-card"
+import { PricingComparisonTable } from "./_components/pricing-comparison-table"
+import { PricingHistoryChart } from "./_components/pricing-history-chart"
 import { PricingHistoryTable } from "./_components/pricing-history-table"
 import { PricingStatsCards } from "./_components/pricing-stats-cards"
-import { PricingComparisonTable } from "./_components/pricing-comparison-table"
-import { PricingAlertsCard } from "./_components/pricing-alerts-card"
-import { PricingHistoryChart } from "./_components/pricing-history-chart"
-import { MaterialCostsTable } from "./_components/material-costs-table"
+import type {
+  PriceAlert,
+  PriceComparisonData,
+  PriceHistoryWithJoins,
+} from "./_components/pricing-types"
 
 export default function PricingPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
@@ -48,10 +49,12 @@ export default function PricingPage() {
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([])
 
   useEffect(() => {
+    let cancelled = false
     const loadData = async () => {
       try {
         setLoading(true)
         const result = await fetchPricingPageData(dateRange)
+        if (cancelled) return
         setMaterialTypes(result.materialTypes)
         setSuppliers(result.suppliers)
         setMaterialSuppliers(result.materialSuppliers)
@@ -60,14 +63,16 @@ export default function PricingPage() {
       } catch (error) {
         console.error("Error fetching data:", error)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    loadData()
+    void loadData()
+    return () => {
+      cancelled = true
+    }
   }, [dateRange])
 
-  // Prepare price comparison data
   const priceComparisonData = useMemo(() => {
     const comparison: PriceComparisonData[] = []
 
@@ -104,7 +109,6 @@ export default function PricingPage() {
     return comparison
   }, [materialTypes, materialSuppliers])
 
-  // Prepare chart data
   const chartData = useMemo(() => {
     if (selectedMaterial === "all" || !selectedMaterial) return []
 
@@ -133,13 +137,11 @@ export default function PricingPage() {
     )
   }, [selectedMaterial, priceHistory, priceComparisonData])
 
-  // Filter price history based on selected material
   const filteredPriceHistory = useMemo(() => {
     if (selectedMaterial === "all") return priceHistory
     return priceHistory.filter((h) => h.material_supplier?.material_type_id === selectedMaterial)
   }, [priceHistory, selectedMaterial])
 
-  // Filter data based on search
   const filteredComparisonData = useMemo(() => {
     return priceComparisonData.filter((item) => {
       if (searchQuery && !item.materialName.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -156,8 +158,46 @@ export default function PricingPage() {
     setMaterialTypes((prev) => prev.map((m) => (m.id === id ? updatedMaterial : m)))
   }, [])
 
+  const handleExportHistory = () => {
+    if (filteredPriceHistory.length === 0) {
+      toast.error("No price history data to export")
+      return
+    }
+    const rows = filteredPriceHistory.map((h) => {
+      let dateStr = ""
+      try {
+        const raw = h.effective_date || h.created_at
+        dateStr = raw ? format(new Date(String(raw).replace(" ", "T")), "yyyy-MM-dd") : ""
+      } catch (_error) {
+        dateStr = h.effective_date || h.created_at || ""
+      }
+      return [
+        dateStr,
+        h.material_supplier?.material_type?.name || "Unknown",
+        h.material_supplier?.supplier?.name || "Unknown",
+        h.old_cost_per_sqft != null ? Number(h.old_cost_per_sqft).toFixed(2) : "N/A",
+        h.new_cost_per_sqft != null ? Number(h.new_cost_per_sqft).toFixed(2) : "N/A",
+        h.price_change_percentage != null ? Number(h.price_change_percentage).toFixed(1) : "N/A",
+        h.change_reason || "",
+      ]
+    })
+    exportService.exportToCSV({
+      headers: [
+        "Date",
+        "Material",
+        "Supplier",
+        "Old Price ($/sqft)",
+        "New Price ($/sqft)",
+        "Change %",
+        "Reason",
+      ],
+      rows,
+      filename: "price_history",
+    })
+  }
+
   return (
-    <PageShell variant="overview">
+    <PageShell variant="dense">
       <PageHeader
         crumbs={[
           { label: "Operations", href: "/dashboard" },
@@ -168,19 +208,23 @@ export default function PricingPage() {
         title="Pricing"
         subtitle="Cost tracking, supplier price comparison, and change alerts."
       />
+
       <PricingStatsCards
         materialTypes={materialTypes}
         suppliers={suppliers}
         materialSuppliers={materialSuppliers}
         priceAlerts={priceAlerts}
       />
+
       <PricingAlertsCard priceAlerts={priceAlerts} dateRange={dateRange} />
+
       <Tabs defaultValue="costs" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="costs">Material Costs</TabsTrigger>
-          <TabsTrigger value="comparison">Price Comparison</TabsTrigger>
-          <TabsTrigger value="history">Price History</TabsTrigger>
+          <TabsTrigger value="costs">Material costs</TabsTrigger>
+          <TabsTrigger value="comparison">Price comparison</TabsTrigger>
+          <TabsTrigger value="history">Price history</TabsTrigger>
         </TabsList>
+
         <TabsContent value="costs">
           <MaterialCostsTable
             loading={loading}
@@ -189,6 +233,7 @@ export default function PricingPage() {
             onCostUpdated={handleCostUpdated}
           />
         </TabsContent>
+
         <TabsContent value="comparison">
           <PricingComparisonTable
             loading={loading}
@@ -203,28 +248,63 @@ export default function PricingPage() {
             filteredComparisonData={filteredComparisonData}
           />
         </TabsContent>
+
         <TabsContent value="history" className="space-y-4">
-          <PriceHistorySettings
-            materialTypes={materialTypes}
-            selectedMaterial={selectedMaterial}
-            setSelectedMaterial={setSelectedMaterial}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            filteredPriceHistory={filteredPriceHistory}
-          />
+          <Card className="overflow-hidden p-0">
+            <ViewToolbar
+              hideSearch
+              filters={
+                <>
+                  <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
+                    <SelectTrigger className="h-9 w-[220px] text-sm">
+                      <SelectValue placeholder="All materials" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All materials</SelectItem>
+                      {materialTypes.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={dateRange} onValueChange={setDateRange}>
+                    <SelectTrigger className="h-9 w-[180px] text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">Last 7 days</SelectItem>
+                      <SelectItem value="30">Last 30 days</SelectItem>
+                      <SelectItem value="90">Last 90 days</SelectItem>
+                      <SelectItem value="180">Last 6 months</SelectItem>
+                      <SelectItem value="365">Last year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </>
+              }
+              actions={
+                <Button variant="outline" size="sm" onClick={handleExportHistory}>
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Export history
+                </Button>
+              }
+            />
+          </Card>
+
           <PricingHistoryChart
             selectedMaterial={selectedMaterial}
             chartData={chartData}
             suppliers={suppliers}
             filteredPriceHistoryLength={filteredPriceHistory.length}
           />
+
           <Card>
             <CardHeader>
-              <CardTitle>Price Change Records</CardTitle>
+              <CardTitle>Price change records</CardTitle>
               <CardDescription>
                 {selectedMaterial === "all"
-                  ? `All price changes in the last ${dateRange} days`
-                  : `Price changes for selected material in the last ${dateRange} days`}
+                  ? `All price changes in the last ${dateRange} days.`
+                  : `Price changes for the selected material in the last ${dateRange} days.`}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -239,105 +319,5 @@ export default function PricingPage() {
         </TabsContent>
       </Tabs>
     </PageShell>
-  )
-}
-
-function PriceHistorySettings({
-  materialTypes,
-  selectedMaterial,
-  setSelectedMaterial,
-  dateRange,
-  setDateRange,
-  filteredPriceHistory,
-}: {
-  materialTypes: MaterialType[]
-  selectedMaterial: string
-  setSelectedMaterial: (value: string) => void
-  dateRange: string
-  setDateRange: (value: string) => void
-  filteredPriceHistory: PriceHistoryWithJoins[]
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Price History Settings</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-4">
-          <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
-            <SelectTrigger className="w-[250px]">
-              <SelectValue placeholder="Select Material" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Materials</SelectItem>
-              {materialTypes.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="180">Last 6 months</SelectItem>
-              <SelectItem value="365">Last year</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const filtered = filteredPriceHistory
-              if (filtered.length === 0) {
-                toast.error("No price history data to export")
-                return
-              }
-              const rows = filtered.map((h) => {
-                let dateStr = ""
-                try {
-                  const raw = h.effective_date || h.created_at
-                  dateStr = raw ? format(new Date(String(raw).replace(" ", "T")), "yyyy-MM-dd") : ""
-                } catch (_error) {
-                  dateStr = h.effective_date || h.created_at || ""
-                }
-                return [
-                  dateStr,
-                  h.material_supplier?.material_type?.name || "Unknown",
-                  h.material_supplier?.supplier?.name || "Unknown",
-                  h.old_cost_per_sqft != null ? Number(h.old_cost_per_sqft).toFixed(2) : "N/A",
-                  h.new_cost_per_sqft != null ? Number(h.new_cost_per_sqft).toFixed(2) : "N/A",
-                  h.price_change_percentage != null
-                    ? Number(h.price_change_percentage).toFixed(1)
-                    : "N/A",
-                  h.change_reason || "",
-                ]
-              })
-              exportService.exportToCSV({
-                headers: [
-                  "Date",
-                  "Material",
-                  "Supplier",
-                  "Old Price ($/sqft)",
-                  "New Price ($/sqft)",
-                  "Change %",
-                  "Reason",
-                ],
-                rows,
-                filename: "price_history",
-              })
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export History
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   )
 }

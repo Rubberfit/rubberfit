@@ -1,10 +1,12 @@
 "use client"
 
-import { AlertCircle, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { AlertCircle, ArrowDownRight, ArrowUpRight } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Badge } from "@/app/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
+import { Badge } from "@/app/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { cn } from "@/app/lib/utils"
+
 import type { PriceAlert } from "./pricing-types"
 
 interface PricingAlertsCardProps {
@@ -19,38 +21,48 @@ export function PricingAlertsCard({ priceAlerts, dateRange }: PricingAlertsCardP
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <AlertCircle className="h-5 w-5" />
-          Recent Price Changes
+          <AlertCircle className="size-4" aria-hidden="true" />
+          Recent price changes
         </CardTitle>
-        <CardDescription>Significant price changes in the last {dateRange} days</CardDescription>
+        <CardDescription>Significant price changes in the last {dateRange} days.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
           {priceAlerts.slice(0, 3).map((alert) => (
             <Alert
               key={alert.id}
-              className={alert.type === "increase" ? "border-orange-200" : "border-green-200"}
+              className={cn(
+                alert.type === "increase"
+                  ? "border-[color:var(--warning)]/40"
+                  : "border-[color:var(--success)]/40"
+              )}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {alert.type === "increase" ? (
-                    <ArrowUpRight className="h-4 w-4 text-orange-600" />
+                    <ArrowUpRight
+                      className="size-4 text-[color:var(--warning)]"
+                      aria-hidden="true"
+                    />
                   ) : (
-                    <ArrowDownRight className="h-4 w-4 text-green-600" />
+                    <ArrowDownRight
+                      className="size-4 text-[color:var(--success)]"
+                      aria-hidden="true"
+                    />
                   )}
                   <div>
                     <AlertTitle className="text-sm font-medium">
-                      {alert.materialName} - {alert.supplierName}
+                      {alert.materialName} · {alert.supplierName}
                     </AlertTitle>
-                    <AlertDescription className="text-xs">
-                      ${alert.oldPrice.toFixed(2)} → ${alert.newPrice.toFixed(2)}(
+                    <AlertDescription className="font-mono text-xs tabular-nums">
+                      ${alert.oldPrice.toFixed(2)} → ${alert.newPrice.toFixed(2)} (
                       {alert.type === "increase" ? "+" : ""}
                       {alert.changePercentage.toFixed(1)}%)
                     </AlertDescription>
                   </div>
                 </div>
                 <Badge variant={alert.type === "increase" ? "destructive" : "default"}>
-                  {alert.type === "increase" ? "Price Up" : "Price Down"}
+                  {alert.type === "increase" ? "Price up" : "Price down"}
                 </Badge>
               </div>
             </Alert>
