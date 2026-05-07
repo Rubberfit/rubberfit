@@ -70,7 +70,12 @@ export function SupplierDetailSheet({
     return () => {
       cancelled = true
     }
-  }, [open, supplier])
+    // Narrow to `supplier.id` — the `supplier` object identity can
+    // change without a meaningful supplier change (parent state
+    // re-derive), and we only need to refetch when the actual
+    // supplier id flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, supplier.id])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

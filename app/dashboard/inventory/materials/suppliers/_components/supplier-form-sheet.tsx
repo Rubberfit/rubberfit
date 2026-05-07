@@ -88,7 +88,11 @@ export function SupplierFormSheet({
     defaultValues: DEFAULT_FORM_VALUES,
   })
 
-  const fetchLinkedMaterials = useCallback(async (supplierId: string) => {
+  // `refreshLinkedMaterials` is the imperative refetch path used
+  // after a link save / unlink — caller controls re-entry. The
+  // initial fetch is owned by the open/supplier effect below
+  // (with cancellation), so this helper is fire-and-forget.
+  const refreshLinkedMaterials = useCallback(async (supplierId: string) => {
     setLoadingMaterials(true)
     try {
       const materials = await materialSuppliersSdk.list({ supplier_id: supplierId })
@@ -101,8 +105,25 @@ export function SupplierFormSheet({
   }, [])
 
   useEffect(() => {
+    // `cancelled` guards against stale resolves — fast switching
+    // between suppliers (or open/close cycles) could otherwise let
+    // a slower fetch for supplier A overwrite supplier B's data.
+    let cancelled = false
     if (open && supplier) {
-      void fetchLinkedMaterials(supplier.id)
+      setLoadingMaterials(true)
+      materialSuppliersSdk
+        .list({ supplier_id: supplier.id })
+        .then((materials) => {
+          if (!cancelled) {
+            setLinkedMaterials((materials ?? []) as MaterialSupplierWithDetails[])
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) console.error("Error fetching linked materials:", error)
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingMaterials(false)
+        })
       form.reset(supplierToFormData(supplier))
     } else if (open && !supplier) {
       setLinkedMaterials([])
@@ -118,7 +139,10 @@ export function SupplierFormSheet({
       setEditingLink(null)
       setActiveTab("basic")
     }
-  }, [open, supplier, fetchLinkedMaterials, form])
+    return () => {
+      cancelled = true
+    }
+  }, [open, supplier, form])
 
   const watchedZip = form.watch("zip_code")
   const watchedState = form.watch("state")
@@ -301,8 +325,15 @@ export function SupplierFormSheet({
             </form>
 
             {supplier && (
+              // `forceMount` keeps the Materials tab body mounted
+              // across tab switches, so the inline link form's RHF
+              // state survives. Without it, Radix unmounts the
+              // tab body and the `data-[state=inactive]:hidden`
+              // class becomes dead code (the inline form would
+              // remount with empty defaults on every tab return).
               <TabsContent
                 value="materials"
+                forceMount
                 className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
               >
                 <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -324,9 +355,9 @@ export function SupplierFormSheet({
                     onLinkSaved={() => {
                       setShowLinkForm(false)
                       setEditingLink(null)
-                      void fetchLinkedMaterials(supplier.id)
+                      void refreshLinkedMaterials(supplier.id)
                     }}
-                    onRefresh={fetchLinkedMaterials}
+                    onRefresh={refreshLinkedMaterials}
                   />
                 </div>
                 <div className="flex justify-end gap-2 border-t bg-card px-6 py-4">
