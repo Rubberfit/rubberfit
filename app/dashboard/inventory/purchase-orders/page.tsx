@@ -1,8 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
 
@@ -20,31 +19,45 @@ import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-cl
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
-import { PoViewDrawer } from "./_components/po-view-drawer"
+import { PoViewDrawer, type PoDrawerMode } from "./_components/po-view-drawer"
 import { POTable } from "./_components/po-table"
 import { PurchaseOrdersExportMenu } from "./_components/po-export-menu"
 import { toPurchaseOrdersExportInput } from "./_components/po-export-utils"
 import { usePurchaseOrders } from "./_components/use-purchase-orders"
 
 export default function PurchaseOrdersPage() {
-  const router = useRouter()
   const po = usePurchaseOrders()
+  const [drawerMode, setDrawerMode] = useState<PoDrawerMode>("view")
 
   const handleViewPO = async (poItem: PurchaseOrderWithDetails) => {
     po.setSelectedPO(poItem)
+    setDrawerMode("view")
     await po.fetchTaxDetailsForPO(poItem)
     po.setIsViewDialogOpen(true)
   }
 
-  const handleEditPO = (poItem: PurchaseOrderWithDetails) => {
-    // ARC-206: close the view drawer before navigating. Otherwise
-    // the slide-in is still visible while the new route mounts and
-    // the operator briefly sees both surfaces stacked. The drawer's
-    // `onOpenChange` already clears `selectedPO` once `open`
-    // transitions to false — clearing it here too would blank the
-    // body during Radix's exit animation.
+  /**
+   * ARC-206: Edit lives in the drawer, not on a page. Clicking
+   * Edit (row dropdown OR drawer body) opens the right-side drawer
+   * in edit mode against the same PO. The `/[id]/edit` page route
+   * is still mounted as a deep-linkable target, but no in-app
+   * button navigates to it anymore.
+   */
+  const handleEditPO = async (poItem: PurchaseOrderWithDetails) => {
+    po.setSelectedPO(poItem)
+    setDrawerMode("edit")
+    // Pre-fetch tax so the edit body's order summary doesn't flash
+    // empty on first paint — the form has its own recalc effect,
+    // but seeding from the parent avoids a visible "—" flicker.
+    await po.fetchTaxDetailsForPO(poItem)
+    po.setIsViewDialogOpen(true)
+  }
+
+  const handleSavedFromDrawer = async () => {
     po.setIsViewDialogOpen(false)
-    router.push(`/dashboard/inventory/purchase-orders/${poItem.id}/edit`)
+    setDrawerMode("view")
+    po.setSelectedPO(null)
+    await po.fetchData()
   }
 
   const handleCancelPO = (poItem: PurchaseOrderWithDetails) => {
@@ -180,10 +193,20 @@ export default function PurchaseOrdersPage() {
         open={po.isViewDialogOpen}
         onOpenChange={(open) => {
           po.setIsViewDialogOpen(open)
-          if (!open) po.setSelectedPO(null)
+          if (!open) {
+            po.setSelectedPO(null)
+            // Reset to view mode so the next time the drawer opens
+            // (e.g., a different PO viewed from the row), it starts
+            // in read-only view, not in lingering edit mode.
+            setDrawerMode("view")
+          }
         }}
+        mode={drawerMode}
+        onModeChange={setDrawerMode}
         taxDetails={po.selectedPOTaxDetails}
-        onEdit={handleEditPO}
+        suppliers={po.suppliers}
+        materialTypes={po.materialTypes}
+        onSaved={handleSavedFromDrawer}
         onUpdateStatus={po.updatePOStatus}
         onDownloadPDF={handleDownloadPDF}
       />
