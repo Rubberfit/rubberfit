@@ -126,7 +126,7 @@ export function PoViewBody({
           <LineItemsCard selectedPO={po} />
           <AddressesCard selectedPO={po} />
           <OrderSummaryCard selectedPO={po} selectedPOTaxDetails={taxDetails} />
-          {po.notes && <NotesCard notes={po.notes} />}
+          {po.notes ? <NotesCard notes={po.notes} /> : null}
         </div>
       </div>
 
