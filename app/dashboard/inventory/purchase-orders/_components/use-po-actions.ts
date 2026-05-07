@@ -5,33 +5,19 @@ import { useState, useCallback } from "react"
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { approvePurchaseOrder } from "@/app/actions/purchase-orders"
 import { toast } from "sonner"
 
 import { type TaxDetails, fetchTaxDetails as fetchTaxDetailsHelper } from "./po-tax-helpers"
-import { type POFormData } from "./po-form-dialog"
-import { createPO, updatePO, validatePOFormData } from "./po-action-handlers"
 
 interface UsePOActionsParams {
-  suppliers: Supplier[]
-  fetchData: () => Promise<void>
   setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrderWithDetails[]>>
-  setSelectedPO: (po: PurchaseOrderWithDetails | null) => void
-  setIsViewDialogOpen: (open: boolean) => void
   setSelectedPOTaxDetails: (details: TaxDetails | null) => void
 }
 
-export function usePOActions({
-  suppliers,
-  fetchData,
-  setPurchaseOrders,
-  setSelectedPO,
-  setIsViewDialogOpen,
-  setSelectedPOTaxDetails,
-}: UsePOActionsParams) {
+export function usePOActions({ setPurchaseOrders, setSelectedPOTaxDetails }: UsePOActionsParams) {
   const [confirmAction, setConfirmAction] = useState<{
     open: boolean
     action: () => void
@@ -133,82 +119,10 @@ export function usePOActions({
     }
   }
 
-  const handleCreatePO = async (
-    formData: POFormData,
-    setIsCreating: (v: boolean) => void,
-    setIsCreateDialogOpen: (v: boolean) => void,
-    setFormData: (v: POFormData) => void,
-    jobId?: string
-  ) => {
-    if (!validatePOFormData(formData)) return
-
-    setIsCreating(true)
-    try {
-      await createPO({
-        formData,
-        suppliers,
-        fetchData,
-        setSelectedPO,
-        setIsViewDialogOpen,
-        fetchTaxDetailsForPO,
-        setIsCreateDialogOpen,
-        setFormData,
-        jobId,
-      })
-    } catch (error) {
-      console.error("Error creating purchase order:", error)
-      toast.error("Failed to create purchase order. Please try again.")
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleUpdatePO = async (
-    editFormData: POFormData,
-    editingPO: PurchaseOrderWithDetails,
-    setIsUpdating: (v: boolean) => void,
-    setIsEditDialogOpen: (v: boolean) => void,
-    setEditingPO: (v: PurchaseOrderWithDetails | null) => void,
-    setEditFormData: (v: POFormData) => void
-  ) => {
-    if (!validatePOFormData(editFormData)) return
-
-    setIsUpdating(true)
-    try {
-      await updatePO({
-        editFormData,
-        editingPO,
-        suppliers,
-        fetchData,
-        setIsEditDialogOpen,
-        setEditingPO,
-        setEditFormData,
-      })
-    } catch (error) {
-      console.error("Error updating purchase order:", error)
-      toast.error("Failed to update purchase order. Please try again.")
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-
-  const handleConfirmRemoveItem = (action: () => void, index: number) => {
-    setConfirmAction({
-      open: true,
-      action,
-      title: "Remove Item?",
-      description: `Are you sure you want to remove Item #${index + 1} from this purchase order?`,
-      variant: "warning",
-    })
-  }
-
   return {
     updatePOStatus,
-    handleCreatePO,
-    handleUpdatePO,
     fetchTaxDetailsForPO,
     confirmAction,
     setConfirmAction,
-    handleConfirmRemoveItem,
   }
 }

@@ -4,6 +4,24 @@ import { format, addDays } from "date-fns"
 
 import { type Supplier } from "@/src/infrastructure/models/supabase"
 
+export interface POFormItem {
+  /**
+   * Stable client-side row id. Generated when the operator adds
+   * the item; survives reorder/remove so React can preserve
+   * input focus + state across re-renders. Server actions strip
+   * this before forwarding to the use-case.
+   */
+  client_id: string
+  material_type_id: string
+  description: string
+  width?: number
+  length?: number
+  thickness?: number
+  color?: string
+  quantity_sqft: number
+  unit_cost: number
+}
+
 export interface POFormData {
   supplier_id: string
   requested_delivery_date: string
@@ -11,16 +29,7 @@ export interface POFormData {
   shipping_address: string
   billing_address: string
   notes: string
-  items: Array<{
-    material_type_id: string
-    description: string
-    width?: number
-    length?: number
-    thickness?: number
-    color?: string
-    quantity_sqft: number
-    unit_cost: number
-  }>
+  items: POFormItem[]
 }
 
 export function getDefaultFormData(): POFormData {
@@ -45,13 +54,23 @@ export function buildSupplierAddress(supplier: Supplier | undefined): string {
   return parts.join(", ") || ""
 }
 
-export function getEmptyItem() {
+// Increment-only counter for client_id generation. Form item rows
+// only need uniqueness within a single browser session, so a
+// per-module counter is plenty — no need to pull in a UUID lib.
+let nextClientId = 0
+function makeClientId(): string {
+  nextClientId += 1
+  return `po-item-${nextClientId}`
+}
+
+export function getEmptyItem(): POFormItem {
   return {
+    client_id: makeClientId(),
     material_type_id: "",
     description: "",
-    width: undefined as number | undefined,
-    length: undefined as number | undefined,
-    thickness: undefined as number | undefined,
+    width: undefined,
+    length: undefined,
+    thickness: undefined,
     color: "",
     quantity_sqft: 0,
     unit_cost: 0,
