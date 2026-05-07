@@ -79,8 +79,13 @@ export function LayoutControls() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button size="icon">
-          <Settings />
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Layout preferences"
+        >
+          <Settings className="size-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end">

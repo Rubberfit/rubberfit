@@ -144,8 +144,17 @@ export function DataTable<T>({
               return (
                 <TableHead
                   key={column.id}
+                  aria-sort={
+                    sortable
+                      ? activeDir === "asc"
+                        ? "ascending"
+                        : activeDir === "desc"
+                          ? "descending"
+                          : "none"
+                      : undefined
+                  }
                   className={cn(
-                    "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+                    "font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground",
                     alignClass[column.align ?? "left"],
                     column.className,
                     column.headerClassName

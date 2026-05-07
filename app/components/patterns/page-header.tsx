@@ -28,6 +28,12 @@ export interface PageHeaderProps extends React.ComponentProps<"header"> {
   subtitle?: React.ReactNode
   crumbs?: readonly PageHeaderCrumb[]
   actions?: React.ReactNode
+  /**
+   * Optional mono-uppercase eyebrow rendered above the title.
+   * Use for spec-sheet context strings like
+   * "Operations / Week · May 4 – May 10".
+   */
+  eyebrow?: React.ReactNode
 }
 
 export function PageHeader({
@@ -35,6 +41,7 @@ export function PageHeader({
   subtitle,
   crumbs,
   actions,
+  eyebrow,
   className,
   ...props
 }: PageHeaderProps) {
@@ -44,6 +51,11 @@ export function PageHeader({
       className={cn("flex flex-col gap-2", className)}
       {...props}
     >
+      {eyebrow && (
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+          {eyebrow}
+        </p>
+      )}
       {crumbs && crumbs.length > 0 && (
         <nav aria-label="Breadcrumb">
           <ol className="flex items-center gap-1.5 text-muted-foreground text-xs">
@@ -77,7 +89,7 @@ export function PageHeader({
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="truncate font-semibold text-2xl text-foreground tracking-tight">
+          <h1 className="truncate font-display font-semibold text-[28px] text-foreground tracking-tight leading-8">
             {title}
           </h1>
           {subtitle && (

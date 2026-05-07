@@ -16,13 +16,7 @@ import {
 } from "@/app/components/ui/alert-dialog"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card"
+import { FormFieldset, FormSectionHeader } from "@/app/components/ui/forms"
 import { authMfaService, type MfaFactor } from "@/src/infrastructure/services/authMfaService"
 import { cn } from "@/app/lib/utils"
 
@@ -93,51 +87,47 @@ export function MfaCard() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
+      <FormFieldset>
+        <div className="flex items-start justify-between gap-4">
+          <FormSectionHeader
+            eyebrow="Security"
+            title={
+              <span className="inline-flex items-center gap-2">
                 {enabled ? (
                   <ShieldCheck className="size-5 text-success-foreground" aria-hidden="true" />
                 ) : (
                   <ShieldOff className="size-5 text-muted-foreground" aria-hidden="true" />
                 )}
                 Two-factor authentication
-              </CardTitle>
-              <CardDescription>
-                {enabled
-                  ? "An authenticator code is required on every sign-in."
-                  : "Add an authenticator app as a second factor for sign-in."}
-              </CardDescription>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-xs capitalize",
-                enabled
-                  ? "border-success-border bg-success-bg text-success-foreground"
-                  : "border-border-subtle bg-muted text-muted-foreground"
-              )}
-            >
-              {enabled ? "Active" : "Not enrolled"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+              </span>
+            }
+            description={
+              enabled
+                ? "An authenticator code is required on every sign-in."
+                : "Add an authenticator app as a second factor for sign-in."
+            }
+          />
+          <Badge
+            variant="outline"
+            className={cn(
+              "shrink-0 text-xs capitalize",
+              enabled
+                ? "border-success-border bg-success-bg text-success-foreground"
+                : "border-border-subtle bg-muted text-muted-foreground"
+            )}
+          >
+            {enabled ? "Active" : "Not enrolled"}
+          </Badge>
+        </div>
+        <div className="mt-6 space-y-4">
           {loading ? (
-            <div className="py-4 text-center text-muted-foreground text-sm">
-              Loading factors…
-            </div>
+            <div className="py-4 text-center text-muted-foreground text-sm">Loading factors…</div>
           ) : (
             <>
               {verified.length > 0 && (
                 <ul className="divide-y divide-border-subtle rounded-md border">
                   {verified.map((f) => (
-                    <li
-                      key={f.id}
-                      className="flex items-center justify-between gap-3 px-4 py-3"
-                    >
+                    <li key={f.id} className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="flex items-center gap-3">
                         <ShieldCheck
                           className="size-4 text-success-foreground"
@@ -168,9 +158,8 @@ export function MfaCard() {
 
               {unverified.length > 0 && (
                 <div className="rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-warning-foreground text-xs">
-                  {unverified.length} pending setup{unverified.length === 1 ? "" : "s"}{" "}
-                  left unverified. These don't protect the account — finish enrolling or remove
-                  them.
+                  {unverified.length} pending setup{unverified.length === 1 ? "" : "s"} left
+                  unverified. These don't protect the account — finish enrolling or remove them.
                   <div className="mt-2 flex flex-wrap gap-2">
                     {unverified.map((f) => (
                       <Button
@@ -194,8 +183,8 @@ export function MfaCard() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </FormFieldset>
 
       <MfaEnrollDialog
         open={enrollOpen}

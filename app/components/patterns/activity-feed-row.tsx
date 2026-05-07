@@ -15,6 +15,8 @@ import { cn } from "@/app/lib/utils"
  * `isLast` on the last row to stop the line at the icon.
  */
 
+export type ActivityIntent = "default" | "success" | "warning" | "danger" | "accent"
+
 export interface ActivityFeedRowProps extends Omit<React.ComponentProps<"div">, "title"> {
   icon?: React.ReactNode
   /** The main line of copy. Rich content allowed (bold actor, etc.). */
@@ -24,6 +26,21 @@ export interface ActivityFeedRowProps extends Omit<React.ComponentProps<"div">, 
   timestamp?: React.ReactNode
   /** When true, suppresses the vertical connecting line below the icon. */
   isLast?: boolean
+  /**
+   * Semantic tint for the icon background. Picks the success / warning
+   * / danger / accent triple from the token system so a glance at the
+   * timeline reads "what kind of event was this" without reading the
+   * copy. Defaults to a neutral hairline circle.
+   */
+  intent?: ActivityIntent
+}
+
+const intentBackgrounds: Record<ActivityIntent, string> = {
+  default: "border bg-card text-muted-foreground",
+  success: "border-success-border bg-success-bg text-success",
+  warning: "border-warning-border bg-warning-bg text-warning",
+  danger: "border-danger-border bg-danger-bg text-danger",
+  accent: "border-accent-border bg-accent-bg text-accent-foreground",
 }
 
 export function ActivityFeedRow({
@@ -32,6 +49,7 @@ export function ActivityFeedRow({
   description,
   timestamp,
   isLast,
+  intent = "default",
   className,
   ...props
 }: ActivityFeedRowProps) {
@@ -46,7 +64,12 @@ export function ActivityFeedRow({
           now actually fills the available height instead of collapsing
           to 0 when the row content is short. */}
       <div className="relative flex flex-col items-center self-stretch">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground [&_svg]:size-3.5">
+        <span
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-full border [&_svg]:size-3.5",
+            intentBackgrounds[intent]
+          )}
+        >
           {icon}
         </span>
         {!isLast && <span aria-hidden="true" className="mt-1 w-px grow bg-border" />}
@@ -57,7 +80,7 @@ export function ActivityFeedRow({
             {title}
           </div>
           {timestamp && (
-            <span className="shrink-0 text-muted-foreground text-xs tabular">
+            <span className="shrink-0 font-mono text-muted-foreground text-xs tabular">
               {timestamp}
             </span>
           )}

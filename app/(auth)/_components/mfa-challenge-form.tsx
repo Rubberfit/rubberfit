@@ -4,9 +4,6 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { Button } from "@/app/components/ui/button"
-import { Input } from "@/app/components/ui/input"
-import { Label } from "@/app/components/ui/label"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { authMfaService } from "@/src/infrastructure/services/authMfaService"
 
@@ -43,12 +40,11 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
         if (factor) {
           setFactorId(factor.id)
         } else {
-          // No verified factor — honour the redirect straight away.
           router.replace(redirectTo ?? "/dashboard")
         }
       })
-      .catch(() => {
-        if (!cancelled) setError("Could not load MFA factor")
+      .catch((_err) => {
+        if (!cancelled) setError("Could not load MFA factor.")
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -59,10 +55,10 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
   }, [redirectTo, router])
 
   const handleSubmit = async () => {
-    if (!factorId) return
+    if (submitting || !factorId) return
     const trimmed = code.replace(/\s+/g, "")
     if (!/^\d{6}$/.test(trimmed)) {
-      setError("Enter the 6-digit code from your authenticator app")
+      setError("Enter the 6-digit code from your authenticator app.")
       return
     }
     setSubmitting(true)
@@ -70,12 +66,12 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
     try {
       const result = await completeMfaChallenge(factorId, trimmed, redirectTo)
       if (!result.success) {
-        setError(result.error ?? "Invalid code")
+        setError(result.error ?? "Invalid code.")
         return
       }
       toast.success("Verified — redirecting…")
     } catch (_err) {
-      setError("Verification failed — please try again")
+      setError("Verification failed — please try again.")
     } finally {
       setSubmitting(false)
     }
@@ -86,48 +82,62 @@ export function MfaChallengeForm({ redirectTo }: MfaChallengeFormProps) {
   }
 
   if (loading) {
-    return (
-      <p className="text-center text-muted-foreground text-sm">
-        Loading your authenticator factor…
-      </p>
-    )
+    return <p className="auth-helper">Loading your authenticator factor…</p>
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="mfa-challenge-code">Authenticator code</Label>
-        <Input
+    <div>
+      <div className="auth-field">
+        <label htmlFor="mfa-challenge-code" className="auth-input-label">
+          Authenticator code
+        </label>
+        <input
           id="mfa-challenge-code"
           inputMode="numeric"
           autoComplete="one-time-code"
-          placeholder="123456"
+          placeholder="000000"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void handleSubmit()
-          }}
-          className="font-mono tracking-[0.4em]"
           maxLength={6}
+          pattern="[0-9]*"
+          disabled={submitting}
+          onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              void handleSubmit()
+            }
+          }}
+          className="auth-mfa-input"
           autoFocus
         />
+        <p className="auth-helper">Enter the code from your authenticator app to finish signing in.</p>
       </div>
-      {error && <p className="text-destructive text-xs">{error}</p>}
-      <Button
-        className="w-full"
-        type="button"
-        onClick={handleSubmit}
-        disabled={submitting || !factorId}
-      >
-        {submitting ? "Verifying…" : "Verify & continue"}
-      </Button>
+
+      {error ? (
+        <p className="auth-input-error" role="alert" aria-live="polite">
+          {error}
+        </p>
+      ) : null}
+
       <button
         type="button"
-        onClick={handleCancel}
-        className="w-full text-center text-muted-foreground text-sm hover:text-foreground"
+        onClick={() => void handleSubmit()}
+        disabled={submitting || !factorId}
+        className="auth-btn-primary auth-spaced"
       >
-        Sign out
+        {submitting ? "Verifying…" : "Verify"}
       </button>
+
+      <div className="auth-spaced-row-center">
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={submitting}
+          className="auth-link auth-link-button"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
   )
 }

@@ -32,9 +32,13 @@ interface RecentCutsCardProps {
 }
 
 function utilColorClass(pct: number): string {
-  if (pct >= 85) return "text-[color:var(--success-foreground)]"
-  if (pct >= 75) return "text-[color:var(--warning-foreground)]"
-  return "text-[color:var(--danger-foreground)]"
+  // Per Kimi's §6: ≥90 healthy, 75–89 watch, <75 intervention.
+  // Watch maps to signal-orange (not warning amber) so "supervisor
+  // glance here" matches the rest of the dashboard's attention
+  // semantic.
+  if (pct >= 90) return "text-success"
+  if (pct >= 75) return "text-primary"
+  return "text-danger"
 }
 
 export function RecentCutsCard({ rows, isLoading, className }: RecentCutsCardProps) {
@@ -75,8 +79,15 @@ export function RecentCutsCard({ rows, isLoading, className }: RecentCutsCardPro
 
   return (
     <section className={cn("flex flex-col gap-3", className)}>
-      <header className="flex items-center justify-between">
-        <h2 className="font-semibold text-foreground text-sm">Recent cuts</h2>
+      <header className="flex items-end justify-between gap-3">
+        <div>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            Live feed
+          </p>
+          <h2 className="mt-1 font-display font-semibold text-foreground text-xl tracking-tight">
+            Recent cuts
+          </h2>
+        </div>
         <Button
           size="sm"
           variant="ghost"

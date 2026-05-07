@@ -1,8 +1,9 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Plus, Download, FileText, Printer } from "lucide-react"
+import { Plus, Wrench } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/app/contexts/AuthContext"
@@ -22,9 +23,9 @@ import { exportService } from "@/src/infrastructure/services/exportService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
-import { CSVUpload } from "./_components/csv-upload"
+import { InventoryStatsHero } from "./_components/inventory-stats-hero"
 import { InventoryTable } from "./_components/inventory-table"
-import { RollFormDialog } from "./_components/roll-form-dialog"
+import { RollFormSheet } from "./_components/roll-form-sheet"
 import { downloadRollLabelPdf } from "./_components/roll-label-pdf"
 
 function InventoryPageInner() {
@@ -139,22 +140,18 @@ function InventoryPageInner() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline">
-                  <Download className="size-3.5" />
-                  Export
+                  <Wrench className="size-3.5" />
+                  Tools
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExportCSV}>
-                  <FileText className="size-3.5" />
-                  Export as CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportPDF}>
-                  <FileText className="size-3.5" />
-                  Generate PDF Report
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportCSV}>Export CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>Generate PDF Report</DropdownMenuItem>
                 <DropdownMenuItem onClick={handlePrintAllLabels}>
-                  <Printer className="size-3.5" />
                   Print all active labels
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/inventory/import">Import CSV</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -168,7 +165,7 @@ function InventoryPageInner() {
         }
       />
 
-      {canManageRolls && <CSVUpload onUploadComplete={bumpRefresh} />}
+      <InventoryStatsHero refreshKey={refreshKey} />
 
       <Card className="overflow-hidden p-0 gap-0">
         <ViewToolbar
@@ -193,7 +190,7 @@ function InventoryPageInner() {
       </Card>
 
       {canManageRolls && (
-        <RollFormDialog
+        <RollFormSheet
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
           roll={null}

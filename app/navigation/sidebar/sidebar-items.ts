@@ -187,6 +187,15 @@ export const sidebarItems: NavGroup[] = [
         requiredPermission: "manageUsers",
       },
       {
+        // Phase 2 PR 5 admin-only Security & Audit page.
+        // Distinct from the customer-facing /dashboard/security page in
+        // group 4, which stays ungated for procurement reviewers.
+        title: "Security & Audit",
+        url: "/dashboard/admin/security",
+        icon: ShieldCheck,
+        requiredPermission: "manageUsers",
+      },
+      {
         title: "Settings",
         url: "/dashboard/settings/general",
         icon: Settings,
