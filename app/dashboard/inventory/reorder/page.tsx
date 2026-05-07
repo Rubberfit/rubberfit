@@ -15,7 +15,7 @@ import { AnalyticsSection } from "./_components/reorder-analytics-section"
 import { BulkActionBar } from "./_components/reorder-bulk-action-bar"
 import { fetchReorderData } from "./_components/reorder-data-fetcher"
 import { handleCreateBulkPO } from "./_components/reorder-po-handlers"
-import { ReorderRuleModal } from "./_components/reorder-rule-modal"
+import { ReorderRuleSheet } from "./_components/reorder-rule-sheet"
 import { type EditableRule } from "./_components/reorder-rules-table"
 import { RulesSection } from "./_components/reorder-rules-section"
 import { ReorderStatsHero } from "./_components/reorder-stats-hero"
@@ -179,7 +179,7 @@ export default function ReorderRulesPage() {
         />
       )}
 
-      <ReorderRuleModal
+      <ReorderRuleSheet
         open={isRuleModalOpen}
         onOpenChange={setIsRuleModalOpen}
         rule={selectedRule}
