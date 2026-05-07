@@ -11,8 +11,30 @@
 -- so PostgREST stops returning PGRST204 ("Could not find the 'kerf'
 -- column ... in the schema cache") on cut-save inserts.
 
+-- Use DECIMAL(10,4) (not FLOAT) so cut_history.kerf matches
+-- cuts.kerf — same logical measurement, same exact-precision type,
+-- so cross-table joins / archives stay byte-equal and rounded
+-- values like 0.125 round-trip without floating-point drift.
 ALTER TABLE cut_history
-  ADD COLUMN IF NOT EXISTS kerf FLOAT NOT NULL DEFAULT 0.125;
+  ADD COLUMN IF NOT EXISTS kerf DECIMAL(10,4) NOT NULL DEFAULT 0.125;
+
+-- Idempotent narrow if a prior schema (or a fresh-reset DB created
+-- before this migration was added) ended up with the FLOAT shape:
+-- bring it in line with cuts.kerf so the data type stays uniform.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'cut_history'
+       AND column_name = 'kerf'
+       AND data_type = 'double precision'
+  ) THEN
+    ALTER TABLE cut_history
+      ALTER COLUMN kerf TYPE DECIMAL(10,4) USING kerf::numeric(10,4);
+  END IF;
+END $$;
 
 DO $$
 BEGIN
