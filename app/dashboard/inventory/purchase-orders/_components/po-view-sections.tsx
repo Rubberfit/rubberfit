@@ -30,7 +30,7 @@ import { Label } from "@/app/components/ui/label"
 import { Separator } from "@/app/components/ui/separator"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { type TaxDetails } from "./po-tax-helpers"
-import { getStatusBadge } from "./po-view-dialog"
+import { getStatusBadge } from "./po-status-badge"
 
 interface OrderDetailsCardProps {
   selectedPO: PurchaseOrderWithDetails

@@ -19,7 +19,7 @@ import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-cl
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
-import { POViewDialog } from "./_components/po-view-dialog"
+import { PoViewDrawer } from "./_components/po-view-drawer"
 import { POCreateDialog } from "./_components/po-create-dialog"
 import { POEditDialog } from "./_components/po-edit-dialog"
 import { POTable } from "./_components/po-table"
@@ -276,14 +276,16 @@ function PurchaseOrdersPageInner() {
         onConfirmRemoveItem={po.handleConfirmRemoveItem}
       />
 
-      <POViewDialog
-        selectedPO={po.selectedPO}
-        isViewDialogOpen={po.isViewDialogOpen}
-        setIsViewDialogOpen={po.setIsViewDialogOpen}
-        setSelectedPO={po.setSelectedPO}
-        selectedPOTaxDetails={po.selectedPOTaxDetails}
-        onEditPO={po.handleEditPO}
-        onUpdatePOStatus={po.updatePOStatus}
+      <PoViewDrawer
+        po={po.selectedPO}
+        open={po.isViewDialogOpen}
+        onOpenChange={(open) => {
+          po.setIsViewDialogOpen(open)
+          if (!open) po.setSelectedPO(null)
+        }}
+        taxDetails={po.selectedPOTaxDetails}
+        onEdit={po.handleEditPO}
+        onUpdateStatus={po.updatePOStatus}
         onDownloadPDF={handleDownloadPDF}
       />
 

@@ -1,38 +1,13 @@
 "use client"
 
-import {
-  Edit2,
-  Eye,
-  Send,
-  CheckCircle,
-  XCircle,
-  Truck,
-  Calendar,
-  Building2,
-  Download,
-  Search,
-  MoreVertical,
-  Mail,
-  ClipboardCheck,
-} from "lucide-react"
-import { format } from "date-fns"
+import { useMemo, useState } from "react"
+import { FileText } from "lucide-react"
 
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { Badge } from "@/app/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/app/components/ui/table"
-import { Button } from "@/app/components/ui/button"
-import { Input } from "@/app/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -40,15 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu"
-import { getStatusBadge } from "./po-view-dialog"
-import { handleDownloadPDF } from "./po-pdf-export"
+import { DataTable, initialSortState, useTableSort } from "@/app/components/patterns/data-table"
+import { EmptyState, ViewToolbar } from "@/app/components/patterns"
+
+import { TablePagination } from "@/app/dashboard/inventory/_components/table-pagination"
+import { usePoColumns } from "./use-po-columns"
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+const DEFAULT_PAGE_SIZE = 25
 
 interface POTableProps {
   loading: boolean
@@ -67,6 +41,15 @@ interface POTableProps {
   fetchData: () => void
 }
 
+/**
+ * Purchase order list — Phase 3 PR 3c. Migrated from a hand-rolled
+ * shadcn `<Table>` to the shared `<DataTable>` primitive. Filters
+ * (search + status + supplier) sit in `<ViewToolbar>` above the
+ * table, pagination uses the same `<TablePagination>` extracted
+ * from PR 3a's inventory list. Row dropdown actions (View / Edit /
+ * status transitions / Download / Cancel) live in
+ * `use-po-columns.tsx` so this component stays compact.
+ */
 export function POTable({
   loading,
   filteredPOs,
@@ -82,202 +65,156 @@ export function POTable({
   onUpdatePOStatus,
   onCancelPO,
 }: POTableProps) {
-  return (
-    <>
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div className="flex-1 min-w-[200px] relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Search PO number, supplier, or notes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="ordered">Ordered</SelectItem>
-            <SelectItem value="received">Received</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Suppliers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Suppliers</SelectItem>
-            {suppliers.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+  const [sort, setSort] = useTableSort({
+    ...initialSortState,
+    columnId: "order_date",
+    direction: "desc",
+  })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
 
-      {/* Purchase Orders Table */}
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>PO Number</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Order Date</TableHead>
-              <TableHead>Delivery Date</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
-                  Loading purchase orders...
-                </TableCell>
-              </TableRow>
-            ) : filteredPOs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
-                  No purchase orders found
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredPOs.map((po) => (
-                <POTableRow
-                  key={po.id}
-                  po={po}
-                  onViewPO={onViewPO}
-                  onEditPO={onEditPO}
-                  onUpdatePOStatus={onUpdatePOStatus}
-                  onCancelPO={onCancelPO}
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+  const columns = usePoColumns({
+    onView: onViewPO,
+    onEdit: onEditPO,
+    onUpdateStatus: onUpdatePOStatus,
+    onCancel: onCancelPO,
+  })
+
+  const sortedPOs = useMemo(() => {
+    if (!sort.columnId) return filteredPOs
+    const column = columns.find((c) => c.id === sort.columnId)
+    if (!column?.sortFn) return filteredPOs
+    const extract = column.sortFn
+    const direction = sort.direction === "desc" ? -1 : 1
+    return [...filteredPOs].sort((a, b) => {
+      const av = extract(a)
+      const bv = extract(b)
+      if (av < bv) return -1 * direction
+      if (av > bv) return 1 * direction
+      return 0
+    })
+  }, [filteredPOs, sort, columns])
+
+  const totalRows = sortedPOs.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const pageStart = (safePage - 1) * pageSize
+  const pageEnd = Math.min(pageStart + pageSize, totalRows)
+  const pageRows = useMemo(
+    () => sortedPOs.slice(pageStart, pageEnd),
+    [sortedPOs, pageStart, pageEnd]
+  )
+
+  const filterControls = (
+    <>
+      <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <SelectTrigger className="h-9 w-[150px]" aria-label="Status filter">
+          <SelectValue placeholder="All statuses" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          <SelectItem value="draft">Draft</SelectItem>
+          <SelectItem value="pending">Pending</SelectItem>
+          <SelectItem value="approved">Approved</SelectItem>
+          <SelectItem value="ordered">Ordered</SelectItem>
+          <SelectItem value="received">Received</SelectItem>
+          <SelectItem value="cancelled">Cancelled</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+        <SelectTrigger className="h-9 w-[200px]" aria-label="Supplier filter">
+          <SelectValue placeholder="All suppliers" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All suppliers</SelectItem>
+          {suppliers.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </>
   )
-}
 
-function POTableRow({
-  po,
-  onViewPO,
-  onEditPO,
-  onUpdatePOStatus,
-  onCancelPO,
-}: {
-  po: PurchaseOrderWithDetails
-  onViewPO: (po: PurchaseOrderWithDetails) => void
-  onEditPO: (po: PurchaseOrderWithDetails) => void
-  onUpdatePOStatus: (poId: string, newStatus: PurchaseOrder["status"]) => Promise<void>
-  onCancelPO: (po: PurchaseOrderWithDetails) => void
-}) {
-  return (
-    <TableRow id={`po-row-${po.id}`} className="transition-colors duration-300">
-      <TableCell className="font-medium">{po.po_number}</TableCell>
-      <TableCell>
-        <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-          {po.supplier?.name || "Unknown"}
+  if (loading) {
+    return (
+      <>
+        <ViewToolbar
+          searchPlaceholder="Search PO number, supplier, or notes…"
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          filters={filterControls}
+        />
+        <div className="px-6 py-8 text-center text-muted-foreground text-sm">
+          Loading purchase orders…
         </div>
-      </TableCell>
-      <TableCell>{getStatusBadge(po.status)}</TableCell>
-      <TableCell>
-        {po.order_date ? format(new Date(po.order_date), "MMM dd, yyyy") : "\u2014"}
-      </TableCell>
-      <TableCell>
-        {po.requested_delivery_date ? (
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            {format(new Date(po.requested_delivery_date), "MMM dd")}
-          </div>
-        ) : (
-          "\u2014"
-        )}
-      </TableCell>
-      <TableCell>
-        <Badge variant="outline">{po.items?.length || 0} items</Badge>
-      </TableCell>
-      <TableCell>
-        <span className="font-mono font-semibold">
-          ${po.total_amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-        </span>
-      </TableCell>
-      <TableCell>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="min-h-[44px] min-w-[44px]">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onViewPO(po)}>
-              <Eye className="h-4 w-4 mr-2" />
-              View Details
-            </DropdownMenuItem>
-            {po.status === "draft" && (
-              <>
-                <DropdownMenuItem onClick={() => onEditPO(po)}>
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onUpdatePOStatus(po.id, "pending")}>
-                  <Send className="h-4 w-4 mr-2" />
-                  Submit for Approval
-                </DropdownMenuItem>
-              </>
-            )}
-            {po.status === "pending" && (
-              <DropdownMenuItem onClick={() => onUpdatePOStatus(po.id, "approved")}>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve
-              </DropdownMenuItem>
-            )}
-            {po.status === "approved" && (
-              <DropdownMenuItem onClick={() => onUpdatePOStatus(po.id, "ordered")}>
-                <Truck className="h-4 w-4 mr-2" />
-                Mark as Ordered
-              </DropdownMenuItem>
-            )}
-            {po.status === "ordered" && (
-              <DropdownMenuItem onClick={() => onUpdatePOStatus(po.id, "received")}>
-                <ClipboardCheck className="h-4 w-4 mr-2" />
-                Receive Goods
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleDownloadPDF(po)}>
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Mail className="h-4 w-4 mr-2" />
-              Email to Supplier
-            </DropdownMenuItem>
-            {po.status === "draft" && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={() => onCancelPO(po)}>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancel
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
+      </>
+    )
+  }
+
+  if (filteredPOs.length === 0) {
+    return (
+      <>
+        <ViewToolbar
+          searchPlaceholder="Search PO number, supplier, or notes…"
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          filters={filterControls}
+        />
+        <EmptyState
+          icon={<FileText className="size-5" />}
+          title="No purchase orders found"
+          description={
+            searchQuery || statusFilter !== "all" || supplierFilter !== "all"
+              ? "Try adjusting your filters."
+              : "Create a new purchase order with the button in the header."
+          }
+        />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <ViewToolbar
+        searchPlaceholder="Search PO number, supplier, or notes…"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        filters={filterControls}
+      />
+      <DataTable
+        columns={columns}
+        rows={pageRows}
+        rowKey={(row) => row.id}
+        sort={sort}
+        onSortChange={setSort}
+        density="comfortable"
+        onRowClick={(row) => onViewPO(row)}
+        empty={
+          <EmptyState
+            icon={<FileText className="size-5" />}
+            title="No matching POs"
+            description="Try adjusting your search."
+          />
+        }
+        className="border-0 rounded-none"
+      />
+      <TablePagination
+        totalRows={totalRows}
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        page={safePage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        rowLabel="PO"
+        onPageChange={setPage}
+        onPageSizeChange={(n) => {
+          setPageSize(n)
+          setPage(1)
+        }}
+      />
+    </>
   )
 }

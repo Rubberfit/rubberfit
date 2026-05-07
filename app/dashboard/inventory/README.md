@@ -50,13 +50,19 @@ CSV bulk import flow for rolls.
 
 Purchase order management within inventory.
 
-- **page.tsx** -- PO list page. S4 Task 7 polished: `PageShell` (dense) + `PageHeader` with crumbs + Export/New PO actions; 4 `StatCard`s (Total POs with draft/pending chips, Total Value, In Transit, Avg Lead Time); `InlineNotice` when pending approvals > 0; `POTable` in bordered card. All existing create/edit/view/cancel dialogs preserved with `INVALID_STATE_TRANSITION` handling. Issue #122 wired the previously-dead Export action to `PurchaseOrdersExportMenu`.
-- **\_components/po-table.tsx** -- Sortable, filterable PO data table with context-aware status actions
-- **\_components/po-create-dialog.tsx** -- Create new PO dialog
-- **\_components/po-edit-dialog.tsx** -- Edit existing PO dialog
+- **page.tsx** -- PO list page. `PageShell` (dense) + `PageHeader` with crumbs + Export/New PO actions; 4 `StatCard`s (Total POs with draft/pending chips, Total Value, In Transit, Avg Lead Time); `InlineNotice` when pending approvals > 0; `POTable` in bordered card. All existing create/edit/cancel dialogs preserved with `INVALID_STATE_TRANSITION` handling.
+
+**Phase 3 PR 3c (2026-05-07)** -- Migrated `<POTable>` from a hand-rolled shadcn `<Table>` to the shared `<DataTable>` primitive. Filters (search + status + supplier) sit in `<ViewToolbar>`; pagination uses the shared `<TablePagination>` from PR 3a. Status pill mapping extracted into `po-status-badge.tsx` so it's no longer coupled to the deleted `po-view-dialog.tsx`. Read-only PO inspection moved from a centered `<Dialog>` (`po-view-dialog.tsx`, deleted) to a right `<Sheet>` (`po-view-drawer.tsx`) with the body keyed on `po.id` for fresh tax-detail mounts on PO swap. The 6 sub-sections (Order Details, Supplier Contact, Line Items, Addresses, Order Summary, Notes) are unchanged and still live in `po-view-sections.tsx`. PO create/edit dialogs are deferred to PR 3d (full-page draft routes).
+
+- **\_components/po-table.tsx** -- DataTable wrapper. Owns sort + pagination; column registry lives in `use-po-columns.tsx`.
+- **\_components/use-po-columns.tsx** -- Memoized DataTable column registry — closes over the row-action callbacks (View / Edit / status transitions / Download / Cancel).
+- **\_components/po-status-badge.tsx** -- Shared `getStatusBadge(status)` renderer used by the table column, the drawer header, and the PO view sections.
+- **\_components/po-view-drawer.tsx** -- Right-docked `<Sheet>` shell. Renders `<PoViewBody key={po.id}>` when a PO is selected.
+- **\_components/po-view-body.tsx** -- Drawer body — header (PO number / supplier / status pill / auto-gen badge), the 6 view sections, and the action footer (Close / Edit / Submit / Download). Edit and Submit only render for `status === "draft"`.
+- **\_components/po-create-dialog.tsx** -- Create new PO dialog (will move to a full-page route in PR 3d)
+- **\_components/po-edit-dialog.tsx** -- Edit existing PO dialog (will move to a full-page route in PR 3d)
 - **\_components/po-form-dialog.tsx** -- Shared PO form layout (used by create and edit)
-- **\_components/po-view-dialog.tsx** -- Read-only PO detail view
-- **\_components/po-view-sections.tsx** -- Sub-sections rendered inside the PO detail view
+- **\_components/po-view-sections.tsx** -- Sub-sections rendered inside the PO detail drawer
 - **\_components/po-action-handlers.ts** -- PO action logic (approve, reject, cancel, receive)
 - **\_components/po-pdf-export.ts** -- Generate PDF export of a single purchase order (View dialog → Download PDF)
 - **\_components/po-export-menu.tsx** -- CSV/PDF dropdown for the page-level header (issue #122). Calls `exportService` + `exportPdfService` via the helpers below; toasts when the filtered PO list is empty.
