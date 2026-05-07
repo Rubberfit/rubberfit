@@ -37,6 +37,13 @@ export default function PurchaseOrdersPage() {
   }
 
   const handleEditPO = (poItem: PurchaseOrderWithDetails) => {
+    // ARC-206: close the view drawer before navigating. Otherwise
+    // the slide-in is still visible while the new route mounts and
+    // the operator briefly sees both surfaces stacked. The drawer's
+    // `onOpenChange` already clears `selectedPO` once `open`
+    // transitions to false — clearing it here too would blank the
+    // body during Radix's exit animation.
+    po.setIsViewDialogOpen(false)
     router.push(`/dashboard/inventory/purchase-orders/${poItem.id}/edit`)
   }
 

@@ -26,8 +26,8 @@
   /* Typography */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono",
-    "SFMono-Regular", "Menlo", monospace;
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, "SF Mono", "SFMono-Regular", "Menlo", monospace;
 
   /* Primitives wired to CSS vars */
   --color-background: var(--background);
@@ -119,12 +119,9 @@
 
   /* Elevation — flat by default, hairline borders carry separation. */
   --shadow-flat: 0 0 0 0 transparent;
-  --shadow-raised: 0 1px 2px 0 rgba(20, 23, 27, 0.04),
-    0 1px 1px 0 rgba(20, 23, 27, 0.03);
-  --shadow-floating: 0 8px 24px -6px rgba(20, 23, 27, 0.10),
-    0 4px 8px -2px rgba(20, 23, 27, 0.06);
-  --shadow-overlay: 0 24px 48px -12px rgba(20, 23, 27, 0.18),
-    0 8px 16px -4px rgba(20, 23, 27, 0.10);
+  --shadow-raised: 0 1px 2px 0 rgba(20, 23, 27, 0.04), 0 1px 1px 0 rgba(20, 23, 27, 0.03);
+  --shadow-floating: 0 8px 24px -6px rgba(20, 23, 27, 0.1), 0 4px 8px -2px rgba(20, 23, 27, 0.06);
+  --shadow-overlay: 0 24px 48px -12px rgba(20, 23, 27, 0.18), 0 8px 16px -4px rgba(20, 23, 27, 0.1);
 }
 
 /* ============================================================
@@ -168,7 +165,7 @@
   --border: rgba(20, 23, 27, 0.08);
   --border-subtle: rgba(20, 23, 27, 0.06);
   --border-strong: rgba(20, 23, 27, 0.18);
-  --input: rgba(20, 23, 27, 0.10);
+  --input: rgba(20, 23, 27, 0.1);
   --ring: rgba(238, 90, 36, 0.35);
 
   /* Sidebar */
@@ -196,28 +193,28 @@
   --success: #2d6a4f;
   --success-foreground: #1f4a37;
   --success-bg: rgba(45, 106, 79, 0.08);
-  --success-border: rgba(45, 106, 79, 0.20);
+  --success-border: rgba(45, 106, 79, 0.2);
 
   --warning: #b35900;
   --warning-foreground: #7a3c00;
   --warning-bg: rgba(179, 89, 0, 0.08);
-  --warning-border: rgba(179, 89, 0, 0.20);
+  --warning-border: rgba(179, 89, 0, 0.2);
 
   --danger: #c42b1c;
   --danger-foreground: #8c1e13;
   --danger-bg: rgba(196, 43, 28, 0.08);
-  --danger-border: rgba(196, 43, 28, 0.20);
+  --danger-border: rgba(196, 43, 28, 0.2);
 
   --info: #4a525c;
   --info-foreground: #14171b;
   --info-bg: rgba(74, 82, 92, 0.08);
-  --info-border: rgba(74, 82, 92, 0.20);
+  --info-border: rgba(74, 82, 92, 0.2);
 
   /* Interactive state modifiers */
   --hover-overlay: rgba(20, 23, 27, 0.04);
   --active-overlay: rgba(20, 23, 27, 0.08);
   --selected-bg: rgba(238, 90, 36, 0.08);
-  --disabled-fg: rgba(20, 23, 27, 0.40);
+  --disabled-fg: rgba(20, 23, 27, 0.4);
   --disabled-bg: rgba(20, 23, 27, 0.04);
 
   /* Legacy aliases — cut-planner visualization still references
@@ -279,7 +276,7 @@
   --border: rgba(246, 245, 242, 0.08);
   --border-subtle: rgba(246, 245, 242, 0.06);
   --border-strong: rgba(246, 245, 242, 0.18);
-  --input: rgba(246, 245, 242, 0.10);
+  --input: rgba(246, 245, 242, 0.1);
   --ring: rgba(238, 90, 36, 0.45);
 
   --sidebar: #0f1216;
@@ -303,28 +300,28 @@
 
   --success: #4ade80;
   --success-foreground: #16a34a;
-  --success-bg: rgba(74, 222, 128, 0.10);
+  --success-bg: rgba(74, 222, 128, 0.1);
   --success-border: rgba(74, 222, 128, 0.25);
 
   --warning: #fbbf24;
   --warning-foreground: #d97706;
-  --warning-bg: rgba(251, 191, 36, 0.10);
+  --warning-bg: rgba(251, 191, 36, 0.1);
   --warning-border: rgba(251, 191, 36, 0.25);
 
   --danger: #f87171;
   --danger-foreground: #b91c1c;
-  --danger-bg: rgba(248, 113, 113, 0.10);
+  --danger-bg: rgba(248, 113, 113, 0.1);
   --danger-border: rgba(248, 113, 113, 0.25);
 
   --info: #8a8f97;
   --info-foreground: #d4d4d8;
-  --info-bg: rgba(138, 143, 151, 0.10);
+  --info-bg: rgba(138, 143, 151, 0.1);
   --info-border: rgba(138, 143, 151, 0.25);
 
   --hover-overlay: rgba(246, 245, 242, 0.06);
-  --active-overlay: rgba(246, 245, 242, 0.10);
+  --active-overlay: rgba(246, 245, 242, 0.1);
   --selected-bg: rgba(238, 90, 36, 0.18);
-  --disabled-fg: rgba(246, 245, 242, 0.40);
+  --disabled-fg: rgba(246, 245, 242, 0.4);
   --disabled-bg: rgba(246, 245, 242, 0.04);
 
   /* Legacy aliases (see :root). */
@@ -424,4 +421,17 @@ html {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--muted-foreground);
+}
+
+/* Sonner toast description copy — Sonner ships a low-contrast
+   description style by default that renders near-grey on the
+   near-white toast card and is hard to read. Bump it to the
+   popover-foreground token at full opacity so the secondary line
+   stays legible in both themes. The toast background is
+   `--popover` (set in `app/components/ui/sonner.tsx` via
+   `--normal-bg`), so pairing with `--popover-foreground` is the
+   semantically correct contrast partner. */
+[data-sonner-toast] [data-description] {
+  color: var(--popover-foreground) !important;
+  opacity: 1 !important;
 }
