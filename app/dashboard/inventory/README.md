@@ -4,21 +4,25 @@ Inventory management pages for viewing, adding, importing, and managing rubber r
 
 The Jobs-phase pass relocated all roll-specific UI out of `dashboard/_components/` into a colocated `_components/` dir here (see the list below) and introduced the detail drawer + engine deep-link.
 
+**Phase 3 PR 3a (2026-05-06)** -- Added the `<InventoryStatsHero>` (4 StatCards: total active rolls, total sqft, low-stock count, total value), replaced the Export dropdown with a unified "Tools" menu (Export CSV / PDF / Print labels / Import CSV → `/dashboard/inventory/import`), removed the top-of-page CSVUpload card, and migrated `<InventoryTable>` to the shared `<DataTable>` primitive from `@/app/components/patterns/data-table`. Column definitions live in `use-inventory-columns.tsx`; pagination extracted to `table-pagination.tsx`. Roll detail drawer + roll create/edit form-sheet migration is deferred to PR 3b. Locked spec lives at `.claude/handoff/dashboard-phase3-synthesis.md`.
+
 ## Files
 
-- **page.tsx** -- Main inventory page. `PageShell` (dense variant) + `PageHeader` with crumbs + actions + `ViewToolbar` search above the `InventoryTable`. CSV upload card appears above the table for roll-manage roles. Export dropdown (CSV + PDF) and Add Roll actions in the header. Uses `useRolls` via the table; export handlers run their own SDK call because the summary totals are easier to compute against a freshly-fetched list.
+- **page.tsx** -- Main inventory page. `PageShell` (dense variant) + `PageHeader` with crumbs + Tools dropdown + Add Roll button. `<InventoryStatsHero>` between the header and the table card. `<ViewToolbar>` search above the `<InventoryTable>`. Uses `useRolls` via the table; export handlers run their own SDK call because the summary totals are easier to compute against a freshly-fetched list.
 
 ## \_components/
 
 Roll-specific components, colocated with the page they serve.
 
 - **use-rolls.ts** -- `useRolls(searchQuery)` hook — single fetch source for the inventory list. Returns `{ rolls, loading, error, refresh }`. Consumers call `refresh()` when they mutate; the page doesn't have to juggle a numeric refresh key.
-- **inventory-table.tsx** -- Rolls list. Row click opens `RollDetailDrawer`; each row renders via `InventoryRow`. Delete and deplete both use the shared `AlertDialog`; `window.confirm` was replaced in this pass. Kept under the ESLint `max-lines-per-function` budget by pushing row rendering into `inventory-row.tsx`.
-- **inventory-row.tsx** -- One row of the inventory table. Isolates the kebab-menu + its action dropdown so action clicks don't double-fire the row's open handler.
-- **roll-form-dialog.tsx** -- Zod-validated add / edit dialog. Wraps `RollFormFields` in a shadcn `Dialog`. Looks up `material_type_id` from the material-type list before submitting so the Rust API's FK requirement is satisfied.
-- **roll-form-fields.tsx** -- Shared form body used by both create and edit modes. The supplier dropdown is `SupplierSelect` from `materials/suppliers/_components/supplier-selection` (imported with the `@/app/…` absolute path now that the form has a stable home).
-- **csv-upload.tsx** -- Drag-and-drop CSV upload card for quick bulk imports. The full three-step wizard still lives at `inventory/import/`.
-- **roll-detail-drawer.tsx** -- Right-docked shadcn `Sheet` that opens on row click. Surfaces the shared `StockSheet` (imported from `cutting-engine/_components/stock-sheet.tsx` — same visual language the engine uses), a three-tile metrics row (% remaining, available sqft, current value), roll metadata, and two actions: Edit (opens `RollFormDialog`) and Open in engine (deep-links via `?loadRoll=<id>`). Also fetches child offcuts (rows where `parent_roll_id = this.id`) and lists them so each spawned offcut is clickable/scannable from the parent's drawer.
+- **use-inventory-stats.ts** -- `useInventoryStats(refreshKey)` hook — fetches the active-rolls list and computes the 4 hero metrics (active count, total sqft, low-stock count [stub: 0; wired in PR 3e], total value). Same math as the existing PDF export.
+- **inventory-stats-hero.tsx** -- 4-up `<StatCard>` row consuming `useInventoryStats`. Refresh key wires through from the page so post-mutation re-fetch happens automatically.
+- **inventory-table.tsx** -- Rolls list, now composing the shared `<DataTable>` + `<TablePagination>`. Row click opens `<RollDetailDrawer>`; each row's kebab dropdown surfaces Edit / Mark Depleted / Delete, each routed through the shared `<AlertDialog>` for destructive flows. The pre-existing `?scan=` deep link still resolves the matching row → drawer.
+- **use-inventory-columns.tsx** -- Memoized `<DataTable>` column registry for `<InventoryTable>`. Closes over the action callbacks so the table component stays under the `max-lines-per-function` budget.
+- **table-pagination.tsx** -- Shared pagination footer (rows-per-page select + Prev/Next) used by `<InventoryTable>`. Lives here for now; promotion to `app/components/patterns/` is queued for PR 3c (when `<POTable>` adopts the same).
+- **roll-form-dialog.tsx** -- Zod-validated add / edit dialog. Wraps `RollFormFields` in a shadcn `Dialog`. Looks up `material_type_id` from the material-type list before submitting so the Rust API's FK requirement is satisfied. (PR 3b migrates this to a right-side `<Sheet>` with Phase 2 form primitives.)
+- **roll-form-fields.tsx** -- Shared form body used by both create and edit modes. The supplier dropdown is `SupplierSelect` from `materials/suppliers/_components/supplier-selection`.
+- **roll-detail-drawer.tsx** -- Right-docked shadcn `Sheet` that opens on row click. Surfaces the shared `StockSheet` (imported from `cutting-engine/_components/stock-sheet.tsx` — same visual language the engine uses), a three-tile metrics row (% remaining, available sqft, current value), roll metadata, and two actions: Edit (opens `RollFormDialog`) and Open in engine (deep-links via `?loadRoll=<id>`). Also fetches child offcuts (rows where `parent_roll_id = this.id`) and lists them so each spawned offcut is clickable/scannable from the parent's drawer. (PR 3b moves this drawer onto the keyed-target Phase 2 pattern.)
 
 ## Subdirectories
 

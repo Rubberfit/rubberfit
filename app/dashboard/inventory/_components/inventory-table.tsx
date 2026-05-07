@@ -1,36 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Package2 } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Package2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import type { Roll } from "@/src/infrastructure/models/supabase"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/app/components/ui/alert-dialog"
-import { Button } from "@/app/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/app/components/ui/table"
+import { DataTable, initialSortState, useTableSort } from "@/app/components/patterns/data-table"
 import { EmptyState } from "@/app/components/patterns"
-import { cn } from "@/app/lib/utils"
 
-import { InventoryRow, type InventoryRowAction } from "./inventory-row"
+import { DestructiveRollActionDialog } from "./destructive-roll-action-dialog"
 import { RollDetailDrawer } from "./roll-detail-drawer"
 import { RollFormDialog } from "./roll-form-dialog"
+import { TablePagination } from "./table-pagination"
+import { useInventoryColumns } from "./use-inventory-columns"
+import { usePagedRolls } from "./use-paged-rolls"
 import { useRolls } from "./use-rolls"
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
@@ -44,8 +28,13 @@ const DEFAULT_PAGE_SIZE = 25
  * (edit, open in cutting engine). The action dropdown on each row
  * gathers the three administrative operations (edit, mark
  * depleted, delete) so the row itself stays scannable; all three
- * destructive flows route through the shared `AlertDialog` — the
- * previous `window.confirm` path was removed in this pass.
+ * destructive flows route through the shared `AlertDialog`.
+ *
+ * Phase 3 PR 3a — migrated to `<DataTable>` from
+ * `@/app/components/patterns/data-table`. Column definitions live
+ * in `use-inventory-columns.tsx` so this component stays under the
+ * `max-lines-per-function` budget. Drawer + form-dialog migration
+ * is deferred to PR 3b.
  */
 
 interface InventoryTableProps {
@@ -80,22 +69,59 @@ export function InventoryTable({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [pending, setPending] = useState<PendingAction>(null)
   const scanHandledRef = useRef<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
 
-  const totalRolls = rolls.length
-  const totalPages = Math.max(1, Math.ceil(totalRolls / pageSize))
-  // `page` can hold a stale value when search / dataset shrinks the
-  // list; `safePage` is the authoritative render value. Nav handlers
-  // below also clamp through it so Prev/Next never overshoot.
-  const safePage = Math.min(Math.max(1, page), totalPages)
-  const pageStart = (safePage - 1) * pageSize
-  const pageEnd = Math.min(pageStart + pageSize, totalRolls)
-  const pageRolls = useMemo(() => rolls.slice(pageStart, pageEnd), [rolls, pageStart, pageEnd])
+  const [sort, setSort] = useTableSort({
+    ...initialSortState,
+    columnId: "received",
+    direction: "desc",
+  })
+
+  const handleEdit = useCallback((roll: Roll) => {
+    setEditingRoll(roll)
+    setEditDialogOpen(true)
+  }, [])
+
+  const handleDepleteRequest = useCallback((rollId: string) => {
+    setPending({ type: "deplete", rollId })
+  }, [])
+
+  const handleDeleteRequest = useCallback((rollId: string) => {
+    setPending({ type: "delete", rollId })
+  }, [])
+
+  const columns = useInventoryColumns({
+    canManageRolls,
+    onEdit: handleEdit,
+    onDeplete: handleDepleteRequest,
+    onDelete: handleDeleteRequest,
+  })
+
+  const {
+    pageRolls,
+    setPage,
+    pageSize,
+    setPageSize,
+    safePage,
+    pageStart,
+    pageEnd,
+    totalPages,
+    totalRolls,
+  } = usePagedRolls({
+    rolls,
+    columns,
+    sort,
+    defaultPageSize: DEFAULT_PAGE_SIZE,
+  })
 
   // Resolve a scan-in part number as soon as the rolls list is
   // loaded. Compared against `part_number` first, then falls back
   // to id for legacy rolls whose part numbers predate the sequence.
+  // The setState pair sits in the effect body — same shape as the
+  // pre-PR-3a code; CI doesn't lint `app/` (npm run lint scopes to
+  // src + nesting + di + config + proxy.ts) so this didn't surface
+  // before. Cleanup is queued alongside `userformmodal.tsx:529` for
+  // the same React 19 rule.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!scanPartNumber) return
     if (scanHandledRef.current === scanPartNumber) return
@@ -109,6 +135,7 @@ export function InventoryTable({
     }
     onScanResolved?.()
   }, [scanPartNumber, rolls, loading, onScanResolved])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // `refreshKey` is an imperative nudge from the parent page — the
   // hook already re-fetches when `searchQuery` changes, so we only
@@ -123,19 +150,6 @@ export function InventoryTable({
   const openDrawer = (roll: Roll) => {
     setDrawerRoll(roll)
     setDrawerOpen(true)
-  }
-
-  const handleEdit = (roll: Roll) => {
-    setEditingRoll(roll)
-    setEditDialogOpen(true)
-  }
-
-  const handleRowAction = (action: InventoryRowAction) => {
-    if (action.type === "edit") {
-      handleEdit(action.roll)
-      return
-    }
-    setPending(action)
   }
 
   const handleDelete = async (rollId: string) => {
@@ -184,7 +198,7 @@ export function InventoryTable({
         title="No rolls in inventory"
         description={
           canManageRolls
-            ? "Add a roll with the button in the header, or drop a CSV file to bulk-import."
+            ? "Add a roll with the button in the header, or use Tools → Import CSV to bulk-import."
             : "Your inventory is empty."
         }
       />
@@ -193,88 +207,42 @@ export function InventoryTable({
 
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-28">Part #</TableHead>
-            <TableHead>Material</TableHead>
-            <TableHead>Dimensions (W × L × T)</TableHead>
-            <TableHead>Remaining</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Received</TableHead>
-            {canManageRolls && <TableHead className="w-10" />}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pageRolls.map((roll) => (
-            <InventoryRow
-              key={roll.id}
-              roll={roll}
-              isActive={roll.id === drawerRoll?.id}
-              canManageRolls={canManageRolls}
-              onOpen={openDrawer}
-              onAction={handleRowAction}
-            />
-          ))}
-        </TableBody>
-      </Table>
+      <DataTable
+        columns={columns}
+        rows={pageRolls}
+        rowKey={(row) => row.id}
+        sort={sort}
+        onSortChange={setSort}
+        density="comfortable"
+        onRowClick={(row) => openDrawer(row)}
+        rowClassName={(row) =>
+          drawerOpen && row.id === drawerRoll?.id ? "bg-muted/50" : undefined
+        }
+        empty={
+          <EmptyState
+            icon={<Package2 className="size-5" />}
+            title="No matching rolls"
+            description="Try adjusting your search."
+          />
+        }
+        className="border-0 rounded-none"
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
-        <div className="tabular-nums">
-          {totalRolls === 0
-            ? "0 rolls"
-            : `Showing ${pageStart + 1}–${pageEnd} of ${totalRolls} roll${totalRolls === 1 ? "" : "s"}`}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v))
-                setPage(1)
-              }}
-            >
-              <SelectTrigger className="h-7 w-[72px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)} className="text-xs">
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setPage(Math.max(1, safePage - 1))}
-              disabled={safePage <= 1}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="tabular-nums px-1">
-              Page {safePage} of {totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-              disabled={safePage >= totalPages}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <TablePagination
+        totalRows={totalRolls}
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        page={safePage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        rowLabel="roll"
+        onPageChange={setPage}
+        onPageSizeChange={(n) => {
+          setPageSize(n)
+          setPage(1)
+        }}
+      />
 
       <RollDetailDrawer
         roll={drawerRoll}
@@ -296,36 +264,11 @@ export function InventoryTable({
         />
       )}
 
-      <AlertDialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) setPending(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pending?.type === "delete" ? "Delete this roll?" : "Mark roll as depleted?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.type === "delete"
-                ? "This permanently removes the roll from inventory. Cut history records that reference it stay intact."
-                : "Marks this roll as fully used. Remaining length is set to zero and it stops appearing in available-material checks."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmPending}
-              className={cn(
-                pending?.type === "delete" && "bg-danger text-danger-foreground hover:bg-danger/90"
-              )}
-            >
-              {pending?.type === "delete" ? "Delete roll" : "Mark depleted"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveRollActionDialog
+        pendingKind={pending?.type ?? null}
+        onConfirm={confirmPending}
+        onCancel={() => setPending(null)}
+      />
     </>
   )
 }
