@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useEffect, useMemo, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { format, addDays } from "date-fns"
 import { toast } from "sonner"
@@ -122,9 +122,13 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
   // into any line-item input — which would re-fire the tax fetch
   // per character. Stringifying the relevant subset gives the
   // effect a stable identity that only invalidates on real edits.
-  const taxItemsKey = formData.items
-    .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
-    .join("|")
+  const taxItemsKey = useMemo(
+    () =>
+      formData.items
+        .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
+        .join("|"),
+    [formData.items]
+  )
 
   useEffect(() => {
     let cancelled = false

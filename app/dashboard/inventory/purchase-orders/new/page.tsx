@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -76,24 +76,40 @@ function NewPurchaseOrderPageInner() {
     prefillAppliedRef.current = true
 
     const shortfall = Number(shortfallParam)
-    const match = materialTypes.find(
+    const matchedMaterialType = materialTypes.find(
       (mt) => (materialParam ?? "").trim().toLowerCase() === (mt.name ?? "").trim().toLowerCase()
     )
+    const hasValidShortfall = Number.isFinite(shortfall) && shortfall > 0
+
+    if (!materialParam || !matchedMaterialType || !hasValidShortfall) {
+      // Don't half-prefill (empty material_type_id + zero qty)
+      // and pretend the deep-link succeeded — that creates a
+      // misleading partially-linked draft. Surface the failure,
+      // strip the params so a refresh doesn't replay, and let the
+      // operator start from a clean form.
+      toast.error("Couldn't prefill this PO from the job shortfall.", {
+        description: matchedMaterialType
+          ? `Shortfall amount missing or invalid (got "${shortfallParam ?? ""}")`
+          : `Material "${materialParam ?? ""}" doesn't match a known material type`,
+      })
+      router.replace("/dashboard/inventory/purchase-orders/new")
+      return
+    }
+
     setFormData((prev) => ({
       ...prev,
       items: [
         {
           ...getEmptyItem(),
-          material_type_id: match?.id ?? "",
-          description: materialParam ? `Job shortfall: ${materialParam}` : "",
-          quantity_sqft:
-            Number.isFinite(shortfall) && shortfall > 0 ? Number(shortfall.toFixed(2)) : 0,
+          material_type_id: matchedMaterialType.id,
+          description: `Job shortfall: ${materialParam}`,
+          quantity_sqft: Number(shortfall.toFixed(2)),
         },
       ],
     }))
     sourceJobIdRef.current = jobIdParam
     toast.message("PO prefilled from job shortfall.", {
-      description: materialParam ? `${materialParam} · ${shortfall.toFixed(1)} sqft` : undefined,
+      description: `${materialParam} · ${shortfall.toFixed(1)} sqft`,
     })
     router.replace("/dashboard/inventory/purchase-orders/new")
   }, [jobIdParam, materialParam, shortfallParam, materialTypes, router])
@@ -101,9 +117,13 @@ function NewPurchaseOrderPageInner() {
   // Stable hash over the fields that affect the tax calc — without
   // this, `formData.items` array identity churns on every keystroke
   // into any line-item input and the tax fetch fires per character.
-  const taxItemsKey = formData.items
-    .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
-    .join("|")
+  const taxItemsKey = useMemo(
+    () =>
+      formData.items
+        .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
+        .join("|"),
+    [formData.items]
+  )
 
   useEffect(() => {
     let cancelled = false
