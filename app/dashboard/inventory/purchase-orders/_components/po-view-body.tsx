@@ -56,6 +56,37 @@ export function PoViewBody({
   // duplicate toasts inside `updatePOStatus`).
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  function handleEditClick() {
+    onClose()
+    onEdit(po)
+  }
+
+  async function handleSubmitClick() {
+    // `updatePOStatus` (in `use-po-actions.ts`) owns its own
+    // toast on success/failure — toasting here too would
+    // double-fire on success and (worse) green-toast even when
+    // the underlying update failed silently. The boolean return
+    // gates `onClose()` so a rejected mutation leaves the
+    // drawer open for retry. The catch swallows any unexpected
+    // throw from `onUpdateStatus` (network blip, runtime
+    // exception) — `updatePOStatus` already handled the user-
+    // visible error path; this guards against an unhandled
+    // promise rejection escaping the click handler.
+    setIsSubmitting(true)
+    try {
+      const ok = await onUpdateStatus(po.id, "pending")
+      if (ok) onClose()
+    } catch (error) {
+      console.error("[po-view-body] unexpected error submitting PO:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  function handleDownloadClick() {
+    onDownloadPDF(po)
+  }
+
   return (
     <>
       <SheetHeader className="space-y-2 border-b px-6 pt-6 pb-4">
@@ -106,42 +137,17 @@ export function PoViewBody({
           </Button>
           {po.status === "draft" && (
             <>
-              <Button
-                variant="outline"
-                disabled={isSubmitting}
-                onClick={() => {
-                  onClose()
-                  onEdit(po)
-                }}
-              >
+              <Button variant="outline" disabled={isSubmitting} onClick={handleEditClick}>
                 <Edit2 className="size-3.5" aria-hidden="true" />
                 Edit
               </Button>
-              <Button
-                disabled={isSubmitting}
-                onClick={async () => {
-                  // `updatePOStatus` (in `use-po-actions.ts`) owns
-                  // its own toast on success/failure — toasting
-                  // here too would double-fire on success and
-                  // (worse) green-toast even when the underlying
-                  // update failed silently. The boolean return
-                  // gates `onClose()` so a rejected mutation
-                  // leaves the drawer open for retry.
-                  setIsSubmitting(true)
-                  try {
-                    const ok = await onUpdateStatus(po.id, "pending")
-                    if (ok) onClose()
-                  } finally {
-                    setIsSubmitting(false)
-                  }
-                }}
-              >
+              <Button disabled={isSubmitting} onClick={handleSubmitClick}>
                 <Send className="size-3.5" aria-hidden="true" />
                 {isSubmitting ? "Submitting…" : "Submit"}
               </Button>
             </>
           )}
-          <Button onClick={() => onDownloadPDF(po)} disabled={isSubmitting}>
+          <Button onClick={handleDownloadClick} disabled={isSubmitting}>
             <Download className="size-3.5" aria-hidden="true" />
             Download PDF
           </Button>
