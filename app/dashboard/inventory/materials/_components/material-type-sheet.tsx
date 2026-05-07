@@ -87,6 +87,12 @@ export function MaterialTypeSheet({
         <form
           onSubmit={(e) => {
             e.preventDefault()
+            // Re-entry guard — `submitting` already disables the
+            // submit button, but the implicit-submit path (Enter
+            // in any input) bypasses the disabled state. The
+            // parent's submit handler is async, so without this
+            // guard a quick Enter+Enter could fire two requests.
+            if (submitting) return
             onSubmit()
           }}
           className="flex min-h-0 flex-1 flex-col"

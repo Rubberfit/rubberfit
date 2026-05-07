@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Database, DollarSign, Package, TrendingUp } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
@@ -31,20 +31,24 @@ export default function MaterialsPage() {
     fetchMaterialTypes()
   }, [])
 
-  const totalMaterialTypes = materialTypes.length
   // Filter out null/undefined costs before aggregating — a missing
   // `default_cost` is "unset," not "$0," and treating it as zero
   // pollutes the average and pins the cost-range floor at $0.
-  const materialCosts = materialTypes
-    .map((m) => m.default_cost)
-    .filter((cost): cost is number => cost != null)
-  const averageCost =
-    materialCosts.length > 0
-      ? materialCosts.reduce((sum, c) => sum + c, 0) / materialCosts.length
-      : 0
-  const totalAlertThreshold = materialTypes.reduce((sum, m) => sum + (m.min_stock_alert ?? 0), 0)
-  const minCost = materialCosts.length > 0 ? Math.min(...materialCosts) : null
-  const maxCost = materialCosts.length > 0 ? Math.max(...materialCosts) : null
+  const { totalMaterialTypes, averageCost, totalAlertThreshold, minCost, maxCost } = useMemo(() => {
+    const materialCosts = materialTypes
+      .map((m) => m.default_cost)
+      .filter((cost): cost is number => cost != null)
+    return {
+      totalMaterialTypes: materialTypes.length,
+      averageCost:
+        materialCosts.length > 0
+          ? materialCosts.reduce((sum, c) => sum + c, 0) / materialCosts.length
+          : 0,
+      totalAlertThreshold: materialTypes.reduce((sum, m) => sum + (m.min_stock_alert ?? 0), 0),
+      minCost: materialCosts.length > 0 ? Math.min(...materialCosts) : null,
+      maxCost: materialCosts.length > 0 ? Math.max(...materialCosts) : null,
+    }
+  }, [materialTypes])
 
   if (loading) {
     return (
