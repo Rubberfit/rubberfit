@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState, use } from "react"
+import { useEffect, useMemo, useRef, useState, use } from "react"
 import { useRouter } from "next/navigation"
-import { format, addDays } from "date-fns"
+import { addDays, format, parseISO } from "date-fns"
 import { toast } from "sonner"
 
 import type {
@@ -45,6 +45,13 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
   const [formData, setFormData] = useState<POFormData>(getDefaultFormData())
   const [taxDetails, setTaxDetails] = useState<TaxDetails | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  // Synchronous re-entry guard. State setters don't flip
+  // synchronously, so a fast double-click that fires two submits
+  // back-to-back inside the same tick would both read
+  // `isSaving === false` and both kick off `updatePurchaseOrder` —
+  // doubling the side effects. The ref flips on the same line as
+  // the first guard check, so the second submit short-circuits.
+  const isSavingRef = useRef(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [confirmRemoveItem, setConfirmRemoveItem] = useState<{
@@ -77,8 +84,13 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
         const supplierAddress = buildSupplierAddress(supplier)
         setFormData({
           supplier_id: poData.supplier_id,
+          // `new Date("YYYY-MM-DD")` parses date-only ISO strings
+          // as UTC midnight, which shifts to the previous day in
+          // negative UTC offsets (US time zones). `parseISO`
+          // returns the local-midnight Date instead so the form
+          // shows the same calendar day the operator picked.
           requested_delivery_date: poData.requested_delivery_date
-            ? format(new Date(poData.requested_delivery_date), "yyyy-MM-dd")
+            ? format(parseISO(poData.requested_delivery_date), "yyyy-MM-dd")
             : format(addDays(new Date(), 7), "yyyy-MM-dd"),
           payment_terms: poData.payment_terms ?? "Net 30",
           shipping_address: poData.shipping_address ?? supplierAddress ?? "",
@@ -132,12 +144,18 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
 
   useEffect(() => {
     let cancelled = false
+    // Drop the previous tax state up-front so a slow refetch
+    // can't leave the operator looking at the prior supplier's
+    // numbers while they're editing — better to show "—" briefly
+    // than wrong figures.
+    setTaxDetails(null)
     fetchEditFormTaxDetailsHelper(formData.supplier_id, formData.items)
       .then((details) => {
         if (cancelled) return
         setTaxDetails(details)
       })
       .catch((error) => {
+        if (!cancelled) setTaxDetails(null)
         console.error("[po/edit] tax fetch failed:", error)
       })
     return () => {
@@ -153,13 +171,22 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
   }
 
   async function handleSubmit() {
-    if (!po) return
+    // Synchronous re-entry guard — see `isSavingRef` doc above.
+    if (isSavingRef.current) return
+    isSavingRef.current = true
+    if (!po) {
+      isSavingRef.current = false
+      return
+    }
     // Per-item validation (material + quantities + cost) — the
     // `PoFormShell` disabled state only covers supplier + empty
     // items, not per-item validity. Without this, an item with
     // missing material_type_id or zero qty/cost would slip past
     // and the server action would reject with a generic Zod error.
-    if (!validatePOFormData(formData)) return
+    if (!validatePOFormData(formData)) {
+      isSavingRef.current = false
+      return
+    }
     setIsSaving(true)
     try {
       const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
@@ -187,6 +214,7 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
       console.error("Error updating purchase order:", error)
       toast.error("Failed to update purchase order. Please try again.")
     } finally {
+      isSavingRef.current = false
       setIsSaving(false)
     }
   }

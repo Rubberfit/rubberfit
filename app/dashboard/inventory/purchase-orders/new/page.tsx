@@ -28,6 +28,13 @@ function NewPurchaseOrderPageInner() {
   const [formData, setFormData] = useState<POFormData>(getDefaultFormData())
   const [taxDetails, setTaxDetails] = useState<TaxDetails | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  // Synchronous re-entry guard. State setters don't flip
+  // synchronously, so a fast double-click that fires two submits
+  // back-to-back inside the same tick would both read
+  // `isSaving === false` and both kick off `createPurchaseOrder` —
+  // creating duplicate POs. The ref flips on the same line as the
+  // first guard check, so the second submit short-circuits.
+  const isSavingRef = useRef(false)
   const [confirmRemoveItem, setConfirmRemoveItem] = useState<{
     open: boolean
     action: () => void
@@ -44,7 +51,11 @@ function NewPurchaseOrderPageInner() {
   const jobIdParam = searchParams.get("job_id")
   const materialParam = searchParams.get("material")
   const shortfallParam = searchParams.get("shortfall_sqft")
-  const sourceJobIdRef = useRef<string | null>(jobIdParam)
+  // Initialized to null and only set in the success branch of the
+  // prefill effect — if the deep-link's material/shortfall fail to
+  // validate, a later manual submit must NOT stamp `jobId` on the
+  // resulting PO (would falsely link the PO to the originating job).
+  const sourceJobIdRef = useRef<string | null>(null)
   const prefillAppliedRef = useRef(false)
 
   useEffect(() => {
@@ -85,8 +96,10 @@ function NewPurchaseOrderPageInner() {
       // Don't half-prefill (empty material_type_id + zero qty)
       // and pretend the deep-link succeeded — that creates a
       // misleading partially-linked draft. Surface the failure,
-      // strip the params so a refresh doesn't replay, and let the
-      // operator start from a clean form.
+      // strip the params so a refresh doesn't replay, and clear
+      // the source-job ref so the manual submit that follows
+      // doesn't carry the stale jobId onto the new PO.
+      sourceJobIdRef.current = null
       toast.error("Couldn't prefill this PO from the job shortfall.", {
         description: matchedMaterialType
           ? `Shortfall amount missing or invalid (got "${shortfallParam ?? ""}")`
@@ -127,12 +140,17 @@ function NewPurchaseOrderPageInner() {
 
   useEffect(() => {
     let cancelled = false
+    // Drop stale tax up-front so a slow refetch can't keep prior
+    // supplier numbers on screen mid-edit. Better to flash "—"
+    // briefly than show numbers that don't match the draft.
+    setTaxDetails(null)
     fetchCreateFormTaxDetailsHelper(formData.supplier_id, formData.items)
       .then((details) => {
         if (cancelled) return
         setTaxDetails(details)
       })
       .catch((error) => {
+        if (!cancelled) setTaxDetails(null)
         console.error("[po/new] tax fetch failed:", error)
       })
     return () => {
@@ -148,12 +166,18 @@ function NewPurchaseOrderPageInner() {
   }
 
   async function handleSubmit() {
+    // Synchronous re-entry guard — see `isSavingRef` doc above.
+    if (isSavingRef.current) return
+    isSavingRef.current = true
     // Per-item validation (material + quantities + cost) — the
     // `PoFormShell` disabled state only covers supplier + empty
     // items, not per-item validity. Without this, an item with
     // missing material_type_id or zero qty/cost would slip past
     // and the server action would reject with a generic Zod error.
-    if (!validatePOFormData(formData)) return
+    if (!validatePOFormData(formData)) {
+      isSavingRef.current = false
+      return
+    }
     setIsSaving(true)
     try {
       const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
@@ -181,6 +205,7 @@ function NewPurchaseOrderPageInner() {
       console.error("Error creating purchase order:", error)
       toast.error("Failed to create purchase order. Please try again.")
     } finally {
+      isSavingRef.current = false
       setIsSaving(false)
     }
   }
