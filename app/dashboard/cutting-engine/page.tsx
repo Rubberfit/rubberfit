@@ -16,6 +16,7 @@ import PresetDimensionSelector, {
 } from "./_components/PresetDimensionSelector"
 import CutListUpload from "./_components/cut-list-upload"
 import type { ExtractedPart } from "@/src/application/vision/types"
+import type { DxfImportedPart } from "@/src/application/cad/dxf-types"
 import type { SimpleCutDirection } from "./_components/NestingVisualizer"
 import type { SimpleCutMetrics } from "./_components/nesting-visualizer-types"
 import {
@@ -369,6 +370,27 @@ function CutPlannerPageInner() {
     if (stockWidth && stockWidth > 0) {
       setStock((prev) => ({ ...prev, width: stockWidth }))
     }
+  }
+
+  const handleDxfPartConfirmed = (part: DxfImportedPart) => {
+    // Convert mm → inches at confirm-time so all downstream math
+    // (preset-utils area, bin estimator, packing) operates in inches
+    // — see preset-utils.ts:getTemplateAreaSqFt's polygon case.
+    const scale = part.units === "mm" ? 1 / 25.4 : 1
+    const inchPolygon = part.polygon.map((p) => ({ x: p.x * scale, y: p.y * scale }))
+    const template: PartTemplate = {
+      id: `dxf-${Date.now()}`,
+      partType: "polygon",
+      label: part.partNumber,
+      summary: `DXF: ${part.sourceFile}`,
+      quantity: part.quantity,
+      category: "custom",
+      polygon: inchPolygon,
+      partNumber: part.partNumber,
+      sourceFile: part.sourceFile,
+      isCustom: true,
+    }
+    setUploadedParts((prev) => [...prev, template])
   }
 
   const removeUploadedPart = (id: string) => {
@@ -795,7 +817,10 @@ function CutPlannerPageInner() {
         </InlineNotice>
       ) : null}
 
-      <CutListUpload onPartsConfirmed={handleUploadedParts} />
+      <CutListUpload
+        onPartsConfirmed={handleUploadedParts}
+        onDxfPartConfirmed={handleDxfPartConfirmed}
+      />
 
       {uploadedParts.length > 0 && (
         <Card className="border border-slate-200 shadow-sm">

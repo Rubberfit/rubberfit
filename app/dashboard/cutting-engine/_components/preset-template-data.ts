@@ -8,7 +8,10 @@ import {
 } from "./preset-template-data-shapes"
 
 type TemplateCategory = "standard" | "large" | "narrow" | "custom"
-type SupportedPartType = Exclude<SimplePartType, "circle">
+// Polygons are upload-only (DXF imports) and never appear in the
+// saved-custom library, so they're excluded from `SupportedPartType`
+// alongside `circle`.
+type SupportedPartType = Exclude<SimplePartType, "circle" | "polygon">
 
 export type { TemplateCategory, SupportedPartType }
 
@@ -41,8 +44,9 @@ export interface PartTemplate {
    * Optional local-coords polygon (bbox anchored at 0, 0). Shape
    * library templates (triangle, n-gon, star, ring, ellipse, etc.)
    * populate this so Free-roam's collision / waste / render paths
-   * don't need a partType case for every new shape. Ignored by the
-   * Auto-nest pipeline.
+   * don't need a partType case for every new shape. DXF imports
+   * (`partType === "polygon"`) populate it too — that path is the
+   * one Auto-nest path that takes raw vertices.
    */
   polygon?: Point2D[]
   /**
@@ -54,6 +58,12 @@ export interface PartTemplate {
    * Absent or empty → no holes (today's single-loop shapes).
    */
   holes?: Point2D[][]
+  /**
+   * Original source filename for DXF-imported polygon templates. Used
+   * by the parts-queue panel for display copy ("bracket.dxf"). Other
+   * template kinds leave this undefined.
+   */
+  sourceFile?: string
 }
 
 /**

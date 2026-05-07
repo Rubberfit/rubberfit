@@ -1,5 +1,6 @@
 import { SimpleCutDirection, SimplePartType } from "./nesting-visualizer-types"
 import { PartTemplate } from "./preset-template-data"
+import { polygonArea } from "@/nesting/convex-hull"
 
 function getPartLabel(partType: PartTemplate["partType"]) {
   switch (partType) {
@@ -103,6 +104,11 @@ function partTemplateAreaSqIn(template: PartTemplate): number {
       const bottomWidth = template.bottomWidth ?? 0
       const height = template.height ?? 0
       return ((topWidth + bottomWidth) / 2) * height * qty
+    }
+    case "polygon": {
+      // Polygon vertices are pre-converted to inches at confirm-time;
+      // the shoelace area is already in square inches.
+      return polygonArea(template.polygon ?? []) * qty
     }
     case "rectangle":
     default:
