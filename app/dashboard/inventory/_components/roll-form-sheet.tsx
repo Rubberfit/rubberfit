@@ -191,13 +191,7 @@ interface RollFormBodyProps {
   onSubmitClose: () => void
 }
 
-function RollFormBody({
-  roll,
-  dirtyRef,
-  onSuccess,
-  onClose,
-  onSubmitClose,
-}: RollFormBodyProps) {
+function RollFormBody({ roll, dirtyRef, onSuccess, onClose, onSubmitClose }: RollFormBodyProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const isEdit = roll !== null

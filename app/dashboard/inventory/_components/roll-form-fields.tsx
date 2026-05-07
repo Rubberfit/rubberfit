@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import type { UseFormReturn } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -42,6 +43,17 @@ interface RollFormFieldsProps {
 export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsProps) {
   const { register, formState, setValue, watch } = form
   const { errors } = formState
+  // Sequence guard for the supplier-name resolution. The select
+  // surfaces an ID that we resolve to a name asynchronously; if
+  // the user picks B before A's resolution returns, A's name
+  // would otherwise overwrite the newer B selection. Bumping a
+  // local counter on each pick + comparing against it before
+  // setValue keeps the form in sync with the latest choice.
+  // (The deeper fix — store `supplier_id` instead of the
+  // denormalized name on the Roll — needs a schema + API
+  // change; tracked alongside the supplier subtree refactor in
+  // PR 3h.)
+  const supplierPickRef = useRef(0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -190,15 +202,21 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
               <SupplierSelect
                 value={watch("supplier")}
                 onValueChange={(value) => {
+                  supplierPickRef.current += 1
+                  const pickId = supplierPickRef.current
                   supplierService
                     .getSupplierById(value)
                     .then((supplier) => {
+                      // Drop the response if the user has already
+                      // moved on to a newer pick.
+                      if (supplierPickRef.current !== pickId) return
                       setValue("supplier", supplier?.name ?? "", {
                         shouldDirty: true,
                         shouldValidate: true,
                       })
                     })
                     .catch((error) => {
+                      if (supplierPickRef.current !== pickId) return
                       console.error("Error resolving supplier name:", error)
                       // Don't leave the user staring at an unset
                       // field after a network blip — clear and tell

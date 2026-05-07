@@ -198,7 +198,9 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
                 Value
               </p>
               <p className="mt-1 font-semibold text-sm text-foreground">
-                {roll.cost_per_sqft ? formatCurrency(remainingSqft * roll.cost_per_sqft) : "—"}
+                {roll.cost_per_sqft != null
+                  ? formatCurrency(remainingSqft * roll.cost_per_sqft)
+                  : "—"}
               </p>
             </div>
           </div>
