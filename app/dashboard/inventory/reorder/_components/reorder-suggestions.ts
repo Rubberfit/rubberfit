@@ -1,10 +1,6 @@
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
-import type {
-  IGenerateReorderSuggestionsUseCase,
-  ReorderSuggestionOutput,
-} from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
-import { resolveUseCase } from "@/di/resolve"
-import { TOKENS } from "@/di/tokens"
+import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
+import { generateReorderSuggestions as generateReorderSuggestionsAction } from "@/app/actions/reorder"
 
 export type ReorderSuggestion = ReorderSuggestionOutput
 
@@ -12,13 +8,7 @@ export async function generateReorderSuggestions(
   rules: ReorderRuleWithDetails[],
   pendingPOs: Array<{ items?: Array<{ material_type_id: string; quantity_sqft: number }> }> = []
 ): Promise<ReorderSuggestion[]> {
-  const useCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
-    TOKENS.IGenerateReorderSuggestionsUseCase
-  )
-  return useCase.execute({
-    rules,
-    pendingPOs,
-  })
+  return generateReorderSuggestionsAction({ rules, pendingPOs })
 }
 
 export function getStockStatus(current: number, reorderPoint: number, max: number) {

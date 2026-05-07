@@ -8,8 +8,7 @@ import { Button } from "@/app/components/ui/button"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { createMaterialType, deleteMaterialType, updateMaterialType } from "@/app/actions/materials"
 
 import { MaterialDeleteDialog } from "./_components/material-delete-dialog"
 import { MaterialFormSheet, type MaterialFormValues } from "./_components/material-form-sheet"
@@ -20,9 +19,14 @@ import { MaterialTable } from "./_components/material-table"
  *
  * Shared catalog table (`<DataTable>`) with a right-side `<Sheet>`
  * drawer for Add / Edit and a destructive `<AlertDialog>` for
- * deletion. Wired against `materialTypeService` (Supabase) — same
- * service paths used in S4 Task 10's card-per-row layout, only
- * the chrome moves to the Phase 2 primitives.
+ * deletion. Writes flow through `manageMaterialTypes`-gated server
+ * actions in `app/actions/materials.ts`; reads still go directly
+ * through `materialTypeService.getAll()` (cached, RLS-respecting,
+ * no auth/permission gate needed for catalog lookups).
+ *
+ * `deleteMaterialType` returns a discriminated union with stable
+ * `reason` codes for the UI to surface specific FK messages
+ * (rolls / purchase orders). Pre-flight checks live server-side.
  *
  * See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
  */
@@ -56,7 +60,7 @@ export default function MaterialSettingsPage() {
       setIsSaving(true)
       try {
         if (target === "new") {
-          await materialTypeService.create({
+          await createMaterialType({
             name: values.name.trim(),
             description: values.description.trim(),
             default_cost: values.default_cost,
@@ -64,7 +68,8 @@ export default function MaterialSettingsPage() {
           })
           toast.success("Material added")
         } else {
-          await materialTypeService.update(target.id, {
+          await updateMaterialType({
+            id: target.id,
             name: values.name.trim(),
             description: values.description.trim(),
             default_cost: values.default_cost,
@@ -88,42 +93,18 @@ export default function MaterialSettingsPage() {
   const handleConfirmDelete = useCallback(
     async (material: MaterialType) => {
       try {
-        // Asymmetric lookup: `rolls` stores `material_type` as a name string
-        // (legacy schema), while `purchase_order_items` uses a proper FK to
-        // the material id. Future schema-normalization pass tracked in the
-        // S6 tech-debt list.
-        const hasRolls = await rollService.existsByMaterialType(material.name)
-        if (hasRolls) {
-          toast.error("Cannot delete material", {
-            description: "This material is being used by existing rolls.",
-          })
+        const result = await deleteMaterialType({ id: material.id })
+        if (!result.ok) {
+          toast.error("Cannot delete material", { description: result.message })
           return
         }
-
-        const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(material.id)
-        if (hasPOItems) {
-          toast.error("Cannot delete material", {
-            description: "This material is referenced by existing purchase orders.",
-          })
-          return
-        }
-
-        await materialTypeService.delete(material.id)
         toast.success("Material deleted")
         setDeleteTarget(null)
         await fetchMaterials()
       } catch (error) {
-        const isFkError =
-          typeof error === "object" &&
-          error !== null &&
-          (("code" in error && (error as { code?: string }).code === "23503") ||
-            ((error as { message?: string }).message?.includes("foreign key constraint") ?? false))
+        // Auth / permission / unexpected runtime errors propagate as throws.
         toast.error("Failed to delete material", {
-          description: isFkError
-            ? "This material is referenced by other records and cannot be deleted."
-            : error instanceof Error
-              ? error.message
-              : undefined,
+          description: error instanceof Error ? error.message : undefined,
         })
       }
     },

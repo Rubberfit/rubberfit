@@ -144,7 +144,7 @@ the server's first `IPackingService` resolve.
 
 ### Data Flow
 
-Two valid flows, chosen based on the operation's complexity:
+Two valid flows, chosen by the operation's complexity:
 
 **Simple (pure CRUD):**
 
@@ -154,20 +154,33 @@ app/ hook or component  →  infrastructure service  →  Supabase
 
 Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
 
-**Complex (business rules or multi-service):**
+**Orchestrated (multi-service writes, side effects, auth-bound work):**
 
 ```text
-app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
+app/ hook  →  app/actions/<domain>.ts (server action)  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
 
-The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` resolves `ICreatePurchaseOrderUseCase` from the container and invokes `.execute(...)` → `purchaseOrderService` + `taxService`.
+Server actions enforce the orchestration boundary as a hard physical line — the use-case body runs server-side, never in the browser bundle. Each action's first lines are `requireAuthenticatedUser()` (resolves the caller via cookies, throws on unauthenticated/deactivated/missing-profile) and `requirePermission(actor, ...)` (RBAC check). The use-case takes `actor: ActionActor` in its input so audit logging and side effects have the caller's identity without reaching for a global. Cache invalidation is per-action: `revalidatePath()` for RSC routes plus React Query `invalidateQueries` from the client. Example: `app/actions/purchase-orders.ts::createPurchaseOrder` wraps `ICreatePurchaseOrderUseCase`; [`po-action-handlers.ts::createPO`](app/dashboard/inventory/purchase-orders/_components/po-action-handlers.ts) imports the action and `await`s it.
 
 **Use-case wiring:**
 
 - Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
 - Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
-- Resolved at call sites via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container.
+- Resolved server-side at the action layer via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container. **Never** put request-scoped state into TSyringe singletons — they're shared across serverless requests on the same worker.
 - No module-level singleton exports — use-case class files are import-safe in isolation. Unit tests register fakes with `container.registerInstance(TOKENS.IDependency, fake)` before resolving the use-case, without pulling Supabase at import time.
+
+**Action wiring:**
+
+- Each domain has one file under `app/actions/<domain>.ts` with `"use server"` at the top.
+- Public action input is `Omit<UseCaseInput, "actor">` — clients can't spoof identity. The action injects `actor` from `requireAuthenticatedUser()` before invoking the use-case.
+- Errors propagate via three typed classes: `UnauthorizedError` (401-class), `ForbiddenError` (403-class), `AuthConfigError` (5xx-class). Catch wrappers discriminate on `code`, not `instanceof` (errors lose prototype chain across the RPC boundary).
+- `app/server/auth/require-authenticated-user.ts` is in [`tests/architecture/no-direct-supabase.test.ts`](tests/architecture/no-direct-supabase.test.ts)'s allowlist — its cookie-bound `createServerClient` is the unavoidable framework boundary, like `proxy.ts`.
+
+**Database client resolution:**
+
+- Infrastructure services do **not** import the browser-singleton `supabase` from `@/src/infrastructure/models/supabase` directly. Instead, they call `await getDatabaseClient()` from [`@/src/infrastructure/supabase/get-database-client`](src/infrastructure/supabase/get-database-client.ts). The helper returns the right client for the runtime: a cookie-bound `createServerClient` on the server (RLS-respecting — Postgres sees `auth.uid()` from the request JWT) or the browser singleton in the client bundle.
+- Server actions and route handlers must call `ensureDatabaseFactoryRegistered()` from [`@/app/server/database/register-factory`](app/server/database/register-factory.ts) as the first line of every entry point that may touch the database. The call is idempotent. Codex review flagged layout-based registration as risky in serverless runtimes (Next.js does not contractually guarantee layout module evaluation before a server-action POST), so registration happens at action entry instead.
+- **Never** use the service-role key for normal CRUD. RLS is the security model; the anon-key + cookie pattern preserves it. Service-role escapes (`makeAdminClient` in `src/infrastructure/supabase/server-clients.ts`) are reserved for explicitly-authorized admin route handlers.
 
 ### When to create a use-case
 
@@ -188,7 +201,7 @@ See `src/application/use-cases/` for current examples (7 use-cases across `purch
 
 ### Controllers
 
-`src/interface-adapters/` is reserved for controllers but currently empty. Controllers only earn their cost once server actions or API routes exist — at that point the action/route handler delegates to a controller that parses input, calls a use-case, and shapes the response. Until then, client hooks fill the controller role (form validation + use-case invocation + UI side effects).
+`src/interface-adapters/` is reserved for controllers but stays empty. Server actions in `app/actions/<domain>.ts` fill the controller role — they parse input, enforce auth + permission, invoke the use-case, and shape the response. Adding a separate controllers tier on top would be a layer without a job.
 
 ### Notifications gotcha
 

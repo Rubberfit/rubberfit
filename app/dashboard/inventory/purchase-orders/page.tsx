@@ -1,7 +1,8 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useMemo } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
 
@@ -16,106 +17,30 @@ import {
   StatusBadge,
 } from "@/app/components/patterns"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
-import { POViewDialog } from "./_components/po-view-dialog"
-import { POCreateDialog } from "./_components/po-create-dialog"
-import { POEditDialog } from "./_components/po-edit-dialog"
+import { PoViewDrawer } from "./_components/po-view-drawer"
 import { POTable } from "./_components/po-table"
 import { PurchaseOrdersExportMenu } from "./_components/po-export-menu"
 import { toPurchaseOrdersExportInput } from "./_components/po-export-utils"
 import { usePurchaseOrders } from "./_components/use-purchase-orders"
-import { getEmptyItem, type POFormData } from "./_components/po-form-dialog"
 
-/**
- * Reads the job-sufficiency deep-link query params and, when present,
- * pre-fills the PO create dialog with a matching line item + stores
- * the source job id so `handleCreatePO` can stamp it onto the PO.
- * One-shot — strips the params afterwards so a refresh doesn't
- * replay the prefill on top of an in-progress draft.
- */
-function JobPrefillBridge({
-  materialTypes,
-  formData,
-  setFormData,
-  setIsCreateDialogOpen,
-  setSourceJobId,
-}: {
-  materialTypes: MaterialType[]
-  formData: POFormData
-  setFormData: (data: POFormData) => void
-  setIsCreateDialogOpen: (open: boolean) => void
-  setSourceJobId: (id: string | null) => void
-}) {
-  const searchParams = useSearchParams()
+export default function PurchaseOrdersPage() {
   const router = useRouter()
-  const appliedRef = useRef(false)
-
-  const jobIdParam = searchParams.get("job_id")
-  const materialParam = searchParams.get("material")
-  const shortfallParam = searchParams.get("shortfall_sqft")
-
-  useEffect(() => {
-    if (appliedRef.current || !jobIdParam) return
-    // Wait for material types so the name → id lookup resolves.
-    if (materialTypes.length === 0) return
-    appliedRef.current = true
-
-    const shortfall = Number(shortfallParam)
-    const match = materialTypes.find(
-      (mt) => (materialParam ?? "").trim().toLowerCase() === (mt.name ?? "").trim().toLowerCase()
-    )
-
-    setFormData({
-      ...formData,
-      items: [
-        {
-          ...getEmptyItem(),
-          material_type_id: match?.id ?? "",
-          description: materialParam ? `Job shortfall: ${materialParam}` : "",
-          quantity_sqft:
-            Number.isFinite(shortfall) && shortfall > 0 ? Number(shortfall.toFixed(2)) : 0,
-        },
-      ],
-      notes: formData.notes,
-    })
-    setSourceJobId(jobIdParam)
-    setIsCreateDialogOpen(true)
-    toast.message("PO prefilled from job shortfall.", {
-      description: materialParam ? `${materialParam} · ${shortfall.toFixed(1)} sqft` : undefined,
-    })
-    router.replace("/dashboard/inventory/purchase-orders")
-  }, [
-    jobIdParam,
-    materialParam,
-    shortfallParam,
-    materialTypes,
-    formData,
-    setFormData,
-    setIsCreateDialogOpen,
-    setSourceJobId,
-    router,
-  ])
-
-  return null
-}
-
-function PurchaseOrdersPageInner() {
   const po = usePurchaseOrders()
-  // Set when the operator came from a job sufficiency panel's "Create
-  // PO" deep-link. Flows into `handleCreatePO(sourceJobId)` so the
-  // resulting PO stamps `purchase_orders.job_id` for the job drawer's
-  // linked-POs panel to surface it. Cleared on submit / dialog close.
-  const [sourceJobId, setSourceJobId] = useState<string | null>(null)
 
-  const handleViewPO = async (poItem: Parameters<typeof po.fetchTaxDetailsForPO>[0]) => {
+  const handleViewPO = async (poItem: PurchaseOrderWithDetails) => {
     po.setSelectedPO(poItem)
     await po.fetchTaxDetailsForPO(poItem)
     po.setIsViewDialogOpen(true)
   }
 
-  const handleCancelPO = (poItem: Parameters<typeof po.fetchTaxDetailsForPO>[0]) => {
+  const handleEditPO = (poItem: PurchaseOrderWithDetails) => {
+    router.push(`/dashboard/inventory/purchase-orders/${poItem.id}/edit`)
+  }
+
+  const handleCancelPO = (poItem: PurchaseOrderWithDetails) => {
     po.setConfirmAction({
       open: true,
       action: async () => {
@@ -145,11 +70,6 @@ function PurchaseOrdersPageInner() {
     })
   }
 
-  const handleCreatePO = async () => {
-    await po.handleCreatePO(sourceJobId ?? undefined)
-    setSourceJobId(null)
-  }
-
   const exportInput = useMemo(
     () =>
       toPurchaseOrdersExportInput({
@@ -164,14 +84,6 @@ function PurchaseOrdersPageInner() {
 
   return (
     <PageShell variant="dense">
-      <JobPrefillBridge
-        materialTypes={po.materialTypes}
-        formData={po.formData}
-        setFormData={po.setFormData}
-        setIsCreateDialogOpen={po.setIsCreateDialogOpen}
-        setSourceJobId={setSourceJobId}
-      />
-
       <PageHeader
         crumbs={[
           { label: "Operations", href: "/dashboard" },
@@ -183,19 +95,15 @@ function PurchaseOrdersPageInner() {
         actions={
           <>
             <PurchaseOrdersExportMenu input={exportInput} disabled={po.loading} />
-            <Button size="sm" onClick={() => po.setIsCreateDialogOpen(true)}>
-              <Plus className="size-3.5" />
-              New PO
+            <Button asChild size="sm">
+              <Link href="/dashboard/inventory/purchase-orders/new">
+                <Plus className="size-3.5" />
+                New PO
+              </Link>
             </Button>
           </>
         }
       />
-
-      {sourceJobId && (
-        <InlineNotice intent="info" title="Job shortfall PO">
-          This draft will be linked to the originating job on submit.
-        </InlineNotice>
-      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -253,53 +161,24 @@ function PurchaseOrdersPageInner() {
           searchQuery={po.searchQuery}
           setSearchQuery={po.setSearchQuery}
           onViewPO={handleViewPO}
-          onEditPO={po.handleEditPO}
+          onEditPO={handleEditPO}
           onUpdatePOStatus={po.updatePOStatus}
           onCancelPO={handleCancelPO}
           fetchData={po.fetchData}
         />
       </Card>
 
-      <POCreateDialog
-        isOpen={po.isCreateDialogOpen}
-        setIsOpen={(open) => {
-          po.setIsCreateDialogOpen(open)
-          if (!open) setSourceJobId(null)
+      <PoViewDrawer
+        po={po.selectedPO}
+        open={po.isViewDialogOpen}
+        onOpenChange={(open) => {
+          po.setIsViewDialogOpen(open)
+          if (!open) po.setSelectedPO(null)
         }}
-        formData={po.formData}
-        setFormData={po.setFormData}
-        suppliers={po.suppliers}
-        materialTypes={po.materialTypes}
-        isCreating={po.isCreating}
-        createFormTaxDetails={po.createFormTaxDetails}
-        onCreatePO={handleCreatePO}
-        onConfirmRemoveItem={po.handleConfirmRemoveItem}
-      />
-
-      <POViewDialog
-        selectedPO={po.selectedPO}
-        isViewDialogOpen={po.isViewDialogOpen}
-        setIsViewDialogOpen={po.setIsViewDialogOpen}
-        setSelectedPO={po.setSelectedPO}
-        selectedPOTaxDetails={po.selectedPOTaxDetails}
-        onEditPO={po.handleEditPO}
-        onUpdatePOStatus={po.updatePOStatus}
+        taxDetails={po.selectedPOTaxDetails}
+        onEdit={handleEditPO}
+        onUpdateStatus={po.updatePOStatus}
         onDownloadPDF={handleDownloadPDF}
-      />
-
-      <POEditDialog
-        isOpen={po.isEditDialogOpen}
-        setIsOpen={po.setIsEditDialogOpen}
-        editingPO={po.editingPO}
-        setEditingPO={po.setEditingPO}
-        editFormData={po.editFormData}
-        setEditFormData={po.setEditFormData}
-        suppliers={po.suppliers}
-        materialTypes={po.materialTypes}
-        isUpdating={po.isUpdating}
-        editFormTaxDetails={po.editFormTaxDetails}
-        onUpdatePO={po.handleUpdatePO}
-        onConfirmRemoveItem={po.handleConfirmRemoveItem}
       />
 
       <ConfirmationDialog
@@ -311,14 +190,5 @@ function PurchaseOrdersPageInner() {
         variant={po.confirmAction.variant}
       />
     </PageShell>
-  )
-}
-
-export default function PurchaseOrdersPage() {
-  // `useSearchParams` requires a Suspense boundary in Next 16.
-  return (
-    <Suspense fallback={null}>
-      <PurchaseOrdersPageInner />
-    </Suspense>
   )
 }

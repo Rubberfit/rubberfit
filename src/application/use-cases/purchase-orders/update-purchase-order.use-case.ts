@@ -2,6 +2,7 @@ import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
+import type { ActionActor } from "@/src/application/types/action-actor"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
 import { computePoSubtotal } from "@/src/application/computePoSubtotal"
@@ -17,6 +18,7 @@ export interface UpdatePurchaseOrderInput {
   notes?: string
   shippingCost?: number
   items: CreatePurchaseOrderItemInput[]
+  actor: ActionActor
 }
 
 export interface UpdatePurchaseOrderResult {
@@ -59,17 +61,20 @@ export class UpdatePurchaseOrderUseCase implements IUpdatePurchaseOrderUseCase {
     })
 
     for (const item of input.items) {
-      await this.poService.addItemToPurchaseOrder({
-        purchase_order_id: input.purchaseOrderId,
-        material_type_id: item.materialTypeId,
-        description: item.description || "",
-        quantity_sqft: item.quantitySqft,
-        unit_cost: item.unitCost,
-        width: item.width,
-        thickness: item.thickness,
-        color: item.color,
-        notes: item.notes,
-      })
+      await this.poService.addItemToPurchaseOrder(
+        {
+          purchase_order_id: input.purchaseOrderId,
+          material_type_id: item.materialTypeId,
+          description: item.description || "",
+          quantity_sqft: item.quantitySqft,
+          unit_cost: item.unitCost,
+          width: item.width,
+          thickness: item.thickness,
+          color: item.color,
+          notes: item.notes,
+        },
+        input.actor.id
+      )
     }
 
     return { purchaseOrder: updated, taxCalculation: taxCalc }

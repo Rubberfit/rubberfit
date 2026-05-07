@@ -1,10 +1,11 @@
 /**
  * Phase 2 PR 3 — smoke test for the rebuilt Materials settings
- * page. Mocks the three infrastructure services (`materialTypeService`,
- * `rollService`, `purchaseOrderService`) and verifies that the
- * page renders the catalog DataTable, opens the Add drawer on
- * the primary action, and routes Edit / Delete clicks to the
- * right state transitions.
+ * page. Reads still flow through `materialTypeService.getAll()`;
+ * writes (create/update/delete) flow through the
+ * `manageMaterialTypes`-gated server actions in
+ * `app/actions/materials.ts`. The actions own the FK pre-flight
+ * (rolls + purchase orders) — the page just discriminates on the
+ * `DeleteMaterialTypeResult` union for toast copy.
  *
  * Spec: `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
  */
@@ -35,15 +36,11 @@ const fixtureMaterials: MaterialType[] = [
 
 const materialTypeService = vi.hoisted(() => ({
   getAll: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
 }))
-const rollService = vi.hoisted(() => ({
-  existsByMaterialType: vi.fn(),
-}))
-const purchaseOrderService = vi.hoisted(() => ({
-  existsItemsByMaterialType: vi.fn(),
+const materialActions = vi.hoisted(() => ({
+  createMaterialType: vi.fn(),
+  updateMaterialType: vi.fn(),
+  deleteMaterialType: vi.fn(),
 }))
 const toast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -53,8 +50,7 @@ const toast = vi.hoisted(() => ({
 vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
   materialTypeService,
 }))
-vi.mock("@/src/infrastructure/services/rollService", () => ({ rollService }))
-vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({ purchaseOrderService }))
+vi.mock("@/app/actions/materials", () => materialActions)
 vi.mock("sonner", () => ({ toast }))
 
 import MaterialSettingsPage from "@/app/dashboard/settings/materials/page"
@@ -63,11 +59,9 @@ describe("Material settings page (Phase 2 PR 3)", () => {
   beforeEach(() => {
     materialTypeService.getAll.mockReset()
     materialTypeService.getAll.mockResolvedValue(fixtureMaterials)
-    materialTypeService.create.mockReset().mockResolvedValue(undefined)
-    materialTypeService.update.mockReset().mockResolvedValue(undefined)
-    materialTypeService.delete.mockReset().mockResolvedValue(undefined)
-    rollService.existsByMaterialType.mockReset().mockResolvedValue(false)
-    purchaseOrderService.existsItemsByMaterialType.mockReset().mockResolvedValue(false)
+    materialActions.createMaterialType.mockReset().mockResolvedValue(undefined)
+    materialActions.updateMaterialType.mockReset().mockResolvedValue(undefined)
+    materialActions.deleteMaterialType.mockReset().mockResolvedValue({ ok: true })
     toast.success.mockClear()
     toast.error.mockClear()
   })
@@ -106,8 +100,12 @@ describe("Material settings page (Phase 2 PR 3)", () => {
     expect(dialogConfirm.length).toBeGreaterThan(0)
   })
 
-  it("blocks delete when rolls already reference the material", async () => {
-    rollService.existsByMaterialType.mockResolvedValueOnce(true)
+  it("surfaces the action's FK message when delete is blocked by existing rolls", async () => {
+    materialActions.deleteMaterialType.mockResolvedValueOnce({
+      ok: false,
+      reason: "in_use_by_rolls",
+      message: "This material is being used by existing rolls",
+    })
     render(<MaterialSettingsPage />)
     await waitFor(() => expect(screen.getByText("Neoprene")).not.toBeNull())
     fireEvent.click(screen.getByRole("button", { name: /Delete Neoprene/i }))
@@ -121,6 +119,7 @@ describe("Material settings page (Phase 2 PR 3)", () => {
         expect.objectContaining({ description: expect.stringContaining("rolls") })
       )
     )
-    expect(materialTypeService.delete).not.toHaveBeenCalled()
+    expect(materialActions.deleteMaterialType).toHaveBeenCalledWith({ id: "mat-1" })
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

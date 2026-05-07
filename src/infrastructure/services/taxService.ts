@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { taxApiService } from "./taxApiService"
 import type {
   ITaxService,
@@ -28,6 +28,7 @@ export class TaxService implements ITaxService {
     city: string | null,
     zipCode: string | null
   ): Promise<TaxRateDetails | null> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase.rpc("get_tax_rate_details", {
       p_state: stateCode || "XX",
       p_city: city || null,
@@ -63,7 +64,9 @@ export class TaxService implements ITaxService {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + API_CACHE_DAYS)
 
-    // Cache the result (fire-and-forget)
+    // Cache the result (fire-and-forget). Resolve client first; on
+    // server, the cookie-bound client is bound to the current request.
+    const supabase = await getDatabaseClient()
     supabase
       .rpc("upsert_cached_tax_rate", {
         p_state: apiResult.state || stateCode || "",
@@ -91,6 +94,7 @@ export class TaxService implements ITaxService {
     city: string | null,
     zipCode: string | null
   ): Promise<TaxRateDetails | null> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase.rpc("get_tax_rate_details", {
       p_state: stateCode || "XX",
       p_city: city || null,
@@ -190,6 +194,7 @@ export class TaxService implements ITaxService {
 
   async getTaxRatesForState(state: string): Promise<TaxRateDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("tax_rates")
         .select("*")
@@ -232,6 +237,7 @@ export class TaxService implements ITaxService {
 
   async isSupplierTaxExempt(supplierId: string): Promise<boolean> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("tax_exempt")
@@ -248,6 +254,7 @@ export class TaxService implements ITaxService {
 
   async getSupplierLocation(supplierId: string) {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("suppliers")
         .select("state, city, zip_code, tax_exempt, tax_rate")
