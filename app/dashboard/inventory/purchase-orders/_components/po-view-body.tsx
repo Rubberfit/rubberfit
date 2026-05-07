@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Building2, ClipboardCheck, Download, Edit2, Send } from "lucide-react"
 
 import {
@@ -26,7 +27,13 @@ interface PoViewBodyProps {
   taxDetails: TaxDetails | null
   onClose: () => void
   onEdit: (po: PurchaseOrderWithDetails) => void
-  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<void>
+  /**
+   * Returns `true` if the status transition succeeded, `false` if
+   * the request rejected. Used to gate `onClose()` below so a
+   * silent failure in `updatePOStatus` doesn't dismiss the drawer
+   * mid-edit.
+   */
+  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onDownloadPDF: (po: PurchaseOrderWithDetails) => void
 }
 
@@ -44,6 +51,11 @@ export function PoViewBody({
   onUpdateStatus,
   onDownloadPDF,
 }: PoViewBodyProps) {
+  // Disables the Edit + Submit buttons during the transition so a
+  // double-click can't enqueue duplicate `pending` writes (and
+  // duplicate toasts inside `updatePOStatus`).
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
   return (
     <>
       <SheetHeader className="space-y-2 border-b px-6 pt-6 pb-4">
@@ -87,13 +99,14 @@ export function PoViewBody({
 
       <div className="border-t bg-card px-6 py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Close
           </Button>
           {po.status === "draft" && (
             <>
               <Button
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => {
                   onClose()
                   onEdit(po)
@@ -103,22 +116,30 @@ export function PoViewBody({
                 Edit
               </Button>
               <Button
+                disabled={isSubmitting}
                 onClick={async () => {
                   // `updatePOStatus` (in `use-po-actions.ts`) owns
                   // its own toast on success/failure — toasting
                   // here too would double-fire on success and
                   // (worse) green-toast even when the underlying
-                  // update failed silently.
-                  await onUpdateStatus(po.id, "pending")
-                  onClose()
+                  // update failed silently. The boolean return
+                  // gates `onClose()` so a rejected mutation
+                  // leaves the drawer open for retry.
+                  setIsSubmitting(true)
+                  try {
+                    const ok = await onUpdateStatus(po.id, "pending")
+                    if (ok) onClose()
+                  } finally {
+                    setIsSubmitting(false)
+                  }
                 }}
               >
                 <Send className="size-3.5" aria-hidden="true" />
-                Submit
+                {isSubmitting ? "Submitting…" : "Submit"}
               </Button>
             </>
           )}
-          <Button onClick={() => onDownloadPDF(po)}>
+          <Button onClick={() => onDownloadPDF(po)} disabled={isSubmitting}>
             <Download className="size-3.5" aria-hidden="true" />
             Download PDF
           </Button>

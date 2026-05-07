@@ -56,7 +56,17 @@ export function usePOActions({
     [setSelectedPOTaxDetails]
   )
 
-  const updatePOStatus = async (poId: string, newStatus: PurchaseOrder["status"]) => {
+  /**
+   * Returns `true` if the status update succeeded, `false` if the
+   * request rejected (errors are toasted internally; callers like
+   * the row dropdown can ignore the return; the drawer Submit
+   * button gates `onClose()` on the truthy result so a silent
+   * failure doesn't close the panel).
+   */
+  const updatePOStatus = async (
+    poId: string,
+    newStatus: PurchaseOrder["status"]
+  ): Promise<boolean> => {
     try {
       if (newStatus === "approved") {
         // Approve continues through the existing DI-registered use
@@ -101,6 +111,7 @@ export function usePOActions({
           toast.success("Purchase order cancelled")
           break
       }
+      return true
     } catch (error) {
       const err = error as Error & { code?: string; status?: number }
       console.error("Error updating PO status:", error)
@@ -110,19 +121,19 @@ export function usePOActions({
       // directly here yet — follow-up UX ticket will expose them
       // as a picker on the toast.
       if (err.code === "RECEIVED_REQUIRES_RECEIVE_FLOW") {
-        toast.error(
-          "Use the receive flow on the PO detail view to mark items as received.",
-          { description: "Status can't go to `received` through the row menu." }
-        )
-        return
+        toast.error("Use the receive flow on the PO detail view to mark items as received.", {
+          description: "Status can't go to `received` through the row menu.",
+        })
+        return false
       }
       if (err.code === "INVALID_STATE_TRANSITION") {
         toast.error("That status transition isn't allowed from the current state.", {
           description: "Refresh the list and try again.",
         })
-        return
+        return false
       }
       toast.error("Failed to update purchase order status")
+      return false
     }
   }
 

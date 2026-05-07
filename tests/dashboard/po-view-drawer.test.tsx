@@ -69,7 +69,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
         onOpenChange={vi.fn()}
         taxDetails={null}
         onEdit={vi.fn()}
-        onUpdateStatus={vi.fn().mockResolvedValue(undefined)}
+        onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
     )
@@ -90,7 +90,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
         onOpenChange={onOpenChange}
         taxDetails={null}
         onEdit={vi.fn()}
-        onUpdateStatus={vi.fn().mockResolvedValue(undefined)}
+        onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
     )
@@ -113,7 +113,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
         onOpenChange={onOpenChange}
         taxDetails={null}
         onEdit={onEdit}
-        onUpdateStatus={vi.fn().mockResolvedValue(undefined)}
+        onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
     )
@@ -124,7 +124,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
   })
 
   it("Submit calls onUpdateStatus('pending') and closes — toast handled by parent", async () => {
-    const onUpdateStatus = vi.fn().mockResolvedValue(undefined)
+    const onUpdateStatus = vi.fn().mockResolvedValue(true)
     const onOpenChange = vi.fn()
     render(
       <PoViewDrawer
@@ -149,6 +149,31 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it("keeps the drawer open when Submit fails (onUpdateStatus → false)", async () => {
+    // The new contract is "wait for onUpdateStatus before
+    // closing." A `false` return signals the underlying
+    // updatePOStatus rejected (and toasted internally), so the
+    // drawer should stay open for retry.
+    const onUpdateStatus = vi.fn().mockResolvedValue(false)
+    const onOpenChange = vi.fn()
+    render(
+      <PoViewDrawer
+        po={SAMPLE_PO}
+        open
+        onOpenChange={onOpenChange}
+        taxDetails={null}
+        onEdit={vi.fn()}
+        onUpdateStatus={onUpdateStatus}
+        onDownloadPDF={vi.fn()}
+      />
+    )
+    fireEvent.click(await screen.findByRole("button", { name: /^Submit$/ }))
+    await waitFor(() => {
+      expect(onUpdateStatus).toHaveBeenCalledWith("po-1", "pending")
+    })
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
   it("hides Edit + Submit when the PO is no longer in draft", async () => {
     const orderedPo = { ...SAMPLE_PO, status: "ordered" } as PurchaseOrderWithDetails
     render(
@@ -158,7 +183,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
         onOpenChange={vi.fn()}
         taxDetails={null}
         onEdit={vi.fn()}
-        onUpdateStatus={vi.fn().mockResolvedValue(undefined)}
+        onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
     )

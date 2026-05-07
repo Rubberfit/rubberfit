@@ -38,7 +38,9 @@ import { getStatusBadge } from "./po-status-badge"
 interface UsePoColumnsArgs {
   onView: (po: PurchaseOrderWithDetails) => void
   onEdit: (po: PurchaseOrderWithDetails) => void
-  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<void>
+  /** Resolves to `true` on success / `false` on rejection. Row
+   * dropdown ignores the return; the drawer Submit gates close. */
+  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onCancel: (po: PurchaseOrderWithDetails) => void
 }
 

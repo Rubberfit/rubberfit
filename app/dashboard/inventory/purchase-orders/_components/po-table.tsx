@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { FileText } from "lucide-react"
 
 import {
@@ -36,7 +36,7 @@ interface POTableProps {
   setSearchQuery: (v: string) => void
   onViewPO: (po: PurchaseOrderWithDetails) => void
   onEditPO: (po: PurchaseOrderWithDetails) => void
-  onUpdatePOStatus: (poId: string, newStatus: PurchaseOrder["status"]) => Promise<void>
+  onUpdatePOStatus: (poId: string, newStatus: PurchaseOrder["status"]) => Promise<boolean>
   onCancelPO: (po: PurchaseOrderWithDetails) => void
   fetchData: () => void
 }
@@ -72,6 +72,19 @@ export function POTable({
   })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
+
+  // Reset to page 1 whenever the operator narrows / re-orders the
+  // result set. Without this, a user on page 4 who applies a
+  // filter that produces only 2 pages would silently land on
+  // page 2 (the clamp) instead of seeing the new top matches.
+  // The single setState in the effect body trips React 19's
+  // `set-state-in-effect` rule; deliberate sync since the result
+  // depends on prop-derived inputs only.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, statusFilter, supplierFilter, sort.columnId, sort.direction])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const columns = usePoColumns({
     onView: onViewPO,

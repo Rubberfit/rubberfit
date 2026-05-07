@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckCircle, Clock, Edit2, Package, Truck, XCircle } from "lucide-react"
+import { CheckCircle, Clock, Edit2, HelpCircle, Package, Truck, XCircle } from "lucide-react"
 
 import { Badge } from "@/app/components/ui/badge"
 
@@ -19,8 +19,28 @@ const STATUS_CONFIG = {
   cancelled: { variant: "destructive" as const, icon: <XCircle className="h-3 w-3" /> },
 } as const
 
+// Sentinel for malformed / unrecognised statuses. Falling back to
+// `draft` was misleading — operators would think the PO was still
+// editable and route it down the wrong workflow. A neutral
+// "Unknown" pill flags the row for triage instead.
+const UNKNOWN_CONFIG = {
+  variant: "outline" as const,
+  icon: <HelpCircle className="h-3 w-3" />,
+} as const
+
 export function getStatusBadge(status: string) {
-  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.draft
+  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
+  if (!cfg) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`[po-status-badge] unknown status "${status}" — rendering Unknown`)
+    }
+    return (
+      <Badge variant={UNKNOWN_CONFIG.variant} className="gap-1">
+        {UNKNOWN_CONFIG.icon}
+        Unknown
+      </Badge>
+    )
+  }
   return (
     <Badge variant={cfg.variant} className="gap-1">
       {cfg.icon}

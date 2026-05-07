@@ -15,7 +15,11 @@ interface PoViewDrawerProps {
   onOpenChange: (open: boolean) => void
   taxDetails: TaxDetails | null
   onEdit: (po: PurchaseOrderWithDetails) => void
-  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<void>
+  /**
+   * Returns `true` on success, `false` on rejection — the drawer
+   * Submit button gates `onClose()` on the truthy result.
+   */
+  onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onDownloadPDF: (po: PurchaseOrderWithDetails) => void
 }
 
