@@ -15,6 +15,7 @@
   ],
   "functions": {
     "api/v2/pack.rs": {
+      "runtime": "vercel-rust@4.0.11",
       "maxDuration": 300,
       "memory": 3008
     }
