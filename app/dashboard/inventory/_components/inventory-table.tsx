@@ -11,7 +11,7 @@ import { EmptyState } from "@/app/components/patterns"
 
 import { DestructiveRollActionDialog } from "./destructive-roll-action-dialog"
 import { RollDetailDrawer } from "./roll-detail-drawer"
-import { RollFormDialog } from "./roll-form-dialog"
+import { RollFormSheet } from "./roll-form-sheet"
 import { TablePagination } from "./table-pagination"
 import { useInventoryColumns } from "./use-inventory-columns"
 import { usePagedRolls } from "./use-paged-rolls"
@@ -253,7 +253,7 @@ export function InventoryTable({
       />
 
       {canManageRolls && (
-        <RollFormDialog
+        <RollFormSheet
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           roll={editingRoll}

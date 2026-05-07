@@ -1,16 +1,10 @@
 "use client"
 
 import type { UseFormReturn } from "react-hook-form"
-import type * as z from "zod"
+import { toast } from "sonner"
 
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/app/components/ui/form"
+import { Input } from "@/app/components/ui/input"
+import { Textarea } from "@/app/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -18,15 +12,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import { Input } from "@/app/components/ui/input"
-import { Textarea } from "@/app/components/ui/textarea"
+import {
+  FormField as FormFieldShell,
+  FormFieldGroup,
+  FormFieldRow,
+  FormFieldset,
+  FormSectionHeader,
+} from "@/app/components/ui/forms"
 
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { SupplierSelect } from "@/app/dashboard/inventory/materials/suppliers/_components/supplier-selection"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
-import type { rollFormSchema } from "./roll-form-dialog"
 
-type RollFormValues = z.infer<typeof rollFormSchema>
+import type { RollFormValues } from "./roll-form-schema"
 
 interface RollFormFieldsProps {
   form: UseFormReturn<RollFormValues>
@@ -34,22 +32,38 @@ interface RollFormFieldsProps {
   isEdit: boolean
 }
 
+/**
+ * Roll create/edit form body. Phase 2 form primitives wrap RHF
+ * `register()` calls — the schema + validation logic stays in
+ * `roll-form-schema.ts`. Phase 2's `<FormField>` is imported as
+ * `FormFieldShell` here to avoid the name collision with shadcn's
+ * RHF-aware `<FormField>` (we don't use the RHF one anymore).
+ */
 export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsProps) {
+  const { register, formState, setValue, watch } = form
+  const { errors } = formState
+
   return (
-    <>
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField
-          control={form.control}
-          name="material_type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Material Type *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select material type" />
-                  </SelectTrigger>
-                </FormControl>
+    <div className="flex flex-col gap-6">
+      <FormFieldset isFirst>
+        <FormSectionHeader title="Basics" />
+        <FormFieldGroup>
+          <FormFieldRow>
+            <FormFieldShell
+              label="Material type"
+              htmlFor="roll-material-type"
+              required
+              errorText={errors.material_type?.message}
+            >
+              <Select
+                value={watch("material_type")}
+                onValueChange={(value) =>
+                  setValue("material_type", value, { shouldDirty: true, shouldValidate: true })
+                }
+              >
+                <SelectTrigger id="roll-material-type" aria-label="Material type">
+                  <SelectValue placeholder="Select material type" />
+                </SelectTrigger>
                 <SelectContent>
                   {materialTypes.map((type) => (
                     <SelectItem key={type.id} value={type.name}>
@@ -58,167 +72,174 @@ export function RollFormFields({ form, materialTypes, isEdit }: RollFormFieldsPr
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            </FormFieldShell>
 
-        <FormField
-          control={form.control}
-          name="color"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Color</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Black, Red" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <FormFieldShell label="Color" htmlFor="roll-color" errorText={errors.color?.message}>
+              <Input id="roll-color" placeholder="e.g., Black, Red" {...register("color")} />
+            </FormFieldShell>
+          </FormFieldRow>
 
-        <FormField
-          control={form.control}
-          name="width"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Width (inches) *</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.001" placeholder="48" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormFieldRow>
+            <FormFieldShell
+              label="Width"
+              htmlFor="roll-width"
+              required
+              helperText="inches"
+              errorText={errors.width?.message}
+            >
+              <Input
+                id="roll-width"
+                type="number"
+                step="0.001"
+                placeholder="48"
+                {...register("width")}
+              />
+            </FormFieldShell>
 
-        <FormField
-          control={form.control}
-          name="length"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Length (inches) *</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.001" placeholder="600" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <FormFieldShell
+              label="Length"
+              htmlFor="roll-length"
+              required
+              helperText="inches"
+              errorText={errors.length?.message}
+            >
+              <Input
+                id="roll-length"
+                type="number"
+                step="0.001"
+                placeholder="600"
+                {...register("length")}
+              />
+            </FormFieldShell>
+          </FormFieldRow>
 
-        <FormField
-          control={form.control}
-          name="thickness"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Thickness (inches) *</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.001" placeholder="0.25" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormFieldRow>
+            <FormFieldShell
+              label="Thickness"
+              htmlFor="roll-thickness"
+              required
+              helperText="inches"
+              errorText={errors.thickness?.message}
+            >
+              <Input
+                id="roll-thickness"
+                type="number"
+                step="0.001"
+                placeholder="0.25"
+                {...register("thickness")}
+              />
+            </FormFieldShell>
 
-        {isEdit && (
-          <FormField
-            control={form.control}
-            name="remaining_length"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Remaining Length (inches)</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.001" placeholder="Remaining length" {...field} />
-                </FormControl>
-                <FormDescription>Adjust for manual corrections</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        <FormField
-          control={form.control}
-          name="location"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Location</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., Rack A1, Warehouse B" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="date_received"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Date Received *</FormLabel>
-              <FormControl>
-                <Input type="date" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="supplier"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Supplier</FormLabel>
-              <FormControl>
-                <SupplierSelect
-                  value={field.value}
-                  onValueChange={(value) => {
-                    supplierService
-                      .getSupplierById(value)
-                      .then((supplier) => {
-                        field.onChange(supplier?.name ?? "")
-                      })
-                      .catch((error) => {
-                        console.error("Error resolving supplier name:", error)
-                      })
-                  }}
-                  placeholder="Select supplier"
+            {isEdit && (
+              <FormFieldShell
+                label="Remaining length"
+                htmlFor="roll-remaining-length"
+                helperText="inches — adjust for manual corrections"
+                errorText={errors.remaining_length?.message}
+              >
+                <Input
+                  id="roll-remaining-length"
+                  type="number"
+                  step="0.001"
+                  placeholder="Remaining length"
+                  {...register("remaining_length")}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              </FormFieldShell>
+            )}
+          </FormFieldRow>
+        </FormFieldGroup>
+      </FormFieldset>
 
-        <FormField
-          control={form.control}
-          name="cost_per_sqft"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Cost per sqft ($)</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="2.50" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+      <FormFieldset>
+        <FormSectionHeader title="Stock" />
+        <FormFieldGroup>
+          <FormFieldRow>
+            <FormFieldShell
+              label="Location"
+              htmlFor="roll-location"
+              errorText={errors.location?.message}
+            >
+              <Input
+                id="roll-location"
+                placeholder="e.g., Rack A1, Warehouse B"
+                {...register("location")}
+              />
+            </FormFieldShell>
 
-      <FormField
-        control={form.control}
-        name="notes"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Notes</FormLabel>
-            <FormControl>
-              <Textarea placeholder="Any additional notes..." className="resize-none" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </>
+            <FormFieldShell
+              label="Date received"
+              htmlFor="roll-date-received"
+              required
+              errorText={errors.date_received?.message}
+            >
+              <Input id="roll-date-received" type="date" {...register("date_received")} />
+            </FormFieldShell>
+          </FormFieldRow>
+        </FormFieldGroup>
+      </FormFieldset>
+
+      <FormFieldset>
+        <FormSectionHeader title="Sourcing" />
+        <FormFieldGroup>
+          <FormFieldRow>
+            <FormFieldShell
+              label="Supplier"
+              htmlFor="roll-supplier"
+              errorText={errors.supplier?.message}
+            >
+              <SupplierSelect
+                value={watch("supplier")}
+                onValueChange={(value) => {
+                  supplierService
+                    .getSupplierById(value)
+                    .then((supplier) => {
+                      setValue("supplier", supplier?.name ?? "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    })
+                    .catch((error) => {
+                      console.error("Error resolving supplier name:", error)
+                      // Don't leave the user staring at an unset
+                      // field after a network blip — clear and tell
+                      // them so they can retry the pick.
+                      setValue("supplier", "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                      toast.error("Couldn't load that supplier — please try again")
+                    })
+                }}
+                placeholder="Select supplier"
+              />
+            </FormFieldShell>
+
+            <FormFieldShell
+              label="Cost per sqft"
+              htmlFor="roll-cost"
+              helperText="USD"
+              errorText={errors.cost_per_sqft?.message}
+            >
+              <Input
+                id="roll-cost"
+                type="number"
+                step="0.01"
+                placeholder="2.50"
+                {...register("cost_per_sqft")}
+              />
+            </FormFieldShell>
+          </FormFieldRow>
+
+          <FormFieldShell label="Notes" htmlFor="roll-notes" errorText={errors.notes?.message}>
+            <Textarea
+              id="roll-notes"
+              placeholder="Any additional notes…"
+              className="resize-none"
+              {...register("notes")}
+            />
+          </FormFieldShell>
+        </FormFieldGroup>
+      </FormFieldset>
+    </div>
   )
 }
