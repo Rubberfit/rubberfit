@@ -33,34 +33,12 @@ import {
 } from "@/app/components/ui/table"
 import { EmptyState, PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { jobService } from "@/src/infrastructure/services/jobService"
-import type { Job, JobStatus } from "@/src/infrastructure/models/supabase"
+import type { Job } from "@/src/infrastructure/models/supabase"
 import { cn } from "@/app/lib/utils"
 
 import { JobDetailDrawer } from "./_components/job-detail-drawer"
 import { JobFormSheet } from "./_components/job-form-sheet"
-
-const STATUS_TONE: Record<JobStatus, string> = {
-  draft: "border-border-subtle bg-muted/60 text-muted-foreground",
-  scheduled: "border-info-border bg-info-bg text-info-foreground",
-  in_progress: "border-warning-border bg-warning-bg text-warning-foreground",
-  completed: "border-success-border bg-success-bg text-success-foreground",
-  cancelled: "border-border-subtle bg-muted text-muted-foreground",
-}
-
-const STATUS_LABEL: Record<JobStatus, string> = {
-  draft: "Draft",
-  scheduled: "Scheduled",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "—"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString()
-}
+import { formatDate, STATUS_LABEL, STATUS_TONE } from "./_components/job-status-utils"
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])

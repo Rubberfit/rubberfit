@@ -30,7 +30,6 @@ import type {
   CutHistory,
   Job,
   JobFullDetail,
-  JobStatus,
   PurchaseOrder,
 } from "@/src/infrastructure/models/supabase"
 import { cn } from "@/app/lib/utils"
@@ -38,11 +37,12 @@ import { cn } from "@/app/lib/utils"
 import { JobAllocationsPanel } from "./job-allocations-panel"
 import { JobCutsPanel } from "./job-cuts-panel"
 import { JobPartsPanel } from "./job-parts-panel"
+import { downloadJobPdf } from "./job-pdf"
 import { JobPurchaseOrdersPanel } from "./job-purchase-orders-panel"
 import { JobRosterPanel } from "./job-roster-panel"
 import { JobShareLinkSheet } from "./job-share-link-sheet"
+import { formatDate, STATUS_LABEL, STATUS_TONE } from "./job-status-utils"
 import { JobSufficiencyPanel } from "./job-sufficiency-panel"
-import { downloadJobPdf } from "./job-pdf"
 
 /**
  * Right-docked detail panel for a single job. Opens when a row
@@ -52,30 +52,12 @@ import { downloadJobPdf } from "./job-pdf"
  * Fetches parts + assignees + allocations + sufficiency + POs +
  * cuts on open (all parallel, all `allSettled` so a partial data
  * failure still renders the header and unblocks Edit / Delete).
+ *
+ * `STATUS_TONE`, `STATUS_LABEL`, `formatDate` are imported from
+ * `./job-status-utils` so the list page and this drawer share one
+ * source of truth (a new `JobStatus` value can't silently diverge
+ * between the two consumers).
  */
-
-const STATUS_TONE: Record<JobStatus, string> = {
-  draft: "border-border-subtle bg-muted/60 text-muted-foreground",
-  scheduled: "border-info-border bg-info-bg text-info-foreground",
-  in_progress: "border-warning-border bg-warning-bg text-warning-foreground",
-  completed: "border-success-border bg-success-bg text-success-foreground",
-  cancelled: "border-border-subtle bg-muted text-muted-foreground",
-}
-
-const STATUS_LABEL: Record<JobStatus, string> = {
-  draft: "Draft",
-  scheduled: "Scheduled",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "—"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString()
-}
 
 interface JobDetailDrawerProps {
   jobId: string | null

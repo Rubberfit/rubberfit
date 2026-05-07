@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ChevronLeft, Copy, Loader2, Share2, X } from "lucide-react"
 import { toast } from "sonner"
 
@@ -59,8 +59,16 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  // Generation counter — `generate()` can take several seconds
+  // (PDF build + storage upload). If the user closes and reopens
+  // the sheet (or hits Generate again on error), an in-flight call
+  // from the previous open could resolve and overwrite the fresh
+  // state. The ref-bumped counter lets the callback bail out if
+  // it's no longer the current generation.
+  const genIdRef = useRef(0)
 
   const generate = async () => {
+    const myGen = ++genIdRef.current
     setStatus("working")
     setErrorMsg(null)
     try {
@@ -73,10 +81,12 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
         throw new Error("Sign in before sharing job PDFs")
       }
       const result = await uploadJobPdf(user.id, job.id, blob, jobPdfFileName(job))
+      if (genIdRef.current !== myGen) return
       setSignedUrl(result.signedUrl)
       setExpiresAt(result.expiresAt)
       setStatus("ready")
     } catch (err) {
+      if (genIdRef.current !== myGen) return
       const msg = err instanceof Error ? err.message : "Unknown error"
       setErrorMsg(msg)
       setStatus("error")
@@ -85,8 +95,10 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
 
   useEffect(() => {
     if (!open) {
-      // Reset on close so the next open starts fresh — we don't
-      // want a stale link hanging around after an edit.
+      // Bump genId on close so any in-flight generate() bails. Then
+      // reset state so the next open starts fresh — we don't want a
+      // stale link hanging around after an edit.
+      genIdRef.current++
       setStatus("idle")
       setSignedUrl(null)
       setExpiresAt(null)
@@ -102,7 +114,7 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
     try {
       await navigator.clipboard.writeText(signedUrl)
       toast.success("Link copied")
-    } catch {
+    } catch (_error) {
       toast.error("Couldn't copy — select the link and copy manually")
     }
   }
