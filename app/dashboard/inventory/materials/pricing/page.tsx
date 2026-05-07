@@ -166,19 +166,19 @@ export default function PricingPage() {
     const rows = filteredPriceHistory.map((h) => {
       let dateStr = ""
       try {
-        const raw = h.effective_date || h.created_at
+        const raw = h.effective_date ?? h.created_at
         dateStr = raw ? format(new Date(String(raw).replace(" ", "T")), "yyyy-MM-dd") : ""
       } catch (_error) {
-        dateStr = h.effective_date || h.created_at || ""
+        dateStr = String(h.effective_date ?? h.created_at ?? "")
       }
       return [
         dateStr,
-        h.material_supplier?.material_type?.name || "Unknown",
-        h.material_supplier?.supplier?.name || "Unknown",
+        h.material_supplier?.material_type?.name ?? "Unknown",
+        h.material_supplier?.supplier?.name ?? "Unknown",
         h.old_cost_per_sqft != null ? Number(h.old_cost_per_sqft).toFixed(2) : "N/A",
         h.new_cost_per_sqft != null ? Number(h.new_cost_per_sqft).toFixed(2) : "N/A",
         h.price_change_percentage != null ? Number(h.price_change_percentage).toFixed(1) : "N/A",
-        h.change_reason || "",
+        h.change_reason ?? "",
       ]
     })
     exportService.exportToCSV({
@@ -250,46 +250,44 @@ export default function PricingPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
-          <Card className="overflow-hidden p-0">
-            <ViewToolbar
-              hideSearch
-              filters={
-                <>
-                  <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
-                    <SelectTrigger className="h-9 w-[220px] text-sm">
-                      <SelectValue placeholder="All materials" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All materials</SelectItem>
-                      {materialTypes.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={dateRange} onValueChange={setDateRange}>
-                    <SelectTrigger className="h-9 w-[180px] text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">Last 7 days</SelectItem>
-                      <SelectItem value="30">Last 30 days</SelectItem>
-                      <SelectItem value="90">Last 90 days</SelectItem>
-                      <SelectItem value="180">Last 6 months</SelectItem>
-                      <SelectItem value="365">Last year</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </>
-              }
-              actions={
-                <Button variant="outline" size="sm" onClick={handleExportHistory}>
-                  <Download className="size-3.5" aria-hidden="true" />
-                  Export history
-                </Button>
-              }
-            />
-          </Card>
+          <ViewToolbar
+            hideSearch
+            filters={
+              <>
+                <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
+                  <SelectTrigger className="h-9 w-[220px] text-sm">
+                    <SelectValue placeholder="All materials" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All materials</SelectItem>
+                    {materialTypes.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={dateRange} onValueChange={setDateRange}>
+                  <SelectTrigger className="h-9 w-[180px] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="90">Last 90 days</SelectItem>
+                    <SelectItem value="180">Last 6 months</SelectItem>
+                    <SelectItem value="365">Last year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            }
+            actions={
+              <Button variant="outline" size="sm" onClick={handleExportHistory}>
+                <Download className="size-3.5" aria-hidden="true" />
+                Export history
+              </Button>
+            }
+          />
 
           <PricingHistoryChart
             selectedMaterial={selectedMaterial}
