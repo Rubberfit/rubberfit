@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState, useMemo } from "react"
-import { Plus, Filter, Star } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Plus, Star } from "lucide-react"
+import { toast } from "sonner"
 
 import { type Supplier } from "@/src/infrastructure/models/supabase"
 import { suppliers as suppliersSdk } from "@/src/infrastructure/api-client/rf/inventory"
-import { Card } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
-import { toast } from "sonner"
+import { Card } from "@/app/components/ui/card"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,25 +18,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select"
 import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
-import { SupplierFormModal } from "./_components/supplier-form-modal"
-import { SupplierDetailView } from "./_components/supplier-detail-view"
+import { SupplierDetailSheet } from "./_components/supplier-detail-sheet"
+import { SupplierFormSheet } from "./_components/supplier-form-sheet"
 import { SuppliersTableCard } from "./_components/suppliers-table-card"
+
+type ActiveFilter = "all" | "active" | "inactive"
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterPreferred, setFilterPreferred] = useState(false)
-  const [filterActive, setFilterActive] = useState(true)
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active")
 
-  // Modal states
-  const [formModalOpen, setFormModalOpen] = useState(false)
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [formSheetOpen, setFormSheetOpen] = useState(false)
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false)
   const [deleteAlertOpen, setDeleteAlertOpen] = useState(false)
 
-  // Selected supplier states
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null)
 
@@ -54,38 +61,39 @@ export default function SuppliersPage() {
   }, [])
 
   useEffect(() => {
-    fetchSuppliers()
+    void fetchSuppliers()
   }, [fetchSuppliers])
 
-  // Filter suppliers based on search and filter criteria
   const filteredSuppliers = useMemo(() => {
+    const lowerSearch = searchTerm.toLowerCase()
     return suppliers.filter((supplier) => {
       const matchesSearch =
         searchTerm === "" ||
-        supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        supplier.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        supplier.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        supplier.name.toLowerCase().includes(lowerSearch) ||
+        supplier.contact_person?.toLowerCase().includes(lowerSearch) ||
+        supplier.email?.toLowerCase().includes(lowerSearch)
 
       const matchesPreferred = !filterPreferred || supplier.preferred
-      const matchesActive = !filterActive || supplier.active
+      const matchesActive =
+        activeFilter === "all" || (activeFilter === "active" ? supplier.active : !supplier.active)
 
       return matchesSearch && matchesPreferred && matchesActive
     })
-  }, [suppliers, searchTerm, filterPreferred, filterActive])
+  }, [suppliers, searchTerm, filterPreferred, activeFilter])
 
   const handleAddSupplier = () => {
     setSelectedSupplier(null)
-    setFormModalOpen(true)
+    setFormSheetOpen(true)
   }
 
   const handleEditSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier)
-    setFormModalOpen(true)
+    setFormSheetOpen(true)
   }
 
   const handleViewSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier)
-    setDetailModalOpen(true)
+    setDetailSheetOpen(true)
   }
 
   const handleDeleteClick = (supplier: Supplier) => {
@@ -98,9 +106,8 @@ export default function SuppliersPage() {
 
     try {
       await suppliersSdk.delete(supplierToDelete.id)
-
       toast.success(`${supplierToDelete.name} has been deleted`)
-      fetchSuppliers()
+      void fetchSuppliers()
     } catch (error) {
       const errCode =
         typeof error === "object" && error !== null && "code" in error
@@ -149,6 +156,19 @@ export default function SuppliersPage() {
           onSearchChange={setSearchTerm}
           filters={
             <>
+              <Select
+                value={activeFilter}
+                onValueChange={(value) => setActiveFilter(value as ActiveFilter)}
+              >
+                <SelectTrigger className="h-9 w-[160px] text-sm">
+                  <SelectValue placeholder="All suppliers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All suppliers</SelectItem>
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="inactive">Inactive only</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant={filterPreferred ? "default" : "outline"}
                 onClick={() => setFilterPreferred(!filterPreferred)}
@@ -156,14 +176,6 @@ export default function SuppliersPage() {
               >
                 <Star className="size-3.5" />
                 Preferred
-              </Button>
-              <Button
-                variant={filterActive ? "default" : "outline"}
-                onClick={() => setFilterActive(!filterActive)}
-                size="sm"
-              >
-                <Filter className="size-3.5" />
-                Active only
               </Button>
             </>
           }
@@ -175,50 +187,48 @@ export default function SuppliersPage() {
         loading={loading}
         searchTerm={searchTerm}
         filterPreferred={filterPreferred}
-        filterActive={filterActive}
+        filterActive={activeFilter === "active"}
         onViewSupplier={handleViewSupplier}
         onEditSupplier={handleEditSupplier}
         onDeleteClick={handleDeleteClick}
       />
 
-      {/* Modals */}
-      <SupplierFormModal
-        open={formModalOpen}
-        onOpenChange={setFormModalOpen}
+      <SupplierFormSheet
+        open={formSheetOpen}
+        onOpenChange={setFormSheetOpen}
         supplier={selectedSupplier}
         onSuccess={() => {
-          fetchSuppliers()
-          setFormModalOpen(false)
+          void fetchSuppliers()
+          setFormSheetOpen(false)
         }}
       />
 
       {selectedSupplier && (
-        <SupplierDetailView
-          open={detailModalOpen}
-          onOpenChange={setDetailModalOpen}
+        <SupplierDetailSheet
+          open={detailSheetOpen}
+          onOpenChange={setDetailSheetOpen}
           supplier={selectedSupplier}
           onEdit={() => {
-            setDetailModalOpen(false)
+            setDetailSheetOpen(false)
             handleEditSupplier(selectedSupplier)
           }}
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
+            <AlertDialogTitle>Delete supplier?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{supplierToDelete?.name}</strong>? This action
+              This will permanently delete <strong>{supplierToDelete?.name}</strong>. This action
               cannot be undone and will remove all associated pricing and order history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="min-h-[44px]">Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 min-h-[44px]"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>

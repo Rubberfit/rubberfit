@@ -1,33 +1,25 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Link2 } from "lucide-react"
+import { toast } from "sonner"
 
 import type {
-  Supplier,
-  MaterialType,
-  MaterialSupplier,
   CreateMaterialSupplier,
+  MaterialSupplier,
+  MaterialType,
+  Supplier,
 } from "@/src/infrastructure/models/supabase"
 import {
   materialSuppliers as materialSuppliersSdk,
   materialTypes as materialTypesSdk,
   suppliers as suppliersSdk,
 } from "@/src/infrastructure/api-client/rf/inventory"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/app/components/ui/dialog"
 import { Button } from "@/app/components/ui/button"
-import { toast } from "sonner"
 import { Form } from "@/app/components/ui/form"
+
 import { MaterialSupplierLinkForm } from "./material-supplier-link-form"
 
 const materialSupplierSchema = z.object({
@@ -46,23 +38,28 @@ const materialSupplierSchema = z.object({
 
 type MaterialSupplierFormData = z.infer<typeof materialSupplierSchema>
 
-interface MaterialSupplierLinkProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+interface MaterialSupplierLinkInlineProps {
   materialSupplier?: MaterialSupplier | null
-  defaultMaterialId?: string
-  defaultSupplierId?: string
+  defaultSupplierId: string
+  onCancel: () => void
   onSuccess: () => void
 }
 
-export function MaterialSupplierLink({
-  open,
-  onOpenChange,
+/**
+ * Inline material-supplier link form — Phase 3 PR 3h.
+ *
+ * Replaces the previous nested Dialog (`MaterialSupplierLink`) with
+ * an inline form rendered inside the supplier form's Materials tab.
+ * No more sheet-inside-sheet UX. Owns its own `useForm` + submit
+ * state since it's wired directly to the SDK, not to the parent
+ * supplier form's RHF context.
+ */
+export function MaterialSupplierLinkInline({
   materialSupplier,
-  defaultMaterialId,
   defaultSupplierId,
+  onCancel,
   onSuccess,
-}: MaterialSupplierLinkProps) {
+}: MaterialSupplierLinkInlineProps) {
   const [submitting, setSubmitting] = useState(false)
   const [materials, setMaterials] = useState<MaterialType[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -71,8 +68,8 @@ export function MaterialSupplierLink({
   const form = useForm<MaterialSupplierFormData>({
     resolver: zodResolver(materialSupplierSchema),
     defaultValues: {
-      material_type_id: defaultMaterialId || "",
-      supplier_id: defaultSupplierId || "",
+      material_type_id: "",
+      supplier_id: defaultSupplierId,
       supplier_material_code: "",
       cost_per_sqft: 0,
       minimum_order_sqft: undefined,
@@ -92,7 +89,6 @@ export function MaterialSupplierLink({
         materialTypesSdk.list(),
         suppliersSdk.list({ active: true }),
       ])
-
       setMaterials(materialsData)
       setSuppliers(suppliersData)
     } catch (error) {
@@ -104,10 +100,8 @@ export function MaterialSupplierLink({
   }, [])
 
   useEffect(() => {
-    if (open) {
-      fetchData()
-    }
-  }, [open, fetchData])
+    void fetchData()
+  }, [fetchData])
 
   useEffect(() => {
     if (materialSupplier) {
@@ -124,38 +118,22 @@ export function MaterialSupplierLink({
         effective_date: materialSupplier.effective_date,
         expiration_date: materialSupplier.expiration_date || "",
       })
-    } else {
-      form.reset({
-        material_type_id: defaultMaterialId || "",
-        supplier_id: defaultSupplierId || "",
-        supplier_material_code: "",
-        cost_per_sqft: 0,
-        minimum_order_sqft: undefined,
-        lead_time_days: undefined,
-        preferred_supplier: false,
-        active: true,
-        notes: "",
-        effective_date: new Date().toISOString().split("T")[0],
-        expiration_date: "",
-      })
     }
-  }, [materialSupplier, defaultMaterialId, defaultSupplierId, form])
+  }, [materialSupplier, form])
 
   const onSubmit = async (data: MaterialSupplierFormData) => {
+    if (submitting) return
     setSubmitting(true)
     try {
-      // Check for existing link if creating new — the SDK's
-      // materialSuppliers.list scopes to the material_type, so we
-      // filter client-side by supplier_id. A 409 DUPLICATE_PAIR
-      // from the create call is the backstop if a concurrent
-      // request races this check.
+      // Pre-flight duplicate check — the SDK list scopes to a
+      // single material_type, so we filter client-side by
+      // supplier_id. The backend's 409 DUPLICATE_PAIR is the
+      // backstop if a concurrent request races this check.
       if (!materialSupplier) {
         const existingLinks = await materialSuppliersSdk.list({
           material_type_id: data.material_type_id,
         })
-        const existingLink = existingLinks.find(
-          (l) => l.supplier_id === data.supplier_id
-        )
+        const existingLink = existingLinks.find((l) => l.supplier_id === data.supplier_id)
 
         if (existingLink) {
           toast.error("This material-supplier link already exists")
@@ -181,78 +159,63 @@ export function MaterialSupplierLink({
       if (materialSupplier) {
         await materialSuppliersSdk.update(
           materialSupplier.id,
-          linkData as unknown as Parameters<
-            typeof materialSuppliersSdk.update
-          >[1]
+          linkData as unknown as Parameters<typeof materialSuppliersSdk.update>[1]
         )
-        toast.success("Material-supplier link updated successfully")
+        toast.success("Material-supplier link updated")
       } else {
         await materialSuppliersSdk.create(
-          linkData as unknown as Parameters<
-            typeof materialSuppliersSdk.create
-          >[0]
+          linkData as unknown as Parameters<typeof materialSuppliersSdk.create>[0]
         )
-        toast.success("Material-supplier link created successfully")
+        toast.success("Material-supplier link created")
       }
 
       onSuccess()
     } catch (error) {
       console.error("Error saving material-supplier link:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to save material-supplier link")
+      toast.error(error instanceof Error ? error.message : "Failed to save link")
     } finally {
       setSubmitting(false)
     }
   }
 
   const selectedMaterial = materials.find((m) => m.id === form.watch("material_type_id"))
-  const _selectedSupplier = suppliers.find((s) => s.id === form.watch("supplier_id"))
+
+  if (loadingData) {
+    return <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            {materialSupplier ? "Edit Material-Supplier Link" : "Link Material to Supplier"}
-          </DialogTitle>
-          <DialogDescription>
-            Configure pricing and ordering details for materials from suppliers
-          </DialogDescription>
-        </DialogHeader>
+    <Form {...form}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          // The parent (`SupplierFormSheet`) also has an outer
+          // form; stopping propagation prevents the outer form's
+          // submit from firing when the user presses Enter inside
+          // the inline link form.
+          e.stopPropagation()
+          void form.handleSubmit(onSubmit)(e)
+        }}
+        className="space-y-6 rounded-lg border bg-card p-4"
+      >
+        <MaterialSupplierLinkForm
+          form={form}
+          materials={materials}
+          suppliers={suppliers}
+          materialSupplier={materialSupplier}
+          defaultSupplierId={defaultSupplierId}
+          selectedMaterial={selectedMaterial}
+        />
 
-        {loadingData ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
-        ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <MaterialSupplierLinkForm
-                form={form}
-                materials={materials}
-                suppliers={suppliers}
-                materialSupplier={materialSupplier}
-                defaultMaterialId={defaultMaterialId}
-                defaultSupplierId={defaultSupplierId}
-                selectedMaterial={selectedMaterial}
-              />
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  disabled={submitting}
-                  className="min-h-[44px]"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={submitting} className="min-h-[44px]">
-                  {submitting ? "Saving..." : materialSupplier ? "Update Link" : "Create Link"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        )}
-      </DialogContent>
-    </Dialog>
+        <div className="flex justify-end gap-2 border-t pt-4">
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving…" : materialSupplier ? "Save link" : "Create link"}
+          </Button>
+        </div>
+      </form>
+    </Form>
   )
 }
