@@ -29,7 +29,7 @@ import {
   type TaxDetails,
   fetchEditFormTaxDetails as fetchEditFormTaxDetailsHelper,
 } from "../../_components/po-tax-helpers"
-import { mapFormItems } from "../../_components/po-action-handlers"
+import { mapFormItems, validatePOFormData } from "../../_components/po-action-handlers"
 
 interface EditPoRouteProps {
   params: Promise<{ id: string }>
@@ -100,7 +100,7 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
                 color: item.color ?? "",
                 quantity_sqft: item.quantity_sqft,
                 unit_cost: item.unit_cost,
-              }),
+              })
             ) ?? [],
         })
       } catch (error) {
@@ -116,6 +116,16 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
     }
   }, [id])
 
+  // Derive a stable hash over the fields that actually affect the
+  // tax calc (material + quantity + cost). Without this, the
+  // `formData.items` array reference churns on every keystroke
+  // into any line-item input — which would re-fire the tax fetch
+  // per character. Stringifying the relevant subset gives the
+  // effect a stable identity that only invalidates on real edits.
+  const taxItemsKey = formData.items
+    .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
+    .join("|")
+
   useEffect(() => {
     let cancelled = false
     fetchEditFormTaxDetailsHelper(formData.supplier_id, formData.items)
@@ -129,7 +139,10 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
     return () => {
       cancelled = true
     }
-  }, [formData.supplier_id, formData.items])
+    // `taxItemsKey` is the stable hash; `formData.items` is read
+    // inside but its identity doesn't gate the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.supplier_id, taxItemsKey])
 
   function handleConfirmRemoveItem(action: () => void, index: number) {
     setConfirmRemoveItem({ open: true, action, index })
@@ -137,6 +150,12 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
 
   async function handleSubmit() {
     if (!po) return
+    // Per-item validation (material + quantities + cost) — the
+    // `PoFormShell` disabled state only covers supplier + empty
+    // items, not per-item validity. Without this, an item with
+    // missing material_type_id or zero qty/cost would slip past
+    // and the server action would reject with a generic Zod error.
+    if (!validatePOFormData(formData)) return
     setIsSaving(true)
     try {
       const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)

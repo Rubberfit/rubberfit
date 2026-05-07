@@ -17,7 +17,7 @@ import {
   type TaxDetails,
   fetchCreateFormTaxDetails as fetchCreateFormTaxDetailsHelper,
 } from "../_components/po-tax-helpers"
-import { mapFormItems } from "../_components/po-action-handlers"
+import { mapFormItems, validatePOFormData } from "../_components/po-action-handlers"
 
 function NewPurchaseOrderPageInner() {
   const router = useRouter()
@@ -98,7 +98,13 @@ function NewPurchaseOrderPageInner() {
     router.replace("/dashboard/inventory/purchase-orders/new")
   }, [jobIdParam, materialParam, shortfallParam, materialTypes, router])
 
-  // Tax detail recompute on supplier / items change.
+  // Stable hash over the fields that affect the tax calc — without
+  // this, `formData.items` array identity churns on every keystroke
+  // into any line-item input and the tax fetch fires per character.
+  const taxItemsKey = formData.items
+    .map((i) => `${i.material_type_id}:${i.quantity_sqft}:${i.unit_cost}`)
+    .join("|")
+
   useEffect(() => {
     let cancelled = false
     fetchCreateFormTaxDetailsHelper(formData.supplier_id, formData.items)
@@ -112,13 +118,22 @@ function NewPurchaseOrderPageInner() {
     return () => {
       cancelled = true
     }
-  }, [formData.supplier_id, formData.items])
+    // `taxItemsKey` is the stable hash; `formData.items` is read
+    // inside but its identity doesn't gate the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.supplier_id, taxItemsKey])
 
   function handleConfirmRemoveItem(action: () => void, index: number) {
     setConfirmRemoveItem({ open: true, action, index })
   }
 
   async function handleSubmit() {
+    // Per-item validation (material + quantities + cost) — the
+    // `PoFormShell` disabled state only covers supplier + empty
+    // items, not per-item validity. Without this, an item with
+    // missing material_type_id or zero qty/cost would slip past
+    // and the server action would reject with a generic Zod error.
+    if (!validatePOFormData(formData)) return
     setIsSaving(true)
     try {
       const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
