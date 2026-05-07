@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import type {
   INotificationRepository,
   Notification,
@@ -7,6 +7,7 @@ import type {
 
 export class NotificationRepository implements INotificationRepository {
   async getAll(): Promise<Notification[]> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("notifications")
       .select("*")
@@ -17,6 +18,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async getByType(type: string): Promise<NotificationByType[] | null> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("notifications")
       .select("id, material_type")
@@ -27,6 +29,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async getUnreadCount(): Promise<number> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase.from("notifications").select("id").eq("is_read", false)
 
     if (error) throw error
@@ -34,14 +37,23 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async exists(): Promise<boolean> {
-    const { error } = await supabase.from("notifications").select("id").limit(1)
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase.from("notifications").select("id").limit(1)
 
-    return !error
+    // Match the rest of this repository's contract: throw on error so
+    // callers can distinguish "no rows" from "DB unreachable / RLS
+    // denial / auth-config bug". Swallowing the error and returning
+    // false collapses every infra failure into "no notifications,"
+    // which is a silent feature loss for any UI that hides the bell
+    // icon when this returns false.
+    if (error) throw error
+    return (data?.length ?? 0) > 0
   }
 
   async create(
     notification: Omit<Notification, "id" | "created_at" | "updated_at">
   ): Promise<Notification> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("notifications")
       .insert([notification])
@@ -56,6 +68,7 @@ export class NotificationRepository implements INotificationRepository {
     notifications: Omit<Notification, "id" | "created_at" | "updated_at">[]
   ): Promise<Notification[]> {
     if (notifications.length === 0) return []
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase.from("notifications").insert(notifications).select()
 
     if (error) throw error
@@ -63,6 +76,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async update(id: string, updates: Partial<Notification>): Promise<Notification> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("notifications")
       .update(updates)
@@ -79,6 +93,7 @@ export class NotificationRepository implements INotificationRepository {
   }
 
   async markAllAsRead(): Promise<void> {
+    const supabase = await getDatabaseClient()
     const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
@@ -89,12 +104,14 @@ export class NotificationRepository implements INotificationRepository {
 
   async deleteByIds(ids: string[]): Promise<void> {
     if (ids.length === 0) return
+    const supabase = await getDatabaseClient()
     const { error } = await supabase.from("notifications").delete().in("id", ids)
 
     if (error) throw error
   }
 
   async deleteAll(): Promise<void> {
+    const supabase = await getDatabaseClient()
     const { error } = await supabase
       .from("notifications")
       .delete()

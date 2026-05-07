@@ -1,10 +1,7 @@
 import type { PurchaseOrderWithDetails, Supplier } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import type { ICreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
-import type { IUpdatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/update-purchase-order.use-case"
-import { resolveUseCase } from "@/di/resolve"
-import { TOKENS } from "@/di/tokens"
+import { createPurchaseOrder, updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { toast } from "sonner"
 
 import { type POFormData, getDefaultFormData } from "./po-form-dialog"
@@ -80,8 +77,7 @@ export async function createPO({
 }: CreatePOParams) {
   const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
 
-  const useCase = resolveUseCase<ICreatePurchaseOrderUseCase>(TOKENS.ICreatePurchaseOrderUseCase)
-  const { purchaseOrder, taxCalculation } = await useCase.execute({
+  const { purchaseOrder, taxCalculation } = await createPurchaseOrder({
     supplierId: formData.supplier_id,
     requestedDeliveryDate: formData.requested_delivery_date,
     paymentTerms: formData.payment_terms,
@@ -138,8 +134,7 @@ export async function updatePO({
 }: UpdatePOParams) {
   const selectedSupplier = suppliers.find((s) => s.id === editFormData.supplier_id)
 
-  const useCase = resolveUseCase<IUpdatePurchaseOrderUseCase>(TOKENS.IUpdatePurchaseOrderUseCase)
-  const { taxCalculation } = await useCase.execute({
+  const { taxCalculation } = await updatePurchaseOrder({
     purchaseOrderId: editingPO.id,
     supplierId: editFormData.supplier_id,
     requestedDeliveryDate: editFormData.requested_delivery_date,

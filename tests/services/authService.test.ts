@@ -8,12 +8,12 @@ import {
 import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
 
 describe("getProfileAccess", () => {
-  it("returns roles + isSuperAdmin from the profiles row", async () => {
+  it("returns roles + isSuperAdmin + isDeleted from the profiles row", async () => {
     const client = makeFakeClient({
       tables: {
         profiles: {
           select: {
-            data: [{ roles: ["admin", "manager"], super_admin: true }],
+            data: [{ roles: ["admin", "manager"], super_admin: true, is_deleted: false }],
             error: null,
           },
         },
@@ -22,16 +22,43 @@ describe("getProfileAccess", () => {
     expect(await getProfileAccess(client, "u1")).toEqual({
       roles: ["admin", "manager"],
       isSuperAdmin: true,
+      isDeleted: false,
+      hasProfile: true,
     })
   })
 
-  it("treats a missing row as empty roles + non-super-admin", async () => {
+  it("returns isDeleted=true when the profiles row has is_deleted set", async () => {
+    const client = makeFakeClient({
+      tables: {
+        profiles: {
+          select: {
+            data: [{ roles: ["admin"], super_admin: false, is_deleted: true }],
+            error: null,
+          },
+        },
+      },
+    })
+    const access = await getProfileAccess(client, "u1")
+    expect(access.isDeleted).toBe(true)
+    // Roles still surfaced — caller decides whether to use them after
+    // checking isDeleted; the helper itself doesn't pre-filter.
+    expect(access.roles).toEqual(["admin"])
+  })
+
+  it("treats a missing row as deactivated (fail-closed) with hasProfile=false", async () => {
+    // Phase 4 change: previously this returned { roles: [], isSuperAdmin: false }
+    // and callers had to layer their own missing-row check. Returning
+    // isDeleted=true collapses missing-profile and deactivated into one
+    // deny path so middleware / route guards can fail-closed with one
+    // condition.
     const client = makeFakeClient({
       tables: { profiles: { select: { data: null, error: null } } },
     })
     expect(await getProfileAccess(client, "u1")).toEqual({
       roles: [],
       isSuperAdmin: false,
+      isDeleted: true,
+      hasProfile: false,
     })
   })
 

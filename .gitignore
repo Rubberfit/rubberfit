@@ -7,6 +7,12 @@ node_modules/
 # Testing
 coverage/
 
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
 # Production builds
 build/
 dist/

@@ -5,6 +5,7 @@ import { Download, Upload, FileSpreadsheet, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { createMaterialType } from "@/app/actions/materials"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Badge } from "@/app/components/ui/badge"
@@ -259,7 +260,7 @@ export function MaterialImportDialog({
 
     try {
       for (const row of importableRows) {
-        await materialTypeService.create({
+        await createMaterialType({
           name: row.name,
           description: row.description || undefined,
           default_cost: row.defaultCost,

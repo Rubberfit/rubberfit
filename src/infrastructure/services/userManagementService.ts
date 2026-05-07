@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { supabase } from "@/src/infrastructure/models/supabase"
 import type { UserProfile, UpdateUserProfile } from "@/src/infrastructure/models/supabase"
 import type { AppRole } from "@/src/application/permissions"
 import type { IUserManagementService } from "@/src/application/services/user-management.service.interface"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
 
@@ -11,6 +11,7 @@ import { injectable } from "tsyringe"
 export class UserManagementService implements IUserManagementService {
   async getAllUsers(): Promise<UserProfile[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -26,6 +27,7 @@ export class UserManagementService implements IUserManagementService {
 
   async updateUser(userId: string, updates: UpdateUserProfile): Promise<UserProfile> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("profiles")
         .update(updates)

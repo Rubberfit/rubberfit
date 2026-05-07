@@ -66,8 +66,85 @@ const ALLOWLIST = new Set<string>([
   // `@/src/infrastructure/supabase/server-clients` — kept to avoid
   // breaking imports in this PR's diff.
   "app/api/_lib/supabase-server.ts",
+  // Server-action auth boundary (ARC-147). Constructs a cookie-bound
+  // `createServerClient` via `next/headers`. The cookie binding is
+  // unavoidable here. Phase 4 moved the profile read into the shared
+  // `getProfileAccess` helper (in src/infrastructure/services/authService),
+  // so the only remaining hit is the `createServerClient` import.
+  "app/server/auth/require-authenticated-user.ts",
+  // Server-action database factory (ARC-147 follow-up). Builds a
+  // request-scoped, cookie-bound `createServerClient` and registers
+  // it via `registerServerDatabaseClientFactory`. The Next.js
+  // `cookies()` binding is the same framework boundary as the auth
+  // helper above, so this file must live in `app/`. No `.from(...)`
+  // or `.rpc(...)` calls are made here directly — only client
+  // construction.
+  "app/server/database/register-factory.ts",
 
   // ── #155 in-flight: removed as migrations land ────────────────────
+])
+
+/**
+ * Files in `src/infrastructure/` that legitimately keep using the
+ * browser-singleton `supabase` import (or haven't migrated yet).
+ *
+ * Categories:
+ *   • permanent: the resolver itself, browser-only auth flows, storage
+ *     helpers that need browser-context cookies/localStorage.
+ *   • pre-ARC-147: services not yet reachable from server actions; each
+ *     server-action migration that pulls one of these server-side
+ *     should also flip it to `getDatabaseClient` and remove the entry.
+ *
+ * Used by both architectural tests below — single source of truth so
+ * the existence check can't drift from the violation check.
+ */
+const INFRA_ALLOWLIST = new Set<string>([
+  // ── permanent: the resolver itself ────────────────────────────
+  // get-database-client wraps the singleton — that's the whole
+  // point. Without this exemption the rule would block its
+  // implementation.
+  "src/infrastructure/supabase/get-database-client.ts",
+
+  // ── auth flows — singleton is correct here ────────────────────
+  // Browser-side sign-in/out, MFA enrollment, OAuth redirect,
+  // password reset. Cookie-bound server clients can't drive the
+  // browser auth state machine, so these stay on the singleton.
+  "src/infrastructure/services/authService.ts",
+  "src/infrastructure/services/authMfaService.ts",
+  // The deprecated browser-side userId helper. Tracked for
+  // removal once `record-cut.use-case` and the cuts API route
+  // migrate to per-route auth.
+  "src/infrastructure/services/getCurrentUserId.ts",
+  // Browser-side role hook. Reads the current session.
+  "src/infrastructure/services/useRole.ts",
+
+  // ── storage / bucket helpers ──────────────────────────────────
+  // Storage uploads (avatars, roll barcodes, PDFs) currently use
+  // the browser singleton because they're called from browser
+  // contexts. Migrating storage to getDatabaseClient is a separate
+  // pass — the cookie-bound server client supports storage too.
+  "src/infrastructure/services/jobPdfShareService.ts",
+  "src/infrastructure/services/rollBarcodeAssetService.ts",
+  "src/infrastructure/services/visionExtractionService.ts",
+  "src/infrastructure/repositories/profiles.repository.ts",
+
+  // ── pre-ARC-147, not yet reachable from server actions ────────
+  // These services have legitimate callers but none from server
+  // actions today, so the RLS hazard hasn't surfaced. Each
+  // migration that pulls them server-side should also flip them
+  // to getDatabaseClient and remove the entry here.
+  "src/infrastructure/services/csvService.ts",
+  "src/infrastructure/services/cutHistoryService.ts",
+  "src/infrastructure/services/cutService.ts",
+  "src/infrastructure/services/emailService.ts",
+  "src/infrastructure/services/priceHistoryService.ts",
+  "src/infrastructure/services/purchaseOrderAnalytics.ts",
+  "src/infrastructure/repositories/jobs.repository.ts",
+  "src/infrastructure/repositories/material-suppliers.repository.ts",
+  // Has both migrated (addRoll, existsByMaterialType) and
+  // unmigrated methods. Removing this entry is blocked on
+  // migrating the rest.
+  "src/infrastructure/repositories/rolls.repository.ts",
 ])
 
 interface Violation {
@@ -272,5 +349,85 @@ describe("architecture: no direct Supabase calls outside src/infrastructure/", (
       }
     }
     expect(missing, `Allowlist references nonexistent files: ${missing.join(", ")}`).toEqual([])
+  })
+
+  it("infrastructure services route Supabase via getDatabaseClient(), not the singleton", () => {
+    // Phase 4 ratchet (post-ARC-147 cleanup).
+    //
+    // The singleton at `@/src/infrastructure/models/supabase` is built
+    // with `createBrowserClient` — fine in the browser, useless on the
+    // server where there's no localStorage and no JWT in `auth.uid()`.
+    // Phase 0 introduced `getDatabaseClient()` as the runtime-aware
+    // resolver. Infrastructure services that mutate or auth-bind data
+    // must use it.
+    //
+    // This guard catches the regression where a future PR reverts a
+    // service to `import { supabase }`. Browser-only files
+    // (auth flows, storage / bucket helpers, the resolver itself)
+    // legitimately stay on the singleton — they're allowlisted with
+    // a one-line reason. Each future migration removes one entry.
+    //
+    // Type-only imports (`import { type Roll }`) are fine — only the
+    // VALUE binding (the live client) is the hazard.
+    //
+    // The allowlist itself lives at module scope so the existence check
+    // below can reuse it without drift.
+    const infraDir = path.join(REPO_ROOT, "src", "infrastructure")
+    const violations: Violation[] = []
+
+    for (const file of walk(infraDir)) {
+      const rel = relPosix(file)
+      if (INFRA_ALLOWLIST.has(rel)) continue
+      const source = fs.readFileSync(file, "utf-8")
+      const noBlock = source.replace(/\/\*[\s\S]*?\*\//g, "")
+      const lines = noBlock.split(/\r?\n/)
+
+      BROWSER_SINGLETON_IMPORT_RE.lastIndex = 0
+      let match: RegExpExecArray | null
+      while ((match = BROWSER_SINGLETON_IMPORT_RE.exec(noBlock)) !== null) {
+        const clause = (match[1] ?? "").trim()
+        if (/^import\s+type\b/.test(clause)) continue
+        const innerMatch = clause.match(/\{([^{}]*)\}/)
+        const inner = innerMatch?.[1] ?? ""
+        const names = inner
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+        const importsSupabaseValue = names.some(
+          (n) => /^supabase\b/.test(n) || /^supabase\s+as\b/.test(n)
+        )
+        if (!importsSupabaseValue) continue
+        const matchOffset = match.index + (match[0].startsWith("\n") ? 1 : 0)
+        const lineIdx = noBlock.slice(0, matchOffset).split(/\r?\n/).length
+        violations.push({
+          file: rel,
+          line: lineIdx,
+          text: lines[lineIdx - 1] ?? clause,
+          reason: "browser singleton import in src/infrastructure/",
+        })
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(
+        `Browser-singleton import in src/infrastructure/ outside the resolver:\n${format(violations)}\n\n` +
+          `Migrate to \`getDatabaseClient()\` from @/src/infrastructure/supabase/get-database-client, ` +
+          `or add the file to INFRA_ALLOWLIST in this test with a one-line reason if it has ` +
+          `a legitimate browser-only call path (auth, storage upload, etc.).`
+      )
+    }
+    expect(violations).toEqual([])
+  })
+
+  it("infra allowlist entries actually exist on disk", () => {
+    // Reuses the module-scope INFRA_ALLOWLIST so this check stays in
+    // sync with the violation check above. Renamed/migrated files
+    // whose entry was forgotten get caught here.
+    const missing = Array.from(INFRA_ALLOWLIST).filter(
+      (p) => !fs.existsSync(path.join(REPO_ROOT, p))
+    )
+    expect(missing, `Infra allowlist references nonexistent files: ${missing.join(", ")}`).toEqual(
+      []
+    )
   })
 })

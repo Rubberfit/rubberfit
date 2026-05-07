@@ -83,6 +83,15 @@ export async function proxy(request: NextRequest) {
   // Per-path role + super-admin gating. These checks only fire for
   // pathnames that have a permission entry or live under /admin —
   // everything else passes once authenticated.
+  //
+  // The deactivation check (`access.isDeleted`) ALSO only fires here.
+  // Closing the gap fully (catching deactivated users on any
+  // authenticated path, including dashboard root and /api/*) would
+  // require loading the profile on every authenticated request, which
+  // is one extra DB round-trip per request — meaningful at scale. The
+  // remaining gap is "deactivated user can hit unguarded paths until
+  // their cookie expires"; the fully durable fix is refresh-token
+  // revocation on deactivation, tracked separately.
   const requiredPermission = getRequiredPermission(pathname)
   const needsAdmin = pathname.startsWith("/admin")
 
@@ -96,6 +105,21 @@ export async function proxy(request: NextRequest) {
       return applySecurityHeaders(
         redirectWithCookies(new URL("/unauthorized", request.url), pendingCookies)
       )
+    }
+
+    // Deactivated user (or no profile row) — sign them out and bounce
+    // back to login. signOut() goes through the cookies adapter wired
+    // above, which appends cookie-clearing instructions to
+    // `pendingCookies`; those flow into the redirect response.
+    if (access.isDeleted) {
+      try {
+        await supabase.auth.signOut()
+      } catch (_err) {
+        // Even if signOut fails, the redirect still bounces them out.
+      }
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("deactivated", "1")
+      return applySecurityHeaders(redirectWithCookies(loginUrl, pendingCookies))
     }
 
     if (requiredPermission) {
