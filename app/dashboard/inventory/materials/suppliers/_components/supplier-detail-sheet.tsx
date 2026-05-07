@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Building, ChevronLeft, CreditCard, Edit, Star, X } from "lucide-react"
 
 import {
@@ -47,24 +47,30 @@ export function SupplierDetailSheet({
   const [materialSuppliers, setMaterialSuppliers] = useState<MaterialSupplierWithDetails[]>([])
   const [loadingMaterials, setLoadingMaterials] = useState(false)
 
-  const fetchMaterialSuppliers = useCallback(async () => {
-    setLoadingMaterials(true)
-    try {
-      const data = await materialSuppliersSdk.list({ supplier_id: supplier.id })
-      setMaterialSuppliers(data as MaterialSupplierWithDetails[])
-    } catch (error) {
-      console.error("Error fetching material suppliers:", error)
-      setMaterialSuppliers([])
-    } finally {
-      setLoadingMaterials(false)
-    }
-  }, [supplier.id])
-
   useEffect(() => {
-    if (open && supplier) {
-      void fetchMaterialSuppliers()
+    if (!open || !supplier) return
+    // `cancelled` guards against stale resolves — if the user
+    // closes and reopens the detail sheet for a different supplier
+    // before the first fetch resolves, the slow response would
+    // otherwise overwrite the new supplier's data.
+    let cancelled = false
+    setLoadingMaterials(true)
+    materialSuppliersSdk
+      .list({ supplier_id: supplier.id })
+      .then((data) => {
+        if (!cancelled) setMaterialSuppliers(data as MaterialSupplierWithDetails[])
+      })
+      .catch((error) => {
+        console.error("Error fetching material suppliers:", error)
+        if (!cancelled) setMaterialSuppliers([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMaterials(false)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [open, supplier, fetchMaterialSuppliers])
+  }, [open, supplier])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

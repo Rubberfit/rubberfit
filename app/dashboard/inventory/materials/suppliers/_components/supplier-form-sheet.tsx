@@ -76,6 +76,12 @@ export function SupplierFormSheet({
   const [loadingMaterials, setLoadingMaterials] = useState(false)
   const [editingLink, setEditingLink] = useState<MaterialSupplier | null>(null)
   const [showLinkForm, setShowLinkForm] = useState(false)
+  // Controlled tab state — the Materials tab only renders when
+  // editing an existing supplier, so an uncontrolled `defaultValue`
+  // would leave Radix's internal state pointing at "materials"
+  // after a Materials → close → reopen-in-create-mode flip,
+  // rendering a blank tab body until the user clicks elsewhere.
+  const [activeTab, setActiveTab] = useState("basic")
 
   const form = useForm<SupplierFormData>({
     resolver: zodResolver(supplierSchema),
@@ -103,10 +109,14 @@ export function SupplierFormSheet({
       form.reset(DEFAULT_FORM_VALUES)
     }
     if (!open) {
-      // Reset inline link state on every close so a re-open lands
-      // on the Materials list, not on a half-typed link form.
+      // Reset inline link state + active tab on every close so a
+      // re-open lands on the Materials list (not a half-typed
+      // link form) and on the Basic tab (not a missing-tab body
+      // when reopened in create mode after editing was on
+      // Materials).
       setShowLinkForm(false)
       setEditingLink(null)
+      setActiveTab("basic")
     }
   }, [open, supplier, fetchLinkedMaterials, form])
 
@@ -118,9 +128,15 @@ export function SupplierFormSheet({
   useEffect(() => {
     if (!watchedZip || watchedTaxExempt) {
       setResolvedTaxRate(null)
+      setLoadingTaxRate(false)
       return
     }
 
+    // `cancelled` guards against stale resolves — clearTimeout
+    // handles the debounce window, but a request already in flight
+    // when ZIP/state/city changes would otherwise overwrite the new
+    // location's resolved rate with the old location's response.
+    let cancelled = false
     const timer = setTimeout(async () => {
       setLoadingTaxRate(true)
       try {
@@ -129,19 +145,24 @@ export function SupplierFormSheet({
           watchedCity || null,
           watchedZip
         )
-        setResolvedTaxRate({
-          rate: result.tax_rate,
-          name: result.tax_name,
-          level: result.tax_level,
-        })
+        if (!cancelled) {
+          setResolvedTaxRate({
+            rate: result.tax_rate,
+            name: result.tax_name,
+            level: result.tax_level,
+          })
+        }
       } catch (_error) {
-        setResolvedTaxRate(null)
+        if (!cancelled) setResolvedTaxRate(null)
       } finally {
-        setLoadingTaxRate(false)
+        if (!cancelled) setLoadingTaxRate(false)
       }
     }, 500)
 
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [watchedZip, watchedState, watchedCity, watchedTaxExempt])
 
   const onSubmit = async (data: SupplierFormData) => {
@@ -217,20 +238,32 @@ export function SupplierFormSheet({
         </SheetHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
-            <Tabs defaultValue="basic" className="flex min-h-0 flex-1 flex-col">
-              {/* Sticky tab strip — keeps tab labels visible while
-                  the dense form below scrolls. */}
-              <div className="sticky top-0 z-10 border-b bg-card px-6 py-3">
-                <TabsList className={`grid w-full ${supplier ? "grid-cols-5" : "grid-cols-4"}`}>
-                  <TabsTrigger value="basic">Basic</TabsTrigger>
-                  <TabsTrigger value="address">Address</TabsTrigger>
-                  <TabsTrigger value="taxship">Tax & shipping</TabsTrigger>
-                  <TabsTrigger value="preferences">Preferences</TabsTrigger>
-                  {supplier && <TabsTrigger value="materials">Materials</TabsTrigger>}
-                </TabsList>
-              </div>
+          {/* Tabs wrap both the form-managed tabs and the standalone
+              Materials tab. The outer `<form>` only wraps the four
+              form tabs (Basic / Address / Tax & shipping /
+              Preferences) — the Materials tab is a sibling, not a
+              child, so its inline `<form>` (in
+              `MaterialSupplierLinkInline`) does not nest inside
+              the outer supplier form. The save button is rendered
+              inside the form footer; on the Materials tab the
+              footer hides the Save button since there are no
+              supplier-level changes to commit there. */}
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="sticky top-0 z-10 border-b bg-card px-6 py-3">
+              <TabsList className={`grid w-full ${supplier ? "grid-cols-5" : "grid-cols-4"}`}>
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                <TabsTrigger value="address">Address</TabsTrigger>
+                <TabsTrigger value="taxship">Tax & shipping</TabsTrigger>
+                <TabsTrigger value="preferences">Preferences</TabsTrigger>
+                {supplier && <TabsTrigger value="materials">Materials</TabsTrigger>}
+              </TabsList>
+            </div>
 
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
               <div className="flex-1 overflow-y-auto px-6 py-6">
                 <TabsContent value="basic" className="mt-0 space-y-6">
                   <SupplierGeneralFields form={form} />
@@ -248,49 +281,67 @@ export function SupplierFormSheet({
                 <TabsContent value="preferences" className="mt-0 space-y-4">
                   <SupplierPreferencesFields form={form} />
                 </TabsContent>
-                {supplier && (
-                  <TabsContent value="materials" className="mt-0 space-y-4">
-                    <SupplierLinkedMaterials
-                      supplierName={supplier.name}
-                      supplierId={supplier.id}
-                      linkedMaterials={linkedMaterials}
-                      loadingMaterials={loadingMaterials}
-                      editingLink={editingLink}
-                      showLinkForm={showLinkForm}
-                      onShowLinkForm={(link) => {
-                        setEditingLink(link ?? null)
-                        setShowLinkForm(true)
-                      }}
-                      onCancelLinkForm={() => {
-                        setShowLinkForm(false)
-                        setEditingLink(null)
-                      }}
-                      onLinkSaved={() => {
-                        setShowLinkForm(false)
-                        setEditingLink(null)
-                        void fetchLinkedMaterials(supplier.id)
-                      }}
-                      onRefresh={fetchLinkedMaterials}
-                    />
-                  </TabsContent>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t bg-card px-6 py-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onOpenChange(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                {activeTab !== "materials" && (
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Saving…" : supplier ? "Save changes" : "Create supplier"}
+                  </Button>
                 )}
               </div>
-            </Tabs>
+            </form>
 
-            <div className="flex justify-end gap-2 border-t bg-card px-6 py-4">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                disabled={submitting}
+            {supplier && (
+              <TabsContent
+                value="materials"
+                className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
               >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : supplier ? "Save changes" : "Create supplier"}
-              </Button>
-            </div>
-          </form>
+                <div className="flex-1 overflow-y-auto px-6 py-6">
+                  <SupplierLinkedMaterials
+                    supplierName={supplier.name}
+                    supplierId={supplier.id}
+                    linkedMaterials={linkedMaterials}
+                    loadingMaterials={loadingMaterials}
+                    editingLink={editingLink}
+                    showLinkForm={showLinkForm}
+                    onShowLinkForm={(link) => {
+                      setEditingLink(link ?? null)
+                      setShowLinkForm(true)
+                    }}
+                    onCancelLinkForm={() => {
+                      setShowLinkForm(false)
+                      setEditingLink(null)
+                    }}
+                    onLinkSaved={() => {
+                      setShowLinkForm(false)
+                      setEditingLink(null)
+                      void fetchLinkedMaterials(supplier.id)
+                    }}
+                    onRefresh={fetchLinkedMaterials}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 border-t bg-card px-6 py-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onOpenChange(false)}
+                    disabled={submitting}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </TabsContent>
+            )}
+          </Tabs>
         </Form>
       </SheetContent>
     </Sheet>
