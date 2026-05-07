@@ -114,14 +114,19 @@ export function ReorderRuleSheet({
   }
 
   const calculateReorderPoint = () => {
+    // Compute the new value from the click-time snapshot (the value
+    // the user sees when pressing Calculate is what they expect to
+    // become the reorder point). The functional updater below
+    // merges into the latest `prev` to avoid clobbering, but the
+    // toast must fire OUTSIDE the updater — Strict Mode invokes
+    // setState callbacks twice in dev to detect impurity, so a
+    // toast inside would double-fire.
     const dailyUsage = eoqData.annualDemand / 365
-    setFormData((prev) => {
-      const leadTimeUsage = dailyUsage * prev.lead_time_days
-      const safetyStock = dailyUsage * prev.safety_stock_days
-      const reorderPoint = Math.round(leadTimeUsage + safetyStock)
-      toast.success(`Reorder point calculated: ${reorderPoint} sq ft`)
-      return { ...prev, reorder_point: reorderPoint }
-    })
+    const leadTimeUsage = dailyUsage * formData.lead_time_days
+    const safetyStock = dailyUsage * formData.safety_stock_days
+    const reorderPoint = Math.round(leadTimeUsage + safetyStock)
+    setFormData((prev) => ({ ...prev, reorder_point: reorderPoint }))
+    toast.success(`Reorder point calculated: ${reorderPoint} sq ft`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
