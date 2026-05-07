@@ -1,10 +1,11 @@
 /**
  * Phase 2 PR 4 — smoke + filter tests for the rebuilt
- * `/dashboard/users` page. Mocks `useRole` (admin gate) and
- * `userManagementService` so the surface renders against fixture
- * profiles. Pins the new chrome (`PageHeader` Invite action,
- * search + role + status filter row), the role/status badge
- * intent mapping, and the access-restricted fallback.
+ * `/dashboard/users` page. Mocks `useRole` (admin gate),
+ * `userManagementService.getAllUsers` for reads, and the
+ * `@/app/actions/users` server actions for deactivate / reactivate
+ * writes. Pins the new chrome (`PageHeader` Invite action, search
+ * + role + status filter row), the role/status badge intent
+ * mapping, and the access-restricted fallback.
  *
  * Spec: `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
  */
@@ -47,6 +48,8 @@ const fixtureUsers: UserProfile[] = [
 const useRole = vi.hoisted(() => vi.fn())
 const userManagementService = vi.hoisted(() => ({
   getAllUsers: vi.fn(),
+}))
+const userActions = vi.hoisted(() => ({
   deactivateUser: vi.fn(),
   reactivateUser: vi.fn(),
 }))
@@ -59,6 +62,7 @@ vi.mock("@/src/infrastructure/services/useRole", () => ({ useRole }))
 vi.mock("@/src/infrastructure/services/userManagementService", () => ({
   userManagementService,
 }))
+vi.mock("@/app/actions/users", () => userActions)
 vi.mock("sonner", () => ({ toast }))
 
 // UserFormModal pulls in heavy form deps that aren't relevant to the
@@ -168,8 +172,8 @@ describe("Users page (Phase 2 PR 4)", () => {
     useRole.mockReset()
     useRole.mockReturnValue({ userId: "user-1", isAdmin: true, isLoading: false })
     userManagementService.getAllUsers.mockReset().mockResolvedValue(fixtureUsers)
-    userManagementService.deactivateUser.mockReset().mockResolvedValue(undefined)
-    userManagementService.reactivateUser.mockReset().mockResolvedValue(undefined)
+    userActions.deactivateUser.mockReset().mockResolvedValue(undefined)
+    userActions.reactivateUser.mockReset().mockResolvedValue(undefined)
     toast.success.mockClear()
     toast.error.mockClear()
   })

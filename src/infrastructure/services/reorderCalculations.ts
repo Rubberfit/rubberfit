@@ -1,4 +1,4 @@
-import { supabase } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -44,6 +44,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
   async getAverageDailyUsage(): Promise<number> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: cuts, error: cutsError } = await supabase
         .from("cuts")
         .select("total_sqft_used, created_at")
@@ -76,6 +77,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
       let unitCost = 10
 
       if (supplierId) {
+        const supabase = await getDatabaseClient()
         const { data: supplierInfo } = await supabase
           .from("material_suppliers")
           .select("cost_per_sqft, minimum_order_sqft")
@@ -151,6 +153,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
       requestedDeliveryDate.setDate(requestedDeliveryDate.getDate() + leadTimeDays)
 
+      const supabase = await getDatabaseClient()
       const { data: material, error: matError } = await supabase
         .from("material_types")
         .select("*")
@@ -234,6 +237,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   ): Promise<number> {
     try {
       let costPerSqft = 10
+      const supabase = await getDatabaseClient()
 
       if (supplierId) {
         const { data } = await supabase
@@ -280,6 +284,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
 
   async calculateCurrentStock(materialTypeId: string): Promise<number> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("rolls")
         .select("width, remaining_length")

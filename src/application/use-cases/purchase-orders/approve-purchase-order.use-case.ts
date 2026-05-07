@@ -2,12 +2,13 @@ import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { ActionActor } from "@/src/application/types/action-actor"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 
 export interface ApprovePurchaseOrderInput {
   purchaseOrderId: string
+  actor: ActionActor
 }
 
 export interface IApprovePurchaseOrderUseCase {
@@ -22,15 +23,16 @@ export class ApprovePurchaseOrderUseCase implements IApprovePurchaseOrderUseCase
   ) {}
 
   async execute(input: ApprovePurchaseOrderInput): Promise<PurchaseOrder> {
-    const [existing, userId] = await Promise.all([
-      this.poService.getPurchaseOrderById(input.purchaseOrderId),
-      getCurrentUserId(),
-    ])
-    const approved = await this.poService.approvePurchaseOrder(input.purchaseOrderId, userId)
+    const existing = await this.poService.getPurchaseOrderById(input.purchaseOrderId)
+    const approved = await this.poService.approvePurchaseOrder(
+      input.purchaseOrderId,
+      input.actor.id
+    )
 
     try {
       await this.notificationService.sendPOStatusUpdate({
-        userIdentifier: userId,
+        actorId: input.actor.id,
+        userIdentifier: input.actor.id,
         poNumber: existing.po_number,
         supplier: existing.supplier?.name ?? "Unknown supplier",
         oldStatus: existing.status,

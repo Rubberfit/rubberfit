@@ -44,5 +44,6 @@ export const TOKENS = {
   IReceivePurchaseOrderUseCase: Symbol("IReceivePurchaseOrderUseCase"),
   IGenerateReorderSuggestionsUseCase: Symbol("IGenerateReorderSuggestionsUseCase"),
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
+  ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
 } as const

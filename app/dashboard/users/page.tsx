@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import type { UserProfile } from "@/src/infrastructure/models/supabase"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
+import { deactivateUser, reactivateUser } from "@/app/actions/users"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -122,11 +123,14 @@ export default function UsersPage() {
     if (!userToDeactivate) return
     setIsDeactivating(true)
     try {
-      await userManagementService.deactivateUser(userToDeactivate.id)
+      await deactivateUser({ userId: userToDeactivate.id })
       toast.success(`${userToDeactivate.full_name ?? "User"} has been deactivated`)
       await fetchUsers()
-    } catch (_error) {
-      toast.error("Failed to deactivate user")
+    } catch (error) {
+      // Surface the action's own error message — actions throw with
+      // human-readable messages for permission failures and the
+      // "cannot deactivate your own account" guard.
+      toast.error(error instanceof Error ? error.message : "Failed to deactivate user")
     } finally {
       setIsDeactivating(false)
       setDeactivateDialogOpen(false)
@@ -141,11 +145,13 @@ export default function UsersPage() {
       // by user id so other rows stay interactive.
       setReactivatingUserId((current) => (current === null ? user.id : current))
       try {
-        await userManagementService.reactivateUser(user.id)
+        await reactivateUser({ userId: user.id })
         toast.success(`${user.full_name ?? "User"} has been reactivated`)
         await fetchUsers()
-      } catch (_error) {
-        toast.error("Failed to reactivate user")
+      } catch (error) {
+        // Surface the action's own error message — actions throw with
+        // human-readable messages for permission failures.
+        toast.error(error instanceof Error ? error.message : "Failed to reactivate user")
       } finally {
         setReactivatingUserId((current) => (current === user.id ? null : current))
       }

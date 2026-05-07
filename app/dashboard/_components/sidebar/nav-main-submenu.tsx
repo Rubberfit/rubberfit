@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { addRoll } from "@/app/actions/inventory"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import {
@@ -96,14 +96,9 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         return
       }
 
-      const now = new Date()
-      const dateReceived = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, "0"),
-        String(now.getDate()).padStart(2, "0"),
-      ].join("-")
-
-      const newRoll: Parameters<typeof rollService.addRoll>[0] = {
+      // The action computes derived fields (status, remaining_length,
+      // date_received) server-side from the user-entered values.
+      await addRoll({
         material_type: formData.material_type,
         width,
         length,
@@ -113,12 +108,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         supplier: formData.supplier || undefined,
         cost_per_sqft: costPerSqft,
         notes: formData.notes || undefined,
-        remaining_length: length,
-        status: "active",
-        date_received: dateReceived,
-      }
-
-      await rollService.addRoll(newRoll)
+      })
 
       toast.success("Roll added successfully!")
       onOpenChange(false)
@@ -128,7 +118,11 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
       router.push("/dashboard/inventory")
     } catch (error) {
       console.error("Error adding roll:", error)
-      toast.error("Failed to add roll")
+      // The action throws ForbiddenError ("forbidden") for non-manage-rolls
+      // callers and Zod validation errors for bad input — surface those
+      // messages instead of the generic "Failed to add roll" so users
+      // get actionable feedback (esp. permission failures).
+      toast.error(error instanceof Error ? error.message : "Failed to add roll")
     }
   }
 

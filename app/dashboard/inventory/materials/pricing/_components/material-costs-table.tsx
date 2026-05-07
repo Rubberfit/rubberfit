@@ -19,7 +19,7 @@ import {
 } from "@/app/components/ui/table"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { updateMaterialType } from "@/app/actions/materials"
 import { toast } from "sonner"
 
 interface MaterialCostsTableProps {
@@ -92,7 +92,7 @@ export function MaterialCostsTable({
 
       setIsSaving(true)
       try {
-        const updated = await materialTypeService.update(materialId, { default_cost: parsed })
+        const updated = await updateMaterialType({ id: materialId, default_cost: parsed })
         onCostUpdated(materialId, updated)
         toast.success("Cost updated")
         setEditingId((current) => (current === materialId ? null : current))

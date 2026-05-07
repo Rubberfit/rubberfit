@@ -68,6 +68,18 @@ export async function requireAdmin(request: Request): Promise<AdminGuardResult> 
     }
   }
 
+  // Deactivated user (or no profile row) — fail closed. Sign-in
+  // already rejects deactivated accounts, but a user deactivated
+  // mid-session keeps a valid JWT until expiry. 401 (not 403) so the
+  // client treats it like a session-invalid event and bounces to
+  // login, matching the proxy.ts deactivation flow.
+  if (access.isDeleted) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Account deactivated" }, { status: 401 }),
+    }
+  }
+
   const isAuthorized = access.isSuperAdmin || access.roles.includes("admin")
 
   if (!isAuthorized) {

@@ -1,9 +1,9 @@
 import {
-  supabase,
   type ReorderRuleWithDetails,
   type CreateReorderRule,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { reorderCalculations } from "./reorderCalculations"
 import { generatePoNumber } from "./generatePoNumber"
@@ -26,6 +26,7 @@ export class ReorderService implements IReorderService {
   ) {}
   async getAllReorderRules(): Promise<ReorderRuleWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("reorder_rules")
         .select(
@@ -47,6 +48,7 @@ export class ReorderService implements IReorderService {
 
   async getActiveReorderRules(): Promise<ReorderRuleWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("reorder_rules")
         .select(
@@ -69,6 +71,7 @@ export class ReorderService implements IReorderService {
 
   async getReorderRuleById(id: string): Promise<ReorderRuleWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("reorder_rules")
         .select(
@@ -91,6 +94,7 @@ export class ReorderService implements IReorderService {
 
   async getReorderRuleByMaterial(materialTypeId: string): Promise<ReorderRuleWithDetails | null> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("reorder_rules")
         .select(
@@ -114,6 +118,7 @@ export class ReorderService implements IReorderService {
 
   async createReorderRule(rule: CreateReorderRule): Promise<ReorderRuleWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("reorder_rules")
@@ -135,9 +140,16 @@ export class ReorderService implements IReorderService {
     }
   }
 
-  async updateReorderRule(id: string, updates: UpdateReorderRule): Promise<ReorderRuleWithDetails> {
+  async updateReorderRule(
+    id: string,
+    updates: UpdateReorderRule,
+    userId?: string
+  ): Promise<ReorderRuleWithDetails> {
     try {
-      const user_id = await getCurrentUserId()
+      const supabase = await getDatabaseClient()
+      // Server-action callers pass `userId = actor.id`; browser-side
+      // legacy callers fall back to the deprecated `getCurrentUserId()`.
+      const user_id = userId ?? (await getCurrentUserId())
       const { data, error } = await supabase
         .from("reorder_rules")
         .update(updates)
@@ -175,6 +187,7 @@ export class ReorderService implements IReorderService {
 
   async deleteReorderRule(id: string): Promise<boolean> {
     try {
+      const supabase = await getDatabaseClient()
       const user_id = await getCurrentUserId()
       const { error } = await supabase
         .from("reorder_rules")
@@ -205,6 +218,7 @@ export class ReorderService implements IReorderService {
 
   async checkReorderPoints(): Promise<ReorderSuggestion[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: rules, error: rulesError } = await supabase
         .from("reorder_rules")
         .select(
@@ -272,6 +286,7 @@ export class ReorderService implements IReorderService {
 
   async generateReorderSuggestions(includeInactive: boolean = false): Promise<ReorderSuggestion[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: materials, error: matError } = await supabase.from("material_types").select("*")
 
       if (matError) throw matError
@@ -383,6 +398,7 @@ export class ReorderService implements IReorderService {
   }
 
   async generatePONumber(): Promise<string> {
+    const supabase = await getDatabaseClient()
     const date = new Date()
     const year = date.getFullYear()
 
