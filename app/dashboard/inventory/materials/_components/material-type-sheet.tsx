@@ -99,6 +99,7 @@ export function MaterialTypeSheet({
                 value={formData.name}
                 onChange={(e) => onFormDataChange({ ...formData, name: e.target.value })}
                 placeholder="e.g., Neoprene, EPDM, Silicone"
+                required
                 autoFocus
               />
             </div>

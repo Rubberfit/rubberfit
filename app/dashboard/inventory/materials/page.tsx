@@ -32,15 +32,19 @@ export default function MaterialsPage() {
   }, [])
 
   const totalMaterialTypes = materialTypes.length
+  // Filter out null/undefined costs before aggregating — a missing
+  // `default_cost` is "unset," not "$0," and treating it as zero
+  // pollutes the average and pins the cost-range floor at $0.
+  const materialCosts = materialTypes
+    .map((m) => m.default_cost)
+    .filter((cost): cost is number => cost != null)
   const averageCost =
-    materialTypes.length > 0
-      ? materialTypes.reduce((sum, m) => sum + (m.default_cost || 0), 0) / materialTypes.length
+    materialCosts.length > 0
+      ? materialCosts.reduce((sum, c) => sum + c, 0) / materialCosts.length
       : 0
-  const totalAlertThreshold = materialTypes.reduce((sum, m) => sum + (m.min_stock_alert || 0), 0)
-  const minCost =
-    materialTypes.length > 0 ? Math.min(...materialTypes.map((m) => m.default_cost || 0)) : 0
-  const maxCost =
-    materialTypes.length > 0 ? Math.max(...materialTypes.map((m) => m.default_cost || 0)) : 0
+  const totalAlertThreshold = materialTypes.reduce((sum, m) => sum + (m.min_stock_alert ?? 0), 0)
+  const minCost = materialCosts.length > 0 ? Math.min(...materialCosts) : null
+  const maxCost = materialCosts.length > 0 ? Math.max(...materialCosts) : null
 
   if (loading) {
     return (
@@ -87,7 +91,11 @@ export default function MaterialsPage() {
         <StatCard
           label="Cost range"
           icon={<TrendingUp />}
-          value={materialTypes.length > 0 ? `$${minCost.toFixed(2)} – $${maxCost.toFixed(2)}` : "—"}
+          value={
+            minCost != null && maxCost != null
+              ? `$${minCost.toFixed(2)} – $${maxCost.toFixed(2)}`
+              : "—"
+          }
           footnote="Per sq ft"
           sparkIntent="accent"
         />
