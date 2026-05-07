@@ -1,12 +1,19 @@
 /**
  * Phase 3 PR 3c — smoke tests for the PO view drawer.
  *
+ * ARC-206 (Phase 3 PR 3e follow-up): the drawer now hosts both
+ * the read-only view and the inline edit form. Tests here only
+ * pin the view-mode contract; the edit-mode body lives in
+ * `po-edit-drawer-body.tsx` and has its own (lighter) coverage
+ * pinned at the page level.
+ *
  * Pins:
  *   - Renders the PO header (number + supplier) and the status pill
  *   - Sections (Order Details, Supplier Contact, Line Items,
  *     Addresses, Order Summary, Notes) all mount for a fixture PO
  *   - "Close" calls onOpenChange(false)
- *   - "Edit" path closes the drawer + forwards the PO to onEdit
+ *   - "Edit" flips drawer mode to "edit" — does NOT close, does
+ *     NOT navigate (per ARC-206)
  *   - Status-transition button (Submit) appears for draft POs and
  *     fires onUpdateStatus + onClose
  */
@@ -61,6 +68,19 @@ const SAMPLE_PO: PurchaseOrderWithDetails = {
   items: [],
 }
 
+// Common default props the drawer added in Phase 3 PR 3e
+// (mode + onModeChange + suppliers/materialTypes catalogs +
+// onSaved). View-mode tests don't exercise the edit body, so empty
+// catalogs + a mock onSaved are fine — the existing PoViewBody
+// branch never reaches them.
+const DRAWER_DEFAULTS = {
+  mode: "view" as const,
+  onModeChange: vi.fn(),
+  suppliers: [],
+  materialTypes: [],
+  onSaved: vi.fn(),
+}
+
 describe("PoViewDrawer (Phase 3 PR 3c)", () => {
   beforeEach(() => {
     toast.success.mockClear()
@@ -69,11 +89,11 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
   it("renders the PO header (number + supplier) for a fixture", async () => {
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
         po={SAMPLE_PO}
         open
         onOpenChange={vi.fn()}
         taxDetails={null}
-        onEdit={vi.fn()}
         onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
@@ -90,11 +110,11 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     const onOpenChange = vi.fn()
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
         po={SAMPLE_PO}
         open
         onOpenChange={onOpenChange}
         taxDetails={null}
-        onEdit={vi.fn()}
         onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
@@ -108,24 +128,28 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it("Edit forwards the PO and closes the drawer (draft only)", async () => {
-    const onEdit = vi.fn()
+  it("Edit flips drawer to edit mode (no close, no navigate) — ARC-206", async () => {
+    const onModeChange = vi.fn()
     const onOpenChange = vi.fn()
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
+        onModeChange={onModeChange}
         po={SAMPLE_PO}
         open
         onOpenChange={onOpenChange}
         taxDetails={null}
-        onEdit={onEdit}
         onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />
     )
     const edit = await screen.findByRole("button", { name: /^Edit$/ })
     fireEvent.click(edit)
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(onEdit).toHaveBeenCalledWith(SAMPLE_PO)
+    // The drawer must STAY open (edit body re-mounts inside the
+    // same Sheet) and signal mode-flip. Closing on Edit was the
+    // ARC-206 bug; this regresses to that if onOpenChange fires.
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onModeChange).toHaveBeenCalledWith("edit")
   })
 
   it("Submit calls onUpdateStatus('pending') and closes — toast handled by parent", async () => {
@@ -133,11 +157,11 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     const onOpenChange = vi.fn()
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
         po={SAMPLE_PO}
         open
         onOpenChange={onOpenChange}
         taxDetails={null}
-        onEdit={vi.fn()}
         onUpdateStatus={onUpdateStatus}
         onDownloadPDF={vi.fn()}
       />
@@ -163,11 +187,11 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     const onOpenChange = vi.fn()
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
         po={SAMPLE_PO}
         open
         onOpenChange={onOpenChange}
         taxDetails={null}
-        onEdit={vi.fn()}
         onUpdateStatus={onUpdateStatus}
         onDownloadPDF={vi.fn()}
       />
@@ -183,11 +207,11 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
     const orderedPo: PurchaseOrderWithDetails = { ...SAMPLE_PO, status: "ordered" }
     render(
       <PoViewDrawer
+        {...DRAWER_DEFAULTS}
         po={orderedPo}
         open
         onOpenChange={vi.fn()}
         taxDetails={null}
-        onEdit={vi.fn()}
         onUpdateStatus={vi.fn().mockResolvedValue(true)}
         onDownloadPDF={vi.fn()}
       />

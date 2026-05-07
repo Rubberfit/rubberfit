@@ -26,7 +26,12 @@ interface PoViewBodyProps {
   po: PurchaseOrderWithDetails
   taxDetails: TaxDetails | null
   onClose: () => void
-  onEdit: (po: PurchaseOrderWithDetails) => void
+  /**
+   * Edit click → flips the parent drawer into edit mode (handled
+   * by `PoViewDrawer`'s `onModeChange`). The drawer stays open
+   * during the flip — no `onClose()` here, no navigation.
+   */
+  onEdit: () => void
   /**
    * Returns `true` if the status transition succeeded, `false` if
    * the request rejected. Used to gate `onClose()` below so a
@@ -57,8 +62,10 @@ export function PoViewBody({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   function handleEditClick() {
-    onClose()
-    onEdit(po)
+    // Flip the drawer to edit mode in-place; do NOT close it. The
+    // edit body re-mounts inside the same Sheet (keyed on
+    // `edit-${po.id}` over in `PoViewDrawer`).
+    onEdit()
   }
 
   async function handleSubmitClick() {
