@@ -92,7 +92,14 @@ export function AnalyticsSection({ reorderRules }: AnalyticsSectionProps) {
                         {risk.toFixed(0)}% risk
                       </span>
                     </div>
-                    <Progress value={risk} className="h-2" />
+                    <Progress
+                      value={risk}
+                      className={cn(
+                        "h-2",
+                        tone === "danger" && "[&>div]:bg-[color:var(--danger)]",
+                        tone === "warning" && "[&>div]:bg-[color:var(--warning)]"
+                      )}
+                    />
                   </div>
                 )
               })}
