@@ -68,22 +68,22 @@ export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
 
   // Waste / scrap going UP is bad — `intent: "negative-up"` flips the
   // chip color logic so increases turn red instead of green.
-  const wasteTrendProp =
+  const wasteTrendProp: StatCardProps["trend"] =
     wasteTrend == null
       ? undefined
       : {
           delta: wasteTrend,
           label: "vs prior half",
-          intent: "negative-up" as const,
+          intent: "negative-up",
           formatted: `${Math.abs(wasteTrend).toFixed(1)}%`,
         }
-  const scrapTrendProp =
+  const scrapTrendProp: StatCardProps["trend"] =
     scrapTrend == null
       ? undefined
       : {
           delta: scrapTrend,
           label: "vs prior half",
-          intent: "negative-up" as const,
+          intent: "negative-up",
           formatted: `${Math.abs(scrapTrend).toFixed(1)}%`,
         }
 

@@ -139,11 +139,17 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const TIMEFRAME_LABELS: Record<Timeframe, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "12w": "Last 12 weeks",
-  "12m": "Last 12 months",
+const TIMEFRAME_OPTIONS: ReadonlyArray<{ value: Timeframe; label: string }> = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "12w", label: "Last 12 weeks" },
+  { value: "12m", label: "Last 12 months" },
+]
+
+const TIMEFRAME_VALUES: ReadonlySet<Timeframe> = new Set(TIMEFRAME_OPTIONS.map((o) => o.value))
+
+function isTimeframe(value: string): value is Timeframe {
+  return (TIMEFRAME_VALUES as ReadonlySet<string>).has(value)
 }
 
 export default function WasteAnalysisPage() {
@@ -251,18 +257,21 @@ export default function WasteAnalysisPage() {
               </Select>
             )}
 
-            <Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
+            <Select
+              value={timeframe}
+              onValueChange={(v) => {
+                if (isTimeframe(v)) setTimeframe(v)
+              }}
+            >
               <SelectTrigger className="h-9 w-[160px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.entries(TIMEFRAME_LABELS) as [Timeframe, string][]).map(
-                  ([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  )
-                )}
+                {TIMEFRAME_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </>

@@ -2,7 +2,7 @@
 
 import { Activity, Calendar, Scissors, TrendingDown } from "lucide-react"
 
-import { StatCard } from "@/app/components/patterns"
+import { StatCard, type StatCardProps } from "@/app/components/patterns"
 
 interface ComparisonData {
   current: { avgWaste: number; totalCuts: number }
@@ -20,13 +20,13 @@ export function ComparisonSummaryCards({ comparison }: ComparisonSummaryCardsPro
   // `improvement` is positive when current waste < previous waste,
   // i.e. less waste = better. Pass through StatCard's "positive-up"
   // intent so the chip turns green on positive improvement values.
-  const improvementTrend =
+  const improvementTrend: StatCardProps["trend"] =
     comparison.improvement === 0
       ? undefined
       : {
           delta: comparison.improvement,
           label: "vs prior period",
-          intent: "positive-up" as const,
+          intent: "positive-up",
           formatted: `${Math.abs(comparison.improvement).toFixed(1)}%`,
         }
 

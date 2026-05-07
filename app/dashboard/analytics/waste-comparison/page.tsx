@@ -45,6 +45,13 @@ export default function WasteComparisonPage() {
   >([])
 
   useEffect(() => {
+    // `cancelled` guards against stale resolves — fast date-range
+    // changes used to let an older request finish last and overwrite
+    // `comparison` / `trendData` / `materialComparison` with the
+    // wrong period's data. Same pattern as the supplier detail
+    // sheet fix (PR #203).
+    let cancelled = false
+
     const calculateMetrics = (cuts: Cut[], period: string): WasteMetrics => {
       if (cuts.length === 0) {
         return {
@@ -93,7 +100,7 @@ export default function WasteComparisonPage() {
           cuts: data.count,
         }))
 
-        setTrendData(trend)
+        if (!cancelled) setTrendData(trend)
       } catch (error) {
         console.error("Error fetching trend data:", error)
       }
@@ -152,7 +159,7 @@ export default function WasteComparisonPage() {
               : 0,
         }))
 
-        setMaterialComparison(comparison)
+        if (!cancelled) setMaterialComparison(comparison)
       } catch (error) {
         console.error("Error fetching material comparison:", error)
       }
@@ -189,6 +196,7 @@ export default function WasteComparisonPage() {
         const avgCostPerSqft = 2.5 // Default average cost
         const savingsDollars = savingsSqft * avgCostPerSqft
 
+        if (cancelled) return
         setComparison({
           current: currentMetrics,
           previous: previousMetrics,
@@ -204,13 +212,16 @@ export default function WasteComparisonPage() {
         await fetchMaterialComparisonInner(from, to, previousFrom, previousTo)
       } catch (error) {
         console.error("Error fetching waste comparison:", error)
-        toast.error("Failed to load waste comparison data")
+        if (!cancelled) toast.error("Failed to load waste comparison data")
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    fetchWasteComparison()
+    void fetchWasteComparison()
+    return () => {
+      cancelled = true
+    }
   }, [dateRange])
 
   return (
