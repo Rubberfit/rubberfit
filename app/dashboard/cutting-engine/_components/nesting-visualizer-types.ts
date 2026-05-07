@@ -5,7 +5,7 @@ export type ShapeType = "rect" | "circle" | "cone"
 export type GrainDir = "none" | "width" | "length"
 export type DiagDir = "ltr" | "rtl"
 export type StratMethod = "rect" | "diag"
-export type SimplePartType = "rectangle" | "circle" | "cylinder" | "cone" | "trapezoid"
+export type SimplePartType = "rectangle" | "circle" | "cylinder" | "cone" | "trapezoid" | "polygon"
 export type SimpleCutDirection =
   | "vertical_split"
   | "horizontal_split"

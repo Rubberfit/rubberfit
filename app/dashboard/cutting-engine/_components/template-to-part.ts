@@ -88,6 +88,8 @@ export function templateToPart(template: PartTemplate, tag: string | undefined):
           tag,
         })
       }
+      case "polygon":
+        return polygonTemplateToPart(template, quantity, tag)
       default:
         return null
     }
@@ -97,4 +99,20 @@ export function templateToPart(template: PartTemplate, tag: string | undefined):
     // crashing the page.
     return null
   }
+}
+
+function polygonTemplateToPart(
+  template: PartTemplate,
+  quantity: number,
+  tag: string | undefined
+): Part | null {
+  const polygon = template.polygon
+  if (!polygon || polygon.length < 3) return null
+  return buildPart({
+    shapeId: template.id,
+    quantity,
+    polygon,
+    allowRotation: true,
+    tag,
+  })
 }

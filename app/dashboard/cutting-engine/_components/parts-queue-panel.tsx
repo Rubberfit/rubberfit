@@ -35,8 +35,9 @@ const FILTERS: Array<{ key: PartsFilter; label: string }> = [
   { key: "curved", label: "Curved" },
 ]
 
-function shapeIcon(partType: string) {
-  switch (partType) {
+function shapeIcon(part: PartTemplate) {
+  if (part.partType === "polygon") return <PolygonThumbnail polygon={part.polygon ?? []} />
+  switch (part.partType) {
     case "cylinder":
       return <Circle className="h-4 w-4 shrink-0" />
     case "cone":
@@ -48,7 +49,54 @@ function shapeIcon(partType: string) {
   }
 }
 
+function PolygonThumbnail({ polygon }: { polygon: { x: number; y: number }[] }) {
+  if (polygon.length < 3) return <Square className="h-4 w-4 shrink-0" />
+  let minX = polygon[0].x
+  let maxX = polygon[0].x
+  let minY = polygon[0].y
+  let maxY = polygon[0].y
+  for (const p of polygon) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  const width = maxX - minX || 1
+  const height = maxY - minY || 1
+  const scale = 14 / Math.max(width, height)
+  const padX = (16 - width * scale) / 2
+  const padY = (16 - height * scale) / 2
+  const points = polygon
+    .map((p) => `${(p.x - minX) * scale + padX},${(p.y - minY) * scale + padY}`)
+    .join(" ")
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+      <g transform="translate(0, 16) scale(1, -1)">
+        <polygon points={points} fill="rgba(59,130,246,0.25)" stroke="#1d4ed8" strokeWidth={1} />
+      </g>
+    </svg>
+  )
+}
+
 function partDims(part: PartTemplate): string {
+  if (part.partType === "polygon") {
+    const polygon = part.polygon ?? []
+    if (polygon.length < 3) return part.sourceFile ?? part.label
+    let minX = polygon[0].x
+    let maxX = polygon[0].x
+    let minY = polygon[0].y
+    let maxY = polygon[0].y
+    for (const p of polygon) {
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.y > maxY) maxY = p.y
+    }
+    const w = (maxX - minX).toFixed(2)
+    const h = (maxY - minY).toFixed(2)
+    const file = part.sourceFile ? `${part.sourceFile} - ` : ""
+    return `${file}${w}" × ${h}"`
+  }
   if (part.width !== undefined && part.length !== undefined)
     return `${part.width}" × ${part.length}"`
   if (part.diameter !== undefined) return `⌀ ${part.diameter}"`
@@ -63,7 +111,9 @@ function isCurved(partType: string) {
 function filterParts(parts: PartTemplate[], filter: PartsFilter): PartTemplate[] {
   switch (filter) {
     case "rect":
-      return parts.filter((p) => p.partType === "rectangle" || p.partType === "trapezoid")
+      return parts.filter(
+        (p) => p.partType === "rectangle" || p.partType === "trapezoid" || p.partType === "polygon"
+      )
     case "curved":
       return parts.filter((p) => isCurved(p.partType))
     case "unplaced":
@@ -147,7 +197,7 @@ export function PartsQueuePanel({
 
               const body = (
                 <>
-                  <span className="text-muted-foreground">{shapeIcon(part.partType)}</span>
+                  <span className="text-muted-foreground">{shapeIcon(part)}</span>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-xs font-medium text-foreground truncate">{part.label}</p>
                     <p className="text-[11px] text-muted-foreground truncate">{partDims(part)}</p>
