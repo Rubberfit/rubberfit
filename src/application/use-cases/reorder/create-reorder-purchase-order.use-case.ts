@@ -128,6 +128,7 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
 
     try {
       await this.notificationService.sendReorderTriggered({
+        actorId: input.actor.id,
         userIdentifier: input.actor.id,
         materialName: suggestion.materialName,
         reorderQuantity: suggestion.suggestedQuantity,

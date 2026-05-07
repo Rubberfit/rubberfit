@@ -135,10 +135,14 @@ const poReceiptItemSchema = z.object({
   rollData: rollDataSchema.optional(),
 })
 
+// `receivedBy` is intentionally NOT on this schema. Receipt attribution
+// is sourced from `actor.id` server-side — letting a client supply a
+// uuid would attribute the receive to someone else (and the
+// quantity-update half of the operation runs before RLS catches the
+// forged id on the roll insert). Daniel review on PR #177.
 const receivePurchaseOrderSchema = z.object({
   purchaseOrderId: uuid,
   items: z.array(poReceiptItemSchema).min(1, "At least one item is required"),
-  receivedBy: uuid.optional(),
 })
 
 // ── Action public input types (derive from schemas, NOT use-case inputs) ──

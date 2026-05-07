@@ -3,7 +3,6 @@ import {
   type NotificationQueue,
 } from "@/src/infrastructure/models/supabase"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { emailService } from "./emailService"
 import { notificationRepository } from "@/src/infrastructure/repositories/notifications.repository"
 import { toast } from "sonner"
@@ -23,6 +22,14 @@ interface NotificationChannel {
 }
 
 interface NotificationParams {
+  /**
+   * Auth.uid of the caller. Required so `queueNotification` can stamp
+   * `notification_queue.user_id` without falling back to the deprecated
+   * `getCurrentUserId()` browser-singleton (throws in server-action
+   * runtimes; the surrounding catch swallowed it and silently dropped
+   * every queued send across the migration). Daniel review on PR #177.
+   */
+  actorId: string
   userIdentifier: string
   type: NotificationType
   title: string
@@ -279,10 +286,9 @@ export class NotificationService implements INotificationService {
     try {
       const scheduledFor = params.scheduledFor || new Date()
       const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
 
       await supabase.from("notification_queue").insert({
-        user_id,
+        user_id: params.actorId,
         user_identifier: params.userIdentifier,
         notification_type: params.type,
         title: params.title,
@@ -342,6 +348,7 @@ export class NotificationService implements INotificationService {
    * Send notification for low stock alert
    */
   async sendLowStockAlert(params: {
+    actorId: string
     userIdentifier: string
     materialName: string
     currentStock: number
@@ -349,6 +356,7 @@ export class NotificationService implements INotificationService {
     supplier?: string
   }): Promise<void> {
     await this.sendNotification({
+      actorId: params.actorId,
       userIdentifier: params.userIdentifier,
       type: "low_stock",
       title: `Low Stock Alert: ${params.materialName}`,
@@ -362,6 +370,7 @@ export class NotificationService implements INotificationService {
    * Send notification for price change
    */
   async sendPriceChangeAlert(params: {
+    actorId: string
     userIdentifier: string
     materialName: string
     supplier: string
@@ -378,6 +387,7 @@ export class NotificationService implements INotificationService {
     }
 
     await this.sendNotification({
+      actorId: params.actorId,
       userIdentifier: params.userIdentifier,
       type: "price_change",
       title: `Price Change: ${params.materialName}`,
@@ -391,6 +401,7 @@ export class NotificationService implements INotificationService {
    * Send notification for PO status update
    */
   async sendPOStatusUpdate(params: {
+    actorId: string
     userIdentifier: string
     poNumber: string
     supplier: string
@@ -411,6 +422,7 @@ export class NotificationService implements INotificationService {
     }
 
     await this.sendNotification({
+      actorId: params.actorId,
       userIdentifier: params.userIdentifier,
       type,
       title: `PO ${params.poNumber} Status Update`,
@@ -424,6 +436,7 @@ export class NotificationService implements INotificationService {
    * Send notification for reorder triggered
    */
   async sendReorderTriggered(params: {
+    actorId: string
     userIdentifier: string
     materialName: string
     reorderQuantity: number
@@ -431,6 +444,7 @@ export class NotificationService implements INotificationService {
     poNumber?: string
   }): Promise<void> {
     await this.sendNotification({
+      actorId: params.actorId,
       userIdentifier: params.userIdentifier,
       type: "reorder_triggered",
       title: "Auto-Reorder Triggered",
@@ -444,12 +458,14 @@ export class NotificationService implements INotificationService {
    * Send critical system alert
    */
   async sendCriticalAlert(params: {
+    actorId: string
     userIdentifier: string
     title: string
     message: string
     contextData?: Record<string, unknown>
   }): Promise<void> {
     await this.sendNotification({
+      actorId: params.actorId,
       userIdentifier: params.userIdentifier,
       type: "critical_alert",
       title: params.title,
@@ -463,17 +479,17 @@ export class NotificationService implements INotificationService {
    * Update user notification preferences
    */
   async updateUserPreferences(
+    actorId: string,
     userIdentifier: string,
     preferences: Partial<NotificationPreferences>
   ): Promise<void> {
     try {
       const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
       const { data, error } = await supabase
         .from("notification_preferences")
         .upsert(
           {
-            user_id,
+            user_id: actorId,
             user_identifier: userIdentifier,
             ...preferences,
             updated_at: new Date().toISOString(),

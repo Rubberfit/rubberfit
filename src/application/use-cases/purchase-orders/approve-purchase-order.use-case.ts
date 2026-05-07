@@ -31,6 +31,7 @@ export class ApprovePurchaseOrderUseCase implements IApprovePurchaseOrderUseCase
 
     try {
       await this.notificationService.sendPOStatusUpdate({
+        actorId: input.actor.id,
         userIdentifier: input.actor.id,
         poNumber: existing.po_number,
         supplier: existing.supplier?.name ?? "Unknown supplier",

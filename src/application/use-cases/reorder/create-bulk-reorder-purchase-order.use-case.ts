@@ -230,6 +230,7 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
 
         try {
           await this.notificationService.sendReorderTriggered({
+            actorId: actor.id,
             userIdentifier: actor.id,
             materialName: item.materialName,
             reorderQuantity: item.suggestedQuantity,
