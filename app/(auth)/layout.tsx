@@ -1,39 +1,54 @@
 import type { ReactNode } from "react"
 
+import Link from "next/link"
 
-import { Separator } from "@/app/components/ui/separator"
+import { AuthDrawing } from "./_components/auth-drawing"
+
+import "./auth-layout.css"
 
 export default function Layout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <main>
-      <div className="grid h-dvh justify-center p-2 lg:grid-cols-2">
-        <div className="relative order-2 hidden h-full rounded-3xl bg-primary lg:flex">
-          <div className="absolute top-10 space-y-1 px-10 text-primary-foreground">
-            <img src="/rubberfit-mark.svg" alt="Rubberfit" className="size-10" />
-            <h1 className="font-medium text-2xl">RubberFit</h1>
-            <p className="text-sm">Optimize. Track. Save. Excel.</p>
-          </div>
+    <main className="auth-root">
+      <section className="auth-pane-left">
+        <header className="auth-brand-row">
+          <Link href="/" aria-label="Rubberfit home" className="auth-brand-mark">
+            <img
+              src="/rubberfit-mark.svg"
+              alt=""
+              width={32}
+              height={32}
+              aria-hidden="true"
+            />
+          </Link>
+          <span className="auth-brand-caption">Rubberfit / Auth</span>
+        </header>
 
-          <div className="absolute bottom-10 flex w-full justify-between px-10">
-            <div className="flex-1 space-y-1 text-primary-foreground">
-              <h2 className="font-medium">Maximize Efficiency</h2>
-              <p className="text-sm">
-                Reduce material waste by up to 30% with intelligent cut optimization and real-time
-                inventory tracking.
-              </p>
-            </div>
-            <Separator orientation="vertical" className="mx-3 h-auto!" />
-            <div className="flex-1 space-y-1 text-primary-foreground">
-              <h2 className="font-medium">Built for Manufacturing</h2>
-              <p className="text-sm">
-                Designed specifically for rubber fabrication facilities. Simple interface, powerful
-                analytics, zero training required.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="relative order-1 flex h-full">{children}</div>
-      </div>
+        <div className="auth-pane-content">{children}</div>
+
+        <footer className="auth-footer">
+          <span className="auth-footer-mono">© 2026 Arc &amp; Anchor</span>
+          <span className="auth-footer-lang" aria-label="Interface language">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20" />
+              <path d="M12 2a15 15 0 0 1 0 20" />
+              <path d="M12 2a15 15 0 0 0 0 20" />
+            </svg>
+            ENG
+          </span>
+        </footer>
+      </section>
+      <aside className="auth-pane-right" aria-hidden="true">
+        <AuthDrawing />
+      </aside>
     </main>
   )
 }

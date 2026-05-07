@@ -7,9 +7,9 @@ import { Card } from "@/app/components/ui/card"
 import { Button } from "@/app/components/ui/button"
 import {
   ActivityFeedRow,
+  type ActivityIntent,
   EmptyState,
   EntityRow,
-  StatusBadge,
 } from "@/app/components/patterns"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
@@ -30,6 +30,17 @@ const activityIcon = {
   roll_depleted: <AlertTriangle />,
 } as const
 
+// Per Kimi's §6: each event class gets a semantic icon background so
+// the timeline reads at a glance without scanning copy. Cuts are the
+// healthy-flow event (green), new stock is contextual (accent),
+// depletion is a supervisor-attention event (warning, not danger —
+// red is reserved for true failures).
+const activityIntent: Record<keyof typeof activityIcon, ActivityIntent> = {
+  cut: "success",
+  roll_added: "accent",
+  roll_depleted: "warning",
+}
+
 export function DashboardSidebar({
   loading,
   lowStockMaterials,
@@ -43,10 +54,15 @@ export function DashboardSidebar({
     <div className="grid gap-4 lg:grid-cols-2">
       {/* Low stock · reorder needed */}
       <section className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
-          <h2 className="font-semibold text-foreground text-sm">
-            Low stock <span className="text-muted-foreground">· reorder needed</span>
-          </h2>
+        <header className="flex items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              Inventory alerts
+            </p>
+            <h2 className="mt-1 font-display font-semibold text-foreground text-xl tracking-tight">
+              Low stock <span className="text-muted-foreground font-normal">· reorder needed</span>
+            </h2>
+          </div>
           {can("manageRolls") && lowStockMaterials.length > 0 && (
             <Button
               size="sm"
@@ -78,10 +94,11 @@ export function DashboardSidebar({
                     title={material.materialType}
                     subtitle={`Threshold ${material.threshold.toFixed(0)} sqft`}
                     metadata={
-                      <span className="tabular">
-                        <StatusBadge intent="danger" variant="outline">
-                          {material.currentStock.toFixed(1)} sqft
-                        </StatusBadge>
+                      // Signal-orange hairline — "reorder soon", not red
+                      // "we're stopped". Kimi §6: red is for true
+                      // failures; orange is the attention/threshold colour.
+                      <span className="font-mono tabular text-sm text-primary inline-flex items-center rounded-sm border border-primary/30 px-1.5 py-0.5">
+                        {material.currentStock.toFixed(1)} sqft
                       </span>
                     }
                     trailing={
@@ -89,6 +106,7 @@ export function DashboardSidebar({
                         <Button
                           size="sm"
                           variant="outline"
+                          className="font-mono text-[10px] font-medium uppercase tracking-[0.12em]"
                           onClick={() =>
                             router.push(
                               `/dashboard/inventory/purchase-orders?material=${encodeURIComponent(material.materialType)}`
@@ -110,8 +128,15 @@ export function DashboardSidebar({
 
       {/* Recent activity */}
       <section className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
-          <h2 className="font-semibold text-foreground text-sm">Recent activity</h2>
+        <header className="flex items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              Floor log
+            </p>
+            <h2 className="mt-1 font-display font-semibold text-foreground text-xl tracking-tight">
+              Recent activity
+            </h2>
+          </div>
           {can("viewCutHistory") && (
             <Button
               size="sm"
@@ -137,6 +162,7 @@ export function DashboardSidebar({
                 <ActivityFeedRow
                   key={index}
                   icon={activityIcon[activity.type]}
+                  intent={activityIntent[activity.type]}
                   title={activity.description}
                   timestamp={formatDate(activity.timestamp)}
                   isLast={index === recentActivity.length - 1}
