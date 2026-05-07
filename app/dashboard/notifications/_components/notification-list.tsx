@@ -2,11 +2,13 @@
 
 import { AlertTriangle, CheckCircle, Eye } from "lucide-react"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
-import { type Notification, formatTimestamp, getSeverity } from "./notification-helpers"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { cn } from "@/app/lib/utils"
+
+import { formatTimestamp, getSeverity, type Notification } from "./notification-helpers"
 
 interface NotificationListProps {
   notifications: Notification[]
@@ -25,78 +27,96 @@ export function NotificationList({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-          System Notifications
+          <AlertTriangle className="size-4 text-[color:var(--warning)]" aria-hidden="true" />
+          System notifications
         </CardTitle>
         <CardDescription>
-          Important alerts and notifications that need your attention
+          Important alerts and notifications that need your attention.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {loading ? (
-          <div className="text-center py-8">Loading notifications...</div>
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            Loading notifications…
+          </div>
         ) : notifications.length > 0 ? (
-          notifications.map((notification) => (
-            <Alert
-              key={notification.id}
-              variant={getSeverity(notification) === "high" ? "destructive" : "default"}
-              className={`cursor-pointer transition-opacity ${notification.is_read ? "opacity-60" : ""}`}
-              onClick={() => onOpenDetail(notification)}
-            >
-              <AlertTriangle className="h-4 w-4" />
-              <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between w-full">
-                <div className="space-y-1 flex-1">
-                  <AlertTitle className="flex items-center gap-2">
-                    {notification.title}
-                    {!notification.is_read && (
-                      <Badge variant="destructive" className="text-xs">
-                        New
+          notifications.map((notification) => {
+            const severity = getSeverity(notification)
+            const isHigh = severity === "high"
+            return (
+              <Alert
+                key={notification.id}
+                variant={isHigh ? "destructive" : "default"}
+                className={cn(
+                  "cursor-pointer transition-opacity",
+                  notification.is_read && "opacity-60"
+                )}
+                onClick={() => onOpenDetail(notification)}
+              >
+                <AlertTriangle
+                  className={cn(
+                    "size-4",
+                    isHigh ? "text-[color:var(--danger)]" : "text-[color:var(--warning)]"
+                  )}
+                  aria-hidden="true"
+                />
+                <div className="flex w-full flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                  <div className="flex-1 space-y-1">
+                    <AlertTitle className="flex items-center gap-2">
+                      {notification.title}
+                      {!notification.is_read && (
+                        <Badge variant="destructive" className="text-xs">
+                          New
+                        </Badge>
+                      )}
+                    </AlertTitle>
+                    <AlertDescription>{notification.description}</AlertDescription>
+                    <p className="text-xs text-muted-foreground">
+                      {formatTimestamp(notification.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {notification.type === "low_stock" && (
+                      <Badge variant={isHigh ? "destructive" : "default"}>
+                        {isHigh ? "Critical" : "Low"}
                       </Badge>
                     )}
-                  </AlertTitle>
-                  <AlertDescription>{notification.description}</AlertDescription>
-                  <p className="text-xs text-muted-foreground">
-                    {formatTimestamp(notification.created_at)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {notification.type === "low_stock" && (
-                    <Badge
-                      variant={getSeverity(notification) === "high" ? "destructive" : "default"}
-                    >
-                      {getSeverity(notification) === "high" ? "Critical" : "Low"}
-                    </Badge>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onOpenDetail(notification)
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  {!notification.is_read && (
                     <Button
                       size="sm"
                       variant="ghost"
+                      aria-label="View details"
                       onClick={(e) => {
                         e.stopPropagation()
-                        onMarkAsRead(notification.id)
+                        onOpenDetail(notification)
                       }}
                     >
-                      <CheckCircle className="h-4 w-4" />
+                      <Eye className="size-4" />
                     </Button>
-                  )}
+                    {!notification.is_read && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Mark as read"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onMarkAsRead(notification.id)
+                        }}
+                      >
+                        <CheckCircle className="size-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Alert>
-          ))
+              </Alert>
+            )
+          })
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-600" />
-            <p>No notifications at this time!</p>
+          <div className="py-8 text-center text-muted-foreground">
+            <CheckCircle
+              className="mx-auto mb-2 size-12 text-[color:var(--success)]"
+              aria-hidden="true"
+            />
+            <p>No notifications at this time.</p>
           </div>
         )}
       </CardContent>

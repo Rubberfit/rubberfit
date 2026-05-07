@@ -1,22 +1,26 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-
+import { useCallback, useEffect, useState } from "react"
+import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
+
+import { EVENTS, globalEvents } from "@/app/lib/events"
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
-import { globalEvents, EVENTS } from "@/app/lib/events"
-import { type Notification } from "./_components/notification-helpers"
-import { NotificationList } from "./_components/notification-list"
+import { Badge } from "@/app/components/ui/badge"
+import { Button } from "@/app/components/ui/button"
+import { PageHeader, PageShell } from "@/app/components/patterns"
+
 import { ActivityFeed } from "./_components/activity-feed"
-import { NotificationPageHeader } from "./_components/notification-page-header"
-import { NotificationDetailModal } from "./_components/notification-detail-modal"
+import { type Notification } from "./_components/notification-helpers"
+import { NotificationDetailSheet } from "./_components/notification-detail-sheet"
+import { NotificationList } from "./_components/notification-list"
 import { useRecentActivities } from "./_components/use-recent-activities"
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const { activities, fetchRecentActivities } = useRecentActivities()
 
@@ -49,8 +53,8 @@ export default function NotificationsPage() {
 
       const data = uniqueNotifications
 
-      setNotifications(data || [])
-      setUnreadCount(data?.filter((n) => !n.is_read).length || 0)
+      setNotifications(data ?? [])
+      setUnreadCount(data?.filter((n) => !n.is_read).length ?? 0)
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error)
       console.error("Error fetching notifications:", errMsg)
@@ -63,8 +67,8 @@ export default function NotificationsPage() {
   }, [])
 
   useEffect(() => {
-    fetchNotifications()
-    fetchRecentActivities()
+    void fetchNotifications()
+    void fetchRecentActivities()
   }, [fetchNotifications, fetchRecentActivities])
 
   const markAsRead = async (notificationId: string) => {
@@ -109,31 +113,65 @@ export default function NotificationsPage() {
 
   const openNotificationDetail = (notification: Notification) => {
     setSelectedNotification(notification)
-    setDetailModalOpen(true)
+    setDetailSheetOpen(true)
     if (!notification.is_read) {
-      markAsRead(notification.id)
+      void markAsRead(notification.id)
     }
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <NotificationPageHeader
-        unreadCount={unreadCount}
-        onMarkAllAsRead={markAllAsRead}
-        onClearAll={clearAllNotifications}
+    <PageShell variant="overview">
+      <PageHeader
+        crumbs={[{ label: "Operations", href: "/dashboard" }, { label: "Notifications" }]}
+        title="Notifications"
+        subtitle="Inventory alerts and recent activity, prioritized by severity."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void markAllAsRead()}
+              disabled={unreadCount === 0}
+            >
+              Mark all as read
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="ml-1.5">
+                  {unreadCount}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void clearAllNotifications()}
+              className="text-[color:var(--danger)] hover:text-[color:var(--danger)]"
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+              Clear all
+            </Button>
+          </>
+        }
       />
-      <NotificationList
-        notifications={notifications}
-        loading={loading}
-        onOpenDetail={openNotificationDetail}
-        onMarkAsRead={markAsRead}
-      />
-      <ActivityFeed activities={activities} />
-      <NotificationDetailModal
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <NotificationList
+            notifications={notifications}
+            loading={loading}
+            onOpenDetail={openNotificationDetail}
+            onMarkAsRead={markAsRead}
+          />
+        </div>
+        <div className="lg:col-span-1">
+          <ActivityFeed activities={activities} />
+        </div>
+      </div>
+
+      <NotificationDetailSheet
         notification={selectedNotification}
-        open={detailModalOpen}
-        onOpenChange={setDetailModalOpen}
+        open={detailSheetOpen}
+        onOpenChange={setDetailSheetOpen}
       />
-    </div>
+    </PageShell>
   )
 }
