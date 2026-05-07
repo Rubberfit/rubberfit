@@ -103,13 +103,13 @@ export function NotificationDetailSheet({
                 <div className="space-y-2">
                   <Label>Current stock</Label>
                   <p className="font-mono text-lg font-semibold tabular-nums">
-                    {notification.current_value?.toFixed(1)} sqft
+                    {(notification.current_value ?? 0).toFixed(1)} sqft
                   </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Minimum threshold</Label>
                   <p className="font-mono text-lg font-semibold tabular-nums">
-                    {notification.threshold_value?.toFixed(1)} sqft
+                    {(notification.threshold_value ?? 0).toFixed(1)} sqft
                   </p>
                 </div>
               </div>
