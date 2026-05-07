@@ -1,6 +1,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
+
 const BUCKET = "cut-history-pdfs"
+
+/**
+ * Best-effort removal of an orphaned cut-report PDF object. Used by
+ * the `saveCut` server action when the cut_history INSERT fails after
+ * the browser has already uploaded the PDF.
+ *
+ * Resolves a fresh cookie-bound client via `getDatabaseClient()` so
+ * storage RLS still scopes deletion to the caller's own folder — a
+ * compromised action call cannot delete another user's files.
+ *
+ * Failures are logged but never thrown; the caller always continues
+ * with the original error so the user sees the underlying cause, not
+ * a cleanup-side issue.
+ */
+export async function removeOrphanedCutPdf(userId: string, cutId: string): Promise<void> {
+  const fileName = `${userId}/${cutId}.pdf`
+  try {
+    const client = await getDatabaseClient()
+    const { error } = await client.storage.from(BUCKET).remove([fileName])
+    if (error) {
+      console.error(`Orphan PDF cleanup failed for ${fileName}:`, error)
+    }
+  } catch (err) {
+    console.error(`Orphan PDF cleanup threw for ${fileName}:`, err)
+  }
+}
 
 /**
  * Upload a generated PDF blob to the `cut-history-pdfs` bucket and

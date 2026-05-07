@@ -34,6 +34,8 @@ import {
   type PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { authService } from "@/src/infrastructure/services/authService"
+import { saveCut } from "@/app/actions/cut-history"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import type { LayoutModel } from "./_components/layout-model"
 import { CutLoader } from "./_components/cut-loader"
@@ -589,7 +591,49 @@ function CutPlannerPageInner() {
           length_in: p.lengthIn,
         })) ?? []
 
+      // PDF first, INSERT second: cut_history is write-once (no
+      // UPDATE policy on the table — see migration 20260412055550),
+      // so pdf_url must arrive on the original INSERT. Generate the
+      // row id client-side, build + upload the PDF directly to
+      // storage, then call the saveCut server action which inserts
+      // the row with pdf_url already populated.
+      const cutId = crypto.randomUUID()
+
+      const user = await authService.getCurrentUser()
+      if (!user) {
+        toast.error("Not signed in — please sign in again")
+        return
+      }
+
+      // Build tag→label map for PDF legend (keyed by tag letter, value is dimension label)
+      const pdfTagMap = new Map<string, string>()
+      for (const [idxStr, tag] of tagMap.entries()) {
+        const t = selectedTemplates[Number(idxStr)]
+        if (t) pdfTagMap.set(tag, t.label)
+      }
+
+      let pdf_url: string | null = null
+      try {
+        pdf_url = await buildAndUploadCutPdf(
+          cutId,
+          user.id,
+          stock,
+          cutMetrics,
+          selectedTemplate,
+          selectedTemplates,
+          pdfTagMap,
+          layouts
+        )
+      } catch (err) {
+        // Best-effort — record the cut anyway with pdf_url=null. The
+        // server action's orphan-cleanup path handles the inverse
+        // (PDF uploaded then INSERT failed).
+        console.error("PDF generation failed:", err)
+      }
+
       const payload = {
+        cutId,
+        pdf_url,
         material_id: materialId,
         part_id: partId,
         roll_id: resolvedRollId,
@@ -635,69 +679,30 @@ function CutPlannerPageInner() {
         },
       }
 
-      const response = await fetch("/api/cuts/history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        // Read the body as text first so we see *something* even
-        // when the server returns the Next.js default HTML error
-        // page (e.g. when an unhandled throw bypasses our JSON
-        // response). Then try to parse as JSON for the structured
-        // `{ error, detail, code }` case.
-        const rawText = await response.text()
-        let detail: string | undefined
-        let code: string | undefined
-        try {
-          const payload = JSON.parse(rawText) as {
-            error?: string
-            detail?: string
-            code?: string
-          }
-          detail = payload.detail ?? payload.error
-          code = payload.code
-        } catch {
-          // Not JSON — surface the raw text (truncated) so we can
-          // at least see what the server actually sent.
-          detail = rawText.slice(0, 200) || `HTTP ${response.status}`
-        }
-        console.error("Failed to record cut:", {
-          status: response.status,
-          rawText: rawText.slice(0, 500),
-          detail,
-          code,
-        })
+      let result: Awaited<ReturnType<typeof saveCut>>
+      try {
+        result = await saveCut(payload)
+      } catch (err) {
+        console.error("saveCut threw:", err)
         toast.error("Failed to save cut to history", {
-          description: detail ? (code ? `${detail} (${code})` : detail) : `HTTP ${response.status}`,
+          description: err instanceof Error ? err.message : undefined,
         })
-      } else {
-        const { data: savedCut } = (await response.json()) as { data: CutHistory }
-        toast.success("Cut recorded!")
-        setCutListRefreshKey((k) => k + 1)
-
-        // Build tag→label map for PDF legend (keyed by tag letter, value is dimension label)
-        const pdfTagMap = new Map<string, string>()
-        for (const [idxStr, tag] of tagMap.entries()) {
-          const t = selectedTemplates[Number(idxStr)]
-          if (t) pdfTagMap.set(tag, t.label)
-        }
-        // Generate and upload PDF (awaited so pdf_url is available in history)
-        try {
-          await buildAndUploadCutPdf(
-            savedCut.id,
-            stock,
-            cutMetrics,
-            selectedTemplate,
-            selectedTemplates,
-            pdfTagMap,
-            layouts
-          )
-        } catch (err) {
-          console.error("PDF generation failed:", err)
-        }
+        return
       }
+
+      if (!result.ok) {
+        const description = result.detail
+          ? result.code
+            ? `${result.detail} (${result.code})`
+            : result.detail
+          : result.error
+        console.error("Failed to record cut:", result)
+        toast.error("Failed to save cut to history", { description })
+        return
+      }
+
+      toast.success("Cut recorded!")
+      setCutListRefreshKey((k) => k + 1)
     } catch (error) {
       console.error("Record cut error:", error)
       toast.error("Failed to save cut to history")
