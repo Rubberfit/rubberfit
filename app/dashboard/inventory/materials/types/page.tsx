@@ -29,9 +29,9 @@ import { toast } from "sonner"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { Card } from "@/app/components/ui/card"
 
-import { MaterialTypesTable } from "../_components/material-types-table"
-import { MaterialTypeDialog } from "../_components/material-type-dialog"
 import { MaterialImportDialog } from "../_components/material-import-dialog"
+import { MaterialTypeSheet } from "../_components/material-type-sheet"
+import { MaterialTypesTable } from "../_components/material-types-table"
 
 interface MaterialTypeForm {
   name: string
@@ -228,7 +228,7 @@ export default function MaterialTypesPage() {
         />
       </Card>
 
-      <MaterialTypeDialog
+      <MaterialTypeSheet
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         isEditing={!!editingType}
