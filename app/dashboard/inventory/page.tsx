@@ -25,7 +25,7 @@ import { useRole } from "@/src/infrastructure/services/useRole"
 
 import { InventoryStatsHero } from "./_components/inventory-stats-hero"
 import { InventoryTable } from "./_components/inventory-table"
-import { RollFormDialog } from "./_components/roll-form-dialog"
+import { RollFormSheet } from "./_components/roll-form-sheet"
 import { downloadRollLabelPdf } from "./_components/roll-label-pdf"
 
 function InventoryPageInner() {
@@ -190,7 +190,7 @@ function InventoryPageInner() {
       </Card>
 
       {canManageRolls && (
-        <RollFormDialog
+        <RollFormSheet
           open={addDialogOpen}
           onOpenChange={setAddDialogOpen}
           roll={null}
