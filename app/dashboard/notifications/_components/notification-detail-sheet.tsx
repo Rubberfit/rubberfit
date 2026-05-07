@@ -40,16 +40,21 @@ export function NotificationDetailSheet({
   const handleOrderMaterial = () => {
     if (!notification) return
     onOpenChange(false)
-    const suggestedLength = 240
-    const suggestedWidth = 36
-    const deficit = (notification.threshold_value ?? 100) - (notification.current_value ?? 0)
+    // Hardcoded dimension defaults (36" × 240" × 0.25") are
+    // pre-existing — out of scope for the chrome restyle. They
+    // should ultimately come from a per-material defaults table;
+    // tracked separately. Notes string is sanitized so a missing
+    // current/threshold value renders "0.0", never "undefined".
+    const currentValue = notification.current_value ?? 0
+    const thresholdValue = notification.threshold_value ?? 0
+    const deficit = thresholdValue - currentValue
 
     globalEvents.emit(EVENTS.OPEN_QUICK_CREATE, {
       material_type: notification.material_type,
-      width: suggestedWidth.toString(),
-      length: suggestedLength.toString(),
+      width: "36",
+      length: "240",
       thickness: "0.25",
-      notes: `Low stock order — current: ${notification.current_value?.toFixed(1)} sqft, need: ${deficit.toFixed(1)} sqft minimum`,
+      notes: `Low stock order — current: ${currentValue.toFixed(1)} sqft, need: ${deficit.toFixed(1)} sqft minimum`,
     })
     toast.success(`Opening Quick Create for ${notification.material_type} with suggested values`)
   }

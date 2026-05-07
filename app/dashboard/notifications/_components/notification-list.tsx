@@ -44,14 +44,16 @@ export function NotificationList({
             const severity = getSeverity(notification)
             const isHigh = severity === "high"
             return (
+              // `Alert` ships `role="alert"` (a live region), so it
+              // must NOT be a click target — screen readers would
+              // re-announce the entire card on every render and the
+              // click area would lack keyboard semantics. The Eye
+              // button below is the sole, keyboard-accessible
+              // detail trigger.
               <Alert
                 key={notification.id}
                 variant={isHigh ? "destructive" : "default"}
-                className={cn(
-                  "cursor-pointer transition-opacity",
-                  notification.is_read && "opacity-60"
-                )}
-                onClick={() => onOpenDetail(notification)}
+                className={cn("transition-opacity", notification.is_read && "opacity-60")}
               >
                 <AlertTriangle
                   className={cn(
@@ -85,10 +87,7 @@ export function NotificationList({
                       size="sm"
                       variant="ghost"
                       aria-label="View details"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onOpenDetail(notification)
-                      }}
+                      onClick={() => onOpenDetail(notification)}
                     >
                       <Eye className="size-4" />
                     </Button>
@@ -97,10 +96,7 @@ export function NotificationList({
                         size="sm"
                         variant="ghost"
                         aria-label="Mark as read"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onMarkAsRead(notification.id)
-                        }}
+                        onClick={() => onMarkAsRead(notification.id)}
                       >
                         <CheckCircle className="size-4" />
                       </Button>

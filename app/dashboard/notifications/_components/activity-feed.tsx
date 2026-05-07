@@ -40,15 +40,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
               className="flex items-start gap-3 rounded-lg border bg-card/50 p-3"
             >
               <div className="flex-shrink-0">
-                <Badge
-                  variant={
-                    getActivityColor(activity.type) as
-                      | "default"
-                      | "secondary"
-                      | "destructive"
-                      | "outline"
-                  }
-                >
+                <Badge variant={getActivityColor(activity.type)}>
                   {getActivityIcon(activity.type)}
                   {activity.type === "cut"
                     ? "Cut"

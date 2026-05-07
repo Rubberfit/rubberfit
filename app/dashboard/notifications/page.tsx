@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -21,8 +21,13 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
   const [detailSheetOpen, setDetailSheetOpen] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
   const { activities, fetchRecentActivities } = useRecentActivities()
+
+  // Derive `unreadCount` from `notifications` so the count is
+  // always consistent with the source of truth. Storing it as
+  // separate state caused a stale-closure off-by-one bug when
+  // two markAsRead calls fired before re-render.
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.is_read).length, [notifications])
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -51,10 +56,7 @@ export default function NotificationsPage() {
         }
       }
 
-      const data = uniqueNotifications
-
-      setNotifications(data ?? [])
-      setUnreadCount(data?.filter((n) => !n.is_read).length ?? 0)
+      setNotifications(uniqueNotifications)
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error)
       console.error("Error fetching notifications:", errMsg)
@@ -74,12 +76,17 @@ export default function NotificationsPage() {
   const markAsRead = async (notificationId: string) => {
     try {
       await notificationCrudService.markAsRead(notificationId)
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
-      )
-      const newCount = Math.max(0, unreadCount - 1)
-      setUnreadCount(newCount)
-      globalEvents.emit(EVENTS.NOTIFICATIONS_UPDATED, { unreadCount: newCount })
+      // Compute the new unread count from the updated array we
+      // pass to setNotifications so the global event reflects the
+      // post-update state — `unreadCount` from closure would be
+      // stale if multiple markAsRead calls race.
+      let nextCount = 0
+      setNotifications((prev) => {
+        const updated = prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+        nextCount = updated.filter((n) => !n.is_read).length
+        return updated
+      })
+      globalEvents.emit(EVENTS.NOTIFICATIONS_UPDATED, { unreadCount: nextCount })
       toast.success("Notification marked as read")
     } catch (error) {
       console.error("Error marking as read:", error)
@@ -91,7 +98,6 @@ export default function NotificationsPage() {
     try {
       await notificationCrudService.markAllAsRead()
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-      setUnreadCount(0)
       globalEvents.emit(EVENTS.NOTIFICATIONS_UPDATED, { unreadCount: 0 })
       toast.success("All notifications marked as read")
     } catch (error) {
