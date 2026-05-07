@@ -38,9 +38,7 @@ export function JobPurchaseOrdersPanel({ orders }: JobPurchaseOrdersPanelProps) 
   return (
     <section className="space-y-3">
       <header>
-        <h2 className="font-semibold text-foreground text-base tracking-tight">
-          Purchase orders
-        </h2>
+        <h2 className="font-semibold text-foreground text-base tracking-tight">Purchase orders</h2>
         <p className="text-muted-foreground text-xs">
           {orders.length === 0
             ? "No POs linked to this job yet."
@@ -56,10 +54,7 @@ export function JobPurchaseOrdersPanel({ orders }: JobPurchaseOrdersPanelProps) 
               className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50"
             >
               <div className="flex items-center gap-3">
-                <ShoppingCart
-                  className="size-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
+                <ShoppingCart className="size-4 text-muted-foreground" aria-hidden="true" />
                 <div>
                   <p className="font-mono text-foreground/90 text-xs">{po.po_number}</p>
                   <p className="text-muted-foreground text-[11px]">
