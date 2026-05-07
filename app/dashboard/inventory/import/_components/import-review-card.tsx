@@ -1,8 +1,9 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Upload } from "lucide-react"
+
 import { Button } from "@/app/components/ui/button"
-import { Upload, AlertCircle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,6 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
+import { InlineNotice } from "@/app/components/patterns"
+
+import { StepBadge } from "./step-badge"
 
 interface CSVRow {
   material_type: string
@@ -46,43 +50,38 @@ export function ImportReviewCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Step 3: Review & Import</CardTitle>
-            <CardDescription>Review the parsed data before importing</CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <StepBadge step={3} />
+            <div className="space-y-1">
+              <CardTitle>Review & import</CardTitle>
+              <CardDescription>Review the parsed data before importing.</CardDescription>
+            </div>
           </div>
           {parsedData.length > 0 && (
             <Button onClick={onImport} disabled={importing}>
-              <Upload className="mr-2 h-4 w-4" />
-              {importing ? "Importing..." : `Import ${parsedData.length} Rolls`}
+              <Upload className="size-3.5" aria-hidden="true" />
+              {importing
+                ? "Importing…"
+                : `Import ${parsedData.length} roll${parsedData.length === 1 ? "" : "s"}`}
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent>
-        {/* Errors */}
+      <CardContent className="space-y-4">
         {errors.length > 0 && (
-          <div className="mb-4 p-3 border border-destructive/20 rounded-lg bg-destructive/10">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="h-4 w-4 text-destructive" />
-              <span className="font-medium">Parse Errors</span>
-            </div>
-            <ul className="text-sm space-y-1">
+          <InlineNotice intent="danger" title="Parse errors">
+            <ul className="space-y-1 text-sm">
               {errors.slice(0, 10).map((error, index) => (
-                <li key={index} className="text-destructive">
-                  • {error}
-                </li>
+                <li key={index}>· {error}</li>
               ))}
-              {errors.length > 10 && (
-                <li className="text-destructive">... and {errors.length - 10} more errors</li>
-              )}
+              {errors.length > 10 && <li>… and {errors.length - 10} more errors</li>}
             </ul>
-          </div>
+          </InlineNotice>
         )}
 
-        {/* Preview Table */}
         {parsedData.length > 0 && (
-          <div className="border rounded-lg overflow-hidden">
+          <div className="overflow-hidden rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -97,19 +96,21 @@ export function ImportReviewCard({
                 {parsedData.slice(0, 10).map((row, index) => (
                   <TableRow key={index}>
                     <TableCell>{row.material_type}</TableCell>
-                    <TableCell>
-                      {row.width}" × {row.length}" × {row.thickness}"
+                    <TableCell className="font-mono tabular-nums">
+                      {row.width}&quot; × {row.length}&quot; × {row.thickness}&quot;
                     </TableCell>
-                    <TableCell>{row.location || "-"}</TableCell>
-                    <TableCell>{row.supplier || "-"}</TableCell>
-                    <TableCell>${row.cost_per_sqft || "0.00"}</TableCell>
+                    <TableCell>{row.location ?? "—"}</TableCell>
+                    <TableCell>{row.supplier ?? "—"}</TableCell>
+                    <TableCell className="font-mono tabular-nums">
+                      {row.cost_per_sqft != null ? `$${row.cost_per_sqft.toFixed(2)}` : "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
             {parsedData.length > 10 && (
-              <div className="p-3 text-center text-sm text-muted-foreground border-t">
-                ... and {parsedData.length - 10} more rows
+              <div className="border-t p-3 text-center text-sm text-muted-foreground">
+                … and {parsedData.length - 10} more rows
               </div>
             )}
           </div>
