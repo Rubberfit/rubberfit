@@ -297,7 +297,11 @@ interface PartsTotals {
   partsCount: number
 }
 
-function drawPartsTable(doc: jsPDF, job: JobFullDetail, y: number): { y: number; totals: PartsTotals } {
+function drawPartsTable(
+  doc: jsPDF,
+  job: JobFullDetail,
+  y: number
+): { y: number; totals: PartsTotals } {
   y = checkNewPage(doc, y, 80)
   y = drawSectionHeader(doc, "Parts", y)
 
@@ -409,7 +413,11 @@ function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
   const cards: Array<{ label: string; value: string; accent: boolean }> = [
     { label: "PIECES", value: String(totals.partsCount), accent: false },
     { label: "TOTAL AREA", value: `${formatSqft(totals.totalSqft)} sq ft`, accent: false },
-    { label: "TOTAL VALUE", value: totals.totalValue > 0 ? formatCurrency(totals.totalValue) : "—", accent: true },
+    {
+      label: "TOTAL VALUE",
+      value: totals.totalValue > 0 ? formatCurrency(totals.totalValue) : "—",
+      accent: true,
+    },
   ]
 
   for (let i = 0; i < cards.length; i++) {
@@ -582,9 +590,7 @@ export function downloadJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}
 /** Base file name used for both local downloads and bucket uploads. */
 export function jobPdfFileName(job: JobFullDetail): string {
   const jobRef = job.job_number ?? job.id
-  const customer = job.customer_name
-    ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}`
-    : ""
+  const customer = job.customer_name ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}` : ""
   return `${jobRef}${customer}.pdf`
 }
 
@@ -592,9 +598,6 @@ export function jobPdfFileName(job: JobFullDetail): string {
  * Blob output of the job PDF — for uploading to storage and
  * sharing via signed URL rather than a forced download.
  */
-export function buildJobPdfBlob(
-  job: JobFullDetail,
-  opts: BuildJobPdfOptions = {}
-): Blob {
+export function buildJobPdfBlob(job: JobFullDetail, opts: BuildJobPdfOptions = {}): Blob {
   return buildJobPdf(job, opts).output("blob")
 }

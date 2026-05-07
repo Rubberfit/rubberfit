@@ -40,7 +40,7 @@ import { JobCutsPanel } from "./job-cuts-panel"
 import { JobPartsPanel } from "./job-parts-panel"
 import { JobPurchaseOrdersPanel } from "./job-purchase-orders-panel"
 import { JobRosterPanel } from "./job-roster-panel"
-import { JobShareLinkDialog } from "./job-share-link-dialog"
+import { JobShareLinkSheet } from "./job-share-link-sheet"
 import { JobSufficiencyPanel } from "./job-sufficiency-panel"
 import { downloadJobPdf } from "./job-pdf"
 
@@ -106,30 +106,27 @@ export function JobDetailDrawer({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
 
-  const load = useCallback(
-    async (id: string) => {
-      setLoading(true)
-      try {
-        const data = await jobService.getFull(id)
-        setJob(data)
-        if (!data) return
-        const [sffR, posR, cutsR] = await Promise.allSettled([
-          jobService.computeSufficiency(id),
-          jobService.listPurchaseOrders(id),
-          jobService.listCuts(id),
-        ])
-        if (sffR.status === "fulfilled") setSufficiency(sffR.value)
-        if (posR.status === "fulfilled") setLinkedPOs(posR.value)
-        if (cutsR.status === "fulfilled") setLinkedCuts(cutsR.value)
-      } catch (err) {
-        const m = err instanceof Error ? err.message : "Unknown error"
-        toast.error("Failed to load job", { description: m })
-      } finally {
-        setLoading(false)
-      }
-    },
-    []
-  )
+  const load = useCallback(async (id: string) => {
+    setLoading(true)
+    try {
+      const data = await jobService.getFull(id)
+      setJob(data)
+      if (!data) return
+      const [sffR, posR, cutsR] = await Promise.allSettled([
+        jobService.computeSufficiency(id),
+        jobService.listPurchaseOrders(id),
+        jobService.listCuts(id),
+      ])
+      if (sffR.status === "fulfilled") setSufficiency(sffR.value)
+      if (posR.status === "fulfilled") setLinkedPOs(posR.value)
+      if (cutsR.status === "fulfilled") setLinkedCuts(cutsR.value)
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "Unknown error"
+      toast.error("Failed to load job", { description: m })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open || !jobId) return
@@ -245,11 +242,7 @@ export function JobDetailDrawer({
                     <Download className="size-3.5" />
                     Export PDF
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShareOpen(true)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
                     <Share2 className="size-3.5" />
                     Share link
                   </Button>
@@ -277,11 +270,7 @@ export function JobDetailDrawer({
               </SheetHeader>
 
               <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-                <JobPartsPanel
-                  jobId={job.id}
-                  parts={job.parts}
-                  onChanged={handleMutated}
-                />
+                <JobPartsPanel jobId={job.id} parts={job.parts} onChanged={handleMutated} />
                 <JobSufficiencyPanel jobId={job.id} rows={sufficiency} />
                 <JobRosterPanel
                   jobId={job.id}
@@ -301,21 +290,15 @@ export function JobDetailDrawer({
         </SheetContent>
       </Sheet>
 
-      {job && (
-        <JobShareLinkDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          job={job}
-        />
-      )}
+      {job && <JobShareLinkSheet open={shareOpen} onOpenChange={setShareOpen} job={job} />}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this job?</AlertDialogTitle>
             <AlertDialogDescription>
-              Removes the job, its parts, assignees, and roll allocations. Cuts recorded
-              against it stay in cut history but lose the job link.
+              Removes the job, its parts, assignees, and roll allocations. Cuts recorded against it
+              stay in cut history but lose the job link.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
