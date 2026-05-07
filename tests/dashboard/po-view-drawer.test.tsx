@@ -27,7 +27,11 @@ vi.mock("@/src/infrastructure/services/taxService", () => ({
 import { PoViewDrawer } from "@/app/dashboard/inventory/purchase-orders/_components/po-view-drawer"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
-const SAMPLE_PO = {
+// Typed factory — every required field on `PurchaseOrder` /
+// `PurchaseOrderWithDetails` / nested `Supplier` is set so a
+// future schema change fails the test at typecheck instead of
+// slipping past a cast.
+const SAMPLE_PO: PurchaseOrderWithDetails = {
   id: "po-1",
   user_id: "u1",
   po_number: "PO-2026-001",
@@ -49,12 +53,13 @@ const SAMPLE_PO = {
     name: "Acme Rubber Co.",
     city: "Akron",
     state: "OH",
-    is_active: true,
+    preferred: false,
+    active: true,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
   },
   items: [],
-} as unknown as PurchaseOrderWithDetails
+}
 
 describe("PoViewDrawer (Phase 3 PR 3c)", () => {
   beforeEach(() => {
@@ -175,7 +180,7 @@ describe("PoViewDrawer (Phase 3 PR 3c)", () => {
   })
 
   it("hides Edit + Submit when the PO is no longer in draft", async () => {
-    const orderedPo = { ...SAMPLE_PO, status: "ordered" } as PurchaseOrderWithDetails
+    const orderedPo: PurchaseOrderWithDetails = { ...SAMPLE_PO, status: "ordered" }
     render(
       <PoViewDrawer
         po={orderedPo}

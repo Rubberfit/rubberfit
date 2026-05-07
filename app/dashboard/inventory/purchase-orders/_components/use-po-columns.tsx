@@ -129,10 +129,10 @@ export function usePoColumns({
         header: "Total",
         cell: (po) => (
           <span className="font-mono text-sm font-semibold text-foreground tabular-nums">
-            ${po.total_amount.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+            ${(po.total_amount ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
           </span>
         ),
-        sortFn: (po) => po.total_amount,
+        sortFn: (po) => po.total_amount ?? 0,
         align: "right",
       },
       {

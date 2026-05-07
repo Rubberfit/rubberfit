@@ -66,7 +66,9 @@ export function PoViewBody({
             </SheetTitle>
             <SheetDescription className="flex items-center gap-2 text-xs text-muted-foreground">
               <Building2 className="size-3.5" aria-hidden="true" />
-              <span className="font-medium text-foreground">{po.supplier?.name}</span>
+              <span className="font-medium text-foreground">
+                {po.supplier?.name ?? "Unknown supplier"}
+              </span>
               {po.supplier?.city && po.supplier?.state && (
                 <span>
                   · {po.supplier.city}, {po.supplier.state}
