@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
 import { WasteKpiCards } from "./_components/waste-kpi-cards"
 import { WasteRatioTrendChart, type TrendPoint } from "./_components/waste-ratio-trend-chart"
@@ -138,11 +139,17 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const TIMEFRAME_LABELS: Record<Timeframe, string> = {
-  "7d": "Last 7 Days",
-  "30d": "Last 30 Days",
-  "12w": "Last 12 Weeks",
-  "12m": "Last 12 Months",
+const TIMEFRAME_OPTIONS: ReadonlyArray<{ value: Timeframe; label: string }> = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "12w", label: "Last 12 weeks" },
+  { value: "12m", label: "Last 12 months" },
+]
+
+const TIMEFRAME_VALUES: ReadonlySet<Timeframe> = new Set(TIMEFRAME_OPTIONS.map((o) => o.value))
+
+function isTimeframe(value: string): value is Timeframe {
+  return (TIMEFRAME_VALUES as ReadonlySet<string>).has(value)
 }
 
 export default function WasteAnalysisPage() {
@@ -203,62 +210,77 @@ export default function WasteAnalysisPage() {
   const { groupBy } = getRange(timeframe)
   const trendData = useMemo(() => groupCuts(cuts, groupBy), [cuts, groupBy])
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Controls — tab strip carries the page identity. */}
-      <div className="flex justify-end">
-        <div className="flex flex-wrap items-center gap-2">
-          {showUserSelect && !roleLoading && (
-            <Select
-              value={selectedUserId ?? "all"}
-              onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All cutters" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cutters</SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.full_name ?? u.email ?? u.id}
-                    {u.id === userId ? " (you)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          <Select value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.entries(TIMEFRAME_LABELS) as [Timeframe, string][]).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Waste" },
+        ]}
+        title="Waste analysis"
+        subtitle="Track scrap versus reusable yield and monitor waste trends."
+        actions={
           <Button
             variant="outline"
             size="sm"
             disabled={loading || cuts.length === 0}
             onClick={() => exportCsv(trendData, cuts, timeframe)}
           >
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="size-3.5" aria-hidden="true" />
             Export CSV
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPI Cards */}
+      <ViewToolbar
+        hideSearch
+        filters={
+          <>
+            {showUserSelect && !roleLoading && (
+              <Select
+                value={selectedUserId ?? "all"}
+                onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="h-9 w-[180px] text-sm">
+                  <SelectValue placeholder="All cutters" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All cutters</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name ?? u.email ?? u.id}
+                      {u.id === userId ? " (you)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Select
+              value={timeframe}
+              onValueChange={(v) => {
+                if (isTimeframe(v)) setTimeframe(v)
+              }}
+            >
+              <SelectTrigger className="h-9 w-[160px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEFRAME_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
+
       <WasteKpiCards cuts={cuts} isLoading={loading} />
 
-      {/* Trend Chart */}
       <WasteRatioTrendChart data={trendData} isLoading={loading} />
-    </div>
+    </PageShell>
   )
 }
