@@ -23,12 +23,6 @@ export const PUBLIC_PATHS = [
   // Image embedded in transactional emails. Must load without auth so
   // recipients see the brand image in their inbox.
   "/auth-email-logo",
-
-  // FIXME(ARC-134): /api/tax-rates is currently anonymous (Ziptax API
-  // proxy). Remove this entry when the route is locked down — the fix
-  // mechanism (auth, signed requests, or rate-limit-only) is decided
-  // separately in ARC-134.
-  "/api/tax-rates",
 ] as const
 
 /**
