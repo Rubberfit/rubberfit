@@ -1,15 +1,13 @@
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
-import { generateReorderSuggestions as generateReorderSuggestionsAction } from "@/app/actions/reorder"
 
+/**
+ * Re-export the use-case output type as the UI's `ReorderSuggestion`
+ * shape. The actual generation now happens server-side via
+ * `generateReorderSuggestions` in `@/app/actions/reorder` (called from
+ * `reorder-data-fetcher.ts`); this module is just the type alias and
+ * the row-level UI helper.
+ */
 export type ReorderSuggestion = ReorderSuggestionOutput
-
-export async function generateReorderSuggestions(
-  rules: ReorderRuleWithDetails[],
-  pendingPOs: Array<{ items?: Array<{ material_type_id: string; quantity_sqft: number }> }> = []
-): Promise<ReorderSuggestion[]> {
-  return generateReorderSuggestionsAction({ rules, pendingPOs })
-}
 
 export function getStockStatus(current: number, reorderPoint: number, max: number) {
   const percentage = (current / max) * 100

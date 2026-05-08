@@ -77,12 +77,16 @@ function makePO(overrides: Partial<PurchaseOrderWithDetails> = {}): PurchaseOrde
 interface FakePOService {
   createPurchaseOrder: ReturnType<typeof vi.fn>
   addItemToPurchaseOrder: ReturnType<typeof vi.fn>
+  recalculatePOTotals: ReturnType<typeof vi.fn>
+  deletePurchaseOrder: ReturnType<typeof vi.fn>
 }
 
 function makeFakePOService(): FakePOService {
   return {
     createPurchaseOrder: vi.fn().mockResolvedValue(makePO()),
     addItemToPurchaseOrder: vi.fn().mockResolvedValue({}),
+    recalculatePOTotals: vi.fn().mockResolvedValue(undefined),
+    deletePurchaseOrder: vi.fn().mockResolvedValue(true),
   }
 }
 
@@ -289,6 +293,62 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
     expect(result.skipped[0].reason).toBe("item_addition_failed")
     expect(result.skipped[0].suggestion.materialTypeId).toBe("mat-A2")
     expect(result.skipped[0].message).not.toContain("FK violation")
+
+    // coderabbit follow-up on PR #177: PO header totals were computed
+    // from BOTH items but only one item is actually on the row. The
+    // use-case must recompute via the service (reads DB items, re-runs
+    // tax) so the header matches the rows.
+    expect(poService.recalculatePOTotals).toHaveBeenCalledWith(result.purchaseOrders[0].id)
+  })
+
+  it("does NOT call recalculatePOTotals when all items succeed (avoid double tax-service call)", async () => {
+    const items = [
+      makeSuggestion({ materialTypeId: "mat-A1" }),
+      makeSuggestion({ materialTypeId: "mat-A2", materialName: "Material A2" }),
+    ]
+    const result = await resolve().execute(buildInput(items))
+
+    expect(result.purchaseOrders).toHaveLength(1)
+    expect(result.skipped).toEqual([])
+    // Recalc only fires on partial failure — no failures here means
+    // the original computation is still authoritative.
+    expect(poService.recalculatePOTotals).not.toHaveBeenCalled()
+  })
+
+  it("when all items fail to add, deletes the orphan PO row and excludes it from purchaseOrders[]", async () => {
+    // coderabbit follow-up: previously, every-item-failed left an
+    // empty draft PO with inflated totals. Now the use-case
+    // best-effort deletes the orphan and doesn't return it.
+    const item1 = makeSuggestion({ materialTypeId: "mat-A1" })
+    const item2 = makeSuggestion({ materialTypeId: "mat-A2", materialName: "Material A2" })
+
+    poService.addItemToPurchaseOrder
+      .mockRejectedValueOnce(new Error("FK violation 1"))
+      .mockRejectedValueOnce(new Error("FK violation 2"))
+
+    const result = await resolve().execute(buildInput([item1, item2]))
+
+    expect(result.purchaseOrders).toEqual([])
+    expect(result.skipped).toHaveLength(2)
+    expect(result.skipped.every((s) => s.reason === "item_addition_failed")).toBe(true)
+    // Orphan PO row was cleaned up.
+    expect(poService.deletePurchaseOrder).toHaveBeenCalledWith("po-1")
+    // No recalculate — we deleted the row, no totals to fix.
+    expect(poService.recalculatePOTotals).not.toHaveBeenCalled()
+  })
+
+  it("orphan-PO cleanup failure is non-fatal — bulk run still returns the skipped[] entries", async () => {
+    const item = makeSuggestion()
+    poService.addItemToPurchaseOrder.mockRejectedValueOnce(new Error("FK violation"))
+    poService.deletePurchaseOrder.mockRejectedValueOnce(new Error("RLS denied delete"))
+
+    const result = await resolve().execute(buildInput([item]))
+
+    // Cleanup failed but the result still surfaces the failure to the
+    // caller so they know the operation didn't succeed.
+    expect(result.purchaseOrders).toEqual([])
+    expect(result.skipped).toHaveLength(1)
+    expect(result.skipped[0].reason).toBe("item_addition_failed")
   })
 
   it("threads actor.id into PO service writes", async () => {

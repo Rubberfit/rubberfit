@@ -18,7 +18,6 @@ import {
   handleCreateBulkPO,
 } from "./reorder-po-handlers"
 import type { ReorderSuggestion } from "./reorder-suggestions"
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 
 function getUrgencyBadge(level: string) {
   switch (level) {
@@ -38,7 +37,6 @@ function getUrgencyBadge(level: string) {
 interface POCallbacks {
   fetchData: () => Promise<void>
   routerPush: (url: string) => void
-  reorderRules: ReorderRuleWithDetails[]
   suggestions: ReorderSuggestion[]
   selectedSuggestions: Set<string>
   setCreatingPOFor: (id: string | null) => void

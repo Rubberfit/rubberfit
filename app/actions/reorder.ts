@@ -6,20 +6,21 @@ import { z } from "zod"
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type {
-  CreateReorderPurchaseOrderInput,
   CreateReorderPurchaseOrderResult,
   ICreateReorderPurchaseOrderUseCase,
 } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import type {
-  CreateBulkReorderPurchaseOrderInput,
   CreateBulkReorderPurchaseOrderResult,
   ICreateBulkReorderPurchaseOrderUseCase,
 } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import type {
-  GenerateReorderSuggestionsInput,
   IGenerateReorderSuggestionsUseCase,
   ReorderSuggestionOutput,
 } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+
+import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
@@ -28,166 +29,169 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 const REORDER_PATH = "/dashboard/inventory/reorder"
 const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"
 
+// ── Authority model ─────────────────────────────────────────────────────
+//
+// Earlier rev of these actions accepted client-supplied
+// `suggestion` / `suggestions` / `reorderRules` payloads and forwarded
+// them to the create use-cases. A `manageRolls` user could edit
+// `estimatedCost` / `suggestedQuantity` in devtools and produce a PO
+// with whatever totals they wanted (Steven acknowledged this on PR
+// #177 as "real authority gap, heavy lift"). The action layer is the
+// only place we can enforce the contract because actions ship in the
+// client bundle and are RPC-callable by hash.
+//
+// Fix: the client surface is now just `materialTypeId(s)`. The server
+// fetches reorder rules, attaches current stock, fetches pending POs,
+// runs the generate-suggestions use-case (which reads
+// material_type.default_cost and applies EOQ + safety-stock + pending
+// adjustment), and forwards those server-computed values to the bulk
+// or single create use-case. Whatever the UI displayed is irrelevant
+// at submit time — there's a small TOCTOU window where the operator
+// sees stale numbers, but the actual PO matches authoritative state.
+//
+// Read-only `generateReorderSuggestions` is the same shape: no client
+// input. UI calls it, server fetches and returns. The previous
+// rules-passthrough payload is gone — the client has no way to forge
+// rule contents.
+
 // ── Schemas ────────────────────────────────────────────────────────────
-//
-// Same security posture as `app/actions/purchase-orders.ts`: every
-// hash-callable RPC parses input before forwarding so a malicious
-// client can't smuggle malformed values past the action layer.
-//
-// Reorder-specific wrinkle: `suggestion`s and `reorderRules` are
-// composite objects mirroring use-case-output / DB-row shapes, with
-// joined columns the use-case reads. The strip/passthrough policy is
-// asymmetric on purpose:
-//
-//   - **Top-level wrappers** (`{ suggestion, reorderRules }`,
-//     `{ suggestions, reorderRules }`, `{ rules, pendingPOs }`):
-//     default-strip. Closed shapes — no legitimate top-level extras.
-//     A client smuggling e.g. `bulkOverride: true` gets it stripped
-//     before the use-case sees it.
-//   - **`reorderRuleSchema` and its nested objects**: `.passthrough()`.
-//     Callers pass full `ReorderRuleWithDetails[]` rows fetched from
-//     Supabase (with `user_id`, `lead_time_days`, joined material_type
-//     fields, etc.). Encoding every DB column in Zod would couple the
-//     action to schema migrations; passthrough preserves the unknown
-//     joined columns the use-case actually reads.
-//
-// We forward the parsed result (not raw `input`) into the use-case,
-// so the strip policy is enforced at the action boundary rather than
-// trusting the use-case body to extract known fields. (Earlier rev
-// passed raw `input`; Sigilix flagged that as a defense-in-depth gap
-// — a future use-case spread would silently re-introduce smuggling.)
-//
-// TS public types stay `Omit<UseCaseInput, "actor">` because callers
-// pass DB-row-shaped objects; the runtime cast on the parsed object
-// bridges Zod's passthrough output type (with `[k: string]: unknown`
-// index signatures from `.passthrough()`) and the explicit nullable
-// columns on `ReorderRuleWithDetails`. The shape is identical at
-// runtime — the cast is purely a TS ergonomics tax.
 
 const uuid = z.string().uuid({ message: "Invalid id" })
 
-const reorderSuggestionSchema = z.object({
+const createReorderPurchaseOrderInputSchema = z.object({
   materialTypeId: uuid,
-  materialName: z.string().trim().min(1).max(200),
-  currentStock: z.number().min(0),
-  reorderPoint: z.number().min(0),
-  suggestedQuantity: z.number().positive(),
-  urgencyLevel: z.enum(["critical", "high", "medium", "low"]),
-  daysUntilStockout: z.number().min(0),
-  supplierId: uuid.optional(),
-  supplierName: z.string().trim().max(200).optional(),
-  estimatedCost: z.number().min(0),
-  pendingQuantity: z.number().min(0).optional(),
 })
 
-const reorderRuleSchema = z
-  .object({
-    id: uuid,
-    material_type_id: uuid,
-    reorder_point: z.number().min(0),
-    reorder_quantity: z.number().min(0),
-    current_stock: z.number().min(0).nullable().optional(),
-    max_stock_level: z.number().min(0).nullable().optional(),
-    safety_stock_days: z.number().min(0).nullable().optional(),
-    supplier_id: uuid.nullable().optional(),
-    material_type: z
-      .object({
-        name: z.string(),
-        default_cost: z.number().nullable().optional(),
-      })
-      .passthrough()
-      .optional(),
-    supplier: z
-      .object({
-        name: z.string(),
-      })
-      .passthrough()
-      .optional(),
-  })
-  .passthrough()
-
-const createReorderPurchaseOrderSchema = z.object({
-  suggestion: reorderSuggestionSchema,
-  reorderRules: z.array(reorderRuleSchema),
+const createBulkReorderPurchaseOrderInputSchema = z.object({
+  materialTypeIds: z.array(uuid).min(1, "Select at least one material to reorder"),
 })
 
-const createBulkReorderPurchaseOrderSchema = z.object({
-  suggestions: z.array(reorderSuggestionSchema),
-  reorderRules: z.array(reorderRuleSchema),
-})
+export type CreateReorderPurchaseOrderActionInput = z.input<
+  typeof createReorderPurchaseOrderInputSchema
+>
+export type CreateBulkReorderPurchaseOrderActionInput = z.input<
+  typeof createBulkReorderPurchaseOrderInputSchema
+>
 
-const generateReorderSuggestionsSchema = z.object({
-  rules: z.array(reorderRuleSchema),
-  pendingPOs: z
-    .array(
-      z.object({
-        items: z
-          .array(
-            z.object({
-              material_type_id: uuid,
-              quantity_sqft: z.number().min(0),
-            })
-          )
-          .optional(),
-      })
-    )
-    .optional(),
-})
+// ── Server-side data sourcing ──────────────────────────────────────────
+//
+// Mirrors the client-side `reorder-data-fetcher.ts` flow but runs
+// server-side: rules → attach current_stock → fetch pending POs →
+// run generate-suggestions use-case → filter to selected IDs.
+//
+// Returned `reorderRules` is the same `rulesWithStock` array that
+// produced the suggestions, so the create use-case sees a consistent
+// snapshot — the same rule rows it'd see if it re-fetched.
+
+interface AuthoritativeReorderData {
+  suggestions: ReorderSuggestionOutput[]
+  reorderRules: ReorderRuleWithDetails[]
+}
+
+async function buildAuthoritativeReorderData(
+  materialTypeIds: string[]
+): Promise<AuthoritativeReorderData> {
+  if (materialTypeIds.length === 0) {
+    return { suggestions: [], reorderRules: [] }
+  }
+
+  const allRules = await reorderService.getActiveReorderRules()
+  const requestedSet = new Set(materialTypeIds)
+  const filteredRules = allRules.filter((r) => requestedSet.has(r.material_type_id))
+  if (filteredRules.length === 0) {
+    return { suggestions: [], reorderRules: [] }
+  }
+
+  const rulesWithStock = await Promise.all(
+    filteredRules.map(async (r) => ({
+      ...r,
+      current_stock: await reorderService.calculateCurrentStock(r.material_type_id),
+    }))
+  )
+
+  const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
+    "draft",
+    "pending",
+    "approved",
+    "ordered",
+  ])
+
+  const generateUseCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
+    TOKENS.IGenerateReorderSuggestionsUseCase
+  )
+  const suggestions = await generateUseCase.execute({ rules: rulesWithStock, pendingPOs })
+
+  // The generator may produce suggestions for rules where stock is at
+  // or above the reorder point — those are dropped here too. Filter to
+  // the requested set in case the generator added unexpected entries
+  // (defense-in-depth — the generator currently iterates only the
+  // input rules, but the filter is cheap insurance).
+  const filteredSuggestions = suggestions.filter((s) => requestedSet.has(s.materialTypeId))
+
+  return { suggestions: filteredSuggestions, reorderRules: rulesWithStock }
+}
 
 // ── Actions ────────────────────────────────────────────────────────────
 
 export async function createReorderPurchaseOrder(
-  input: Omit<CreateReorderPurchaseOrderInput, "actor">
+  input: CreateReorderPurchaseOrderActionInput
 ): Promise<CreateReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  // Forward the parsed result (default-strip on the wrapper, passthrough
-  // on rules) so smuggled top-level keys can't reach the use-case.
-  // Cast through `unknown` bridges Zod's passthrough output (which
-  // doesn't enumerate every column on `ReorderRuleWithDetails`) to the
-  // use-case's explicit type. The runtime shape is correct — passthrough
-  // preserves the unknown columns the use-case reads.
-  const parsed = createReorderPurchaseOrderSchema.parse(input) as unknown as Omit<
-    CreateReorderPurchaseOrderInput,
-    "actor"
-  >
+  const parsed = createReorderPurchaseOrderInputSchema.parse(input)
+
+  const { suggestions, reorderRules } = await buildAuthoritativeReorderData([
+    parsed.materialTypeId,
+  ])
+
+  // No suggestion produced — material is above reorder point, has no
+  // active rule, or has no resolvable supplier. Match the previous
+  // single-PO use-case behavior of throwing rather than returning a
+  // partial-failure shape (the action surface is single-result by
+  // design — the bulk action handles partial-failure).
+  if (suggestions.length === 0) {
+    throw new Error(
+      "No reorder needed for this material, or no supplier is configured. Check the reorder rule and supplier preference."
+    )
+  }
 
   const useCase = resolveUseCase<ICreateReorderPurchaseOrderUseCase>(
     TOKENS.ICreateReorderPurchaseOrderUseCase
   )
-  const result = await useCase.execute({ ...parsed, actor })
+  const result = await useCase.execute({
+    suggestion: suggestions[0],
+    reorderRules,
+    actor,
+  })
   revalidatePath(REORDER_PATH)
   revalidatePath(PO_LIST_PATH)
   return result
 }
 
 /**
- * Bulk variant: groups suggestions by supplier and emits one PO per
- * supplier with multiple line items. Uses the real tax service
- * (replacing the previous browser-side hardcoded 8% rate) and mirrors
- * single-PO notification semantics so bulk and single produce
- * consistent reorder-triggered streams.
- *
- * Returns partial results: `purchaseOrders` for successes,
- * `skipped` with stable reason codes for items that didn't make it
- * onto a PO. Throws only on auth / permission / config / parse errors.
+ * Bulk variant: groups by supplier, emits one PO per supplier with
+ * multiple line items. Server-regenerates suggestions from the
+ * supplied `materialTypeIds` — see "Authority model" above.
  */
 export async function createBulkReorderPurchaseOrder(
-  input: Omit<CreateBulkReorderPurchaseOrderInput, "actor">
+  input: CreateBulkReorderPurchaseOrderActionInput
 ): Promise<CreateBulkReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  const parsed = createBulkReorderPurchaseOrderSchema.parse(input) as unknown as Omit<
-    CreateBulkReorderPurchaseOrderInput,
-    "actor"
-  >
+  const parsed = createBulkReorderPurchaseOrderInputSchema.parse(input)
+
+  const { suggestions, reorderRules } = await buildAuthoritativeReorderData(parsed.materialTypeIds)
+
+  if (suggestions.length === 0) {
+    return { purchaseOrders: [], skipped: [] }
+  }
 
   const useCase = resolveUseCase<ICreateBulkReorderPurchaseOrderUseCase>(
     TOKENS.ICreateBulkReorderPurchaseOrderUseCase
   )
-  const result = await useCase.execute({ ...parsed, actor })
+  const result = await useCase.execute({ suggestions, reorderRules, actor })
 
   if (result.purchaseOrders.length > 0) {
     revalidatePath(REORDER_PATH)
@@ -197,22 +201,35 @@ export async function createBulkReorderPurchaseOrder(
 }
 
 /**
- * Read-only — no `actor` field on the use-case input. Still requires
+ * Read-only — server fetches rules + pending POs and runs the
+ * generate-suggestions use-case. No client input. Still requires
  * authentication + permission so unauthorized callers can't enumerate
  * stock levels and supplier preferences via a hash-callable RPC.
  */
-export async function generateReorderSuggestions(
-  input: GenerateReorderSuggestionsInput
-): Promise<ReorderSuggestionOutput[]> {
+export async function generateReorderSuggestions(): Promise<ReorderSuggestionOutput[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
-  const parsed = generateReorderSuggestionsSchema.parse(
-    input
-  ) as unknown as GenerateReorderSuggestionsInput
 
-  const useCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
+  const allRules = await reorderService.getActiveReorderRules()
+  if (allRules.length === 0) return []
+
+  const rulesWithStock = await Promise.all(
+    allRules.map(async (r) => ({
+      ...r,
+      current_stock: await reorderService.calculateCurrentStock(r.material_type_id),
+    }))
+  )
+
+  const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
+    "draft",
+    "pending",
+    "approved",
+    "ordered",
+  ])
+
+  const generateUseCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
     TOKENS.IGenerateReorderSuggestionsUseCase
   )
-  return useCase.execute(parsed)
+  return generateUseCase.execute({ rules: rulesWithStock, pendingPOs })
 }
