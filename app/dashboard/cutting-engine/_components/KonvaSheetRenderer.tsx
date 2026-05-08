@@ -394,10 +394,8 @@ function KonvaSheetRenderer({
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const theme = useKonvaTheme()
-  // `renderOffcutRegions` follows `sheetBase` when the caller hasn't
-  // pinned it: amber-on-amber would just add rectangle outlines around
-  // every region, which reads as busy noise rather than classification
-  // information.
+  // Default: hide offcut overlays when base is already amber. JSDoc
+  // on the prop carries the full rationale.
   const showOffcutRegions = renderOffcutRegions ?? sheetBase !== "offcut"
 
   useEffect(() => {
@@ -457,12 +455,7 @@ function KonvaSheetRenderer({
               />
             )}
 
-            {/* Reusable offcut — amber. Skipped by default when the
-                sheet background is already amber (Free-roam surface)
-                because amber-on-amber overlays just add rectangle
-                outlines around every region — visual noise, not
-                classification info. Caller can override via
-                `renderOffcutRegions`. */}
+            {/* Reusable offcut — amber. Gated by `renderOffcutRegions`. */}
             {showOffcutRegions &&
               layout.offcuts.map((region, i) => (
                 <RegionShape
