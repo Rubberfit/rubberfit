@@ -348,15 +348,24 @@ interface KonvaSheetRendererProps {
   /** Fires when the empty sheet (not a part) is clicked. Useful for clearing selection. */
   onSheetClick?: () => void
   /**
-   * Controls the sheet's default background color. `"sheet"` (default)
-   * uses the neutral sheet fill — the Auto-nest look where offcut /
-   * scrap regions render on top as classified overlays. `"offcut"`
-   * paints the sheet in the reusable amber color, so any area not
-   * covered by a part or a scrap overlay is visually classified as
-   * reusable by default — matches the Free-roam semantic where an
-   * empty sheet IS one big reusable offcut.
+   * Sheet base fill. `"neutral"` (default) paints the stone-100 sheet
+   * — the Auto-nest look where offcut / scrap regions render on top
+   * as classified overlays. `"offcut"` paints the sheet in the
+   * reusable amber color, so any area not covered by a part or a
+   * scrap overlay is visually classified as reusable by default —
+   * matches the Free-roam semantic where an empty sheet IS one big
+   * reusable offcut.
    */
-  defaultFill?: "sheet" | "offcut"
+  sheetBase?: "neutral" | "offcut"
+  /**
+   * Whether to render `layout.offcuts` as classified overlay shapes.
+   * Defaults to `true` when `sheetBase="neutral"` and `false` when
+   * `sheetBase="offcut"` — when the sheet background is already amber,
+   * an amber-on-amber overlay only adds rectangle outlines that read
+   * as visual noise. Override with an explicit boolean if a consumer
+   * wants the non-default behavior on either base.
+   */
+  renderOffcutRegions?: boolean
   /**
    * User zoom percentage applied on top of the auto-fit scale.
    * 100 = fit-to-container (default); 200 = 2× that fit. Values
@@ -377,13 +386,19 @@ function KonvaSheetRenderer({
   selectedPartId,
   onPartClick,
   onSheetClick,
-  defaultFill = "sheet",
+  sheetBase = "neutral",
+  renderOffcutRegions,
   zoomPct = 100,
   showGrid = true,
 }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const theme = useKonvaTheme()
+  // `renderOffcutRegions` follows `sheetBase` when the caller hasn't
+  // pinned it: amber-on-amber would just add rectangle outlines around
+  // every region, which reads as busy noise rather than classification
+  // information.
+  const showOffcutRegions = renderOffcutRegions ?? sheetBase !== "offcut"
 
   useEffect(() => {
     const el = containerRef.current
@@ -417,7 +432,7 @@ function KonvaSheetRenderer({
         <Stage width={size.w} height={size.h} style={{ display: "block" }}>
           <Layer x={offsetX} y={offsetY}>
             {/* Sheet background — clicking clears selection. Fill
-                tracks `defaultFill`: the Auto-nest surface stays
+                tracks `sheetBase`: the Auto-nest surface stays
                 neutral grey, the Free-roam surface paints amber so
                 any uncovered area is visually reusable by default. */}
             <Rect
@@ -425,7 +440,7 @@ function KonvaSheetRenderer({
               y={0}
               width={stageW}
               height={stageH}
-              fill={defaultFill === "offcut" ? theme.offcutFill : theme.sheetFill}
+              fill={sheetBase === "offcut" ? theme.offcutFill : theme.sheetFill}
               stroke={theme.sheetStroke}
               strokeWidth={1}
               onMouseDown={() => onSheetClick?.()}
@@ -442,13 +457,13 @@ function KonvaSheetRenderer({
               />
             )}
 
-            {/* Reusable offcut — amber. When the sheet background
-                is already amber (Free-roam surface), these would be
-                amber on amber; their strokes would add visible
-                rectangle outlines around every classified region,
-                which reads as busy noise rather than information.
-                Skip them — the background carries the semantic. */}
-            {defaultFill !== "offcut" &&
+            {/* Reusable offcut — amber. Skipped by default when the
+                sheet background is already amber (Free-roam surface)
+                because amber-on-amber overlays just add rectangle
+                outlines around every region — visual noise, not
+                classification info. Caller can override via
+                `renderOffcutRegions`. */}
+            {showOffcutRegions &&
               layout.offcuts.map((region, i) => (
                 <RegionShape
                   key={`offcut-${i}`}
@@ -480,7 +495,7 @@ function KonvaSheetRenderer({
                 theme={theme}
                 draggable={typeof onPartDragEnd === "function"}
                 selected={selectedPartId === part.id}
-                realistic={defaultFill === "offcut"}
+                realistic={sheetBase === "offcut"}
                 onDragEnd={onPartDragEnd}
                 onDragMove={onPartDragMove}
                 onClick={onPartClick}
@@ -499,8 +514,8 @@ function KonvaSheetRenderer({
  * Fix C-4). Default shallow compare is sufficient because:
  *   - `layout` ref is stable across drag ticks when content-equal
  *     (see `useFreeRoamLayout`'s `layoutCache` bailout).
- *   - `zoomPct`, `showGrid`, `selectedPartId`, `defaultFill` are
- *     primitives.
+ *   - `zoomPct`, `showGrid`, `selectedPartId`, `sheetBase`,
+ *     `renderOffcutRegions` are primitives.
  *   - Handler props are `useCallback`'d in `free-roam-content.tsx`.
  */
 export default memo(KonvaSheetRenderer)

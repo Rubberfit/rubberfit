@@ -321,7 +321,7 @@ export default function FreeRoamContent({
                 selectedPartId={selectedPartId}
                 onPartClick={handlePartClick}
                 onSheetClick={handleSheetClick}
-                defaultFill="offcut"
+                sheetBase="offcut"
                 zoomPct={zoomPct}
                 showGrid={showGrid}
               />

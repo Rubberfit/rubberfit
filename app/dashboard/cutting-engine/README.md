@@ -106,7 +106,7 @@ CAD-style three-column workspace — parts queue left, Konva canvas center, Save
 | File                                 | Purpose                                                                                                                    |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `free-roam-content.tsx`              | Three-column shell. Owns stock / zoom / selection state, wires the hooks, renders Konva surface.                           |
-| `KonvaSheetRenderer.tsx`             | Konva surface. Renders parts, offcuts, scrap, grid. Supports drag-move callback, `defaultFill` override, `zoomPct` scaling. |
+| `KonvaSheetRenderer.tsx`             | Konva surface. Renders parts, offcuts, scrap, grid. Props: `sheetBase` (`"neutral"` Auto-nest / `"offcut"` Free-roam), `renderOffcutRegions` (auto-derived from base; explicit override allowed), drag-move callback, `zoomPct` scaling. |
 | `layout-model.ts`                    | `LayoutModel`, `PlacedPart`, `LayoutRegion`, `RenderShape` union. Normaliser converts Auto-nest previews into this shape.  |
 | `konva-theme.ts`                     | Light / dark palette resolution. Part fills deliberately exclude red + amber to avoid collisions with scrap / offcut fills. |
 | `canvas-toolbar.tsx`                 | Tool cluster + zoom controls + sheet tabs. Lift-state design — parent owns `zoom` so the renderer reads the same value.    |
