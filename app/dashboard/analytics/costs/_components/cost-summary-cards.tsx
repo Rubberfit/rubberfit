@@ -1,8 +1,8 @@
 "use client"
 
-import { DollarSign, Scissors, Recycle, AlertCircle, Calculator } from "lucide-react"
+import { AlertCircle, Calculator, DollarSign, Recycle, Scissors } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { StatCard, type StatCardProps } from "@/app/components/patterns"
 
 interface CostSummaryCardsProps {
   totalCost: number
@@ -27,72 +27,49 @@ export function CostSummaryCards({
       : wastePercentage <= 20
         ? "Good"
         : "Needs improvement"
-  const wasteTone = !hasWastePercentage
-    ? "text-muted-foreground"
+  const wasteIntent: StatCardProps["sparkIntent"] = !hasWastePercentage
+    ? "accent"
     : wastePercentage <= 10
-      ? "text-green-600"
+      ? "success"
       : wastePercentage <= 20
-        ? "text-yellow-600"
-        : "text-red-600"
+        ? "warning"
+        : "danger"
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${totalCost.toFixed(0)}</div>
-          <p className="text-xs text-muted-foreground">Total stock consumed</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Cut Value</CardTitle>
-          <Scissors className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${totalCutCost.toFixed(0)}</div>
-          <p className="text-xs text-muted-foreground">Material used in cuts</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Reusable Value</CardTitle>
-          <Recycle className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${totalReusableCost.toFixed(0)}</div>
-          <p className="text-xs text-muted-foreground">Leftover material for reuse</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Waste Cost</CardTitle>
-          <AlertCircle className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${totalWasteCost.toFixed(0)}</div>
-          <p className="text-xs text-muted-foreground">Material wasted</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Waste Impact</CardTitle>
-          <Calculator className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {hasWastePercentage ? `${wastePercentage.toFixed(1)}%` : "-"}
-          </div>
-          <p className={`text-xs ${wasteTone}`}>{wasteLabel}</p>
-        </CardContent>
-      </Card>
+      <StatCard
+        label="Total cost"
+        icon={<DollarSign />}
+        value={`$${totalCost.toFixed(0)}`}
+        footnote="Total stock consumed"
+      />
+      <StatCard
+        label="Cut value"
+        icon={<Scissors />}
+        value={`$${totalCutCost.toFixed(0)}`}
+        footnote="Material used in cuts"
+      />
+      <StatCard
+        label="Reusable value"
+        icon={<Recycle />}
+        value={`$${totalReusableCost.toFixed(0)}`}
+        footnote="Leftover material for reuse"
+        sparkIntent="success"
+      />
+      <StatCard
+        label="Waste cost"
+        icon={<AlertCircle />}
+        value={`$${totalWasteCost.toFixed(0)}`}
+        footnote="Material wasted"
+        sparkIntent="danger"
+      />
+      <StatCard
+        label="Waste impact"
+        icon={<Calculator />}
+        value={hasWastePercentage ? `${wastePercentage.toFixed(1)}%` : "—"}
+        footnote={wasteLabel}
+        sparkIntent={wasteIntent}
+      />
     </div>
   )
 }
