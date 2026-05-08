@@ -11,7 +11,7 @@ import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
 import {
   SimpleModeHeader,
-  SimpleModePatternDefs,
+  SimpleModeCanvasDefs,
   SimpleModeMetrics,
   SimpleModeFooter,
   SimpleModeCutPlan,
@@ -28,13 +28,33 @@ import { CutLegend } from "./cut-legend"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 
-// Solid amber outline drawn around each reusable-offcut polygon / rect
-// so its bbox reads at a glance against the bin-wide scrap pattern.
-// Same colour as Rubberfit-Desktop's `OFFCUT_OUTLINE` so the two
-// visualizers stay visually identical side-by-side. Solid (no dash)
-// to keep separation from the dashed dev-only AABB overlay.
-const OFFCUT_OUTLINE = "rgba(245, 158, 11, 0.75)"
-const OFFCUT_OUTLINE_WIDTH = 1.5
+// Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
+//
+// Every colour below pulls from a `--svg-*` CSS variable defined in
+// `globals.css` (`:root` for light, `.dark` for the "shop floor at
+// night" inversion). The SVG defs and presentation attributes
+// reference these via `var(...)`, so the visualizer stays a single
+// self-contained render tree that simply inherits the theme from
+// `<html class="dark">`. No React branching, no duplicated defs.
+//
+// Sheet base is the warm amber-ash photographic-rubber tone in light
+// and stone-900 deep warm plane in dark; depth comes from a multiply-
+// blended radial vignette (dark vignette in light mode, white halo
+// in dark mode), a faint dot-grid tooling overlay (black dots light
+// / white dots dark), and a 1px inner bevel (top-left highlight,
+// bottom-right shade — both invert in dark). Scrap regions get the
+// red-on-pink hatch in light, red-on-near-black hatch in dark.
+// Offcut regions punch through the scrap with a clean cream fill in
+// light and a stone-800 reserved-mask in dark; both carry a dashed
+// boundary so the shape reads as a discrete reusable chunk.
+const SHEET_FILL = "var(--svg-sheet-base)"
+const PAGE_FILL = "var(--svg-page-bg)"
+const OFFCUT_FILL = "var(--svg-offcut-fill)"
+const OFFCUT_OUTLINE = "var(--svg-offcut-border)"
+const OFFCUT_DASH = "6 4"
+const OFFCUT_OUTLINE_WIDTH = 1.75
+const SHEET_BEVEL_LIGHT = "var(--svg-bevel-highlight)"
+const SHEET_BEVEL_SHADE = "var(--svg-bevel-shadow)"
 
 // Single-pass min/max bounding box for an SVG render item. Used by the
 // dev-only "Show AABB" overlay. Falls back to the placement's
@@ -194,12 +214,18 @@ function SheetSvg({
   layoutModel?: LayoutModel
   debugOverlays?: DebugOverlayOptions
 }) {
+  // Per-sheet ids for the Treatment 1 SVG defs. The legacy
+  // `stockPatternId` / `offcutPatternId` / `wastePatternId` /
+  // `usablePatternId` stems on the layout object stay as namespacing
+  // strings; we hang the new defs off them so multi-sheet layouts
+  // don't collide on `<defs>` ids. Names are historical, values
+  // inside the defs are the Industrial CAD palette.
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
-  const sStockPat = `${layout.stockPatternId}${sPat}`
-  const sOffcutPat = `${layout.offcutPatternId}${sPat}`
-  const sWastePat = `${layout.wastePatternId}${sPat}`
-  const sUsablePat = `${layout.usablePatternId}${sPat}`
+  const sVignette = `vignette-${layout.stockPatternId}${sPat}`
+  const sToolGrid = `tool-grid-${layout.stockPatternId}${sPat}`
+  const sScrapHatch = `scrap-hatch-${layout.wastePatternId}${sPat}`
+  const sPageGrid = `page-grid-${layout.stockPatternId}${sPat}`
   const sMarker = `${layout.markerId}${sPat}`
 
   const [zoom, setZoom] = React.useState(1)
@@ -373,13 +399,18 @@ function SheetSvg({
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
       >
-        <SimpleModePatternDefs
-          stockPatternId={sStockPat}
-          offcutPatternId={sOffcutPat}
-          wastePatternId={sWastePat}
-          usablePatternId={sUsablePat}
+        <SimpleModeCanvasDefs
+          sheetVignetteId={sVignette}
+          toolGridPatternId={sToolGrid}
+          scrapHatchPatternId={sScrapHatch}
+          pageGridPatternId={sPageGrid}
           markerId={sMarker}
         />
+        {/* Page backdrop — slate base + 40px graph-grid evokes the
+            cutting mat / CMM table operators work on. Painted as the
+            first SVG element so everything else stacks on top. */}
+        <rect x={pan.x} y={pan.y} width={vbW} height={vbH} fill={PAGE_FILL} />
+        <rect x={pan.x} y={pan.y} width={vbW} height={vbH} fill={`url(#${sPageGrid})`} />
         <text
           x={layout.viewWidth / 2}
           y="34"
@@ -408,31 +439,86 @@ function SheetSvg({
             height={layout.effSurfacePxH}
           />
         </clipPath>
+        {/* Sheet — Treatment 1 stack:
+              1. solid amber-ash base
+              2. dot-grid tooling overlay
+              3. radial vignette (multiply blend) for overhead-light
+                 falloff
+              4. inner-bevel highlight + shade strokes for edge rolloff
+            All four layers are clipped to the same rect so the
+            stacking lines up. Outer border stays neutral so the sheet
+            still reads as a discrete object against the page grid. */}
         <rect
           x={layout.effSurfaceX}
           y={layout.effSurfaceY}
           width={layout.effSurfacePxW}
           height={layout.effSurfacePxH}
-          fill={`url(#${sStockPat})`}
-          className="stroke-border"
+          fill={SHEET_FILL}
+          stroke="#475569"
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
+        <rect
+          x={layout.effSurfaceX}
+          y={layout.effSurfaceY}
+          width={layout.effSurfacePxW}
+          height={layout.effSurfacePxH}
+          fill={`url(#${sToolGrid})`}
+          pointerEvents="none"
+        />
+        <rect
+          x={layout.effSurfaceX}
+          y={layout.effSurfaceY}
+          width={layout.effSurfacePxW}
+          height={layout.effSurfacePxH}
+          fill={`url(#${sVignette})`}
+          style={{ mixBlendMode: "multiply" }}
+          pointerEvents="none"
+        />
+        <line
+          x1={layout.effSurfaceX}
+          y1={layout.effSurfaceY}
+          x2={layout.effSurfaceX + layout.effSurfacePxW}
+          y2={layout.effSurfaceY}
+          stroke={SHEET_BEVEL_LIGHT}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+        <line
+          x1={layout.effSurfaceX}
+          y1={layout.effSurfaceY}
+          x2={layout.effSurfaceX}
+          y2={layout.effSurfaceY + layout.effSurfacePxH}
+          stroke={SHEET_BEVEL_LIGHT}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+        <line
+          x1={layout.effSurfaceX + layout.effSurfacePxW}
+          y1={layout.effSurfaceY}
+          x2={layout.effSurfaceX + layout.effSurfacePxW}
+          y2={layout.effSurfaceY + layout.effSurfacePxH}
+          stroke={SHEET_BEVEL_SHADE}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+        <line
+          x1={layout.effSurfaceX}
+          y1={layout.effSurfaceY + layout.effSurfacePxH}
+          x2={layout.effSurfaceX + layout.effSurfacePxW}
+          y2={layout.effSurfaceY + layout.effSurfacePxH}
+          stroke={SHEET_BEVEL_SHADE}
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
         <g clipPath={`url(#${sClip})`}>
           <g transform={sheetTransform}>
-            {!layout.shapeFirstView &&
-              sheet.preview.items.some(
-                (item) => item.placedPolygon && item.placedPolygon.length > 0
-              ) && (
-                <rect
-                  x={layout.surfaceX}
-                  y={layout.surfaceY}
-                  width={layout.surfacePxW}
-                  height={layout.surfacePxH}
-                  fill={`url(#${sWastePat})`}
-                  opacity="0.95"
-                />
-              )}
+            {/* Scrap bands — rust hatch (engineering "marked for waste"
+                notation, not a screaming red void). */}
             {!layout.shapeFirstView &&
               sheet.preview.scrapBands.map((band, index) =>
                 band.polygon ? (
@@ -444,8 +530,7 @@ function SheetSvg({
                           `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
                       )
                       .join(" ")}
-                    fill={`url(#${sWastePat})`}
-                    opacity="0.95"
+                    fill={`url(#${sScrapHatch})`}
                   />
                 ) : (
                   <rect
@@ -454,40 +539,46 @@ function SheetSvg({
                     y={layout.surfaceY + band.y * layout.scale}
                     width={band.width * layout.scale}
                     height={band.height * layout.scale}
-                    fill={`url(#${sWastePat})`}
-                    opacity="0.95"
+                    fill={`url(#${sScrapHatch})`}
                   />
                 )
               )}
+            {/* Offcut bands — clean cream fill that punches through
+                any underlying scrap hatch, plus a dashed boundary so
+                each reusable region reads as a discrete chunk an
+                operator could harvest. Painted AFTER scrap so the
+                fill wins overlap (Rust often classifies the entire
+                un-occupied bin as scrap, with offcut bands carved out
+                by a separate pass). */}
             {!layout.shapeFirstView &&
               sheet.preview.offcutBands.map((band, index) =>
                 band.polygon ? (
                   <polygon
-                    key={`band-${index + 1}`}
+                    key={`offcut-band-${index + 1}`}
                     points={band.polygon
                       .map(
                         (pt) =>
                           `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
                       )
                       .join(" ")}
-                    fill={`url(#${sOffcutPat})`}
+                    fill={OFFCUT_FILL}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    strokeDasharray={OFFCUT_DASH}
                     vectorEffect="non-scaling-stroke"
-                    opacity="0.95"
                   />
                 ) : (
                   <rect
-                    key={`band-${index + 1}`}
+                    key={`offcut-band-${index + 1}`}
                     x={layout.surfaceX + band.x * layout.scale}
                     y={layout.surfaceY + band.y * layout.scale}
                     width={band.width * layout.scale}
                     height={band.height * layout.scale}
-                    fill={`url(#${sOffcutPat})`}
+                    fill={OFFCUT_FILL}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    strokeDasharray={OFFCUT_DASH}
                     vectorEffect="non-scaling-stroke"
-                    opacity="0.95"
                   />
                 )
               )}
@@ -504,31 +595,26 @@ function SheetSvg({
                 debugOverlays={debugOverlays}
               />
             )}
-            {(["background", "foreground"] as const).map((pass) =>
-              sheet.preview.items.map((item, index) => (
-                <NestingShapeRenderer
-                  key={`${pass}-${index}`}
-                  item={item}
-                  index={index}
-                  surfaceX={layout.surfaceX}
-                  surfaceY={layout.surfaceY}
-                  unitOriginX={layout.unitOriginX}
-                  unitOriginY={layout.unitOriginY}
-                  scale={layout.scale}
-                  shapeFirstView={layout.shapeFirstView}
-                  preview={preview}
-                  displayPreview={sheet.preview}
-                  usablePatternId={sUsablePat}
-                  wastePatternId={sWastePat}
-                  viewHeight={layout.viewHeight}
-                  surfacePxW={layout.surfacePxW}
-                  tagLetter={item.label}
-                  zoom={zoom}
-                  renderPass={pass}
-                  displayRotated={layout.displayRotated}
-                />
-              ))
-            )}
+            {/* Phase 5 PR 3 collapsed the prior background+foreground
+                two-pass render. The "background" pass only existed to
+                paint the stone-900 + wastePattern bbox crutch under
+                circle / sector / trapezoid shapes; that crutch is gone
+                now, so a single pass over the items is enough. */}
+            {sheet.preview.items.map((item, index) => (
+              <NestingShapeRenderer
+                key={`shape-${index}`}
+                item={item}
+                index={index}
+                surfaceX={layout.surfaceX}
+                surfaceY={layout.surfaceY}
+                unitOriginX={layout.unitOriginX}
+                unitOriginY={layout.unitOriginY}
+                scale={layout.scale}
+                tagLetter={item.label}
+                zoom={zoom}
+                displayRotated={layout.displayRotated}
+              />
+            ))}
           </g>
         </g>
         <g transform={sheetTransform}>
@@ -566,7 +652,7 @@ function SheetSvg({
             zoom={zoom}
           />
         </g>
-        <SimpleModeDimensionLabels layout={layout} zoom={zoom} />
+        <SimpleModeDimensionLabels layout={layout} zoom={zoom} markerId={sMarker} />
       </svg>
     </div>
   )
