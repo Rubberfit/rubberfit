@@ -279,7 +279,15 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                     <FormItem>
                       <FormLabel>Thickness (in)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.001" {...field} />
+                        {/* `field.value ?? ""` keeps the input controlled
+                            from first render. Without it, an optional
+                            number field starts uncontrolled (defaultValue
+                            undefined) and React 19 logs the classic
+                            "changing an uncontrolled input to be
+                            controlled" warning on the first keystroke
+                            (ARC-213). The Zod schema preprocesses "" →
+                            undefined so submit semantics are unchanged. */}
+                        <Input type="number" step="0.001" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -305,7 +313,9 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                     <FormItem>
                       <FormLabel>Unit price ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        {/* See thickness above — same controlled-from-
+                            first-render pattern (ARC-213). */}
+                        <Input type="number" step="0.01" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
