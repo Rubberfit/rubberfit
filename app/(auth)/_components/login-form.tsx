@@ -11,9 +11,15 @@ import { z } from "zod"
 
 import { useAuth } from "@/app/contexts/AuthContext"
 
+// Login form deliberately does NOT enforce the registration min(6)
+// constraint. A login attempt should fail with "Sign in failed"
+// based on the auth backend's response — not preemptively shame
+// the operator about password length when they may be typing an
+// account that pre-dates the policy. Min-length lives on the
+// register / reset-password schemas where it's setting state.
 const FormSchema = z.object({
   email: z.string().email({ message: "Enter a valid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  password: z.string().min(1, { message: "Enter your password." }),
   remember: z.boolean().optional(),
 })
 
@@ -70,8 +76,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           // a hard failure rather than falling through to the success
           // toast and silently letting the user past the challenge.
           toast.error("Sign in failed", {
-            description:
-              "Multi-factor verification could not be started. Please try again.",
+            description: "Multi-factor verification could not be started. Please try again.",
           })
           return
         }
@@ -228,11 +233,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         </label>
       </div>
 
-      <button
-        type="submit"
-        disabled={isLoading}
-        className="auth-btn-primary mt-6"
-      >
+      <button type="submit" disabled={isLoading} className="auth-btn-primary mt-6">
         {isLoading ? "Signing in…" : "Sign in"}
       </button>
 

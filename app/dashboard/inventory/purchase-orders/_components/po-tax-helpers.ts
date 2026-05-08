@@ -15,10 +15,7 @@ export interface TaxDetails {
  * returns the same camelCase `TaxDetails` the PO UI already
  * consumes.
  */
-async function preview(
-  supplierId: string,
-  subtotal: number
-): Promise<TaxDetails> {
+async function preview(supplierId: string, subtotal: number): Promise<TaxDetails> {
   const calc = await taxSdk.preview(supplierId, subtotal)
   return {
     taxRate: calc.tax_rate,

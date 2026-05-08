@@ -1,9 +1,12 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Button } from "@/app/components/ui/button"
 import { Download } from "lucide-react"
 import { toast } from "sonner"
+
+import { Button } from "@/app/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+
+import { StepBadge } from "./step-badge"
 
 export function ImportTemplateCard() {
   const downloadTemplate = () => {
@@ -28,13 +31,20 @@ Nitrile,60,144,0.375,Blue,Rack C3,2024-02-10,Rubber Direct,2.75,144,Oil resistan
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Step 1: Download Template</CardTitle>
-        <CardDescription>Start with our CSV template to ensure proper formatting</CardDescription>
+        <div className="flex items-start gap-3">
+          <StepBadge step={1} />
+          <div className="space-y-1">
+            <CardTitle>Download template</CardTitle>
+            <CardDescription>
+              Start with the CSV template to ensure proper column formatting.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Button onClick={downloadTemplate} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Download CSV Template
+          <Download className="size-3.5" aria-hidden="true" />
+          Download CSV template
         </Button>
       </CardContent>
     </Card>

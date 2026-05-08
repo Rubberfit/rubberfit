@@ -178,7 +178,12 @@ export default function UsersPage() {
   }
 
   return (
-    <PageShell variant="form">
+    // Users table is wide (name + 4 role pills + status + last
+    // sign-in + joined + actions); the 760px `form` variant clipped
+    // it and forced a horizontal scroll. `dense` (1800px) matches
+    // the inventory / suppliers list pages where the same chrome
+    // lives.
+    <PageShell variant="dense">
       <PageHeader
         crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Users" }]}
         title="Users"

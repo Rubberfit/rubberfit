@@ -300,3 +300,43 @@ catch (_error) {         // use when error is intentionally ignored
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+## Versioning + Tagging
+
+Bump `package.json` semver every few significant changes — don't let it drift across dozens of merged PRs. Cadence is judgement-based, not mechanical: ship a version bump after a meaningful bundle of work lands (e.g., a phase wrap, a new feature surface, a major refactor), not after every PR.
+
+**Industry-standard SemVer** (`MAJOR.MINOR.PATCH`):
+
+- **Patch** (`1.1.0` → `1.1.1`) — bug fixes, copy tweaks, dependency bumps that don't change behavior
+- **Minor** (`1.1.4` → `1.2.0`) — new feature surfaces, multi-PR refactors, design system additions. **Patch number resets to 0** on a minor bump
+- **Major** (`1.x.y` → `2.0.0`) — release-worthy milestones (large UX shifts, new product capabilities, breaking changes operators would notice). **Both minor and patch reset to 0** on a major bump
+
+Numbers do NOT roll over at 9 — `1.1.9` → `1.1.10` → `1.1.11` is correct semver. There's no cap. A long-stable line might legitimately reach `1.4.27` before a minor or major bump is warranted.
+
+**Cadence example (this is the live one starting now):**
+
+| Step | Trigger | Version |
+|------|---------|---------|
+| 1 | Phase 3 + 4 dashboard refactor wraps (today) | `1.1.0` ← we're here |
+| 2 | A few PRs of polish + small features land on dev | `1.1.1` |
+| 3 | A few more bug-fix PRs | `1.1.2` |
+| ... | (no rule on how many — judgement) | `1.1.3` ... `1.1.X` |
+| N | Phase 5 (Konva canvas redesign) wraps — new feature surface | `1.2.0` (patch resets) |
+| ... | Polish + bug fixes on top of Phase 5 | `1.2.1`, `1.2.2`, ... |
+| Eventually | Phase 6 (perf) + Phase 7 (PDF) both ship — release-worthy product milestone | `2.0.0` + dev → main merge |
+
+**Major bumps trigger a dev → main merge.** Most bumps stay on `dev` (the integration branch where work accumulates) — `1.23.4` accumulating on dev is the normal pattern. But when Claude judges that the accumulated work hits a real product-release milestone — substantial enough to deserve a major version like `2.0` or `3.1` instead of yet another minor — that's the signal to also merge `dev` → `main` and ship to production. Patch/minor bumps don't carry that obligation.
+
+The judgement is qualitative: "would a user reasonably notice this is a different product version?" If yes, major + main merge. If it's just more polish on top of an existing release, minor and stay on dev.
+
+**The bump itself ships as its own PR**, not bundled with feature work. Title format: `chore(release): bump version to X.Y.Z`. The PR description summarizes what's been shipped since the previous tag — it's the changelog entry.
+
+**After the bump PR merges, tag dev's HEAD** as `vX.Y.Z` and push the tag:
+
+```bash
+git checkout dev && git pull
+git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"
+git push origin vX.Y.Z
+```
+
+The tag is what other tools (Vercel deploy logs, GitHub release notes, the `git log --tags` view) anchor on. Existing `s*-*` descriptive tags (e.g., `s4-ui-polish`) stay where they are for sprint-milestone marking, but `vX.Y.Z` is the canonical version reference going forward.

@@ -112,7 +112,13 @@ export default function MaterialSettingsPage() {
   )
 
   return (
-    <PageShell variant="form">
+    // Body is a DataTable (Name + Min stock + Default cost +
+    // actions), not a settings form, so the 760px `form` variant
+    // clipped the rightmost columns and forced a horizontal scroll.
+    // Bumping to `dense` (1800px) matches the inventory list +
+    // suppliers + admin/security pattern where the same chrome
+    // lives. Carry-over from PR #198's polish round.
+    <PageShell variant="dense">
       <PageHeader
         crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: "Materials" }]}
         title="Materials"

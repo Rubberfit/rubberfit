@@ -11,7 +11,7 @@
  * a 5-line shim — no config or credential logic duplicated per route.
  */
 
-import { createServerClient } from "@supabase/ssr"
+import { type CookieOptions, createServerClient } from "@supabase/ssr"
 import { type NextRequest, NextResponse } from "next/server"
 
 const STREAMED_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
@@ -36,31 +36,62 @@ function apiBaseUrl(): string | null {
   return url.replace(/\/+$/, "")
 }
 
+/** Cookie returned by the Supabase SSR client during a token refresh. */
+interface PendingCookie {
+  name: string
+  value: string
+  options?: CookieOptions
+}
+
+/**
+ * Resolver result. The bridge needs both the bearer token AND any
+ * cookies the SSR client minted while resolving the session — the
+ * previous `() => Promise<string | null>` shape silently dropped
+ * refreshed cookies, leaving the browser with stale credentials.
+ * `forwardToRust` writes `refreshedCookies` onto the response so
+ * the client picks up the rotated access/refresh tokens.
+ */
+export interface AccessTokenResult {
+  token: string | null
+  refreshedCookies: PendingCookie[]
+}
+
 /**
  * Resolves the bearer JWT the bridge forwards upstream. The default
  * implementation reads it out of the Supabase session cookie; tests
  * swap in a fake via `__setAccessTokenResolverForTests`.
  */
-export type AccessTokenResolver = (request: NextRequest) => Promise<string | null>
+export type AccessTokenResolver = (request: NextRequest) => Promise<AccessTokenResult>
 
-async function defaultAccessTokenResolver(
-  request: NextRequest
-): Promise<string | null> {
+async function defaultAccessTokenResolver(request: NextRequest): Promise<AccessTokenResult> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !anonKey) return null
+  if (!supabaseUrl || !anonKey) return { token: null, refreshedCookies: [] }
 
+  // Capture refreshed cookies via `setAll` so `forwardToRust` can
+  // forward them to the client. Without this, an aging access token
+  // gets refreshed in-memory by `getSession()`, the new cookies are
+  // dropped, and the next request finds the old (now-invalid)
+  // cookie in the browser → 401. This was the root cause of the
+  // intermittent "saves but won't load cut history" symptom on dev
+  // / preview deployments where there's less page-navigation
+  // refresh churn than prod.
+  const refreshedCookies: PendingCookie[] = []
   const client = createServerClient(supabaseUrl, anonKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
-      setAll: () => {},
+      setAll: (toSet) => {
+        for (const c of toSet) {
+          refreshedCookies.push({ name: c.name, value: c.value, options: c.options })
+        }
+      },
     },
   })
 
   const {
     data: { session },
   } = await client.auth.getSession()
-  return session?.access_token ?? null
+  return { token: session?.access_token ?? null, refreshedCookies }
 }
 
 // Module-scoped so the defaultAccessTokenResolver is swappable at
@@ -69,9 +100,7 @@ async function defaultAccessTokenResolver(
 // with `__` and lives only for Vitest integration.
 let accessTokenResolver: AccessTokenResolver = defaultAccessTokenResolver
 
-export function __setAccessTokenResolverForTests(
-  resolver: AccessTokenResolver | null
-): void {
+export function __setAccessTokenResolverForTests(resolver: AccessTokenResolver | null): void {
   accessTokenResolver = resolver ?? defaultAccessTokenResolver
 }
 
@@ -123,8 +152,11 @@ export async function forwardToRust(
     }
   }
 
-  const token = await accessTokenResolver(request)
+  const { token, refreshedCookies } = await accessTokenResolver(request)
   if (token === null) {
+    // Don't leak refreshed cookies on auth failure — the user needs
+    // to re-login anyway, and stamping rotated cookies for an
+    // authenticated session that we then 401'd would be inconsistent.
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -169,10 +201,7 @@ export async function forwardToRust(
     })
   } catch (error) {
     console.error("rust backend unreachable", { upstreamUrl, error })
-    return NextResponse.json(
-      { error: "upstream service unavailable" },
-      { status: 502 }
-    )
+    return NextResponse.json({ error: "upstream service unavailable" }, { status: 502 })
   }
 
   const headers = new Headers()
@@ -185,9 +214,15 @@ export async function forwardToRust(
   // Stream the body through — preserves SSE / NDJSON if Rust ever
   // returns streamed responses. For normal JSON this is equivalent
   // to `await upstream.text()` but avoids buffering large payloads.
-  return new Response(upstream.body, {
+  // `NextResponse` (vs plain `Response`) gives us a `.cookies` API
+  // for stamping the refreshed Supabase cookies on the way back.
+  const response = new NextResponse(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
     headers,
   })
+  for (const { name, value, options } of refreshedCookies) {
+    response.cookies.set(name, value, options)
+  }
+  return response
 }

@@ -1,8 +1,10 @@
 "use client"
 
-import { Layers, Scissors, TrendingDown, TrendingUp, Zap } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { Layers, Scissors, TrendingDown, Zap } from "lucide-react"
+
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
+import { Card, CardContent, CardHeader } from "@/app/components/ui/card"
+import { StatCard, type StatCardProps } from "@/app/components/patterns"
 
 interface WasteKpiCardsProps {
   cuts: CutHistory[]
@@ -22,6 +24,12 @@ function SkeletonCard() {
   )
 }
 
+/**
+ * Half-vs-half trend: average the metric across the first half of
+ * `cuts` and compare to the average across the second half. Returns
+ * the percentage delta (positive = newer half is higher) or null
+ * when there's not enough data to compare.
+ */
 function trend(cuts: CutHistory[], getValue: (c: CutHistory) => number): number | null {
   if (cuts.length < 2) return null
   const half = Math.floor(cuts.length / 2)
@@ -29,44 +37,6 @@ function trend(cuts: CutHistory[], getValue: (c: CutHistory) => number): number 
   const second = cuts.slice(half).reduce((s, c) => s + getValue(c), 0) / (cuts.length - half)
   if (first === 0) return null
   return ((second - first) / first) * 100
-}
-
-interface KpiCardProps {
-  title: string
-  value: string
-  sub?: string
-  icon: React.ReactNode
-  trendPct?: number | null
-  /** when the metric going up is bad (waste), invert the colour logic */
-  invertTrend?: boolean
-}
-
-function KpiCard({ title, value, sub, icon, trendPct, invertTrend }: KpiCardProps) {
-  const isUp = (trendPct ?? 0) > 0
-  const isGood = invertTrend ? !isUp : isUp
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <span className="text-muted-foreground">{icon}</span>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold">{value}</p>
-        {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-        {trendPct !== null && trendPct !== undefined && (
-          <p
-            className={[
-              "mt-1 flex items-center gap-0.5 text-xs font-medium",
-              isGood ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400",
-            ].join(" ")}
-          >
-            {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {Math.abs(trendPct).toFixed(1)}% vs prior half
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  )
 }
 
 export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
@@ -93,35 +63,62 @@ export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
   const wasteLabel =
     avgWaste <= 10 ? "Excellent" : avgWaste <= 20 ? "Good" : avgWaste <= 35 ? "Moderate" : "High"
 
+  const wasteSparkIntent: StatCardProps["sparkIntent"] =
+    avgWaste > 35 ? "danger" : avgWaste > 20 ? "warning" : avgWaste > 10 ? "accent" : "success"
+
+  // Waste / scrap going UP is bad — `intent: "negative-up"` flips the
+  // chip color logic so increases turn red instead of green.
+  const wasteTrendProp: StatCardProps["trend"] =
+    wasteTrend == null
+      ? undefined
+      : {
+          delta: wasteTrend,
+          label: "vs prior half",
+          intent: "negative-up",
+          formatted: `${Math.abs(wasteTrend).toFixed(1)}%`,
+        }
+  const scrapTrendProp: StatCardProps["trend"] =
+    scrapTrend == null
+      ? undefined
+      : {
+          delta: scrapTrend,
+          label: "vs prior half",
+          intent: "negative-up",
+          formatted: `${Math.abs(scrapTrend).toFixed(1)}%`,
+        }
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <KpiCard
-        title="Avg Waste Ratio"
+      <StatCard
+        label="Avg waste ratio"
+        icon={<Scissors />}
         value={`${avgWaste.toFixed(1)}%`}
-        sub={wasteLabel}
-        icon={<Scissors className="h-4 w-4" />}
-        trendPct={wasteTrend}
-        invertTrend
+        footnote={wasteLabel}
+        sparkIntent={wasteSparkIntent}
+        trend={wasteTrendProp}
       />
-      <KpiCard
-        title="Total Scrap"
-        value={`${totalScrap.toFixed(1)} ft²`}
-        sub={`${cuts.length} cuts recorded`}
-        icon={<TrendingDown className="h-4 w-4" />}
-        trendPct={scrapTrend}
-        invertTrend
+      <StatCard
+        label="Total scrap"
+        icon={<TrendingDown />}
+        value={totalScrap.toFixed(1)}
+        unit="sqft"
+        footnote={`${cuts.length} cuts recorded`}
+        trend={scrapTrendProp}
       />
-      <KpiCard
-        title="Reusable Offcut"
-        value={`${totalReusable.toFixed(1)} ft²`}
-        sub="Saved from scrap"
-        icon={<Layers className="h-4 w-4" />}
+      <StatCard
+        label="Reusable offcut"
+        icon={<Layers />}
+        value={totalReusable.toFixed(1)}
+        unit="sqft"
+        footnote="Saved from scrap"
+        sparkIntent="success"
       />
-      <KpiCard
-        title="Material Used"
-        value={`${totalMaterial.toFixed(1)} ft²`}
-        sub="Across all cuts"
-        icon={<Zap className="h-4 w-4" />}
+      <StatCard
+        label="Material used"
+        icon={<Zap />}
+        value={totalMaterial.toFixed(1)}
+        unit="sqft"
+        footnote="Across all cuts"
       />
     </div>
   )

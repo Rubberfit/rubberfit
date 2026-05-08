@@ -1,13 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { DatePickerWithRange } from "@/app/components/ui/date-range-picker"
-import { toast } from "sonner"
 import { Calendar } from "lucide-react"
+import { format, subDays, startOfMonth } from "date-fns"
+import { toast } from "sonner"
+
+import { DatePickerWithRange } from "@/app/components/ui/date-range-picker"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import type { Cut } from "@/src/infrastructure/models/supabase"
-import { format, subDays, startOfMonth } from "date-fns"
 
 import { ComparisonSummaryCards } from "./_components/comparison-summary-cards"
 import { WasteCharts } from "./_components/waste-charts"
@@ -43,6 +45,13 @@ export default function WasteComparisonPage() {
   >([])
 
   useEffect(() => {
+    // `cancelled` guards against stale resolves — fast date-range
+    // changes used to let an older request finish last and overwrite
+    // `comparison` / `trendData` / `materialComparison` with the
+    // wrong period's data. Same pattern as the supplier detail
+    // sheet fix (PR #203).
+    let cancelled = false
+
     const calculateMetrics = (cuts: Cut[], period: string): WasteMetrics => {
       if (cuts.length === 0) {
         return {
@@ -91,7 +100,7 @@ export default function WasteComparisonPage() {
           cuts: data.count,
         }))
 
-        setTrendData(trend)
+        if (!cancelled) setTrendData(trend)
       } catch (error) {
         console.error("Error fetching trend data:", error)
       }
@@ -150,7 +159,7 @@ export default function WasteComparisonPage() {
               : 0,
         }))
 
-        setMaterialComparison(comparison)
+        if (!cancelled) setMaterialComparison(comparison)
       } catch (error) {
         console.error("Error fetching material comparison:", error)
       }
@@ -187,6 +196,7 @@ export default function WasteComparisonPage() {
         const avgCostPerSqft = 2.5 // Default average cost
         const savingsDollars = savingsSqft * avgCostPerSqft
 
+        if (cancelled) return
         setComparison({
           current: currentMetrics,
           previous: previousMetrics,
@@ -202,42 +212,55 @@ export default function WasteComparisonPage() {
         await fetchMaterialComparisonInner(from, to, previousFrom, previousTo)
       } catch (error) {
         console.error("Error fetching waste comparison:", error)
-        toast.error("Failed to load waste comparison data")
+        if (!cancelled) toast.error("Failed to load waste comparison data")
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    fetchWasteComparison()
+    void fetchWasteComparison()
+    return () => {
+      cancelled = true
+    }
   }, [dateRange])
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
-        <div className="text-center py-12">Loading comparison data...</div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <DatePickerWithRange
-            date={dateRange}
-            onDateChange={(range) => {
-              if (range && range.from && range.to) {
-                setDateRange({ from: range.from, to: range.to })
-              }
-            }}
-          />
-        </div>
-      </div>
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Waste comparison" },
+        ]}
+        title="Waste comparison"
+        subtitle="Compare waste metrics across periods to spot improvements."
+      />
 
-      {comparison && <ComparisonSummaryCards comparison={comparison} />}
+      <ViewToolbar
+        hideSearch
+        filters={
+          <div className="flex items-center gap-2">
+            <Calendar className="size-4 text-muted-foreground" aria-hidden="true" />
+            <DatePickerWithRange
+              date={dateRange}
+              onDateChange={(range) => {
+                if (range && range.from && range.to) {
+                  setDateRange({ from: range.from, to: range.to })
+                }
+              }}
+            />
+          </div>
+        }
+      />
 
-      <WasteCharts trendData={trendData} materialComparison={materialComparison} />
-    </div>
+      {loading ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">Loading comparison data…</p>
+      ) : (
+        <>
+          {comparison && <ComparisonSummaryCards comparison={comparison} />}
+          <WasteCharts trendData={trendData} materialComparison={materialComparison} />
+        </>
+      )}
+    </PageShell>
   )
 }

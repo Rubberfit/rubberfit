@@ -34,7 +34,7 @@ export function validatePOFormData(formData: POFormData): boolean {
   return true
 }
 
-function mapFormItems(items: POFormData["items"]) {
+export function mapFormItems(items: POFormData["items"]) {
   return items.map((item) => ({
     materialTypeId: item.material_type_id,
     description: item.description || "",

@@ -68,7 +68,11 @@ export default function AdminSecurityPage() {
   }
 
   return (
-    <PageShell variant="form">
+    // Roles matrix + audit log are wide tables; the 760px `form`
+    // variant clipped them and forced a horizontal scroll. `dense`
+    // (1800px) matches the inventory / suppliers list pages where
+    // the same data-heavy chrome lives.
+    <PageShell variant="dense">
       <PageHeader
         crumbs={[
           { label: "Dashboard", href: "/dashboard" },

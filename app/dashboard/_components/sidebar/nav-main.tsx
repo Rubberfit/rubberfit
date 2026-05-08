@@ -45,7 +45,9 @@ interface NavMainProps {
 }
 
 const IsComingSoon = () => (
-  <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs dark:text-muted-foreground">Soon</span>
+  <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs dark:text-muted-foreground">
+    Soon
+  </span>
 )
 
 const NavItemExpanded = ({
@@ -290,7 +292,7 @@ export function NavMain({ items }: NavMainProps) {
               {canManageRolls && (
                 <SidebarMenuButton
                   tooltip="Quick Create"
-                  className="min-w-8 bg-primary font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-primary-foreground transition-colors hover:bg-accent-fg hover:text-primary-foreground active:scale-[0.98] active:bg-accent-fg active:text-primary-foreground"
+                  className="min-w-8 bg-primary text-primary-foreground transition-colors hover:bg-accent-fg hover:text-primary-foreground active:scale-[0.98] active:bg-accent-fg active:text-primary-foreground"
                   onClick={handleQuickCreate}
                 >
                   <PlusCircleIcon className="size-4" />
@@ -306,9 +308,7 @@ export function NavMain({ items }: NavMainProps) {
                 <MailIcon className="h-4 w-4" />
                 <span className="sr-only">
                   Notifications
-                  {unreadNotifications > 0
-                    ? ` — ${unreadNotifications} unread`
-                    : ""}
+                  {unreadNotifications > 0 ? ` — ${unreadNotifications} unread` : ""}
                 </span>
                 {unreadNotifications > 0 && (
                   <span

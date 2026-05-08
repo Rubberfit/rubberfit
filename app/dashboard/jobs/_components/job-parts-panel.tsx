@@ -17,7 +17,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/app/components/ui/form"
 import { Input } from "@/app/components/ui/input"
 import { Textarea } from "@/app/components/ui/textarea"
 import {
@@ -174,10 +181,11 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                   <TableCell className="font-mono text-muted-foreground text-xs">
                     {p.part_number ?? "—"}
                   </TableCell>
-                  <TableCell className="text-foreground text-sm">{p.material_type ?? "—"}</TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    {p.material_type ?? "—"}
+                  </TableCell>
                   <TableCell className="font-mono text-muted-foreground text-xs">
-                    {p.width}″ × {p.length}″
-                    {p.thickness ? ` × ${p.thickness}″` : ""}
+                    {p.width}″ × {p.length}″{p.thickness ? ` × ${p.thickness}″` : ""}
                   </TableCell>
                   <TableCell className="text-right text-sm">{p.quantity}</TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground text-xs">

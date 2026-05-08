@@ -31,41 +31,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table"
-import {
-  EmptyState,
-  PageHeader,
-  PageShell,
-  ViewToolbar,
-} from "@/app/components/patterns"
+import { EmptyState, PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { jobService } from "@/src/infrastructure/services/jobService"
-import type { Job, JobStatus } from "@/src/infrastructure/models/supabase"
+import type { Job } from "@/src/infrastructure/models/supabase"
 import { cn } from "@/app/lib/utils"
 
 import { JobDetailDrawer } from "./_components/job-detail-drawer"
-import { JobFormDialog } from "./_components/job-form-dialog"
-
-const STATUS_TONE: Record<JobStatus, string> = {
-  draft: "border-border-subtle bg-muted/60 text-muted-foreground",
-  scheduled: "border-info-border bg-info-bg text-info-foreground",
-  in_progress: "border-warning-border bg-warning-bg text-warning-foreground",
-  completed: "border-success-border bg-success-bg text-success-foreground",
-  cancelled: "border-border-subtle bg-muted text-muted-foreground",
-}
-
-const STATUS_LABEL: Record<JobStatus, string> = {
-  draft: "Draft",
-  scheduled: "Scheduled",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "—"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString()
-}
+import { JobFormSheet } from "./_components/job-form-sheet"
+import { formatDate, STATUS_LABEL, STATUS_TONE } from "./_components/job-status-utils"
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -156,9 +129,7 @@ export default function JobsPage() {
           onSearchChange={setSearch}
         />
         {loading ? (
-          <div className="px-6 py-8 text-center text-muted-foreground text-sm">
-            Loading jobs…
-          </div>
+          <div className="px-6 py-8 text-center text-muted-foreground text-sm">Loading jobs…</div>
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="size-5" />}
@@ -201,20 +172,14 @@ export default function JobsPage() {
                     {job.customer_po_number ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn("capitalize", STATUS_TONE[job.status])}
-                    >
+                    <Badge variant="outline" className={cn("capitalize", STATUS_TONE[job.status])}>
                       {STATUS_LABEL[job.status]}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {formatDate(job.due_date)}
                   </TableCell>
-                  <TableCell
-                    className="w-10 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <TableCell className="w-10 text-right" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -253,7 +218,7 @@ export default function JobsPage() {
         )}
       </Card>
 
-      <JobFormDialog
+      <JobFormSheet
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open)
@@ -299,9 +264,8 @@ export default function JobsPage() {
             <AlertDialogTitle>Delete this job?</AlertDialogTitle>
             <AlertDialogDescription>
               Removes {pendingDelete?.job_number ?? "the job"}
-              {pendingDelete?.name ? ` — ${pendingDelete.name}` : ""} and its parts,
-              assignees, and roll allocations. Cuts recorded against it stay in cut
-              history but lose the job link.
+              {pendingDelete?.name ? ` — ${pendingDelete.name}` : ""} and its parts, assignees, and
+              roll allocations. Cuts recorded against it stay in cut history but lose the job link.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
