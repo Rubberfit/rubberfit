@@ -81,7 +81,11 @@ const DARK: KonvaThemeTokens = {
   labelFill: "#ffffff",
   labelStroke: "rgba(0,0,0,0.85)",
   partStroke: "#0c0a09", // stone-950 — crisp against vibrant fills on dark bg
-  selectedStroke: "#2dd4bf", // teal-400 — brand selection ring (lighter for dark bg)
+  // Dark mode parts include `#2dd4bf` (teal-400) in the palette, so a teal
+  // selection ring would disappear against its own part body. Bumped to
+  // teal-200 which sits clearly above any 400-shade part fill while still
+  // speaking the brand language.
+  selectedStroke: "#99f6e4",
   elevationShadow: "#000000", // pure black — the lift needs separation over stone-900
 }
 

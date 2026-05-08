@@ -114,6 +114,15 @@ const PartShape = memo(function PartShape({
   // moveToTop on hover — z-index churn on every pointer-enter would
   // thrash the layer in dense scenes; selected/dragging are rare
   // enough that this is fine.
+  //
+  // The reorder is intentionally one-way: there is no inverse on
+  // deselect, so the layer's child order accumulates a permutation
+  // across the session. Visually invisible (parts are flat once
+  // de-elevated) and Konva tolerates it; flagged so any future
+  // feature that introspects `layer.children` order (z-export,
+  // snapshot diff) knows it's history-dependent. `moveToTop()` is
+  // idempotent so React 19 Strict Mode's mount → cleanup → mount
+  // double-invoke is benign.
   useEffect(() => {
     if ((selected || isDragging) && groupRef.current) {
       groupRef.current.moveToTop()
