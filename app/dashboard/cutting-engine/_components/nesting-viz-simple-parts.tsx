@@ -550,11 +550,10 @@ export function SimpleModeOffcutLabels({
             y={centerY}
             transform={displayRotated ? `rotate(90 ${centerX} ${centerY})` : undefined}
             textAnchor="middle"
-            // amber-900 over the new amber-200 sheet in light mode;
-            // amber-100 over the deep amber-900 sheet in dark mode.
-            // Hard-coded amber-700/600 would disappear against the
-            // darker sheet on the latter.
-            className="fill-amber-900 dark:fill-amber-100"
+            // Slate-900 reads cleanly on the cream offcut fill
+            // (Treatment 1). Dark-mode flips to amber-50 since the
+            // cream fill darkens to amber-950 there.
+            className="fill-slate-900 dark:fill-amber-50"
             fontWeight="600"
           >
             <tspan x={centerX} dy={-dimsSize * 0.6} fontSize={titleSize}>
@@ -564,7 +563,7 @@ export function SimpleModeOffcutLabels({
               x={centerX}
               dy={titleSize + dimsSize * 0.3}
               fontSize={dimsSize}
-              className="fill-amber-700 dark:fill-amber-200"
+              className="fill-slate-700 dark:fill-amber-100"
             >
               {dims}
             </tspan>

@@ -41,9 +41,15 @@ const IS_DEV = process.env.NODE_ENV === "development"
 // arrives self-contained at any host container size.
 const SHEET_FILL = "#A8A095" // warm amber-ash — raw rubber under shop light
 const PAGE_FILL = "#F1F5F9" // slate-100 — work-surface backdrop
-const OFFCUT_OUTLINE = "rgba(15,23,42,0.55)" // slate-900 @ 55% — dashed reusable boundary
+// Offcut bands "punch through" the scrap hatch with a clean cream
+// fill so reusable zones read as `the area you can salvage` against
+// the rust-hatched scrap. Slightly lighter than SHEET_FILL so even
+// when offcut and scrap overlap (which they do at low utilization),
+// the offcut wins and stays legible. Outline + dash unchanged.
+const OFFCUT_FILL = "#E5DBC9"
+const OFFCUT_OUTLINE = "rgba(15,23,42,0.7)" // slate-900 @ 70% — dashed reusable boundary
 const OFFCUT_DASH = "6 4"
-const OFFCUT_OUTLINE_WIDTH = 1.5
+const OFFCUT_OUTLINE_WIDTH = 1.75
 const SHEET_BEVEL_LIGHT = "rgba(255,255,255,0.35)"
 const SHEET_BEVEL_SHADE = "rgba(0,0,0,0.15)"
 
@@ -536,10 +542,13 @@ function SheetSvg({
                   />
                 )
               )}
-            {/* Offcut bands — dashed boundary stroke only. The sheet
-                shows through, so each reusable region reads as a
-                discrete chunk an operator could harvest, distinct
-                from the scrap regions and the cut parts. */}
+            {/* Offcut bands — clean cream fill that punches through
+                any underlying scrap hatch, plus a dashed boundary so
+                each reusable region reads as a discrete chunk an
+                operator could harvest. Painted AFTER scrap so the
+                fill wins overlap (Rust often classifies the entire
+                un-occupied bin as scrap, with offcut bands carved out
+                by a separate pass). */}
             {!layout.shapeFirstView &&
               sheet.preview.offcutBands.map((band, index) =>
                 band.polygon ? (
@@ -551,7 +560,7 @@ function SheetSvg({
                           `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
                       )
                       .join(" ")}
-                    fill="none"
+                    fill={OFFCUT_FILL}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
                     strokeDasharray={OFFCUT_DASH}
@@ -564,7 +573,7 @@ function SheetSvg({
                     y={layout.surfaceY + band.y * layout.scale}
                     width={band.width * layout.scale}
                     height={band.height * layout.scale}
-                    fill="none"
+                    fill={OFFCUT_FILL}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
                     strokeDasharray={OFFCUT_DASH}
