@@ -5,8 +5,9 @@ import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { InlineNotice, PageHeader, PageShell } from "@/app/components/patterns"
 import { DebugOverlayToggles, type DebugOverlays } from "./_components/debug-overlay-toggles"
-import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { FileUp, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import { usePackGate } from "./_hooks/use-pack-gate"
 import PresetDimensionSelector, {
@@ -719,74 +720,62 @@ function CutPlannerPageInner() {
 
   // Render
   return (
-    <div className="space-y-6">
+    <PageShell variant="workspace">
+      <PageHeader
+        crumbs={[{ label: "Operations", href: "/dashboard" }, { label: "Cutting engine" }]}
+        title="Cutting engine"
+        subtitle="Select a finished profile, choose the standard size, set the cut count, and preview the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts."
+        actions={<RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />}
+      />
+
       <RollLoader onLoad={handleLoadRoll} />
       <JobLoader onLoad={handleLoadJob} />
-      {sourceJob && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
-            {" — "}
-            {sourceJob.name}
-            {sourceJob.customer_name ? (
-              <span className="text-blue-700 dark:text-blue-400">
-                {" · "}
-                {sourceJob.customer_name}
-              </span>
-            ) : null}
-            . This cut will link back to the job's Cuts Recorded panel.
-          </span>
-          <button
-            type="button"
-            aria-label="Clear job"
-            onClick={() => setSourceJob(null)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {sourceJob ? (
+        <InlineNotice
+          intent="info"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Clear job"
+              onClick={() => setSourceJob(null)}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          }
+        >
+          Cutting for <strong className="font-mono">{sourceJob.job_number ?? "job"}</strong>
+          {" — "}
+          {sourceJob.name}
+          {sourceJob.customer_name ? (
+            <span className="text-muted-foreground">
+              {" · "}
+              {sourceJob.customer_name}
+            </span>
+          ) : null}
+          . This cut will link back to the job&apos;s Cuts Recorded panel.
+        </InlineNotice>
+      ) : null}
       <CutLoader onLoad={handleCutLoaderLoad} />
 
-      {loadedFromHistory && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cut loaded from history — all fields are editable. Adjust and click{" "}
-            <strong>Save Cut</strong> to record a new entry.
-          </span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setLoadedFromHistory(false)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <Badge variant="outline" className="w-fit">
-            Cutting Engine
-          </Badge>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-300">
-              Cutting Engine
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Select a finished profile, choose the standard size, set the cut count, and preview
-              the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 md:shrink-0">
-          <RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />
-        </div>
-      </div>
+      {loadedFromHistory ? (
+        <InlineNotice
+          intent="info"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss"
+              onClick={() => setLoadedFromHistory(false)}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          }
+        >
+          Cut loaded from history — all fields are editable. Adjust and click{" "}
+          <strong>Save cut</strong> to record a new entry.
+        </InlineNotice>
+      ) : null}
 
       <CutListUpload onPartsConfirmed={handleUploadedParts} />
 
@@ -893,7 +882,7 @@ function CutPlannerPageInner() {
                   {hasRenderedLayout && cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
                     <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
                       <Scissors className="mr-1.5 h-4 w-4" />
-                      {isRecordingCut ? "Saving…" : "Save Cut"}
+                      {isRecordingCut ? "Saving…" : "Save cut"}
                     </Button>
                   )}
                 </div>
@@ -971,7 +960,7 @@ function CutPlannerPageInner() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   )
 }
 
