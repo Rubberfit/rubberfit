@@ -1,5 +1,5 @@
 import React from "react"
-import type { PreviewItem, SimplePartPreview } from "./nesting-visualizer-types"
+import type { PreviewItem } from "./nesting-visualizer-types"
 import { polygonCentroid } from "./part-label"
 
 // Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
@@ -37,13 +37,8 @@ interface NestingShapeRendererProps {
   unitOriginX: number
   unitOriginY: number
   scale: number
-  shapeFirstView: boolean
-  preview: SimplePartPreview
-  displayPreview: SimplePartPreview
-  /** SVG `<pattern>` id from `SimpleModeCanvasDefs` — emerald hatch. */
+  /** SVG `<linearGradient>` id from `SimpleModeCanvasDefs` — slate light/shade. */
   partGradientId: string
-  viewHeight: number
-  surfacePxW: number
   tagLetter?: string
   zoom?: number
   /**
@@ -411,12 +406,7 @@ export default function NestingShapeRenderer({
   unitOriginX,
   unitOriginY,
   scale,
-  shapeFirstView: _shapeFirstView,
-  preview: _preview,
-  displayPreview: _displayPreview,
   partGradientId,
-  viewHeight: _viewHeight,
-  surfacePxW: _surfacePxW,
   tagLetter,
   zoom = 1,
   displayRotated,

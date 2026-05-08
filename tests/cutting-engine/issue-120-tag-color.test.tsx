@@ -61,12 +61,7 @@ function renderShape(item: PreviewItem, tagLetter = "A"): string {
         unitOriginX={0}
         unitOriginY={0}
         scale={10}
-        shapeFirstView={false}
-        preview={STUB_PREVIEW}
-        displayPreview={STUB_PREVIEW}
         partGradientId="part"
-        viewHeight={500}
-        surfacePxW={1000}
         tagLetter={tagLetter}
         zoom={1}
       />
@@ -176,12 +171,7 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
           unitOriginX={0}
           unitOriginY={0}
           scale={10}
-          shapeFirstView={false}
-          preview={STUB_PREVIEW}
-          displayPreview={STUB_PREVIEW}
           partGradientId="part"
-          viewHeight={500}
-          surfacePxW={1000}
           zoom={1}
         />
       </svg>

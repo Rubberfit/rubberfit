@@ -609,12 +609,7 @@ function SheetSvg({
                 unitOriginX={layout.unitOriginX}
                 unitOriginY={layout.unitOriginY}
                 scale={layout.scale}
-                shapeFirstView={layout.shapeFirstView}
-                preview={preview}
-                displayPreview={sheet.preview}
                 partGradientId={sPartLight}
-                viewHeight={layout.viewHeight}
-                surfacePxW={layout.surfacePxW}
                 tagLetter={item.label}
                 zoom={zoom}
                 displayRotated={layout.displayRotated}
@@ -657,7 +652,7 @@ function SheetSvg({
             zoom={zoom}
           />
         </g>
-        <SimpleModeDimensionLabels layout={layout} zoom={zoom} />
+        <SimpleModeDimensionLabels layout={layout} zoom={zoom} markerId={sMarker} />
       </svg>
     </div>
   )

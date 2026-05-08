@@ -297,12 +297,17 @@ export function SimpleModeCanvasDefs({
       </pattern>
       <pattern
         id={scrapHatchPatternId}
-        width="4"
-        height="4"
+        width="6"
+        height="6"
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(180,83,9,0.25)" strokeWidth="1" />
+        {/* Red-100 base + red-600 stripes — saturated enough to
+            differentiate scrap from the warm-grey sheet at a glance.
+            The prior amber-700 hatch blended into the amber-ash
+            base; this reads unambiguously as "waste". */}
+        <rect width="6" height="6" fill="#fee2e2" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(220,38,38,0.55)" strokeWidth="1.5" />
       </pattern>
       <pattern id={pageGridPatternId} width="40" height="40" patternUnits="userSpaceOnUse">
         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" opacity="0.40" />
