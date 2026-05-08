@@ -278,12 +278,19 @@ export function SimpleModeCanvasDefs({
 }) {
   return (
     <defs>
+      {/* Every fill / stroke / stop-color below pulls from `--svg-*`
+          CSS variables defined in `globals.css`. SVG presentation
+          attributes accept `var(...)` directly in modern browsers, so
+          a single set of defs adapts to `<html class="dark">` without
+          React branching or duplicated `<defs>`. See `:root` and
+          `.dark` blocks in `globals.css` for the per-mode hex values
+          (Phase 5 PR 3 — Treatment 1 dark-mode pass per Kimi K2.6). */}
       <radialGradient id={sheetVignetteId} cx="50%" cy="50%" r="70%">
-        <stop offset="0%" stopColor="#000000" stopOpacity="0" />
-        <stop offset="100%" stopColor="#000000" stopOpacity="0.20" />
+        <stop offset="0%" stopColor="var(--svg-vignette-end)" stopOpacity="0" />
+        <stop offset="100%" stopColor="var(--svg-vignette-end)" />
       </radialGradient>
       <pattern id={toolGridPatternId} width="20" height="20" patternUnits="userSpaceOnUse">
-        <circle cx="10" cy="10" r="1" fill="rgba(0,0,0,0.08)" />
+        <circle cx="10" cy="10" r="1" fill="var(--svg-dot-grid)" />
       </pattern>
       <pattern
         id={scrapHatchPatternId}
@@ -292,15 +299,14 @@ export function SimpleModeCanvasDefs({
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        {/* Red-100 base + red-600 stripes — saturated enough to
-            differentiate scrap from the warm-grey sheet at a glance.
-            The prior amber-700 hatch blended into the amber-ash
-            base; this reads unambiguously as "waste". */}
-        <rect width="6" height="6" fill="#fee2e2" />
-        <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(220,38,38,0.55)" strokeWidth="1.5" />
+        {/* Light: red-100 base + red-600 @ 55%. Dark: red-950 base +
+            red-600 @ 65%. Both modes read unambiguously as "waste"
+            against their respective sheet base. */}
+        <rect width="6" height="6" fill="var(--svg-scrap-base)" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="var(--svg-scrap-stripe)" strokeWidth="1.5" />
       </pattern>
       <pattern id={pageGridPatternId} width="40" height="40" patternUnits="userSpaceOnUse">
-        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" opacity="0.40" />
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--svg-grid)" strokeWidth="0.5" />
       </pattern>
       <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
         <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />

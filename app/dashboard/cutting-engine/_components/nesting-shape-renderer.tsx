@@ -5,10 +5,15 @@ import { polygonCentroid } from "./part-label"
 // Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
 //
 // Each cut part renders as a solid slate body with a 1px slate-700
-// stroke and a CSS drop-shadow that simulates the part sitting proud
-// of the sheet under a top-left shop light. Solid (no gradient) per
-// founder feedback — the drop shadow + stroke carry the dimensional
-// read; the gradient added complexity without much benefit.
+// stroke and a CSS drop-shadow simulating the part sitting proud of
+// the sheet. Solid (no gradient) per founder feedback — the drop
+// shadow + stroke carry the dimensional read on their own.
+//
+// All three values pull from `--svg-*` CSS variables in `globals.css`
+// so the renderer adapts to `<html class="dark">` without any React
+// branching. Light mode: dark slate fill + dark drop shadow. Dark
+// mode: lighter slate fill + a faint white-glow shadow ("lit edge"
+// effect on the deep stone-900 sheet).
 //
 // CSS `drop-shadow` is GPU-composited on modern Blink/WebKit and
 // avoids the per-element rasterization cost of SVG `<filter>` at
@@ -20,13 +25,12 @@ import { polygonCentroid } from "./part-label"
 // already cover. The two-pass `background`/`foreground` machinery
 // stays collapsed to a single pass for the same reason.
 
-const PART_FILL = "#64748b" // slate-500 — solid cut-part body
-const PART_STROKE = "#334155" // slate-700 — clean 1px outline
+const PART_FILL = "var(--svg-part-fill)"
+const PART_STROKE = "var(--svg-part-stroke)"
 const PART_STROKE_WIDTH = "1"
-// Tailwind arbitrary-value drop shadow — GPU-composited via CSS
-// `filter: drop-shadow(...)`. Single-quoted className would clash
-// with the SVG attr; the bracket syntax keeps the string atomic.
-const PART_SHADOW_CLASS = "[filter:drop-shadow(1px_2px_2px_rgba(0,0,0,0.12))]"
+const PART_SHADOW_STYLE: React.CSSProperties = {
+  filter: "drop-shadow(1px 2px 2px var(--svg-part-shadow))",
+}
 
 interface NestingShapeRendererProps {
   item: PreviewItem
@@ -126,7 +130,7 @@ function PolygonShape({
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        className={PART_SHADOW_CLASS}
+        style={PART_SHADOW_STYLE}
       />
       <text
         x={labelX}
@@ -176,7 +180,7 @@ function CircleShape({
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        className={PART_SHADOW_CLASS}
+        style={PART_SHADOW_STYLE}
       />
       <text
         x={cx}
@@ -247,7 +251,7 @@ function SectorShape({
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        className={PART_SHADOW_CLASS}
+        style={PART_SHADOW_STYLE}
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -310,7 +314,7 @@ function TrapezoidShape({
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        className={PART_SHADOW_CLASS}
+        style={PART_SHADOW_STYLE}
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -361,7 +365,7 @@ function RectShape({
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        className={PART_SHADOW_CLASS}
+        style={PART_SHADOW_STYLE}
       />
       <text
         x={coords.px + coords.pw / 2}

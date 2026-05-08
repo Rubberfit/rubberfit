@@ -240,6 +240,25 @@
   /* Konva shape labels — graphite text + Mill-paper halo */
   --shape-label: #14171b;
   --shape-label-halo: rgba(246, 245, 242, 0.85);
+
+  /* Cutting-engine SVG viewer (Phase 5 PR 3 — Treatment 1 / Industrial CAD).
+     Driven by CSS variables so the SVG defs stay theme-agnostic; light values
+     are the warm-amber-ash shop-floor look. Dark values flip the SVG into a
+     "shop floor at night" treatment in `.dark` below. */
+  --svg-page-bg: #f1f5f9;
+  --svg-grid: rgba(203, 213, 225, 0.4);
+  --svg-sheet-base: #a8a095;
+  --svg-bevel-highlight: rgba(255, 255, 255, 0.35);
+  --svg-bevel-shadow: rgba(0, 0, 0, 0.15);
+  --svg-vignette-end: rgba(0, 0, 0, 0.2);
+  --svg-dot-grid: rgba(0, 0, 0, 0.08);
+  --svg-part-fill: #64748b;
+  --svg-part-stroke: #334155;
+  --svg-part-shadow: rgba(0, 0, 0, 0.12);
+  --svg-scrap-base: #fee2e2;
+  --svg-scrap-stripe: rgba(220, 38, 38, 0.55);
+  --svg-offcut-fill: #e5dbc9;
+  --svg-offcut-border: rgba(15, 23, 42, 0.7);
 }
 
 /* ============================================================
@@ -346,6 +365,29 @@
   /* Shape label — Mill paper text + dark halo */
   --shape-label: #f6f5f2;
   --shape-label-halo: rgba(15, 18, 22, 0.85);
+
+  /* Cutting-engine SVG viewer dark-mode treatment ("shop floor at night"
+     CAM viewport). Page bg matches the dashboard's stone-950 chrome so the
+     visualizer reads as a single dark monolith rather than a light island.
+     Sheet base drops to stone-900; bevel inverts (rim light bottom-right,
+     soft shadow top-left); vignette flips to a faint white halo so the
+     sheet floats without darkening into the bg. Scrap stays red but on a
+     red-950 base; offcut becomes a stone-800 reserved mask with a light
+     dashed boundary. */
+  --svg-page-bg: #0c0a09;
+  --svg-grid: rgba(148, 163, 184, 0.12);
+  --svg-sheet-base: #1c1917;
+  --svg-bevel-highlight: rgba(0, 0, 0, 0.4);
+  --svg-bevel-shadow: rgba(255, 255, 255, 0.08);
+  --svg-vignette-end: rgba(255, 255, 255, 0.06);
+  --svg-dot-grid: rgba(255, 255, 255, 0.1);
+  --svg-part-fill: #94a3b8;
+  --svg-part-stroke: #64748b;
+  --svg-part-shadow: rgba(255, 255, 255, 0.08);
+  --svg-scrap-base: #450a0a;
+  --svg-scrap-stripe: rgba(220, 38, 38, 0.65);
+  --svg-offcut-fill: #292524;
+  --svg-offcut-border: rgba(214, 211, 209, 0.7);
 }
 
 /* Reduced-motion: kill entrance / ambient animations globally. */

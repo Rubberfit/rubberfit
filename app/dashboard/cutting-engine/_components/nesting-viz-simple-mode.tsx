@@ -30,28 +30,31 @@ const IS_DEV = process.env.NODE_ENV === "development"
 
 // Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
 //
-// Sheet base is the warm amber-ash photographic-rubber tone; depth
-// comes from a multiply-blended radial vignette + a faint dot-grid
-// tooling overlay + a 1px inner bevel (top-left highlight, bottom-
-// right shade). Scrap regions get the rust-hatch "marked for waste"
-// pattern. Offcut regions get a dashed boundary stroke only — no fill
-// — so the sheet shows through and the reusable shape reads as a
-// discrete chunk an operator could harvest. The page background is
-// painted INSIDE the SVG (slate + 40px graph grid) so the visualizer
-// arrives self-contained at any host container size.
-const SHEET_FILL = "#A8A095" // warm amber-ash — raw rubber under shop light
-const PAGE_FILL = "#F1F5F9" // slate-100 — work-surface backdrop
-// Offcut bands "punch through" the scrap hatch with a clean cream
-// fill so reusable zones read as `the area you can salvage` against
-// the rust-hatched scrap. Slightly lighter than SHEET_FILL so even
-// when offcut and scrap overlap (which they do at low utilization),
-// the offcut wins and stays legible. Outline + dash unchanged.
-const OFFCUT_FILL = "#E5DBC9"
-const OFFCUT_OUTLINE = "rgba(15,23,42,0.7)" // slate-900 @ 70% — dashed reusable boundary
+// Every colour below pulls from a `--svg-*` CSS variable defined in
+// `globals.css` (`:root` for light, `.dark` for the "shop floor at
+// night" inversion). The SVG defs and presentation attributes
+// reference these via `var(...)`, so the visualizer stays a single
+// self-contained render tree that simply inherits the theme from
+// `<html class="dark">`. No React branching, no duplicated defs.
+//
+// Sheet base is the warm amber-ash photographic-rubber tone in light
+// and stone-900 deep warm plane in dark; depth comes from a multiply-
+// blended radial vignette (dark vignette in light mode, white halo
+// in dark mode), a faint dot-grid tooling overlay (black dots light
+// / white dots dark), and a 1px inner bevel (top-left highlight,
+// bottom-right shade — both invert in dark). Scrap regions get the
+// red-on-pink hatch in light, red-on-near-black hatch in dark.
+// Offcut regions punch through the scrap with a clean cream fill in
+// light and a stone-800 reserved-mask in dark; both carry a dashed
+// boundary so the shape reads as a discrete reusable chunk.
+const SHEET_FILL = "var(--svg-sheet-base)"
+const PAGE_FILL = "var(--svg-page-bg)"
+const OFFCUT_FILL = "var(--svg-offcut-fill)"
+const OFFCUT_OUTLINE = "var(--svg-offcut-border)"
 const OFFCUT_DASH = "6 4"
 const OFFCUT_OUTLINE_WIDTH = 1.75
-const SHEET_BEVEL_LIGHT = "rgba(255,255,255,0.35)"
-const SHEET_BEVEL_SHADE = "rgba(0,0,0,0.15)"
+const SHEET_BEVEL_LIGHT = "var(--svg-bevel-highlight)"
+const SHEET_BEVEL_SHADE = "var(--svg-bevel-shadow)"
 
 // Single-pass min/max bounding box for an SVG render item. Used by the
 // dev-only "Show AABB" overlay. Falls back to the placement's
