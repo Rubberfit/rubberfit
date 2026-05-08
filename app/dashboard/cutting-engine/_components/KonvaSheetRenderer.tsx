@@ -365,7 +365,7 @@ interface KonvaSheetRendererProps {
    * as visual noise. Override with an explicit boolean if a consumer
    * wants the non-default behavior on either base.
    */
-  renderOffcutRegions?: boolean
+  shouldRenderOffcutRegions?: boolean
   /**
    * User zoom percentage applied on top of the auto-fit scale.
    * 100 = fit-to-container (default); 200 = 2× that fit. Values
@@ -387,7 +387,7 @@ function KonvaSheetRenderer({
   onPartClick,
   onSheetClick,
   sheetBase = "neutral",
-  renderOffcutRegions,
+  shouldRenderOffcutRegions,
   zoomPct = 100,
   showGrid = true,
 }: KonvaSheetRendererProps) {
@@ -396,7 +396,7 @@ function KonvaSheetRenderer({
   const theme = useKonvaTheme()
   // Default: hide offcut overlays when base is already amber. JSDoc
   // on the prop carries the full rationale.
-  const showOffcutRegions = renderOffcutRegions ?? sheetBase !== "offcut"
+  const showOffcutRegions = shouldRenderOffcutRegions ?? sheetBase !== "offcut"
 
   useEffect(() => {
     const el = containerRef.current
@@ -455,7 +455,7 @@ function KonvaSheetRenderer({
               />
             )}
 
-            {/* Reusable offcut — amber. Gated by `renderOffcutRegions`. */}
+            {/* Reusable offcut — amber. Gated by `shouldRenderOffcutRegions`. */}
             {showOffcutRegions &&
               layout.offcuts.map((region, i) => (
                 <RegionShape
@@ -508,7 +508,7 @@ function KonvaSheetRenderer({
  *   - `layout` ref is stable across drag ticks when content-equal
  *     (see `useFreeRoamLayout`'s `layoutCache` bailout).
  *   - `zoomPct`, `showGrid`, `selectedPartId`, `sheetBase`,
- *     `renderOffcutRegions` are primitives.
+ *     `shouldRenderOffcutRegions` are primitives.
  *   - Handler props are `useCallback`'d in `free-roam-content.tsx`.
  */
 export default memo(KonvaSheetRenderer)
