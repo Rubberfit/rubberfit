@@ -10,6 +10,8 @@
 // Source of truth: engine/crates/rf-layout/src/domain/{request,result}.rs.
 // When those change, these types need to move in lockstep.
 
+import { z } from "zod"
+
 export interface Point2D {
   x: number
   y: number
@@ -234,3 +236,68 @@ export const PACK_MODE_BUDGETS_MS = {
   balanced: 10_000,
   thorough: 30_000,
 } as const
+
+// ---------------------------------------------------------------------------
+// PackRequest validation (ARC-141 / ASVS V2.2.1)
+//
+// Co-located with the type definitions so any new required field on
+// the Rust side naturally extends both the TypeScript interface and
+// this schema in lockstep.
+//
+// Scope: validate the shape the Next.js dev fallback at
+// `app/api/v2/pack/route.ts` accepts. Production traffic flows through
+// the Rust Vercel function (`api/v2/pack.rs`), which has its own
+// `serde` deserialization — this Zod schema is the dev-side gate.
+//
+// Strategy: strict on the structural fields the dev pipeline actually
+// reads (bins / items / clearance), and `.passthrough()` for the many
+// optional tuning knobs (mode, engine, *Strategy, timeBudgetMs, …) so
+// adding a new optional Rust field doesn't break this schema before
+// the TS interface catches up. A future tightening pass — when the
+// Rust contract stabilises — can swap `.passthrough()` for `.strict()`.
+// ---------------------------------------------------------------------------
+
+const point2DSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+})
+
+const binSchema = z.object({
+  binId: z.string().min(1),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  kind: z.enum(["fresh", "remnant"]),
+  priority: z.number().nullable().optional(),
+})
+
+const shapeSpecSchema = z.object({
+  kind: z.string().min(1),
+  params: z.record(z.string(), z.unknown()),
+})
+
+const partSchema = z.object({
+  shapeId: z.string().min(1),
+  quantity: z.number().int().nonnegative(),
+  polygon: z.array(point2DSchema).optional(),
+  shapeSpec: shapeSpecSchema.nullable().optional(),
+  allowRotation: z.boolean(),
+  grainAxis: z.enum(["width", "length", "none"]).nullable().optional(),
+  difficulty: z.number().nullable().optional(),
+  tag: z.string().nullable().optional(),
+})
+
+export const packRequestSchema = z
+  .object({
+    bins: z.array(binSchema).min(1, { message: "bins must have at least one entry" }),
+    items: z.array(partSchema),
+    clearance: z.number().nonnegative(),
+  })
+  // passthrough: optional Rust tuning knobs (mode, engine, *Strategy,
+  // timeBudgetMs, useWarmStart, …) flow through unchanged so a new
+  // optional Rust field doesn't break this schema before TS catches up.
+  // Rust's `serde` does the strict deserialise on its side — the
+  // BOPLA risk this carve-out would create on a cookie-authenticated
+  // route lives behind `requirePermission(actor, "accessCutPlanner")`
+  // and only forwards into the in-process Rust packer (no DB writes).
+  // Documented in docs/security/security-decisions.md V2.1.1.
+  .passthrough()

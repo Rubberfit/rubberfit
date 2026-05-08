@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 import { alertManagementService } from "@/src/infrastructure/services/alertManagementService"
-import type { AlertAction } from "@/src/application/services/alert-management.service.interface"
 
-interface PatchBody {
-  action: AlertAction
-}
-
-function isPatchBody(value: unknown): value is PatchBody {
-  if (typeof value !== "object" || value === null) return false
-  const action = (value as Record<string, unknown>).action
-  return action === "acknowledge" || action === "resolve"
-}
+// Mirrors `AlertAction` from the alert-management service interface;
+// kept literal here to avoid a runtime import of the interface module.
+// .strict() rejects unknown keys with a 400 (ARC-137 / V8.2.3) — cheap
+// future-proofing against mass-assignment as the alert payload grows.
+const patchBodySchema = z
+  .object({
+    action: z.enum(["acknowledge", "resolve"]),
+  })
+  .strict()
 
 // PATCH /api/admin/alerts/[id] — acknowledge or resolve an alert and
 // write an admin_activity_log entry via the service layer.
@@ -22,22 +23,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params
 
-  let body: unknown
+  let raw: unknown
   try {
-    body = await request.json()
+    raw = await request.json()
   } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
-  if (!isPatchBody(body)) {
+
+  const parsed = patchBodySchema.safeParse(raw)
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: 'Body must be { action: "acknowledge" | "resolve" }' },
+      { error: "Invalid request body", issues: parsed.error.issues },
       { status: 400 }
     )
   }
 
   const result = await alertManagementService.applyAlertAction(adminClient, {
     alertId: id,
-    action: body.action,
+    action: parsed.data.action,
     actorUserId: userId,
     actorEmail: userEmail,
   })

@@ -8,7 +8,7 @@ import { requirePermission } from "@/app/server/auth/require-permission"
 import { TOKENS } from "@/di/tokens"
 import "@/di/di-registration"
 import type { IPackingService } from "@/src/application/services/packing.service.interface"
-import type { PackRequest } from "@/src/application/packing/types"
+import { packRequestSchema } from "@/src/application/packing/types"
 
 /**
  * Server boundary for the Rust packing engine — DEV ONLY.
@@ -85,22 +85,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     throw error
   }
 
-  let body: PackRequest
+  let raw: unknown
   try {
-    body = (await request.json()) as PackRequest
+    raw = await request.json()
   } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
-  if (!body || !Array.isArray(body.bins) || !Array.isArray(body.items)) {
+
+  const parsed = packRequestSchema.safeParse(raw)
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid PackRequest: `bins` and `items` arrays required" },
+      { error: "Invalid PackRequest", issues: parsed.error.issues },
       { status: 400 }
     )
   }
-
+  // `.passthrough()` keeps optional tuning knobs the schema doesn't
+  // declare; the Rust side handles them. The inferred shape covers
+  // every required field of `PackRequest`, so it's structurally
+  // assignable without a cast.
   try {
     const service = container.resolve<IPackingService>(TOKENS.IPackingService)
-    const result = await service.pack(body)
+    const result = await service.pack(parsed.data)
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error"

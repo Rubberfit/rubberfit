@@ -77,12 +77,16 @@ function makePO(overrides: Partial<PurchaseOrderWithDetails> = {}): PurchaseOrde
 interface FakePOService {
   createPurchaseOrder: ReturnType<typeof vi.fn>
   addItemToPurchaseOrder: ReturnType<typeof vi.fn>
+  recalculatePOTotals: ReturnType<typeof vi.fn>
+  deletePurchaseOrder: ReturnType<typeof vi.fn>
 }
 
 function makeFakePOService(): FakePOService {
   return {
     createPurchaseOrder: vi.fn().mockResolvedValue(makePO()),
     addItemToPurchaseOrder: vi.fn().mockResolvedValue({}),
+    recalculatePOTotals: vi.fn().mockResolvedValue(undefined),
+    deletePurchaseOrder: vi.fn().mockResolvedValue(true),
   }
 }
 
@@ -289,6 +293,62 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
     expect(result.skipped[0].reason).toBe("item_addition_failed")
     expect(result.skipped[0].suggestion.materialTypeId).toBe("mat-A2")
     expect(result.skipped[0].message).not.toContain("FK violation")
+
+    // coderabbit follow-up on PR #177: PO header totals were computed
+    // from BOTH items but only one item is actually on the row. The
+    // use-case must recompute via the service (reads DB items, re-runs
+    // tax) so the header matches the rows.
+    expect(poService.recalculatePOTotals).toHaveBeenCalledWith(result.purchaseOrders[0].id)
+  })
+
+  it("does NOT call recalculatePOTotals when all items succeed (avoid double tax-service call)", async () => {
+    const items = [
+      makeSuggestion({ materialTypeId: "mat-A1" }),
+      makeSuggestion({ materialTypeId: "mat-A2", materialName: "Material A2" }),
+    ]
+    const result = await resolve().execute(buildInput(items))
+
+    expect(result.purchaseOrders).toHaveLength(1)
+    expect(result.skipped).toEqual([])
+    // Recalc only fires on partial failure — no failures here means
+    // the original computation is still authoritative.
+    expect(poService.recalculatePOTotals).not.toHaveBeenCalled()
+  })
+
+  it("when all items fail to add, deletes the orphan PO row and excludes it from purchaseOrders[]", async () => {
+    // coderabbit follow-up: previously, every-item-failed left an
+    // empty draft PO with inflated totals. Now the use-case
+    // best-effort deletes the orphan and doesn't return it.
+    const item1 = makeSuggestion({ materialTypeId: "mat-A1" })
+    const item2 = makeSuggestion({ materialTypeId: "mat-A2", materialName: "Material A2" })
+
+    poService.addItemToPurchaseOrder
+      .mockRejectedValueOnce(new Error("FK violation 1"))
+      .mockRejectedValueOnce(new Error("FK violation 2"))
+
+    const result = await resolve().execute(buildInput([item1, item2]))
+
+    expect(result.purchaseOrders).toEqual([])
+    expect(result.skipped).toHaveLength(2)
+    expect(result.skipped.every((s) => s.reason === "item_addition_failed")).toBe(true)
+    // Orphan PO row was cleaned up.
+    expect(poService.deletePurchaseOrder).toHaveBeenCalledWith("po-1")
+    // No recalculate — we deleted the row, no totals to fix.
+    expect(poService.recalculatePOTotals).not.toHaveBeenCalled()
+  })
+
+  it("orphan-PO cleanup failure is non-fatal — bulk run still returns the skipped[] entries", async () => {
+    const item = makeSuggestion()
+    poService.addItemToPurchaseOrder.mockRejectedValueOnce(new Error("FK violation"))
+    poService.deletePurchaseOrder.mockRejectedValueOnce(new Error("RLS denied delete"))
+
+    const result = await resolve().execute(buildInput([item]))
+
+    // Cleanup failed but the result still surfaces the failure to the
+    // caller so they know the operation didn't succeed.
+    expect(result.purchaseOrders).toEqual([])
+    expect(result.skipped).toHaveLength(1)
+    expect(result.skipped[0].reason).toBe("item_addition_failed")
   })
 
   it("threads actor.id into PO service writes", async () => {
@@ -335,6 +395,59 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
     const result = await resolve().execute(buildInput([suggestion], [rule]))
     expect(result.purchaseOrders).toHaveLength(1)
     expect(result.skipped).toHaveLength(0)
+  })
+
+  // coderabbit follow-up on PR #177: the tax call sat outside the
+  // per-supplier try, so a single tax-service throw aborted the entire
+  // bulk run. Now scoped — failure pushes the supplier's items to
+  // skipped[] with a stable reason and the loop continues.
+  it("tax-service failure for one supplier doesn't break the bulk run", async () => {
+    const supA = makeSuggestion({ materialTypeId: "mat-A", supplierId: "sup-1" })
+    const supB = makeSuggestion({
+      materialTypeId: "mat-B",
+      supplierId: "sup-2",
+      supplierName: "Supplier Two",
+      materialName: "Material B",
+    })
+
+    ;(taxService.calculatePurchaseOrderTax as ReturnType<typeof vi.fn>).mockImplementation(
+      async (supplierId: string, subtotal: number) => {
+        if (supplierId === "sup-1") {
+          throw new Error("ZipTax rate-limit exceeded for ZIP 12345")
+        }
+        return {
+          subtotal,
+          taxRate: 0.0625,
+          taxAmount: subtotal * 0.0625,
+          taxName: "Mocked Rate",
+          taxLevel: "state",
+          total: subtotal * 1.0625,
+        }
+      }
+    )
+
+    poService.createPurchaseOrder.mockResolvedValueOnce(
+      makePO({ id: "po-2", supplier_id: "sup-2" })
+    )
+
+    const result = await resolve().execute(buildInput([supA, supB]))
+
+    // sup-2 succeeded; sup-1 was skipped without aborting.
+    expect(result.purchaseOrders).toHaveLength(1)
+    expect(result.purchaseOrders[0].supplier_id).toBe("sup-2")
+    expect(result.skipped).toHaveLength(1)
+    expect(result.skipped[0].reason).toBe("tax_calculation_failed")
+    expect(result.skipped[0].suggestion.materialTypeId).toBe("mat-A")
+
+    // Sanitized message — raw error text doesn't leak.
+    expect(result.skipped[0].message).not.toContain("ZipTax")
+    expect(result.skipped[0].message).not.toContain("12345")
+
+    // PO was never attempted for the failed supplier.
+    const createdSupplierIds = poService.createPurchaseOrder.mock.calls.map(
+      (call) => call[0].supplier_id
+    )
+    expect(createdSupplierIds).not.toContain("sup-1")
   })
 
   it("falls back to minimal supplier fields when getSupplierById throws", async () => {

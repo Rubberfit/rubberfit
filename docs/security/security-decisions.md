@@ -78,30 +78,63 @@ Verification approach: a single audit pass against the Supabase Dashboard config
 
 ## Input validation rules (V2.1.1)
 
-**TBD** — Phase A4 deliverable. For each entity, this section will list:
+Route-level Zod schemas are the authoritative validation surface
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141)). All
+schemas use `.strict()` mode
+([ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137) / V8.2.3) —
+unknown keys cause a 400, closing the BOPLA / mass-assignment path that
+default Zod mode would otherwise leave open. The one exception is
+`packRequestSchema` in [src/application/packing/types.ts](../../src/application/packing/types.ts),
+which uses `.passthrough()` so optional Rust tuning knobs (mode, engine,
+`*Strategy`, `timeBudgetMs`, …) can flow through without lockstep TS
+maintenance — Rust's `serde` does the strict deserialise on its side.
 
-- Field name, allowed type, length bound, allowed pattern, special rules.
+| Route                            | Schema                 | Required fields and rules                                                                               |
+| -------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| POST `/api/admin/users`          | `createUserBodySchema` | `email` (RFC 5322 via Zod), `password` (min 6 chars), `full_name` (trim, min 1), `roles?` (`AppRole[]`) |
+| PATCH `/api/admin/alerts/[id]`   | `patchBodySchema`      | `action` (`"acknowledge" \| "resolve"`)                                                                 |
+| POST `/api/cuts/favorites`       | `toggleBodySchema`     | `cut_history_id` (UUID v4)                                                                              |
+| POST `/api/v2/pack` _(dev only)_ | `packRequestSchema`    | `bins` (≥1), `items` (array), `clearance` (≥0); `.passthrough()` for tuning fields (see above)          |
 
-Initial entities to document:
+Bridge routes under `app/api/v2/**` (excluding `/pack`) defer
+validation to the Rust backend. The architectural guard at
+[tests/architecture/api-routes-validate-bodies.test.ts](../../tests/architecture/api-routes-validate-bodies.test.ts)
+enforces this division: every write route either calls `.safeParse(...)`
+on a Zod schema (which itself must be `.strict()` or documented
+`.passthrough()`) or forwards to Rust via `forwardToRust(...)`. New
+routes that try to skip both fail the test on commit.
 
-- `Roll` (CSV import primary use case)
-- `PurchaseOrder` (line items, totals, supplier reference)
-- `Cut` (geometric inputs, customer reference)
-- `Supplier` (contact info, address)
-- `User` (admin-set role, profile fields)
-
-Until this section is filled, route-level Zod schemas are the authoritative validation. The audit will check coverage and completeness.
+Per-entity rules for the wider domain (`Roll`, `PurchaseOrder`, `Cut`,
+`Supplier`) live with the writes themselves rather than with API
+routes — they're enforced at the DB layer today (RLS, Postgres types,
+CHECK constraints) and will gain server-action Zod gates as the
+write-path migration tracked in
+[ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) lands.
 
 ---
 
 ## Business logic limits (V2.1.3)
 
-**TBD** — will be populated with per-user and global limits as discovered:
+Limits enforced today via Zod on API routes
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141),
+[ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137)):
 
-- Max PO line items per PO.
-- Max rolls importable per CSV.
-- Max concurrent cuts per user.
-- Anti-automation rate limits per route (V2.4.1).
+- POST `/api/admin/users`: `password` length ≥ 6 chars (historical
+  baseline; tightening tracked under
+  [ARC-145](https://linear.app/arc-and-anchor/issue/ARC-145) / Phase C
+  password policy).
+- POST `/api/v2/pack`: at least one bin per request
+  (`bins.array().min(1)`), `clearance` non-negative.
+
+Limits **not yet enforced**, tracked separately:
+
+- Max PO line items per PO — tracked with the PO domain migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max rolls importable per CSV — tracked with the CSV migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max concurrent cuts per user — TBD; not currently capped.
+- Anti-automation rate limits per route (V2.4.1) —
+  [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142).
 
 ---
 
@@ -193,16 +226,16 @@ The application uses a Next.js [proxy](https://nextjs.org/docs/app/api-reference
 
 ### Concern decision table
 
-| Concern                                  | Lives in                                                                                           | Why                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase SSR session cookie refresh      | `proxy.ts` (always)                                                                                | The Supabase `createServerClient` cookie adapter binds to `NextRequest` / `NextResponse`. The session refresh must happen before any handler reads the user. Documented exception in [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts). |
-| Auth allowlist (page-entry gate)         | `proxy.ts` + [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowlist.ts)          | Default-deny: any path not in `PUBLIC_PATHS` requires an authenticated session. Pages get a 302 to `/login?redirectTo=…`; APIs get 401 JSON.                                                                                                                                                 |
-| Per-role permission gating               | `proxy.ts` (only for `/dashboard/*`, `/admin/*`)                                                   | The matrix lives in [`src/application/permissions.ts`](../../src/application/permissions.ts); proxy looks up `getRequiredPermission(pathname)` and `access.isSuperAdmin`. Other paths only require authentication.                                                                           |
-| Per-row authorization (BOLA / IDOR)      | Route handlers + Postgres RLS                                                                      | Proxy cannot make per-row decisions cheaply. Row-level checks stay where the data is loaded.                                                                                                                                                                                                 |
-| Security response headers                | `proxy.ts` + [`src/middleware/security-headers.ts`](../../src/middleware/security-headers.ts)      | Applied uniformly via `applySecurityHeaders()` on every response proxy returns. Kept in proxy (not `next.config.mjs` `headers()`) because future CSP nonces are per-request.                                                                                                                 |
-| Rate limiting                            | **Not in proxy yet** — tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142)       | Proxy is the natural location once Upstash (or equivalent) is provisioned. Until then, no rate limiting at any layer.                                                                                                                                                                        |
-| Structured request logging / audit trail | **Not in proxy yet** — tracked in Phase B / V16                                                    | Will live in proxy once a logger is selected and `admin.admin_activity_log` consumption is wired.                                                                                                                                                                                            |
-| `/api/tax-rates` lockdown                | **Allowlisted with FIXME** — tracked in [ARC-134](https://linear.app/arc-and-anchor/issue/ARC-134) | Currently anonymous; remains anonymous after this PR by being on the allowlist. ARC-134 decides the lockdown mechanism (auth, signed requests, or rate-limit-only) and removes the allowlist entry.                                                                                          |
+| Concern                                  | Lives in                                                                                      | Why                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase SSR session cookie refresh      | `proxy.ts` (always)                                                                           | The Supabase `createServerClient` cookie adapter binds to `NextRequest` / `NextResponse`. The session refresh must happen before any handler reads the user. Documented exception in [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts). |
+| Auth allowlist (page-entry gate)         | `proxy.ts` + [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowlist.ts)     | Default-deny: any path not in `PUBLIC_PATHS` requires an authenticated session. Pages get a 302 to `/login?redirectTo=…`; APIs get 401 JSON.                                                                                                                                                 |
+| Per-role permission gating               | `proxy.ts` (only for `/dashboard/*`, `/admin/*`)                                              | The matrix lives in [`src/application/permissions.ts`](../../src/application/permissions.ts); proxy looks up `getRequiredPermission(pathname)` and `access.isSuperAdmin`. Other paths only require authentication.                                                                           |
+| Per-row authorization (BOLA / IDOR)      | Route handlers + Postgres RLS                                                                 | Proxy cannot make per-row decisions cheaply. Row-level checks stay where the data is loaded.                                                                                                                                                                                                 |
+| Security response headers                | `proxy.ts` + [`src/middleware/security-headers.ts`](../../src/middleware/security-headers.ts) | Applied uniformly via `applySecurityHeaders()` on every response proxy returns. Kept in proxy (not `next.config.mjs` `headers()`) because future CSP nonces are per-request.                                                                                                                 |
+| Rate limiting                            | **Not in proxy yet** — tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142)  | Proxy is the natural location once Upstash (or equivalent) is provisioned. Until then, no rate limiting at any layer.                                                                                                                                                                        |
+| Structured request logging / audit trail | **Not in proxy yet** — tracked in Phase B / V16                                               | Will live in proxy once a logger is selected and `admin.admin_activity_log` consumption is wired.                                                                                                                                                                                            |
+| `/api/tax-rates` lockdown                | Authenticated proxy — closed by [ARC-134](https://linear.app/arc-and-anchor/issue/ARC-134)    | Removed from `PUBLIC_PATHS`; proxy returns 401 for anonymous callers. Route also calls `requireAuthenticatedUser()` as defense-in-depth so allowlist drift can't silently re-expose the billed Ziptax key. Rate limiting (ARC-142) still pending as the second defense layer.                |
 
 ### Auth allowlist contents
 
@@ -213,7 +246,6 @@ Defined in [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowl
 | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/mfa-challenge` | User has no session yet by definition — these are the auth flows.                                    |
 | `/callback`                                                                    | OAuth code-exchange. The session is finalized inside this handler.                                   |
 | `/auth-email-logo`                                                             | Image embedded in transactional emails — must load without auth so recipients see it in their inbox. |
-| `/api/tax-rates`                                                               | FIXME (ARC-134). Currently anonymous Ziptax proxy.                                                   |
 
 **Rule for adding entries:** every new entry is a security-relevant change and must be reviewed. The justification is committed in code as a comment next to the entry; no additional sign-off process beyond normal PR review, but reviewers should confirm the route legitimately needs to be public.
 

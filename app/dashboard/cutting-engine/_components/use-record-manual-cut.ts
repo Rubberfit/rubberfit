@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { saveCut } from "@/app/actions/cut-history"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/supabase"
 import type { PartTemplate } from "./preset-template-data"
 import type { ManualPlacement } from "./free-roam-collision"
@@ -10,14 +11,16 @@ import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 
 /**
- * POSTs a manual cut to `/api/cuts/history` with `source: "manual"`
- * plus a `layout_json` snapshot of the placements + parts queue +
- * stock so the Saved-layouts dropdown can re-hydrate the canvas when
- * the operator picks the row. Owns its own `isRecordingCut` flag for
- * disabling the button; errors surface via toast.
+ * Records a manual cut via the `saveCut` server action with
+ * `source: "manual"` plus a `layout_json` snapshot of the placements
+ * + parts queue + stock so the Saved-layouts dropdown can re-hydrate
+ * the canvas when the operator picks the row. Manual cuts have no
+ * PDF, so `pdf_url` is omitted; the cut_history row's id is
+ * generated client-side to keep the action input shape consistent
+ * with the auto-cut path.
  *
- * The route's DB column defaults to `auto`, so a degraded payload
- * without `source` still wouldn't masquerade as a manual cut.
+ * Owns its own `isRecordingCut` flag for disabling the button;
+ * errors surface via toast.
  */
 export function useRecordManualCut(
   stock: StockConfig,
@@ -87,6 +90,11 @@ export function useRecordManualCut(
       }
 
       const payload = {
+        // Generated client-side to match the auto-cut save flow shape.
+        // Manual cuts have no PDF, so the storage filename never gets
+        // referenced — but a periodic orphan-PDF sweep still expects
+        // every cut_history row id to be a UUID it can recognize.
+        cutId: crypto.randomUUID(),
         material_id: 0,
         part_id: 1,
         roll_id: null,
@@ -108,18 +116,27 @@ export function useRecordManualCut(
         source: "manual" as const,
         layout_json: layoutJson,
       }
-      const res = await fetch("/api/cuts/history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const text = await res.text()
+
+      let result: Awaited<ReturnType<typeof saveCut>>
+      try {
+        result = await saveCut(payload)
+      } catch (err) {
         toast.error("Failed to record manual cut", {
-          description: text.slice(0, 200) || `HTTP ${res.status}`,
+          description: err instanceof Error ? err.message : undefined,
         })
         return
       }
+
+      if (!result.ok) {
+        const description = result.detail
+          ? result.code
+            ? `${result.detail} (${result.code})`
+            : result.detail
+          : result.error
+        toast.error("Failed to record manual cut", { description })
+        return
+      }
+
       toast.success("Manual cut recorded")
       onCutRecorded?.()
     } catch (err) {

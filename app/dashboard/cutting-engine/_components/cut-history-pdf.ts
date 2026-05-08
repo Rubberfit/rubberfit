@@ -2,8 +2,7 @@ import jsPDF from "jspdf"
 import { format } from "date-fns"
 
 import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
-import { uploadCutPdf } from "@/src/infrastructure/services/cutHistoryService"
-import { authService } from "@/src/infrastructure/services/authService"
+import { uploadCutPdfFromBrowser } from "@/src/infrastructure/services/cutPdfBrowserStorage"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
 import type { StockConfig } from "./stock-preview-configurator"
@@ -1101,16 +1100,32 @@ function addFooter(doc: jsPDF): void {
 
 // ── Main Exports ─────────────────────────────────────────────────────────────
 
+/**
+ * Generate the cut-report PDF and upload it to Supabase Storage at
+ * `cut-history-pdfs/<userId>/<cutId>.pdf`. Returns the public URL on
+ * success, `null` on any failure (no rollCount, upload error, etc.).
+ *
+ * "PDF first, INSERT second" save flow: the caller invokes this
+ * *before* `saveCut`, then passes the returned URL on the action
+ * payload so the cut_history row lands with `pdf_url` populated at
+ * INSERT time. cut_history is write-once (no UPDATE policy), so the
+ * URL must arrive on the original INSERT.
+ *
+ * Filename intentionally has no timestamp suffix — matching the
+ * `<userId>/<cutId>.pdf` convention lets the periodic orphan-PDF
+ * sweep (separate ticket) match storage objects to cut_history rows.
+ */
 // eslint-disable-next-line complexity
 export async function buildAndUploadCutPdf(
   cutId: string,
+  userId: string,
   stock: StockConfig,
   cutMetrics: SimpleCutMetrics | null,
   selectedTemplate: PartTemplate | undefined,
   selectedTemplates: PartTemplate[],
   tags: Map<string, string>,
   layouts?: LayoutModel[]
-) {
+): Promise<string | null> {
   // Prefer vector layout diagrams when available — fall back to legacy DOM SVG
   // scraping only when called without layouts (e.g. very old call sites).
   const useVector = layouts && layouts.length > 0
@@ -1118,7 +1133,7 @@ export async function buildAndUploadCutPdf(
     ? []
     : Array.from(document.querySelectorAll<SVGSVGElement>("[data-sheet-svg]"))
   const rollCount = useVector ? layouts.length : svgElements.length
-  if (rollCount === 0) return
+  if (rollCount === 0) return null
 
   const totalStockSqFt = ((stock.width * stock.length) / 144) * rollCount
   const reusablePct =
@@ -1148,10 +1163,7 @@ export async function buildAndUploadCutPdf(
   }
 
   const pdfBlob = await generateCutPdf({ svgElements, layouts: layouts ?? [], data: pdfData })
-  const user = await authService.getCurrentUser()
-  if (user) {
-    await uploadCutPdf(cutId, user.id, pdfBlob)
-  }
+  return uploadCutPdfFromBrowser(userId, cutId, pdfBlob)
 }
 
 export async function generateCutPdf(args: {

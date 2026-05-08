@@ -14,69 +14,11 @@ export const getCutHistory = async () => {
   return data
 }
 
-// Add a new cut history entry
-export const addCutHistory = async (cut: {
-  material_id: number
-  cut_length: number
-  cut_width: number
-  cut_thickness: number
-  cut_amount: number
-  part_id?: number
-  part_custom_width?: number
-  part_custom_height?: number
-  part_selected_size?: number[]
-  part_selected_size_text?: string[]
-  part_selected_label?: string[]
-}) => {
-  const { data, error } = await supabase.from("cut_history").insert(cut).select().single()
-
-  if (error) throw error
-  return data
-}
-
 // Delete a cut history entry
 export const deleteCutHistory = async (id: string) => {
   const { error } = await supabase.from("cut_history").delete().eq("id", id)
 
   if (error) throw error
-}
-
-// Upload a PDF blob for a cut history entry to Supabase Storage
-export async function uploadCutPdf(
-  cutId: string,
-  userId: string,
-  pdfBlob: Blob
-): Promise<string | null> {
-  const fileName = `${userId}/${cutId}-${Date.now()}.pdf`
-  let uploadError: { message: string } | null = null
-  try {
-    const result = await supabase.storage.from("cut-history-pdfs").upload(fileName, pdfBlob, {
-      cacheControl: "3600",
-      contentType: "application/pdf",
-      upsert: true,
-    })
-    uploadError = result.error
-  } catch (err) {
-    uploadError = err instanceof Error ? err : { message: String(err) }
-  }
-  if (uploadError) {
-    console.error("PDF upload failed:", uploadError)
-    return null
-  }
-
-  const { data: urlData } = supabase.storage.from("cut-history-pdfs").getPublicUrl(fileName)
-
-  const { error: updateError } = await supabase
-    .from("cut_history")
-    .update({ pdf_url: urlData.publicUrl })
-    .eq("id", cutId)
-
-  if (updateError) {
-    console.error("Failed to save PDF URL:", updateError)
-    return null
-  }
-
-  return urlData.publicUrl
 }
 
 // Get all cut history (admin/manager/supervisor only)
@@ -239,6 +181,14 @@ export async function listCutHistoryPaginated(
 
 export type CutHistoryInsert = Omit<CutHistory, "id" | "created_at" | "updated_at" | "cut_date"> & {
   user_id: string
+  /**
+   * Optional client-supplied row id. The "PDF first, INSERT second"
+   * save flow uses this to keep the storage filename
+   * (`<userId>/<id>.pdf`) aligned with the eventual row id, so a
+   * periodic orphan-PDF sweep can match files to rows. Falls back to
+   * the column DEFAULT (`gen_random_uuid()`) when omitted.
+   */
+  id?: string
 }
 
 /**

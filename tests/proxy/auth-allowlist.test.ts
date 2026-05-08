@@ -16,8 +16,6 @@ describe("auth-allowlist: isPublicPath", () => {
     // /loginadmin must not match /login (no path-segment boundary).
     expect(isPublicPath("/loginadmin")).toBe(false)
     expect(isPublicPath("/registerme")).toBe(false)
-    // /api/tax-rates-internal must not match /api/tax-rates.
-    expect(isPublicPath("/api/tax-rates-internal")).toBe(false)
   })
 
   it("treats unrelated paths as non-public", () => {
@@ -28,11 +26,13 @@ describe("auth-allowlist: isPublicPath", () => {
     expect(isPublicPath("/admin/users")).toBe(false)
   })
 
-  it("includes the documented FIXME entry for ARC-134", () => {
-    // Guards against accidentally removing the /api/tax-rates allowlist
-    // entry before ARC-134 lands the lockdown. When ARC-134 closes, this
-    // assertion flips to ensure the entry is gone.
-    expect(PUBLIC_PATHS).toContain("/api/tax-rates")
+  it("does not allowlist /api/tax-rates (ARC-134 lockdown)", () => {
+    // Regression guard: ARC-134 removed `/api/tax-rates` from the
+    // public allowlist. The route is now an authenticated proxy to the
+    // billed Ziptax API — re-adding the entry would re-open the
+    // anonymous-access vector.
+    expect(PUBLIC_PATHS).not.toContain("/api/tax-rates")
+    expect(isPublicPath("/api/tax-rates")).toBe(false)
   })
 })
 

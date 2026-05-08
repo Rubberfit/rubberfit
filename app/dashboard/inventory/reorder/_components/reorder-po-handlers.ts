@@ -1,4 +1,3 @@
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 import { createReorderPurchaseOrder, createBulkReorderPurchaseOrder } from "@/app/actions/reorder"
 import { toast } from "sonner"
 import type { ReorderSuggestion } from "./reorder-suggestions"
@@ -7,14 +6,20 @@ export interface HandleCreatePOCallbacks {
   setCreatingPOFor: (id: string | null) => void
   fetchData: () => Promise<void>
   routerPush: (url: string) => void
-  reorderRules: ReorderRuleWithDetails[]
 }
 
+/**
+ * The action now takes `{ materialTypeId }` and the server regenerates
+ * the suggestion authoritatively. The UI's `suggestion` object is
+ * still used for display state (button label, supplier-missing toast)
+ * but its `estimatedCost` / `suggestedQuantity` no longer drive the
+ * PO write — see `app/actions/reorder.ts` "Authority model" docblock.
+ */
 export async function handleCreatePO(
   suggestion: ReorderSuggestion,
   callbacks: HandleCreatePOCallbacks
 ) {
-  const { setCreatingPOFor, fetchData, routerPush, reorderRules } = callbacks
+  const { setCreatingPOFor, fetchData, routerPush } = callbacks
   try {
     setCreatingPOFor(suggestion.materialTypeId)
 
@@ -26,8 +31,7 @@ export async function handleCreatePO(
     }
 
     const { purchaseOrder } = await createReorderPurchaseOrder({
-      suggestion,
-      reorderRules,
+      materialTypeId: suggestion.materialTypeId,
     })
 
     toast.success("Purchase order created", {
@@ -54,7 +58,6 @@ export interface HandleCreateIndividualPOsCallbacks {
   setSelectedSuggestions: (value: Set<string>) => void
   fetchData: () => Promise<void>
   routerPush: (url: string) => void
-  reorderRules: ReorderRuleWithDetails[]
   suggestions: ReorderSuggestion[]
   selectedSuggestions: Set<string>
 }
@@ -65,7 +68,6 @@ export async function handleCreateIndividualPOs(callbacks: HandleCreateIndividua
     setSelectedSuggestions,
     fetchData,
     routerPush,
-    reorderRules,
     suggestions,
     selectedSuggestions,
   } = callbacks
@@ -96,8 +98,7 @@ export async function handleCreateIndividualPOs(callbacks: HandleCreateIndividua
 
       try {
         const { purchaseOrder } = await createReorderPurchaseOrder({
-          suggestion,
-          reorderRules,
+          materialTypeId: suggestion.materialTypeId,
         })
 
         if (!firstPOId) firstPOId = purchaseOrder.id
@@ -146,7 +147,6 @@ export interface HandleCreateBulkPOCallbacks {
   setSelectedSuggestions: (value: Set<string>) => void
   fetchData: () => Promise<void>
   routerPush: (url: string) => void
-  reorderRules: ReorderRuleWithDetails[]
   suggestions: ReorderSuggestion[]
   selectedSuggestions: Set<string>
 }
@@ -157,6 +157,11 @@ export interface HandleCreateBulkPOCallbacks {
  * notification fanout) lives in `CreateBulkReorderPurchaseOrderUseCase`
  * behind the `createBulkReorderPurchaseOrder` server action — this hook
  * is now just UX (selection check, toast fanout, redirect).
+ *
+ * The action takes `{ materialTypeIds }`; the server regenerates
+ * suggestions authoritatively (see `app/actions/reorder.ts` "Authority
+ * model" docblock). The UI's `suggestion[]` array is only used for the
+ * display-side filter / toast labels.
  */
 export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks) {
   const {
@@ -164,7 +169,6 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
     setSelectedSuggestions,
     fetchData,
     routerPush,
-    reorderRules,
     suggestions,
     selectedSuggestions,
   } = callbacks
@@ -181,8 +185,7 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
     }
 
     const { purchaseOrders, skipped } = await createBulkReorderPurchaseOrder({
-      suggestions: selectedItems,
-      reorderRules,
+      materialTypeIds: selectedItems.map((s) => s.materialTypeId),
     })
 
     // Surface skipped items as warnings, grouped by reason so we don't
@@ -190,6 +193,7 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
     const noSupplier = skipped.filter((s) => s.reason === "no_supplier")
     const poFailed = skipped.filter((s) => s.reason === "po_creation_failed")
     const itemFailed = skipped.filter((s) => s.reason === "item_addition_failed")
+    const taxFailed = skipped.filter((s) => s.reason === "tax_calculation_failed")
 
     if (noSupplier.length > 0) {
       toast.warning(`${noSupplier.length} item${noSupplier.length > 1 ? "s" : ""} skipped`, {
@@ -208,6 +212,12 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
       toast.error(
         `Could not add ${itemFailed.length} item${itemFailed.length > 1 ? "s" : ""} to a purchase order`,
         { description: itemFailed[0].message }
+      )
+    }
+    if (taxFailed.length > 0) {
+      toast.error(
+        `Tax calculation failed for ${taxFailed.length} item${taxFailed.length > 1 ? "s" : ""}`,
+        { description: taxFailed[0].message }
       )
     }
 

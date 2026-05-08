@@ -81,11 +81,15 @@ export default function ReorderRulesPage() {
     return reorderRules.filter((r) => r.material_type_id === selectedMaterial)
   }, [reorderRules, selectedMaterial])
 
+  // PO handler callbacks. `reorderRules` was dropped in the
+  // tier-2 follow-up — the action regenerates suggestions
+  // server-side, so the browser no longer ships rules to the write
+  // path. Display surfaces (stats, analytics) still use rules via
+  // their own props.
   const poCallbacks = useMemo(
     () => ({
       fetchData,
       routerPush: (url: string) => router.push(url),
-      reorderRules,
       suggestions,
       selectedSuggestions,
       setCreatingPOFor,
@@ -93,7 +97,7 @@ export default function ReorderRulesPage() {
       setCreatingBulkPO,
       setSelectedSuggestions,
     }),
-    [fetchData, router, reorderRules, suggestions, selectedSuggestions]
+    [fetchData, router, suggestions, selectedSuggestions]
   )
 
   const stats = useMemo(() => {
