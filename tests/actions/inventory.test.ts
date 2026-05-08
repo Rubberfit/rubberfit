@@ -84,8 +84,45 @@ describe("app/actions/inventory.addRoll", () => {
     })
     expect(typeof rollArg.date_received).toBe("string")
     expect(rollArg.date_received).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // Without a client-supplied date, the action falls back to UTC.
+    // Bound the value so a stale clock or buggy formatter shows up.
+    const todayUtc = new Date().toISOString().slice(0, 10)
+    expect(rollArg.date_received >= todayUtc).toBe(true)
     expect(userIdArg).toBe(ACTOR.id)
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory")
+  })
+
+  it("forwards client-supplied date_received instead of computing server-side", async () => {
+    const { addRoll } = await import("@/app/actions/inventory")
+
+    // Form computes user-local YYYY-MM-DD and passes it through —
+    // restoring pre-action behavior for users in negative-UTC offsets
+    // (sigilix PR #177 follow-up).
+    await addRoll({
+      material_type: "Butyl",
+      width: 60,
+      length: 240,
+      thickness: 0.5,
+      date_received: "2026-05-07",
+    })
+
+    const rollArg = addRollSvcMock.mock.calls[0][0]
+    expect(rollArg.date_received).toBe("2026-05-07")
+  })
+
+  it("rejects malformed date_received", async () => {
+    const { addRoll } = await import("@/app/actions/inventory")
+
+    await expect(
+      addRoll({
+        material_type: "Butyl",
+        width: 60,
+        length: 240,
+        thickness: 0.5,
+        date_received: "tomorrow",
+      } as unknown as Parameters<typeof addRoll>[0])
+    ).rejects.toThrow()
+    expect(addRollSvcMock).not.toHaveBeenCalled()
   })
 
   it("does not let the client smuggle status / part_number / is_offcut / user_id", async () => {

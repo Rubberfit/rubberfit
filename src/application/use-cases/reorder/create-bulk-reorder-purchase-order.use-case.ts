@@ -50,7 +50,11 @@ import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use
  *      messages are for telemetry only.
  */
 
-export type SkipReason = "no_supplier" | "po_creation_failed" | "item_addition_failed"
+export type SkipReason =
+  | "no_supplier"
+  | "po_creation_failed"
+  | "item_addition_failed"
+  | "tax_calculation_failed"
 
 export interface SkippedSuggestion {
   /** Original suggestion that wasn't successfully ordered. */
@@ -146,8 +150,32 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
     for (const [supplierId, items] of withSupplier) {
       const subtotal = items.reduce((sum, item) => sum + item.estimatedCost, 0)
       const supplierFields = await this.resolveSupplierFields(supplierId)
-      const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
-      const taxAmount = taxCalc.taxAmount
+
+      // Tax-service failures (ZipTax rate-limit, bad zip lookup,
+      // network blip) used to throw out of the whole bulk loop and
+      // discard every other supplier's PO — defeating the
+      // partial-failure design above. Scope the catch to this
+      // supplier so the rest still proceed. (coderabbit follow-up
+      // on PR #177.)
+      let taxAmount: number
+      try {
+        const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
+        taxAmount = taxCalc.taxAmount
+      } catch (error) {
+        console.error(
+          `[bulk-reorder] calculatePurchaseOrderTax failed for supplier ${supplierId}:`,
+          error
+        )
+        for (const item of items) {
+          skipped.push({
+            suggestion: item,
+            reason: "tax_calculation_failed",
+            message: `Could not calculate tax for ${item.supplierName ?? "supplier"}`,
+          })
+        }
+        continue
+      }
+
       const deliveryDate = new Date(
         Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
       ).toISOString()

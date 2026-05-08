@@ -222,4 +222,36 @@ describe("app/actions/purchase-orders", () => {
     })
     expect(revalidatePathMock).toHaveBeenCalledWith(PO_LIST_PATH)
   })
+
+  // sigilix PR #177 follow-up: poReceiptItemSchema.quantityReceived
+  // was z.number().min(0). Receiving 0 is semantically "don't include
+  // the item" — mirror quantitySqft's .positive() contract.
+  it("receivePurchaseOrder rejects quantityReceived: 0", async () => {
+    const execute = vi.fn()
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { receivePurchaseOrder } = await import("@/app/actions/purchase-orders")
+    await expect(
+      receivePurchaseOrder({
+        purchaseOrderId: PO_ID,
+        items: [{ itemId: PO_ITEM_ID, quantityReceived: 0 }],
+      })
+    ).rejects.toThrow()
+    expect(execute).not.toHaveBeenCalled()
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it("receivePurchaseOrder rejects negative quantityReceived", async () => {
+    const execute = vi.fn()
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { receivePurchaseOrder } = await import("@/app/actions/purchase-orders")
+    await expect(
+      receivePurchaseOrder({
+        purchaseOrderId: PO_ID,
+        items: [{ itemId: PO_ITEM_ID, quantityReceived: -1 }],
+      })
+    ).rejects.toThrow()
+    expect(execute).not.toHaveBeenCalled()
+  })
 })

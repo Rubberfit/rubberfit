@@ -24,14 +24,28 @@ import type { Roll } from "@/src/infrastructure/models/supabase"
  * The action validates input with Zod, narrows the field surface to
  * the dialog's actual input set (no smuggling status / part_number /
  * is_offcut overrides), computes the derived fields server-side
- * (`status`, `remaining_length`, `date_received`), and threads
- * `actor.id` into the repository so RLS sees the right `auth.uid()`.
+ * (`status`, `remaining_length`), and threads `actor.id` into the
+ * repository so RLS sees the right `auth.uid()`.
+ *
+ * `date_received` is the one derived field where the client gets a
+ * say. The pre-action browser code built the date from local-time
+ * getters (`getFullYear/getMonth/getDate`); a naive `toISOString()`
+ * port silently regressed to UTC and wrote tomorrow's date for users
+ * in negative-UTC offsets near local midnight (sigilix follow-up on
+ * PR #177). The form now computes the user's local YYYY-MM-DD and
+ * passes it through; the action validates the format and falls back
+ * to UTC for non-form callers (keeps the contract robust to any
+ * future caller that doesn't supply one).
  */
 
 const INVENTORY_PATH = "/dashboard/inventory"
 
 const positiveNumber = z.number({ message: "Must be a number" }).positive("Must be greater than 0")
 const nonNegativeNumber = z.number().min(0, "Must be 0 or greater")
+const dateString = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date")
 
 const addRollSchema = z.object({
   material_type: z.string().trim().min(1, "Material type is required").max(100),
@@ -43,6 +57,10 @@ const addRollSchema = z.object({
   supplier: z.string().trim().max(200).optional(),
   cost_per_sqft: nonNegativeNumber.optional(),
   notes: z.string().trim().max(2000).optional(),
+  // Optional: if present, must be `YYYY-MM-DD`. Form supplies the
+  // user's local-calendar date; absent means the action falls back
+  // to server-side UTC.
+  date_received: dateString.optional(),
 })
 
 export type AddRollActionInput = z.input<typeof addRollSchema>
@@ -53,7 +71,7 @@ export async function addRoll(input: AddRollActionInput): Promise<Roll> {
   requirePermission(actor, "manageRolls")
   const parsed = addRollSchema.parse(input)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = parsed.date_received ?? new Date().toISOString().slice(0, 10)
 
   const result = await rollService.addRoll(
     {

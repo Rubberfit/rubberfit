@@ -337,6 +337,59 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
     expect(result.skipped).toHaveLength(0)
   })
 
+  // coderabbit follow-up on PR #177: the tax call sat outside the
+  // per-supplier try, so a single tax-service throw aborted the entire
+  // bulk run. Now scoped — failure pushes the supplier's items to
+  // skipped[] with a stable reason and the loop continues.
+  it("tax-service failure for one supplier doesn't break the bulk run", async () => {
+    const supA = makeSuggestion({ materialTypeId: "mat-A", supplierId: "sup-1" })
+    const supB = makeSuggestion({
+      materialTypeId: "mat-B",
+      supplierId: "sup-2",
+      supplierName: "Supplier Two",
+      materialName: "Material B",
+    })
+
+    ;(taxService.calculatePurchaseOrderTax as ReturnType<typeof vi.fn>).mockImplementation(
+      async (supplierId: string, subtotal: number) => {
+        if (supplierId === "sup-1") {
+          throw new Error("ZipTax rate-limit exceeded for ZIP 12345")
+        }
+        return {
+          subtotal,
+          taxRate: 0.0625,
+          taxAmount: subtotal * 0.0625,
+          taxName: "Mocked Rate",
+          taxLevel: "state",
+          total: subtotal * 1.0625,
+        }
+      }
+    )
+
+    poService.createPurchaseOrder.mockResolvedValueOnce(
+      makePO({ id: "po-2", supplier_id: "sup-2" })
+    )
+
+    const result = await resolve().execute(buildInput([supA, supB]))
+
+    // sup-2 succeeded; sup-1 was skipped without aborting.
+    expect(result.purchaseOrders).toHaveLength(1)
+    expect(result.purchaseOrders[0].supplier_id).toBe("sup-2")
+    expect(result.skipped).toHaveLength(1)
+    expect(result.skipped[0].reason).toBe("tax_calculation_failed")
+    expect(result.skipped[0].suggestion.materialTypeId).toBe("mat-A")
+
+    // Sanitized message — raw error text doesn't leak.
+    expect(result.skipped[0].message).not.toContain("ZipTax")
+    expect(result.skipped[0].message).not.toContain("12345")
+
+    // PO was never attempted for the failed supplier.
+    const createdSupplierIds = poService.createPurchaseOrder.mock.calls.map(
+      (call) => call[0].supplier_id
+    )
+    expect(createdSupplierIds).not.toContain("sup-1")
+  })
+
   it("falls back to minimal supplier fields when getSupplierById throws", async () => {
     ;(supplierService.getSupplierById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("rls denied")
