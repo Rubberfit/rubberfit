@@ -32,6 +32,20 @@ export interface KonvaThemeTokens {
   labelStroke: string
   /** Part stroke (between fill and next part). */
   partStroke: string
+  /**
+   * Selection stroke — drawn on the active part when `selected` is true.
+   * Brand-anchored teal so the selection ring speaks the design system
+   * language (replaces the generic blue-500 we used before phase 5).
+   */
+  selectedStroke: string
+  /**
+   * Drop-shadow color for the elevated part (hovered / selected /
+   * dragged). Tuned per palette — slate-900 reads as a soft physical
+   * shadow on a stone-100 sheet; pure black gives the lift the
+   * separation it needs over a stone-900 sheet. Opacity is decided by
+   * the interaction state, not the token.
+   */
+  elevationShadow: string
 }
 
 const LIGHT: KonvaThemeTokens = {
@@ -52,6 +66,8 @@ const LIGHT: KonvaThemeTokens = {
   labelFill: "#111827", // gray-900
   labelStroke: "rgba(255,255,255,0.85)",
   partStroke: "#ffffff",
+  selectedStroke: "#0d9488", // teal-600 — brand selection ring
+  elevationShadow: "#0f172a", // slate-900 — soft physical shadow on stone-100
 }
 
 const DARK: KonvaThemeTokens = {
@@ -65,6 +81,8 @@ const DARK: KonvaThemeTokens = {
   labelFill: "#ffffff",
   labelStroke: "rgba(0,0,0,0.85)",
   partStroke: "#0c0a09", // stone-950 — crisp against vibrant fills on dark bg
+  selectedStroke: "#2dd4bf", // teal-400 — brand selection ring (lighter for dark bg)
+  elevationShadow: "#000000", // pure black — the lift needs separation over stone-900
 }
 
 /**
