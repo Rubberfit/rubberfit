@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { AuthConfigError, UnauthorizedError } from "@/app/server/auth/errors"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 
 interface ZiptaxResult {
@@ -33,11 +34,13 @@ export async function GET(request: NextRequest) {
   try {
     await requireAuthenticatedUser()
   } catch (error) {
-    const code = (error as { code?: string }).code
-    if (code === "AUTH_CONFIG") {
+    if (error instanceof AuthConfigError) {
       return NextResponse.json({ error: "Auth not configured" }, { status: 503 })
     }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    throw error
   }
 
   const { searchParams } = new URL(request.url)

@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 // ARC-134: /api/tax-rates was previously anonymous (allowlisted in
@@ -14,8 +15,8 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
-function makeRequest(postalCode: string) {
-  return new Request(`http://localhost/api/tax-rates?postalCode=${postalCode}`)
+function makeRequest(postalCode: string): NextRequest {
+  return new NextRequest(`http://localhost/api/tax-rates?postalCode=${postalCode}`)
 }
 
 describe("/api/tax-rates auth gate (ARC-134)", () => {
@@ -39,7 +40,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
     requireAuthMock.mockRejectedValue(new UnauthorizedError())
 
     const { GET } = await import("@/app/api/tax-rates/route")
-    const res = await GET(makeRequest("10001") as never)
+    const res = await GET(makeRequest("10001"))
 
     expect(res.status).toBe(401)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -52,7 +53,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
     requireAuthMock.mockRejectedValue(new UnauthorizedError("Account deactivated"))
 
     const { GET } = await import("@/app/api/tax-rates/route")
-    const res = await GET(makeRequest("10001") as never)
+    const res = await GET(makeRequest("10001"))
 
     expect(res.status).toBe(401)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -63,7 +64,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
     requireAuthMock.mockRejectedValue(new AuthConfigError())
 
     const { GET } = await import("@/app/api/tax-rates/route")
-    const res = await GET(makeRequest("10001") as never)
+    const res = await GET(makeRequest("10001"))
 
     expect(res.status).toBe(503)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -101,7 +102,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
     )
 
     const { GET } = await import("@/app/api/tax-rates/route")
-    const res = await GET(makeRequest("10001") as never)
+    const res = await GET(makeRequest("10001"))
 
     expect(res.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -119,7 +120,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
     })
 
     const { GET } = await import("@/app/api/tax-rates/route")
-    const res = await GET(makeRequest("not-a-zip") as never)
+    const res = await GET(makeRequest("not-a-zip"))
 
     expect(res.status).toBe(400)
     expect(fetchMock).not.toHaveBeenCalled()

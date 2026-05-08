@@ -29,7 +29,13 @@ const ENV_EXAMPLE_PATH = path.join(REPO_ROOT, ".env.example")
 
 const RUNTIME_INJECTED = new Set(["NODE_ENV", "CI", "VERCEL", "NEXT_PUBLIC_VERCEL_URL"])
 
-const ENV_REFERENCE_RE = /process\.env\.([A-Z][A-Z0-9_]+)/g
+// Matches `process.env.FOO`, `process.env["FOO"]`, `process.env['FOO']`,
+// and `process.env[`FOO`]` so bracket-notation accesses can't slip past
+// the guard. The repo uses dot-access exclusively today (verified by
+// grep), but a future contributor switching to bracket access for a
+// dynamic-keyed env shouldn't silently bypass the documentation rule.
+const ENV_REFERENCE_RE =
+  /process\.env(?:\.([A-Z][A-Z0-9_]+)|\[\s*["'`]([A-Z][A-Z0-9_]+)["'`]\s*\])/g
 const ENV_EXAMPLE_KEY_RE = /^([A-Z][A-Z0-9_]+)=/
 
 interface Reference {
@@ -66,7 +72,10 @@ function scanFile(absPath: string): Reference[] {
     ENV_REFERENCE_RE.lastIndex = 0
     let match: RegExpExecArray | null
     while ((match = ENV_REFERENCE_RE.exec(line)) !== null) {
-      refs.push({ name: match[1], file: rel, line: i + 1 })
+      // Capture group 1 is the dot-access name; group 2 is the
+      // bracket-access name. Exactly one will be set per match.
+      const name = match[1] ?? match[2]
+      if (name) refs.push({ name, file: rel, line: i + 1 })
     }
   }
 
