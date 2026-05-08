@@ -744,7 +744,7 @@ function CutPlannerPageInner() {
             </Button>
           }
         >
-          Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
+          Cutting for <strong className="font-mono">{sourceJob.job_number ?? "job"}</strong>
           {" — "}
           {sourceJob.name}
           {sourceJob.customer_name ? (
@@ -882,7 +882,7 @@ function CutPlannerPageInner() {
                   {hasRenderedLayout && cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
                     <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
                       <Scissors className="mr-1.5 h-4 w-4" />
-                      {isRecordingCut ? "Saving…" : "Save Cut"}
+                      {isRecordingCut ? "Saving…" : "Save cut"}
                     </Button>
                   )}
                 </div>
