@@ -220,7 +220,6 @@ function SheetSvg({
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
   const sVignette = `vignette-${layout.stockPatternId}${sPat}`
-  const sPartLight = `part-light-${layout.usablePatternId}${sPat}`
   const sToolGrid = `tool-grid-${layout.stockPatternId}${sPat}`
   const sScrapHatch = `scrap-hatch-${layout.wastePatternId}${sPat}`
   const sPageGrid = `page-grid-${layout.stockPatternId}${sPat}`
@@ -399,7 +398,6 @@ function SheetSvg({
       >
         <SimpleModeCanvasDefs
           sheetVignetteId={sVignette}
-          partLightId={sPartLight}
           toolGridPatternId={sToolGrid}
           scrapHatchPatternId={sScrapHatch}
           pageGridPatternId={sPageGrid}
@@ -609,7 +607,6 @@ function SheetSvg({
                 unitOriginX={layout.unitOriginX}
                 unitOriginY={layout.unitOriginY}
                 scale={layout.scale}
-                partGradientId={sPartLight}
                 tagLetter={item.label}
                 zoom={zoom}
                 displayRotated={layout.displayRotated}

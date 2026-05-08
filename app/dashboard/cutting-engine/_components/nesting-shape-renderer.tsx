@@ -4,13 +4,11 @@ import { polygonCentroid } from "./part-label"
 
 // Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
 //
-// Each cut part renders as a slate-gradient body (top-left light to
-// bottom-right shade) with a 1px slate-900 stroke and a CSS
-// drop-shadow that simulates the part sitting proud of the sheet
-// under a top-left shop light. The gradient is shared via a single
-// `<linearGradient>` in `SimpleModeCanvasDefs` and consumed by every
-// part — referenced as `partGradientId` despite the legacy name (it
-// is a gradient, not a hatch pattern, in this treatment).
+// Each cut part renders as a solid slate body with a 1px slate-700
+// stroke and a CSS drop-shadow that simulates the part sitting proud
+// of the sheet under a top-left shop light. Solid (no gradient) per
+// founder feedback — the drop shadow + stroke carry the dimensional
+// read; the gradient added complexity without much benefit.
 //
 // CSS `drop-shadow` is GPU-composited on modern Blink/WebKit and
 // avoids the per-element rasterization cost of SVG `<filter>` at
@@ -22,6 +20,7 @@ import { polygonCentroid } from "./part-label"
 // already cover. The two-pass `background`/`foreground` machinery
 // stays collapsed to a single pass for the same reason.
 
+const PART_FILL = "#64748b" // slate-500 — solid cut-part body
 const PART_STROKE = "#334155" // slate-700 — clean 1px outline
 const PART_STROKE_WIDTH = "1"
 // Tailwind arbitrary-value drop shadow — GPU-composited via CSS
@@ -37,8 +36,6 @@ interface NestingShapeRendererProps {
   unitOriginX: number
   unitOriginY: number
   scale: number
-  /** SVG `<linearGradient>` id from `SimpleModeCanvasDefs` — slate light/shade. */
-  partGradientId: string
   tagLetter?: string
   zoom?: number
   /**
@@ -84,7 +81,6 @@ function PolygonShape({
   unitOriginX,
   unitOriginY,
   scale,
-  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -97,7 +93,6 @@ function PolygonShape({
   unitOriginX: number
   unitOriginY: number
   scale: number
-  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -127,7 +122,7 @@ function PolygonShape({
     <g key={index + 1}>
       <polygon
         points={polyPoints}
-        fill={`url(#${partGradientId})`}
+        fill={PART_FILL}
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
@@ -156,7 +151,6 @@ function CircleShape({
   item,
   index,
   coords,
-  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -164,7 +158,6 @@ function CircleShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -179,7 +172,7 @@ function CircleShape({
         cx={cx}
         cy={cy}
         r={Math.max(r - 1, 0)}
-        fill={`url(#${partGradientId})`}
+        fill={PART_FILL}
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
@@ -208,7 +201,6 @@ function SectorShape({
   item,
   index,
   coords,
-  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -216,7 +208,6 @@ function SectorShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -252,7 +243,7 @@ function SectorShape({
     <g key={index + 1}>
       <path
         d={buildArcPath()}
-        fill={`url(#${partGradientId})`}
+        fill={PART_FILL}
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
@@ -285,7 +276,6 @@ function TrapezoidShape({
   item,
   index,
   coords,
-  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -293,7 +283,6 @@ function TrapezoidShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -317,7 +306,7 @@ function TrapezoidShape({
     <g key={index + 1}>
       <path
         d={buildTrapPath()}
-        fill={`url(#${partGradientId})`}
+        fill={PART_FILL}
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
@@ -350,7 +339,6 @@ function RectShape({
   item,
   index,
   coords,
-  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -358,7 +346,6 @@ function RectShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -370,7 +357,7 @@ function RectShape({
         y={coords.py + 0.5}
         width={coords.pw}
         height={coords.ph}
-        fill={`url(#${partGradientId})`}
+        fill={PART_FILL}
         stroke={PART_STROKE}
         strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
@@ -406,7 +393,6 @@ export default function NestingShapeRenderer({
   unitOriginX,
   unitOriginY,
   scale,
-  partGradientId,
   tagLetter,
   zoom = 1,
   displayRotated,
@@ -432,7 +418,6 @@ export default function NestingShapeRenderer({
         unitOriginX={unitOriginX}
         unitOriginY={unitOriginY}
         scale={scale}
-        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -446,7 +431,6 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -460,7 +444,6 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -474,7 +457,6 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -487,7 +469,6 @@ export default function NestingShapeRenderer({
       item={item}
       index={index}
       coords={coords}
-      partGradientId={partGradientId}
       tagLetter={tagLetter}
       displayRotated={displayRotated}
       zoom={zoom}

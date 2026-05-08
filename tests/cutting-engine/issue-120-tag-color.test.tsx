@@ -61,7 +61,6 @@ function renderShape(item: PreviewItem, tagLetter = "A"): string {
         unitOriginX={0}
         unitOriginY={0}
         scale={10}
-        partGradientId="part"
         tagLetter={tagLetter}
         zoom={1}
       />
@@ -171,7 +170,6 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
           unitOriginX={0}
           unitOriginY={0}
           scale={10}
-          partGradientId="part"
           zoom={1}
         />
       </svg>

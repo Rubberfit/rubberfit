@@ -254,10 +254,6 @@ export function SimpleModePatternDefs({
  * - `sheetVignettePatternId`: radial dark vignette overlay on the
  *   sheet rect, multiply-blended to simulate overhead lighting fall
  *   off at the sheet's edges.
- * - `partLightId`: cool slate linear gradient consumed by every part
- *   (top-left highlight, bottom-right shade), giving each part a
- *   "proud chunk catching the same light" read without per-shape
- *   gradient stops.
  * - `toolGridPatternId`: faint 20px dot grid suggesting a tooling
  *   surface (cutting mat / CMM table), rendered on top of the sheet
  *   base.
@@ -269,14 +265,12 @@ export function SimpleModePatternDefs({
  */
 export function SimpleModeCanvasDefs({
   sheetVignetteId,
-  partLightId,
   toolGridPatternId,
   scrapHatchPatternId,
   pageGridPatternId,
   markerId,
 }: {
   sheetVignetteId: string
-  partLightId: string
   toolGridPatternId: string
   scrapHatchPatternId: string
   pageGridPatternId: string
@@ -288,10 +282,6 @@ export function SimpleModeCanvasDefs({
         <stop offset="0%" stopColor="#000000" stopOpacity="0" />
         <stop offset="100%" stopColor="#000000" stopOpacity="0.20" />
       </radialGradient>
-      <linearGradient id={partLightId} x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#94a3b8" />
-        <stop offset="100%" stopColor="#64748b" />
-      </linearGradient>
       <pattern id={toolGridPatternId} width="20" height="20" patternUnits="userSpaceOnUse">
         <circle cx="10" cy="10" r="1" fill="rgba(0,0,0,0.08)" />
       </pattern>
