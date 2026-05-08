@@ -11,7 +11,7 @@ import type { NestingResult } from "@/nesting/types"
 import NestingShapeRenderer from "./nesting-shape-renderer"
 import {
   SimpleModeHeader,
-  SimpleModeMarkerDefs,
+  SimpleModeCanvasDefs,
   SimpleModeMetrics,
   SimpleModeFooter,
   SimpleModeCutPlan,
@@ -28,18 +28,15 @@ import { CutLegend } from "./cut-legend"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 
-// Phase 5 PR 3 — solid-fill SVG palette.
-//
-// Sheet base uses Tailwind utilities so dark-mode auto-flips:
-//   - light: amber-200 (#fde68a) — far enough from stone-100 chrome
-//     to read as a physical sheet rather than a sticky-note wash.
-//   - dark : amber-900 (#78350f) — deep rust on stone-900 canvas.
-// Both keep the "uncovered = reusable offcut" semantic.
-//
-// Scrap overlay is a translucent red (rgba) so it composes over both
-// amber-200 and amber-900 without needing per-mode tuning.
-const SHEET_BODY_CLASS = "fill-amber-200 stroke-border dark:fill-amber-900"
-const SCRAP_FILL = "rgba(239, 68, 68, 0.20)" // red-500 @ 20% — solid scrap overlay
+// Phase 5 PR 3 (round 3) — engineering-drawing palette restored. The
+// pattern fills live in `SimpleModeCanvasDefs`; consumers reference
+// them by id. Offcut bands no longer paint a fill (the sheet pattern
+// is already amber tone-on-tone, so an offcut overlay would just be
+// amber-on-amber visual noise) but DO render a thin amber boundary
+// stroke + the area label so each reusable region reads as a discrete
+// chunk an operator could harvest.
+const OFFCUT_OUTLINE = "rgba(180,83,9,0.6)" // amber-700 @ 60% — boundary stroke
+const OFFCUT_OUTLINE_WIDTH = 1.5
 
 // Single-pass min/max bounding box for an SVG render item. Used by the
 // dev-only "Show AABB" overlay. Falls back to the placement's
@@ -199,12 +196,16 @@ function SheetSvg({
   layoutModel?: LayoutModel
   debugOverlays?: DebugOverlayOptions
 }) {
-  // Phase 5 PR 3 dropped the SVG-pattern fills (`sStockPat`, `sOffcutPat`,
-  // `sWastePat`, `sUsablePat`); the renderer now uses solid colours.
-  // Only the per-sheet clip-path id and the dimension-arrow marker id
-  // still need uniqueness to survive multi-sheet layouts.
+  // Per-sheet pattern + clip ids. The legacy id stems
+  // (`stockPatternId` etc.) on the layout object stay as namespacing
+  // strings — we hang the cutting-engine's three new patterns off
+  // them so multi-sheet layouts don't collide. The names are
+  // historical; the values inside the patterns are the round-3 spec.
   const sPat = sheet.sheetIndex > 0 ? `-s${sheet.sheetIndex}` : ""
   const sClip = `stock-clip-${layout.stockPatternId}${sPat}`
+  const sSheetPat = `${layout.stockPatternId}${sPat}`
+  const sScrapPat = `${layout.wastePatternId}${sPat}`
+  const sPartPat = `${layout.usablePatternId}${sPat}`
   const sMarker = `${layout.markerId}${sPat}`
 
   const [zoom, setZoom] = React.useState(1)
@@ -378,7 +379,12 @@ function SheetSvg({
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
       >
-        <SimpleModeMarkerDefs markerId={sMarker} />
+        <SimpleModeCanvasDefs
+          sheetPatternId={sSheetPat}
+          scrapPatternId={sScrapPat}
+          partPatternId={sPartPat}
+          markerId={sMarker}
+        />
         <text
           x={layout.viewWidth / 2}
           y="34"
@@ -412,17 +418,14 @@ function SheetSvg({
           y={layout.effSurfaceY}
           width={layout.effSurfacePxW}
           height={layout.effSurfacePxH}
-          className={SHEET_BODY_CLASS}
+          fill={`url(#${sSheetPat})`}
+          className="stroke-border"
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
         <g clipPath={`url(#${sClip})`}>
           <g transform={sheetTransform}>
-            {/* Phase 5 PR 3: the bin-wide waste backdrop and the
-                offcut-band overlays are gone. The amber sheet base
-                already carries the "uncovered = reusable" semantic;
-                only scrap regions need an explicit overlay (red on
-                amber). */}
+            {/* Scrap bands — red diagonal pattern. */}
             {!layout.shapeFirstView &&
               sheet.preview.scrapBands.map((band, index) =>
                 band.polygon ? (
@@ -434,7 +437,7 @@ function SheetSvg({
                           `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
                       )
                       .join(" ")}
-                    fill={SCRAP_FILL}
+                    fill={`url(#${sScrapPat})`}
                   />
                 ) : (
                   <rect
@@ -443,7 +446,41 @@ function SheetSvg({
                     y={layout.surfaceY + band.y * layout.scale}
                     width={band.width * layout.scale}
                     height={band.height * layout.scale}
-                    fill={SCRAP_FILL}
+                    fill={`url(#${sScrapPat})`}
+                  />
+                )
+              )}
+            {/* Offcut bands — boundary stroke only, no fill. The sheet
+                pattern already paints amber tone-on-tone underneath;
+                the boundary outlines each reusable region as a
+                discrete chunk an operator could harvest. */}
+            {!layout.shapeFirstView &&
+              sheet.preview.offcutBands.map((band, index) =>
+                band.polygon ? (
+                  <polygon
+                    key={`offcut-band-${index + 1}`}
+                    points={band.polygon
+                      .map(
+                        (pt) =>
+                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                      )
+                      .join(" ")}
+                    fill="none"
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : (
+                  <rect
+                    key={`offcut-band-${index + 1}`}
+                    x={layout.surfaceX + band.x * layout.scale}
+                    y={layout.surfaceY + band.y * layout.scale}
+                    width={band.width * layout.scale}
+                    height={band.height * layout.scale}
+                    fill="none"
+                    stroke={OFFCUT_OUTLINE}
+                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                    vectorEffect="non-scaling-stroke"
                   />
                 )
               )}
@@ -478,6 +515,7 @@ function SheetSvg({
                 shapeFirstView={layout.shapeFirstView}
                 preview={preview}
                 displayPreview={sheet.preview}
+                partPatternId={sPartPat}
                 viewHeight={layout.viewHeight}
                 surfacePxW={layout.surfacePxW}
                 tagLetter={item.label}
