@@ -42,10 +42,22 @@ const INVENTORY_PATH = "/dashboard/inventory"
 
 const positiveNumber = z.number({ message: "Must be a number" }).positive("Must be greater than 0")
 const nonNegativeNumber = z.number().min(0, "Must be 0 or greater")
+
+// Reject malformed strings AND impossible calendar dates like
+// `2026-02-31` or `2026-13-01`. The regex catches shape, the refine
+// catches semantic correctness — round-tripping through Date and
+// comparing the canonical YYYY-MM-DD slice rejects month/day overflow
+// (which `new Date("2026-02-31")` silently rolls forward to March).
+// (coderabbit follow-up on PR #197.)
+function isValidCalendarDate(value: string): boolean {
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 const dateString = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date")
+  .refine(isValidCalendarDate, "Invalid date")
 
 const addRollSchema = z.object({
   material_type: z.string().trim().min(1, "Material type is required").max(100),

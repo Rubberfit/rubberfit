@@ -253,5 +253,8 @@ describe("app/actions/purchase-orders", () => {
       })
     ).rejects.toThrow()
     expect(execute).not.toHaveBeenCalled()
+    // Match the zero-quantity test — parse failure shouldn't trigger
+    // cache invalidation (coderabbit follow-up on PR #197).
+    expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 })

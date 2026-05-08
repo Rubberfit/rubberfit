@@ -9,8 +9,11 @@ import type {
   IRecordCutUseCase,
   RecordCutResult,
 } from "@/src/application/use-cases/cuts/record-cut.use-case"
-import { removeOrphanedCutPdf } from "@/src/infrastructure/services/cutPdfStorageService"
-import { makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+import {
+  getCutPdfPublicUrl,
+  safeRemoveOrphanedCutPdf,
+} from "@/src/infrastructure/services/cutPdfStorageService"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
@@ -50,9 +53,19 @@ const partCustomDimensionsSchema = z.object({
 // PDF so the storage filename (`<userId>/<cutId>.pdf`) and the
 // eventual cut_history.id stay aligned. A periodic orphan-PDF sweep
 // (separate ticket) relies on that alignment.
+//
+// `pdfUploaded` (boolean) replaced the previous `pdf_url: string|null`
+// field on the wire. Sigilix flagged on PR #197 that accepting any
+// URL string lets a malicious authenticated client store
+// `pdf_url: "https://evil.com/phish.pdf"` in an immutable cut_history
+// row (no UPDATE policy to correct it later) — stored phishing /
+// SSRF vector. The server now constructs the URL itself from
+// `actor.id` + `cutId` using the storage SDK, so the value is
+// deterministic and the client only needs to signal "did the upload
+// succeed?". A `false` (or absent) value persists `pdf_url = null`.
 const saveCutSchema = z.object({
   cutId: uuid,
-  pdf_url: z.string().url().nullable().optional(),
+  pdfUploaded: z.boolean().optional(),
   material_id: z.number().int().nonnegative(),
   part_id: z.number().int().positive(),
   roll_id: uuid.nullable().optional(),
@@ -90,19 +103,31 @@ export type SaveCutActionInput = z.input<typeof saveCutSchema>
  *      cut-report PDF directly to Supabase Storage at
  *      `cut-history-pdfs/<userId>/<cutId>.pdf` (storage RLS enforces
  *      the per-user folder; see migration 20260420000001).
- *   2. Browser invokes this action with `{ cutId, pdf_url, ...cutData }`.
- *   3. Action authenticates the caller, runs RBAC, and forwards to
- *      `RecordCutUseCase` with `id = cutId` and `pdf_url` already
- *      populated. cut_history is write-once (see migration
+ *   2. Browser invokes this action with `{ cutId, pdfUploaded, ...cutData }`.
+ *      `pdfUploaded` is a boolean signal — the action constructs the
+ *      authoritative `pdf_url` server-side from `actor.id` + `cutId`,
+ *      ignoring any URL the client might try to inject.
+ *   3. Action authenticates the caller, runs RBAC, resolves the
+ *      cookie-bound (RLS-respecting) Supabase client, and forwards to
+ *      `RecordCutUseCase` with `id = cutId` and the server-constructed
+ *      `pdf_url` populated. cut_history is write-once (see migration
  *      20260412055550 — no UPDATE policy), so pdf_url MUST arrive at
  *      INSERT time.
  *   4. On INSERT failure, the action removes the orphaned PDF object
- *      from storage. Best-effort — failures are logged but do not
- *      mask the original error.
+ *      from storage via `safeRemoveOrphanedCutPdf` — which checks for
+ *      an existing row before deleting, so a duplicate-submit race
+ *      can't drop a file that a successfully-persisted row references.
  *
  * Action IDs ship in the client bundle and are callable by hash, so
  * the auth + permission + zod parse here are the security boundary —
  * `proxy.ts` does not see action invocations.
+ *
+ * The use-case insert runs through the *cookie-bound* request client,
+ * not a service-role client. That makes the new
+ * `cut_history_insert_own` RLS policy actually apply at the user's
+ * write — the database boundary now enforces `user_id = auth.uid()`
+ * for the ordinary save path. Service-role escape stays available for
+ * admin endpoints (cleanup, sweeps) where it's intentional.
  */
 export async function saveCut(input: SaveCutActionInput): Promise<RecordCutResult> {
   ensureDatabaseFactoryRegistered()
@@ -110,28 +135,36 @@ export async function saveCut(input: SaveCutActionInput): Promise<RecordCutResul
   requirePermission(actor, "createCut")
   const parsed = saveCutSchema.parse(input)
 
-  const adminClient = makeAdminClient()
-  if (!adminClient) {
-    return {
-      ok: false,
-      status: 500,
-      error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set",
-    }
-  }
+  const dbClient = await getDatabaseClient()
+
+  // Server-construct the PDF URL from actor.id + cutId. Client only
+  // signals presence/absence via `pdfUploaded`. See the schema doc-
+  // comment for why this matters.
+  const pdfUrl = parsed.pdfUploaded ? await getCutPdfPublicUrl(actor.id, parsed.cutId) : null
 
   const useCase = resolveUseCase<IRecordCutUseCase>(TOKENS.IRecordCutUseCase)
 
-  const { cutId, ...rest } = parsed
+  const { cutId, pdfUploaded, ...rest } = parsed
+  void pdfUploaded
   let result: RecordCutResult
   try {
-    result = await useCase.execute(adminClient, { ...rest, id: cutId }, actor.id)
+    result = await useCase.execute(
+      dbClient,
+      { ...rest, id: cutId, pdf_url: pdfUrl },
+      actor.id
+    )
   } catch (err) {
-    await removeOrphanedCutPdf(actor.id, cutId)
+    // `useCase.execute` returns RecordCutFailure on validation /
+    // insert errors rather than throwing, but defend against
+    // unexpected throws (DB connection death, etc.). Cleanup is
+    // safe — `safeRemoveOrphanedCutPdf` only deletes if no row
+    // exists for cutId.
+    await safeRemoveOrphanedCutPdf(actor.id, cutId)
     throw err
   }
 
   if (!result.ok) {
-    await removeOrphanedCutPdf(actor.id, cutId)
+    await safeRemoveOrphanedCutPdf(actor.id, cutId)
     return result
   }
 

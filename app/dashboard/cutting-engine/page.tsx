@@ -612,9 +612,16 @@ function CutPlannerPageInner() {
         if (t) pdfTagMap.set(tag, t.label)
       }
 
-      let pdf_url: string | null = null
+      // Boolean signal — the action constructs the authoritative URL
+      // server-side from actor.id + cutId, ignoring any URL the client
+      // could try to inject (sigilix follow-up on PR #197). The browser
+      // still kicks off the upload here for the same reason: PDF must
+      // exist at storage before cut_history.pdf_url is populated, and
+      // cut_history is write-once so there's no UPDATE path to fill it
+      // in later.
+      let pdfUploaded = false
       try {
-        pdf_url = await buildAndUploadCutPdf(
+        const url = await buildAndUploadCutPdf(
           cutId,
           user.id,
           stock,
@@ -624,6 +631,7 @@ function CutPlannerPageInner() {
           pdfTagMap,
           layouts
         )
+        pdfUploaded = url != null
       } catch (err) {
         // Best-effort — record the cut anyway with pdf_url=null. The
         // server action's orphan-cleanup path handles the inverse
@@ -633,7 +641,7 @@ function CutPlannerPageInner() {
 
       const payload = {
         cutId,
-        pdf_url,
+        pdfUploaded,
         material_id: materialId,
         part_id: partId,
         roll_id: resolvedRollId,
