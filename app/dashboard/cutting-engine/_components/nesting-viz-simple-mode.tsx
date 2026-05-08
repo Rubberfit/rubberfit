@@ -28,12 +28,17 @@ import { CutLegend } from "./cut-legend"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 
-// Phase 5 PR 3 — solid-fill SVG palette. Mirrors the Free-roam Konva
-// surface: amber-100 sheet (uncovered = reusable offcut by default),
-// translucent red scrap overlay. Offcut bands no longer render their
-// own fill/stroke — the amber sheet background carries the "reusable"
-// semantic and Kimi K2.6's verdict was to drop the redundant overlay.
-const SHEET_FILL = "#fef3c7" // amber-100 — reusable-by-default sheet base
+// Phase 5 PR 3 — solid-fill SVG palette.
+//
+// Sheet base uses Tailwind utilities so dark-mode auto-flips:
+//   - light: amber-200 (#fde68a) — far enough from stone-100 chrome
+//     to read as a physical sheet rather than a sticky-note wash.
+//   - dark : amber-900 (#78350f) — deep rust on stone-900 canvas.
+// Both keep the "uncovered = reusable offcut" semantic.
+//
+// Scrap overlay is a translucent red (rgba) so it composes over both
+// amber-200 and amber-900 without needing per-mode tuning.
+const SHEET_BODY_CLASS = "fill-amber-200 stroke-border dark:fill-amber-900"
 const SCRAP_FILL = "rgba(239, 68, 68, 0.20)" // red-500 @ 20% — solid scrap overlay
 
 // Single-pass min/max bounding box for an SVG render item. Used by the
@@ -407,8 +412,7 @@ function SheetSvg({
           y={layout.effSurfaceY}
           width={layout.effSurfacePxW}
           height={layout.effSurfacePxH}
-          fill={SHEET_FILL}
-          className="stroke-border"
+          className={SHEET_BODY_CLASS}
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />

@@ -6,18 +6,21 @@ import { polygonCentroid } from "./part-label"
 //
 // The legacy SVG-pattern fills (`stockPattern`, `offcutPattern`,
 // `wastePattern`, `usablePattern`) and the `stone-900 + wastePattern`
-// bbox crutch on circle/sector/trapezoid are gone. The visual language
-// now mirrors the Free-roam Konva surface: flat solid fills, white
-// part stroke, design-token labels.
+// bbox crutch on circle/sector/trapezoid are gone. Color decisions
+// came from Kimi K2.6's design verdict (dual sign-off with Codex on
+// the technical risk side); the palette was revised after the first
+// preview surfaced that the original `green-50 / white-stroke` parts
+// vanished against the amber sheet at low utilization.
 //
-// Color decisions came from Kimi K2.6's design verdict (dual sign-off
-// with Codex on the technical risk side). The Rust packing pipeline
-// emits classified scrap and offcut regions underneath the parts, so
-// the bbox crutch was carrying no operator-visible information that
-// the underlying region classification didn't already cover.
+// Final palette (Tailwind utilities so dark-mode auto-flips):
+//   - light: emerald-600 fill, emerald-950 stroke 1.5px
+//   - dark : emerald-400 fill, white stroke 1.5px
+// The dark stroke on the bright fill in light mode carves the
+// part edge against the amber-200 sheet; the inverted white stroke
+// in dark mode pops off the deep amber-900 sheet.
 
-const PART_FILL = "#f0fdf4" // green-50 — solid cut-part body
-const PART_STROKE = "#ffffff" // white — outline against any underlying region
+const PART_BODY_CLASS =
+  "fill-emerald-600 stroke-emerald-950 dark:fill-emerald-400 dark:stroke-white"
 
 interface NestingShapeRendererProps {
   item: PreviewItem
@@ -118,8 +121,7 @@ function PolygonShape({
     <g key={index + 1}>
       <polygon
         points={polyPoints}
-        fill={PART_FILL}
-        stroke={PART_STROKE}
+        className={PART_BODY_CLASS}
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
       />
@@ -167,8 +169,7 @@ function CircleShape({
         cx={cx}
         cy={cy}
         r={Math.max(r - 1, 0)}
-        fill={PART_FILL}
-        stroke={PART_STROKE}
+        className={PART_BODY_CLASS}
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
       />
@@ -237,8 +238,7 @@ function SectorShape({
     <g key={index + 1}>
       <path
         d={buildArcPath()}
-        fill={PART_FILL}
-        stroke={PART_STROKE}
+        className={PART_BODY_CLASS}
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
       />
@@ -299,8 +299,7 @@ function TrapezoidShape({
     <g key={index + 1}>
       <path
         d={buildTrapPath()}
-        fill={PART_FILL}
-        stroke={PART_STROKE}
+        className={PART_BODY_CLASS}
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
       />
@@ -349,8 +348,7 @@ function RectShape({
         y={coords.py + 0.5}
         width={coords.pw}
         height={coords.ph}
-        fill={PART_FILL}
-        stroke={PART_STROKE}
+        className={PART_BODY_CLASS}
         strokeWidth="1"
         vectorEffect="non-scaling-stroke"
       />
