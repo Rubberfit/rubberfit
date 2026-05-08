@@ -7,6 +7,7 @@ import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { Download } from "lucide-react"
 import { Button } from "@/app/components/ui/button"
 import {
   Select,
@@ -15,12 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
-import { CostTrendChart } from "./_components/cost-trend-chart"
 import { CostBreakdownChart } from "./_components/cost-breakdown-chart"
-import { MonthlyCostTable } from "./_components/monthly-cost-table"
-import { MaterialCostTable } from "./_components/material-cost-table"
 import { CostSummaryCards } from "./_components/cost-summary-cards"
+import { CostTrendChart } from "./_components/cost-trend-chart"
+import { MaterialCostTable } from "./_components/material-cost-table"
+import { MonthlyCostTable } from "./_components/monthly-cost-table"
 
 interface MonthlyCosts {
   period: string
@@ -211,26 +213,38 @@ export default function CostReportsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Period filter — tab strip carries the page identity. */}
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2">
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Costs" },
+        ]}
+        title="Cost reports"
+        subtitle="Review material spend by supplier and period."
+        actions={
+          <Button onClick={exportReport} variant="outline" size="sm">
+            <Download className="size-3.5" aria-hidden="true" />
+            Export report
+          </Button>
+        }
+      />
+
+      <ViewToolbar
+        hideSearch
+        filters={
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="h-9 w-[160px] text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="6months">Last 6 Months</SelectItem>
-              <SelectItem value="12months">Last 12 Months</SelectItem>
+              <SelectItem value="6months">Last 6 months</SelectItem>
+              <SelectItem value="12months">Last 12 months</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={exportReport} variant="outline">
-            Export Report
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Cost Summary */}
       <CostSummaryCards
         totalCost={totalCost}
         totalCutCost={totalCutCost}
@@ -239,7 +253,6 @@ export default function CostReportsPage() {
         wastePercentage={wastePercentage}
       />
 
-      {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2">
         <CostTrendChart data={monthlyCosts} />
         <CostBreakdownChart data={materialCosts} />
@@ -248,6 +261,6 @@ export default function CostReportsPage() {
       <MonthlyCostTable data={monthlyCosts} />
 
       <MaterialCostTable data={materialCosts} />
-    </div>
+    </PageShell>
   )
 }

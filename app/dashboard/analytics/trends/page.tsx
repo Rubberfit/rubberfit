@@ -12,12 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
-import { MultiMetricChart } from "./_components/multi-metric-chart"
-import { TrendAnalysis } from "./_components/trend-analysis"
-import { SeasonalAnalysis } from "./_components/seasonal-analysis"
-import { TrendMetricCards } from "./_components/trend-metric-cards"
 import { KeyInsightsCard } from "./_components/key-insights-card"
+import { MultiMetricChart } from "./_components/multi-metric-chart"
+import { SeasonalAnalysis } from "./_components/seasonal-analysis"
+import { TrendAnalysis } from "./_components/trend-analysis"
+import { TrendMetricCards } from "./_components/trend-metric-cards"
 
 interface TrendData {
   date: string
@@ -164,56 +165,67 @@ export default function TrendsPage() {
     return isPositive ? "text-green-600" : "text-red-600"
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
+  return (
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Trends" },
+        ]}
+        title="Trend analysis"
+        subtitle="Explore cutting metric patterns over custom time ranges."
+      />
+
+      <ViewToolbar
+        hideSearch
+        filters={
+          <Select value={timeframe} onValueChange={setTimeframe}>
+            <SelectTrigger className="h-9 w-[160px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="12weeks">Last 12 weeks</SelectItem>
+              <SelectItem value="12months">Last 12 months</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+
+      {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <Activity className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Loading trend analysis...</p>
+            <Activity
+              className="mx-auto size-8 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-sm text-muted-foreground">Loading trend analysis…</p>
           </div>
         </div>
-      </div>
-    )
-  }
+      ) : (
+        <>
+          {trendMetrics && (
+            <TrendMetricCards
+              metrics={trendMetrics}
+              formatTrendValue={formatTrendValue}
+              getTrendColor={getTrendColor}
+            />
+          )}
 
-  return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Timeframe filter — tab strip above carries the page identity. */}
-      <div className="flex justify-end">
-        <Select value={timeframe} onValueChange={setTimeframe}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7days">Last 7 Days</SelectItem>
-            <SelectItem value="30days">Last 30 Days</SelectItem>
-            <SelectItem value="12weeks">Last 12 Weeks</SelectItem>
-            <SelectItem value="12months">Last 12 Months</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          <MultiMetricChart data={trendData} timeframe={timeframe} />
 
-      {trendMetrics && (
-        <TrendMetricCards
-          metrics={trendMetrics}
-          formatTrendValue={formatTrendValue}
-          getTrendColor={getTrendColor}
-        />
+          <div className="grid gap-4 md:grid-cols-2">
+            <TrendAnalysis data={trendData} />
+            <SeasonalAnalysis data={trendData} timeframe={timeframe} />
+          </div>
+
+          {trendMetrics && (
+            <KeyInsightsCard metrics={trendMetrics} formatTrendValue={formatTrendValue} />
+          )}
+        </>
       )}
-
-      {/* Multi-Metric Chart */}
-      <MultiMetricChart data={trendData} timeframe={timeframe} />
-
-      {/* Analysis Components */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <TrendAnalysis data={trendData} />
-        <SeasonalAnalysis data={trendData} timeframe={timeframe} />
-      </div>
-
-      {trendMetrics && (
-        <KeyInsightsCard metrics={trendMetrics} formatTrendValue={formatTrendValue} />
-      )}
-    </div>
+    </PageShell>
   )
 }

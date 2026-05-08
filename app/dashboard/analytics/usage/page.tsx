@@ -1,18 +1,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { BarChart3, Package, TrendingUp, Activity } from "lucide-react"
+import { Activity, BarChart3, Package, TrendingUp } from "lucide-react"
 import { format, subMonths } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { PageHeader, PageShell, StatCard } from "@/app/components/patterns"
 
-import { UsageTrendChart } from "./_components/usage-trend-chart"
 import { MaterialDistributionChart } from "./_components/material-distribution-chart"
 import { MaterialUsageTable } from "./_components/material-usage-table"
 import { RecentUsageTable } from "./_components/recent-usage-table"
+import { UsageTrendChart } from "./_components/usage-trend-chart"
 
 interface MaterialUsage {
   materialType: string
@@ -135,77 +135,69 @@ export default function MaterialUsagePage() {
   const totalValue = materialUsage.reduce((sum, m) => sum + m.totalValue, 0)
   const totalCuts = materialUsage.reduce((sum, m) => sum + m.totalCuts, 0)
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
+  return (
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Usage" },
+        ]}
+        title="Material usage"
+        subtitle="Analyze material consumption and inventory draw-down by period."
+      />
+
+      {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <Activity className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Loading usage data...</p>
+            <Activity
+              className="mx-auto size-8 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-sm text-muted-foreground">Loading usage data…</p>
           </div>
         </div>
-      </div>
-    )
-  }
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Total material used"
+              icon={<Package />}
+              value={totalSqftUsed.toFixed(0)}
+              unit="sqft"
+              footnote="Last 6 months"
+            />
+            <StatCard
+              label="Material value"
+              icon={<TrendingUp />}
+              value={`$${totalValue.toFixed(0)}`}
+              footnote="Worth of material consumed"
+              sparkIntent="accent"
+            />
+            <StatCard
+              label="Total cuts"
+              icon={<BarChart3 />}
+              value={totalCuts}
+              footnote="Cutting operations"
+            />
+            <StatCard
+              label="Material types"
+              icon={<Package />}
+              value={materialUsage.length}
+              footnote="Types in use"
+            />
+          </div>
 
-  return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Material Used</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalSqftUsed.toFixed(0)} sq ft</div>
-            <p className="text-xs text-muted-foreground">Last 6 months</p>
-          </CardContent>
-        </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <UsageTrendChart data={usageTrend} />
+            <MaterialDistributionChart data={materialUsage} />
+          </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Material Value</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalValue.toFixed(0)}</div>
-            <p className="text-xs text-muted-foreground">Worth of material consumed</p>
-          </CardContent>
-        </Card>
+          <MaterialUsageTable data={materialUsage} />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cuts</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalCuts}</div>
-            <p className="text-xs text-muted-foreground">Cutting operations</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Material Types</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{materialUsage.length}</div>
-            <p className="text-xs text-muted-foreground">Types in use</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <UsageTrendChart data={usageTrend} />
-        <MaterialDistributionChart data={materialUsage} />
-      </div>
-
-      <MaterialUsageTable data={materialUsage} />
-
-      <RecentUsageTable data={recentActivity} />
-    </div>
+          <RecentUsageTable data={recentActivity} />
+        </>
+      )}
+    </PageShell>
   )
 }
