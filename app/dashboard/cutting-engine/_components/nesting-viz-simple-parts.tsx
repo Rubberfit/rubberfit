@@ -157,9 +157,7 @@ export function SimpleModeHeader({
           )}
           {hasPackMeasurement && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-medium text-indigo-600 dark:text-indigo-300">
-              {isPackLive && (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              )}
+              {isPackLive && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
               <span className="tabular-nums">
                 Time to Pack: {((packDurationMs ?? 0) / 1000).toFixed(1)}s
               </span>
@@ -234,6 +232,24 @@ export function SimpleModePatternDefs({
         <rect width="18" height="18" fill="#f0fdf4" />
         <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(34,197,94,0.55)" strokeWidth="2" />
       </pattern>
+      <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />
+      </marker>
+    </defs>
+  )
+}
+
+/**
+ * Phase 5 PR 3 split-out — the dimension-arrow marker is the only piece
+ * of `SimpleModePatternDefs` still needed by the cutting-engine viewer
+ * after the SVG-pattern fills were retired in favour of solid colours.
+ * Stock-sheet (the inventory roll preview) still consumes the full
+ * `SimpleModePatternDefs`, so that component stays unchanged for its
+ * sake.
+ */
+export function SimpleModeMarkerDefs({ markerId }: { markerId: string }) {
+  return (
+    <defs>
       <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
         <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />
       </marker>
