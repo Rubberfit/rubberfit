@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
-import type { AppRole } from "@/src/application/permissions"
+import { ALL_ROLES, type AppRole } from "@/src/application/permissions"
 import { createUserWithProfile } from "@/src/infrastructure/services/userManagementService"
 
-function isValidRole(role: unknown): role is AppRole {
-  return (
-    role === "admin" ||
-    role === "cutter" ||
-    role === "manager" ||
-    role === "member" ||
-    role === "supervisor" ||
-    role === "viewer"
-  )
-}
+// .strict() rejects unknown keys with a 400 (ARC-137 / V8.2.3) — the
+// highest-impact mass-assignment guard in the codebase: a request
+// sending `super_admin: true` or any Postgres column name now 400s
+// rather than silently flowing into the user-creation pipeline. The
+// authenticated caller is already an admin (requireAdmin), but
+// `.strict()` constrains what *fields* admins can write through this
+// route — the principle of least surface for mass-assignment.
+const createUserBodySchema = z
+  .object({
+    email: z.string().trim().email({ message: "email must be a valid address" }),
+    password: z.string().min(6, { message: "password must be at least 6 characters" }),
+    full_name: z.string().trim().min(1, { message: "full_name is required" }),
+    // Role policy is V6/Phase C territory; min(6) matches the historical
+    // check (pre-ARC-141), and tightening it is ARC-145's job.
+    roles: z.array(z.enum(ALL_ROLES)).optional(),
+  })
+  .strict()
 
 /** POST /api/admin/users — create a new auth user + profile */
 export async function POST(request: NextRequest) {
@@ -20,33 +29,22 @@ export async function POST(request: NextRequest) {
   if (!guard.ok) return guard.response
   const { adminClient } = guard.ctx
 
-  let body: unknown
+  let raw: unknown
   try {
-    body = await request.json()
+    raw = await request.json()
   } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  const parsed = createUserBodySchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request body", issues: parsed.error.issues },
+      { status: 400 }
+    )
   }
-
-  const { email, password, full_name, roles } = body as Record<string, unknown>
-
-  if (typeof email !== "string" || !email.trim()) {
-    return NextResponse.json({ error: "email is required" }, { status: 400 })
-  }
-  if (typeof password !== "string" || password.length < 6) {
-    return NextResponse.json({ error: "password must be at least 6 characters" }, { status: 400 })
-  }
-  if (typeof full_name !== "string" || !full_name.trim()) {
-    return NextResponse.json({ error: "full_name is required" }, { status: 400 })
-  }
-
-  const resolvedRoles: AppRole[] =
-    Array.isArray(roles) && roles.length > 0 && roles.every(isValidRole)
-      ? (roles as AppRole[])
-      : ["member"]
+  const { email, password, full_name, roles } = parsed.data
+  const resolvedRoles: AppRole[] = roles && roles.length > 0 ? roles : ["member"]
 
   let result: Awaited<ReturnType<typeof createUserWithProfile>>
   try {

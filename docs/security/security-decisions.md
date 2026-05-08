@@ -78,30 +78,63 @@ Verification approach: a single audit pass against the Supabase Dashboard config
 
 ## Input validation rules (V2.1.1)
 
-**TBD** — Phase A4 deliverable. For each entity, this section will list:
+Route-level Zod schemas are the authoritative validation surface
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141)). All
+schemas use `.strict()` mode
+([ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137) / V8.2.3) —
+unknown keys cause a 400, closing the BOPLA / mass-assignment path that
+default Zod mode would otherwise leave open. The one exception is
+`packRequestSchema` in [src/application/packing/types.ts](../../src/application/packing/types.ts),
+which uses `.passthrough()` so optional Rust tuning knobs (mode, engine,
+`*Strategy`, `timeBudgetMs`, …) can flow through without lockstep TS
+maintenance — Rust's `serde` does the strict deserialise on its side.
 
-- Field name, allowed type, length bound, allowed pattern, special rules.
+| Route                            | Schema                 | Required fields and rules                                                                               |
+| -------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| POST `/api/admin/users`          | `createUserBodySchema` | `email` (RFC 5322 via Zod), `password` (min 6 chars), `full_name` (trim, min 1), `roles?` (`AppRole[]`) |
+| PATCH `/api/admin/alerts/[id]`   | `patchBodySchema`      | `action` (`"acknowledge" \| "resolve"`)                                                                 |
+| POST `/api/cuts/favorites`       | `toggleBodySchema`     | `cut_history_id` (UUID v4)                                                                              |
+| POST `/api/v2/pack` _(dev only)_ | `packRequestSchema`    | `bins` (≥1), `items` (array), `clearance` (≥0); `.passthrough()` for tuning fields (see above)          |
 
-Initial entities to document:
+Bridge routes under `app/api/v2/**` (excluding `/pack`) defer
+validation to the Rust backend. The architectural guard at
+[tests/architecture/api-routes-validate-bodies.test.ts](../../tests/architecture/api-routes-validate-bodies.test.ts)
+enforces this division: every write route either calls `.safeParse(...)`
+on a Zod schema (which itself must be `.strict()` or documented
+`.passthrough()`) or forwards to Rust via `forwardToRust(...)`. New
+routes that try to skip both fail the test on commit.
 
-- `Roll` (CSV import primary use case)
-- `PurchaseOrder` (line items, totals, supplier reference)
-- `Cut` (geometric inputs, customer reference)
-- `Supplier` (contact info, address)
-- `User` (admin-set role, profile fields)
-
-Until this section is filled, route-level Zod schemas are the authoritative validation. The audit will check coverage and completeness.
+Per-entity rules for the wider domain (`Roll`, `PurchaseOrder`, `Cut`,
+`Supplier`) live with the writes themselves rather than with API
+routes — they're enforced at the DB layer today (RLS, Postgres types,
+CHECK constraints) and will gain server-action Zod gates as the
+write-path migration tracked in
+[ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) lands.
 
 ---
 
 ## Business logic limits (V2.1.3)
 
-**TBD** — will be populated with per-user and global limits as discovered:
+Limits enforced today via Zod on API routes
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141),
+[ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137)):
 
-- Max PO line items per PO.
-- Max rolls importable per CSV.
-- Max concurrent cuts per user.
-- Anti-automation rate limits per route (V2.4.1).
+- POST `/api/admin/users`: `password` length ≥ 6 chars (historical
+  baseline; tightening tracked under
+  [ARC-145](https://linear.app/arc-and-anchor/issue/ARC-145) / Phase C
+  password policy).
+- POST `/api/v2/pack`: at least one bin per request
+  (`bins.array().min(1)`), `clearance` non-negative.
+
+Limits **not yet enforced**, tracked separately:
+
+- Max PO line items per PO — tracked with the PO domain migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max rolls importable per CSV — tracked with the CSV migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max concurrent cuts per user — TBD; not currently capped.
+- Anti-automation rate limits per route (V2.4.1) —
+  [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142).
 
 ---
 
