@@ -1,7 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesService"
+
+// .strict() rejects unknown keys with a 400 (ARC-137 / V8.2.3) — closes
+// the mass-assignment hazard if a future column accepts a value via
+// this route. Default Zod mode silently drops unknown keys; that's
+// exactly the BOPLA path we don't want.
+const toggleBodySchema = z
+  .object({
+    cut_history_id: z.string().uuid({ message: "cut_history_id must be a valid UUID" }),
+  })
+  .strict()
 
 export async function GET(request: NextRequest) {
   const authClient = makeAuthClient(request)
@@ -32,10 +43,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: ids })
 }
 
-interface ToggleBody {
-  cut_history_id: string
-}
-
 export async function POST(request: NextRequest) {
   const authClient = makeAuthClient(request)
   if (!authClient) {
@@ -61,17 +68,21 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let body: ToggleBody
+  let raw: unknown
   try {
-    body = (await request.json()) as ToggleBody
+    raw = await request.json()
   } catch (_error) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const { cut_history_id } = body
-  if (typeof cut_history_id !== "string") {
-    return NextResponse.json({ error: "cut_history_id must be a string" }, { status: 400 })
+  const parsed = toggleBodySchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request body", issues: parsed.error.issues },
+      { status: 400 }
+    )
   }
+  const { cut_history_id } = parsed.data
 
   const result = await cutFavoritesService.toggleFavorite(db, user.id, cut_history_id)
   if ("error" in result) {
