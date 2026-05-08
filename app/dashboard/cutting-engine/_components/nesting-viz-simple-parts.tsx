@@ -240,66 +240,72 @@ export function SimpleModePatternDefs({
 }
 
 /**
- * Phase 5 PR 3 (round 3) — the cutting-engine viewer's pattern + marker
- * defs. Distinct from `SimpleModePatternDefs` (which stays bound to
- * `stock-sheet.tsx`'s inventory roll preview palette) because the
- * cutting-engine surface speaks its own engineering-drawing dialect:
+ * Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD) —
+ * shared defs for the cutting-engine SVG viewer. Distinct from
+ * `SimpleModePatternDefs`, which stays bound to `stock-sheet.tsx`'s
+ * inventory roll preview palette.
  *
- *   - **sheet**: amber-100 base + amber-600 @ 25% diagonal stripes
- *     (20px tile, 45° rotation, 2px line) — uncovered = reusable.
- *   - **scrap**: red-50 base + red-600 @ 35% diagonal stripes
- *     (14px tile, 45° rotation, 2px line) — waste.
- *   - **part**:  emerald-100 base + emerald-600 @ 50% diagonal stripes
- *     (16px tile, -32° rotation, 2px line) — cut, paired with a
- *     lime-600 2px outline stroke applied at the consumer.
+ * The aesthetic treats the viewport as a top-down photograph of a
+ * rubber workpiece under a single shop light. Depth comes from
+ * shared gradients + a single radial vignette + CSS drop-shadow
+ * (GPU-composited) on parts; we deliberately avoid per-element SVG
+ * filters because they rasterize per element and choke at 100+ parts.
  *
- * Tile sizes / rotations / opacities come from Kimi K2.6's round-3
- * design verdict; tuned higher than the legacy palette so parts read
- * unambiguously against the sheet at 10% utilization (the case the
- * legacy values failed at).
+ * - `sheetVignettePatternId`: radial dark vignette overlay on the
+ *   sheet rect, multiply-blended to simulate overhead lighting fall
+ *   off at the sheet's edges.
+ * - `partLightId`: cool slate linear gradient consumed by every part
+ *   (top-left highlight, bottom-right shade), giving each part a
+ *   "proud chunk catching the same light" read without per-shape
+ *   gradient stops.
+ * - `toolGridPatternId`: faint 20px dot grid suggesting a tooling
+ *   surface (cutting mat / CMM table), rendered on top of the sheet
+ *   base.
+ * - `scrapHatchPatternId`: 4px-spaced diagonal rust hatch — engineering
+ *   "marked for waste" notation, not a screaming red void.
+ * - `pageGridPatternId`: 40px graph grid behind the sheet, evoking
+ *   the work-surface rather than a generic page background.
+ * - `markerId`: dimension-arrow head reused across the canvas.
  */
 export function SimpleModeCanvasDefs({
-  sheetPatternId,
-  scrapPatternId,
-  partPatternId,
+  sheetVignetteId,
+  partLightId,
+  toolGridPatternId,
+  scrapHatchPatternId,
+  pageGridPatternId,
   markerId,
 }: {
-  sheetPatternId: string
-  scrapPatternId: string
-  partPatternId: string
+  sheetVignetteId: string
+  partLightId: string
+  toolGridPatternId: string
+  scrapHatchPatternId: string
+  pageGridPatternId: string
   markerId: string
 }) {
   return (
     <defs>
+      <radialGradient id={sheetVignetteId} cx="50%" cy="50%" r="70%">
+        <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+        <stop offset="100%" stopColor="#000000" stopOpacity="0.20" />
+      </radialGradient>
+      <linearGradient id={partLightId} x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#94a3b8" />
+        <stop offset="100%" stopColor="#64748b" />
+      </linearGradient>
+      <pattern id={toolGridPatternId} width="20" height="20" patternUnits="userSpaceOnUse">
+        <circle cx="10" cy="10" r="1" fill="rgba(0,0,0,0.08)" />
+      </pattern>
       <pattern
-        id={sheetPatternId}
-        width="20"
-        height="20"
+        id={scrapHatchPatternId}
+        width="4"
+        height="4"
         patternUnits="userSpaceOnUse"
         patternTransform="rotate(45)"
       >
-        <rect width="20" height="20" fill="#fef3c7" />
-        <line x1="0" y1="0" x2="0" y2="20" stroke="rgba(217,119,6,0.25)" strokeWidth="2" />
+        <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(180,83,9,0.25)" strokeWidth="1" />
       </pattern>
-      <pattern
-        id={scrapPatternId}
-        width="14"
-        height="14"
-        patternUnits="userSpaceOnUse"
-        patternTransform="rotate(45)"
-      >
-        <rect width="14" height="14" fill="#fef2f2" />
-        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(220,38,38,0.35)" strokeWidth="2" />
-      </pattern>
-      <pattern
-        id={partPatternId}
-        width="16"
-        height="16"
-        patternUnits="userSpaceOnUse"
-        patternTransform="rotate(-32)"
-      >
-        <rect width="16" height="16" fill="#d1fae5" />
-        <line x1="0" y1="0" x2="0" y2="16" stroke="rgba(5,150,105,0.5)" strokeWidth="2" />
+      <pattern id={pageGridPatternId} width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" opacity="0.40" />
       </pattern>
       <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
         <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />

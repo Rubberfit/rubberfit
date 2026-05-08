@@ -2,23 +2,32 @@ import React from "react"
 import type { PreviewItem, SimplePartPreview } from "./nesting-visualizer-types"
 import { polygonCentroid } from "./part-label"
 
-// Phase 5 PR 3 (round 3) — engineering-drawing SVG renderer.
+// Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
 //
-// Parts render with a diagonal-stripe `<pattern>` fill (emerald-100
-// base + emerald-600 @ 50% lines, 16px tile, -32° rotation) plus a
-// lime-600 outline stroke. Pattern definitions live alongside the
-// sheet/scrap patterns in `SimpleModeCanvasDefs`; this renderer
-// consumes the id via `partPatternId` and applies the outline at
-// the body shape.
+// Each cut part renders as a slate-gradient body (top-left light to
+// bottom-right shade) with a 1px slate-900 stroke and a CSS
+// drop-shadow that simulates the part sitting proud of the sheet
+// under a top-left shop light. The gradient is shared via a single
+// `<linearGradient>` in `SimpleModeCanvasDefs` and consumed by every
+// part — referenced as `partGradientId` despite the legacy name (it
+// is a gradient, not a hatch pattern, in this treatment).
+//
+// CSS `drop-shadow` is GPU-composited on modern Blink/WebKit and
+// avoids the per-element rasterization cost of SVG `<filter>` at
+// scale (a packed sheet can have 100+ parts).
 //
 // The `stone-900 + wastePattern` bbox crutch on circle/sector/
-// trapezoid is gone permanently — Codex confirmed it carried no
+// trapezoid stays gone permanently — Codex confirmed it carried no
 // information the underlying scrap/offcut classification didn't
 // already cover. The two-pass `background`/`foreground` machinery
-// collapsed to a single pass for the same reason.
+// stays collapsed to a single pass for the same reason.
 
-const PART_OUTLINE = "#65a30d" // lime-600 — Kimi round-3 spec
-const PART_OUTLINE_WIDTH = "2"
+const PART_STROKE = "#334155" // slate-700 — clean 1px outline
+const PART_STROKE_WIDTH = "1"
+// Tailwind arbitrary-value drop shadow — GPU-composited via CSS
+// `filter: drop-shadow(...)`. Single-quoted className would clash
+// with the SVG attr; the bracket syntax keeps the string atomic.
+const PART_SHADOW_CLASS = "[filter:drop-shadow(1px_2px_2px_rgba(0,0,0,0.12))]"
 
 interface NestingShapeRendererProps {
   item: PreviewItem
@@ -32,7 +41,7 @@ interface NestingShapeRendererProps {
   preview: SimplePartPreview
   displayPreview: SimplePartPreview
   /** SVG `<pattern>` id from `SimpleModeCanvasDefs` — emerald hatch. */
-  partPatternId: string
+  partGradientId: string
   viewHeight: number
   surfacePxW: number
   tagLetter?: string
@@ -80,7 +89,7 @@ function PolygonShape({
   unitOriginX,
   unitOriginY,
   scale,
-  partPatternId,
+  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -93,7 +102,7 @@ function PolygonShape({
   unitOriginX: number
   unitOriginY: number
   scale: number
-  partPatternId: string
+  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -123,10 +132,11 @@ function PolygonShape({
     <g key={index + 1}>
       <polygon
         points={polyPoints}
-        fill={`url(#${partPatternId})`}
-        stroke={PART_OUTLINE}
-        strokeWidth={PART_OUTLINE_WIDTH}
+        fill={`url(#${partGradientId})`}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
+        className={PART_SHADOW_CLASS}
       />
       <text
         x={labelX}
@@ -151,7 +161,7 @@ function CircleShape({
   item,
   index,
   coords,
-  partPatternId,
+  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -159,7 +169,7 @@ function CircleShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partPatternId: string
+  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -174,10 +184,11 @@ function CircleShape({
         cx={cx}
         cy={cy}
         r={Math.max(r - 1, 0)}
-        fill={`url(#${partPatternId})`}
-        stroke={PART_OUTLINE}
-        strokeWidth={PART_OUTLINE_WIDTH}
+        fill={`url(#${partGradientId})`}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
+        className={PART_SHADOW_CLASS}
       />
       <text
         x={cx}
@@ -202,7 +213,7 @@ function SectorShape({
   item,
   index,
   coords,
-  partPatternId,
+  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -210,7 +221,7 @@ function SectorShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partPatternId: string
+  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -246,10 +257,11 @@ function SectorShape({
     <g key={index + 1}>
       <path
         d={buildArcPath()}
-        fill={`url(#${partPatternId})`}
-        stroke={PART_OUTLINE}
-        strokeWidth={PART_OUTLINE_WIDTH}
+        fill={`url(#${partGradientId})`}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
+        className={PART_SHADOW_CLASS}
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -278,7 +290,7 @@ function TrapezoidShape({
   item,
   index,
   coords,
-  partPatternId,
+  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -286,7 +298,7 @@ function TrapezoidShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partPatternId: string
+  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -310,10 +322,11 @@ function TrapezoidShape({
     <g key={index + 1}>
       <path
         d={buildTrapPath()}
-        fill={`url(#${partPatternId})`}
-        stroke={PART_OUTLINE}
-        strokeWidth={PART_OUTLINE_WIDTH}
+        fill={`url(#${partGradientId})`}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
+        className={PART_SHADOW_CLASS}
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -342,7 +355,7 @@ function RectShape({
   item,
   index,
   coords,
-  partPatternId,
+  partGradientId,
   tagLetter,
   displayRotated,
   zoom = 1,
@@ -350,7 +363,7 @@ function RectShape({
   item: PreviewItem
   index: number
   coords: ShapeCoords
-  partPatternId: string
+  partGradientId: string
   tagLetter?: string
   displayRotated?: boolean
   zoom?: number
@@ -362,10 +375,11 @@ function RectShape({
         y={coords.py + 0.5}
         width={coords.pw}
         height={coords.ph}
-        fill={`url(#${partPatternId})`}
-        stroke={PART_OUTLINE}
-        strokeWidth={PART_OUTLINE_WIDTH}
+        fill={`url(#${partGradientId})`}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
+        className={PART_SHADOW_CLASS}
       />
       <text
         x={coords.px + coords.pw / 2}
@@ -400,7 +414,7 @@ export default function NestingShapeRenderer({
   shapeFirstView: _shapeFirstView,
   preview: _preview,
   displayPreview: _displayPreview,
-  partPatternId,
+  partGradientId,
   viewHeight: _viewHeight,
   surfacePxW: _surfacePxW,
   tagLetter,
@@ -428,7 +442,7 @@ export default function NestingShapeRenderer({
         unitOriginX={unitOriginX}
         unitOriginY={unitOriginY}
         scale={scale}
-        partPatternId={partPatternId}
+        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -442,7 +456,7 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partPatternId={partPatternId}
+        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -456,7 +470,7 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partPatternId={partPatternId}
+        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -470,7 +484,7 @@ export default function NestingShapeRenderer({
         item={item}
         index={index}
         coords={coords}
-        partPatternId={partPatternId}
+        partGradientId={partGradientId}
         tagLetter={tagLetter}
         displayRotated={displayRotated}
         zoom={zoom}
@@ -483,7 +497,7 @@ export default function NestingShapeRenderer({
       item={item}
       index={index}
       coords={coords}
-      partPatternId={partPatternId}
+      partGradientId={partGradientId}
       tagLetter={tagLetter}
       displayRotated={displayRotated}
       zoom={zoom}
