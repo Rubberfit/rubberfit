@@ -28,10 +28,13 @@ const REPORT_PERIODS: ReadonlyArray<{ value: ReportPeriod; label: string }> = [
   { value: "quarterly", label: "Quarterly" },
 ]
 
-const REPORT_PERIOD_VALUES: ReadonlySet<ReportPeriod> = new Set(REPORT_PERIODS.map((p) => p.value))
+// Typed as `ReadonlySet<string>` (not `ReadonlySet<ReportPeriod>`)
+// so `.has(value)` accepts any string without a cast — the type
+// guard's `value is ReportPeriod` return narrows correctly anyway.
+const REPORT_PERIOD_VALUES: ReadonlySet<string> = new Set(REPORT_PERIODS.map((p) => p.value))
 
 function isReportPeriod(value: string): value is ReportPeriod {
-  return (REPORT_PERIOD_VALUES as ReadonlySet<string>).has(value)
+  return REPORT_PERIOD_VALUES.has(value)
 }
 
 export default function ReportsPage() {

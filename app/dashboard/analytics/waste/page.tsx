@@ -146,10 +146,13 @@ const TIMEFRAME_OPTIONS: ReadonlyArray<{ value: Timeframe; label: string }> = [
   { value: "12m", label: "Last 12 months" },
 ]
 
-const TIMEFRAME_VALUES: ReadonlySet<Timeframe> = new Set(TIMEFRAME_OPTIONS.map((o) => o.value))
+// Typed as `ReadonlySet<string>` (not `ReadonlySet<Timeframe>`)
+// so `.has(value)` accepts any string without a cast — the type
+// guard's `value is Timeframe` return narrows correctly anyway.
+const TIMEFRAME_VALUES: ReadonlySet<string> = new Set(TIMEFRAME_OPTIONS.map((o) => o.value))
 
 function isTimeframe(value: string): value is Timeframe {
-  return (TIMEFRAME_VALUES as ReadonlySet<string>).has(value)
+  return TIMEFRAME_VALUES.has(value)
 }
 
 export default function WasteAnalysisPage() {
