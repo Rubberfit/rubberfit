@@ -60,7 +60,9 @@ export function TrendMetricCards({ metrics, formatTrendValue }: TrendMetricCards
         value={formatTrendValue(metrics.wasteChange)}
         footnote="Waste percentage"
         trend={trendFor(metrics.wasteChange, formatTrendValue, true)}
-        sparkIntent={metrics.wasteChange > 0 ? "danger" : "success"}
+        sparkIntent={
+          metrics.wasteChange === 0 ? "accent" : metrics.wasteChange > 0 ? "danger" : "success"
+        }
       />
       <StatCard
         label="Efficiency"
@@ -68,7 +70,13 @@ export function TrendMetricCards({ metrics, formatTrendValue }: TrendMetricCards
         value={formatTrendValue(metrics.efficiencyChange)}
         footnote="Material efficiency"
         trend={trendFor(metrics.efficiencyChange, formatTrendValue)}
-        sparkIntent={metrics.efficiencyChange >= 0 ? "success" : "danger"}
+        sparkIntent={
+          metrics.efficiencyChange === 0
+            ? "accent"
+            : metrics.efficiencyChange > 0
+              ? "success"
+              : "danger"
+        }
       />
       <StatCard
         label="Costs"
@@ -76,7 +84,9 @@ export function TrendMetricCards({ metrics, formatTrendValue }: TrendMetricCards
         value={formatTrendValue(metrics.costChange)}
         footnote="Material costs"
         trend={trendFor(metrics.costChange, formatTrendValue, true)}
-        sparkIntent={metrics.costChange > 0 ? "warning" : "success"}
+        sparkIntent={
+          metrics.costChange === 0 ? "accent" : metrics.costChange > 0 ? "warning" : "success"
+        }
       />
     </div>
   )

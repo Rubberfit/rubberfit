@@ -170,7 +170,7 @@ export default function CostReportsPage() {
   const totalWasteCost = monthlyCosts.reduce((sum, month) => sum + month.wasteCost, 0)
   const wastePercentage = totalCost > 0 ? (totalWasteCost / totalCost) * 100 : 0
 
-  const exportReport = () => {
+  const handleExportReport = () => {
     const headers = [
       "Period",
       "Material Type",
@@ -223,7 +223,7 @@ export default function CostReportsPage() {
         title="Cost reports"
         subtitle="Review material spend by material type and period."
         actions={
-          <Button onClick={exportReport} variant="outline" size="sm">
+          <Button onClick={handleExportReport} variant="outline" size="sm">
             <Download className="size-3.5" aria-hidden="true" />
             Export report
           </Button>

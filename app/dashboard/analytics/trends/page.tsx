@@ -40,25 +40,30 @@ interface TrendMetrics {
 export default function TrendsPage() {
   const [timeframe, setTimeframe] = useState("30days")
 
-  const { startDate, groupBy } = useMemo(() => {
+  // `endDate` is recomputed inside the same `[timeframe]`-keyed memo
+  // as `startDate` so each timeframe switch queries through the
+  // current moment. The previous mount-time `now` snapshot kept the
+  // upper bound stale on long-open sessions — newer cuts wouldn't
+  // appear in the result until a full page refresh.
+  const { startDate, endDate, groupBy } = useMemo(() => {
+    const endDate = new Date()
     switch (timeframe) {
       case "7days":
-        return { startDate: subDays(new Date(), 7), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 7), endDate, groupBy: "day" as const }
       case "30days":
-        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 30), endDate, groupBy: "day" as const }
       case "12weeks":
-        return { startDate: subWeeks(new Date(), 12), groupBy: "week" as const }
+        return { startDate: subWeeks(endDate, 12), endDate, groupBy: "week" as const }
       case "12months":
-        return { startDate: subMonths(new Date(), 12), groupBy: "month" as const }
+        return { startDate: subMonths(endDate, 12), endDate, groupBy: "month" as const }
       default:
-        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 30), endDate, groupBy: "day" as const }
     }
   }, [timeframe])
 
-  const now = useMemo(() => new Date(), [])
   const { data: cutsData, isLoading: loading } = useCutHistoryAnalytics({
     from: startDate,
-    to: now,
+    to: endDate,
   })
 
   const { trendData, trendMetrics } = useMemo(() => {
