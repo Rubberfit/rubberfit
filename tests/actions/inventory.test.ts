@@ -64,12 +64,20 @@ describe("app/actions/inventory.addRoll", () => {
   it("computes derived fields server-side and threads actor.id", async () => {
     const { addRoll } = await import("@/app/actions/inventory")
 
+    // Without a client-supplied date, the action falls back to UTC.
+    // Capture the UTC date before/after the awaited call so we can
+    // bound on both sides — `>= today` alone would pass if the action
+    // accidentally returned tomorrow's date. The before/after window
+    // accommodates a UTC midnight crossing during the test.
+    // (coderabbit follow-up on PR #197.)
+    const beforeUtc = new Date().toISOString().slice(0, 10)
     await addRoll({
       material_type: "Butyl",
       width: 60,
       length: 240,
       thickness: 0.5,
     })
+    const afterUtc = new Date().toISOString().slice(0, 10)
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
     const [rollArg, userIdArg] = addRollSvcMock.mock.calls[0]
@@ -84,8 +92,63 @@ describe("app/actions/inventory.addRoll", () => {
     })
     expect(typeof rollArg.date_received).toBe("string")
     expect(rollArg.date_received).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(rollArg.date_received >= beforeUtc).toBe(true)
+    expect(rollArg.date_received <= afterUtc).toBe(true)
     expect(userIdArg).toBe(ACTOR.id)
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory")
+  })
+
+  it("forwards client-supplied date_received instead of computing server-side", async () => {
+    const { addRoll } = await import("@/app/actions/inventory")
+
+    // Form computes user-local YYYY-MM-DD and passes it through —
+    // restoring pre-action behavior for users in negative-UTC offsets
+    // (sigilix PR #177 follow-up).
+    await addRoll({
+      material_type: "Butyl",
+      width: 60,
+      length: 240,
+      thickness: 0.5,
+      date_received: "2026-05-07",
+    })
+
+    const rollArg = addRollSvcMock.mock.calls[0][0]
+    expect(rollArg.date_received).toBe("2026-05-07")
+  })
+
+  it("rejects malformed date_received", async () => {
+    const { addRoll } = await import("@/app/actions/inventory")
+
+    await expect(
+      addRoll({
+        material_type: "Butyl",
+        width: 60,
+        length: 240,
+        thickness: 0.5,
+        date_received: "tomorrow",
+      } as unknown as Parameters<typeof addRoll>[0])
+    ).rejects.toThrow()
+    expect(addRollSvcMock).not.toHaveBeenCalled()
+  })
+
+  it("rejects impossible calendar dates that pass the format regex", async () => {
+    // coderabbit follow-up on PR #197: format-only validation accepted
+    // values like `2026-02-31` because `Date.parse` silently rolls
+    // them forward (March 3 in this case). Refine catches the rollover.
+    const { addRoll } = await import("@/app/actions/inventory")
+
+    for (const bad of ["2026-02-31", "2026-13-01", "2026-04-31", "2026-00-15"]) {
+      await expect(
+        addRoll({
+          material_type: "Butyl",
+          width: 60,
+          length: 240,
+          thickness: 0.5,
+          date_received: bad,
+        } as unknown as Parameters<typeof addRoll>[0])
+      ).rejects.toThrow()
+    }
+    expect(addRollSvcMock).not.toHaveBeenCalled()
   })
 
   it("does not let the client smuggle status / part_number / is_offcut / user_id", async () => {

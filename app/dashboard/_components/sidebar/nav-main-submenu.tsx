@@ -96,8 +96,19 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         return
       }
 
-      // The action computes derived fields (status, remaining_length,
-      // date_received) server-side from the user-entered values.
+      // The action computes most derived fields (status, remaining_length)
+      // server-side. `date_received` is computed here from the user's
+      // local calendar so users in negative-UTC offsets near local
+      // midnight don't get tomorrow's UTC date written to the row —
+      // matches the pre-action browser behavior. If we ever drop this
+      // line, the action falls back to UTC server-side.
+      const now = new Date()
+      const date_received = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+      ].join("-")
+
       await addRoll({
         material_type: formData.material_type,
         width,
@@ -108,6 +119,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         supplier: formData.supplier || undefined,
         cost_per_sqft: costPerSqft,
         notes: formData.notes || undefined,
+        date_received,
       })
 
       toast.success("Roll added successfully!")

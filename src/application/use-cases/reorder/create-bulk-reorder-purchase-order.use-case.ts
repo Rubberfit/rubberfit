@@ -50,7 +50,11 @@ import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use
  *      messages are for telemetry only.
  */
 
-export type SkipReason = "no_supplier" | "po_creation_failed" | "item_addition_failed"
+export type SkipReason =
+  | "no_supplier"
+  | "po_creation_failed"
+  | "item_addition_failed"
+  | "tax_calculation_failed"
 
 export interface SkippedSuggestion {
   /** Original suggestion that wasn't successfully ordered. */
@@ -146,8 +150,32 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
     for (const [supplierId, items] of withSupplier) {
       const subtotal = items.reduce((sum, item) => sum + item.estimatedCost, 0)
       const supplierFields = await this.resolveSupplierFields(supplierId)
-      const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
-      const taxAmount = taxCalc.taxAmount
+
+      // Tax-service failures (ZipTax rate-limit, bad zip lookup,
+      // network blip) used to throw out of the whole bulk loop and
+      // discard every other supplier's PO — defeating the
+      // partial-failure design above. Scope the catch to this
+      // supplier so the rest still proceed. (coderabbit follow-up
+      // on PR #177.)
+      let taxAmount: number
+      try {
+        const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
+        taxAmount = taxCalc.taxAmount
+      } catch (error) {
+        console.error(
+          `[bulk-reorder] calculatePurchaseOrderTax failed for supplier ${supplierId}:`,
+          error
+        )
+        for (const item of items) {
+          skipped.push({
+            suggestion: item,
+            reason: "tax_calculation_failed",
+            message: `Could not calculate tax for ${item.supplierName ?? "supplier"}`,
+          })
+        }
+        continue
+      }
+
       const deliveryDate = new Date(
         Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
       ).toISOString()
@@ -185,7 +213,14 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
         continue
       }
 
-      purchaseOrders.push(po)
+      // Track which items actually landed on the PO. The header
+      // `subtotal` / `tax_amount` / `total_amount` were computed from
+      // ALL items above; if any insert fails we need to either
+      // recompute the header (partial success) or clean up the orphan
+      // PO row (full failure). Deferring `purchaseOrders.push(po)`
+      // until after the loop also keeps an empty PO out of the
+      // returned result. (coderabbit follow-up on PR #177.)
+      const successfulItems: ReorderSuggestionOutput[] = []
 
       for (const item of items) {
         try {
@@ -214,6 +249,8 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
           continue
         }
 
+        successfulItems.push(item)
+
         const rule = reorderRules.find((r) => r.material_type_id === item.materialTypeId)
         if (rule) {
           try {
@@ -241,6 +278,42 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
           // Non-fatal — notification failure shouldn't roll back the PO.
           console.error(
             `[bulk-reorder] sendReorderTriggered failed for material ${item.materialTypeId}:`,
+            error
+          )
+        }
+      }
+
+      if (successfulItems.length === 0) {
+        // Every item-add failed for this supplier. The PO row exists
+        // with header totals computed from items that aren't there.
+        // Best-effort cleanup; if the delete itself fails the operator
+        // sees an orphan empty draft, but the items were already
+        // surfaced as `skipped` so they know what happened.
+        try {
+          await this.poService.deletePurchaseOrder(po.id)
+        } catch (error) {
+          console.error(
+            `[bulk-reorder] cleanup deletePurchaseOrder failed for orphan ${po.id}:`,
+            error
+          )
+        }
+        continue
+      }
+
+      purchaseOrders.push(po)
+
+      if (successfulItems.length < items.length) {
+        // Partial success: PO header `subtotal/tax_amount/total_amount`
+        // was computed from items.length but only successfulItems are
+        // actually on the row. Recompute from the rows that landed.
+        // `recalculatePOTotals` re-reads the items table and re-runs
+        // the tax service — failure here is non-fatal (header stays
+        // over-counted; operator can hit "Recalculate" manually).
+        try {
+          await this.poService.recalculatePOTotals(po.id)
+        } catch (error) {
+          console.error(
+            `[bulk-reorder] recalculatePOTotals failed for PO ${po.id} after partial item loss:`,
             error
           )
         }

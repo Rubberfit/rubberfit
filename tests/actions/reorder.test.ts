@@ -1,7 +1,27 @@
+/**
+ * Reorder action tests — post-Tier-2 authority-gap fix.
+ *
+ * The actions no longer accept client-supplied `suggestion[]` /
+ * `reorderRules` payloads. Server fetches rules + stock + pending
+ * POs, runs the generate-suggestions use-case, and forwards the
+ * authoritative result to the create use-case. Tests mock:
+ *
+ *   - `requireAuthenticatedUser` + `requirePermission` (auth gate)
+ *   - `resolveUseCase` (returns a fake with `execute` mocked)
+ *   - `reorderService.getActiveReorderRules` + `calculateCurrentStock`
+ *   - `purchaseOrderService.getPurchaseOrdersByStatuses`
+ *   - `revalidatePath`
+ *
+ * Two `resolveUseCase` resolvers are needed per write-action invocation
+ * because the action calls the generate-suggestions use-case before
+ * the create use-case. The mock returns objects keyed by token.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
+import { TOKENS } from "@/di/tokens"
 
 const requireAuthenticatedUserMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-authenticated-user", () => ({
@@ -18,6 +38,26 @@ vi.mock("@/di/resolve", () => ({
   resolveUseCase: resolveUseCaseMock,
 }))
 
+const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/database/register-factory", () => ({
+  ensureDatabaseFactoryRegistered: ensureDatabaseFactoryRegisteredMock,
+}))
+
+const reorderServiceMock = vi.hoisted(() => ({
+  getActiveReorderRules: vi.fn(),
+  calculateCurrentStock: vi.fn(),
+}))
+vi.mock("@/src/infrastructure/services/reorderService", () => ({
+  reorderService: reorderServiceMock,
+}))
+
+const purchaseOrderServiceMock = vi.hoisted(() => ({
+  getPurchaseOrdersByStatuses: vi.fn(),
+}))
+vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({
+  purchaseOrderService: purchaseOrderServiceMock,
+}))
+
 const revalidatePathMock = vi.hoisted(() => vi.fn())
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
@@ -32,230 +72,294 @@ const ACTOR: ActionActor = {
 
 // Stable test UUIDs.
 const MATERIAL_TYPE_ID = "00000000-0000-4000-8000-000000000010"
+const MATERIAL_TYPE_ID_B = "00000000-0000-4000-8000-000000000020"
 const SUPPLIER_ID = "00000000-0000-4000-8000-000000000011"
 const RULE_ID = "00000000-0000-4000-8000-000000000012"
 const PO_ID = "00000000-0000-4000-8000-000000000013"
 
-// Realistic ReorderSuggestionOutput shape (now Zod-validated).
-const VALID_SUGGESTION = {
-  materialTypeId: MATERIAL_TYPE_ID,
-  materialName: "Black butyl rubber",
-  currentStock: 10,
-  reorderPoint: 50,
-  suggestedQuantity: 100,
-  urgencyLevel: "high" as const,
-  daysUntilStockout: 5,
-  supplierId: SUPPLIER_ID,
-  supplierName: "Acme Rubber",
-  estimatedCost: 550,
-}
-
-// Cast through unknown — the action's public type is
-// `ReorderRuleWithDetails[]` (full DB row + joins), but the use-case
-// only reads a subset and Zod validates that subset. Filling out
-// every column on a synthetic test object would be brittle without
-// adding any test signal.
-const VALID_RULE: ReorderRuleWithDetails = {
+const ACTIVE_RULE: ReorderRuleWithDetails = {
   id: RULE_ID,
   material_type_id: MATERIAL_TYPE_ID,
   reorder_point: 50,
   reorder_quantity: 100,
   current_stock: 10,
   supplier_id: SUPPLIER_ID,
+  active: true,
   material_type: { name: "Black butyl rubber", default_cost: 5.5 },
   supplier: { name: "Acme Rubber" },
 } as unknown as ReorderRuleWithDetails
+
+// Authoritative suggestion the generate use-case "produces" — what
+// the create use-case ends up consuming. Its `estimatedCost` /
+// `suggestedQuantity` are server-computed from the rule + stock
+// (not anything a client sent).
+const AUTHORITATIVE_SUGGESTION: ReorderSuggestionOutput = {
+  materialTypeId: MATERIAL_TYPE_ID,
+  materialName: "Black butyl rubber",
+  currentStock: 10,
+  reorderPoint: 50,
+  suggestedQuantity: 100,
+  urgencyLevel: "high",
+  daysUntilStockout: 5,
+  supplierId: SUPPLIER_ID,
+  supplierName: "Acme Rubber",
+  estimatedCost: 550,
+}
+
+// `resolveUseCase` is called multiple times per action: once for
+// generate, once for the create. Route by token so the test can
+// observe what each use-case received without juggling call order.
+function setupUseCaseResolver(opts: {
+  generateExecute?: ReturnType<typeof vi.fn>
+  createSingleExecute?: ReturnType<typeof vi.fn>
+  createBulkExecute?: ReturnType<typeof vi.fn>
+}) {
+  resolveUseCaseMock.mockImplementation((token: symbol) => {
+    if (token === TOKENS.IGenerateReorderSuggestionsUseCase && opts.generateExecute) {
+      return { execute: opts.generateExecute }
+    }
+    if (token === TOKENS.ICreateReorderPurchaseOrderUseCase && opts.createSingleExecute) {
+      return { execute: opts.createSingleExecute }
+    }
+    if (token === TOKENS.ICreateBulkReorderPurchaseOrderUseCase && opts.createBulkExecute) {
+      return { execute: opts.createBulkExecute }
+    }
+    throw new Error(`Unexpected resolveUseCase token: ${String(token)}`)
+  })
+}
 
 describe("app/actions/reorder", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
     requirePermissionMock.mockReturnValue(undefined)
+    reorderServiceMock.getActiveReorderRules.mockResolvedValue([ACTIVE_RULE])
+    reorderServiceMock.calculateCurrentStock.mockResolvedValue(10)
+    purchaseOrderServiceMock.getPurchaseOrdersByStatuses.mockResolvedValue([])
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  it("createReorderPurchaseOrder threads actor and revalidates reorder + PO paths", async () => {
-    const execute = vi.fn().mockResolvedValue({ purchaseOrder: { id: PO_ID } })
-    resolveUseCaseMock.mockReturnValue({ execute })
+  // ── createReorderPurchaseOrder ────────────────────────────────────
+
+  it("createReorderPurchaseOrder regenerates suggestions server-side from materialTypeId", async () => {
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION])
+    const createSingleExecute = vi.fn().mockResolvedValue({ purchaseOrder: { id: PO_ID } })
+    setupUseCaseResolver({ generateExecute, createSingleExecute })
 
     const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    await createReorderPurchaseOrder({
-      suggestion: VALID_SUGGESTION,
-      reorderRules: [VALID_RULE],
-    })
+    await createReorderPurchaseOrder({ materialTypeId: MATERIAL_TYPE_ID })
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ actor: ACTOR }))
+    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(generateExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rules: expect.arrayContaining([
+          expect.objectContaining({ material_type_id: MATERIAL_TYPE_ID, current_stock: 10 }),
+        ]),
+        pendingPOs: [],
+      })
+    )
+
+    // Authoritative suggestion is what the create use-case sees — the
+    // client never authored it.
+    expect(createSingleExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestion: AUTHORITATIVE_SUGGESTION,
+        actor: ACTOR,
+      })
+    )
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/reorder")
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/purchase-orders")
   })
 
-  it("createReorderPurchaseOrder Zod-rejects malformed suggestion", async () => {
-    // TS accepts `string` for materialTypeId (Zod's UUID check is
-    // runtime-only); the runtime tripwire is the protection.
-    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    await expect(
-      createReorderPurchaseOrder({
-        suggestion: { ...VALID_SUGGESTION, materialTypeId: "not-a-uuid" },
-        reorderRules: [VALID_RULE],
-      })
-    ).rejects.toThrow()
-    expect(resolveUseCaseMock).not.toHaveBeenCalled()
-  })
+  it("createReorderPurchaseOrder ignores client-attempted smuggling — input shape is just { materialTypeId }", async () => {
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION])
+    const createSingleExecute = vi.fn().mockResolvedValue({ purchaseOrder: { id: PO_ID } })
+    setupUseCaseResolver({ generateExecute, createSingleExecute })
 
-  it("createReorderPurchaseOrder strips top-level smuggled keys before forwarding to the use-case", async () => {
-    // Defense-in-depth: even though `Omit<UseCaseInput, "actor">` types
-    // out the public surface at compile time, the RPC wire format is
-    // untyped JSON. A malicious client can attach arbitrary top-level
-    // keys; the action layer must drop them before they reach the
-    // use-case. (Per-rule extras still survive — `reorderRuleSchema`
-    // uses .passthrough() because callers legitimately pass DB-row
-    // shapes with joined columns Zod's subset doesn't enumerate.)
-    const execute = vi.fn().mockResolvedValue({ purchaseOrder: { id: PO_ID } })
-    resolveUseCaseMock.mockReturnValue({ execute })
-
-    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    // A malicious client smuggles authored suggestion / forged actor.
+    // Zod strips them — the action only sees materialTypeId.
     const smuggled = {
-      suggestion: VALID_SUGGESTION,
-      reorderRules: [VALID_RULE],
-      bulkOverride: true,
+      materialTypeId: MATERIAL_TYPE_ID,
+      suggestion: { ...AUTHORITATIVE_SUGGESTION, estimatedCost: 999_999 },
+      reorderRules: [{ ...ACTIVE_RULE, reorder_quantity: 999 }],
       forgedActorId: "00000000-0000-4000-8000-000000000666",
-    } as unknown as { suggestion: typeof VALID_SUGGESTION; reorderRules: ReorderRuleWithDetails[] }
+    } as unknown as { materialTypeId: string }
+
+    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
     await createReorderPurchaseOrder(smuggled)
 
-    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(calledWith.bulkOverride).toBeUndefined()
-    expect(calledWith.forgedActorId).toBeUndefined()
-    // Real actor still threaded from the session, not from input.
-    expect(calledWith.actor).toEqual(ACTOR)
-  })
-
-  it("createBulkReorderPurchaseOrder strips top-level smuggled keys", async () => {
-    const execute = vi.fn().mockResolvedValue({ purchaseOrders: [], skipped: [] })
-    resolveUseCaseMock.mockReturnValue({ execute })
-
-    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    const smuggled = {
-      suggestions: [VALID_SUGGESTION],
-      reorderRules: [VALID_RULE],
-      skipApprovalGate: true,
-    } as unknown as {
-      suggestions: (typeof VALID_SUGGESTION)[]
-      reorderRules: ReorderRuleWithDetails[]
-    }
-    await createBulkReorderPurchaseOrder(smuggled)
-
-    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(calledWith.skipApprovalGate).toBeUndefined()
-    expect(calledWith.actor).toEqual(ACTOR)
-  })
-
-  it("generateReorderSuggestions enforces auth + permission but does NOT pass actor (read-only)", async () => {
-    const execute = vi.fn().mockResolvedValue([])
-    resolveUseCaseMock.mockReturnValue({ execute })
-
-    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
-    const result = await generateReorderSuggestions({ rules: [VALID_RULE], pendingPOs: [] })
-
-    expect(requireAuthenticatedUserMock).toHaveBeenCalledOnce()
-    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(execute).toHaveBeenCalledWith(
-      expect.objectContaining({ rules: expect.any(Array), pendingPOs: [] })
+    // The create use-case got the authoritative server-computed
+    // suggestion, NOT the smuggled $999,999 one.
+    expect(createSingleExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestion: AUTHORITATIVE_SUGGESTION,
+        actor: ACTOR,
+      })
     )
-    // Read-only — no actor field on the use-case input
-    expect(execute).not.toHaveBeenCalledWith(expect.objectContaining({ actor: expect.anything() }))
-    // Read-only — no path revalidation
-    expect(revalidatePathMock).not.toHaveBeenCalled()
-    expect(result).toEqual([])
+    const calledWith = createSingleExecute.mock.calls[0][0] as Record<string, unknown>
+    expect(calledWith.forgedActorId).toBeUndefined()
   })
 
-  it("generateReorderSuggestions strips top-level smuggled keys before forwarding to the use-case", async () => {
-    // Symmetric coverage with the two PO-creation paths: even though
-    // this action is read-only, smuggled keys could affect future
-    // enrichment / filtering logic added to the use-case. The action
-    // boundary should drop them before they reach the use-case body.
-    const execute = vi.fn().mockResolvedValue([])
-    resolveUseCaseMock.mockReturnValue({ execute })
-
-    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
-    const smuggled = {
-      rules: [VALID_RULE],
-      pendingPOs: [],
-      includeArchived: true,
-      adminBypass: "yes",
-    } as unknown as { rules: ReorderRuleWithDetails[]; pendingPOs: never[] }
-    await generateReorderSuggestions(smuggled)
-
-    const calledWith = execute.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(calledWith.includeArchived).toBeUndefined()
-    expect(calledWith.adminBypass).toBeUndefined()
-  })
-
-  it("rejects unauthenticated callers before resolving the use-case", async () => {
-    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
-
-    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
+  it("createReorderPurchaseOrder Zod-rejects malformed materialTypeId", async () => {
+    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
     await expect(
-      generateReorderSuggestions({ rules: [VALID_RULE], pendingPOs: [] })
-    ).rejects.toThrow("unauth")
-    expect(resolveUseCaseMock).not.toHaveBeenCalled()
+      createReorderPurchaseOrder({ materialTypeId: "not-a-uuid" })
+    ).rejects.toThrow()
+    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
   })
 
-  it("createBulkReorderPurchaseOrder threads actor and revalidates when POs are created", async () => {
-    const execute = vi.fn().mockResolvedValue({
-      purchaseOrders: [{ id: PO_ID }],
-      skipped: [],
-    })
-    resolveUseCaseMock.mockReturnValue({ execute })
+  it("createReorderPurchaseOrder throws when generator produces no suggestion (above reorder point or no rule)", async () => {
+    // Generator returns empty — material is above reorder point, has
+    // no active rule, or has no resolvable supplier.
+    const generateExecute = vi.fn().mockResolvedValue([])
+    setupUseCaseResolver({ generateExecute })
+
+    const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    await expect(
+      createReorderPurchaseOrder({ materialTypeId: MATERIAL_TYPE_ID })
+    ).rejects.toThrow(/No reorder needed|no supplier/i)
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  // ── createBulkReorderPurchaseOrder ────────────────────────────────
+
+  it("createBulkReorderPurchaseOrder regenerates suggestions server-side from materialTypeIds", async () => {
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION])
+    const createBulkExecute = vi
+      .fn()
+      .mockResolvedValue({ purchaseOrders: [{ id: PO_ID }], skipped: [] })
+    setupUseCaseResolver({ generateExecute, createBulkExecute })
 
     const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
     const result = await createBulkReorderPurchaseOrder({
-      suggestions: [VALID_SUGGESTION],
-      reorderRules: [VALID_RULE],
+      materialTypeIds: [MATERIAL_TYPE_ID],
     })
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ actor: ACTOR }))
+    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(createBulkExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestions: [AUTHORITATIVE_SUGGESTION],
+        actor: ACTOR,
+      })
+    )
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/reorder")
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory/purchase-orders")
     expect(result.purchaseOrders).toHaveLength(1)
   })
 
+  it("createBulkReorderPurchaseOrder filters out unrequested materials even if generator returns extras", async () => {
+    const otherSuggestion: ReorderSuggestionOutput = {
+      ...AUTHORITATIVE_SUGGESTION,
+      materialTypeId: MATERIAL_TYPE_ID_B,
+      materialName: "Different material",
+    }
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION, otherSuggestion])
+    const createBulkExecute = vi
+      .fn()
+      .mockResolvedValue({ purchaseOrders: [{ id: PO_ID }], skipped: [] })
+    setupUseCaseResolver({ generateExecute, createBulkExecute })
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    await createBulkReorderPurchaseOrder({ materialTypeIds: [MATERIAL_TYPE_ID] })
+
+    // Only the requested suggestion reaches the create use-case.
+    const passedSuggestions = (createBulkExecute.mock.calls[0][0] as { suggestions: unknown[] })
+      .suggestions
+    expect(passedSuggestions).toHaveLength(1)
+    expect((passedSuggestions[0] as ReorderSuggestionOutput).materialTypeId).toBe(MATERIAL_TYPE_ID)
+  })
+
   it("createBulkReorderPurchaseOrder skips revalidation when no POs are created", async () => {
-    // All-skipped result (e.g. every suggestion missing a supplier).
-    // Revalidating the route in this case would invalidate the cache
-    // unnecessarily, including the suggestion list the user is still
-    // looking at.
-    const execute = vi.fn().mockResolvedValue({
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION])
+    const createBulkExecute = vi.fn().mockResolvedValue({
       purchaseOrders: [],
       skipped: [
         {
-          suggestion: VALID_SUGGESTION,
+          suggestion: AUTHORITATIVE_SUGGESTION,
           reason: "no_supplier" as const,
-          message: "no supplier",
+          message: "No supplier configured for this material",
         },
       ],
     })
-    resolveUseCaseMock.mockReturnValue({ execute })
+    setupUseCaseResolver({ generateExecute, createBulkExecute })
 
     const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    await createBulkReorderPurchaseOrder({
-      suggestions: [VALID_SUGGESTION],
-      reorderRules: [VALID_RULE],
-    })
-
+    await createBulkReorderPurchaseOrder({ materialTypeIds: [MATERIAL_TYPE_ID] })
     expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it("createBulkReorderPurchaseOrder returns empty result when generator produces no suggestions", async () => {
+    // No active rules match the requested IDs — short-circuit before
+    // the create use-case is even resolved.
+    reorderServiceMock.getActiveReorderRules.mockResolvedValue([])
+
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    const result = await createBulkReorderPurchaseOrder({
+      materialTypeIds: [MATERIAL_TYPE_ID],
+    })
+    expect(result).toEqual({ purchaseOrders: [], skipped: [] })
+    expect(resolveUseCaseMock).not.toHaveBeenCalled()
+  })
+
+  it("createBulkReorderPurchaseOrder Zod-rejects empty materialTypeIds", async () => {
+    const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
+    await expect(createBulkReorderPurchaseOrder({ materialTypeIds: [] })).rejects.toThrow()
+    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
   })
 
   it("createBulkReorderPurchaseOrder rejects unauthenticated callers", async () => {
     requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
-
     const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
     await expect(
-      createBulkReorderPurchaseOrder({ suggestions: [], reorderRules: [] })
+      createBulkReorderPurchaseOrder({ materialTypeIds: [MATERIAL_TYPE_ID] })
     ).rejects.toThrow("unauth")
+    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
+  })
+
+  // ── generateReorderSuggestions ────────────────────────────────────
+
+  it("generateReorderSuggestions enforces auth + permission and fetches server-side data", async () => {
+    const generateExecute = vi.fn().mockResolvedValue([AUTHORITATIVE_SUGGESTION])
+    setupUseCaseResolver({ generateExecute })
+
+    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
+    const result = await generateReorderSuggestions()
+
+    expect(requireAuthenticatedUserMock).toHaveBeenCalledOnce()
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(generateExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rules: expect.arrayContaining([
+          expect.objectContaining({ material_type_id: MATERIAL_TYPE_ID }),
+        ]),
+        pendingPOs: [],
+      })
+    )
+    // Read-only — no actor field passed to the use-case
+    expect(generateExecute).not.toHaveBeenCalledWith(expect.objectContaining({ actor: ACTOR }))
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+    expect(result).toEqual([AUTHORITATIVE_SUGGESTION])
+  })
+
+  it("generateReorderSuggestions returns empty array when no active rules exist", async () => {
+    reorderServiceMock.getActiveReorderRules.mockResolvedValue([])
+
+    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
+    const result = await generateReorderSuggestions()
+
+    expect(result).toEqual([])
     expect(resolveUseCaseMock).not.toHaveBeenCalled()
+  })
+
+  it("generateReorderSuggestions rejects unauthenticated callers", async () => {
+    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
+    const { generateReorderSuggestions } = await import("@/app/actions/reorder")
+    await expect(generateReorderSuggestions()).rejects.toThrow("unauth")
+    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
   })
 })

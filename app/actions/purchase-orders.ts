@@ -131,7 +131,11 @@ const rollDataSchema = z.object({
 
 const poReceiptItemSchema = z.object({
   itemId: uuid,
-  quantityReceived: z.number().min(0),
+  // `.positive()` (not `.min(0)`): receiving 0 of an item is
+  // semantically "don't include the item in the receive payload."
+  // Mirrors `purchaseOrderItemSchema.quantitySqft` above. (sigilix
+  // follow-up on PR #177.)
+  quantityReceived: z.number().positive("Quantity received must be greater than 0"),
   rollData: rollDataSchema.optional(),
 })
 

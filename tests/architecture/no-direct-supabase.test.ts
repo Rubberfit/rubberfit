@@ -126,6 +126,11 @@ const INFRA_ALLOWLIST = new Set<string>([
   "src/infrastructure/services/jobPdfShareService.ts",
   "src/infrastructure/services/rollBarcodeAssetService.ts",
   "src/infrastructure/services/visionExtractionService.ts",
+  // Browser-side direct upload for the "PDF first, INSERT second"
+  // cut-save flow (Bundle 1 / ARC-135-143-144). Called from the
+  // cutting-engine save handler before the saveCut server action;
+  // storage RLS scopes writes to the caller's own folder.
+  "src/infrastructure/services/cutPdfBrowserStorage.ts",
   "src/infrastructure/repositories/profiles.repository.ts",
 
   // ── pre-ARC-147, not yet reachable from server actions ────────
