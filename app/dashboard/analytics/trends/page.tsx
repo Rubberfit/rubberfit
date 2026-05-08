@@ -160,11 +160,6 @@ export default function TrendsPage() {
     return `${sign}${value.toFixed(1)}%`
   }
 
-  const getTrendColor = (value: number, inverse = false) => {
-    const isPositive = inverse ? value < 0 : value > 0
-    return isPositive ? "text-green-600" : "text-red-600"
-  }
-
   return (
     <PageShell variant="dense">
       <PageHeader
@@ -206,13 +201,9 @@ export default function TrendsPage() {
         </div>
       ) : (
         <>
-          {trendMetrics && (
-            <TrendMetricCards
-              metrics={trendMetrics}
-              formatTrendValue={formatTrendValue}
-              getTrendColor={getTrendColor}
-            />
-          )}
+          {trendMetrics ? (
+            <TrendMetricCards metrics={trendMetrics} formatTrendValue={formatTrendValue} />
+          ) : null}
 
           <MultiMetricChart data={trendData} timeframe={timeframe} />
 
@@ -221,9 +212,9 @@ export default function TrendsPage() {
             <SeasonalAnalysis data={trendData} timeframe={timeframe} />
           </div>
 
-          {trendMetrics && (
+          {trendMetrics ? (
             <KeyInsightsCard metrics={trendMetrics} formatTrendValue={formatTrendValue} />
-          )}
+          ) : null}
         </>
       )}
     </PageShell>

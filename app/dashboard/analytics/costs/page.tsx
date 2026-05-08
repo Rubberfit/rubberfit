@@ -221,7 +221,7 @@ export default function CostReportsPage() {
           { label: "Costs" },
         ]}
         title="Cost reports"
-        subtitle="Review material spend by supplier and period."
+        subtitle="Review material spend by material type and period."
         actions={
           <Button onClick={exportReport} variant="outline" size="sm">
             <Download className="size-3.5" aria-hidden="true" />

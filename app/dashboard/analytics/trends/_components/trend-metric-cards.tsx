@@ -15,7 +15,6 @@ interface TrendMetrics {
 interface TrendMetricCardsProps {
   metrics: TrendMetrics
   formatTrendValue: (value: number, showSign?: boolean) => string
-  getTrendColor: (value: number, inverse?: boolean) => string
 }
 
 /**
