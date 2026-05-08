@@ -173,8 +173,8 @@ function KonvaSheetRenderer({
                 fill={theme.partFills[part.specIndex % theme.partFills.length]}
                 theme={theme}
                 isDark={theme.isDark}
-                draggable={typeof onPartDragEnd === "function"}
-                selected={selectedPartId === part.id}
+                isDraggable={typeof onPartDragEnd === "function"}
+                isSelected={selectedPartId === part.id}
                 onDragEnd={onPartDragEnd}
                 onDragMove={onPartDragMove}
                 onClick={onPartClick}

@@ -36,8 +36,8 @@ interface PartShapeProps {
    * over the stone-900 sheet.
    */
   isDark: boolean
-  draggable: boolean
-  selected: boolean
+  isDraggable: boolean
+  isSelected: boolean
   onDragEnd?: PartDragEnd
   onDragMove?: PartDragMove
   onClick?: PartClick
@@ -62,8 +62,8 @@ const PartShape = memo(function PartShape({
   fill,
   theme,
   isDark,
-  draggable,
-  selected,
+  isDraggable,
+  isSelected,
   onDragEnd,
   onDragMove,
   onClick,
@@ -124,10 +124,10 @@ const PartShape = memo(function PartShape({
   // idempotent so React 19 Strict Mode's mount → cleanup → mount
   // double-invoke is benign.
   useEffect(() => {
-    if ((selected || isDragging) && groupRef.current) {
+    if ((isSelected || isDragging) && groupRef.current) {
       groupRef.current.moveToTop()
     }
-  }, [selected, isDragging])
+  }, [isSelected, isDragging])
 
   // ── Elevation chrome ────────────────────────────────────────────
   // Three tiers, decided by interaction state. Hierarchy:
@@ -135,15 +135,15 @@ const PartShape = memo(function PartShape({
   // Color comes from `theme.elevationShadow`; opacity (and blur,
   // offset) is per-tier. Flat is the default — most parts most of
   // the time.
-  const isElevated = selected || isDragging || isHovered
+  const isElevated = isSelected || isDragging || isHovered
   const shadowProps = isElevated
-    ? buildShadowProps(theme.elevationShadow, isDark, isDragging, selected)
+    ? buildShadowProps(theme.elevationShadow, isDark, isDragging, isSelected)
     : EMPTY_SHADOW
 
   // Selection stroke — phase 5 brand teal (`theme.selectedStroke`)
   // replaces the legacy hard-coded blue-500.
-  const stroke = selected ? theme.selectedStroke : theme.partStroke
-  const strokeWidth = selected ? 2 : 1
+  const stroke = isSelected ? theme.selectedStroke : theme.partStroke
+  const strokeWidth = isSelected ? 2 : 1
 
   // Hard 2px corner radius on the Rect fallback path — kills the
   // prior `min(pw, ph) * 0.03` math that made small parts bubble
@@ -238,7 +238,7 @@ const PartShape = memo(function PartShape({
       offsetX={pw / 2}
       offsetY={ph / 2}
       rotation={rotationDeg}
-      draggable={draggable}
+      draggable={isDraggable}
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
@@ -282,7 +282,7 @@ function buildShadowProps(
   color: string,
   isDark: boolean,
   isDragging: boolean,
-  selected: boolean
+  isSelected: boolean
 ): ShadowProps {
   if (isDragging) {
     return {
@@ -293,7 +293,7 @@ function buildShadowProps(
       shadowOpacity: isDark ? 0.5 : 0.4,
     }
   }
-  if (selected) {
+  if (isSelected) {
     return {
       shadowColor: color,
       shadowBlur: 10,
