@@ -385,11 +385,44 @@ The pilot's customer-facing surfaces split into two groups with different intent
 - Action: `deny` at the edge; no application-layer cost.
 - Excluded from coverage: `docs.sigilix.ai`, hosted on Mintlify outside the `arcanchor` Vercel team — see [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218) for the Mintlify scope decision.
 
-RU and BY were considered but **not blocked** for the pilot. Revisit during the contracted pilot if customer regions or sanctions guidance change.
+**Decision: OFAC list only (CU / IR / KP / SY).** RU and BY were considered and **not blocked**. Rationale: lowest-friction for VPN-using employees and contractors; OFAC is the legal minimum and is sufficient signaling for vendor security questionnaires. Revisit trigger: pilot customer requires expanded sanctions coverage.
 
-### Rate limits at the edge
+### Rate limits at the edge — [ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220)
 
-Tracked under [ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220) (cluster A2 — rate limits). Pending policy decision on per-route thresholds in [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218). Application-layer rate limiting is tracked separately in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142) (`asvs-bundle-4-rate-limiting`); the two layers are complementary, not duplicative — edge limits stop volumetric abuse before it touches the function, application limits enforce business invariants per authenticated identity.
+Custom rate-limit rules deployed via Vercel Firewall, complementary to (not a substitute for) Supabase Auth's own rate limiting and the app-layer rate limiting tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142). Three distinct layers, each with different signals.
+
+**Layer model:**
+
+- **Edge (Vercel Firewall — this section)** — IP and path keyed; runs before function invocation. Best for volumetric and origin-based abuse. Cheap because it skips function execution.
+- **Supabase Auth** — auth-attempt throttling (sign-in, sign-up, password reset, magic-link). Configured in Supabase Dashboard → Auth → Rate Limits. **Vercel Firewall cannot intercept these requests** — auth flows go browser → `*.supabase.co` directly, not through our Vercel deployment. See [`authService.ts`](../../src/infrastructure/services/authService.ts) for call sites.
+- **App layer** ([ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142) — `asvs-bundle-4-rate-limiting`) — per-authenticated-identity business invariants (max concurrent cuts per user, max PO line items, etc.). Stub today; lands when Upstash or equivalent is provisioned.
+
+**Edge rules deployed:**
+
+| Rule                   | Match               | Window | Limit | Key | Action                                | Applies to                 |
+| ---------------------- | ------------------- | ------ | ----- | --- | ------------------------------------- | -------------------------- |
+| Site-wide DDoS floor   | All paths           | 60s    | 1000  | IP  | `deny`                                | All 6 self-hosted projects |
+| General API rate limit | Path prefix `/api/` | 60s    | 100   | IP  | `log` initially → `deny` after tuning | `rubberfit` only           |
+
+Rules are applied via the `rate-limits.js` API script (mirrors the `geoblock.js` pattern: idempotent by rule name, supports `--dry-run`).
+
+**Auth flows are intentionally out of scope** at this layer:
+
+- **No `/api/auth/*` rate limits** — rema-portal does not expose REST auth endpoints. Sign-in, sign-up, and password-reset use the Supabase Auth client SDK which posts directly to `*.supabase.co`. Auth-attempt rate limiting is Supabase's responsibility.
+- **No auth-page rate limit** — `/login`, `/register`, `/forgot-password` are Vercel-served, but the actual auth attempts at those URLs are JS-side calls to Supabase (Vercel never sees them). A rate limit on the page paths catches scrapers hitting the URL, not credential-stuffing — and the site-wide DDoS floor already covers that pattern.
+
+**Per-project applicability:**
+
+| Project                  | DDoS floor | General `/api/*` | Notes                                                                 |
+| ------------------------ | ---------- | ---------------- | --------------------------------------------------------------------- |
+| `rubberfit`              | ✓          | ✓                | Full app surface                                                      |
+| `sigilix-app-proxy`      | ✓          | TBD              | `/api/*` rule deferred pending endpoint inventory of `app.sigilix.ai` |
+| `sigilix-marketing`      | ✓          | N/A              | Static — no API surface                                               |
+| `rubberfit-marketing`    | ✓          | N/A              | Static — no API surface                                               |
+| `rubberfit-docs`         | ✓          | N/A              | Static — no API surface                                               |
+| `arc-and-anchor-website` | ✓          | N/A              | Static — no API surface                                               |
+
+**Tuning (soak step):** the `/api/*` rule deploys in `log` mode. After 7 days the false-positive baseline is captured (which IPs hit the threshold, which paths, whether they look human, internal monitoring vs external traffic). If no legitimate traffic exceeds 100/min, flip to `deny`. If internal monitoring or specific NATs trip the threshold, either bump the limit or add an IP allowlist before flipping. Same flip-after-soak pattern as the OWASP CRS plan that was descoped — applied here at the rule level.
 
 ### OWASP Core Rule Set — descoped
 
