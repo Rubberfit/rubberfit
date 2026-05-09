@@ -344,3 +344,78 @@ The auth helper at `app/server/auth/require-authenticated-user.ts` constructs a 
 - **`proxy.ts` deactivation hole — partial closure.** ARC-147 added an `access.isDeleted` check to `proxy.ts` inside the `requiredPermission || needsAdmin` branch (signs the user out, redirects to `/login?deactivated=1`). That covers every permission-gated route and every `/admin/*` path. The remaining gap is "deactivated user can hit unguarded authenticated paths (e.g., `/dashboard` root, `/dashboard/settings/profile`) until their cookie expires." Closing it fully needs either a profile load on every authenticated request (one extra DB round-trip per request — meaningful at scale) or refresh-token revocation on deactivation. Tracked separately.
 - **`getCurrentUserId()` browser fallback in `purchaseOrderService`.** The service still falls back to the browser singleton `getCurrentUserId()` when callers don't pass `userId`. Action-path callers always pass it; legacy callers (e.g., `reorder-po-handlers.ts::handleCreateBulkPO`) keep the fallback. Once those callers migrate, `userId` becomes required and the fallback drops.
 - **Next 16 server-action CSRF.** No `serverActions.allowedOrigins` config in `next.config.mjs`. Next 16 enforces same-origin by default; verify production hostnames before merge if a reverse proxy is in front of the app.
+
+---
+
+## Edge security — Vercel Firewall (V13.4) — [ARC-219](https://linear.app/arc-and-anchor/issue/ARC-219)
+
+The application sits behind Vercel's edge network. The firewall layer provides defenses that complement (but do not replace) the application layer: anti-automation, geo-restriction, and bot management. This section records what is deployed and which decisions were made for the pilot launch tracked under [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218).
+
+### Plan tier
+
+The `Development` (slug `arcanchor`) Vercel team is on **Pro**. Some firewall capabilities are Enterprise-gated and were considered then explicitly descoped — see "OWASP Core Rule Set" below. All currently deployed rules are Pro-tier.
+
+### Managed rulesets — what is enabled
+
+Per project, configured via Vercel Dashboard → Firewall:
+
+| Ruleset                                 | Status                                       | Notes                                                   |
+| --------------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| AI Bots                                 | Enabled per-project (see policy table below) | Vercel-managed signature matching for known AI scrapers |
+| Bot Protection (`botIdEnabled`)         | Enabled per-project (see policy table below) | Per-request bot scoring; challenge or log per path      |
+| Vercel Managed Ruleset (reputation IPs) | TBD — confirm Pro availability               | Reputation-based IP deny                                |
+| OWASP Core Rule Set (`crs.*`)           | **Descoped** — see below                     | Enterprise-only on Vercel                               |
+
+### AI Bots & Bot Protection policy (per project)
+
+The pilot's customer-facing surfaces split into two groups with different intent and threat models:
+
+| Project group              | Projects                                                                               | AI Bots                            | Bot Protection                                  |
+| -------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------- |
+| Authenticated app surfaces | `rubberfit`, `sigilix-app-proxy`                                                       | `challenge` → `deny` if not solved | `challenge` on auth/write, `log` on read paths  |
+| Public marketing & docs    | `sigilix-marketing`, `rubberfit-marketing`, `rubberfit-docs`, `arc-and-anchor-website` | `log` only — AI scrapers welcome   | `log` only — friction-free for public discovery |
+
+**Why allow AI on marketing/docs:** these surfaces are explicitly designed for discovery, including by LLM-powered tools that read public docs to answer user questions about Rubberfit, Sigilix, and Arc & Anchor. Blocking AI here directly costs reach. The product surfaces (`rubberfit`, `sigilix-app-proxy`) sit behind authentication and have no legitimate AI-scraper traffic; aggressive filtering is appropriate.
+
+### Geoblock — OFAC sanctioned countries
+
+`Block OFAC Countries` custom firewall rule deployed across the 6 self-hosted Vercel projects in the `arcanchor` team:
+
+- Blocked: `CU` (Cuba), `IR` (Iran), `KP` (North Korea), `SY` (Syria).
+- Action: `deny` at the edge; no application-layer cost.
+- Excluded from coverage: `docs.sigilix.ai`, hosted on Mintlify outside the `arcanchor` Vercel team — see [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218) for the Mintlify scope decision.
+
+RU and BY were considered but **not blocked** for the pilot. Revisit during the contracted pilot if customer regions or sanctions guidance change.
+
+### Rate limits at the edge
+
+Tracked under [ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220) (cluster A2 — rate limits). Pending policy decision on per-route thresholds in [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218). Application-layer rate limiting is tracked separately in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142) (`asvs-bundle-4-rate-limiting`); the two layers are complementary, not duplicative — edge limits stop volumetric abuse before it touches the function, application limits enforce business invariants per authenticated identity.
+
+### OWASP Core Rule Set — descoped
+
+OWASP CRS (`managedRules.owasp`) provides managed pattern matching for SQLi, XSS, RCE, LFI / RFI, scanner detection, and other payload-based attacks. On Vercel, it requires the Enterprise plan; for the pilot the upgrade cost was judged not worth it.
+
+**What we lose:** managed payload-based pattern matching at the edge.
+
+**Compensating controls already deployed or in scope:**
+
+- **Browser-layer XSS defense** — the CSP rollout ([ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218) cluster C, [ARC-223](https://linear.app/arc-and-anchor/issue/ARC-223) → [ARC-224](https://linear.app/arc-and-anchor/issue/ARC-224)) is the meaningful XSS mitigation; arguably more effective than WAF pattern matching for that specific class. CSP is report-only today (see "Middleware architecture" above) and promotes to enforcing as part of the same initiative.
+- **SQLi defense** — Postgres parameterized queries via Supabase client libraries; no string-concatenated SQL in the codebase.
+- **Input validation** — Zod with `.strict()` mode on every API write route ([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141), [ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137)). Unknown keys cause a 400 before any handler logic runs. The architectural guard at [`tests/architecture/api-routes-validate-bodies.test.ts`](../../tests/architecture/api-routes-validate-bodies.test.ts) ratchets new write routes into the same rule.
+- **Volumetric / origin abuse** — geoblock + rate limits ([ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220)) handle the volumetric and origin-based attack surface CRS would also catch.
+- **Scanner detection** — Bot Protection partially overlaps the CRS `sd` category by tagging known scanner tooling (Nikto, sqlmap, ZAP) via user-agent and reputation.
+
+**Revisit trigger:** if the `Development` Vercel team upgrades to Enterprise (most likely as a result of pilot expansion or a customer requirement), enabling CRS in `log` mode is a 5-minute change. Until then, accept as residual risk for the pilot.
+
+### Out-of-scope domains
+
+| Domain            | Hosting                                                       | Decision                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs.sigilix.ai` | Mintlify (proxied through Mintlify's own multi-tenant Vercel) | Not in `arcanchor` Vercel dashboard — we do not control the firewall, headers, or CSP for this domain. Tracked in [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218). |
+
+### Revisit triggers
+
+- **Plan tier upgrade to Enterprise** → enable OWASP CRS in `log` mode, observe baseline, then move to per-rule `deny` after a 7-day soak.
+- **Material customer in CU / IR / KP / SY** → revisit geoblock policy with legal / compliance sign-off.
+- **Bot Protection false-positives on auth flows** → drop affected paths to `log` and capture telemetry before adjusting the threshold.
+- **Pilot-customer security questionnaire requires CRS** → either upgrade tier or document compensating controls in the response with reference to this section.
