@@ -5,11 +5,18 @@ import {
   AddressId,
   Id,
   InvitationId,
+  MaterialSupplierId,
+  MaterialTypeId,
   MembershipId,
   PersonId,
   PlanId,
+  PriceHistoryId,
   ProfileId,
+  ReorderRuleId,
+  RollId,
   SubscriptionId,
+  SupplierContactId,
+  SupplierId,
   TenantId,
   isUuid,
 } from "@/src/entities/value-objects/id"
@@ -84,6 +91,13 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         SubscriptionId: () => SubscriptionId.create("x"),
         AddressId: () => AddressId.create("x"),
         PersonId: () => PersonId.create("x"),
+        MaterialTypeId: () => MaterialTypeId.create("x"),
+        SupplierId: () => SupplierId.create("x"),
+        SupplierContactId: () => SupplierContactId.create("x"),
+        MaterialSupplierId: () => MaterialSupplierId.create("x"),
+        RollId: () => RollId.create("x"),
+        PriceHistoryId: () => PriceHistoryId.create("x"),
+        ReorderRuleId: () => ReorderRuleId.create("x"),
       }
       for (const [expectedLabel, fn] of Object.entries(labels)) {
         expect(fn).toThrow(InvalidValueObjectError)
@@ -161,6 +175,13 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         SubscriptionId,
         AddressId,
         PersonId,
+        MaterialTypeId,
+        SupplierId,
+        SupplierContactId,
+        MaterialSupplierId,
+        RollId,
+        PriceHistoryId,
+        ReorderRuleId,
       ] as const
       // Phantom branding is type-only; at runtime they're all the same class.
       for (const factory of factories) {

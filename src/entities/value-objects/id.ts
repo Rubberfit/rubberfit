@@ -151,3 +151,64 @@ export const PersonId = {
   fromPersistence: (value: string): PersonId =>
     Id.fromPersistence<"Person">(value),
 }
+
+/** Identifier for a material type (catalog category). Source: material_types.id. */
+export type MaterialTypeId = Id<"MaterialType">
+export const MaterialTypeId = {
+  create: (value: string): MaterialTypeId =>
+    Id.create(value, "MaterialType"),
+  fromPersistence: (value: string): MaterialTypeId =>
+    Id.fromPersistence<"MaterialType">(value),
+}
+
+/** Identifier for a supplier. Source: suppliers.id. */
+export type SupplierId = Id<"Supplier">
+export const SupplierId = {
+  create: (value: string): SupplierId => Id.create(value, "Supplier"),
+  fromPersistence: (value: string): SupplierId =>
+    Id.fromPersistence<"Supplier">(value),
+}
+
+/** Identifier for a supplier-contact (supplier ↔ person join row). Source: supplier_contacts.id. */
+export type SupplierContactId = Id<"SupplierContact">
+export const SupplierContactId = {
+  create: (value: string): SupplierContactId =>
+    Id.create(value, "SupplierContact"),
+  fromPersistence: (value: string): SupplierContactId =>
+    Id.fromPersistence<"SupplierContact">(value),
+}
+
+/** Identifier for a material/supplier pricing row. Source: material_suppliers.id. */
+export type MaterialSupplierId = Id<"MaterialSupplier">
+export const MaterialSupplierId = {
+  create: (value: string): MaterialSupplierId =>
+    Id.create(value, "MaterialSupplier"),
+  fromPersistence: (value: string): MaterialSupplierId =>
+    Id.fromPersistence<"MaterialSupplier">(value),
+}
+
+/** Identifier for a physical roll of stock. Source: rolls.id. */
+export type RollId = Id<"Roll">
+export const RollId = {
+  create: (value: string): RollId => Id.create(value, "Roll"),
+  fromPersistence: (value: string): RollId =>
+    Id.fromPersistence<"Roll">(value),
+}
+
+/** Identifier for a price-history audit row. Source: price_history.id. */
+export type PriceHistoryId = Id<"PriceHistory">
+export const PriceHistoryId = {
+  create: (value: string): PriceHistoryId =>
+    Id.create(value, "PriceHistory"),
+  fromPersistence: (value: string): PriceHistoryId =>
+    Id.fromPersistence<"PriceHistory">(value),
+}
+
+/** Identifier for a reorder rule (one per material type). Source: reorder_rules.id. */
+export type ReorderRuleId = Id<"ReorderRule">
+export const ReorderRuleId = {
+  create: (value: string): ReorderRuleId =>
+    Id.create(value, "ReorderRule"),
+  fromPersistence: (value: string): ReorderRuleId =>
+    Id.fromPersistence<"ReorderRule">(value),
+}
