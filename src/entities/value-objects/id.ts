@@ -135,3 +135,19 @@ export const SubscriptionId = {
   fromPersistence: (value: string): SubscriptionId =>
     Id.fromPersistence<"Subscription">(value),
 }
+
+/** Identifier for an address row. Source: addresses.id (tenant-scoped). */
+export type AddressId = Id<"Address">
+export const AddressId = {
+  create: (value: string): AddressId => Id.create(value, "Address"),
+  fromPersistence: (value: string): AddressId =>
+    Id.fromPersistence<"Address">(value),
+}
+
+/** Identifier for an external contact record. Source: persons.id (tenant-scoped). */
+export type PersonId = Id<"Person">
+export const PersonId = {
+  create: (value: string): PersonId => Id.create(value, "Person"),
+  fromPersistence: (value: string): PersonId =>
+    Id.fromPersistence<"Person">(value),
+}

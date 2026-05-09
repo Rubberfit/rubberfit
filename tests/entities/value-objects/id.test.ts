@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import { InvalidValueObjectError } from "@/src/entities/errors/invalid-value-object.error"
 import {
+  AddressId,
   Id,
   InvitationId,
   MembershipId,
+  PersonId,
+  PlanId,
   ProfileId,
+  SubscriptionId,
   TenantId,
   isUuid,
 } from "@/src/entities/value-objects/id"
@@ -76,6 +80,10 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         ProfileId: () => ProfileId.create("x"),
         MembershipId: () => MembershipId.create("x"),
         InvitationId: () => InvitationId.create("x"),
+        PlanId: () => PlanId.create("x"),
+        SubscriptionId: () => SubscriptionId.create("x"),
+        AddressId: () => AddressId.create("x"),
+        PersonId: () => PersonId.create("x"),
       }
       for (const [expectedLabel, fn] of Object.entries(labels)) {
         expect(fn).toThrow(InvalidValueObjectError)
@@ -144,15 +152,20 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
 
   describe("runtime shape", () => {
     it("all branded factories produce instances of the same Id class", () => {
-      const a = TenantId.fromPersistence(VALID_UUID)
-      const b = ProfileId.fromPersistence(VALID_UUID)
-      const c = MembershipId.fromPersistence(VALID_UUID)
-      const d = InvitationId.fromPersistence(VALID_UUID)
+      const factories = [
+        TenantId,
+        ProfileId,
+        MembershipId,
+        InvitationId,
+        PlanId,
+        SubscriptionId,
+        AddressId,
+        PersonId,
+      ] as const
       // Phantom branding is type-only; at runtime they're all the same class.
-      expect(a).toBeInstanceOf(Id)
-      expect(b).toBeInstanceOf(Id)
-      expect(c).toBeInstanceOf(Id)
-      expect(d).toBeInstanceOf(Id)
+      for (const factory of factories) {
+        expect(factory.fromPersistence(VALID_UUID)).toBeInstanceOf(Id)
+      }
     })
   })
 })
