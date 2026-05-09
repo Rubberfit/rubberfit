@@ -118,3 +118,20 @@ export const InvitationId = {
   fromPersistence: (value: string): InvitationId =>
     Id.fromPersistence<"Invitation">(value),
 }
+
+/** Identifier for a billing plan. Source: plans.id (global, not tenant-scoped). */
+export type PlanId = Id<"Plan">
+export const PlanId = {
+  create: (value: string): PlanId => Id.create(value, "Plan"),
+  fromPersistence: (value: string): PlanId =>
+    Id.fromPersistence<"Plan">(value),
+}
+
+/** Identifier for a tenant subscription. Source: subscriptions.id. */
+export type SubscriptionId = Id<"Subscription">
+export const SubscriptionId = {
+  create: (value: string): SubscriptionId =>
+    Id.create(value, "Subscription"),
+  fromPersistence: (value: string): SubscriptionId =>
+    Id.fromPersistence<"Subscription">(value),
+}
