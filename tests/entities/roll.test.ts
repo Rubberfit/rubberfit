@@ -4,6 +4,7 @@ import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { Roll } from "@/src/entities/roll"
 import { Currency } from "@/src/entities/value-objects/currency"
 import {
+  CutHistoryId,
   MaterialTypeId,
   ProfileId,
   RollId,
@@ -14,6 +15,7 @@ import { Money } from "@/src/entities/value-objects/money"
 
 const ROLL_UUID = "550e8400-e29b-41d4-a716-446655440000"
 const PARENT_ROLL_UUID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+const CUT_HISTORY_UUID = "00000000-0000-4000-8000-000000000050"
 const TENANT_UUID = "00000000-0000-4000-8000-000000000010"
 const MT_UUID = "00000000-0000-4000-8000-000000000020"
 const SUPPLIER_UUID = "00000000-0000-4000-8000-000000000030"
@@ -52,6 +54,7 @@ function makeOffcut(
       materialTypeId: MaterialTypeId.fromPersistence(MT_UUID),
       sourceType: "offcut",
       parentRollId: RollId.fromPersistence(PARENT_ROLL_UUID),
+      sourceCutHistoryId: CutHistoryId.fromPersistence(CUT_HISTORY_UUID),
       widthMm: 1370,
       lengthMm: 5000,
       thicknessMm: 0.085,
@@ -79,6 +82,14 @@ describe("Roll", () => {
     it("rejects parentRollId on a received roll", () => {
       expect(() =>
         makeRoll({ parentRollId: RollId.fromPersistence(PARENT_ROLL_UUID) }),
+      ).toThrow(InvalidEntityError)
+    })
+
+    it("rejects sourceCutHistoryId on a received roll", () => {
+      expect(() =>
+        makeRoll({
+          sourceCutHistoryId: CutHistoryId.fromPersistence(CUT_HISTORY_UUID),
+        }),
       ).toThrow(InvalidEntityError)
     })
 
@@ -117,10 +128,11 @@ describe("Roll", () => {
   })
 
   describe("create() — offcut", () => {
-    it("constructs with parentRollId and source='offcut'", () => {
+    it("constructs with parentRollId + sourceCutHistoryId and source='offcut'", () => {
       const r = makeOffcut()
       expect(r.sourceType).toBe("offcut")
       expect(r.parentRollId?.value).toBe(PARENT_ROLL_UUID)
+      expect(r.sourceCutHistoryId?.value).toBe(CUT_HISTORY_UUID)
     })
 
     it("rejects offcut without parentRollId", () => {
@@ -131,6 +143,25 @@ describe("Roll", () => {
             tenantId: TenantId.fromPersistence(TENANT_UUID),
             materialTypeId: MaterialTypeId.fromPersistence(MT_UUID),
             sourceType: "offcut",
+            sourceCutHistoryId: CutHistoryId.fromPersistence(CUT_HISTORY_UUID),
+            widthMm: 1370,
+            lengthMm: 5000,
+            thicknessMm: 0.085,
+          },
+          T0,
+        ),
+      ).toThrow(InvalidEntityError)
+    })
+
+    it("rejects offcut without sourceCutHistoryId", () => {
+      expect(() =>
+        Roll.create(
+          {
+            id: RollId.fromPersistence(ROLL_UUID),
+            tenantId: TenantId.fromPersistence(TENANT_UUID),
+            materialTypeId: MaterialTypeId.fromPersistence(MT_UUID),
+            sourceType: "offcut",
+            parentRollId: RollId.fromPersistence(PARENT_ROLL_UUID),
             widthMm: 1370,
             lengthMm: 5000,
             thicknessMm: 0.085,
@@ -149,6 +180,7 @@ describe("Roll", () => {
             materialTypeId: MaterialTypeId.fromPersistence(MT_UUID),
             sourceType: "offcut",
             parentRollId: RollId.fromPersistence(ROLL_UUID),
+            sourceCutHistoryId: CutHistoryId.fromPersistence(CUT_HISTORY_UUID),
             widthMm: 1370,
             lengthMm: 5000,
             thicknessMm: 0.085,

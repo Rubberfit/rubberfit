@@ -3,6 +3,7 @@ import {
   trimOptional,
 } from "@/src/entities/shared/string-helpers"
 import {
+  CutHistoryId,
   MaterialTypeId,
   ProfileId,
   RollId,
@@ -43,6 +44,12 @@ export interface CreateRollProps {
   supplierId?: SupplierId | null
   sourceType: RollSourceType
   parentRollId?: RollId | null
+  /**
+   * Required for `sourceType: 'offcut'` (alongside `parentRollId`);
+   * MUST be null for `sourceType: 'received'`. Mirrors the DB
+   * `rolls_source_consistency` CHECK.
+   */
+  sourceCutHistoryId?: CutHistoryId | null
   widthMm: number
   lengthMm: number
   thicknessMm: number
@@ -63,6 +70,7 @@ export interface ReconstituteRollProps {
   supplierId: SupplierId | null
   sourceType: RollSourceType
   parentRollId: RollId | null
+  sourceCutHistoryId: CutHistoryId | null
   widthMm: number
   lengthMm: number
   remainingLengthMm: number
@@ -91,6 +99,7 @@ export interface RollSnapshot {
   supplierId: string | null
   sourceType: RollSourceType
   parentRollId: string | null
+  sourceCutHistoryId: string | null
   widthMm: number
   lengthMm: number
   remainingLengthMm: number
@@ -118,13 +127,17 @@ export interface RollSnapshot {
  * Physical inventory: one row per piece of stock.
  *
  * **Source flavors** (`sourceType`):
- *   • `received` — a roll purchased from a supplier. `parentRollId` is null.
- *   • `offcut`   — a reusable leftover produced by a cut. `parentRollId`
- *                  points to the roll it came from. The use-case that
- *                  creates offcuts (`ICreateOffcutUseCase`) is responsible
- *                  for inheriting `materialTypeId` / `supplierId` / `cost`
- *                  from the parent — this entity only enforces that
- *                  `parentRollId` is non-null for offcuts.
+ *   • `received` — a roll purchased from a supplier. `parentRollId` AND
+ *                  `sourceCutHistoryId` MUST both be null.
+ *   • `offcut`   — a reusable leftover produced by a cut. BOTH
+ *                  `parentRollId` (the roll it came from) AND
+ *                  `sourceCutHistoryId` (the cut that produced it) MUST
+ *                  be non-null. Mirrors the DB `rolls_source_consistency`
+ *                  CHECK added in the operations migration.
+ *                  The use-case that creates offcuts (`ICreateOffcutUseCase`)
+ *                  is responsible for inheriting `materialTypeId` /
+ *                  `supplierId` / `cost` from the parent — this entity
+ *                  only enforces the lineage-FK invariant.
  *
  * **Status FSM** (strict — see DDD slice notes):
  *   • `active`   → the only state a cut can consume from
@@ -167,6 +180,7 @@ export class Roll {
   #supplierId: SupplierId | null
   #sourceType: RollSourceType
   #parentRollId: RollId | null
+  #sourceCutHistoryId: CutHistoryId | null
   #widthMm: number
   #lengthMm: number
   #remainingLengthMm: number
@@ -194,6 +208,7 @@ export class Roll {
     this.#supplierId = props.supplierId
     this.#sourceType = props.sourceType
     this.#parentRollId = props.parentRollId
+    this.#sourceCutHistoryId = props.sourceCutHistoryId
     this.#widthMm = props.widthMm
     this.#lengthMm = props.lengthMm
     this.#remainingLengthMm = props.remainingLengthMm
@@ -228,6 +243,7 @@ export class Roll {
     Roll.#assertSourceConsistency(
       props.sourceType,
       props.parentRollId ?? null,
+      props.sourceCutHistoryId ?? null,
       props.id,
     )
 
@@ -251,6 +267,7 @@ export class Roll {
       supplierId: props.supplierId ?? null,
       sourceType: props.sourceType,
       parentRollId: props.parentRollId ?? null,
+      sourceCutHistoryId: props.sourceCutHistoryId ?? null,
       widthMm: props.widthMm,
       lengthMm: props.lengthMm,
       remainingLengthMm,
@@ -287,6 +304,9 @@ export class Roll {
       parentRollId: s.parentRollId
         ? RollId.fromPersistence(s.parentRollId)
         : null,
+      sourceCutHistoryId: s.sourceCutHistoryId
+        ? CutHistoryId.fromPersistence(s.sourceCutHistoryId)
+        : null,
       widthMm: s.widthMm,
       lengthMm: s.lengthMm,
       remainingLengthMm: s.remainingLengthMm,
@@ -319,6 +339,7 @@ export class Roll {
   get supplierId(): SupplierId | null { return this.#supplierId }
   get sourceType(): RollSourceType { return this.#sourceType }
   get parentRollId(): RollId | null { return this.#parentRollId }
+  get sourceCutHistoryId(): CutHistoryId | null { return this.#sourceCutHistoryId }
   get widthMm(): number { return this.#widthMm }
   get lengthMm(): number { return this.#lengthMm }
   get remainingLengthMm(): number { return this.#remainingLengthMm }
@@ -565,24 +586,48 @@ export class Roll {
     }
   }
 
+  /**
+   * Mirrors the DB `rolls_source_consistency` CHECK:
+   *   • `received` ⇒ parentRollId IS NULL AND sourceCutHistoryId IS NULL
+   *   • `offcut`   ⇒ parentRollId IS NOT NULL AND sourceCutHistoryId IS NOT NULL
+   * Plus a self-parent guard.
+   */
   static #assertSourceConsistency(
     sourceType: RollSourceType,
     parentRollId: RollId | null,
+    sourceCutHistoryId: CutHistoryId | null,
     ownId: RollId,
   ): void {
-    if (sourceType === "offcut" && parentRollId === null) {
+    if (sourceType === "received") {
+      if (parentRollId !== null) {
+        throw new InvalidEntityError(
+          "Roll",
+          "received rolls must not have a parentRollId",
+        )
+      }
+      if (sourceCutHistoryId !== null) {
+        throw new InvalidEntityError(
+          "Roll",
+          "received rolls must not have a sourceCutHistoryId",
+        )
+      }
+      return
+    }
+
+    // sourceType === "offcut"
+    if (parentRollId === null) {
       throw new InvalidEntityError(
         "Roll",
         "offcut rolls must have a parentRollId",
       )
     }
-    if (sourceType === "received" && parentRollId !== null) {
+    if (sourceCutHistoryId === null) {
       throw new InvalidEntityError(
         "Roll",
-        "received rolls must not have a parentRollId",
+        "offcut rolls must have a sourceCutHistoryId",
       )
     }
-    if (parentRollId !== null && parentRollId.equals(ownId)) {
+    if (parentRollId.equals(ownId)) {
       throw new InvalidEntityError(
         "Roll",
         "parentRollId cannot equal the roll's own id",
@@ -621,6 +666,7 @@ export class Roll {
       supplierId: this.#supplierId?.value ?? null,
       sourceType: this.#sourceType,
       parentRollId: this.#parentRollId?.value ?? null,
+      sourceCutHistoryId: this.#sourceCutHistoryId?.value ?? null,
       widthMm: this.#widthMm,
       lengthMm: this.#lengthMm,
       remainingLengthMm: this.#remainingLengthMm,

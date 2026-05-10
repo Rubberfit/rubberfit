@@ -212,3 +212,29 @@ export const ReorderRuleId = {
   fromPersistence: (value: string): ReorderRuleId =>
     Id.fromPersistence<"ReorderRule">(value),
 }
+
+/** Identifier for a single cut operation (granular cut log). Source: cuts.id. */
+export type CutId = Id<"Cut">
+export const CutId = {
+  create: (value: string): CutId => Id.create(value, "Cut"),
+  fromPersistence: (value: string): CutId =>
+    Id.fromPersistence<"Cut">(value),
+}
+
+/** Identifier for a job-level cut history record (with layout + metrics). Source: cut_history.id. */
+export type CutHistoryId = Id<"CutHistory">
+export const CutHistoryId = {
+  create: (value: string): CutHistoryId =>
+    Id.create(value, "CutHistory"),
+  fromPersistence: (value: string): CutHistoryId =>
+    Id.fromPersistence<"CutHistory">(value),
+}
+
+/** Identifier for a user's bookmark of a cut history row. Source: cut_favorites.id. */
+export type CutFavoriteId = Id<"CutFavorite">
+export const CutFavoriteId = {
+  create: (value: string): CutFavoriteId =>
+    Id.create(value, "CutFavorite"),
+  fromPersistence: (value: string): CutFavoriteId =>
+    Id.fromPersistence<"CutFavorite">(value),
+}

@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest"
 import { InvalidValueObjectError } from "@/src/entities/errors/invalid-value-object.error"
 import {
   AddressId,
+  CutFavoriteId,
+  CutHistoryId,
+  CutId,
   Id,
   InvitationId,
   MaterialSupplierId,
@@ -98,6 +101,9 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         RollId: () => RollId.create("x"),
         PriceHistoryId: () => PriceHistoryId.create("x"),
         ReorderRuleId: () => ReorderRuleId.create("x"),
+        CutId: () => CutId.create("x"),
+        CutHistoryId: () => CutHistoryId.create("x"),
+        CutFavoriteId: () => CutFavoriteId.create("x"),
       }
       for (const [expectedLabel, fn] of Object.entries(labels)) {
         expect(fn).toThrow(InvalidValueObjectError)
@@ -182,6 +188,9 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         RollId,
         PriceHistoryId,
         ReorderRuleId,
+        CutId,
+        CutHistoryId,
+        CutFavoriteId,
       ] as const
       // Phantom branding is type-only; at runtime they're all the same class.
       for (const factory of factories) {
