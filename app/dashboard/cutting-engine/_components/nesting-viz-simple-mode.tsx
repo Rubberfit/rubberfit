@@ -20,8 +20,10 @@ import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { LayoutModel, PlacedPart } from "./layout-model"
 import { CutLegend } from "./cut-legend"
 import SheetSvg from "./sheet-svg"
+import SheetThumbnail from "./sheet-thumbnail"
 import SheetSelectionDrawer from "./sheet-selection-drawer"
 import { useSheetSelection } from "./use-sheet-selection"
+import { buildSheetSummary } from "./sheet-summary"
 
 interface SimpleModeProps {
   preview: SimplePartPreview
@@ -78,6 +80,8 @@ interface SelectedPartLocation {
   layoutModel: LayoutModel
   part: PlacedPart
   partIndex: number
+  /** Index into the parent `layouts` array — used by PR 6 to drive the "On Sheet N" drawer UI and the "Jump to Sheet N" action. */
+  sheetIndex: number
 }
 
 function findSelectedPart(
@@ -85,10 +89,11 @@ function findSelectedPart(
   selectedId: string | null
 ): SelectedPartLocation | null {
   if (!layouts || !selectedId) return null
-  for (const layoutModel of layouts) {
+  for (let sheetIndex = 0; sheetIndex < layouts.length; sheetIndex += 1) {
+    const layoutModel = layouts[sheetIndex]
     const partIndex = layoutModel.parts.findIndex((p) => p.id === selectedId)
     if (partIndex !== -1) {
-      return { layoutModel, part: layoutModel.parts[partIndex], partIndex }
+      return { layoutModel, part: layoutModel.parts[partIndex], partIndex, sheetIndex }
     }
   }
   return null
@@ -174,6 +179,84 @@ export default function NestingVizSimpleMode({
     [selectedLocation, sheetAreaSharePct]
   )
 
+  // PR 6 — active sheet for the thumbnail strip + per-sheet detail.
+  // Stored in parent state (Codex's recommendation; URL-mirroring is a
+  // future enhancement). Clamped whenever the sheets array shrinks
+  // after a re-pack — without the clamp, a stale index could point
+  // past the new array length and crash the detail render.
+  const [activeSheetIndex, setActiveSheetIndex] = React.useState(0)
+  React.useEffect(() => {
+    if (activeSheetIndex >= sheets.length) {
+      setActiveSheetIndex(Math.max(0, sheets.length - 1))
+    }
+  }, [activeSheetIndex, sheets.length])
+
+  // Keyboard rover inside the thumbnail strip. Independent of active
+  // state: arrow keys move focus between thumbnails; Enter/Space
+  // activates. Initialises to the active thumbnail so Tab into the
+  // strip lands on the current sheet.
+  const [focusedThumbIndex, setFocusedThumbIndex] = React.useState(0)
+  React.useEffect(() => {
+    setFocusedThumbIndex(activeSheetIndex)
+  }, [activeSheetIndex])
+
+  const thumbButtonRefs = React.useRef<(HTMLButtonElement | null)[]>([])
+  const focusThumbAt = React.useCallback((idx: number) => {
+    setFocusedThumbIndex(idx)
+    thumbButtonRefs.current[idx]?.focus()
+  }, [])
+  const onStripKeyDown = React.useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault()
+        focusThumbAt(Math.min(sheets.length - 1, focusedThumbIndex + 1))
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault()
+        focusThumbAt(Math.max(0, focusedThumbIndex - 1))
+      } else if (e.key === "Home") {
+        e.preventDefault()
+        focusThumbAt(0)
+      } else if (e.key === "End") {
+        e.preventDefault()
+        focusThumbAt(sheets.length - 1)
+      }
+    },
+    [focusThumbAt, focusedThumbIndex, sheets.length]
+  )
+
+  // Derive a clamped active index for THIS render pass. The
+  // `useEffect` above persists the corrected value back into state for
+  // future renders, but using the raw `activeSheetIndex` directly would
+  // briefly mark the wrong thumbnail as active / drive the wrong detail
+  // pass after a re-pack shrinks the sheet list.
+  const safeActiveSheetIndex = Math.min(Math.max(0, activeSheetIndex), sheets.length - 1)
+  const activeSheet = sheets[safeActiveSheetIndex] ?? sheets[0]
+  // Per-sheet stock area — the multi-sheet total would make every
+  // "Sheet N: X percent scrap" line read as "X percent of all stock,"
+  // which is meaningless when operators inspect one sheet at a time.
+  const activeSheetStockArea =
+    activeSheet.preview.usedArea + activeSheet.preview.scrapArea + activeSheet.preview.reusableArea
+  const activeSheetSummary = React.useMemo(
+    () =>
+      buildSheetSummary(
+        activeSheet,
+        sheets.length,
+        activeSheetStockArea > 0 ? activeSheetStockArea : layout.stockSqFt * 144
+      ),
+    [activeSheet, sheets.length, activeSheetStockArea, layout.stockSqFt]
+  )
+
+  // PR 6 follow-up — after a "Jump to Sheet N" click in the drawer, the
+  // off-sheet block (which contained the click target) unmounts. Move
+  // focus to the newly-active thumbnail so keyboard / screen-reader
+  // users land somewhere meaningful instead of falling back to `body`.
+  const handleJumpToSheet = React.useCallback((idx: number) => {
+    setActiveSheetIndex(idx)
+    requestAnimationFrame(() => {
+      thumbButtonRefs.current[idx]?.focus()
+    })
+  }, [])
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       <SimpleModeHeader
@@ -205,24 +288,59 @@ export default function NestingVizSimpleMode({
 
       {layouts && layouts.length > 0 && <CutLegend layouts={layouts} />}
 
-      <div
-        className={`bg-card px-2 py-4 sm:px-4 ${isMultiSheet ? "flex flex-col gap-6 md:grid-cols-2" : "overflow-x-auto"}`}
-      >
-        {sheets.map((sheet) => (
-          <SheetSvg
-            key={`sheet-${sheet.sheetIndex}`}
-            sheet={sheet}
-            layout={layout}
-            previewRollW={previewRollW}
-            previewRollL={previewRollL}
-            isMultiSheet={isMultiSheet}
-            totalSheets={sheets.length}
-            layoutModel={layouts?.[sheet.sheetIndex]}
-            debugOverlays={debugOverlays}
-            selectedPartId={selectedId}
-            onSelectPart={selectPart}
-          />
-        ))}
+      {isMultiSheet && (
+        <div
+          // Phase 5 PR 6 — thumbnail strip. Plain toolbar / button-strip
+          // (NOT a `tablist`): the buttons use `aria-pressed` rather
+          // than `role="tab"` + `aria-selected`, and the detail SVG is
+          // not a tabpanel in the strict sense. `role="toolbar"` is the
+          // honest mapping for "row of related buttons with a single
+          // Tab stop and arrow-key roving."
+          role="toolbar"
+          aria-label="Stock sheets"
+          aria-orientation="horizontal"
+          onKeyDown={onStripKeyDown}
+          className="flex h-24 items-center gap-3 overflow-x-auto border-b border-border bg-muted/20 px-3 py-2"
+        >
+          {sheets.map((sheet, idx) => (
+            <SheetThumbnail
+              key={`thumb-${sheet.sheetIndex}`}
+              ref={(node) => {
+                thumbButtonRefs.current[idx] = node
+              }}
+              sheet={sheet}
+              layoutModel={layouts?.[sheet.sheetIndex]}
+              totalSheets={sheets.length}
+              isActive={idx === safeActiveSheetIndex}
+              onActivate={() => setActiveSheetIndex(idx)}
+              tabIndex={idx === focusedThumbIndex ? 0 : -1}
+              layout={layout}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="bg-card px-2 py-4 sm:px-4">
+        <SheetSvg
+          // `key` forces React to unmount the previous SheetSvg and
+          // mount a fresh one on active-sheet switch, so internal
+          // state (zoom, pan, drag refs, keyboard focus) resets
+          // cleanly. Per Codex's recommendation: stale focusedIndex
+          // from a no-longer-visible sheet would paint a phantom
+          // keyboard ring if SheetSvg were reused.
+          key={`detail-${activeSheet.sheetIndex}`}
+          sheet={activeSheet}
+          layout={layout}
+          previewRollW={previewRollW}
+          previewRollL={previewRollL}
+          isMultiSheet={isMultiSheet}
+          totalSheets={sheets.length}
+          layoutModel={layouts?.[activeSheet.sheetIndex]}
+          debugOverlays={debugOverlays}
+          selectedPartId={selectedId}
+          onSelectPart={selectPart}
+          ariaSummary={activeSheetSummary}
+        />
       </div>
 
       <SimpleModeMetrics
@@ -273,6 +391,10 @@ export default function NestingVizSimpleMode({
         totalPlacements={selectedLocation?.layoutModel.parts.length ?? 0}
         sheetAreaSharePct={sheetAreaSharePct}
         onClose={() => selectPart(null)}
+        partSheetIndex={selectedLocation?.sheetIndex}
+        activeSheetIndex={isMultiSheet ? safeActiveSheetIndex : undefined}
+        totalSheets={isMultiSheet ? sheets.length : undefined}
+        onJumpToSheet={isMultiSheet ? handleJumpToSheet : undefined}
       />
     </div>
   )
