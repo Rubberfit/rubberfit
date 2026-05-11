@@ -29,6 +29,21 @@ const SELECTED_SHADOW_STYLE: React.CSSProperties = {
   filter: "drop-shadow(0 4px 10px var(--svg-part-selected-shadow))",
 }
 
+// PR 5 — Selection ring inner halo. The 2px teal selection stroke
+// alone fails WCAG 3:1 against the part fill in dark mode (teal-400
+// on slate-400 ≈ 1.4:1) and against the warm-stone sheet in light
+// mode (teal-700 on stone-500 ≈ 1.2:1). The halo is a 4px page-colored
+// stroke rendered UNDER the 2px teal stroke, producing a 1px
+// page-colored band on each side of the teal ring. That band
+// guarantees ≥ 7:1 contrast at the boundary teal-meets-halo, which
+// is the adjacency a low-vision operator actually sees. The same
+// approach is reused for the focus ring (dashed).
+const SELECTION_HALO_STROKE = "var(--svg-page-bg)"
+const SELECTION_HALO_WIDTH = "4"
+const SELECTION_RING_WIDTH = "2"
+const FOCUS_HALO_WIDTH = "3.5"
+const FOCUS_RING_WIDTH = "1.5"
+
 interface NestingShapeRendererProps {
   item: PreviewItem
   index: number
@@ -156,21 +171,51 @@ function PolygonShape({
         data-selected={isSelected ? "true" : "false"}
         points={polyPoints}
         fill={PART_FILL}
-        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
-        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
         style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isSelected && (
+        <>
+          <polygon
+            points={polyPoints}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={SELECTION_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <polygon
+            points={polyPoints}
+            fill="none"
+            stroke="var(--svg-part-selected-stroke)"
+            strokeWidth={SELECTION_RING_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
+      )}
       {isFocused && !isSelected && (
-        <polygon
-          points={polyPoints}
-          fill="none"
-          stroke="var(--svg-part-focus-stroke)"
-          strokeWidth="1.5"
-          strokeDasharray="3 2"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
+        <>
+          <polygon
+            points={polyPoints}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={FOCUS_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <polygon
+            points={polyPoints}
+            fill="none"
+            stroke="var(--svg-part-focus-stroke)"
+            strokeWidth={FOCUS_RING_WIDTH}
+            strokeDasharray="3 2"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
       )}
       <text
         x={labelX}
@@ -218,23 +263,59 @@ function CircleShape({
         cy={cy}
         r={effectiveR}
         fill={PART_FILL}
-        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
-        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
         style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isSelected && (
+        <>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={effectiveR}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={SELECTION_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={effectiveR}
+            fill="none"
+            stroke="var(--svg-part-selected-stroke)"
+            strokeWidth={SELECTION_RING_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
+      )}
       {isFocused && !isSelected && (
-        <circle
-          cx={cx}
-          cy={cy}
-          r={effectiveR}
-          fill="none"
-          stroke="var(--svg-part-focus-stroke)"
-          strokeWidth="1.5"
-          strokeDasharray="3 2"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
+        <>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={effectiveR}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={FOCUS_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={effectiveR}
+            fill="none"
+            stroke="var(--svg-part-focus-stroke)"
+            strokeWidth={FOCUS_RING_WIDTH}
+            strokeDasharray="3 2"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
       )}
       <text
         x={cx}
@@ -305,21 +386,51 @@ function SectorShape({
         data-selected={isSelected ? "true" : "false"}
         d={arcPath}
         fill={PART_FILL}
-        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
-        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
         style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isSelected && (
+        <>
+          <path
+            d={arcPath}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={SELECTION_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={arcPath}
+            fill="none"
+            stroke="var(--svg-part-selected-stroke)"
+            strokeWidth={SELECTION_RING_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
+      )}
       {isFocused && !isSelected && (
-        <path
-          d={arcPath}
-          fill="none"
-          stroke="var(--svg-part-focus-stroke)"
-          strokeWidth="1.5"
-          strokeDasharray="3 2"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
+        <>
+          <path
+            d={arcPath}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={FOCUS_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={arcPath}
+            fill="none"
+            stroke="var(--svg-part-focus-stroke)"
+            strokeWidth={FOCUS_RING_WIDTH}
+            strokeDasharray="3 2"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
       )}
       <text
         x={labelX}
@@ -381,21 +492,51 @@ function TrapezoidShape({
         data-selected={isSelected ? "true" : "false"}
         d={trapPath}
         fill={PART_FILL}
-        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
-        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
         style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isSelected && (
+        <>
+          <path
+            d={trapPath}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={SELECTION_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={trapPath}
+            fill="none"
+            stroke="var(--svg-part-selected-stroke)"
+            strokeWidth={SELECTION_RING_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
+      )}
       {isFocused && !isSelected && (
-        <path
-          d={trapPath}
-          fill="none"
-          stroke="var(--svg-part-focus-stroke)"
-          strokeWidth="1.5"
-          strokeDasharray="3 2"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
+        <>
+          <path
+            d={trapPath}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={FOCUS_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <path
+            d={trapPath}
+            fill="none"
+            stroke="var(--svg-part-focus-stroke)"
+            strokeWidth={FOCUS_RING_WIDTH}
+            strokeDasharray="3 2"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
       )}
       <text
         x={textX}
@@ -441,24 +582,63 @@ function RectShape({
         width={coords.pw}
         height={coords.ph}
         fill={PART_FILL}
-        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
-        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
+        stroke={PART_STROKE}
+        strokeWidth={PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
         style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isSelected && (
+        <>
+          <rect
+            x={coords.px + 0.5}
+            y={coords.py + 0.5}
+            width={coords.pw}
+            height={coords.ph}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={SELECTION_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <rect
+            x={coords.px + 0.5}
+            y={coords.py + 0.5}
+            width={coords.pw}
+            height={coords.ph}
+            fill="none"
+            stroke="var(--svg-part-selected-stroke)"
+            strokeWidth={SELECTION_RING_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
+      )}
       {isFocused && !isSelected && (
-        <rect
-          x={coords.px + 0.5}
-          y={coords.py + 0.5}
-          width={coords.pw}
-          height={coords.ph}
-          fill="none"
-          stroke="var(--svg-part-focus-stroke)"
-          strokeWidth="1.5"
-          strokeDasharray="3 2"
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
+        <>
+          <rect
+            x={coords.px + 0.5}
+            y={coords.py + 0.5}
+            width={coords.pw}
+            height={coords.ph}
+            fill="none"
+            stroke={SELECTION_HALO_STROKE}
+            strokeWidth={FOCUS_HALO_WIDTH}
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+          <rect
+            x={coords.px + 0.5}
+            y={coords.py + 0.5}
+            width={coords.pw}
+            height={coords.ph}
+            fill="none"
+            stroke="var(--svg-part-focus-stroke)"
+            strokeWidth={FOCUS_RING_WIDTH}
+            strokeDasharray="3 2"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        </>
       )}
       <text
         x={textX}

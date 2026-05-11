@@ -263,19 +263,29 @@ export function SimpleModePatternDefs({
  *   the work-surface rather than a generic page background.
  * - `markerId`: dimension-arrow head reused across the canvas.
  */
+interface SimpleModeCanvasDefsProps {
+  sheetVignetteId: string
+  toolGridPatternId: string
+  scrapHatchPatternId: string
+  /**
+   * Phase 5 PR 5 — offcut pinstripe pattern. Runs at -45° (perpendicular
+   * to the scrap hatch at +45°) so operators with protanopia or
+   * deuteranopia can distinguish offcut from scrap by texture direction
+   * alone, even when the warm-tan / dusty-red hue distinction collapses.
+   */
+  offcutPinstripePatternId: string
+  pageGridPatternId: string
+  markerId: string
+}
+
 export function SimpleModeCanvasDefs({
   sheetVignetteId,
   toolGridPatternId,
   scrapHatchPatternId,
+  offcutPinstripePatternId,
   pageGridPatternId,
   markerId,
-}: {
-  sheetVignetteId: string
-  toolGridPatternId: string
-  scrapHatchPatternId: string
-  pageGridPatternId: string
-  markerId: string
-}) {
+}: SimpleModeCanvasDefsProps) {
   return (
     <defs>
       {/* Every fill / stroke / stop-color below pulls from `--svg-*`
@@ -304,6 +314,21 @@ export function SimpleModeCanvasDefs({
             against their respective sheet base. */}
         <rect width="6" height="6" fill="var(--svg-scrap-base)" />
         <line x1="0" y1="0" x2="0" y2="6" stroke="var(--svg-scrap-stripe)" strokeWidth="1.5" />
+      </pattern>
+      <pattern
+        id={offcutPinstripePatternId}
+        width="6"
+        height="6"
+        patternUnits="userSpaceOnUse"
+        patternTransform="rotate(-45)"
+      >
+        {/* Subtle warm-brown pinstripe over the offcut fill — color-blind
+            redundancy for the offcut-vs-scrap signal. Stripe color
+            picks up the new `--svg-offcut-pinstripe` token; orientation
+            is the inverse of the scrap hatch so direction alone is the
+            discriminator. */}
+        <rect width="6" height="6" fill="var(--svg-offcut-fill)" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="var(--svg-offcut-pinstripe)" strokeWidth="1.25" />
       </pattern>
       <pattern id={pageGridPatternId} width="40" height="40" patternUnits="userSpaceOnUse">
         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--svg-grid)" strokeWidth="0.5" />
