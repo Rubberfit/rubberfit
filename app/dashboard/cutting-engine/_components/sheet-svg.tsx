@@ -154,6 +154,15 @@ interface SheetSvgProps {
   debugOverlays?: DebugOverlayOptions
   selectedPartId: string | null
   onSelectPart: (partId: string | null) => void
+  /**
+   * Phase 5 PR 6 — visually-hidden sheet summary (e.g. "Sheet 1 of 3:
+   * 4 parts placed, 12 percent scrap, 18 percent reusable offcut").
+   * Wired via `aria-describedby` on the `<svg>` so screen readers
+   * announce sheet-level context when focus enters the canvas.
+   * The parent owns the copy generation (see `sheet-summary.ts`)
+   * because it has the totalSheets + totalStockArea context.
+   */
+  ariaSummary?: string
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -168,7 +177,13 @@ export default function SheetSvg({
   debugOverlays,
   selectedPartId,
   onSelectPart,
+  ariaSummary,
 }: SheetSvgProps) {
+  // Stable id so `aria-describedby` references the visually-hidden
+  // summary span next to the SVG. React.useId guarantees uniqueness
+  // across multiple SheetSvg mounts on the same page (e.g. legacy
+  // history views that pre-date PR 6's single-detail render).
+  const summaryId = React.useId()
   // Roving keyboard focus index within this sheet. Each sheet tracks
   // its own; visually only the focused index in the sheet the
   // operator is currently tabbing through shows a focus ring.
@@ -568,6 +583,7 @@ export default function SheetSvg({
         // `tabIndex={-1}` keeps the SVG itself out of the tab order;
         // individual parts carry their own roving tabindex.
         tabIndex={-1}
+        aria-describedby={ariaSummary ? summaryId : undefined}
       >
         <SimpleModeCanvasDefs
           sheetVignetteId={sVignette}
@@ -675,62 +691,73 @@ export default function SheetSvg({
         />
         <g clipPath={`url(#${sClip})`}>
           <g transform={sheetTransform}>
-            {!layout.shapeFirstView &&
-              sheet.preview.scrapBands.map((band, index) =>
-                band.polygon ? (
-                  <polygon
-                    key={`scrap-band-${index + 1}`}
-                    points={band.polygon
-                      .map(
-                        (pt) =>
-                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                      )
-                      .join(" ")}
-                    fill={`url(#${sScrapHatch})`}
-                  />
-                ) : (
-                  <rect
-                    key={`scrap-band-${index + 1}`}
-                    x={layout.surfaceX + band.x * layout.scale}
-                    y={layout.surfaceY + band.y * layout.scale}
-                    width={band.width * layout.scale}
-                    height={band.height * layout.scale}
-                    fill={`url(#${sScrapHatch})`}
-                  />
-                )
-              )}
-            {!layout.shapeFirstView &&
-              sheet.preview.offcutBands.map((band, index) =>
-                band.polygon ? (
-                  <polygon
-                    key={`offcut-band-${index + 1}`}
-                    points={band.polygon
-                      .map(
-                        (pt) =>
-                          `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
-                      )
-                      .join(" ")}
-                    fill={`url(#${sOffcutPinstripe})`}
-                    stroke={OFFCUT_OUTLINE}
-                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
-                    strokeDasharray={OFFCUT_DASH}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ) : (
-                  <rect
-                    key={`offcut-band-${index + 1}`}
-                    x={layout.surfaceX + band.x * layout.scale}
-                    y={layout.surfaceY + band.y * layout.scale}
-                    width={band.width * layout.scale}
-                    height={band.height * layout.scale}
-                    fill={`url(#${sOffcutPinstripe})`}
-                    stroke={OFFCUT_OUTLINE}
-                    strokeWidth={OFFCUT_OUTLINE_WIDTH}
-                    strokeDasharray={OFFCUT_DASH}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )
-              )}
+            {/* PR 6 — scrap and offcut bands are decorative texture.
+                Wrap each layer in `aria-hidden="true"` so screen
+                readers don't dictate every band; the sheet-level
+                summary (via `aria-describedby` on the SVG) carries
+                the relevant scrap/offcut totals. The parent clipped
+                `<g>` stays accessible because the parts pass below
+                still exposes `role="button"`. */}
+            <g aria-hidden="true">
+              {!layout.shapeFirstView &&
+                sheet.preview.scrapBands.map((band, index) =>
+                  band.polygon ? (
+                    <polygon
+                      key={`scrap-band-${index + 1}`}
+                      points={band.polygon
+                        .map(
+                          (pt) =>
+                            `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                        )
+                        .join(" ")}
+                      fill={`url(#${sScrapHatch})`}
+                    />
+                  ) : (
+                    <rect
+                      key={`scrap-band-${index + 1}`}
+                      x={layout.surfaceX + band.x * layout.scale}
+                      y={layout.surfaceY + band.y * layout.scale}
+                      width={band.width * layout.scale}
+                      height={band.height * layout.scale}
+                      fill={`url(#${sScrapHatch})`}
+                    />
+                  )
+                )}
+            </g>
+            <g aria-hidden="true">
+              {!layout.shapeFirstView &&
+                sheet.preview.offcutBands.map((band, index) =>
+                  band.polygon ? (
+                    <polygon
+                      key={`offcut-band-${index + 1}`}
+                      points={band.polygon
+                        .map(
+                          (pt) =>
+                            `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
+                        )
+                        .join(" ")}
+                      fill={`url(#${sOffcutPinstripe})`}
+                      stroke={OFFCUT_OUTLINE}
+                      strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                      strokeDasharray={OFFCUT_DASH}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : (
+                    <rect
+                      key={`offcut-band-${index + 1}`}
+                      x={layout.surfaceX + band.x * layout.scale}
+                      y={layout.surfaceY + band.y * layout.scale}
+                      width={band.width * layout.scale}
+                      height={band.height * layout.scale}
+                      fill={`url(#${sOffcutPinstripe})`}
+                      stroke={OFFCUT_OUTLINE}
+                      strokeWidth={OFFCUT_OUTLINE_WIDTH}
+                      strokeDasharray={OFFCUT_DASH}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  )
+                )}
+            </g>
             {IS_DEV && (
               <SheetDebugOverlays
                 sheet={sheet}
@@ -806,6 +833,11 @@ export default function SheetSvg({
         </g>
         <SimpleModeDimensionLabels layout={layout} zoom={zoom} markerId={sMarker} />
       </svg>
+      {ariaSummary && (
+        <span id={summaryId} className="sr-only">
+          {ariaSummary}
+        </span>
+      )}
     </div>
   )
 }

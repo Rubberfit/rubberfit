@@ -12,6 +12,19 @@ interface SheetSelectionDrawerProps {
   totalPlacements: number
   sheetAreaSharePct: number
   onClose: () => void
+  /**
+   * Phase 5 PR 6 — cross-sheet selection. When the selected part lives
+   * on a sheet that is not currently active in the thumbnail strip,
+   * the drawer surfaces a "On Sheet N" indicator + "Jump to Sheet N"
+   * button so the operator can navigate to it without manual hunting.
+   * Both props are optional so single-sheet (no strip) callers can omit
+   * them — the off-sheet UI then never renders.
+   */
+  partSheetIndex?: number
+  activeSheetIndex?: number
+  /** Total sheets in the pack result; used by aria/label copy when present. */
+  totalSheets?: number
+  onJumpToSheet?: (sheetIndex: number) => void
 }
 
 export default function SheetSelectionDrawer({
@@ -20,6 +33,10 @@ export default function SheetSelectionDrawer({
   totalPlacements,
   sheetAreaSharePct,
   onClose,
+  partSheetIndex,
+  activeSheetIndex,
+  totalSheets,
+  onJumpToSheet,
 }: SheetSelectionDrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -85,6 +102,32 @@ export default function SheetSelectionDrawer({
       <p className="text-sm text-muted-foreground px-4 py-3">
         Placement {placementIndex} of {totalPlacements}
       </p>
+
+      {partSheetIndex !== undefined &&
+        activeSheetIndex !== undefined &&
+        partSheetIndex !== activeSheetIndex && (
+          <>
+            <hr className="border-border" />
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                On Sheet {partSheetIndex + 1}
+                {totalSheets ? ` of ${totalSheets}` : ""}
+              </p>
+              <p className="text-sm text-foreground">
+                The selected part is on a different sheet than the one currently displayed.
+              </p>
+              {onJumpToSheet && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToSheet(partSheetIndex)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  Jump to Sheet {partSheetIndex + 1}
+                </button>
+              )}
+            </div>
+          </>
+        )}
 
       <hr className="border-border" />
 
