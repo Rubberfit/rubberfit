@@ -1,0 +1,106 @@
+"use client"
+
+import { useRef, useEffect } from "react"
+import type { PlacedPart } from "./layout-model"
+import { partDimensionLabel, tagPillStyle } from "./cut-legend"
+import { X } from "lucide-react"
+import { cn } from "@/app/lib/utils"
+
+interface SheetSelectionDrawerProps {
+  part: PlacedPart | null
+  placementIndex: number
+  totalPlacements: number
+  sheetAreaSharePct: number
+  onClose: () => void
+}
+
+export default function SheetSelectionDrawer({
+  part,
+  placementIndex,
+  totalPlacements,
+  sheetAreaSharePct,
+  onClose,
+}: SheetSelectionDrawerProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+  }, [])
+
+  if (part === null) {
+    return null
+  }
+
+  const pillStyle = tagPillStyle(part.label)
+
+  return (
+    <aside
+      role="complementary"
+      aria-labelledby="part-details-title"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          onClose()
+        }
+      }}
+      className={cn(
+        "fixed z-50 bg-background border-border shadow-lg overflow-y-auto",
+        "transition-all motion-reduce:transition-none",
+        "inset-x-0 bottom-0 max-h-[50vh] rounded-t-xl border-t",
+        "sm:inset-y-0 sm:right-0 sm:left-auto sm:bottom-auto sm:w-80 sm:max-h-none sm:rounded-none sm:border-l sm:border-t-0"
+      )}
+    >
+      <div className="flex items-center justify-between gap-3 p-4 border-b border-border">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border"
+            style={{
+              backgroundColor: pillStyle.backgroundColor,
+              borderColor: pillStyle.borderColor,
+              color: pillStyle.color,
+            }}
+          >
+            {part.label}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <h2 id="part-details-title" className="text-sm font-medium truncate">
+            {partDimensionLabel(part)}
+          </h2>
+        </div>
+        <button
+          aria-label="Close part details"
+          ref={closeButtonRef}
+          onClick={onClose}
+          className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring shrink-0"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <p className="text-sm text-muted-foreground px-4 py-3">
+        Placement {placementIndex} of {totalPlacements}
+      </p>
+
+      <hr className="border-border" />
+
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Sheet area share</span>
+          <span className="font-medium tabular-nums">{sheetAreaSharePct.toFixed(1)}%</span>
+        </div>
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            style={{ width: `${Math.min(100, Math.max(0, sheetAreaSharePct))}%` }}
+            className="h-full bg-teal-600 transition-all motion-reduce:transition-none"
+          />
+        </div>
+      </div>
+
+      <hr className="border-border" />
+
+      <p className="text-xs text-muted-foreground px-4 py-3">
+        Press <kbd className="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">Esc</kbd> to
+        deselect
+      </p>
+    </aside>
+  )
+}

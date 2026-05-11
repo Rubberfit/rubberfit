@@ -255,6 +255,10 @@
   --svg-part-fill: #64748b;
   --svg-part-stroke: #334155;
   --svg-part-shadow: rgba(0, 0, 0, 0.12);
+  --svg-part-hover-shadow: rgba(0, 0, 0, 0.2);
+  --svg-part-selected-shadow: rgba(0, 0, 0, 0.35);
+  --svg-part-selected-stroke: #0d9488;
+  --svg-part-focus-stroke: rgba(13, 148, 136, 0.7);
   --svg-scrap-base: #fee2e2;
   --svg-scrap-stripe: rgba(220, 38, 38, 0.55);
   --svg-offcut-fill: #e5dbc9;
@@ -384,10 +388,28 @@
   --svg-part-fill: #94a3b8;
   --svg-part-stroke: #64748b;
   --svg-part-shadow: rgba(255, 255, 255, 0.08);
+  --svg-part-hover-shadow: rgba(255, 255, 255, 0.2);
+  --svg-part-selected-shadow: rgba(255, 255, 255, 0.5);
+  --svg-part-selected-stroke: #0d9488;
+  --svg-part-focus-stroke: rgba(13, 148, 136, 0.7);
   --svg-scrap-base: #450a0a;
   --svg-scrap-stripe: rgba(220, 38, 38, 0.65);
   --svg-offcut-fill: #292524;
   --svg-offcut-border: rgba(214, 211, 209, 0.7);
+}
+
+/* Phase 5 PR 4 — Auto-nest part hover elevation.
+   CSS :hover (vs React state) so 100+ parts don't each trigger a
+   state update on mouseenter/leave. The selected-part branch keeps
+   its own elevated shadow set on the inline style; hover only fires
+   on parts whose data-selected="false". */
+g[data-part-id]:hover .part-shape[data-selected="false"] {
+  filter: drop-shadow(0 2px 6px var(--svg-part-hover-shadow));
+}
+@media (prefers-reduced-motion: reduce) {
+  g[data-part-id]:hover .part-shape[data-selected="false"] {
+    filter: drop-shadow(1px 2px 2px var(--svg-part-shadow));
+  }
 }
 
 /* Reduced-motion: kill entrance / ambient animations globally. */
