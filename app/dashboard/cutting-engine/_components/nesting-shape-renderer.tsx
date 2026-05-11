@@ -44,6 +44,44 @@ const SELECTION_RING_WIDTH = "2"
 const FOCUS_HALO_WIDTH = "3.5"
 const FOCUS_RING_WIDTH = "1.5"
 
+// PR 7 — minimum on-screen pixel size for a tag letter to render.
+// Because the viewBox shrinks with zoom (1..8), the font formula
+// divides by `zoom` to keep absolute screen-pixel size stable. A raw
+// `fontSize` cutoff would falsely hide labels at high zoom. The right
+// check is `fontSize * zoom`, i.e. the screen pixels the operator
+// actually perceives. 9px (not 8) because the halo stroke adds visual
+// mass and sub-9px bold letters become noise on dense sheets.
+const MIN_LABEL_SCREEN_PX = 9
+// PR 7 — when the operator is zoomed out (≤ 1.5) AND the sheet carries
+// more than this many parts, suppress all labels regardless of
+// individual computed size. Even nominally legible letters overlap
+// into noise at this density.
+const LABEL_DENSITY_THRESHOLD = 20
+const LABEL_DENSITY_ZOOM_CAP = 1.5
+
+/**
+ * Returns the tag-letter `fontSize` for a given part bounding box, or
+ * `null` when the label would render below the legibility floor. The
+ * callers either omit the `<text>` entirely when this returns `null`
+ * (no fade — a fade animation flickers on wheel zoom, per Codex's
+ * pre-implementation note) or pass the returned number to `fontSize`.
+ */
+function resolveLabelFontSize(
+  zoom: number,
+  pw: number,
+  ph: number,
+  totalPartsOnSheet: number
+): number | null {
+  if (totalPartsOnSheet > LABEL_DENSITY_THRESHOLD && zoom <= LABEL_DENSITY_ZOOM_CAP) {
+    return null
+  }
+  const fontSize = Math.max(0, Math.min(14 / zoom, pw * 0.3, ph * 0.3))
+  if (fontSize * zoom < MIN_LABEL_SCREEN_PX) {
+    return null
+  }
+  return fontSize
+}
+
 interface NestingShapeRendererProps {
   item: PreviewItem
   index: number
@@ -74,6 +112,12 @@ interface NestingShapeRendererProps {
   /** Roving tabindex: 0 for the part currently in the tab order, -1 for the rest. */
   tabIndex?: number
   ariaLabel?: string
+  /**
+   * Total parts on the sheet this shape belongs to. Used by the
+   * PR 7 label-clutter rules to suppress every tag at low zoom when
+   * the density would make labels unreadable.
+   */
+  totalPartsOnSheet?: number
 }
 
 interface ShapeCoords {
@@ -144,6 +188,7 @@ function PolygonShape({
   tabIndex,
   ariaLabel,
   coords,
+  totalPartsOnSheet,
 }: ShapeComponentProps) {
   const placedPolygon = item.placedPolygon
   if (!placedPolygon || placedPolygon.length === 0) {
@@ -163,6 +208,12 @@ function PolygonShape({
   const centroid = polygonCentroid(placedPolygon)
   const labelX = surfaceX + (centroid.x - unitOriginX) * scale
   const labelY = surfaceY + (centroid.y - unitOriginY) * scale
+  const labelFontSize = resolveLabelFontSize(
+    zoom ?? 1,
+    coords.pw,
+    coords.ph,
+    totalPartsOnSheet ?? 0
+  )
 
   return (
     <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
@@ -217,21 +268,23 @@ function PolygonShape({
           />
         </>
       )}
-      <text
-        x={labelX}
-        y={labelY}
-        transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="fill-shape-label stroke-shape-label-halo"
-        style={{ paintOrder: "stroke" }}
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="700"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {labelFontSize !== null && (
+        <text
+          x={labelX}
+          y={labelY}
+          transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="fill-shape-label stroke-shape-label-halo"
+          style={{ paintOrder: "stroke" }}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          fontSize={labelFontSize}
+          fontWeight="700"
+        >
+          {tagLetter ?? item.label}
+        </text>
+      )}
     </g>
   )
 }
@@ -247,12 +300,19 @@ function CircleShape({
   tabIndex,
   ariaLabel,
   coords,
+  totalPartsOnSheet,
 }: ShapeComponentProps) {
   const diameter = item.diameter ?? item.width
   const r = (diameter / 2) * (coords.pw / item.width)
   const cx = coords.px + coords.pw / 2
   const cy = coords.py + coords.ph / 2
   const effectiveR = Math.max(r - 1, 0)
+  const labelFontSize = resolveLabelFontSize(
+    zoom ?? 1,
+    coords.pw,
+    coords.ph,
+    totalPartsOnSheet ?? 0
+  )
 
   return (
     <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
@@ -317,21 +377,23 @@ function CircleShape({
           />
         </>
       )}
-      <text
-        x={cx}
-        y={cy}
-        transform={displayRotated ? `rotate(90 ${cx} ${cy})` : undefined}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="fill-shape-label stroke-shape-label-halo"
-        style={{ paintOrder: "stroke" }}
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {labelFontSize !== null && (
+        <text
+          x={cx}
+          y={cy}
+          transform={displayRotated ? `rotate(90 ${cx} ${cy})` : undefined}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="fill-shape-label stroke-shape-label-halo"
+          style={{ paintOrder: "stroke" }}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          fontSize={labelFontSize}
+          fontWeight="600"
+        >
+          {tagLetter ?? item.label}
+        </text>
+      )}
     </g>
   )
 }
@@ -347,6 +409,7 @@ function SectorShape({
   tabIndex,
   ariaLabel,
   coords,
+  totalPartsOnSheet,
 }: ShapeComponentProps) {
   const scale = coords.pw / item.width
   const innerR = (item.innerRadius ?? 0) * scale
@@ -378,6 +441,12 @@ function SectorShape({
   const labelX = coords.px + coords.pw / 2
   const labelY = coords.py + coords.ph / 2
   const arcPath = buildArcPath()
+  const labelFontSize = resolveLabelFontSize(
+    zoom ?? 1,
+    coords.pw,
+    coords.ph,
+    totalPartsOnSheet ?? 0
+  )
 
   return (
     <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
@@ -432,21 +501,23 @@ function SectorShape({
           />
         </>
       )}
-      <text
-        x={labelX}
-        y={labelY}
-        transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="fill-shape-label stroke-shape-label-halo"
-        style={{ paintOrder: "stroke" }}
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {labelFontSize !== null && (
+        <text
+          x={labelX}
+          y={labelY}
+          transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="fill-shape-label stroke-shape-label-halo"
+          style={{ paintOrder: "stroke" }}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          fontSize={labelFontSize}
+          fontWeight="600"
+        >
+          {tagLetter ?? item.label}
+        </text>
+      )}
     </g>
   )
 }
@@ -462,6 +533,7 @@ function TrapezoidShape({
   tabIndex,
   ariaLabel,
   coords,
+  totalPartsOnSheet,
 }: ShapeComponentProps) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
@@ -484,6 +556,12 @@ function TrapezoidShape({
   const textX = coords.px + coords.pw / 2
   const textY = coords.py + coords.ph / 2
   const trapPath = buildTrapPath()
+  const labelFontSize = resolveLabelFontSize(
+    zoom ?? 1,
+    coords.pw,
+    coords.ph,
+    totalPartsOnSheet ?? 0
+  )
 
   return (
     <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
@@ -538,21 +616,23 @@ function TrapezoidShape({
           />
         </>
       )}
-      <text
-        x={textX}
-        y={textY}
-        transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="fill-shape-label stroke-shape-label-halo"
-        style={{ paintOrder: "stroke" }}
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="600"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {labelFontSize !== null && (
+        <text
+          x={textX}
+          y={textY}
+          transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="fill-shape-label stroke-shape-label-halo"
+          style={{ paintOrder: "stroke" }}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          fontSize={labelFontSize}
+          fontWeight="600"
+        >
+          {tagLetter ?? item.label}
+        </text>
+      )}
     </g>
   )
 }
@@ -568,9 +648,16 @@ function RectShape({
   tabIndex,
   ariaLabel,
   coords,
+  totalPartsOnSheet,
 }: ShapeComponentProps) {
   const textX = coords.px + coords.pw / 2
   const textY = coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)
+  const labelFontSize = resolveLabelFontSize(
+    zoom ?? 1,
+    coords.pw,
+    coords.ph,
+    totalPartsOnSheet ?? 0
+  )
 
   return (
     <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
@@ -640,20 +727,22 @@ function RectShape({
           />
         </>
       )}
-      <text
-        x={textX}
-        y={textY}
-        transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
-        textAnchor="middle"
-        className="fill-shape-label stroke-shape-label-halo"
-        style={{ paintOrder: "stroke" }}
-        strokeWidth={2}
-        vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
-        fontWeight="700"
-      >
-        {tagLetter ?? item.label}
-      </text>
+      {labelFontSize !== null && (
+        <text
+          x={textX}
+          y={textY}
+          transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
+          textAnchor="middle"
+          className="fill-shape-label stroke-shape-label-halo"
+          style={{ paintOrder: "stroke" }}
+          strokeWidth={2}
+          vectorEffect="non-scaling-stroke"
+          fontSize={labelFontSize}
+          fontWeight="700"
+        >
+          {tagLetter ?? item.label}
+        </text>
+      )}
     </g>
   )
 }

@@ -926,6 +926,8 @@ function CutPlannerPageInner() {
                 isPacking={isPacking}
                 isAutoBoostPending={isAutoBoostPending}
                 debugOverlays={debugOverlays}
+                packError={packError}
+                onRetryPack={requestPack}
               />
             </CardContent>
           </Card>

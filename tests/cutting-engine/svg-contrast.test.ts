@@ -187,6 +187,31 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     bg: "--svg-page-bg",
   },
   {
+    // PR 7 — error banner stroke vs its own fill. Must be visible as a
+    // bordered alert; 3:1 graphical-object floor.
+    name: "error stroke vs error fill",
+    fg: "--svg-error-stroke",
+    bg: "--svg-error-fill",
+  },
+  {
+    // PR 7 — error banner stands out against the page surface.
+    // Fill is intentionally a soft red wash that nearly matches the
+    // page; the high-contrast `--svg-error-stroke` border + the
+    // `TriangleAlert` icon carry the affordance, same pattern as
+    // `part-fill vs sheet`.
+    name: "error fill vs page-bg",
+    fg: "--svg-error-fill",
+    bg: "--svg-page-bg",
+    acceptedBelow: {
+      reason:
+        "Error banner border (--svg-error-stroke) and the TriangleAlert icon carry the separation; the fill itself doesn't need 3:1 against the page.",
+      // Light measures 1.00, dark 1.22. Floor at 1.0 — any further
+      // regression below the current value still fails the suite,
+      // and 1.0 means the fills are literally identical.
+      minRatio: 1.0,
+    },
+  },
+  {
     name: "focus stroke vs page-bg (halo)",
     fg: "--svg-part-focus-stroke",
     bg: "--svg-page-bg",

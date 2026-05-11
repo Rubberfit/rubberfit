@@ -22,6 +22,7 @@ import { CutLegend } from "./cut-legend"
 import SheetSvg from "./sheet-svg"
 import SheetThumbnail from "./sheet-thumbnail"
 import SheetSelectionDrawer from "./sheet-selection-drawer"
+import NestingPackStatePanel from "./nesting-pack-state-panel"
 import { useSheetSelection } from "./use-sheet-selection"
 import { buildSheetSummary } from "./sheet-summary"
 
@@ -54,6 +55,17 @@ interface SimpleModeProps {
   isPackLive?: boolean
   /** False before any pack has run — hides the pill on a fresh session. */
   hasPackMeasurement?: boolean
+  /**
+   * Phase 5 PR 7 — what the visualizer should render instead of the
+   * actual layout. `"ready"` means render the SheetSvg detail (current
+   * behavior); `"empty"`, `"loading"`, and `"error"` swap in the state
+   * panel. The parent (NestingVisualizer) derives this from the
+   * combination of packGateStatus, isPacking, packError, and whether
+   * any layouts are available.
+   */
+  packState?: "empty" | "loading" | "error" | "ready"
+  packError?: string
+  onRetryPack?: () => void
 }
 
 // Area in square inches. Falls back to bbox when the Rust adapter
@@ -126,6 +138,9 @@ export default function NestingVizSimpleMode({
   packDurationMs,
   isPackLive,
   hasPackMeasurement,
+  packState = "ready",
+  packError,
+  onRetryPack,
 }: SimpleModeProps) {
   const layout = React.useMemo(
     () =>
@@ -288,7 +303,10 @@ export default function NestingVizSimpleMode({
 
       {layouts && layouts.length > 0 && <CutLegend layouts={layouts} />}
 
-      {isMultiSheet && (
+      {/* PR 7 — thumbnails are hidden during loading/error and empty
+          states so a partial / nonexistent sheet count can't drive a
+          ghost strip. Only shown when we have real multi-sheet data. */}
+      {isMultiSheet && packState === "ready" && (
         <div
           // Phase 5 PR 6 — thumbnail strip. Plain toolbar / button-strip
           // (NOT a `tablist`): the buttons use `aria-pressed` rather
@@ -321,26 +339,37 @@ export default function NestingVizSimpleMode({
       )}
 
       <div className="bg-card px-2 py-4 sm:px-4">
-        <SheetSvg
-          // `key` forces React to unmount the previous SheetSvg and
-          // mount a fresh one on active-sheet switch, so internal
-          // state (zoom, pan, drag refs, keyboard focus) resets
-          // cleanly. Per Codex's recommendation: stale focusedIndex
-          // from a no-longer-visible sheet would paint a phantom
-          // keyboard ring if SheetSvg were reused.
-          key={`detail-${activeSheet.sheetIndex}`}
-          sheet={activeSheet}
-          layout={layout}
-          previewRollW={previewRollW}
-          previewRollL={previewRollL}
-          isMultiSheet={isMultiSheet}
-          totalSheets={sheets.length}
-          layoutModel={layouts?.[activeSheet.sheetIndex]}
-          debugOverlays={debugOverlays}
-          selectedPartId={selectedId}
-          onSelectPart={selectPart}
-          ariaSummary={activeSheetSummary}
-        />
+        {packState === "ready" ? (
+          <SheetSvg
+            // `key` forces React to unmount the previous SheetSvg and
+            // mount a fresh one on active-sheet switch, so internal
+            // state (zoom, pan, drag refs, keyboard focus) resets
+            // cleanly. Per Codex's recommendation: stale focusedIndex
+            // from a no-longer-visible sheet would paint a phantom
+            // keyboard ring if SheetSvg were reused.
+            key={`detail-${activeSheet.sheetIndex}`}
+            sheet={activeSheet}
+            layout={layout}
+            previewRollW={previewRollW}
+            previewRollL={previewRollL}
+            isMultiSheet={isMultiSheet}
+            totalSheets={sheets.length}
+            layoutModel={layouts?.[activeSheet.sheetIndex]}
+            debugOverlays={debugOverlays}
+            selectedPartId={selectedId}
+            onSelectPart={selectPart}
+            ariaSummary={activeSheetSummary}
+          />
+        ) : (
+          <NestingPackStatePanel
+            kind={packState}
+            rollWidth={previewRollW}
+            rollLength={previewRollL}
+            errorMessage={packError}
+            onRetry={onRetryPack}
+            isPacking={isOptimizing}
+          />
+        )}
       </div>
 
       <SimpleModeMetrics

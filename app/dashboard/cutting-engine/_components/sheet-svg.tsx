@@ -791,6 +791,7 @@ export default function SheetSvg({
                   isFocused={isFocused}
                   tabIndex={tabIndex}
                   ariaLabel={ariaLabel}
+                  totalPartsOnSheet={sheet.preview.items.length}
                 />
               )
             })}

@@ -264,6 +264,12 @@
   --svg-offcut-fill: #faf6ed;
   --svg-offcut-pinstripe: rgba(70, 50, 30, 0.55);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
+  /* Phase 5 PR 7 — error state. Borrows the scrap-red palette but
+     keeps a distinct token name so a future palette tweak can
+     differentiate "the operator broke this" (error) from "Rust
+     flagged this region as waste" (scrap) without coupling them. */
+  --svg-error-fill: #fef2f2;
+  --svg-error-stroke: #b91c1c;
 }
 
 /* ============================================================
@@ -398,6 +404,8 @@
   --svg-offcut-fill: #d4b896;
   --svg-offcut-pinstripe: rgba(50, 35, 20, 0.6);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
+  --svg-error-fill: #450a0a;
+  --svg-error-stroke: #dc2626;
 }
 
 /* Phase 5 PR 4 — Auto-nest part hover elevation.
