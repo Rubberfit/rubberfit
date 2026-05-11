@@ -33,15 +33,28 @@ interface NestingPackStatePanelProps {
   isPacking?: boolean
 }
 
-export default function NestingPackStatePanel(props: NestingPackStatePanelProps): JSX.Element {
-  const { kind, rollWidth, rollLength, errorMessage = "", onRetry, isPacking = false } = props
+// `CSSProperties` doesn't know about CSS custom properties like
+// `--band-scan-end`. Extend it locally so the loading rect's style
+// is type-safe without a non-boundary `as` cast.
+interface BandScanCssProperties extends CSSProperties {
+  "--band-scan-end": string
+}
 
+export default function NestingPackStatePanel({
+  kind,
+  rollWidth,
+  rollLength,
+  errorMessage = "",
+  onRetry,
+  isPacking = false,
+}: NestingPackStatePanelProps): JSX.Element {
   const vw = rollWidth * 10
   const vh = rollLength * 10
   const sx = vw * 0.05
   const sy = vh * 0.05
   const sw = vw * 0.9
   const sh = vh * 0.9
+  const bandScanStyle: BandScanCssProperties = { "--band-scan-end": `${vh - 4}px` }
 
   return (
     <div className="relative flex items-center justify-center px-4 py-12 sm:px-8">
@@ -79,7 +92,7 @@ export default function NestingPackStatePanel(props: NestingPackStatePanelProps)
             height={4}
             fill="var(--svg-part-selected-stroke)"
             fillOpacity="0.4"
-            style={{ "--band-scan-end": `${vh - 4}px` } as CSSProperties}
+            style={bandScanStyle}
             className="origin-top animate-nesting-band-scan motion-reduce:hidden"
           />
         )}
