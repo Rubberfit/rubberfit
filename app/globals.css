@@ -262,7 +262,7 @@
   --svg-scrap-base: #fecaca;
   --svg-scrap-stripe: rgba(153, 27, 27, 0.85);
   --svg-offcut-fill: #faf6ed;
-  --svg-offcut-pinstripe: rgba(120, 90, 60, 0.4);
+  --svg-offcut-pinstripe: rgba(70, 50, 30, 0.55);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
 }
 
@@ -396,7 +396,7 @@
   --svg-scrap-base: #e8a0a0;
   --svg-scrap-stripe: #734b4b;
   --svg-offcut-fill: #d4b896;
-  --svg-offcut-pinstripe: rgba(50, 35, 20, 0.5);
+  --svg-offcut-pinstripe: rgba(50, 35, 20, 0.6);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
 }
 

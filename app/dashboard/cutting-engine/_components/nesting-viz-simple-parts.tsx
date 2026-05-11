@@ -263,14 +263,7 @@ export function SimpleModePatternDefs({
  *   the work-surface rather than a generic page background.
  * - `markerId`: dimension-arrow head reused across the canvas.
  */
-export function SimpleModeCanvasDefs({
-  sheetVignetteId,
-  toolGridPatternId,
-  scrapHatchPatternId,
-  offcutPinstripePatternId,
-  pageGridPatternId,
-  markerId,
-}: {
+interface SimpleModeCanvasDefsProps {
   sheetVignetteId: string
   toolGridPatternId: string
   scrapHatchPatternId: string
@@ -283,7 +276,16 @@ export function SimpleModeCanvasDefs({
   offcutPinstripePatternId: string
   pageGridPatternId: string
   markerId: string
-}) {
+}
+
+export function SimpleModeCanvasDefs({
+  sheetVignetteId,
+  toolGridPatternId,
+  scrapHatchPatternId,
+  offcutPinstripePatternId,
+  pageGridPatternId,
+  markerId,
+}: SimpleModeCanvasDefsProps) {
   return (
     <defs>
       {/* Every fill / stroke / stop-color below pulls from `--svg-*`

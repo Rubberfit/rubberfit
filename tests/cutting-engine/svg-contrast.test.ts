@@ -145,6 +145,11 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     bg: "--svg-offcut-fill",
   },
   {
+    name: "offcut pinstripe vs offcut fill",
+    fg: "--svg-offcut-pinstripe",
+    bg: "--svg-offcut-fill",
+  },
+  {
     name: "part fill vs sheet",
     fg: "--svg-part-fill",
     bg: "--svg-sheet-base",
