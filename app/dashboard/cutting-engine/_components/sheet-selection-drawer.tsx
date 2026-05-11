@@ -23,9 +23,15 @@ export default function SheetSelectionDrawer({
 }: SheetSelectionDrawerProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
+  // Auto-focus the close button each time a part is selected. The
+  // empty-deps version below this used to run on mount when `part`
+  // was still `null` — the component returns null before the ref
+  // attaches, so the focus call hit a `null` ref and silently no-op'd.
   useEffect(() => {
-    closeButtonRef.current?.focus()
-  }, [])
+    if (part !== null) {
+      closeButtonRef.current?.focus()
+    }
+  }, [part])
 
   if (part === null) {
     return null
@@ -70,7 +76,7 @@ export default function SheetSelectionDrawer({
           aria-label="Close part details"
           ref={closeButtonRef}
           onClick={onClose}
-          className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring shrink-0"
+          className="inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
         >
           <X className="h-4 w-4" />
         </button>

@@ -308,7 +308,13 @@ export default function SheetSvg({
     [layout.viewWidth, layout.viewHeight]
   )
   const onPointerUp = React.useCallback((e: React.PointerEvent) => {
-    if (dragRef.current?.moved) {
+    // Only flip the click-suppression flag when the pointer actually
+    // panned the view. At zoom = 1 there is nothing to pan, so a
+    // pointerdown → 6px wobble → pointerup → click sequence is still
+    // a part-pick, not a drag. Without this guard we'd swallow the
+    // click and leave the operator wondering why their first attempt
+    // to select didn't take.
+    if (dragRef.current?.moved && zoomRef.current > 1) {
       justDraggedRef.current = true
     }
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
