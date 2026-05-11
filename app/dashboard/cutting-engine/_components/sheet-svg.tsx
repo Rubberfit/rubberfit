@@ -25,7 +25,6 @@ const IS_DEV = process.env.NODE_ENV === "development"
 // the palette. PR 4 adds the interactive part layer on top.
 const SHEET_FILL = "var(--svg-sheet-base)"
 const PAGE_FILL = "var(--svg-page-bg)"
-const OFFCUT_FILL = "var(--svg-offcut-fill)"
 const OFFCUT_OUTLINE = "var(--svg-offcut-border)"
 const OFFCUT_DASH = "6 4"
 const OFFCUT_OUTLINE_WIDTH = 1.75
@@ -180,6 +179,7 @@ export default function SheetSvg({
   const sVignette = `vignette-${layout.stockPatternId}${sPat}`
   const sToolGrid = `tool-grid-${layout.stockPatternId}${sPat}`
   const sScrapHatch = `scrap-hatch-${layout.wastePatternId}${sPat}`
+  const sOffcutPinstripe = `offcut-pinstripe-${layout.stockPatternId}${sPat}`
   const sPageGrid = `page-grid-${layout.stockPatternId}${sPat}`
   const sMarker = `${layout.markerId}${sPat}`
 
@@ -573,6 +573,7 @@ export default function SheetSvg({
           sheetVignetteId={sVignette}
           toolGridPatternId={sToolGrid}
           scrapHatchPatternId={sScrapHatch}
+          offcutPinstripePatternId={sOffcutPinstripe}
           pageGridPatternId={sPageGrid}
           markerId={sMarker}
         />
@@ -709,7 +710,7 @@ export default function SheetSvg({
                           `${layout.surfaceX + pt.x * layout.scale},${layout.surfaceY + pt.y * layout.scale}`
                       )
                       .join(" ")}
-                    fill={OFFCUT_FILL}
+                    fill={`url(#${sOffcutPinstripe})`}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
                     strokeDasharray={OFFCUT_DASH}
@@ -722,7 +723,7 @@ export default function SheetSvg({
                     y={layout.surfaceY + band.y * layout.scale}
                     width={band.width * layout.scale}
                     height={band.height * layout.scale}
-                    fill={OFFCUT_FILL}
+                    fill={`url(#${sOffcutPinstripe})`}
                     stroke={OFFCUT_OUTLINE}
                     strokeWidth={OFFCUT_OUTLINE_WIDTH}
                     strokeDasharray={OFFCUT_DASH}

@@ -247,21 +247,22 @@
      "shop floor at night" treatment in `.dark` below. */
   --svg-page-bg: #f1f5f9;
   --svg-grid: rgba(203, 213, 225, 0.4);
-  --svg-sheet-base: #a8a095;
+  --svg-sheet-base: #7a7369;
   --svg-bevel-highlight: rgba(255, 255, 255, 0.35);
   --svg-bevel-shadow: rgba(0, 0, 0, 0.15);
   --svg-vignette-end: rgba(0, 0, 0, 0.2);
   --svg-dot-grid: rgba(0, 0, 0, 0.08);
-  --svg-part-fill: #64748b;
-  --svg-part-stroke: #334155;
+  --svg-part-fill: #cbd5e1;
+  --svg-part-stroke: #0f172a;
   --svg-part-shadow: rgba(0, 0, 0, 0.12);
   --svg-part-hover-shadow: rgba(0, 0, 0, 0.2);
   --svg-part-selected-shadow: rgba(0, 0, 0, 0.35);
-  --svg-part-selected-stroke: #0d9488;
-  --svg-part-focus-stroke: rgba(13, 148, 136, 0.7);
-  --svg-scrap-base: #fee2e2;
-  --svg-scrap-stripe: rgba(220, 38, 38, 0.55);
-  --svg-offcut-fill: #e5dbc9;
+  --svg-part-selected-stroke: #0f766e;
+  --svg-part-focus-stroke: #14b8a6;
+  --svg-scrap-base: #fecaca;
+  --svg-scrap-stripe: rgba(153, 27, 27, 0.85);
+  --svg-offcut-fill: #faf6ed;
+  --svg-offcut-pinstripe: rgba(120, 90, 60, 0.4);
   --svg-offcut-border: rgba(15, 23, 42, 0.7);
 }
 
@@ -380,22 +381,23 @@
      dashed boundary. */
   --svg-page-bg: #0c0a09;
   --svg-grid: rgba(148, 163, 184, 0.12);
-  --svg-sheet-base: #1c1917;
+  --svg-sheet-base: #655c53;
   --svg-bevel-highlight: rgba(0, 0, 0, 0.4);
   --svg-bevel-shadow: rgba(255, 255, 255, 0.08);
   --svg-vignette-end: rgba(255, 255, 255, 0.06);
   --svg-dot-grid: rgba(255, 255, 255, 0.1);
   --svg-part-fill: #94a3b8;
-  --svg-part-stroke: #64748b;
+  --svg-part-stroke: #334155;
   --svg-part-shadow: rgba(255, 255, 255, 0.08);
   --svg-part-hover-shadow: rgba(255, 255, 255, 0.2);
   --svg-part-selected-shadow: rgba(255, 255, 255, 0.5);
-  --svg-part-selected-stroke: #0d9488;
-  --svg-part-focus-stroke: rgba(13, 148, 136, 0.7);
-  --svg-scrap-base: #450a0a;
-  --svg-scrap-stripe: rgba(220, 38, 38, 0.65);
-  --svg-offcut-fill: #292524;
-  --svg-offcut-border: rgba(214, 211, 209, 0.7);
+  --svg-part-selected-stroke: #2dd4bf;
+  --svg-part-focus-stroke: #e8ddd0;
+  --svg-scrap-base: #e8a0a0;
+  --svg-scrap-stripe: #734b4b;
+  --svg-offcut-fill: #d4b896;
+  --svg-offcut-pinstripe: rgba(50, 35, 20, 0.5);
+  --svg-offcut-border: rgba(15, 23, 42, 0.7);
 }
 
 /* Phase 5 PR 4 — Auto-nest part hover elevation.
