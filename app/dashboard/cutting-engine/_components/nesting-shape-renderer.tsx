@@ -2,34 +2,31 @@ import React from "react"
 import type { PreviewItem } from "./nesting-visualizer-types"
 import { polygonCentroid } from "./part-label"
 
-// Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD).
+// Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD) +
+// PR 4 (interactive selection/hover/focus). The flat state matches
+// PR 3 exactly. PR 4 adds three additional visual states driven by
+// `--svg-part-*` CSS variables and lifted by the SVG-level event
+// delegation in `SheetSvg`:
 //
-// Each cut part renders as a solid slate body with a 1px slate-700
-// stroke and a CSS drop-shadow simulating the part sitting proud of
-// the sheet. Solid (no gradient) per founder feedback — the drop
-// shadow + stroke carry the dimensional read on their own.
-//
-// All three values pull from `--svg-*` CSS variables in `globals.css`
-// so the renderer adapts to `<html class="dark">` without any React
-// branching. Light mode: dark slate fill + dark drop shadow. Dark
-// mode: lighter slate fill + a faint white-glow shadow ("lit edge"
-// effect on the deep stone-900 sheet).
-//
-// CSS `drop-shadow` is GPU-composited on modern Blink/WebKit and
-// avoids the per-element rasterization cost of SVG `<filter>` at
-// scale (a packed sheet can have 100+ parts).
-//
-// The `stone-900 + wastePattern` bbox crutch on circle/sector/
-// trapezoid stays gone permanently — Codex confirmed it carried no
-// information the underlying scrap/offcut classification didn't
-// already cover. The two-pass `background`/`foreground` machinery
-// stays collapsed to a single pass for the same reason.
+//   hover    — CSS-only via `g[data-part-id]:hover .part-shape` in
+//              globals.css. No React state, no per-element handlers,
+//              so 100+ parts don't each trigger a re-render on cursor
+//              movement.
+//   selected — inline `style={SELECTED_SHADOW_STYLE}` + teal stroke;
+//              hover rule is suppressed via `data-selected="true"`.
+//   focused  — distinct dashed teal overlay so the keyboard ring is
+//              visually distinguishable from selection. Suppressed
+//              when also selected (operator sees one unambiguous
+//              solid teal ring).
 
 const PART_FILL = "var(--svg-part-fill)"
 const PART_STROKE = "var(--svg-part-stroke)"
 const PART_STROKE_WIDTH = "1"
 const PART_SHADOW_STYLE: React.CSSProperties = {
   filter: "drop-shadow(1px 2px 2px var(--svg-part-shadow))",
+}
+const SELECTED_SHADOW_STYLE: React.CSSProperties = {
+  filter: "drop-shadow(0 4px 10px var(--svg-part-selected-shadow))",
 }
 
 interface NestingShapeRendererProps {
@@ -48,6 +45,20 @@ interface NestingShapeRendererProps {
    * is the text's own (x, y) so it stays anchored over its part.
    */
   displayRotated?: boolean
+  /**
+   * `PlacedPart.id` from the parallel `layoutModel.parts[index]`.
+   * When absent (frozen legacy layouts that pre-date the Rust
+   * adapter, see `layout-model.ts` `fromLayoutModelToPreview`), the
+   * part renders flat and non-interactive — no role, no aria, no
+   * tabindex — so screen readers and keyboard users don't pick up
+   * dead targets.
+   */
+  partId?: string
+  isSelected?: boolean
+  isFocused?: boolean
+  /** Roving tabindex: 0 for the part currently in the tab order, -1 for the rest. */
+  tabIndex?: number
+  ariaLabel?: string
 }
 
 interface ShapeCoords {
@@ -76,34 +87,49 @@ function computeShapeCoords(
   }
 }
 
+interface ShapeComponentProps extends NestingShapeRendererProps {
+  coords: ShapeCoords
+}
+
+// Outer `<g>` attrs are identical across the 5 shape variants —
+// centralized so the role/aria/tabindex/data-part-id contract is
+// declared once. SVG-level event delegation in `SheetSvg` resolves
+// the part by walking `e.target.closest('[data-part-id]')`.
+function shapeGroupProps({
+  partId,
+  isSelected,
+  tabIndex,
+  ariaLabel,
+}: Pick<NestingShapeRendererProps, "partId" | "isSelected" | "tabIndex" | "ariaLabel">) {
+  return {
+    "data-part-id": partId,
+    role: partId ? "button" : undefined,
+    "aria-pressed": partId ? Boolean(isSelected) : undefined,
+    "aria-label": ariaLabel,
+    tabIndex: partId ? (tabIndex ?? -1) : undefined,
+    className:
+      "part-shape-group focus-visible:outline-none transition-all motion-reduce:transition-none" +
+      (partId ? " cursor-pointer" : ""),
+  } as const
+}
+
 function PolygonShape({
   item,
-  index,
-  coords,
   surfaceX,
   surfaceY,
   unitOriginX,
   unitOriginY,
   scale,
-  tagLetter,
   displayRotated,
-  zoom = 1,
-}: {
-  item: PreviewItem
-  index: number
-  coords: ShapeCoords
-  surfaceX: number
-  surfaceY: number
-  unitOriginX: number
-  unitOriginY: number
-  scale: number
-  tagLetter?: string
-  displayRotated?: boolean
-  zoom?: number
-}) {
-  // Caller only invokes PolygonShape on items that already carry a
-  // placedPolygon; the type system can't see that, so narrow once via
-  // an early return rather than spraying `!` across the renderer.
+  zoom,
+  tagLetter,
+  partId,
+  isSelected,
+  isFocused,
+  tabIndex,
+  ariaLabel,
+  coords,
+}: ShapeComponentProps) {
   const placedPolygon = item.placedPolygon
   if (!placedPolygon || placedPolygon.length === 0) {
     return null
@@ -122,16 +148,30 @@ function PolygonShape({
   const centroid = polygonCentroid(placedPolygon)
   const labelX = surfaceX + (centroid.x - unitOriginX) * scale
   const labelY = surfaceY + (centroid.y - unitOriginY) * scale
+
   return (
-    <g key={index + 1}>
+    <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
       <polygon
+        className="part-shape"
+        data-selected={isSelected ? "true" : "false"}
         points={polyPoints}
         fill={PART_FILL}
-        stroke={PART_STROKE}
-        strokeWidth={PART_STROKE_WIDTH}
+        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
+        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        style={PART_SHADOW_STYLE}
+        style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isFocused && !isSelected && (
+        <polygon
+          points={polyPoints}
+          fill="none"
+          stroke="var(--svg-part-focus-stroke)"
+          strokeWidth="1.5"
+          strokeDasharray="3 2"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
         x={labelX}
         y={labelY}
@@ -142,7 +182,7 @@ function PolygonShape({
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
         {tagLetter ?? item.label}
@@ -153,35 +193,49 @@ function PolygonShape({
 
 function CircleShape({
   item,
-  index,
-  coords,
-  tagLetter,
   displayRotated,
-  zoom = 1,
-}: {
-  item: PreviewItem
-  index: number
-  coords: ShapeCoords
-  tagLetter?: string
-  displayRotated?: boolean
-  zoom?: number
-}) {
+  zoom,
+  tagLetter,
+  partId,
+  isSelected,
+  isFocused,
+  tabIndex,
+  ariaLabel,
+  coords,
+}: ShapeComponentProps) {
   const diameter = item.diameter ?? item.width
   const r = (diameter / 2) * (coords.pw / item.width)
   const cx = coords.px + coords.pw / 2
   const cy = coords.py + coords.ph / 2
+  const effectiveR = Math.max(r - 1, 0)
+
   return (
-    <g key={index + 1}>
+    <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
       <circle
+        className="part-shape"
+        data-selected={isSelected ? "true" : "false"}
         cx={cx}
         cy={cy}
-        r={Math.max(r - 1, 0)}
+        r={effectiveR}
         fill={PART_FILL}
-        stroke={PART_STROKE}
-        strokeWidth={PART_STROKE_WIDTH}
+        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
+        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        style={PART_SHADOW_STYLE}
+        style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isFocused && !isSelected && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={effectiveR}
+          fill="none"
+          stroke="var(--svg-part-focus-stroke)"
+          strokeWidth="1.5"
+          strokeDasharray="3 2"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
         x={cx}
         y={cy}
@@ -192,7 +246,7 @@ function CircleShape({
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
         {tagLetter ?? item.label}
@@ -203,19 +257,16 @@ function CircleShape({
 
 function SectorShape({
   item,
-  index,
-  coords,
-  tagLetter,
   displayRotated,
-  zoom = 1,
-}: {
-  item: PreviewItem
-  index: number
-  coords: ShapeCoords
-  tagLetter?: string
-  displayRotated?: boolean
-  zoom?: number
-}) {
+  zoom,
+  tagLetter,
+  partId,
+  isSelected,
+  isFocused,
+  tabIndex,
+  ariaLabel,
+  coords,
+}: ShapeComponentProps) {
   const scale = coords.pw / item.width
   const innerR = (item.innerRadius ?? 0) * scale
   const outerR = (item.outerRadius ?? 0) * scale
@@ -243,31 +294,44 @@ function SectorShape({
     return `M${x1o} ${y1o} A${outerR} ${outerR} 0 ${lg} ${sweepOuter} ${x2o} ${y2o} L${x1i} ${y1i} A${innerR} ${innerR} 0 ${lg} ${sweepInner} ${x2i} ${y2i} Z`
   }
 
+  const labelX = coords.px + coords.pw / 2
+  const labelY = coords.py + coords.ph / 2
+  const arcPath = buildArcPath()
+
   return (
-    <g key={index + 1}>
+    <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
       <path
-        d={buildArcPath()}
+        className="part-shape"
+        data-selected={isSelected ? "true" : "false"}
+        d={arcPath}
         fill={PART_FILL}
-        stroke={PART_STROKE}
-        strokeWidth={PART_STROKE_WIDTH}
+        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
+        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        style={PART_SHADOW_STYLE}
+        style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isFocused && !isSelected && (
+        <path
+          d={arcPath}
+          fill="none"
+          stroke="var(--svg-part-focus-stroke)"
+          strokeWidth="1.5"
+          strokeDasharray="3 2"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2}
-        transform={
-          displayRotated
-            ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2})`
-            : undefined
-        }
+        x={labelX}
+        y={labelY}
+        transform={displayRotated ? `rotate(90 ${labelX} ${labelY})` : undefined}
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
         {tagLetter ?? item.label}
@@ -278,19 +342,16 @@ function SectorShape({
 
 function TrapezoidShape({
   item,
-  index,
-  coords,
-  tagLetter,
   displayRotated,
-  zoom = 1,
-}: {
-  item: PreviewItem
-  index: number
-  coords: ShapeCoords
-  tagLetter?: string
-  displayRotated?: boolean
-  zoom?: number
-}) {
+  zoom,
+  tagLetter,
+  partId,
+  isSelected,
+  isFocused,
+  tabIndex,
+  ariaLabel,
+  coords,
+}: ShapeComponentProps) {
   const scale = coords.pw / item.width
   const topW = (item.topWidth ?? item.width) * scale
   const botW = (item.bottomWidth ?? item.width) * scale
@@ -299,6 +360,9 @@ function TrapezoidShape({
   const botInsetLeft = (coords.pw - botW) / 2
   const botInsetRight = coords.pw - botInsetLeft
 
+  // Non-flipped: bottom-left vertex is `botInsetLeft`. Using
+  // `topInsetLeft` there regressed once during PR 3 and was caught
+  // by Sigilix + CodeRabbit — see PR #219 review thread.
   const buildTrapPath = () => {
     if (item.flipped) {
       return `M${coords.px + botInsetLeft} ${coords.py} L${coords.px + botInsetRight} ${coords.py} L${coords.px + topInsetRight} ${coords.py + coords.ph} L${coords.px + topInsetLeft} ${coords.py + coords.ph} Z`
@@ -306,31 +370,44 @@ function TrapezoidShape({
     return `M${coords.px + topInsetLeft} ${coords.py} L${coords.px + topInsetRight} ${coords.py} L${coords.px + botInsetRight} ${coords.py + coords.ph} L${coords.px + botInsetLeft} ${coords.py + coords.ph} Z`
   }
 
+  const textX = coords.px + coords.pw / 2
+  const textY = coords.py + coords.ph / 2
+  const trapPath = buildTrapPath()
+
   return (
-    <g key={index + 1}>
+    <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
       <path
-        d={buildTrapPath()}
+        className="part-shape"
+        data-selected={isSelected ? "true" : "false"}
+        d={trapPath}
         fill={PART_FILL}
-        stroke={PART_STROKE}
-        strokeWidth={PART_STROKE_WIDTH}
+        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
+        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        style={PART_SHADOW_STYLE}
+        style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isFocused && !isSelected && (
+        <path
+          d={trapPath}
+          fill="none"
+          stroke="var(--svg-part-focus-stroke)"
+          strokeWidth="1.5"
+          strokeDasharray="3 2"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2}
-        transform={
-          displayRotated
-            ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2})`
-            : undefined
-        }
+        x={textX}
+        y={textY}
+        transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
         textAnchor="middle"
         dominantBaseline="middle"
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="600"
       >
         {tagLetter ?? item.label}
@@ -341,46 +418,58 @@ function TrapezoidShape({
 
 function RectShape({
   item,
-  index,
-  coords,
-  tagLetter,
   displayRotated,
-  zoom = 1,
-}: {
-  item: PreviewItem
-  index: number
-  coords: ShapeCoords
-  tagLetter?: string
-  displayRotated?: boolean
-  zoom?: number
-}) {
+  zoom,
+  tagLetter,
+  partId,
+  isSelected,
+  isFocused,
+  tabIndex,
+  ariaLabel,
+  coords,
+}: ShapeComponentProps) {
+  const textX = coords.px + coords.pw / 2
+  const textY = coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)
+
   return (
-    <g key={index + 1}>
+    <g {...shapeGroupProps({ partId, isSelected, tabIndex, ariaLabel })}>
       <rect
+        className="part-shape"
+        data-selected={isSelected ? "true" : "false"}
         x={coords.px + 0.5}
         y={coords.py + 0.5}
         width={coords.pw}
         height={coords.ph}
         fill={PART_FILL}
-        stroke={PART_STROKE}
-        strokeWidth={PART_STROKE_WIDTH}
+        stroke={isSelected ? "var(--svg-part-selected-stroke)" : PART_STROKE}
+        strokeWidth={isSelected ? "2" : PART_STROKE_WIDTH}
         vectorEffect="non-scaling-stroke"
-        style={PART_SHADOW_STYLE}
+        style={isSelected ? SELECTED_SHADOW_STYLE : PART_SHADOW_STYLE}
       />
+      {isFocused && !isSelected && (
+        <rect
+          x={coords.px + 0.5}
+          y={coords.py + 0.5}
+          width={coords.pw}
+          height={coords.ph}
+          fill="none"
+          stroke="var(--svg-part-focus-stroke)"
+          strokeWidth="1.5"
+          strokeDasharray="3 2"
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <text
-        x={coords.px + coords.pw / 2}
-        y={coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)}
-        transform={
-          displayRotated
-            ? `rotate(90 ${coords.px + coords.pw / 2} ${coords.py + coords.ph / 2 + Math.min(4, coords.ph * 0.05)})`
-            : undefined
-        }
+        x={textX}
+        y={textY}
+        transform={displayRotated ? `rotate(90 ${textX} ${textY})` : undefined}
         textAnchor="middle"
         className="fill-shape-label stroke-shape-label-halo"
         style={{ paintOrder: "stroke" }}
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
-        fontSize={Math.max(0, Math.min(14 / zoom, coords.pw * 0.3, coords.ph * 0.3))}
+        fontSize={Math.max(0, Math.min(14 / (zoom ?? 1), coords.pw * 0.3, coords.ph * 0.3))}
         fontWeight="700"
       >
         {tagLetter ?? item.label}
@@ -389,93 +478,28 @@ function RectShape({
   )
 }
 
-export default function NestingShapeRenderer({
-  item,
-  index,
-  surfaceX,
-  surfaceY,
-  unitOriginX,
-  unitOriginY,
-  scale,
-  tagLetter,
-  zoom = 1,
-  displayRotated,
-}: NestingShapeRendererProps) {
+export default function NestingShapeRenderer(props: NestingShapeRendererProps) {
   const coords = computeShapeCoords(
-    item,
-    index,
-    surfaceX,
-    surfaceY,
-    unitOriginX,
-    unitOriginY,
-    scale
+    props.item,
+    props.index,
+    props.surfaceX,
+    props.surfaceY,
+    props.unitOriginX,
+    props.unitOriginY,
+    props.scale
   )
 
-  if (item.placedPolygon && item.placedPolygon.length > 0) {
-    return (
-      <PolygonShape
-        item={item}
-        index={index}
-        coords={coords}
-        surfaceX={surfaceX}
-        surfaceY={surfaceY}
-        unitOriginX={unitOriginX}
-        unitOriginY={unitOriginY}
-        scale={scale}
-        tagLetter={tagLetter}
-        displayRotated={displayRotated}
-        zoom={zoom}
-      />
-    )
+  if (props.item.placedPolygon && props.item.placedPolygon.length > 0) {
+    return <PolygonShape {...props} coords={coords} />
   }
-
-  if (item.renderShape === "circle") {
-    return (
-      <CircleShape
-        item={item}
-        index={index}
-        coords={coords}
-        tagLetter={tagLetter}
-        displayRotated={displayRotated}
-        zoom={zoom}
-      />
-    )
+  if (props.item.renderShape === "circle") {
+    return <CircleShape {...props} coords={coords} />
   }
-
-  if (item.renderShape === "sector") {
-    return (
-      <SectorShape
-        item={item}
-        index={index}
-        coords={coords}
-        tagLetter={tagLetter}
-        displayRotated={displayRotated}
-        zoom={zoom}
-      />
-    )
+  if (props.item.renderShape === "sector") {
+    return <SectorShape {...props} coords={coords} />
   }
-
-  if (item.renderShape === "trapezoid") {
-    return (
-      <TrapezoidShape
-        item={item}
-        index={index}
-        coords={coords}
-        tagLetter={tagLetter}
-        displayRotated={displayRotated}
-        zoom={zoom}
-      />
-    )
+  if (props.item.renderShape === "trapezoid") {
+    return <TrapezoidShape {...props} coords={coords} />
   }
-
-  return (
-    <RectShape
-      item={item}
-      index={index}
-      coords={coords}
-      tagLetter={tagLetter}
-      displayRotated={displayRotated}
-      zoom={zoom}
-    />
-  )
+  return <RectShape {...props} coords={coords} />
 }

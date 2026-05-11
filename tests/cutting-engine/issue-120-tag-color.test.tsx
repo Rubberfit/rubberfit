@@ -149,7 +149,9 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
       // The tag text must be present
       expect(html, `${name} markup missing tag letter`).toContain(">A</text>")
       // …and must use the theme-aware foreground class
-      expect(html, `${name} markup missing fill-foreground`).toContain('class="fill-foreground"')
+      expect(html, `${name} markup missing fill-foreground`).toContain(
+        'class="fill-shape-label stroke-shape-label-halo"'
+      )
       // …and must NOT use the legacy hardcoded light gray that caused #120
       expect(
         html,
@@ -175,6 +177,6 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
       </svg>
     )
     expect(html).toContain(">24x14</text>")
-    expect(html).toContain('class="fill-foreground"')
+    expect(html).toContain('class="fill-shape-label stroke-shape-label-halo"')
   })
 })
