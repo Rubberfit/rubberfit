@@ -114,8 +114,16 @@ interface PairCheck {
    * documented exception rather than a failure. Adding to this list
    * is a small a11y debt — every entry should have a tracked
    * follow-up in the PR description.
+   *
+   * `minRatio` is the floor BELOW the 3:1 WCAG target that the
+   * exception is allowed to occupy. The number locks in the current
+   * measurement so a future token tweak can't silently drag the
+   * ratio further down (e.g. from 1.8:1 to 1.05:1 — both fail 3:1,
+   * but the latter is dramatically worse for low-vision users and
+   * should fail the suite). Pick a value just below the current
+   * measured ratio when introducing an exception.
    */
-  acceptedBelow?: { reason: string }
+  acceptedBelow?: { reason: string; minRatio: number }
 }
 
 const GRAPHICAL_PAIRS: PairCheck[] = [
@@ -156,6 +164,10 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     acceptedBelow: {
       reason:
         "Parts have a high-contrast stroke that provides edge separation; the fill itself doesn't need to clear 3:1.",
+      // Light measures 3.15, dark 2.55 — set the floor just under
+      // the dark-mode value so a future token regression that
+      // pulled either mode below 2.4:1 fails the suite.
+      minRatio: 2.4,
     },
   },
   {
@@ -170,6 +182,10 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     acceptedBelow: {
       reason:
         "Selection ring renders with a 1px page-colored inner halo between the teal stroke and the part fill — the ring contrasts the halo, not the fill directly. Defends the dark-mode adjacency where teal-400 and slate-400 share a luminance band.",
+      // Light measures 3.69 (passes 3:1), dark 1.38 (the halo-defended
+      // case). Floor at 1.3 catches any regression that drops dark below
+      // its current value.
+      minRatio: 1.3,
     },
   },
   {
@@ -179,6 +195,9 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     acceptedBelow: {
       reason:
         "Same halo defends the light-mode adjacency where teal-700 sits near the warm-stone sheet luminance. Without the halo, both modes have one failing selection-ring adjacency.",
+      // Light measures 1.17, dark 3.25 (passes 3:1). Floor at 1.1 — any
+      // further token shift toward warm-stone-near-teal-700 fails.
+      minRatio: 1.1,
     },
   },
   {
@@ -188,6 +207,10 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     acceptedBelow: {
       reason:
         "Focus ring is dashed 1.5px (strokeDasharray='3 2'), visually distinct from the solid 2px selection ring even at low contrast. The same halo that defends the selection ring sits underneath the focus overlay. Light-mode teal-500 vs warm-stone sheet ~1.88:1; the dashed pattern + halo carry the affordance.",
+      // Light measures 1.88, dark 4.89 (passes 3:1). Floor at 1.8 so a
+      // light-mode regression below the current "subtle but visible"
+      // floor fails the suite.
+      minRatio: 1.8,
     },
   },
 ]
@@ -203,7 +226,10 @@ function runChecks(modeName: string, tokens: Map<string, string>) {
     for (const pair of GRAPHICAL_PAIRS) {
       const target = pair.target ?? 3.0
       const accepted = pair.acceptedBelow
-      it(`${pair.name} — ${accepted ? "documented exception" : `≥ ${target}:1`}`, () => {
+      const label = accepted
+        ? `documented exception (≥ ${accepted.minRatio}:1 floor)`
+        : `≥ ${target}:1`
+      it(`${pair.name} — ${label}`, () => {
         const fgRaw = getColor(tokens, pair.fg)
         const bgRaw = getColor(tokens, pair.bg)
         const fg = parseColor(fgRaw)
@@ -211,12 +237,13 @@ function runChecks(modeName: string, tokens: Map<string, string>) {
         const fgFinal = fg.a < 1 ? composite(fg, bg) : fg
         const r = contrastRatio(fgFinal, bg)
         if (accepted) {
-          // Document the exception. The test passes; the reason is
-          // surfaced in the test name. Failing this would mean
-          // someone bumped a token into compliance, which is fine —
-          // remove the `acceptedBelow` entry instead of "fixing" the
-          // test.
-          expect(r).toBeGreaterThan(1)
+          // The exception locks in a per-pair floor below the 3:1
+          // WCAG target. A future token tweak that drops the ratio
+          // further is caught here. If a future tweak instead lifts
+          // the ratio above 3.0 in both modes, remove the
+          // `acceptedBelow` entry and let the pair join the normal
+          // checks — don't bump the floor.
+          expect(r).toBeGreaterThanOrEqual(accepted.minRatio)
           return
         }
         expect(r).toBeGreaterThanOrEqual(target)
