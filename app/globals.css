@@ -408,6 +408,34 @@
   --svg-error-stroke: #dc2626;
 }
 
+/* Phase 5 PR 7 — Loading-state band-scan keyframes. The element
+   sets `--band-scan-end: ${vh - 4}px` so the dynamic SVG-viewBox
+   end position stays in the component, while the keyframe definition
+   itself satisfies the "Tailwind utilities only — no inline styles
+   except for dynamic computed values" project rule. Referenced via
+   `animate-nesting-band-scan` (Tailwind v4 picks up the keyframe
+   name automatically). */
+@keyframes nesting-band-scan {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(var(--band-scan-end, 0));
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+}
+.animate-nesting-band-scan {
+  animation: nesting-band-scan 1.6s ease-in-out infinite;
+}
+
 /* Phase 5 PR 4 — Auto-nest part hover elevation.
    CSS :hover (vs React state) so 100+ parts don't each trigger a
    state update on mouseenter/leave. The selected-part branch keeps
