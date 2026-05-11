@@ -5,7 +5,7 @@
  * Parses the live `globals.css` with PostCSS, extracts every
  * `--svg-*` custom property from the `:root` (light) and `.dark`
  * blocks, then asserts ≥ 3:1 contrast for every known graphical
- * pair (WCAG 2.1 SC 1.4.11). Text pairs are checked at 4.5:1.
+ * pair (WCAG 2.1 SC 1.4.11).
  *
  * If this test fails after a Treatment 1 palette tweak, do NOT
  * change the threshold — adjust the token value until the ratio
@@ -176,41 +176,27 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     bg: "--svg-part-fill",
   },
   {
-    name: "part selected stroke vs part fill",
+    // The selection ring is a 2px teal stroke painted over a 4px
+    // page-colored halo. The visible adjacency operators perceive is
+    // ring-vs-halo (not ring-vs-part-fill or ring-vs-sheet — those
+    // surfaces are fully covered by the halo on both sides of the
+    // ring). Measuring against `--svg-page-bg` reflects what the eye
+    // actually sees.
+    name: "part selected stroke vs page-bg (halo)",
     fg: "--svg-part-selected-stroke",
-    bg: "--svg-part-fill",
-    acceptedBelow: {
-      reason:
-        "Selection ring renders with a 1px page-colored inner halo between the teal stroke and the part fill — the ring contrasts the halo, not the fill directly. Defends the dark-mode adjacency where teal-400 and slate-400 share a luminance band.",
-      // Light measures 3.69 (passes 3:1), dark 1.38 (the halo-defended
-      // case). Floor at 1.3 catches any regression that drops dark below
-      // its current value.
-      minRatio: 1.3,
-    },
+    bg: "--svg-page-bg",
   },
   {
-    name: "part selected stroke vs sheet",
-    fg: "--svg-part-selected-stroke",
-    bg: "--svg-sheet-base",
-    acceptedBelow: {
-      reason:
-        "Same halo defends the light-mode adjacency where teal-700 sits near the warm-stone sheet luminance. Without the halo, both modes have one failing selection-ring adjacency.",
-      // Light measures 1.17, dark 3.25 (passes 3:1). Floor at 1.1 — any
-      // further token shift toward warm-stone-near-teal-700 fails.
-      minRatio: 1.1,
-    },
-  },
-  {
-    name: "focus stroke vs sheet",
+    name: "focus stroke vs page-bg (halo)",
     fg: "--svg-part-focus-stroke",
-    bg: "--svg-sheet-base",
+    bg: "--svg-page-bg",
     acceptedBelow: {
       reason:
-        "Focus ring is dashed 1.5px (strokeDasharray='3 2'), visually distinct from the solid 2px selection ring even at low contrast. The same halo that defends the selection ring sits underneath the focus overlay. Light-mode teal-500 vs warm-stone sheet ~1.88:1; the dashed pattern + halo carry the affordance.",
-      // Light measures 1.88, dark 4.89 (passes 3:1). Floor at 1.8 so a
+        "Focus ring is dashed 1.5px (strokeDasharray='3 2'), visually distinct from the solid 2px selection ring even at low contrast. Light-mode teal-500 vs slate-50 page-bg measures ~2.27:1; the dashed pattern carries the affordance where the contrast alone would not.",
+      // Light measures 2.27, dark 14.76. Floor at 2.2 — any further
       // light-mode regression below the current "subtle but visible"
-      // floor fails the suite.
-      minRatio: 1.8,
+      // value fails the suite.
+      minRatio: 2.2,
     },
   },
 ]
