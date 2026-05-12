@@ -224,7 +224,7 @@ async function main() {
   console.log("")
 
   const stripe = new Stripe(apiKey, {
-    apiVersion: "2024-06-20",
+    apiVersion: "2026-04-22.dahlia",
     typescript: false,
   })
 

@@ -38,6 +38,7 @@ export const TOKENS = {
 
   // Billing / organizations (Stripe rollout)
   IOrganizationService: Symbol("IOrganizationService"),
+  IStripeWebhookService: Symbol("IStripeWebhookService"),
 
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),

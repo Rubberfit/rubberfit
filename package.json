@@ -35,7 +35,8 @@
     "openapi:dump": "cargo run --quiet --manifest-path engine/Cargo.toml -p rf-api --bin dump-openapi > engine/crates/rf-api/openapi.json",
     "openapi:types": "openapi-typescript engine/crates/rf-api/openapi.json --output src/infrastructure/api-client/types.ts",
     "openapi:check": "bash -c 'tmp=$(mktemp) && cargo run --quiet --manifest-path engine/Cargo.toml -p rf-api --bin dump-openapi > \"$tmp\" && diff -u engine/crates/rf-api/openapi.json \"$tmp\" && rm \"$tmp\"'",
-    "stripe:setup": "node scripts/stripe-setup.mjs"
+    "stripe:setup": "node scripts/stripe-setup.mjs",
+    "stripe:webhook-register": "node scripts/stripe-webhook-register.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

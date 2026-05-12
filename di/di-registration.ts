@@ -29,6 +29,7 @@ import type { IAlertManagementService } from "@/src/application/services/alert-m
 import type { ICutFavoritesService } from "@/src/application/services/cut-favorites.service.interface"
 import type { IRollInventoryService } from "@/src/application/services/roll-inventory.service.interface"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import type { IStripeWebhookService } from "@/src/application/services/stripe-webhook.service.interface"
 
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
@@ -59,6 +60,7 @@ import { alertManagementService } from "@/src/infrastructure/services/alertManag
 import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesService"
 import { rollInventoryService } from "@/src/infrastructure/services/rollInventoryService"
 import { organizationService } from "@/src/infrastructure/services/organizationService"
+import { stripeWebhookService } from "@/src/infrastructure/services/stripeWebhookService"
 
 // Use case implementations
 import { CreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
@@ -179,6 +181,10 @@ container.registerInstance<IRollInventoryService>(
   rollInventoryService
 )
 container.registerInstance<IOrganizationService>(TOKENS.IOrganizationService, organizationService)
+container.registerInstance<IStripeWebhookService>(
+  TOKENS.IStripeWebhookService,
+  stripeWebhookService
+)
 
 // Use cases — registered as class-based singletons so the container lazily
 // constructs them on first resolve, keeping use-case modules import-safe for
