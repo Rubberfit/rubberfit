@@ -117,3 +117,4 @@ engine/target/
 
 # Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
 /target/
+*.pdf
