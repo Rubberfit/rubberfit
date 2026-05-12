@@ -99,6 +99,10 @@ describe("GET /r/[partNumber]/pdf", () => {
     // is a regression guard for the part-number → filename contract.
     const GET = await loadGetHandler()
     const res = await GET(new Request("https://x"), makeContext("RF/TEST 123"))
+    // Status assertion first so a 404/500 fails the test cleanly
+    // instead of pretending the header check is the actual problem
+    // (CodeRabbit catch).
+    expect(res.status).toBe(200)
     expect(res.headers.get("content-disposition")).toBe('inline; filename="RF_TEST_123_info.pdf"')
   })
 })

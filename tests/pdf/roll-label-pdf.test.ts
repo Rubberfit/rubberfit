@@ -34,6 +34,11 @@ vi.mock("bwip-js/browser", () => ({
 
 import { buildRollLabelPdf } from "@/app/dashboard/inventory/_components/roll-label-pdf"
 
+// `Roll["status"]` typed at the binding so the literal narrows
+// without an `as const` cast (CodeRabbit catch — no-cast rule
+// applies to test code too).
+const DEFAULT_STATUS: Roll["status"] = "active"
+
 function makeRoll(overrides: Partial<Roll> = {}): Roll {
   const fixture = {
     id: "11111111-2222-3333-4444-555555555555",
@@ -45,7 +50,7 @@ function makeRoll(overrides: Partial<Roll> = {}): Roll {
     thickness: 0.125,
     remaining_length: 96,
     location: "A-1",
-    status: "active" as const,
+    status: DEFAULT_STATUS,
     date_received: "2026-01-01",
     cost_per_sqft: 1.5,
     is_offcut: false,

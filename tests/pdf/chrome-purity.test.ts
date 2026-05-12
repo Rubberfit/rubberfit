@@ -33,20 +33,21 @@ interface ForbiddenStaticPattern {
 }
 
 /**
- * Match three import forms for the given module spec:
+ * Match four import forms for the given module spec:
  *   - `import x from "spec"` / `from "spec"`
  *   - `import "spec"` (side-effect)
  *   - `import("spec")` / `await import("spec")` (dynamic)
+ *   - `require("spec")` (CommonJS — repo is ESM-only but cheap defense)
  *
- * CodeRabbit caught the original regex missing both side-effect and
- * dynamic import paths — both would have let a regression slip
- * through the static purity guard.
+ * CodeRabbit caught the original regex missing all three of the
+ * non-`from` forms; closing the require gap is the last-mile.
  */
 function moduleImportPattern(modulePattern: string): RegExp {
   return new RegExp(
     `(?:from\\s+["']${modulePattern}["']` +
       `|import\\s+["']${modulePattern}["']` +
-      `|import\\s*\\(\\s*["']${modulePattern}["']\\s*\\))`
+      `|import\\s*\\(\\s*["']${modulePattern}["']\\s*\\)` +
+      `|require\\s*\\(\\s*["']${modulePattern}["']\\s*\\))`
   )
 }
 
