@@ -617,3 +617,7 @@ export interface CutHistoryFavorite {
   cut_history_id: string
   created_at: string | null
 }
+
+// Organization billing types live in `./billing.ts` so this file stays
+// under the 500-line cap. Import billing types from
+// `@/src/infrastructure/models/billing` directly.

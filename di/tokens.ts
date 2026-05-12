@@ -36,6 +36,9 @@ export const TOKENS = {
   ICutFavoritesService: Symbol("ICutFavoritesService"),
   IRollInventoryService: Symbol("IRollInventoryService"),
 
+  // Billing / organizations (Stripe rollout)
+  IOrganizationService: Symbol("IOrganizationService"),
+
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
   IUpdatePurchaseOrderUseCase: Symbol("IUpdatePurchaseOrderUseCase"),
