@@ -9,7 +9,7 @@
  * multi-roll codepaths. Filename + page-size contracts stay intact.
  */
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 import type { Roll } from "@/src/infrastructure/models/supabase"
 
@@ -31,7 +31,7 @@ vi.mock("bwip-js/browser", () => ({
 import { buildRollLabelPdf } from "@/app/dashboard/inventory/_components/roll-label-pdf"
 
 function makeRoll(overrides: Partial<Roll> = {}): Roll {
-  return {
+  const fixture = {
     id: "11111111-2222-3333-4444-555555555555",
     user_id: "u-1",
     part_number: "RF-TEST-0001",
@@ -41,20 +41,33 @@ function makeRoll(overrides: Partial<Roll> = {}): Roll {
     thickness: 0.125,
     remaining_length: 96,
     location: "A-1",
-    status: "active",
+    status: "active" as const,
     date_received: "2026-01-01",
     cost_per_sqft: 1.5,
     is_offcut: false,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as Roll
+  } satisfies Roll
+  return fixture
 }
+
+const ORIGINAL_APP_URL = process.env.NEXT_PUBLIC_APP_URL
 
 beforeEach(() => {
   // resolveOrigin() reads `NEXT_PUBLIC_APP_URL` — give it a stable
   // value so the QR encoding is deterministic.
   process.env.NEXT_PUBLIC_APP_URL = "https://app.rubberfit.com"
+})
+
+afterEach(() => {
+  // Don't leak the override into other test files (vitest workers
+  // share env). CodeRabbit catch.
+  if (ORIGINAL_APP_URL === undefined) {
+    delete process.env.NEXT_PUBLIC_APP_URL
+    return
+  }
+  process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_APP_URL
 })
 
 describe("buildRollLabelPdf", () => {

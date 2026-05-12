@@ -100,13 +100,19 @@ function drawChromeHeader(doc: jsPDF, canvas: PdfCanvas, opts: ChromeOptions): v
   // call in try/catch so a malformed dataURL — wrong MIME, broken
   // base64, missing image data — degrades to text-only chrome
   // instead of throwing during a customer PDF render.
+  //
+  // Format detection: jsPDF's magic-byte recognition usually wins
+  // even if we pass the wrong format string, but being explicit is
+  // both more honest and protects the fallback path if recognition
+  // ever fails on a PNG that arrived through an opaque dataURL.
   if (opts.logoDataUrl) {
+    const format = opts.logoDataUrl.startsWith("data:image/png") ? "PNG" : "JPEG"
     try {
       // jsPDF infers width from the loaded image when height is given
       // via the explicit aspect-preserving overload (width=0 forces
       // inference).
-      doc.addImage(opts.logoDataUrl, "JPEG", margin, margin, 0, LOGO_HEIGHT, undefined, "FAST")
-    } catch {
+      doc.addImage(opts.logoDataUrl, format, margin, margin, 0, LOGO_HEIGHT, undefined, "FAST")
+    } catch (_error) {
       // Silent fallback: skip the logo. The brand lockup + title
       // already identify the document, so a missing logo doesn't
       // make the PDF unreadable.

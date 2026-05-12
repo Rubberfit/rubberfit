@@ -126,7 +126,9 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   try {
     const qrPng = renderBarcodePng(buildScanUrl(roll, origin), "qrcode")
     doc.addImage(qrPng, "PNG", qrX, qrY, QR_SIZE_PT, QR_SIZE_PT)
-  } catch {
+  } catch (_error) {
+    // Bwip rendering failed — print a placeholder rectangle so the
+    // label still composes. Operators can rerun the print job.
     doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
     doc.rect(qrX, qrY, QR_SIZE_PT, QR_SIZE_PT)
   }
@@ -174,7 +176,9 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   try {
     const linearPng = renderBarcodePng(roll.part_number ?? roll.id, "code128")
     doc.addImage(linearPng, "PNG", textX, contentTop + 80, textWidth, 22)
-  } catch {
+  } catch (_error) {
+    // Same fallback as the QR path — placeholder rectangle keeps the
+    // label well-formed even if barcode generation fails.
     doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
     doc.rect(textX, contentTop + 80, textWidth, 22)
   }

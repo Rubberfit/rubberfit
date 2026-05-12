@@ -27,14 +27,34 @@ import { describe, it, expect } from "vitest"
 
 const PDF_LIB_DIR = path.resolve(process.cwd(), "app/lib/pdf")
 
-const FORBIDDEN_STATIC_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
-  { pattern: /from\s+["']bwip-js\/browser["']/, reason: "browser-only bwip-js subpath" },
-  { pattern: /from\s+["']sonner["']/, reason: "browser-only sonner (toast)" },
+interface ForbiddenStaticPattern {
+  readonly pattern: RegExp
+  readonly reason: string
+}
+
+/**
+ * Match either `import "x"` (side-effect) OR `import … from "x"` for
+ * the given module spec. CodeRabbit caught the original regex only
+ * matching `from "x"` — `import "react"` would have slipped through.
+ */
+function moduleImportPattern(modulePattern: string): RegExp {
+  return new RegExp(`(?:from\\s+["']${modulePattern}["']|import\\s+["']${modulePattern}["'])`)
+}
+
+const FORBIDDEN_STATIC_PATTERNS: ReadonlyArray<ForbiddenStaticPattern> = [
   {
-    pattern: /from\s+["']react["']/,
+    pattern: moduleImportPattern("bwip-js\\/browser"),
+    reason: "browser-only bwip-js subpath",
+  },
+  { pattern: moduleImportPattern("sonner"), reason: "browser-only sonner (toast)" },
+  {
+    pattern: moduleImportPattern("react(?:\\/[^\"']*)?"),
     reason: "react belongs to the per-PDF builders, not the shared lib",
   },
-  { pattern: /from\s+["']react-dom/, reason: "react-dom is browser-only" },
+  {
+    pattern: moduleImportPattern("react-dom(?:\\/[^\"']*)?"),
+    reason: "react-dom is browser-only",
+  },
   // Require an identifier character after the period so end-of-sentence
   // mentions in JSDoc ("the document.") don't false-positive. Real DOM
   // access is always `document.body`, `document.cookie`, etc.
@@ -58,11 +78,18 @@ function stripComments(source: string): string {
     .replace(/\/\/.*$/gm, "") // line comments
 }
 
+/**
+ * Recursively walk every `.ts` / `.tsx` file under `dir`. CodeRabbit
+ * caught the original non-recursive scan: a future PR adding a nested
+ * helper file would have bypassed the purity check entirely.
+ */
 function listTsFiles(dir: string): string[] {
-  return fs
-    .readdirSync(dir)
-    .filter((file) => file.endsWith(".ts"))
-    .map((file) => path.join(dir, file))
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) return listTsFiles(full)
+    if (entry.isFile() && (full.endsWith(".ts") || full.endsWith(".tsx"))) return [full]
+    return []
+  })
 }
 
 describe("app/lib/pdf — purity guard", () => {

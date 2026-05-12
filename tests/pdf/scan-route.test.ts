@@ -33,7 +33,7 @@ vi.mock("@/src/infrastructure/services/rollService", async () => {
   )
   return {
     ...actual,
-    getPublicRollByPartNumberOrId: vi.fn(async (_client, partNumber: string) => {
+    getPublicRollByPartNumberOrId: vi.fn(async (_client: unknown, partNumber: string) => {
       if (partNumber === "missing") return null
       // Echo whatever part number the route asked for so the filename
       // normalization test can exercise a part_number with unsafe chars.
@@ -58,7 +58,11 @@ vi.mock("@/src/infrastructure/services/rollService", async () => {
 
 import { GET } from "@/app/r/[partNumber]/pdf/route"
 
-function makeContext(partNumber: string): { params: Promise<{ partNumber: string }> } {
+interface TestRouteContext {
+  readonly params: Promise<{ readonly partNumber: string }>
+}
+
+function makeContext(partNumber: string): TestRouteContext {
   return { params: Promise.resolve({ partNumber }) }
 }
 
