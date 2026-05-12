@@ -42,6 +42,7 @@
   - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
+  - `lib/pdf/` — Phase 7 shared PDF design system (tokens, chrome, primitives, pagination). Pure jsPDF — no DOM access. Composed by every per-PDF builder under `app/dashboard/**/_components/*-pdf.ts` and the `app/r/**` + `app/api/cuts/**` routes. Purity guarded by `tests/pdf/chrome-purity.test.ts`.
 
 - .claude/
   - handoff/ — task briefs and second-opinion assignments
