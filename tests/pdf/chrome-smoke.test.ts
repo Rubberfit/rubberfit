@@ -10,7 +10,7 @@
  */
 // @vitest-environment node
 import { jsPDF } from "jspdf"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 import {
   CUSTOMER_PAGE,
@@ -105,13 +105,20 @@ describe("primitives — ruled table", () => {
     expect(pdfHasBytes(doc)).toBe(true)
   })
 
-  it("zebra default-on paints alternating row fills (no-op test that catches regressions)", () => {
-    // Codex catch in PR 2 — the zebra option was added to the
-    // interface but the body row loop never read it. This test
-    // pins the wiring at the API surface: any consumer passing
-    // zebra: true (or omitting it) must produce a valid PDF.
+  it("zebra default-on paints alternating Surface fills on odd body rows", () => {
+    // CR catch in PR 2 — the zebra option was added to the interface
+    // but the body row loop never read it. The original test only
+    // checked "PDF has bytes," which would still pass if zebra wiring
+    // broke again. This test counts the actual `setFillColor(SURFACE)`
+    // calls and the matching `rect` fills.
     const doc = makeCustomerDoc()
     drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    const fillColorSpy = vi.spyOn(doc, "setFillColor")
+    const rectSpy = vi.spyOn(doc, "rect")
+    const fillsBefore = fillColorSpy.mock.calls.length
+    const rectsBefore = rectSpy.mock.calls.length
+
     drawRuledTable(doc, {
       x: 48,
       y: contentStartY("customer"),
@@ -119,17 +126,33 @@ describe("primitives — ruled table", () => {
         { header: "Item", width: 360 },
         { header: "Count", width: 156, align: "right", mono: true },
       ],
+      // 6 rows → odd body rows are indices 1, 3, 5 → 3 zebra fills.
       rows: Array.from({ length: 6 }, (_, i) => ({
         cells: [`Row ${i + 1}`, String(i + 1)],
       })),
-      // zebra omitted — defaults to true
+      // zebra omitted — defaults to true.
     })
-    expect(pdfHasBytes(doc)).toBe(true)
+
+    // SURFACE = [248, 250, 252] per tokens.ts.
+    const surfaceFills = fillColorSpy.mock.calls
+      .slice(fillsBefore)
+      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+    expect(surfaceFills).toBe(3)
+
+    // Each Surface fill is followed by a `doc.rect(..., "F")` call.
+    const filledRects = rectSpy.mock.calls
+      .slice(rectsBefore)
+      .filter((args) => args[args.length - 1] === "F").length
+    expect(filledRects).toBeGreaterThanOrEqual(3)
   })
 
-  it("zebra false skips alternating fills without throwing", () => {
+  it("zebra false makes the SURFACE fill count drop to zero", () => {
     const doc = makeCustomerDoc()
     drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    const fillColorSpy = vi.spyOn(doc, "setFillColor")
+    const fillsBefore = fillColorSpy.mock.calls.length
+
     drawRuledTable(doc, {
       x: 48,
       y: contentStartY("customer"),
@@ -142,7 +165,11 @@ describe("primitives — ruled table", () => {
       })),
       zebra: false,
     })
-    expect(pdfHasBytes(doc)).toBe(true)
+
+    const surfaceFills = fillColorSpy.mock.calls
+      .slice(fillsBefore)
+      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+    expect(surfaceFills).toBe(0)
   })
 
   it("auto-paginates and redraws chrome + header on overflow", () => {

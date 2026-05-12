@@ -25,7 +25,7 @@ function makeJob(overrides: Partial<JobFullDetail> = {}): JobFullDetail {
     customer_email: "ops@acmerubber.test",
     customer_phone: "+1 (415) 555-0100",
     customer_po_number: "PO-2026-0042",
-    status: "scheduled" as JobStatus,
+    status: "scheduled",
     due_date: "2026-06-15",
     completed_at: null,
     notes: null,

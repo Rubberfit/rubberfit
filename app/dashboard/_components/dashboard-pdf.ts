@@ -14,6 +14,7 @@ import {
   resetColors,
   SLATE,
   stampFooterOnEveryPage,
+  type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
 import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
@@ -38,11 +39,8 @@ const PAGE_W = INTERNAL_PAGE.width
 const PAGE_MARGIN = INTERNAL_PAGE.margin
 const CONTENT_W = INTERNAL_PAGE.contentWidth
 
-let cachedLogo: string | null = null
-function getLogo(): string {
-  if (!cachedLogo) cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  return cachedLogo
-}
+// Immutable data URL — no mutable singleton (CR catch).
+const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -60,7 +58,7 @@ function ensure(doc: jsPDF, y: number, needed: number): number {
     redrawChrome: (page) => {
       drawInternalChrome(page, {
         title: "OPERATIONS OVERVIEW",
-        logoDataUrl: getLogo(),
+        logoDataUrl: LOGO_DATA_URL,
       })
       return contentStartY("internal")
     },
@@ -124,14 +122,14 @@ function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: numbe
   // Bucket column gets a wider slice; remainder split evenly across material cols.
   const bucketW = 80
   const materialW = (CONTENT_W - bucketW) / materials.length
-  const columns = [
+  // Typed annotation drops the `as const` casts (CR catch). The .map
+  // callback also gets an explicit return type so the inner literal
+  // narrows without a cast.
+  const columns: ReadonlyArray<TableColumn> = [
     { header: "Bucket", width: bucketW },
-    ...materials.map((m) => ({
-      header: m,
-      width: materialW,
-      align: "right" as const,
-      mono: true,
-    })),
+    ...materials.map(
+      (m): TableColumn => ({ header: m, width: materialW, align: "right", mono: true })
+    ),
   ]
 
   const rows = input.utilization.series.map((row) => {
@@ -151,7 +149,7 @@ function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: numbe
     pageBreak: {
       canvas: "internal",
       redrawChrome: (page) => {
-        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: getLogo() })
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: LOGO_DATA_URL })
         return contentStartY("internal")
       },
     },
@@ -179,16 +177,11 @@ function drawRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number
   }
 
   // Job | Operator | Util% | When — widths sum to CONTENT_W.
-  const columns = [
+  const columns: ReadonlyArray<TableColumn> = [
     { header: "Job code", width: CONTENT_W * 0.25, mono: true },
     { header: "Operator", width: CONTENT_W * 0.35 },
-    {
-      header: "Utilization",
-      width: CONTENT_W * 0.18,
-      align: "right" as const,
-      mono: true,
-    },
-    { header: "When", width: CONTENT_W * 0.22, align: "right" as const },
+    { header: "Utilization", width: CONTENT_W * 0.18, align: "right", mono: true },
+    { header: "When", width: CONTENT_W * 0.22, align: "right" },
   ]
 
   const rows = input.recentCuts.map((cut) => ({
@@ -203,7 +196,7 @@ function drawRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number
     pageBreak: {
       canvas: "internal",
       redrawChrome: (page) => {
-        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: getLogo() })
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: LOGO_DATA_URL })
         return contentStartY("internal")
       },
     },
@@ -228,7 +221,7 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
 
   drawInternalChrome(doc, {
     title: "OPERATIONS OVERVIEW",
-    logoDataUrl: getLogo(),
+    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 

@@ -19,6 +19,7 @@ import {
   SLATE,
   stampFooterOnEveryPage,
   SURFACE,
+  type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
 import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supabase"
@@ -49,19 +50,21 @@ const CONTENT_W = CUSTOMER_PAGE.contentWidth
 const COLUMN_GAP = 16
 const COLUMN_W = (CONTENT_W - COLUMN_GAP) / 2
 
-// ── Logo loader ─────────────────────────────────────────────────────────────
+// ── Logo + formatters ───────────────────────────────────────────────────────
 
-let cachedLogo: string | null = null
-function getLogo(): string {
-  if (!cachedLogo) cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  return cachedLogo
-}
-
-// ── Formatters ──────────────────────────────────────────────────────────────
+// Immutable data URL — built once per module load, no mutable cache.
+// CR catch: prior `let cachedLogo` was mutable singleton state.
+const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—"
-  const date = new Date(value)
+  // YYYY-MM-DD strings parsed by `new Date(value)` are interpreted as
+  // UTC midnight, which shifts the calendar day backward in negative
+  // UTC offsets (US time zones). Appending `T00:00:00` forces local
+  // interpretation so a job created on the 15th never prints as the
+  // 14th in San Francisco. CR catch.
+  const isoLocal = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value
+  const date = new Date(isoLocal)
   if (Number.isNaN(date.getTime())) return "—"
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
@@ -112,7 +115,7 @@ function ensure(doc: jsPDF, y: number, needed: number): number {
     redrawChrome: (page) => {
       drawCustomerChrome(page, {
         title: "JOB SHEET",
-        logoDataUrl: getLogo(),
+        logoDataUrl: LOGO_DATA_URL,
       })
       return contentStartY("customer")
     },
@@ -326,14 +329,16 @@ function drawPartsTable(
     }
   }
 
-  // Column widths sum to CONTENT_W = 516pt.
-  const columns = [
+  // Column widths sum to CONTENT_W = 516pt. Typed annotation drops
+  // the per-row `as const` casts (CR catch — no-cast rule applies to
+  // table column literals too; the union narrows via the annotation).
+  const columns: ReadonlyArray<TableColumn> = [
     { header: "Part #", width: 90 },
     { header: "Material", width: 140 },
     { header: "Dimensions", width: 116 },
-    { header: "Qty", width: 50, align: "right" as const, mono: true },
-    { header: "Sq ft", width: 60, align: "right" as const, mono: true },
-    { header: "Unit price", width: 60, align: "right" as const, mono: true },
+    { header: "Qty", width: 50, align: "right", mono: true },
+    { header: "Sq ft", width: 60, align: "right", mono: true },
+    { header: "Unit price", width: 60, align: "right", mono: true },
   ]
 
   const rows = job.parts.map((p) => {
@@ -359,7 +364,7 @@ function drawPartsTable(
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: getLogo() })
+        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
         return contentStartY("customer")
       },
     },
@@ -403,11 +408,11 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
   })
   y += 12
 
-  const columns = [
+  const columns: ReadonlyArray<TableColumn> = [
     { header: "Part #", width: 110 },
     { header: "Material", width: 160 },
-    { header: "Allocated", width: 130, align: "right" as const, mono: true },
-    { header: "Location", width: 116, align: "right" as const },
+    { header: "Allocated", width: 130, align: "right", mono: true },
+    { header: "Location", width: 116, align: "right" },
   ]
 
   const rows = job.allocations.map((a) => {
@@ -431,7 +436,7 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: getLogo() })
+        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
         return contentStartY("customer")
       },
     },
@@ -454,7 +459,7 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
   drawCustomerChrome(doc, {
     title: "JOB SHEET",
     subtitle: job.job_number ?? undefined,
-    logoDataUrl: getLogo(),
+    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 
