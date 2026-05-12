@@ -22,15 +22,18 @@ Reuse the VOs in the table below before introducing a new primitive type or hard
 | [`tenant-slug.ts`](./tenant-slug.ts)           | `TenantSlug`            | URL-safe tenant identifier (2–100 chars)                                | Tenant routing, public URLs. Regex `[a-z0-9][a-z0-9-]*[a-z0-9]`.                                                                                                                        |
 | [`invitation-token.ts`](./invitation-token.ts) | `InvitationToken`       | 64-char hex token (32 bytes hex-encoded)                                | Invitation row token + email-link payload.                                                                                                                                              |
 | [`po-status.ts`](./po-status.ts)               | `PoStatus`              | Purchase-order lifecycle state machine (7 states)                       | **Don't hardcode status strings.** Use `canPoStatusTransitionTo`, `assertPoStatusTransition`, `isPoStatus` guards. Copy this shape when modeling new status fields.                     |
-| [`id.ts`](./id.ts)                             | `Id<Brand>` + factories | Branded UUID; phantom typing per entity                                 | All entity primary keys. **20 brands already declared** — see below. Add a new brand instead of typing `string`.                                                                        |
+| [`invoice-status.ts`](./invoice-status.ts)     | `InvoiceStatus`         | Invoice lifecycle state machine (5 states)                              | Same shape as `po-status.ts`. Use `canInvoiceStatusTransitionTo`, `assertInvoiceStatusTransition`, `isInvoiceStatus`.                                                                   |
+| [`project-status.ts`](./project-status.ts)     | `ProjectStatus`         | Project lifecycle state machine (4 states)                              | Same shape. `canProjectStatusTransitionTo`, `assertProjectStatusTransition`, `isProjectStatus`.                                                                                         |
+| [`job-status.ts`](./job-status.ts)             | `JobStatus`             | Job lifecycle state machine (5 states)                                  | Same shape. `canJobStatusTransitionTo`, `assertJobStatusTransition`, `isJobStatus`.                                                                                                     |
+| [`id.ts`](./id.ts)                             | `Id<Brand>` + factories | Branded UUID; phantom typing per entity                                 | All entity primary keys. **22 brands already declared** — see below. Add a new brand instead of typing `string`.                                                                        |
 
-## ID brands (20)
+## ID brands (22)
 
 Each brand below is a `type` alias **and** a `const` factory object with `create()` / `fromPersistence()` methods. Same nominal-typing trick — `TenantId` is not assignable to `ProfileId` even though both are UUIDs at runtime.
 
-`TenantId`, `ProfileId`, `MembershipId`, `InvitationId`, `PlanId`, `SubscriptionId`, `AddressId`, `PersonId`, `MaterialTypeId`, `SupplierId`, `SupplierContactId`, `MaterialSupplierId`, `RollId`, `PriceHistoryId`, `ReorderRuleId`, `CutId`, `CutHistoryId`, `CutFavoriteId`, `PurchaseOrderId`, `JobId`.
+`TenantId`, `ProfileId`, `MembershipId`, `InvitationId`, `PlanId`, `SubscriptionId`, `AddressId`, `PersonId`, `MaterialTypeId`, `SupplierId`, `SupplierContactId`, `MaterialSupplierId`, `RollId`, `PriceHistoryId`, `ReorderRuleId`, `CutId`, `CutHistoryId`, `CutFavoriteId`, `PurchaseOrderId`, `JobId`, `InvoiceId`, `ProjectId`.
 
-If you need an ID brand that isn't here, add it — the pattern is ~6 lines per brand. The `Job` entity isn't implemented yet but `JobId` is forward-declared so cross-aggregate FKs (`PurchaseOrder.jobId`) can be typed today.
+If you need an ID brand that isn't here, add it — the pattern is ~6 lines per brand.
 
 ## Most-overlooked
 
