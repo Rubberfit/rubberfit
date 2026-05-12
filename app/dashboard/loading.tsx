@@ -22,7 +22,12 @@ export default function DashboardLoading() {
   return (
     <PageShell variant="overview">
       <PageHeader
-        eyebrow={<Skeleton className="h-4 w-24" />}
+        eyebrow={
+          <span
+            className="bg-accent inline-block h-4 w-24 animate-pulse rounded-md"
+            aria-hidden="true"
+          />
+        }
         title="Operations overview"
         subtitle={
           <span

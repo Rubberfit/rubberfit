@@ -1,7 +1,6 @@
 import { PageShell } from "@/app/components/patterns/page-shell"
 import { PageHeader } from "@/app/components/patterns/page-header"
 import { LoadingTable } from "@/app/components/patterns/loading-table"
-import { Skeleton } from "@/app/components/ui/skeleton"
 
 /**
  * Dominant variant for `admin/security/page.tsx`. The real page
