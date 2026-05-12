@@ -187,6 +187,23 @@ const GRAPHICAL_PAIRS: PairCheck[] = [
     bg: "--svg-page-bg",
   },
   {
+    // PR 7 — error banner stroke vs its own fill. Must be visible as a
+    // bordered alert; 3:1 graphical-object floor.
+    name: "error stroke vs error fill",
+    fg: "--svg-error-stroke",
+    bg: "--svg-error-fill",
+  },
+  // PR 7 — `error fill vs page-bg` was intentionally a soft red wash
+  // ~1.0:1 light / 1.22:1 dark; the high-contrast `--svg-error-stroke`
+  // border + TriangleAlert icon carry the affordance. We removed this
+  // pair from the suite (instead of `acceptedBelow` with `minRatio: 1.0`,
+  // which is the theoretical minimum and never fails — CodeRabbit). The
+  // meaningful guard is `error stroke vs error fill` above, which clears
+  // 3:1 cleanly. A future regression that makes the fill literally
+  // identical to the page-bg would visually hide the banner, but the
+  // border + icon would still announce it — there's no useful lower
+  // bound to enforce here.
+  {
     name: "focus stroke vs page-bg (halo)",
     fg: "--svg-part-focus-stroke",
     bg: "--svg-page-bg",
