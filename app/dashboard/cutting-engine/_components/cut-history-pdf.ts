@@ -216,7 +216,10 @@ function addHeader(doc: jsPDF, data: CutPdfData, logo: string): number {
   doc.setFontSize(8)
   doc.setTextColor(...GRAY_500)
   const dateY = ruleY + 4
-  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm"), MARGIN, dateY)
+  // CR catch — `cutDate` is stored UTC; without the zone the printed
+  // stamp depended on the operator's browser locale. Render the
+  // local time + a zone abbreviation so the reader can disambiguate.
+  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm zzz"), MARGIN, dateY)
 
   return dateY + 6
 }

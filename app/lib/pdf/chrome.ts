@@ -83,6 +83,32 @@ function applyType(doc: jsPDF, role: keyof typeof TYPE): void {
 }
 
 /**
+ * Imperative copy of `public/rubberfit-mark.svg` — graphite outer
+ * square with a signal-orange inner square, both centered on the
+ * 32×32 viewbox. Drawn at any `size` (pt) so the mark scales with
+ * its surrounding chrome without an asset round-trip. Pure jsPDF —
+ * no addImage, no SVG rasterisation, Node-safe.
+ *
+ * Geometry mirrors the SVG: outer stroke 2/32 of size, inner block
+ * fills 12/32 centered.
+ */
+export function drawRubberfitMark(doc: jsPDF, x: number, y: number, size: number): void {
+  const strokeW = (size * 2) / 32
+  const innerSize = (size * 12) / 32
+  const inset = strokeW / 2
+  const innerOffset = (size - innerSize) / 2
+
+  // Outer square — graphite stroke, no fill.
+  setDrawRgb(doc, INK)
+  doc.setLineWidth(strokeW)
+  doc.rect(x + inset, y + inset, size - strokeW, size - strokeW, "S")
+
+  // Inner square — signal-orange fill, no stroke.
+  setFillRgb(doc, SIGNAL)
+  doc.rect(x + innerOffset, y + innerOffset, innerSize, innerSize, "F")
+}
+
+/**
  * Shared header drawer. Phase 7 brand-correction state:
  *
  *   • No raster logo (the compass-rose Arc & Anchor image was wrong
@@ -104,6 +130,12 @@ function drawChromeHeader(doc: jsPDF, canvas: PdfCanvas, opts: ChromeOptions): v
     setFillRgb(doc, SIGNAL)
     doc.rect(margin, accentY, geom.contentWidth, CUSTOMER_ACCENT_HEIGHT, "F")
   }
+
+  // Rubberfit mark — geometric replica of `public/rubberfit-mark.svg`:
+  // graphite outer square + signal-orange inner square. Drawn with
+  // primitives so the chrome stays Node-safe (no SVG rasterisation
+  // dependency, no addImage). Top-left, 20pt × 20pt.
+  drawRubberfitMark(doc, margin, margin, 20)
 
   // Wordmark — Helvetica Bold 9pt ALL CAPS in ink, right-aligned.
   applyType(doc, "caption")

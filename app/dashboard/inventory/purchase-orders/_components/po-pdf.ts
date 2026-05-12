@@ -135,24 +135,25 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
   // Supplier + meta — two columns of label/value pairs.
   const colGap = 24
   const colW = (CONTENT_W - colGap) / 2
+  const panelH = 96
 
   doc.setFillColor(SURFACE[0], SURFACE[1], SURFACE[2])
-  doc.rect(PAGE_MARGIN, y, colW, 96, "F")
-  doc.rect(PAGE_MARGIN + colW + colGap, y, colW, 96, "F")
+  doc.rect(PAGE_MARGIN, y, colW, panelH, "F")
+  doc.rect(PAGE_MARGIN + colW + colGap, y, colW, panelH, "F")
 
-  drawAddressBlock(doc, "SUPPLIER", PAGE_MARGIN, y, colW, [
+  drawAddressBlock(doc, "SUPPLIER", PAGE_MARGIN, y, colW, panelH, [
     po.supplier?.name ?? "—",
     po.supplier?.email ?? "",
     po.supplier?.phone ?? "",
     po.supplier?.payment_terms ? `Terms: ${po.supplier.payment_terms}` : "",
   ])
-  drawAddressBlock(doc, "SHIP TO", PAGE_MARGIN + colW + colGap, y, colW, [
+  drawAddressBlock(doc, "SHIP TO", PAGE_MARGIN + colW + colGap, y, colW, panelH, [
     po.shipping_address ?? "Default warehouse address",
     "",
     `Order date: ${formatDate(po.order_date)}`,
     `Requested: ${formatDate(po.requested_delivery_date)}`,
   ])
-  y += 96 + 24
+  y += panelH + 24
 
   // Line items — ruled table with pagination.
   const itemColumns: ReadonlyArray<TableColumn> = [
@@ -247,6 +248,10 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
     doc.setTextColor(CHARCOAL[0], CHARCOAL[1], CHARCOAL[2])
     const lines = doc.splitTextToSize(po.notes, CONTENT_W)
     for (const line of lines) {
+      // CR catch — paginate per line so a long supplier note never
+      // bleeds into the footer band. `ensure` redraws chrome on a
+      // new page if the next line would overflow.
+      y = ensure(doc, y, TYPE.body.lineHeight, title)
       y += TYPE.body.lineHeight
       doc.text(line, PAGE_MARGIN, y)
     }
@@ -271,6 +276,7 @@ function drawAddressBlock(
   x: number,
   y: number,
   width: number,
+  height: number,
   lines: ReadonlyArray<string>
 ): void {
   const innerX = x + 16
@@ -299,8 +305,15 @@ function drawAddressBlock(
       doc.text(line, innerX, cursor)
       cursor += TYPE.body.lineHeight
     }
-    if (cursor > y + width) return
+    // CR catch — previously compared `cursor > y + width` (card width)
+    // instead of `y + height`, which let long supplier strings bleed
+    // into the next section. `height` is the panel's actual vertical
+    // budget so the clip is correct.
+    if (cursor > y + height) return
   }
+  // Caller may consult `width` for horizontal layout downstream; keep it
+  // referenced explicitly so unused-imports doesn't flag the parameter.
+  void width
 }
 
 // ── Single-PO builder + downloader ──────────────────────────────────────────
@@ -412,9 +425,12 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
   return doc
 }
 
-function buildSummaryCards(
-  stats: POExportSummary
-): ReadonlyArray<{ label: string; value: string }> {
+interface SummaryCard {
+  readonly label: string
+  readonly value: string
+}
+
+function buildSummaryCards(stats: POExportSummary): ReadonlyArray<SummaryCard> {
   return [
     { label: "Total POs", value: String(stats.total) },
     { label: "Total value", value: formatMoney(stats.totalValue) },

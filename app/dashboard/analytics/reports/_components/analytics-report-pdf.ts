@@ -87,14 +87,19 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
 
   let y = contentStartY("customer")
 
-  // Period meta + chip combo.
+  // Period meta + chip combo — chip sits IMMEDIATELY next to the
+  // date range so they read as one phrase (founder catch — chip
+  // floating in the middle of the page is disorienting). The 12pt
+  // gap matches the baseline-grid rhythm.
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
   const dateRange = `${format(input.startDate, "MMM d, yyyy")} – ${format(input.endDate, "MMM d, yyyy")}`
-  doc.text(dateRange.toUpperCase(), PAGE_MARGIN, y)
+  const dateUpper = dateRange.toUpperCase()
+  doc.text(dateUpper, PAGE_MARGIN, y)
+  const dateWidth = doc.getTextWidth(dateUpper)
   drawStatusChip(doc, {
-    x: PAGE_MARGIN + 220,
+    x: PAGE_MARGIN + dateWidth + 12,
     y: y - 10,
     label: input.periodLabel,
     intent: "info",

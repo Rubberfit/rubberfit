@@ -10,11 +10,19 @@ import { render, screen, fireEvent, act } from "@testing-library/react"
 // directly (was `exportPdfService.downloadPdfListMock`). The hoisted
 // mock has been renamed accordingly so the menu's import resolves to
 // the spy.
-const { exportToCSV, downloadPdfListMock, toastError } = vi.hoisted(() => ({
-  exportToCSV: vi.fn(),
-  downloadPdfListMock: vi.fn<(input: unknown) => Promise<void>>().mockResolvedValue(undefined),
-  toastError: vi.fn(),
-}))
+// Typing the mock with the real `PurchaseOrdersExportInput` signature
+// lets the call-args assertion compile without an `as` cast in the
+// test body (CR catch — no-cast rule applies to test code).
+const { exportToCSV, downloadPdfListMock, toastError } = vi.hoisted(() => {
+  type DownloadPdfListFn = (
+    input: import("@/app/dashboard/inventory/purchase-orders/_components/po-export-utils").PurchaseOrdersExportInput
+  ) => Promise<void>
+  return {
+    exportToCSV: vi.fn(),
+    downloadPdfListMock: vi.fn<DownloadPdfListFn>().mockResolvedValue(undefined),
+    toastError: vi.fn(),
+  }
+})
 
 vi.mock("@/src/infrastructure/services/exportService", () => ({
   exportService: { exportToCSV },
@@ -106,9 +114,8 @@ describe("PurchaseOrdersExportMenu", () => {
     const [input] = downloadPdfListMock.mock.calls[0] ?? []
     expect(input).toBeDefined()
     // Spot-check the input shape — the builder owns the visual output.
-    expect((input as { pos: ReadonlyArray<{ po_number: string }> }).pos[0].po_number).toBe(
-      "PO-0001"
-    )
+    // Typed mock means no cast on `input`.
+    expect(input?.pos[0]?.po_number).toBe("PO-0001")
   })
 
   it("shows a toast and skips the export when no POs are loaded", () => {
