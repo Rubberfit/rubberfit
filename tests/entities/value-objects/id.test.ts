@@ -8,6 +8,8 @@ import {
   CutId,
   Id,
   InvitationId,
+  InvoiceId,
+  JobId,
   MaterialSupplierId,
   MaterialTypeId,
   MembershipId,
@@ -15,6 +17,8 @@ import {
   PlanId,
   PriceHistoryId,
   ProfileId,
+  ProjectId,
+  PurchaseOrderId,
   ReorderRuleId,
   RollId,
   SubscriptionId,
@@ -66,9 +70,7 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
     })
 
     it("throws InvalidValueObjectError on bad input", () => {
-      expect(() => ProfileId.create("not-a-uuid")).toThrow(
-        InvalidValueObjectError,
-      )
+      expect(() => ProfileId.create("not-a-uuid")).toThrow(InvalidValueObjectError)
     })
 
     it("error includes the entity-specific VO name", () => {
@@ -104,15 +106,17 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         CutId: () => CutId.create("x"),
         CutHistoryId: () => CutHistoryId.create("x"),
         CutFavoriteId: () => CutFavoriteId.create("x"),
+        PurchaseOrderId: () => PurchaseOrderId.create("x"),
+        JobId: () => JobId.create("x"),
+        InvoiceId: () => InvoiceId.create("x"),
+        ProjectId: () => ProjectId.create("x"),
       }
       for (const [expectedLabel, fn] of Object.entries(labels)) {
         expect(fn).toThrow(InvalidValueObjectError)
         try {
           fn()
         } catch (err) {
-          expect((err as InvalidValueObjectError).valueObject).toBe(
-            expectedLabel,
-          )
+          expect((err as InvalidValueObjectError).valueObject).toBe(expectedLabel)
         }
       }
     })
@@ -191,6 +195,10 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         CutId,
         CutHistoryId,
         CutFavoriteId,
+        PurchaseOrderId,
+        JobId,
+        InvoiceId,
+        ProjectId,
       ] as const
       // Phantom branding is type-only; at runtime they're all the same class.
       for (const factory of factories) {
