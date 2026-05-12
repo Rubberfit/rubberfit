@@ -22,6 +22,8 @@
 - src/
   - Clean architecture styled directory
   - application/
+    - billing/
+      - `subscription-gate.ts` — pure Stripe subscription status allow/block + recovery-intent mapping
     - services/ — service interfaces
       - `stripe-client.service.interface.ts` — narrow Stripe SDK surface used by billing use-cases
     - repositories/ — repository interfaces
@@ -31,6 +33,7 @@
     - Models and custom errors
   - infrastructure/
     - services/ and repositories/ — Supabase-backed implementations
+      - `organizationBillingService.ts` — RLS-respecting subscription gate reads for proxy and server actions
       - `rollBarcodeAssetService.ts` — stores generated roll barcode PNGs in Supabase Storage and stamps barcode metadata onto `rolls`
       - `stripeClientService.ts` — DI adapter around the lazy Stripe SDK client
     - stripe/
@@ -44,7 +47,7 @@
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
   - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`billing.ts`, `purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `Omit<UseCaseInput, "actor">` so clients can't spoof identity.
   - `checkout/` — pre-dashboard billing recovery/Checkout shell with no dashboard sidebar; delegates form UI to `_components/checkout-form.tsx`
-  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
+  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, `requireActiveSubscription`, and typed auth/subscription errors. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
   - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.

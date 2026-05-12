@@ -15,6 +15,7 @@ import {
 } from "@/src/infrastructure/services/cutPdfStorageService"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -132,6 +133,7 @@ export type SaveCutActionInput = z.input<typeof saveCutSchema>
 export async function saveCut(input: SaveCutActionInput): Promise<RecordCutResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "createCut")
   const parsed = saveCutSchema.parse(input)
 

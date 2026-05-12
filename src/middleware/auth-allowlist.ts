@@ -23,6 +23,11 @@ export const PUBLIC_PATHS = [
   // Image embedded in transactional emails. Must load without auth so
   // recipients see the brand image in their inbox.
   "/auth-email-logo",
+
+  // Stripe webhook ingress. Requests arrive without Supabase cookies;
+  // the route handler verifies the Stripe signature itself, so the
+  // proxy must let the POST through to reach `app/api/stripe/webhook`.
+  "/api/stripe/webhook",
 ] as const
 
 /**

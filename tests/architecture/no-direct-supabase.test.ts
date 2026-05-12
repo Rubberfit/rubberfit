@@ -80,6 +80,11 @@ const ALLOWLIST = new Set<string>([
   // or `.rpc(...)` calls are made here directly — only client
   // construction.
   "app/server/database/register-factory.ts",
+  // Subscription lock-screen logout (PR 5). Same NextRequest/NextResponse
+  // cookie-adapter constraint as proxy.ts and the OAuth callback —
+  // `signOut()` must run with a request-scoped cookie binding so the
+  // session cookies clear on the redirect response.
+  "app/(auth)/logout/route.ts",
 
   // ── #155 in-flight: removed as migrations land ────────────────────
 ])

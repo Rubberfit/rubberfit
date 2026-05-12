@@ -8,7 +8,8 @@
  *      non-public path get a 302 redirect to /login (HTML pages) or a
  *      401 JSON response (API routes).
  *   3. Apply role / super-admin gating for /dashboard and /admin paths.
- *   4. Attach security response headers (CSP-Report-Only, HSTS, etc.).
+ *   4. Enforce the Stripe subscription gate for authenticated app/API paths.
+ *   5. Attach security response headers (CSP-Report-Only, HSTS, etc.).
  *
  * Out of scope for this layer (see security-decisions.md → "Middleware
  * architecture" for the full decision table):
@@ -32,6 +33,7 @@ import {
   getRequiredPermission,
   hasPermission,
 } from "@/src/infrastructure/services/permissionService"
+import { getSubscriptionGateForUser } from "@/src/infrastructure/services/organizationBillingService"
 import { isApiPath, isPublicPath } from "@/src/middleware/auth-allowlist"
 import { applySecurityHeaders } from "@/src/middleware/security-headers"
 
@@ -138,6 +140,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (!shouldSkipSubscriptionGate(pathname)) {
+    const gate = await getSubscriptionGateForUser(supabase, user.id)
+    if (gate.kind !== "allowed") {
+      return applySecurityHeaders(buildSubscriptionRequiredResponse(request, pendingCookies, gate))
+    }
+  }
+
   return applySecurityHeaders(privateResponse(response))
 }
 
@@ -181,6 +190,65 @@ function redirectWithCookies(url: URL, pendingCookies: PendingCookie[]): NextRes
     response.cookies.set(name, value, options)
   }
   return privateResponse(response)
+}
+
+type SubscriptionBlockedResponse =
+  | { kind: "needs_workspace" }
+  | {
+      kind: "blocked"
+      organizationId: string
+      recovery: "complete_checkout" | "update_billing" | "restart_subscription"
+    }
+
+function shouldSkipSubscriptionGate(pathname: string): boolean {
+  // `/api/stripe/webhook` is allowlisted at the auth layer (it bypasses
+  // the proxy entirely via `isPublicPath`), so it never reaches the
+  // gate — no skip entry needed here. The `_platform-admin/*` surface
+  // doesn't exist yet; add a skip line when that route lands.
+  return (
+    pathname === "/logout" ||
+    pathname === "/checkout" ||
+    pathname.startsWith("/checkout/") ||
+    pathname.startsWith("/api/auth/")
+  )
+}
+
+function buildSubscriptionRequiredResponse(
+  request: NextRequest,
+  pendingCookies: PendingCookie[],
+  gate: SubscriptionBlockedResponse
+): NextResponse {
+  if (isApiPath(request.nextUrl.pathname)) {
+    const response = NextResponse.json(subscriptionErrorBody(gate), { status: 402 })
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options)
+    }
+    return privateResponse(response)
+  }
+
+  const checkoutUrl = new URL("/checkout", request.url)
+  if (gate.kind === "needs_workspace") {
+    checkoutUrl.searchParams.set("intent", "needs_workspace")
+  } else {
+    checkoutUrl.searchParams.set("intent", gate.recovery)
+    checkoutUrl.searchParams.set("org", gate.organizationId)
+  }
+  return redirectWithCookies(checkoutUrl, pendingCookies)
+}
+
+function subscriptionErrorBody(gate: SubscriptionBlockedResponse): {
+  code: "NO_ACTIVE_SUBSCRIPTION"
+  recovery: "complete_checkout" | "update_billing" | "restart_subscription" | "needs_workspace"
+  organizationId?: string
+} {
+  if (gate.kind === "needs_workspace") {
+    return { code: "NO_ACTIVE_SUBSCRIPTION", recovery: "needs_workspace" }
+  }
+  return {
+    code: "NO_ACTIVE_SUBSCRIPTION",
+    recovery: gate.recovery,
+    organizationId: gate.organizationId,
+  }
 }
 
 export const config = {

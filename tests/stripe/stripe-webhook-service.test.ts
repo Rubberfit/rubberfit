@@ -72,6 +72,9 @@ class FakeOrganizationService implements IOrganizationService {
   async updateMember(): Promise<OrganizationMember> {
     throw new Error("not used")
   }
+  async deactivateOwnMembership(): Promise<OrganizationMember> {
+    throw new Error("not used")
+  }
   async listMembers(): Promise<OrganizationMemberWithProfile[]> {
     return []
   }

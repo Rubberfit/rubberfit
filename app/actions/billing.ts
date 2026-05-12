@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
+import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import type { ICreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
 import type { ICreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
 
@@ -63,6 +64,30 @@ export async function createCheckoutSession(input: {
       TOKENS.ICreateCheckoutSessionUseCase
     )
     return await useCase.execute({ ...parsed, actor })
+  } catch (err) {
+    return { error: errorMessage(err) }
+  }
+}
+
+export async function createBillingPortalSession(): Promise<
+  { url: string } | { error: string }
+> {
+  ensureDatabaseFactoryRegistered()
+  await requireAuthenticatedUser()
+  // PR 5 ships the lock-screen UI that calls this; the Stripe Billing Portal
+  // session creation lands in a follow-up PR alongside the cancel/resume flow.
+  return { error: "not_implemented" }
+}
+
+export async function leaveOrganization(): Promise<{ ok: true } | { error: string }> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+
+  try {
+    const organizationService = resolveUseCase<IOrganizationService>(TOKENS.IOrganizationService)
+    await organizationService.deactivateOwnMembership(actor.id)
+    revalidatePath("/checkout")
+    return { ok: true }
   } catch (err) {
     return { error: errorMessage(err) }
   }

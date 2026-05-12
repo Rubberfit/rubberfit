@@ -12,12 +12,28 @@ import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticate
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
 import { CheckoutForm } from "./_components/checkout-form"
+import { LockScreenPage } from "./_components/lock-screen-page"
 
 interface CheckoutPageProps {
-  searchParams?: Promise<{ org?: string | string[] }>
+  searchParams?: Promise<{
+    org?: string | string[]
+    intent?: string | string[]
+  }>
 }
 
 const orgParamSchema = z.string().uuid()
+
+const VALID_INTENTS = [
+  "complete_checkout",
+  "needs_workspace",
+  "update_billing",
+  "restart_subscription",
+] as const
+type ValidIntent = (typeof VALID_INTENTS)[number]
+
+function isValidIntent(value: string | undefined): value is ValidIntent {
+  return value !== undefined && (VALID_INTENTS as readonly string[]).includes(value)
+}
 
 export default async function CheckoutPage({ searchParams }: CheckoutPageProps) {
   ensureDatabaseFactoryRegistered()
@@ -27,6 +43,17 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
   const rawOrg = Array.isArray(resolvedSearchParams?.org)
     ? resolvedSearchParams.org[0]
     : resolvedSearchParams?.org
+  const rawIntent = Array.isArray(resolvedSearchParams?.intent)
+    ? resolvedSearchParams.intent[0]
+    : resolvedSearchParams?.intent
+
+  const intent = isValidIntent(rawIntent) ? rawIntent : undefined
+
+  if (intent) {
+    const validatedOrg = rawOrg && orgParamSchema.safeParse(rawOrg).success ? rawOrg : undefined
+    return <LockScreenPage intent={intent} orgId={validatedOrg} />
+  }
+
   const parsedOrg = orgParamSchema.safeParse(rawOrg)
   if (!parsedOrg.success) notFound()
 

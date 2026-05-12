@@ -1,6 +1,7 @@
 "use server"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { profileRepository } from "@/src/infrastructure/repositories/profiles.repository"
 
@@ -48,6 +49,7 @@ import { profileRepository } from "@/src/infrastructure/repositories/profiles.re
 export async function requestSelfDelete(): Promise<{ ok: true } | { ok: false; error: string }> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
 
   const result = await profileRepository.requestSelfDelete(actor.id)
   if (!result.success) {

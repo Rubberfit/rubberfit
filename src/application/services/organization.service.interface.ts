@@ -46,6 +46,7 @@ export interface IOrganizationService {
 
   addMember(input: CreateOrganizationMember): Promise<OrganizationMember>
   updateMember(memberId: string, updates: UpdateOrganizationMember): Promise<OrganizationMember>
+  deactivateOwnMembership(userId: string): Promise<OrganizationMember>
   listMembers(organizationId: string): Promise<OrganizationMemberWithProfile[]>
 
   // ─── Subscriptions ──────────────────────────────────────────

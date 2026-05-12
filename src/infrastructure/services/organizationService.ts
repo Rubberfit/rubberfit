@@ -135,6 +135,56 @@ export class OrganizationService implements IOrganizationService {
     return data as OrganizationMember
   }
 
+  async deactivateOwnMembership(userId: string): Promise<OrganizationMember> {
+    const supabase = makeAdminClient()
+    if (!supabase) {
+      throw new Error("Supabase service role client is required to leave an organization")
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("organization_members")
+      .select("id, organization_id, user_id, role, status")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle()
+    if (membershipError) throw membershipError
+    if (!membership) throw new Error("Active organization membership not found")
+
+    const member = membership as Pick<
+      OrganizationMember,
+      "id" | "organization_id" | "user_id" | "role" | "status"
+    >
+    if (member.user_id !== userId) {
+      throw new Error("Cannot leave another user's organization membership")
+    }
+
+    if (member.role === "owner") {
+      const { count, error: ownerCountError } = await supabase
+        .from("organization_members")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", member.organization_id)
+        .eq("role", "owner")
+        .eq("status", "active")
+      if (ownerCountError) throw ownerCountError
+      if ((count ?? 0) <= 1) {
+        throw new Error("Cannot leave organization as the last owner")
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("organization_members")
+      .update({
+        status: "deactivated",
+        deactivated_at: new Date().toISOString(),
+      })
+      .eq("id", member.id)
+      .eq("user_id", userId)
+      .select("*")
+      .single()
+    if (error) throw error
+    return data as OrganizationMember
+  }
+
   async listMembers(organizationId: string): Promise<OrganizationMemberWithProfile[]> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
