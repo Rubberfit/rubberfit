@@ -102,6 +102,10 @@ docs/superpowers/plans/
 
 # TypeScript
 *.tsbuildinfo
+
+# Refactor toolkit — generated API snapshots are build artifacts, not source.
+# The snapshots/ directory itself is tracked via .gitkeep so the output path exists.
+scripts/refactor/snapshots/*.json
 next-env.d.ts
 
 # Vercel
