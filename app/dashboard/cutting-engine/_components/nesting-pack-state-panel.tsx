@@ -55,6 +55,11 @@ export default function NestingPackStatePanel({
   const sw = vw * 0.9
   const sh = vh * 0.9
   const bandScanStyle: BandScanCssProperties = { "--band-scan-end": `${vh - 4}px` }
+  // Explicit boolean guards — the project's TSX rule allows `&&` only
+  // with booleans (not strings or functions), which `errorMessage.trim()`
+  // and `onRetry` would otherwise violate.
+  const hasErrorMessage = errorMessage.trim().length > 0
+  const hasRetry = typeof onRetry === "function"
 
   return (
     <div className="relative flex items-center justify-center px-4 py-12 sm:px-8">
@@ -130,7 +135,7 @@ export default function NestingPackStatePanel({
                 aria-hidden="true"
               />
               <h3 className="text-base font-semibold text-foreground">Nest failed</h3>
-              {errorMessage.trim() && (
+              {hasErrorMessage && (
                 <p
                   className="line-clamp-3 max-w-md text-center text-sm text-muted-foreground"
                   title={errorMessage}
@@ -142,7 +147,7 @@ export default function NestingPackStatePanel({
                   the button would be a dead CTA (CodeRabbit). Consumers
                   without a retry path (e.g. Storybook, design preview)
                   just see the error message + Get help link. */}
-              {onRetry && (
+              {hasRetry && (
                 <button
                   type="button"
                   onClick={onRetry}
