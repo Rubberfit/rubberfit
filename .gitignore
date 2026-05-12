@@ -29,10 +29,10 @@ out/
 *.env
 
 # Supabase local development
-supabase/.temp/
-supabase/.branches/
-supabase/.env
-supabase/.env.local
+**/supabase/.temp/
+**/supabase/.branches/
+**/supabase/.env
+**/supabase/.env.local
 
 # OS files
 .DS_Store
