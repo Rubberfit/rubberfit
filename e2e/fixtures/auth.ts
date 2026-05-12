@@ -136,9 +136,15 @@ export async function setUserDeactivated(userId: string, isDeleted: boolean): Pr
  */
 export async function fillLoginAndSubmit(page: Page, user: TestUser): Promise<void> {
   await page.goto("/login")
-  await page.locator("#email").fill(user.email)
-  await page.locator("#password").fill(user.password)
-  await page.locator('button[type="submit"]:has-text("Login")').click()
+  // PR #178 (`/login` redesign) renamed the inputs to `login-email` /
+  // `login-password` (to avoid clashing with the password-reset form
+  // on the same auth shell) and changed the submit copy from "Login"
+  // to "Sign in". Fixture was missed in that PR and rot meant
+  // every E2E that signs in (admin-gating, packing, deactivation)
+  // broke until Phase 6 PR 3.5 caught it.
+  await page.locator("#login-email").fill(user.email)
+  await page.locator("#login-password").fill(user.password)
+  await page.locator('button[type="submit"]:has-text("Sign in")').click()
 }
 
 /**
