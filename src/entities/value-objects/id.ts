@@ -5,8 +5,7 @@ import { InvalidValueObjectError } from "@/src/entities/errors/invalid-value-obj
  * emits v4 via gen_random_uuid(), but this accepts any RFC-shaped UUID —
  * strict v4 enforcement has no payoff over the DB UNIQUE constraint).
  */
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_REGEX.test(value)
@@ -46,11 +45,7 @@ export class Id<Brand extends string = string> {
    */
   static create<B extends string>(value: string, entityName: B): Id<B> {
     if (!isUuid(value)) {
-      throw new InvalidValueObjectError(
-        `${entityName}Id`,
-        "expected a UUID",
-        value,
-      )
+      throw new InvalidValueObjectError(`${entityName}Id`, "expected a UUID", value)
     }
     return new Id<B>(value)
   }
@@ -88,8 +83,7 @@ export class Id<Brand extends string = string> {
 export type TenantId = Id<"Tenant">
 export const TenantId = {
   create: (value: string): TenantId => Id.create(value, "Tenant"),
-  fromPersistence: (value: string): TenantId =>
-    Id.fromPersistence<"Tenant">(value),
+  fromPersistence: (value: string): TenantId => Id.fromPersistence<"Tenant">(value),
 }
 
 /**
@@ -99,81 +93,69 @@ export const TenantId = {
 export type ProfileId = Id<"Profile">
 export const ProfileId = {
   create: (value: string): ProfileId => Id.create(value, "Profile"),
-  fromPersistence: (value: string): ProfileId =>
-    Id.fromPersistence<"Profile">(value),
+  fromPersistence: (value: string): ProfileId => Id.fromPersistence<"Profile">(value),
 }
 
 /** Identifier for a (tenant, profile) membership row. Source: memberships.id. */
 export type MembershipId = Id<"Membership">
 export const MembershipId = {
   create: (value: string): MembershipId => Id.create(value, "Membership"),
-  fromPersistence: (value: string): MembershipId =>
-    Id.fromPersistence<"Membership">(value),
+  fromPersistence: (value: string): MembershipId => Id.fromPersistence<"Membership">(value),
 }
 
 /** Identifier for an invitation row. Source: invitations.id. */
 export type InvitationId = Id<"Invitation">
 export const InvitationId = {
   create: (value: string): InvitationId => Id.create(value, "Invitation"),
-  fromPersistence: (value: string): InvitationId =>
-    Id.fromPersistence<"Invitation">(value),
+  fromPersistence: (value: string): InvitationId => Id.fromPersistence<"Invitation">(value),
 }
 
 /** Identifier for a billing plan. Source: plans.id (global, not tenant-scoped). */
 export type PlanId = Id<"Plan">
 export const PlanId = {
   create: (value: string): PlanId => Id.create(value, "Plan"),
-  fromPersistence: (value: string): PlanId =>
-    Id.fromPersistence<"Plan">(value),
+  fromPersistence: (value: string): PlanId => Id.fromPersistence<"Plan">(value),
 }
 
 /** Identifier for a tenant subscription. Source: subscriptions.id. */
 export type SubscriptionId = Id<"Subscription">
 export const SubscriptionId = {
-  create: (value: string): SubscriptionId =>
-    Id.create(value, "Subscription"),
-  fromPersistence: (value: string): SubscriptionId =>
-    Id.fromPersistence<"Subscription">(value),
+  create: (value: string): SubscriptionId => Id.create(value, "Subscription"),
+  fromPersistence: (value: string): SubscriptionId => Id.fromPersistence<"Subscription">(value),
 }
 
 /** Identifier for an address row. Source: addresses.id (tenant-scoped). */
 export type AddressId = Id<"Address">
 export const AddressId = {
   create: (value: string): AddressId => Id.create(value, "Address"),
-  fromPersistence: (value: string): AddressId =>
-    Id.fromPersistence<"Address">(value),
+  fromPersistence: (value: string): AddressId => Id.fromPersistence<"Address">(value),
 }
 
 /** Identifier for an external contact record. Source: persons.id (tenant-scoped). */
 export type PersonId = Id<"Person">
 export const PersonId = {
   create: (value: string): PersonId => Id.create(value, "Person"),
-  fromPersistence: (value: string): PersonId =>
-    Id.fromPersistence<"Person">(value),
+  fromPersistence: (value: string): PersonId => Id.fromPersistence<"Person">(value),
 }
 
 /** Identifier for a material type (catalog category). Source: material_types.id. */
 export type MaterialTypeId = Id<"MaterialType">
 export const MaterialTypeId = {
-  create: (value: string): MaterialTypeId =>
-    Id.create(value, "MaterialType"),
-  fromPersistence: (value: string): MaterialTypeId =>
-    Id.fromPersistence<"MaterialType">(value),
+  create: (value: string): MaterialTypeId => Id.create(value, "MaterialType"),
+  fromPersistence: (value: string): MaterialTypeId => Id.fromPersistence<"MaterialType">(value),
 }
 
 /** Identifier for a supplier. Source: suppliers.id. */
 export type SupplierId = Id<"Supplier">
 export const SupplierId = {
   create: (value: string): SupplierId => Id.create(value, "Supplier"),
-  fromPersistence: (value: string): SupplierId =>
-    Id.fromPersistence<"Supplier">(value),
+  fromPersistence: (value: string): SupplierId => Id.fromPersistence<"Supplier">(value),
 }
 
 /** Identifier for a supplier-contact (supplier ↔ person join row). Source: supplier_contacts.id. */
 export type SupplierContactId = Id<"SupplierContact">
 export const SupplierContactId = {
-  create: (value: string): SupplierContactId =>
-    Id.create(value, "SupplierContact"),
+  create: (value: string): SupplierContactId => Id.create(value, "SupplierContact"),
   fromPersistence: (value: string): SupplierContactId =>
     Id.fromPersistence<"SupplierContact">(value),
 }
@@ -181,8 +163,7 @@ export const SupplierContactId = {
 /** Identifier for a material/supplier pricing row. Source: material_suppliers.id. */
 export type MaterialSupplierId = Id<"MaterialSupplier">
 export const MaterialSupplierId = {
-  create: (value: string): MaterialSupplierId =>
-    Id.create(value, "MaterialSupplier"),
+  create: (value: string): MaterialSupplierId => Id.create(value, "MaterialSupplier"),
   fromPersistence: (value: string): MaterialSupplierId =>
     Id.fromPersistence<"MaterialSupplier">(value),
 }
@@ -191,50 +172,60 @@ export const MaterialSupplierId = {
 export type RollId = Id<"Roll">
 export const RollId = {
   create: (value: string): RollId => Id.create(value, "Roll"),
-  fromPersistence: (value: string): RollId =>
-    Id.fromPersistence<"Roll">(value),
+  fromPersistence: (value: string): RollId => Id.fromPersistence<"Roll">(value),
 }
 
 /** Identifier for a price-history audit row. Source: price_history.id. */
 export type PriceHistoryId = Id<"PriceHistory">
 export const PriceHistoryId = {
-  create: (value: string): PriceHistoryId =>
-    Id.create(value, "PriceHistory"),
-  fromPersistence: (value: string): PriceHistoryId =>
-    Id.fromPersistence<"PriceHistory">(value),
+  create: (value: string): PriceHistoryId => Id.create(value, "PriceHistory"),
+  fromPersistence: (value: string): PriceHistoryId => Id.fromPersistence<"PriceHistory">(value),
 }
 
 /** Identifier for a reorder rule (one per material type). Source: reorder_rules.id. */
 export type ReorderRuleId = Id<"ReorderRule">
 export const ReorderRuleId = {
-  create: (value: string): ReorderRuleId =>
-    Id.create(value, "ReorderRule"),
-  fromPersistence: (value: string): ReorderRuleId =>
-    Id.fromPersistence<"ReorderRule">(value),
+  create: (value: string): ReorderRuleId => Id.create(value, "ReorderRule"),
+  fromPersistence: (value: string): ReorderRuleId => Id.fromPersistence<"ReorderRule">(value),
 }
 
 /** Identifier for a single cut operation (granular cut log). Source: cuts.id. */
 export type CutId = Id<"Cut">
 export const CutId = {
   create: (value: string): CutId => Id.create(value, "Cut"),
-  fromPersistence: (value: string): CutId =>
-    Id.fromPersistence<"Cut">(value),
+  fromPersistence: (value: string): CutId => Id.fromPersistence<"Cut">(value),
 }
 
 /** Identifier for a job-level cut history record (with layout + metrics). Source: cut_history.id. */
 export type CutHistoryId = Id<"CutHistory">
 export const CutHistoryId = {
-  create: (value: string): CutHistoryId =>
-    Id.create(value, "CutHistory"),
-  fromPersistence: (value: string): CutHistoryId =>
-    Id.fromPersistence<"CutHistory">(value),
+  create: (value: string): CutHistoryId => Id.create(value, "CutHistory"),
+  fromPersistence: (value: string): CutHistoryId => Id.fromPersistence<"CutHistory">(value),
 }
 
 /** Identifier for a user's bookmark of a cut history row. Source: cut_favorites.id. */
 export type CutFavoriteId = Id<"CutFavorite">
 export const CutFavoriteId = {
-  create: (value: string): CutFavoriteId =>
-    Id.create(value, "CutFavorite"),
-  fromPersistence: (value: string): CutFavoriteId =>
-    Id.fromPersistence<"CutFavorite">(value),
+  create: (value: string): CutFavoriteId => Id.create(value, "CutFavorite"),
+  fromPersistence: (value: string): CutFavoriteId => Id.fromPersistence<"CutFavorite">(value),
+}
+
+/** Identifier for a purchase order. Source: purchase_orders.id. */
+export type PurchaseOrderId = Id<"PurchaseOrder">
+export const PurchaseOrderId = {
+  create: (value: string): PurchaseOrderId => Id.create(value, "PurchaseOrder"),
+  fromPersistence: (value: string): PurchaseOrderId => Id.fromPersistence<"PurchaseOrder">(value),
+}
+
+/**
+ * Identifier for a job (shop-floor work order). Source: jobs.id.
+ *
+ * Added ahead of the Job entity so cross-aggregate FKs (e.g.,
+ * `PurchaseOrder.jobId`) can be typed today without forward-import
+ * gymnastics. The Job entity itself lands in a follow-up commit.
+ */
+export type JobId = Id<"Job">
+export const JobId = {
+  create: (value: string): JobId => Id.create(value, "Job"),
+  fromPersistence: (value: string): JobId => Id.fromPersistence<"Job">(value),
 }
