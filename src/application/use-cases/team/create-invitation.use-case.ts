@@ -39,11 +39,11 @@ function appUrl(): string {
   // client bundle. Falls back to NEXT_PUBLIC_APP_URL for compatibility with
   // existing dev/preview environments that only set the public variant.
   // `||` (not `??`) so an empty-string env value drops through to the next.
-  return (
+  const raw =
     process.env.APP_URL?.trim() ||
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     "https://rubberfit.app"
-  )
+  return raw.replace(/\/+$/, "")
 }
 
 function generateToken(): string {

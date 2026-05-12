@@ -22,11 +22,11 @@ const TRIAL_PERIOD_DAYS = 14
 // NEXT_PUBLIC_MARKETING_URL for compatibility with dev/preview envs that
 // only set the public variant, then to the production canonical.
 function marketingUrl(): string {
-  return (
+  const raw =
     process.env.MARKETING_URL?.trim() ||
     process.env.NEXT_PUBLIC_MARKETING_URL?.trim() ||
     "https://get.rubberfit.app"
-  )
+  return raw.replace(/\/+$/, "")
 }
 function checkoutSuccessUrl(): string {
   return `${marketingUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
