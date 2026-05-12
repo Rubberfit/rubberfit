@@ -46,7 +46,9 @@ import { MaterialTypeService } from "@/src/infrastructure/services/materialTypeS
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
-import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import { PriceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import { priceHistoryRepository } from "@/src/infrastructure/repositories/price-history.repository"
+import type { IPriceHistoryRepository } from "@/src/application/repositories/price-history.repository.interface"
 import { profileService } from "@/src/infrastructure/services/profileService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
@@ -76,6 +78,7 @@ import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/r
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricing/update-material-pricing.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -158,7 +161,11 @@ container.register(TOKENS.IPackingService, {
     return new ApiPackingService()
   }),
 })
-container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
+container.registerInstance<IPriceHistoryRepository>(
+  TOKENS.IPriceHistoryRepository,
+  priceHistoryRepository
+)
+container.registerSingleton<IPriceHistoryService>(TOKENS.IPriceHistoryService, PriceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
 container.registerInstance<IPurchaseOrderService>(
   TOKENS.IPurchaseOrderService,
@@ -219,5 +226,6 @@ container.registerSingleton(
   CreateBulkReorderPurchaseOrderUseCase
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
+container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterialPricingUseCase)
 
 export { container }

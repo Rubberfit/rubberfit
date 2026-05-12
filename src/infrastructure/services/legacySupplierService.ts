@@ -23,7 +23,7 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { priceHistoryService } from "./priceHistoryService"
+import { legacyPriceHistoryService as priceHistoryService } from "./legacyPriceHistoryService"
 
 export interface ILegacySupplierService {
   getAllSuppliers(): Promise<Supplier[]>

@@ -1,7 +1,10 @@
+import type { PriceHistory as PriceHistoryEntity } from "@/src/entities/price-history"
 import type {
   MaterialSupplierWithDetails,
   PriceHistory,
 } from "@/src/infrastructure/models/supabase"
+
+// ─── Public types reused across services (kept stable for consumers) ──────
 
 export interface PriceComparison {
   suppliers: MaterialSupplierWithDetails[]
@@ -53,7 +56,63 @@ export interface PriceHistoryWithJoins extends PriceHistory {
   }
 }
 
+// ─── New entity-typed service (canonical) ─────────────────────────────────
+
+/**
+ * Price-history service. All writes go through `appendPriceChange`,
+ * which constructs a `PriceHistory` entity (validating cost > 0,
+ * currency match, non-equal cents, and computing
+ * `priceChangePercentage`) before inserting. Reads return entity
+ * instances except for the three legacy joined-shape methods retained
+ * for the pricing dashboard.
+ *
+ * The price-history table is **append-only** — no update / delete.
+ * Orchestration use-cases (e.g. `UpdateMaterialPricingUseCase`) wrap
+ * `appendPriceChange` alongside `materialSupplierService.updatePricing`
+ * so the audit row and the cost change land together.
+ */
 export interface IPriceHistoryService {
+  appendPriceChange(input: {
+    materialSupplierId: string
+    oldCostCents: number | null
+    newCostCents: number
+    changeReason?: string | null
+    changedBy?: string | null
+    effectiveDate?: Date
+    notes?: string | null
+  }): Promise<PriceHistoryEntity>
+
+  /** Newest first by effective_date. */
+  getHistoryFor(materialSupplierId: string, limit?: number): Promise<PriceHistoryEntity[]>
+
+  /** @deprecated Joined shape kept for the pricing dashboard. */
+  getMaterialPriceHistory(
+    materialTypeId: string,
+    daysBack?: number
+  ): Promise<PriceHistoryWithJoins[]>
+
+  /** @deprecated Joined shape kept for the pricing dashboard. */
+  getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]>
+
+  /** @deprecated Joined shape kept for the pricing dashboard's alert card. */
+  getSignificantPriceChanges(
+    thresholdPercentage?: number,
+    daysBack?: number
+  ): Promise<PriceHistoryWithJoins[]>
+}
+
+// ─── Legacy raw-row + analytics service (pre-DDD consumers) ───────────────
+
+/**
+ * Holds the legacy `trackPriceChange` snake_case writer plus the
+ * analytics methods (`comparePrices`, `calculatePriceTrends`,
+ * `getBestPrice`, `calculateValueScore`, `bulkTrackPriceChanges`) that
+ * read removed columns (`cost_per_sqft`) and aren't really
+ * price-history operations. They stay on a shim until the pricing
+ * dashboard is rewritten on top of the entity-typed surface.
+ */
+export interface ILegacyPriceHistoryService {
+  /** @deprecated Use `priceHistoryService.appendPriceChange` (entity-typed). */
   trackPriceChange(
     materialSupplierId: string,
     oldPrice: number | undefined,
@@ -61,26 +120,14 @@ export interface IPriceHistoryService {
     changeReason?: string,
     changedBy?: string
   ): Promise<PriceHistory>
-  getPriceHistory(materialSupplierId: string, limit?: number): Promise<PriceHistory[]>
-  getMaterialPriceHistory(
-    materialTypeId: string,
-    daysBack?: number
-  ): Promise<PriceHistoryWithJoins[]>
+  /** @deprecated References removed `cost_per_sqft` columns. */
   comparePrices(materialTypeId: string): Promise<PriceComparison>
+  /** @deprecated References removed `cost_per_sqft` columns. */
   calculatePriceTrends(materialTypeId: string, daysBack?: number): Promise<PriceTrend[]>
+  /** @deprecated References removed `cost_per_sqft` columns. */
   getBestPrice(materialTypeId: string): Promise<BestPriceOption | null>
-  getSignificantPriceChanges(
-    thresholdPercentage?: number,
-    daysBack?: number
-  ): Promise<PriceHistoryWithJoins[]>
-  /**
-   * Returns price-history rows with full material-supplier/supplier/
-   * material-type joins, filtered to `created_at >= startDate`. Used by
-   * the pricing dashboard's date-range selector — distinct from
-   * `getSignificantPriceChanges`, which filters by threshold + days
-   * back and returns lean joins.
-   */
-  getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]>
+  /** @deprecated References removed `cost_per_sqft` columns. */
   bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]>
+  /** @deprecated References removed `cost_per_sqft` columns. */
   calculateValueScore(supplier: MaterialSupplierWithDetails): number
 }

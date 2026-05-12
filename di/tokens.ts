@@ -30,6 +30,7 @@ export const TOKENS = {
   // Repositories
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),
+  IPriceHistoryRepository: Symbol("IPriceHistoryRepository"),
   ISuppliersRepository: Symbol("ISuppliersRepository"),
 
   // Admin portal services
@@ -52,4 +53,5 @@ export const TOKENS = {
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
+  IUpdateMaterialPricingUseCase: Symbol("IUpdateMaterialPricingUseCase"),
 } as const

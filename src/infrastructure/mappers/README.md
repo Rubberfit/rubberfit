@@ -79,3 +79,4 @@ the mapper at `tests/infrastructure/mappers/<aggregate>.mapper.test.ts`.
 - `supplier.mapper.ts` — first mapper, established the convention.
 - `material-supplier.mapper.ts` — junction-table mapper. `cost_per_sqm_cents` hydrates into a Money VO with a tenant-level default currency (USD until the per-tenant currency column lands); `effective_date` / `expiration_date` are `date` columns, round-tripped through `toISOString().slice(0, 10)`.
 - `material-type.mapper.ts` — tenant-scoped material catalog. No VOs beyond branded IDs (pricing lives on `material_suppliers`, not here).
+- `price-history.mapper.ts` — append-only audit table. No `*ToUpdateRow` (the row is immutable once written). `old_cost_per_sqm_cents` is nullable for the first-ever price; both costs hydrate into Money VOs with the default USD currency.

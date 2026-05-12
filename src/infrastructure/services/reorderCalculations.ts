@@ -1,7 +1,6 @@
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
 import type {
   MaterialSupplierWithDetails,
   PurchaseOrder,
@@ -12,18 +11,30 @@ import type {
 } from "@/src/application/services/reorder.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
-import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
 import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 
+/**
+ * Heuristic score combining price, lead time, rating, and preferred-supplier
+ * bonus into a single "value" number for picking the best material_supplier
+ * row. Previously lived on `priceHistoryService.calculateValueScore`; moved
+ * here because (1) it's a pure formula with no DB I/O, (2) reorderCalculations
+ * was the only caller, and (3) it reads the legacy `cost_per_sqft` /
+ * `lead_time_days` shape so it's already coupled to the joined row, not the
+ * `PriceHistory` entity surface.
+ */
+function calculateValueScore(supplier: MaterialSupplierWithDetails): number {
+  const priceScore = 100 / (supplier.cost_per_sqft + 1)
+  const leadTimeScore = 100 / ((supplier.lead_time_days || 1) + 1)
+  const ratingScore = (supplier.supplier?.rating || 3) * 20
+  const preferredBonus = supplier.preferred_supplier ? 20 : 0
+  return priceScore + leadTimeScore + ratingScore + preferredBonus
+}
+
 @injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
-  constructor(
-    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
-    @inject(TOKENS.IPriceHistoryService)
-    private readonly priceHistoryService: IPriceHistoryService
-  ) {}
+  constructor(@inject(TOKENS.ITaxService) private readonly taxService: ITaxService) {}
 
   private generateOptimalQuantityReasoning(
     avgDailyUsage: number,
@@ -266,11 +277,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
         if (suppliers.length > 0) {
           const bestValue = suppliers
             .slice()
-            .sort(
-              (a, b) =>
-                this.priceHistoryService.calculateValueScore(b) -
-                this.priceHistoryService.calculateValueScore(a)
-            )[0]
+            .sort((a, b) => calculateValueScore(b) - calculateValueScore(a))[0]
           costPerSqft = bestValue.cost_per_sqft
         }
       }
@@ -353,4 +360,4 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   }
 }
 
-export const reorderCalculations = new ReorderCalculationsService(taxService, priceHistoryService)
+export const reorderCalculations = new ReorderCalculationsService(taxService)
