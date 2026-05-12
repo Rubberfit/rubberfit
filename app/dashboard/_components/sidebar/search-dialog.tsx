@@ -29,7 +29,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/app/components/ui/command"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import type { Permission } from "@/src/application/permissions"
@@ -308,11 +307,21 @@ export function SearchDialog() {
                         key={cmd.id}
                         value={`${cmd.label} ${cmd.id}`}
                         onSelect={() => handleSelect(cmd)}
-                        className="!py-1.5"
+                        className="group !py-1.5"
                       >
                         <Icon />
                         <span>{cmd.label}</span>
-                        {cmd.chord && <CommandShortcut>g {cmd.chord}</CommandShortcut>}
+                        {cmd.chord && (
+                          <span className="ml-auto flex items-center gap-1">
+                            <kbd className="inline-flex h-5 min-w-5 select-none items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground group-data-[selected=true]:bg-background group-data-[selected=true]:text-foreground">
+                              g
+                            </kbd>
+                            <span className="sr-only"> then </span>
+                            <kbd className="inline-flex h-5 min-w-5 select-none items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground group-data-[selected=true]:bg-background group-data-[selected=true]:text-foreground">
+                              {cmd.chord}
+                            </kbd>
+                          </span>
+                        )}
                       </CommandItem>
                     )
                   })}
