@@ -41,12 +41,12 @@ export interface CutPdfData {
 // — the 1204-LOC diagram body's mm coordinate system is preserved.
 
 import {
-  BRAND_BLUE as BRAND,
   CHARCOAL as GRAY_700,
-  GHOST as GRAY_200,
   INK as GRAY_900,
-  SLATE as GRAY_500,
   type RGB,
+  RULE as GRAY_200,
+  SIGNAL as BRAND,
+  SLATE as GRAY_500,
   SURFACE as GRAY_50,
   WHITE,
 } from "@/app/lib/pdf"

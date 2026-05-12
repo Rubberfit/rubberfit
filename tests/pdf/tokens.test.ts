@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest"
 import {
   BARCODE_HEADER_HEIGHT,
   BASELINE,
-  BRAND_BLUE,
+  BLUEPRINT,
   CHARCOAL,
   CHIP_HEIGHT,
   CHIP_PADDING_X,
@@ -20,7 +20,6 @@ import {
   CUSTOMER_PAGE,
   DIVIDER_GAP,
   DIVIDER_RULE,
-  GHOST,
   INK,
   INTERNAL_PAGE,
   KPI_MIN_HEIGHT,
@@ -30,6 +29,8 @@ import {
   LOGO_HEIGHT,
   PAGE_BY_CANVAS,
   type RGB,
+  RULE,
+  SIGNAL,
   SLATE,
   STATUS_CHIPS,
   SURFACE,
@@ -79,14 +80,22 @@ describe("tokens — page geometry", () => {
 
 describe("tokens — color palette", () => {
   it("all named colors are valid RGB triples in 0-255 integer range", () => {
-    const colors = { BRAND_BLUE, INK, CHARCOAL, SLATE, GHOST, SURFACE, WHITE }
+    const colors = { SIGNAL, INK, CHARCOAL, SLATE, RULE, SURFACE, WHITE, BLUEPRINT }
     for (const [name, color] of Object.entries(colors)) {
       expect(isRgb(color), `${name} must be a valid RGB triple`).toBe(true)
     }
   })
 
-  it("brand blue is locked to Arc & Anchor blue (37, 99, 235)", () => {
-    expect(BRAND_BLUE).toEqual([37, 99, 235])
+  it("primary signal accent is locked to Rubberfit signal orange (#ee5a24)", () => {
+    // Phase 7 brand correction (2026-05-12) — the PDFs are
+    // Rubberfit-branded, not Arc & Anchor. Signal orange replaces
+    // the prior `[37, 99, 235]` Arc & Anchor blue. Source of truth:
+    // `rubberfit-marketing/src/app/globals.css` `--color-signal`.
+    expect(SIGNAL).toEqual([238, 90, 36])
+  })
+
+  it("ink is the warmed Rubberfit graphite (#14171b)", () => {
+    expect(INK).toEqual([20, 23, 27])
   })
 
   it("all four status chip palettes have valid fill / text / stroke triples", () => {
@@ -98,8 +107,12 @@ describe("tokens — color palette", () => {
     }
   })
 
-  it("info chip stroke reuses BRAND_BLUE so the family stays cohesive", () => {
-    expect(STATUS_CHIPS.info.stroke).toEqual(BRAND_BLUE)
+  it("chip palette stays on-brand — info uses BLUEPRINT, error uses SIGNAL", () => {
+    expect(STATUS_CHIPS.info.stroke).toEqual(BLUEPRINT)
+    expect(STATUS_CHIPS.error.stroke).toEqual(SIGNAL)
+    // Success is the inverted-ink "official stamp" with no alien green.
+    expect(STATUS_CHIPS.success.fill).toEqual(INK)
+    expect(STATUS_CHIPS.success.text).toEqual(WHITE)
   })
 })
 

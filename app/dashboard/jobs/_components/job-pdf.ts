@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf"
 
 import {
-  BRAND_BLUE,
+  SIGNAL,
   CHARCOAL,
   type ChipIntent,
   contentStartY,
@@ -167,7 +167,7 @@ function drawCustomerColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number
   // Eyebrow (caption + brand-blue, ALL CAPS)
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text("BILL TO", innerX, headerY)
 
   // Customer name (h2)
@@ -210,7 +210,7 @@ function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number)
 
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text("PROJECT DETAILS", innerX, headerY)
 
   // Status chip — maps JobStatus → ChipIntent and uses the shared primitive.

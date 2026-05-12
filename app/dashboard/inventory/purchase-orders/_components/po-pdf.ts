@@ -2,7 +2,7 @@ import { format } from "date-fns"
 import { jsPDF } from "jspdf"
 
 import {
-  BRAND_BLUE,
+  SIGNAL,
   CHARCOAL,
   type ChipIntent,
   contentStartY,
@@ -277,7 +277,7 @@ function drawAddressBlock(
   // Eyebrow caption in brand-blue.
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text(eyebrow, innerX, y + 16)
 
   // Lines: first as h2 (name), rest as body.

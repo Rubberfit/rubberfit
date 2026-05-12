@@ -15,7 +15,7 @@ import type { jsPDF } from "jspdf"
 
 import {
   BARCODE_HEADER_HEIGHT,
-  BRAND_BLUE,
+  SIGNAL,
   BASELINE,
   type ChipIntent,
   CHIP_HEIGHT,
@@ -24,7 +24,7 @@ import {
   CHARCOAL,
   DIVIDER_GAP,
   DIVIDER_RULE,
-  GHOST,
+  RULE,
   INK,
   KPI_MIN_HEIGHT,
   KPI_PADDING,
@@ -93,7 +93,7 @@ export function drawKpiCard(doc: jsPDF, opts: KpiCardOptions): void {
   doc.rect(x, y, width, height, "F")
 
   // Brand-blue top border.
-  setFillRgb(doc, BRAND_BLUE)
+  setFillRgb(doc, SIGNAL)
   doc.rect(x, y, width, KPI_TOP_BORDER, "F")
 
   // Label — caption (8pt bold caps) in slate.
@@ -273,7 +273,7 @@ export function drawRuledTable(doc: jsPDF, opts: RuledTableOptions): number {
       doc.text(headerText, textX, baseline, { align: col.align === "right" ? "right" : "left" })
       colX += col.width
     }
-    setDrawRgb(doc, BRAND_BLUE)
+    setDrawRgb(doc, SIGNAL)
     doc.setLineWidth(TABLE_HEADER_RULE)
     doc.line(x, headerY + headerHeight, x + tableWidth, headerY + headerHeight)
     return headerY + headerHeight
@@ -314,7 +314,7 @@ export function drawRuledTable(doc: jsPDF, opts: RuledTableOptions): number {
 
     // Between-rows ghost stroke — skipped after the totals row (it's the bottom).
     if (!row.isTotals) {
-      setDrawRgb(doc, GHOST)
+      setDrawRgb(doc, RULE)
       doc.setLineWidth(TABLE_ROW_STROKE)
       doc.line(x, cursor, x + tableWidth, cursor)
     }
@@ -378,7 +378,7 @@ export interface SectionDividerOptions {
  */
 export function drawSectionDivider(doc: jsPDF, opts: SectionDividerOptions): number {
   const { x, y, width, title } = opts
-  setFillRgb(doc, BRAND_BLUE)
+  setFillRgb(doc, SIGNAL)
   doc.rect(x, y, width, DIVIDER_RULE, "F")
 
   applyType(doc, "h2")
@@ -412,7 +412,7 @@ export function drawSignatureBlock(doc: jsPDF, opts: SignatureBlockOptions): num
 
   // Box — surface fill + ghost 0.5pt stroke.
   setFillRgb(doc, SURFACE)
-  setDrawRgb(doc, GHOST)
+  setDrawRgb(doc, RULE)
   doc.setLineWidth(0.5)
   // Height is content-driven; default to 64pt (one body line + signature line + caption).
   const blockHeight = 64
@@ -428,7 +428,7 @@ export function drawSignatureBlock(doc: jsPDF, opts: SignatureBlockOptions): num
   }
 
   // Dashed signature line — 1pt dash, 2pt gap.
-  setDrawRgb(doc, GHOST)
+  setDrawRgb(doc, RULE)
   doc.setLineWidth(1)
   doc.setLineDashPattern([1, 2], 0)
   const lineY = y + blockHeight - 24
@@ -446,27 +446,37 @@ export function drawSignatureBlock(doc: jsPDF, opts: SignatureBlockOptions): num
 // ── Label primitives (small surfaces) ────────────────────────────────────────
 
 /**
- * Draws the 2pt brand-blue top rule used by the Roll Label per Kimi's
- * spec. Labels skip full chrome; this is the only brand mark on them.
+ * Draws the 2pt top rule used by the Roll Label per Kimi's spec.
+ * Labels skip full chrome; this is the only brand mark on them.
+ *
+ * Phase 7 brand correction (2026-05-12): label rules use INK
+ * (graphite) instead of signal orange because warehouse thermal
+ * printers (Zebra / TSC at ~200 dpi) render orange as unreadable
+ * brown mud on cheap thermal media. Signal orange is for screen
+ * + laser print only.
  */
 export function drawLabelTopRule(doc: jsPDF, x: number, y: number, width: number): void {
-  setFillRgb(doc, BRAND_BLUE)
+  setFillRgb(doc, INK)
   doc.rect(x, y, width, LABEL_TOP_RULE, "F")
 }
 
 /**
- * Draws the full-width brand-blue header bar used by the public
- * barcode-scan label per Kimi's spec. Renders the white "ARC & ANCHOR"
- * caption centered.
+ * Draws the full-width header bar used by the public barcode-scan
+ * label per Kimi's spec. Renders the white "RUBBERFIT" caption
+ * centered.
+ *
+ * Phase 7 brand correction: bar fill is INK (graphite), not signal
+ * orange — same thermal-printer rationale as `drawLabelTopRule`.
+ * Caption default changed from "ARC & ANCHOR" to "RUBBERFIT".
  */
 export function drawBarcodeHeaderBar(
   doc: jsPDF,
   x: number,
   y: number,
   width: number,
-  caption = "ARC & ANCHOR"
+  caption = "RUBBERFIT"
 ): void {
-  setFillRgb(doc, BRAND_BLUE)
+  setFillRgb(doc, INK)
   doc.rect(x, y, width, BARCODE_HEADER_HEIGHT, "F")
 
   applyType(doc, "caption")
