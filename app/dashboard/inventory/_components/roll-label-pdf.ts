@@ -145,11 +145,18 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   // when the roll predates the part-number migration so the label
   // still prints an identifier instead of a blank dash. The QR + Code
   // 128 already encode the full id in that case so lookups keep working.
+  //
+  // Single constant for the font size AND baseline so the baseline
+  // can't drift if we ever bump the size — the previous version hard-
+  // coded 14 for setFontSize but used TYPE.mono.size (9) for the
+  // baseline math, which would have shifted vertically if the size
+  // changed (CodeRabbit catch).
+  const PART_NUMBER_SIZE = 14
   const displayId = roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`
   doc.setFont(TYPE.mono.family, "bold")
-  doc.setFontSize(14)
+  doc.setFontSize(PART_NUMBER_SIZE)
   doc.setTextColor(INK[0], INK[1], INK[2])
-  doc.text(displayId, textX, contentTop + TYPE.mono.size + 2)
+  doc.text(displayId, textX, contentTop + PART_NUMBER_SIZE + 2)
 
   // Material name — caption label + body value (slate / ink).
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)

@@ -33,12 +33,21 @@ interface ForbiddenStaticPattern {
 }
 
 /**
- * Match either `import "x"` (side-effect) OR `import … from "x"` for
- * the given module spec. CodeRabbit caught the original regex only
- * matching `from "x"` — `import "react"` would have slipped through.
+ * Match three import forms for the given module spec:
+ *   - `import x from "spec"` / `from "spec"`
+ *   - `import "spec"` (side-effect)
+ *   - `import("spec")` / `await import("spec")` (dynamic)
+ *
+ * CodeRabbit caught the original regex missing both side-effect and
+ * dynamic import paths — both would have let a regression slip
+ * through the static purity guard.
  */
 function moduleImportPattern(modulePattern: string): RegExp {
-  return new RegExp(`(?:from\\s+["']${modulePattern}["']|import\\s+["']${modulePattern}["'])`)
+  return new RegExp(
+    `(?:from\\s+["']${modulePattern}["']` +
+      `|import\\s+["']${modulePattern}["']` +
+      `|import\\s*\\(\\s*["']${modulePattern}["']\\s*\\))`
+  )
 }
 
 const FORBIDDEN_STATIC_PATTERNS: ReadonlyArray<ForbiddenStaticPattern> = [

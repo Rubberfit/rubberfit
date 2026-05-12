@@ -15,17 +15,21 @@ import type { Roll } from "@/src/infrastructure/models/supabase"
 
 // bwip-js touches the DOM canvas heavily — easier (and faster) to
 // stub it so the tests don't depend on happy-dom's canvas backend.
+// `vi.hoisted` so we can spy on the same `toCanvas` reference from
+// inside individual tests via `mockImplementationOnce`.
+const bwipMock = vi.hoisted(() => ({
+  toCanvas: vi.fn((canvas: HTMLCanvasElement) => {
+    // Pretend we drew something so the consumer's `canvas.toDataURL`
+    // returns a non-empty string. happy-dom canvases return a
+    // tiny gif data-URL by default, which is fine for jsPDF.
+    canvas.width = 64
+    canvas.height = 64
+    return canvas
+  }),
+}))
+
 vi.mock("bwip-js/browser", () => ({
-  default: {
-    toCanvas: (canvas: HTMLCanvasElement) => {
-      // Pretend we drew something so the consumer's `canvas.toDataURL`
-      // returns a non-empty string. happy-dom canvases return a
-      // tiny gif data-URL by default, which is fine for jsPDF.
-      canvas.width = 64
-      canvas.height = 64
-      return canvas
-    },
-  },
+  default: bwipMock,
 }))
 
 import { buildRollLabelPdf } from "@/app/dashboard/inventory/_components/roll-label-pdf"
@@ -104,5 +108,23 @@ describe("buildRollLabelPdf", () => {
     // jsPDF documents start with one page; the builder bails before
     // drawing anything but the doc is still well-formed.
     expect(doc.getNumberOfPages()).toBe(1)
+  })
+
+  it("falls back to a placeholder rectangle when bwip throws on QR or Code 128", () => {
+    // CodeRabbit catch — the new `catch (_error)` paths in
+    // drawLabel weren't exercised because the default mock always
+    // succeeds. Force toCanvas to throw on the FIRST call (QR) and
+    // again on the SECOND (Code 128) so both fallback paths run.
+    // The PDF must still be a valid Letter document.
+    bwipMock.toCanvas.mockImplementationOnce(() => {
+      throw new Error("simulated bwip failure (QR)")
+    })
+    bwipMock.toCanvas.mockImplementationOnce(() => {
+      throw new Error("simulated bwip failure (Code 128)")
+    })
+
+    const doc = buildRollLabelPdf([makeRoll()])
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+    expect(doc.internal.pageSize.getWidth()).toBe(612)
   })
 })

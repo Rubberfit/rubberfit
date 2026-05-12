@@ -56,8 +56,6 @@ vi.mock("@/src/infrastructure/services/rollService", async () => {
   }
 })
 
-import { GET } from "@/app/r/[partNumber]/pdf/route"
-
 interface TestRouteContext {
   readonly params: Promise<{ readonly partNumber: string }>
 }
@@ -66,13 +64,27 @@ function makeContext(partNumber: string): TestRouteContext {
   return { params: Promise.resolve({ partNumber }) }
 }
 
+/**
+ * Lazy-load the route module so the `app/api/_lib/supabase-server`
+ * import chain (and any side-effectful Supabase init it pulls in)
+ * runs INSIDE the test, after `vi.mock` has registered. CodeRabbit
+ * catch — top-level imports were eager-evaluating the route's
+ * Supabase deps at module load time.
+ */
+async function loadGetHandler() {
+  const routeModule = await import("@/app/r/[partNumber]/pdf/route")
+  return routeModule.GET
+}
+
 describe("GET /r/[partNumber]/pdf", () => {
   it("returns 404 when no roll matches the part number", async () => {
+    const GET = await loadGetHandler()
     const res = await GET(new Request("https://x"), makeContext("missing"))
     expect(res.status).toBe(404)
   })
 
   it("returns an inline PDF with the legacy filename contract", async () => {
+    const GET = await loadGetHandler()
     const res = await GET(new Request("https://x"), makeContext("RF-TEST-123"))
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("application/pdf")
@@ -85,6 +97,7 @@ describe("GET /r/[partNumber]/pdf", () => {
   it("strips unsafe filename characters but keeps the *_info.pdf suffix", async () => {
     // The route normalizes non-[A-Za-z0-9._-] characters to `_`. This
     // is a regression guard for the part-number → filename contract.
+    const GET = await loadGetHandler()
     const res = await GET(new Request("https://x"), makeContext("RF/TEST 123"))
     expect(res.headers.get("content-disposition")).toBe('inline; filename="RF_TEST_123_info.pdf"')
   })
