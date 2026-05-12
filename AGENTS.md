@@ -100,6 +100,30 @@ For a new domain concept that needs CRUD + business rules. Update the matching i
 
 A server action without an underlying use-case should be rare — re-read "When to create a use-case" first.
 
+## Refactor protocol
+
+Before any **non-trivial refactor** — symbol renames across files, file moves, changes to exported signatures, deletions of modules, or anything else that could silently break callers — run the snapshot protocol:
+
+1. Capture a **before** snapshot of the public API surface:
+   ```powershell
+   npm run refactor:snapshot
+   ```
+   Output lands at `scripts/refactor/snapshots/<timestamp>.json`. Remember the path.
+2. Do the refactor work.
+3. Capture an **after** snapshot:
+   ```powershell
+   npm run refactor:snapshot
+   ```
+4. Diff the two (ignoring the `generated_at` field). In Claude Code, the slash command `/snapshot-diff` does steps 1–4 in one shot — it captures a fresh snapshot and compares against the most recent prior snapshot. From other agents, diff manually with your editor's compare view or:
+   ```powershell
+   diff (Get-Content before.json) (Get-Content after.json)
+   ```
+5. Surface any **unintended** API changes in your task summary. Intended changes (the whole point of the refactor) don't need individual call-outs; unintended drops or signature changes do.
+
+**Skip the protocol for:** typo fixes, single-file additions, test-only changes, comment edits, docs, work that doesn't touch `src/` or `app/`.
+
+For the underlying tooling and `find-callers` companion, see [`scripts/refactor/README.md`](./scripts/refactor/README.md).
+
 ## Definition of done
 
 Before declaring a task complete, if your changes added or renamed any of the following, **update the matching index README in the same commit**:
