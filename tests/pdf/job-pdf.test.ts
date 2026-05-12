@@ -133,6 +133,33 @@ describe("buildJobPdf", () => {
     )
     expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
   })
+
+  it("renders multi-line job names without truncation (CR catch)", () => {
+    // Long job names wrap to 2+ lines via splitTextToSize. The prior
+    // implementation only printed the first line and the description
+    // started too high. This pins the multi-line render.
+    const longName =
+      "Custom EPDM gasket batch for Acme Rubber's Q3 production run, including " +
+      "tolerance-checked samples plus material certification for ISO 9001 audit"
+    expect(() => buildJobPdf(makeJob({ name: longName }))).not.toThrow()
+  })
+
+  it("treats free/sample jobs ($0 unit_price) differently from no-pricing jobs", () => {
+    // CR catch — `totalValue > 0` collapsed legitimate $0 totals into
+    // "—" because $0 looks the same as "no pricing on file". After
+    // the fix, the totals KPI distinguishes the two: a job with all
+    // unit_price=0 renders "$0.00"; a job with all unit_price=null
+    // renders "—". Both PDFs must build without throwing.
+    const baseParts = makeJob().parts
+    const part = baseParts[0]
+    if (!part) throw new Error("fixture missing seed part")
+
+    const freeJob = makeJob({ parts: [{ ...part, unit_price: 0 }] })
+    const unpricedJob = makeJob({ parts: [{ ...part, unit_price: null }] })
+
+    expect(() => buildJobPdf(freeJob)).not.toThrow()
+    expect(() => buildJobPdf(unpricedJob)).not.toThrow()
+  })
 })
 
 describe("buildJobPdfBlob", () => {

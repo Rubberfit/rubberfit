@@ -131,9 +131,17 @@ function drawJobIntro(doc: jsPDF, job: JobFullDetail, y: number): number {
   doc.setFont(TYPE.h1.family, TYPE.h1.weight)
   doc.setFontSize(TYPE.h1.size)
   doc.setTextColor(INK[0], INK[1], INK[2])
+  // Render every wrapped title line, not just the first. CR catch —
+  // the previous one-line render truncated long job names AND the
+  // description block started too high because the cursor advanced
+  // as if the title were single-line.
   const titleLines = doc.splitTextToSize(job.name, CONTENT_W)
-  doc.text(titleLines[0], PAGE_MARGIN, y + TYPE.h1.size)
-  let cursor = y + TYPE.h1.lineHeight + 4
+  let cursor = y
+  for (const line of titleLines) {
+    cursor += TYPE.h1.lineHeight
+    doc.text(line, PAGE_MARGIN, cursor)
+  }
+  cursor += 4
 
   if (job.description) {
     doc.setFont(TYPE.body.family, TYPE.body.weight)
@@ -293,6 +301,13 @@ interface PartsTotals {
   totalSqft: number
   totalValue: number
   partsCount: number
+  /**
+   * True iff at least one part carries an explicit `unit_price`. Lets
+   * the totals KPI distinguish "no pricing entered" (render "—") from
+   * a legitimate $0 total on a free/sample job. CR catch — prior
+   * `totalValue > 0` check collapsed valid zeros into the dash.
+   */
+  hasPricing: boolean
 }
 
 function drawPartsTable(
@@ -309,7 +324,12 @@ function drawPartsTable(
   })
   y += 12
 
-  const totals: PartsTotals = { totalSqft: 0, totalValue: 0, partsCount: 0 }
+  const totals: PartsTotals = {
+    totalSqft: 0,
+    totalValue: 0,
+    partsCount: 0,
+    hasPricing: false,
+  }
 
   if (job.parts.length === 0) {
     doc.setFont(TYPE.body.family, "italic")
@@ -325,6 +345,7 @@ function drawPartsTable(
     totals.totalSqft += sqft
     totals.partsCount += p.quantity
     if (p.unit_price !== null && p.unit_price !== undefined) {
+      totals.hasPricing = true
       totals.totalValue += p.unit_price * p.quantity
     }
   }
@@ -381,7 +402,9 @@ function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
     { label: "Total area", value: formatSqft(totals.totalSqft), unit: "SQ FT" },
     {
       label: "Total value",
-      value: totals.totalValue > 0 ? formatCurrency(totals.totalValue) : "—",
+      // hasPricing distinguishes "no prices on file" (render "—") from
+      // a legitimate $0 on free/sample jobs.
+      value: totals.hasPricing ? formatCurrency(totals.totalValue) : "—",
     },
   ]
 
