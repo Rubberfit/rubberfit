@@ -242,7 +242,6 @@ export function SearchDialog() {
     let gPressedAt: number | null = null
 
     const down = (e: KeyboardEvent) => {
-      // Skip chord capture when typing in an editable field.
       const target = e.target as HTMLElement | null
       const isEditable =
         target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable
@@ -253,6 +252,42 @@ export function SearchDialog() {
         return
       }
 
+      // Chord capture inside the cmdk input: only intercept "g" when
+      // the input is empty so operators can still search for terms
+      // that start with "g" by typing two characters quickly. If the
+      // next keystroke within CHORD_WINDOW_MS matches a chord letter,
+      // fire the chord; otherwise the "g" was lost (acceptable — they
+      // can retype). Without this, the visible `g d` hint advertises
+      // behavior that never worked inside the palette.
+      const isCmdkInput =
+        target instanceof HTMLInputElement && target.getAttribute("cmdk-input") !== null
+      if (isCmdkInput) {
+        if (gPressedAt !== null && Date.now() - gPressedAt <= CHORD_WINDOW_MS) {
+          const cmd = chordMap.get(e.key.toLowerCase())
+          gPressedAt = null
+          if (cmd) {
+            e.preventDefault()
+            setOpen(false)
+            router.push(cmd.href)
+            return
+          }
+        }
+        if (
+          e.key === "g" &&
+          target.value === "" &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey &&
+          !e.shiftKey
+        ) {
+          e.preventDefault()
+          gPressedAt = Date.now()
+          return
+        }
+        return
+      }
+
+      // Skip chord capture for OTHER editable fields (page-level inputs).
       if (isEditable) return
 
       if (e.key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
@@ -311,7 +346,7 @@ export function SearchDialog() {
                       >
                         <Icon />
                         <span>{cmd.label}</span>
-                        {cmd.chord && (
+                        {Boolean(cmd.chord) && (
                           <span className="ml-auto flex items-center gap-1">
                             <kbd className="inline-flex h-5 min-w-5 select-none items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground group-data-[selected=true]:bg-background group-data-[selected=true]:text-foreground">
                               g
