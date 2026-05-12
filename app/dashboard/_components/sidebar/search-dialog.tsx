@@ -252,13 +252,15 @@ export function SearchDialog() {
         return
       }
 
-      // Chord capture inside the cmdk input: only intercept "g" when
-      // the input is empty so operators can still search for terms
-      // that start with "g" by typing two characters quickly. If the
-      // next keystroke within CHORD_WINDOW_MS matches a chord letter,
-      // fire the chord; otherwise the "g" was lost (acceptable — they
-      // can retype). Without this, the visible `g d` hint advertises
-      // behavior that never worked inside the palette.
+      // Chord capture inside the cmdk input: track "g" pressed on an
+      // empty input but DO NOT preventDefault — let the "g" land in
+      // the search box normally. If the next keystroke within
+      // CHORD_WINDOW_MS matches a chord letter, close the palette and
+      // navigate (the transient "g" never matters because the input
+      // unmounts). If the next key doesn't match, the "g" stays and
+      // the operator keeps typing — searching for "general" or any
+      // other "g…" term works as expected. Per Sigilix review on
+      // PR #232.
       const isCmdkInput =
         target instanceof HTMLInputElement && target.getAttribute("cmdk-input") !== null
       if (isCmdkInput) {
@@ -280,9 +282,7 @@ export function SearchDialog() {
           !e.altKey &&
           !e.shiftKey
         ) {
-          e.preventDefault()
           gPressedAt = Date.now()
-          return
         }
         return
       }
