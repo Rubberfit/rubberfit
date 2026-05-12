@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf"
 
 import {
-  BRAND_BLUE,
+  SIGNAL,
   CHARCOAL,
   type ChipIntent,
   contentStartY,
@@ -23,7 +23,6 @@ import {
   TYPE,
 } from "@/app/lib/pdf"
 import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supabase"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 
 /**
  * Customer-facing Job Sheet PDF — the project confirmation document a
@@ -54,7 +53,6 @@ const COLUMN_W = (CONTENT_W - COLUMN_GAP) / 2
 
 // Immutable data URL — built once per module load, no mutable cache.
 // CR catch: prior `let cachedLogo` was mutable singleton state.
-const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—"
@@ -115,7 +113,6 @@ function ensure(doc: jsPDF, y: number, needed: number): number {
     redrawChrome: (page) => {
       drawCustomerChrome(page, {
         title: "JOB SHEET",
-        logoDataUrl: LOGO_DATA_URL,
       })
       return contentStartY("customer")
     },
@@ -167,7 +164,7 @@ function drawCustomerColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number
   // Eyebrow (caption + brand-blue, ALL CAPS)
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text("BILL TO", innerX, headerY)
 
   // Customer name (h2)
@@ -210,7 +207,7 @@ function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number)
 
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text("PROJECT DETAILS", innerX, headerY)
 
   // Status chip — maps JobStatus → ChipIntent and uses the shared primitive.
@@ -394,7 +391,7 @@ function drawPartsTable(
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
+        drawCustomerChrome(page, { title: "JOB SHEET" })
         return contentStartY("customer")
       },
     },
@@ -468,7 +465,7 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
+        drawCustomerChrome(page, { title: "JOB SHEET" })
         return contentStartY("customer")
       },
     },
@@ -491,7 +488,6 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
   drawCustomerChrome(doc, {
     title: "JOB SHEET",
     subtitle: job.job_number ?? undefined,
-    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 

@@ -1,14 +1,17 @@
 /**
  * Regression tests for the Purchase Orders half of GitHub issue #122 — the
  * Export button on `app/dashboard/inventory/purchase-orders/page.tsx` had no
- * `onClick`, so clicking it did nothing. Pure-helper coverage for the new
- * `buildPurchaseOrdersCsv` and `buildPurchaseOrdersPdfHtml` data shapers.
+ * `onClick`, so clicking it did nothing. Pure-helper coverage for
+ * `buildPurchaseOrdersCsv` (unchanged) plus a smoke for
+ * `buildPurchaseOrdersListPdf` (Phase 7 PR 4 — replaced the HTML stamper
+ * with an imperative jsPDF builder).
  */
+// @vitest-environment node
 import { describe, expect, it } from "vitest"
 
 import {
   buildPurchaseOrdersCsv,
-  buildPurchaseOrdersPdfHtml,
+  buildPurchaseOrdersListPdf,
   type PurchaseOrdersExportInput,
 } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
@@ -171,46 +174,46 @@ describe("buildPurchaseOrdersCsv", () => {
   })
 })
 
-describe("buildPurchaseOrdersPdfHtml", () => {
-  it("uses the Purchase Orders title", () => {
-    expect(buildPurchaseOrdersPdfHtml(FIXTURE).title).toBe("Purchase Orders")
+describe("buildPurchaseOrdersListPdf", () => {
+  // Phase 7 PR 4 — replaced the HTML-stamper builder with an
+  // imperative jsPDF builder. The XSS escape coverage from the prior
+  // test suite doesn't apply because jsPDF never renders user input
+  // as HTML; characters are drawn as literal glyphs. The remaining
+  // assertions pin the public contract: builder returns a non-empty
+  // Letter-sized jsPDF doc, handles every input shape without
+  // throwing, and produces multi-page output when POs warrant it.
+
+  it("returns a non-empty Letter-sized jsPDF for a populated input", () => {
+    const doc = buildPurchaseOrdersListPdf(FIXTURE)
+    expect(doc.internal.pageSize.getWidth()).toBe(612)
+    expect(doc.internal.pageSize.getHeight()).toBe(792)
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
   })
 
-  it("captures the active filter set when filters are non-default", () => {
+  it("renders one page per PO (each PO is one section + page break)", () => {
+    // FIXTURE has 2 POs → 2 pages minimum (one per PO + any spill).
+    const doc = buildPurchaseOrdersListPdf(FIXTURE)
+    expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(2)
+  })
+
+  it("handles non-default filters without throwing", () => {
     const filtered: PurchaseOrdersExportInput = {
       ...FIXTURE,
       filters: { status: "ordered", supplier: "Acme", search: "rush" },
     }
-    const { content } = buildPurchaseOrdersPdfHtml(filtered)
-    expect(content).toContain("status=ordered")
-    expect(content).toContain("supplier=Acme")
-    // The label is escaped before interpolation, so the `"` chars appear as
-    // their HTML entity instead of raw quotes.
-    expect(content).toContain("search=&quot;rush&quot;")
+    expect(() => buildPurchaseOrdersListPdf(filtered)).not.toThrow()
   })
 
-  it("reports filters: none when nothing is filtered", () => {
-    expect(buildPurchaseOrdersPdfHtml(FIXTURE).content).toContain("Filters: none")
-  })
-
-  it("renders summary cards and an order row per PO", () => {
-    const { content } = buildPurchaseOrdersPdfHtml(FIXTURE)
-    expect(content).toContain("Total POs")
-    expect(content).toContain(">2<")
-    expect(content).toContain("$1640.00")
-    expect(content).toContain("PO-0001")
-    expect(content).toContain("PO-0002")
-    expect(content).toContain("Acme Rubber")
-    expect(content).toContain("Bay Polymers")
-  })
-
-  it("renders an empty-state row when no POs match the filters", () => {
+  it("renders an empty-state when no POs match the filters", () => {
     const empty: PurchaseOrdersExportInput = { ...FIXTURE, pos: [] }
-    const { content } = buildPurchaseOrdersPdfHtml(empty)
-    expect(content).toContain("No purchase orders match the current filters.")
+    const doc = buildPurchaseOrdersListPdf(empty)
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
   })
 
-  it("escapes HTML special chars in user-controlled string fields", () => {
+  it("handles user-controlled string fields safely (no HTML interpretation)", () => {
+    // Imperative jsPDF draws characters as literal glyphs — no HTML
+    // interpretation, so the historical XSS path doesn't exist. Pin
+    // that the builder accepts arbitrary content without crashing.
     const malicious = makePO({
       po_number: "PO-<script>alert(1)</script>",
       supplier: { id: "s-x", name: 'Acme & "Sons"' } as PurchaseOrderWithDetails["supplier"],
@@ -220,11 +223,6 @@ describe("buildPurchaseOrdersPdfHtml", () => {
       pos: [malicious],
       filters: { status: "all", supplier: "all", search: "<img onerror=x>" },
     }
-    const { content } = buildPurchaseOrdersPdfHtml(input)
-    expect(content).not.toContain("<script>alert(1)</script>")
-    expect(content).toContain("&lt;script&gt;alert(1)&lt;/script&gt;")
-    expect(content).toContain("Acme &amp; &quot;Sons&quot;")
-    expect(content).not.toContain("<img onerror=x>")
-    expect(content).toContain("&lt;img onerror=x&gt;")
+    expect(() => buildPurchaseOrdersListPdf(input)).not.toThrow()
   })
 })

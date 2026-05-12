@@ -5,11 +5,10 @@ import bwipjs from "bwip-js/browser"
 import { jsPDF } from "jspdf"
 
 import {
-  BRAND_BLUE,
   drawLabelTopRule,
-  GHOST,
   INK,
   LABEL_TOP_RULE,
+  RULE,
   SLATE,
   STATUS_CHIPS,
   TYPE,
@@ -116,7 +115,7 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
 
   // Hairline frame in ghost — keeps the label boundary visible on
   // print without competing with the brand rule.
-  doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+  doc.setDrawColor(RULE[0], RULE[1], RULE[2])
   doc.setLineWidth(0.5)
   doc.rect(x, y + LABEL_TOP_RULE, LABEL_W_PT, LABEL_H_PT - LABEL_TOP_RULE)
 
@@ -129,7 +128,7 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   } catch (_error) {
     // Bwip rendering failed — print a placeholder rectangle so the
     // label still composes. Operators can rerun the print job.
-    doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+    doc.setDrawColor(RULE[0], RULE[1], RULE[2])
     doc.rect(qrX, qrY, QR_SIZE_PT, QR_SIZE_PT)
   }
 
@@ -186,7 +185,7 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   } catch (_error) {
     // Same fallback as the QR path — placeholder rectangle keeps the
     // label well-formed even if barcode generation fails.
-    doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+    doc.setDrawColor(RULE[0], RULE[1], RULE[2])
     doc.rect(textX, contentTop + 80, textWidth, 22)
   }
 
@@ -217,7 +216,7 @@ function addHeader(doc: jsPDF, pageIndex: number) {
   // family even on its own page.
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
-  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setTextColor(INK[0], INK[1], INK[2])
   doc.text("RUBBERFIT · ROLL LABELS", PAGE_MARGIN, PAGE_MARGIN - 6)
   doc.setFont(TYPE.mono.family, TYPE.mono.weight)
   doc.setFontSize(TYPE.mono.size)

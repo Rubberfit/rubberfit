@@ -19,28 +19,65 @@
  */
 
 // ── RGB triples (jsPDF takes 0-255 integers) ─────────────────────────────────
+//
+// Industrial light-mode palette — paper-white surfaces, graphite ink,
+// signal-orange as the single saturated accent. Sourced from the
+// Rubberfit marketing site's `--color-*` CSS tokens
+// (`rubberfit-marketing/src/app/globals.css`). The prior Arc & Anchor
+// blue scheme was a brand mismatch; the founder caught it after
+// reviewing rendered PR-237 output and Kimi K2.6 issued the
+// correction patch this file now reflects.
+//
+// Aliases `BRAND_BLUE` and `GHOST` are exported for backwards
+// compatibility with the in-flight cut-history file that imported
+// them under aliased names; new code should use `SIGNAL` and `RULE`
+// directly.
 
 export type RGB = readonly [number, number, number]
 
-/** Brand color — Arc & Anchor blue. Preserved from prior PDFs. */
-export const BRAND_BLUE: RGB = [37, 99, 235]
+/**
+ * Primary accent — Rubberfit signal orange (`#ee5a24`). Used like an
+ * inspector's stamp: KPI card top borders, primary section dividers,
+ * destructive/critical states. Never as page background.
+ */
+export const SIGNAL: RGB = [238, 90, 36]
 
-/** Headings, totals row text. */
-export const INK: RGB = [20, 20, 24]
-/** Body text, table cells. */
-export const CHARCOAL: RGB = [33, 37, 41]
-/** Captions, footer text, eyebrows. */
-export const SLATE: RGB = [100, 116, 139]
-/** Horizontal rules, row strokes, borders. */
-export const GHOST: RGB = [226, 232, 240]
-/** Card fills, zebra striping, notes box fill. */
-export const SURFACE: RGB = [248, 250, 252]
+/** @deprecated kept as alias for in-flight files; use `SIGNAL`. */
+export const BRAND_BLUE: RGB = SIGNAL
+
+/** Deep-signal — emphasis states, severe alerts. */
+export const SIGNAL_DEEP: RGB = [197, 66, 20]
+
+/** Secondary "drafting blue" — info chips, neutral callouts. */
+export const BLUEPRINT: RGB = [43, 102, 194]
+
+/** Caution-tape yellow — warning chip backgrounds. Sparingly. */
+export const TAPE: RGB = [246, 201, 69]
+
+/** Heading + totals row text — pure graphite ink. */
+export const INK: RGB = [20, 23, 27]
+/** Body text — slightly softened graphite (`--color-ink-soft`). */
+export const CHARCOAL: RGB = [74, 82, 92]
+/** Captions, footer text, eyebrows (`--color-ink-faint`). */
+export const SLATE: RGB = [138, 143, 151]
+/** Horizontal rules, row strokes, borders — warm rule color. */
+export const RULE: RGB = [196, 194, 187]
+/** @deprecated kept as alias for in-flight files; use `RULE`. */
+export const GHOST: RGB = RULE
+/** Strong rule for table-header underlines + heavy section dividers. */
+export const RULE_STRONG: RGB = [142, 141, 133]
+/** Card fills, zebra striping — mill paper (`--color-canvas`). */
+export const SURFACE: RGB = [246, 245, 242]
+/** Drafting-board surface — internal-doc KPI strip background. */
+export const SURFACE_DRAFT: RGB = [236, 234, 228]
 /** Page background; inverted text only. */
 export const WHITE: RGB = [255, 255, 255]
 
 /**
- * Semantic chip palettes: fill (light tint) / text (dark) / stroke.
- * Use via {@link STATUS_CHIPS}.
+ * Semantic chip palette — simplified to the brand vocabulary per
+ * Kimi's correction. No alien green: "success" is the default
+ * industrial state and uses INK as an inverted stamp. Each entry has
+ * `fill` (background), `text` (foreground), and `stroke` (border).
  */
 export interface ChipPalette {
   readonly fill: RGB
@@ -51,10 +88,14 @@ export interface ChipPalette {
 export type ChipIntent = "info" | "success" | "warning" | "error"
 
 export const STATUS_CHIPS: Readonly<Record<ChipIntent, ChipPalette>> = {
-  info: { fill: [239, 246, 255], text: [30, 58, 138], stroke: BRAND_BLUE },
-  success: { fill: [236, 253, 245], text: [6, 95, 70], stroke: [16, 185, 129] },
-  warning: { fill: [254, 243, 199], text: [146, 64, 14], stroke: [245, 158, 11] },
-  error: { fill: [254, 242, 242], text: [153, 27, 27], stroke: [239, 68, 68] },
+  // Info — drafting-blue stamp. Distinct from signal orange.
+  info: { fill: BLUEPRINT, text: WHITE, stroke: BLUEPRINT },
+  // Success / Complete — inverted ink stamp ("confirmed / official").
+  success: { fill: INK, text: WHITE, stroke: INK },
+  // Warning / Pending — caution-tape yellow on ink text.
+  warning: { fill: TAPE, text: INK, stroke: TAPE },
+  // Error / Critical — signal orange alarm.
+  error: { fill: SIGNAL, text: WHITE, stroke: SIGNAL },
 }
 
 // ── Type system (Helvetica + Courier — standard PDF fonts only) ─────────────

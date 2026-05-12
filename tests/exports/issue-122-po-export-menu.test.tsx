@@ -6,17 +6,29 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, act } from "@testing-library/react"
 
-const { exportToCSV, generatePDFReport, toastError } = vi.hoisted(() => ({
-  exportToCSV: vi.fn(),
-  generatePDFReport: vi.fn().mockResolvedValue(undefined),
-  toastError: vi.fn(),
-}))
+// Phase 7 PR 4 — menu now calls `downloadPurchaseOrdersListPdf`
+// directly (was `exportPdfService.downloadPdfListMock`). The hoisted
+// mock has been renamed accordingly so the menu's import resolves to
+// the spy.
+// Typing the mock with the real `PurchaseOrdersExportInput` signature
+// lets the call-args assertion compile without an `as` cast in the
+// test body (CR catch — no-cast rule applies to test code).
+const { exportToCSV, downloadPdfListMock, toastError } = vi.hoisted(() => {
+  type DownloadPdfListFn = (
+    input: import("@/app/dashboard/inventory/purchase-orders/_components/po-export-utils").PurchaseOrdersExportInput
+  ) => Promise<void>
+  return {
+    exportToCSV: vi.fn(),
+    downloadPdfListMock: vi.fn<DownloadPdfListFn>().mockResolvedValue(undefined),
+    toastError: vi.fn(),
+  }
+})
 
 vi.mock("@/src/infrastructure/services/exportService", () => ({
   exportService: { exportToCSV },
 }))
-vi.mock("@/src/infrastructure/services/exportPdfService", () => ({
-  exportPdfService: { generatePDFReport },
+vi.mock("@/app/dashboard/inventory/purchase-orders/_components/po-pdf", () => ({
+  downloadPurchaseOrdersListPdf: downloadPdfListMock,
 }))
 vi.mock("sonner", () => ({ toast: { error: toastError } }))
 
@@ -77,7 +89,7 @@ function makeFixture(
 describe("PurchaseOrdersExportMenu", () => {
   beforeEach(() => {
     exportToCSV.mockClear()
-    generatePDFReport.mockClear()
+    downloadPdfListMock.mockClear()
     toastError.mockClear()
   })
 
@@ -92,16 +104,18 @@ describe("PurchaseOrdersExportMenu", () => {
     expect(arg.rows[0][0]).toBe("PO-0001")
   })
 
-  it("dispatches PDF export with the Purchase Orders title", async () => {
+  it("dispatches the PDF export through downloadPurchaseOrdersListPdf", async () => {
     render(<PurchaseOrdersExportMenu input={makeFixture()} />)
     await act(async () => {
       fireEvent.click(screen.getByText(/generate pdf report/i))
     })
 
-    expect(generatePDFReport).toHaveBeenCalledTimes(1)
-    const [title, content] = generatePDFReport.mock.calls[0]
-    expect(title).toBe("Purchase Orders")
-    expect(content).toContain("PO-0001")
+    expect(downloadPdfListMock).toHaveBeenCalledTimes(1)
+    const [input] = downloadPdfListMock.mock.calls[0] ?? []
+    expect(input).toBeDefined()
+    // Spot-check the input shape — the builder owns the visual output.
+    // Typed mock means no cast on `input`.
+    expect(input?.pos[0]?.po_number).toBe("PO-0001")
   })
 
   it("shows a toast and skips the export when no POs are loaded", () => {
@@ -123,12 +137,12 @@ describe("PurchaseOrdersExportMenu", () => {
     fireEvent.click(screen.getByText(/export as csv/i))
     fireEvent.click(screen.getByText(/generate pdf report/i))
     expect(exportToCSV).not.toHaveBeenCalled()
-    expect(generatePDFReport).not.toHaveBeenCalled()
+    expect(downloadPdfListMock).not.toHaveBeenCalled()
   })
 
   it("guards against duplicate dispatches while a PDF export is in flight", async () => {
     let resolvePdf: (() => void) | null = null
-    generatePDFReport.mockImplementationOnce(
+    downloadPdfListMock.mockImplementationOnce(
       () => new Promise<void>((resolve) => (resolvePdf = () => resolve()))
     )
 
@@ -137,7 +151,7 @@ describe("PurchaseOrdersExportMenu", () => {
     fireEvent.click(screen.getByText(/generate pdf report/i))
     fireEvent.click(screen.getByText(/export as csv/i))
 
-    expect(generatePDFReport).toHaveBeenCalledTimes(1)
+    expect(downloadPdfListMock).toHaveBeenCalledTimes(1)
     expect(exportToCSV).not.toHaveBeenCalled()
 
     await act(async () => {

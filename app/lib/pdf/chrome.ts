@@ -16,19 +16,18 @@
 import type { jsPDF } from "jspdf"
 
 import {
-  BRAND_BLUE,
   CUSTOMER_ACCENT_HEIGHT,
   CUSTOMER_ACCENT_OFFSET,
   FOOTER_DIVIDER_OFFSET,
   FOOTER_DIVIDER_WIDTH,
   FOOTER_TEXT_OFFSET,
-  GHOST,
   HEADER_DIVIDER_OFFSET,
   HEADER_DIVIDER_WIDTH,
   INK,
-  LOGO_HEIGHT,
   PAGE_BY_CANVAS,
   type PdfCanvas,
+  RULE,
+  SIGNAL,
   SLATE,
   TYPE,
   WHITE,
@@ -46,19 +45,24 @@ export interface ChromeOptions {
    */
   readonly subtitle?: string
   /**
-   * Base64-encoded logo image. Caller passes the JPEG/PNG `data:`-style
-   * string. Optional so callers can defer logo loading to a per-PDF
-   * helper without crashing the chrome.
+   * @deprecated Phase 7 brand correction (2026-05-12) removed the
+   * compass-rose Arc & Anchor logo from PDFs. The wordmark is now
+   * typographic — Helvetica Bold 9pt all-caps "RUBBERFIT" + signal
+   * underline. Any value passed here is ignored. Kept on the type so
+   * existing callers compile while they're being migrated.
    */
   readonly logoDataUrl?: string
   /**
-   * Brand lockup text shown in caption case above the title. Defaults to
-   * "ARC & ANCHOR / RUBBERFIT".
+   * Brand wordmark in the top-right header. Defaults to "RUBBERFIT".
+   * Pass a different value only if a per-PDF call needs custom
+   * branding (e.g., white-label exports).
    */
   readonly brandLockup?: string
 }
 
-const DEFAULT_BRAND_LOCKUP = "ARC & ANCHOR / RUBBERFIT"
+const DEFAULT_BRAND_LOCKUP = "RUBBERFIT"
+const BRAND_UNDERLINE_WIDTH = 24
+const BRAND_UNDERLINE_STROKE = 0.5
 
 function setFillRgb(doc: jsPDF, [r, g, b]: readonly [number, number, number]): void {
   doc.setFillColor(r, g, b)
@@ -79,65 +83,86 @@ function applyType(doc: jsPDF, role: keyof typeof TYPE): void {
 }
 
 /**
- * Shared header drawer. `accent` controls the 3pt brand-blue rule above
- * the margin baseline — present on customer canvases, absent on internal.
+ * Imperative copy of `public/rubberfit-mark.svg` — graphite outer
+ * square with a signal-orange inner square, both centered on the
+ * 32×32 viewbox. Drawn at any `size` (pt) so the mark scales with
+ * its surrounding chrome without an asset round-trip. Pure jsPDF —
+ * no addImage, no SVG rasterisation, Node-safe.
+ *
+ * Geometry mirrors the SVG: outer stroke 2/32 of size, inner block
+ * fills 12/32 centered.
+ */
+export function drawRubberfitMark(doc: jsPDF, x: number, y: number, size: number): void {
+  const strokeW = (size * 2) / 32
+  const innerSize = (size * 12) / 32
+  const inset = strokeW / 2
+  const innerOffset = (size - innerSize) / 2
+
+  // Outer square — graphite stroke, no fill.
+  setDrawRgb(doc, INK)
+  doc.setLineWidth(strokeW)
+  doc.rect(x + inset, y + inset, size - strokeW, size - strokeW, "S")
+
+  // Inner square — signal-orange fill, no stroke.
+  setFillRgb(doc, SIGNAL)
+  doc.rect(x + innerOffset, y + innerOffset, innerSize, innerSize, "F")
+}
+
+/**
+ * Shared header drawer. Phase 7 brand-correction state:
+ *
+ *   • No raster logo (the compass-rose Arc & Anchor image was wrong
+ *     for the Rubberfit-branded PDFs; Kimi removed it).
+ *   • Right-aligned typographic wordmark "RUBBERFIT" with a 0.5pt
+ *     signal-orange underline — the "inspection stamp" cue carries
+ *     the brand identity without an image asset.
+ *   • Customer canvases still get the 3pt accent rule above the
+ *     margin baseline, now signal orange.
  */
 function drawChromeHeader(doc: jsPDF, canvas: PdfCanvas, opts: ChromeOptions): void {
   const geom = PAGE_BY_CANVAS[canvas]
   const { margin, width } = geom
   const lockup = opts.brandLockup ?? DEFAULT_BRAND_LOCKUP
 
-  // Customer-only premium accent rule — sits above the margin baseline.
+  // Customer-only premium accent rule — signal orange, top of page.
   if (canvas === "customer") {
     const accentY = margin - CUSTOMER_ACCENT_OFFSET - CUSTOMER_ACCENT_HEIGHT
-    setFillRgb(doc, BRAND_BLUE)
+    setFillRgb(doc, SIGNAL)
     doc.rect(margin, accentY, geom.contentWidth, CUSTOMER_ACCENT_HEIGHT, "F")
   }
 
-  // Logo — top-left, locked aspect, fixed height. Caller may omit
-  // (e.g. tests that don't bundle the asset); the rest of the header
-  // still renders so the document remains readable. We also wrap the
-  // call in try/catch so a malformed dataURL — wrong MIME, broken
-  // base64, missing image data — degrades to text-only chrome
-  // instead of throwing during a customer PDF render.
-  //
-  // Format detection: jsPDF's magic-byte recognition usually wins
-  // even if we pass the wrong format string, but being explicit is
-  // both more honest and protects the fallback path if recognition
-  // ever fails on a PNG that arrived through an opaque dataURL.
-  if (opts.logoDataUrl) {
-    const format = opts.logoDataUrl.startsWith("data:image/png") ? "PNG" : "JPEG"
-    try {
-      // jsPDF infers width from the loaded image when height is given
-      // via the explicit aspect-preserving overload (width=0 forces
-      // inference).
-      doc.addImage(opts.logoDataUrl, format, margin, margin, 0, LOGO_HEIGHT, undefined, "FAST")
-    } catch (_error) {
-      // Silent fallback: skip the logo. The brand lockup + title
-      // already identify the document, so a missing logo doesn't
-      // make the PDF unreadable.
-    }
-  }
+  // Rubberfit mark — geometric replica of `public/rubberfit-mark.svg`:
+  // graphite outer square + signal-orange inner square. Drawn with
+  // primitives so the chrome stays Node-safe (no SVG rasterisation
+  // dependency, no addImage). Top-left, 20pt × 20pt.
+  drawRubberfitMark(doc, margin, margin, 20)
 
-  // Brand lockup — caption (8pt Bold ALL CAPS) in brand blue, right-aligned.
+  // Wordmark — Helvetica Bold 9pt ALL CAPS in ink, right-aligned.
   applyType(doc, "caption")
-  setTextRgb(doc, BRAND_BLUE)
+  doc.setFontSize(9)
+  setTextRgb(doc, INK)
   doc.text(lockup, width - margin, margin + 6, { align: "right" })
+
+  // Inspection-stamp underline — 0.5pt signal-orange, 24pt wide,
+  // flush right, 2pt below the wordmark baseline.
+  setDrawRgb(doc, SIGNAL)
+  doc.setLineWidth(BRAND_UNDERLINE_STROKE)
+  doc.line(width - margin - BRAND_UNDERLINE_WIDTH, margin + 8, width - margin, margin + 8)
 
   // Document title — H1 (18pt Bold), right-aligned, ink color.
   applyType(doc, "h1")
   setTextRgb(doc, INK)
-  doc.text(opts.title, width - margin, margin + 18, { align: "right" })
+  doc.text(opts.title, width - margin, margin + 22, { align: "right" })
 
   // Optional subtitle — body-size mono, right-aligned, slate.
   if (opts.subtitle) {
     applyType(doc, "mono")
     setTextRgb(doc, SLATE)
-    doc.text(opts.subtitle, width - margin, margin + 30, { align: "right" })
+    doc.text(opts.subtitle, width - margin, margin + 32, { align: "right" })
   }
 
-  // Divider rule — ghost, full content width, at margin + 32.
-  setDrawRgb(doc, GHOST)
+  // Divider rule — warm rule color, full content width.
+  setDrawRgb(doc, RULE)
   doc.setLineWidth(HEADER_DIVIDER_WIDTH)
   const dividerY = margin + HEADER_DIVIDER_OFFSET
   doc.line(margin, dividerY, width - margin, dividerY)
@@ -198,7 +223,7 @@ export function stampFooter(doc: jsPDF, canvas: PdfCanvas, opts: FooterOptions):
   const productMark = opts.productMark ?? "Rubberfit"
 
   // Divider above the footer text.
-  setDrawRgb(doc, GHOST)
+  setDrawRgb(doc, RULE)
   doc.setLineWidth(FOOTER_DIVIDER_WIDTH)
   const ruleY = height - margin - FOOTER_DIVIDER_OFFSET
   doc.line(margin, ruleY, width - margin, ruleY)
@@ -249,6 +274,6 @@ export function stampFooterOnEveryPage(
  */
 export function resetColors(doc: jsPDF): void {
   setFillRgb(doc, WHITE)
-  setDrawRgb(doc, GHOST)
+  setDrawRgb(doc, RULE)
   setTextRgb(doc, INK)
 }

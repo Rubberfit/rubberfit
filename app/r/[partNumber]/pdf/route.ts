@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf"
 
-import { BRAND_BLUE, GHOST, INK, SLATE, TYPE, WHITE } from "@/app/lib/pdf"
+import { SIGNAL, RULE, INK, SLATE, TYPE, WHITE } from "@/app/lib/pdf"
 import { makeAdminClient } from "@/app/api/_lib/supabase-server"
 import {
   getPublicRollByPartNumberOrId,
@@ -128,7 +128,7 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   doc.setProperties({ title: `Rubberfit · ${roll.part_number ?? roll.id}` })
 
   // Brand-blue header bar — single mark on the page. Phase 7 tokens.
-  doc.setFillColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.setFillColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.rect(0, 0, pageWidth, 48, "F")
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2])
   doc.setFont(TYPE.h1.family, TYPE.h1.weight)
@@ -155,7 +155,7 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   }
 
   y += 18
-  doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+  doc.setDrawColor(RULE[0], RULE[1], RULE[2])
   doc.line(40, y, pageWidth - 40, y)
   y += 20
 

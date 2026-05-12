@@ -1,7 +1,6 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
 
-import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
 import { uploadCutPdfFromBrowser } from "@/src/infrastructure/services/cutPdfBrowserStorage"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
@@ -33,21 +32,29 @@ export interface CutPdfData {
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
+//
+// Phase 7 PR 3 — chrome tokens come from the shared design system at
+// `@/app/lib/pdf`. Local aliases (BRAND, GRAY_*) keep the diagram-body
+// helpers unchanged while the chrome (header, footer, KPI cards, tables)
+// adopts Kimi's spec. Page geometry stays in millimetres per founder Q3
+// — the 1204-LOC diagram body's mm coordinate system is preserved.
 
-type RGB = readonly [number, number, number]
+import {
+  CHARCOAL as GRAY_700,
+  drawRubberfitMark,
+  INK as GRAY_900,
+  type RGB,
+  RULE as GRAY_200,
+  SIGNAL as BRAND,
+  SLATE as GRAY_500,
+  SURFACE as GRAY_50,
+  WHITE,
+} from "@/app/lib/pdf"
 
 const MARGIN = 15
 const PAGE_W = 210
 const PAGE_H = 297
 const CONTENT_W = PAGE_W - MARGIN * 2
-
-const BRAND: RGB = [37, 99, 235]
-const GRAY_900: RGB = [17, 24, 39]
-const GRAY_700: RGB = [55, 65, 81]
-const GRAY_500: RGB = [107, 114, 128]
-const GRAY_200: RGB = [229, 231, 235]
-const GRAY_50: RGB = [249, 250, 251]
-const WHITE: RGB = [255, 255, 255]
 
 // Blueprint palette: a single semantic per-region scheme so the diagram reads
 // as material zones (shape vs. reusable vs. waste), not a per-spec rainbow.
@@ -87,16 +94,11 @@ const MIN_LABEL_FONT_PT = 2.5
 const MAX_LABEL_FONT_PT = 10
 const PT_TO_MM = 25.4 / 72
 
-// ── Logo Loader ──────────────────────────────────────────────────────────────
-
-let cachedLogo: string | null = null
-
-function getLogo(): string {
-  if (!cachedLogo) {
-    cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  }
-  return cachedLogo
-}
+// ── Logo loader ─────────────────────────────────────────────────────────────
+// Phase 7 brand correction (2026-05-12) — the compass-rose Arc & Anchor
+// JPEG is gone. The Rubberfit mark is drawn imperatively by
+// `drawRubberfitMark` (imported from `@/app/lib/pdf`). No asset
+// round-trip, no image cache.
 
 // ── SVG Print-Color Swaps ────────────────────────────────────────────────────
 
@@ -177,40 +179,65 @@ function checkNewPage(doc: jsPDF, y: number, needed: number): number {
 
 // ── Section Renderers ────────────────────────────────────────────────────────
 
-function addHeader(doc: jsPDF, data: CutPdfData, logo: string): number {
-  let y = 15
+function addHeader(doc: jsPDF, data: CutPdfData): number {
+  // Phase 7 chrome (mm reproduction of the shared internal-canvas
+  // chrome). Brand correction (2026-05-12): dropped the Arc & Anchor
+  // compass-rose `addImage` call and the "ARC & ANCHOR / RUBBERFIT"
+  // wordmark. The top-left now carries the geometric Rubberfit mark
+  // drawn by `drawRubberfitMark`; the top-right carries a "RUBBERFIT"
+  // wordmark + signal-orange inspection-stamp underline.
+  const topY = MARGIN
+  drawRubberfitMark(doc, MARGIN, topY, 7)
 
-  doc.addImage(logo, "JPEG", MARGIN, y - 3, 10, 10)
-  doc.setFontSize(14)
-  doc.setTextColor(...BRAND)
+  // Right-aligned wordmark — caption ink, no brand-blue.
+  doc.setFontSize(7)
   doc.setFont("helvetica", "bold")
-  doc.text("Rubberfit Pro", MARGIN + 13, y + 3)
-  y += 13
-
-  doc.setFontSize(20)
   doc.setTextColor(...GRAY_900)
-  doc.text("Cut Report", MARGIN, y)
-  y += 8
+  doc.text("RUBBERFIT", PAGE_W - MARGIN, topY + 2, { align: "right" })
 
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_500)
-  doc.setFont("helvetica", "normal")
-  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm"), MARGIN, y)
-  y += 4
-
+  // Signal-orange inspection underline beneath the wordmark.
   doc.setDrawColor(...BRAND)
-  doc.setLineWidth(0.6)
-  doc.line(MARGIN, y, MARGIN + CONTENT_W, y)
-  y += 5
+  doc.setLineWidth(0.18)
+  doc.line(PAGE_W - MARGIN - 8, topY + 3, PAGE_W - MARGIN, topY + 3)
 
-  return y
+  doc.setFontSize(13)
+  doc.setTextColor(...GRAY_900)
+  doc.text("CUT REPORT", PAGE_W - MARGIN, topY + 6.5, { align: "right" })
+
+  // Mono record id under the title.
+  doc.setFont("courier", "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...GRAY_500)
+  doc.text(`#${data.cutId}`, PAGE_W - MARGIN, topY + 10.5, { align: "right" })
+
+  // Divider rule below the chrome content.
+  const ruleY = topY + 13
+  doc.setDrawColor(...GRAY_200)
+  doc.setLineWidth(0.18)
+  doc.line(MARGIN, ruleY, PAGE_W - MARGIN, ruleY)
+
+  // Date stamp beneath the divider.
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.setTextColor(...GRAY_500)
+  const dateY = ruleY + 4
+  // CR catch — `cutDate` is stored UTC; without the zone the printed
+  // stamp depended on the operator's browser locale. Render the
+  // local time + a zone abbreviation so the reader can disambiguate.
+  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm zzz"), MARGIN, dateY)
+
+  return dateY + 6
 }
 
 function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
   y = checkNewPage(doc, y, 32)
+  // Phase 7 KPI card: Surface fill + 0.7mm brand-blue top border (no
+  // side/bottom stroke, no rounded corners). Label top-left in caption
+  // slate; value below in H2 ink. Matches Kimi's Internal-canvas spec.
   const cardW = (CONTENT_W - 4 * 3) / 5
   const cardH = 20
   const gap = 3
+  const topBorder = 0.7 // mm — visual analog of Kimi's 2pt brand-blue stripe
 
   const cards = [
     { label: "Cut Pieces", value: `${data.cutPieces}` },
@@ -222,17 +249,21 @@ function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
 
   for (let i = 0; i < cards.length; i++) {
     const x = MARGIN + i * (cardW + gap)
+    // Surface body, no border (rectangles per Kimi spec).
     doc.setFillColor(...GRAY_50)
-    doc.setDrawColor(...GRAY_200)
-    doc.roundedRect(x, y, cardW, cardH, 2, 2, "FD")
+    doc.rect(x, y, cardW, cardH, "F")
+    // Brand-blue top accent stripe.
+    doc.setFillColor(...BRAND)
+    doc.rect(x, y, cardW, topBorder, "F")
+
     doc.setFontSize(7)
     doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    doc.text(cards[i].label.toUpperCase(), x + cardW / 2, y + 7, { align: "center" })
+    doc.setFont("helvetica", "bold")
+    doc.text(cards[i].label.toUpperCase(), x + 3, y + 6)
     doc.setFontSize(13)
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
-    doc.text(cards[i].value, x + cardW / 2, y + 15, { align: "center" })
+    doc.text(cards[i].value, x + 3, y + 15)
   }
 
   y += cardH + 6
@@ -262,23 +293,27 @@ function addCutLegend(doc: jsPDF, tagMap: Map<string, string>, y: number): numbe
   const needed = 12 + rows * rowH
   y = checkNewPage(doc, y, needed)
 
+  // Phase 7 section divider — 0.7mm brand-blue rule + H2 title.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Cut Legend", MARGIN, y)
-  y += 6
+  doc.text("Cut Legend", MARGIN, y + 5)
+  y += 11
 
-  // Column headers
-  doc.setFillColor(...GRAY_50)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 5, "F")
+  // Column headers — caption + brand-blue underline (not solid fill).
   doc.setFontSize(7)
-  doc.setTextColor(...GRAY_500)
-  doc.setFont("helvetica", "normal")
+  doc.setTextColor(...GRAY_900)
+  doc.setFont("helvetica", "bold")
   for (let c = 0; c < cols; c++) {
     const cx = MARGIN + c * colW
     doc.text("TAG", cx + 2, y)
     doc.text("DIMENSIONS", cx + 12, y)
   }
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 4
 
   // Entries in column-major order
@@ -887,11 +922,14 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
 
   y = checkNewPage(doc, y, 24)
 
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Reusable Offcuts", MARGIN, y)
-  y += 6
+  doc.text("Reusable Offcuts", MARGIN, y + 5)
+  y += 11
 
   // Column allocation: # / Roll / Location / Size / Area / Type. The
   // Roll column collapses out for single-roll exports so dimensions get
@@ -915,17 +953,19 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
       ]
   const widths = cols.map((c) => c.width * CONTENT_W)
 
+  // Phase 7 table header: transparent fill + brand-blue 0.35mm underline.
   const drawHeader = (headerY: number): number => {
-    doc.setFillColor(...BRAND)
-    doc.rect(MARGIN, headerY - 3.5, CONTENT_W, 6, "F")
     doc.setFontSize(8)
-    doc.setTextColor(...WHITE)
+    doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
     let cx = MARGIN + 3
     for (let i = 0; i < cols.length; i++) {
       doc.text(cols[i].label, cx, headerY)
       cx += widths[i]
     }
+    doc.setDrawColor(...BRAND)
+    doc.setLineWidth(0.35)
+    doc.line(MARGIN, headerY + 1.5, MARGIN + CONTENT_W, headerY + 1.5)
     return headerY + 5
   }
 
@@ -979,11 +1019,14 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
 
 function addMetrics(doc: jsPDF, data: CutPdfData, y: number): number {
   y = checkNewPage(doc, y, 50)
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Metrics", MARGIN, y)
-  y += 6
+  doc.text("Metrics", MARGIN, y + 5)
+  y += 11
 
   const rollNote = data.rollCount > 1 ? ` across ${data.rollCount} rolls` : ""
   const metrics = [
@@ -995,14 +1038,15 @@ function addMetrics(doc: jsPDF, data: CutPdfData, y: number): number {
     ["Fab Score", `${Math.round(data.fabScore * 100)} / 100`],
   ]
 
-  // Header row
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
+  // Header row — caption + brand-blue underline (transparent fill).
   doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
+  doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
   doc.text("METRIC", MARGIN + 3, y)
   doc.text("VALUE", MARGIN + CONTENT_W / 2, y)
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 5
 
   doc.setFontSize(9)
@@ -1029,11 +1073,14 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
   if (data.materialUsedSqFt <= 0) return y
   y = checkNewPage(doc, y, 35)
 
+  // Phase 7 section divider.
+  doc.setFillColor(...BRAND)
+  doc.rect(MARGIN, y, CONTENT_W, 0.7, "F")
   doc.setFontSize(11)
   doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
-  doc.text("Adhesive Requirements", MARGIN, y)
-  y += 6
+  doc.text("Adhesive Requirements", MARGIN, y + 5)
+  y += 11
 
   const pr200 = data.materialUsedSqFt / 380
   const sc4000 = data.materialUsedSqFt / 47
@@ -1044,14 +1091,16 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
     ["E40 Hardener", `${e40.toFixed(2)} units`, "4 units / gal SC4000"],
   ]
 
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 3.5, CONTENT_W, 6, "F")
+  // Header row — caption + brand-blue underline.
   doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
+  doc.setTextColor(...GRAY_900)
   doc.setFont("helvetica", "bold")
   doc.text("ADHESIVE", MARGIN + 3, y)
   doc.text("AMOUNT", MARGIN + 65, y)
   doc.text("COVERAGE RATE", MARGIN + 115, y)
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.35)
+  doc.line(MARGIN, y + 1.5, MARGIN + CONTENT_W, y + 1.5)
   y += 5
 
   doc.setFontSize(9)
@@ -1077,24 +1126,23 @@ function addAdhesives(doc: jsPDF, data: CutPdfData, y: number): number {
   return y
 }
 
-function addFooter(doc: jsPDF): void {
-  const totalPages = doc.internal.pages.length - 1
+function addFooter(doc: jsPDF, cutId: string): void {
+  // Phase 7 footer \u2014 ghost divider + product mark (left) + page counter
+  // (center, mono) + record id (right). Same shape as
+  // stampFooterOnEveryPage but rendered in mm to match the doc unit.
+  const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
     doc.setDrawColor(...GRAY_200)
-    doc.setLineWidth(0.3)
-    doc.line(MARGIN, PAGE_H - 15, MARGIN + CONTENT_W, PAGE_H - 15)
+    doc.setLineWidth(0.18)
+    doc.line(MARGIN, PAGE_H - 14, PAGE_W - MARGIN, PAGE_H - 14)
+    doc.setFont("helvetica", "bold")
     doc.setFontSize(7)
     doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "normal")
-    const mainFooter = "Rubberfit Pro \u2014 Material Optimization System "
-    doc.text(mainFooter, MARGIN, PAGE_H - 10)
-    const mainW = doc.getTextWidth(mainFooter)
-    doc.setFont("helvetica", "italic")
-    doc.text("by Arc and Anchor", MARGIN + mainW, PAGE_H - 10)
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(8)
-    doc.text(`Page ${i} of ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" })
+    doc.text("Rubberfit", MARGIN, PAGE_H - 10)
+    doc.setFont("courier", "normal")
+    doc.text(`Page ${i} of ${totalPages}`, PAGE_W / 2, PAGE_H - 10, { align: "center" })
+    doc.text(`#${cutId}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" })
   }
 }
 
@@ -1181,12 +1229,11 @@ export async function generateCutPdf(args: {
     creator: "Rubberfit Pro",
   })
 
-  const logo = getLogo()
   // Compute the offcut summary once up front so the diagram pass and
   // the table section share the same numbering and filtering.
   const offcutSummary = layouts.length > 0 ? buildOffcutSummary(layouts) : []
 
-  let y = addHeader(doc, data, logo)
+  let y = addHeader(doc, data)
   y = addSummaryCards(doc, data, y)
   y = addCutLegend(doc, data.tagMap, y)
   // Vector path when layouts are provided, raster fallback otherwise.
@@ -1198,7 +1245,7 @@ export async function generateCutPdf(args: {
   y = addOffcutSummary(doc, offcutSummary, y)
   y = addMetrics(doc, data, y)
   addAdhesives(doc, data, y)
-  addFooter(doc)
+  addFooter(doc, data.cutId)
 
   return doc.output("blob")
 }

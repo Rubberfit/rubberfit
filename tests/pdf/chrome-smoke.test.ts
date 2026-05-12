@@ -133,10 +133,10 @@ describe("primitives — ruled table", () => {
       // zebra omitted — defaults to true.
     })
 
-    // SURFACE = [248, 250, 252] per tokens.ts.
+    // SURFACE = [246, 245, 242] (Rubberfit mill-paper canvas) per tokens.ts.
     const surfaceFills = fillColorSpy.mock.calls
       .slice(fillsBefore)
-      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+      .filter((args) => args[0] === 246 && args[1] === 245 && args[2] === 242).length
     expect(surfaceFills).toBe(3)
 
     // Each Surface fill is followed by a `doc.rect(..., "F")` call.
@@ -168,7 +168,7 @@ describe("primitives — ruled table", () => {
 
     const surfaceFills = fillColorSpy.mock.calls
       .slice(fillsBefore)
-      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+      .filter((args) => args[0] === 246 && args[1] === 245 && args[2] === 242).length
     expect(surfaceFills).toBe(0)
   })
 
