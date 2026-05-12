@@ -107,9 +107,8 @@ export function JobCutsPanel({ cuts: initialCuts }: JobCutsPanelProps) {
                   </p>
                   <p className="font-mono text-[11px] text-muted-foreground">
                     {cut.material_used_sqft.toFixed(1)} sqft used ·{" "}
-                    {cut.reusable_offset_sqft.toFixed(1)} reusable ·{" "}
-                    {cut.scrap_sqft.toFixed(1)} scrap · fab{" "}
-                    {(cut.fab_score * 100).toFixed(0)}/100
+                    {cut.reusable_offset_sqft.toFixed(1)} reusable · {cut.scrap_sqft.toFixed(1)}{" "}
+                    scrap · fab {(cut.fab_score * 100).toFixed(0)}/100
                   </p>
                 </div>
                 <Tooltip>

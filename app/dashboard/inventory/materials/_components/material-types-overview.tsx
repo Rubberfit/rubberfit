@@ -1,38 +1,41 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Badge } from "@/app/components/ui/badge"
+
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 export function MaterialTypesOverview() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchMaterialTypes = async () => {
-    try {
-      const data = await materialTypeService.getAll()
-      setMaterialTypes(data)
-    } catch (error) {
-      console.error("Error fetching material types:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    fetchMaterialTypes()
+    let cancelled = false
+    materialTypeService
+      .getAll()
+      .then((data) => {
+        if (!cancelled) setMaterialTypes(data)
+      })
+      .catch((error) => {
+        console.error("Error fetching material types:", error)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Material Types Overview</CardTitle>
+          <CardTitle>Material types</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Loading material types...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </CardContent>
       </Card>
     )
@@ -41,32 +44,37 @@ export function MaterialTypesOverview() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Material Types Overview</CardTitle>
+        <CardTitle>Material types</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
+      <CardContent className="px-0">
+        <ul className="divide-y divide-border">
           {materialTypes.slice(0, 6).map((material) => (
-            <div key={material.id} className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">{material.name}</p>
-                <p className="text-xs text-muted-foreground">
+            <li
+              key={material.id}
+              className="flex items-start justify-between gap-3 px-6 py-3 first:pt-0"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{material.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
                   {material.description || "No description"}
                 </p>
               </div>
-              <div className="text-right">
-                <Badge variant="outline">${material.default_cost?.toFixed(2) || "N/A"}</Badge>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Alert: {material.min_stock_alert || 0} sq ft
+              <div className="shrink-0 text-right">
+                <p className="font-mono text-sm tabular-nums text-foreground">
+                  {material.default_cost != null ? `$${material.default_cost.toFixed(2)}` : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Alert {material.min_stock_alert ?? 0} sqft
                 </p>
               </div>
-            </div>
+            </li>
           ))}
-          {materialTypes.length > 6 && (
-            <p className="text-xs text-muted-foreground text-center pt-2 border-t">
-              And {materialTypes.length - 6} more material types
-            </p>
-          )}
-        </div>
+        </ul>
+        {materialTypes.length > 6 && (
+          <p className="border-t px-6 pt-3 text-center text-xs text-muted-foreground">
+            And {materialTypes.length - 6} more
+          </p>
+        )}
       </CardContent>
     </Card>
   )

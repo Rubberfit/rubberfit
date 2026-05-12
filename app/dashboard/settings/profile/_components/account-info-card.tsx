@@ -1,16 +1,18 @@
 "use client"
 
-import { Calendar } from "lucide-react"
-
 import type { AuthUser } from "@/src/infrastructure/services/authService"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Label } from "@/app/components/ui/label"
 import { Badge } from "@/app/components/ui/badge"
+import { FormFieldset, FormSectionHeader } from "@/app/components/ui/forms"
 
 interface AccountInfoCardProps {
   user: Pick<AuthUser, "id" | "authProvider" | "createdAt">
 }
 
+/**
+ * Read-only account metadata. Phase 2 PR 2b chrome — flat section
+ * with mono-uppercase row labels matching the rest of the
+ * primitive language. No save/cancel; this is pure display.
+ */
 export function AccountInfoCard({ user }: AccountInfoCardProps) {
   const provider = user.authProvider
   const signInMethod =
@@ -29,38 +31,29 @@ export function AccountInfoCard({ user }: AccountInfoCardProps) {
     memberSince && !Number.isNaN(memberSince.getTime()) ? memberSince.toLocaleDateString() : null
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Account Information
-        </CardTitle>
-        <CardDescription>View your account details and status</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">User ID</Label>
-            <p className="font-mono text-sm mt-1">{user.id}</p>
-          </div>
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>
-            <div className="mt-1">
-              <Badge variant="default">Active</Badge>
-            </div>
-          </div>
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Sign-In Method</Label>
-            <p className="text-sm mt-1">{signInMethod}</p>
-          </div>
-          {memberSinceLabel && (
-            <div>
-              <Label className="text-sm font-medium text-muted-foreground">Member Since</Label>
-              <p className="text-sm mt-1">{memberSinceLabel}</p>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <FormFieldset>
+      <FormSectionHeader
+        eyebrow="Account"
+        title="Account information"
+        description="Sign-in details on file for this account."
+      />
+      <div className="mt-6 grid gap-5 sm:grid-cols-2">
+        <ReadOnlyRow label="User ID" value={<span className="font-mono">{user.id}</span>} />
+        <ReadOnlyRow label="Account status" value={<Badge variant="default">Active</Badge>} />
+        <ReadOnlyRow label="Sign-in method" value={signInMethod} />
+        {memberSinceLabel ? <ReadOnlyRow label="Member since" value={memberSinceLabel} /> : null}
+      </div>
+    </FormFieldset>
+  )
+}
+
+function ReadOnlyRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] leading-4 text-foreground/80">
+        {label}
+      </p>
+      <div className="text-sm text-foreground">{value}</div>
+    </div>
   )
 }

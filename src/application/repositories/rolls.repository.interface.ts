@@ -4,7 +4,17 @@ export interface IRollsRepository {
   getAllRolls(): Promise<Roll[]>
   getActiveRolls(): Promise<Roll[]>
   getRollById(id: string): Promise<Roll>
-  addRoll(roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">): Promise<Roll>
+  /**
+   * Inserts a new roll. `userId` is the owner of the row inserted as
+   * `rolls.user_id`. Server-action callers pass `actor.id` explicitly
+   * (since the browser-singleton-backed `getCurrentUserId()` has no
+   * session in a Node runtime). Legacy browser callers may omit it
+   * and fall back to `getCurrentUserId()` until they migrate.
+   */
+  addRoll(
+    roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
+  ): Promise<Roll>
   updateRoll(id: string, updates: Partial<Roll>): Promise<Roll>
   markAsDepleted(id: string): Promise<Roll>
   markRollDepleted(id: string): Promise<Roll>

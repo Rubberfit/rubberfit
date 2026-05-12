@@ -1,4 +1,5 @@
 import { supabase } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import type {
   IProfileRepository,
   ProfileUpdates,
@@ -68,11 +69,11 @@ export class ProfileRepository implements IProfileRepository {
       // Soft-delete: flip is_deleted on the caller's own profile
       // row. RLS forces `user_id = auth.uid()` so this update only
       // touches the current user — admins restoring deleted users
-      // use the admin API path, not this one.
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_deleted: true })
-        .eq("id", userId)
+      // use the admin API path, not this one. Use getDatabaseClient
+      // so the cookie-bound server client is used when called from
+      // a server action (the browser singleton has no JWT in Node).
+      const client = await getDatabaseClient()
+      const { error } = await client.from("profiles").update({ is_deleted: true }).eq("id", userId)
       if (error) {
         console.error("self-delete failed:", error)
         return { success: false, error: error.message }

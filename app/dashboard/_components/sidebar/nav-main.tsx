@@ -45,7 +45,9 @@ interface NavMainProps {
 }
 
 const IsComingSoon = () => (
-  <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs dark:text-muted-foreground">Soon</span>
+  <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs dark:text-muted-foreground">
+    Soon
+  </span>
 )
 
 const NavItemExpanded = ({
@@ -84,7 +86,7 @@ const NavItemExpanded = ({
               isActive={isActive(item.url)}
               tooltip={item.title}
             >
-              <Link prefetch={false} href={item.url} target={item.newTab ? "_blank" : undefined}>
+              <Link href={item.url} target={item.newTab ? "_blank" : undefined}>
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
                 {item.comingSoon && <IsComingSoon />}
@@ -102,11 +104,7 @@ const NavItemExpanded = ({
                     isActive={isActive(subItem.url)}
                     asChild
                   >
-                    <Link
-                      prefetch={false}
-                      href={subItem.url}
-                      target={subItem.newTab ? "_blank" : undefined}
-                    >
+                    <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
                       {subItem.icon && <subItem.icon />}
                       <span>{subItem.title}</span>
                       {subItem.comingSoon && <IsComingSoon />}
@@ -153,11 +151,7 @@ const NavItemCollapsed = ({
                 aria-disabled={subItem.comingSoon}
                 isActive={isActive(subItem.url)}
               >
-                <Link
-                  prefetch={false}
-                  href={subItem.url}
-                  target={subItem.newTab ? "_blank" : undefined}
-                >
+                <Link href={subItem.url} target={subItem.newTab ? "_blank" : undefined}>
                   {subItem.icon && <subItem.icon className="[&>svg]:text-sidebar-foreground" />}
                   <span>{subItem.title}</span>
                   {subItem.comingSoon && <IsComingSoon />}
@@ -290,23 +284,29 @@ export function NavMain({ items }: NavMainProps) {
               {canManageRolls && (
                 <SidebarMenuButton
                   tooltip="Quick Create"
-                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                  className="min-w-8 bg-primary text-primary-foreground transition-colors hover:bg-accent-fg hover:text-primary-foreground active:scale-[0.98] active:bg-accent-fg active:text-primary-foreground"
                   onClick={handleQuickCreate}
                 >
-                  <PlusCircleIcon />
+                  <PlusCircleIcon className="size-4" />
                   <span>Quick Create</span>
                 </SidebarMenuButton>
               )}
               <Button
                 size="icon"
-                className="h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0 active:bg-primary active:text-primary-foreground relative"
+                className="relative h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0"
                 variant="outline"
                 onClick={handleEmailClick}
               >
                 <MailIcon className="h-4 w-4" />
-                <span className="sr-only">Notifications</span>
+                <span className="sr-only">
+                  Notifications
+                  {unreadNotifications > 0 ? ` — ${unreadNotifications} unread` : ""}
+                </span>
                 {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+                  />
                 )}
               </Button>
             </SidebarMenuItem>
@@ -329,11 +329,7 @@ export function NavMain({ items }: NavMainProps) {
                           tooltip={item.title}
                           isActive={isItemActive(item.url)}
                         >
-                          <Link
-                            prefetch={false}
-                            href={item.url}
-                            target={item.newTab ? "_blank" : undefined}
-                          >
+                          <Link href={item.url} target={item.newTab ? "_blank" : undefined}>
                             {item.icon && <item.icon />}
                             <span>{item.title}</span>
                           </Link>

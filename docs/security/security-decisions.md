@@ -78,30 +78,63 @@ Verification approach: a single audit pass against the Supabase Dashboard config
 
 ## Input validation rules (V2.1.1)
 
-**TBD** — Phase A4 deliverable. For each entity, this section will list:
+Route-level Zod schemas are the authoritative validation surface
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141)). All
+schemas use `.strict()` mode
+([ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137) / V8.2.3) —
+unknown keys cause a 400, closing the BOPLA / mass-assignment path that
+default Zod mode would otherwise leave open. The one exception is
+`packRequestSchema` in [src/application/packing/types.ts](../../src/application/packing/types.ts),
+which uses `.passthrough()` so optional Rust tuning knobs (mode, engine,
+`*Strategy`, `timeBudgetMs`, …) can flow through without lockstep TS
+maintenance — Rust's `serde` does the strict deserialise on its side.
 
-- Field name, allowed type, length bound, allowed pattern, special rules.
+| Route                            | Schema                 | Required fields and rules                                                                               |
+| -------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| POST `/api/admin/users`          | `createUserBodySchema` | `email` (RFC 5322 via Zod), `password` (min 6 chars), `full_name` (trim, min 1), `roles?` (`AppRole[]`) |
+| PATCH `/api/admin/alerts/[id]`   | `patchBodySchema`      | `action` (`"acknowledge" \| "resolve"`)                                                                 |
+| POST `/api/cuts/favorites`       | `toggleBodySchema`     | `cut_history_id` (UUID v4)                                                                              |
+| POST `/api/v2/pack` _(dev only)_ | `packRequestSchema`    | `bins` (≥1), `items` (array), `clearance` (≥0); `.passthrough()` for tuning fields (see above)          |
 
-Initial entities to document:
+Bridge routes under `app/api/v2/**` (excluding `/pack`) defer
+validation to the Rust backend. The architectural guard at
+[tests/architecture/api-routes-validate-bodies.test.ts](../../tests/architecture/api-routes-validate-bodies.test.ts)
+enforces this division: every write route either calls `.safeParse(...)`
+on a Zod schema (which itself must be `.strict()` or documented
+`.passthrough()`) or forwards to Rust via `forwardToRust(...)`. New
+routes that try to skip both fail the test on commit.
 
-- `Roll` (CSV import primary use case)
-- `PurchaseOrder` (line items, totals, supplier reference)
-- `Cut` (geometric inputs, customer reference)
-- `Supplier` (contact info, address)
-- `User` (admin-set role, profile fields)
-
-Until this section is filled, route-level Zod schemas are the authoritative validation. The audit will check coverage and completeness.
+Per-entity rules for the wider domain (`Roll`, `PurchaseOrder`, `Cut`,
+`Supplier`) live with the writes themselves rather than with API
+routes — they're enforced at the DB layer today (RLS, Postgres types,
+CHECK constraints) and will gain server-action Zod gates as the
+write-path migration tracked in
+[ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) lands.
 
 ---
 
 ## Business logic limits (V2.1.3)
 
-**TBD** — will be populated with per-user and global limits as discovered:
+Limits enforced today via Zod on API routes
+([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141),
+[ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137)):
 
-- Max PO line items per PO.
-- Max rolls importable per CSV.
-- Max concurrent cuts per user.
-- Anti-automation rate limits per route (V2.4.1).
+- POST `/api/admin/users`: `password` length ≥ 6 chars (historical
+  baseline; tightening tracked under
+  [ARC-145](https://linear.app/arc-and-anchor/issue/ARC-145) / Phase C
+  password policy).
+- POST `/api/v2/pack`: at least one bin per request
+  (`bins.array().min(1)`), `clearance` non-negative.
+
+Limits **not yet enforced**, tracked separately:
+
+- Max PO line items per PO — tracked with the PO domain migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max rolls importable per CSV — tracked with the CSV migration
+  ([ARC-216](https://linear.app/arc-and-anchor/issue/ARC-216) sub-bundle).
+- Max concurrent cuts per user — TBD; not currently capped.
+- Anti-automation rate limits per route (V2.4.1) —
+  [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142).
 
 ---
 
@@ -193,16 +226,16 @@ The application uses a Next.js [proxy](https://nextjs.org/docs/app/api-reference
 
 ### Concern decision table
 
-| Concern                                  | Lives in                                                                                           | Why                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supabase SSR session cookie refresh      | `proxy.ts` (always)                                                                                | The Supabase `createServerClient` cookie adapter binds to `NextRequest` / `NextResponse`. The session refresh must happen before any handler reads the user. Documented exception in [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts). |
-| Auth allowlist (page-entry gate)         | `proxy.ts` + [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowlist.ts)          | Default-deny: any path not in `PUBLIC_PATHS` requires an authenticated session. Pages get a 302 to `/login?redirectTo=…`; APIs get 401 JSON.                                                                                                                                                 |
-| Per-role permission gating               | `proxy.ts` (only for `/dashboard/*`, `/admin/*`)                                                   | The matrix lives in [`src/application/permissions.ts`](../../src/application/permissions.ts); proxy looks up `getRequiredPermission(pathname)` and `access.isSuperAdmin`. Other paths only require authentication.                                                                           |
-| Per-row authorization (BOLA / IDOR)      | Route handlers + Postgres RLS                                                                      | Proxy cannot make per-row decisions cheaply. Row-level checks stay where the data is loaded.                                                                                                                                                                                                 |
-| Security response headers                | `proxy.ts` + [`src/middleware/security-headers.ts`](../../src/middleware/security-headers.ts)      | Applied uniformly via `applySecurityHeaders()` on every response proxy returns. Kept in proxy (not `next.config.mjs` `headers()`) because future CSP nonces are per-request.                                                                                                                 |
-| Rate limiting                            | **Not in proxy yet** — tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142)       | Proxy is the natural location once Upstash (or equivalent) is provisioned. Until then, no rate limiting at any layer.                                                                                                                                                                        |
-| Structured request logging / audit trail | **Not in proxy yet** — tracked in Phase B / V16                                                    | Will live in proxy once a logger is selected and `admin.admin_activity_log` consumption is wired.                                                                                                                                                                                            |
-| `/api/tax-rates` lockdown                | **Allowlisted with FIXME** — tracked in [ARC-134](https://linear.app/arc-and-anchor/issue/ARC-134) | Currently anonymous; remains anonymous after this PR by being on the allowlist. ARC-134 decides the lockdown mechanism (auth, signed requests, or rate-limit-only) and removes the allowlist entry.                                                                                          |
+| Concern                                  | Lives in                                                                                      | Why                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase SSR session cookie refresh      | `proxy.ts` (always)                                                                           | The Supabase `createServerClient` cookie adapter binds to `NextRequest` / `NextResponse`. The session refresh must happen before any handler reads the user. Documented exception in [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts). |
+| Auth allowlist (page-entry gate)         | `proxy.ts` + [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowlist.ts)     | Default-deny: any path not in `PUBLIC_PATHS` requires an authenticated session. Pages get a 302 to `/login?redirectTo=…`; APIs get 401 JSON.                                                                                                                                                 |
+| Per-role permission gating               | `proxy.ts` (only for `/dashboard/*`, `/admin/*`)                                              | The matrix lives in [`src/application/permissions.ts`](../../src/application/permissions.ts); proxy looks up `getRequiredPermission(pathname)` and `access.isSuperAdmin`. Other paths only require authentication.                                                                           |
+| Per-row authorization (BOLA / IDOR)      | Route handlers + Postgres RLS                                                                 | Proxy cannot make per-row decisions cheaply. Row-level checks stay where the data is loaded.                                                                                                                                                                                                 |
+| Security response headers                | `proxy.ts` + [`src/middleware/security-headers.ts`](../../src/middleware/security-headers.ts) | Applied uniformly via `applySecurityHeaders()` on every response proxy returns. Kept in proxy (not `next.config.mjs` `headers()`) because future CSP nonces are per-request.                                                                                                                 |
+| Rate limiting                            | **Not in proxy yet** — tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142)  | Proxy is the natural location once Upstash (or equivalent) is provisioned. Until then, no rate limiting at any layer.                                                                                                                                                                        |
+| Structured request logging / audit trail | **Not in proxy yet** — tracked in Phase B / V16                                               | Will live in proxy once a logger is selected and `admin.admin_activity_log` consumption is wired.                                                                                                                                                                                            |
+| `/api/tax-rates` lockdown                | Authenticated proxy — closed by [ARC-134](https://linear.app/arc-and-anchor/issue/ARC-134)    | Removed from `PUBLIC_PATHS`; proxy returns 401 for anonymous callers. Route also calls `requireAuthenticatedUser()` as defense-in-depth so allowlist drift can't silently re-expose the billed Ziptax key. Rate limiting (ARC-142) still pending as the second defense layer.                |
 
 ### Auth allowlist contents
 
@@ -213,7 +246,6 @@ Defined in [`src/middleware/auth-allowlist.ts`](../../src/middleware/auth-allowl
 | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/mfa-challenge` | User has no session yet by definition — these are the auth flows.                                    |
 | `/callback`                                                                    | OAuth code-exchange. The session is finalized inside this handler.                                   |
 | `/auth-email-logo`                                                             | Image embedded in transactional emails — must load without auth so recipients see it in their inbox. |
-| `/api/tax-rates`                                                               | FIXME (ARC-134). Currently anonymous Ziptax proxy.                                                   |
 
 **Rule for adding entries:** every new entry is a security-relevant change and must be reviewed. The justification is committed in code as a comment next to the entry; no additional sign-off process beyond normal PR review, but reviewers should confirm the route legitimately needs to be public.
 
@@ -249,10 +281,174 @@ Three trade-offs worth recording:
 
 3. **`@supabase/ssr` cookie adapter inline in `proxy.ts` vs. extracted helper.** `createServerClient` is called directly in `proxy.ts` rather than wrapped in `src/infrastructure/supabase/`. This is the documented architectural exception (see [`tests/architecture/no-direct-supabase.test.ts`](../../tests/architecture/no-direct-supabase.test.ts) allowlist) — the cookie adapter is too tightly coupled to `NextRequest` / `NextResponse` to extract cleanly without leaking the request into a service interface.
 
-### Server Functions caveat
+### Server actions ([ARC-147](https://linear.app/arc-and-anchor/issue/ARC-147))
 
-Next.js [docs](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#execution-order) state:
+Use-case orchestration runs through `app/actions/<domain>.ts` server actions, not browser-side `resolveUseCase` calls. The `"use server"` directive makes each export a hash-callable RPC endpoint; the orchestration boundary is enforced by the bundler, not by convention.
+
+**Per-action auth check is mandatory.** Next.js [docs](https://nextjs.org/docs/app/api-reference/file-conventions/proxy#execution-order):
 
 > Server Functions are not separate routes in this chain. They are handled as POST requests to the route where they are used, so a Proxy matcher that excludes a path will also skip Server Function calls on that path.
 
-The app does not currently use server actions (`"use server"`). When/if they are introduced, **the auth check stays in the action body, not delegated to proxy alone.** A matcher refactor that moves a Server Function to a different route can silently remove proxy coverage. This rule is enforced by convention — Phase A's V8 work has the per-action authz pattern.
+Action IDs ship in the client bundle and are callable by hash. `proxy.ts` gates page navigation but does NOT see action invocations. Every action's first lines are:
+
+```typescript
+const actor = await requireAuthenticatedUser()
+requirePermission(actor, "manageRolls")
+```
+
+`requireAuthenticatedUser` (from `app/server/auth/require-authenticated-user.ts`) builds a cookie-bound `createServerClient`, calls `auth.getUser()`, and reads the caller's profile row in a single round-trip. It fails closed on missing profile (no `["member"]` default-grant), missing session, or `is_deleted = true` — the deactivation gap that `sign-in` checks but `getProfileAccess` historically did not.
+
+**Error model.**
+
+| Class               | Code           | HTTP-equivalent | When                                                                          |
+| ------------------- | -------------- | --------------- | ----------------------------------------------------------------------------- |
+| `UnauthorizedError` | `UNAUTHORIZED` | 401             | No session, missing profile, deactivated account, or profile-read RLS failure |
+| `ForbiddenError`    | `FORBIDDEN`    | 403             | Authenticated but lacking the required permission                             |
+| `AuthConfigError`   | `AUTH_CONFIG`  | 5xx             | Server misconfiguration (missing Supabase env vars)                           |
+
+Catch wrappers discriminate on `code`, not `instanceof` — errors lose their prototype chain across the RPC boundary. Production messages are sanitized; full errors log server-side.
+
+**Use-case input shape.** All write use-cases accept `actor: ActionActor` in their input. The action layer extracts the actor from `requireAuthenticatedUser()` and threads it through; client callers never provide it (`Omit<UseCaseInput, "actor">`). This:
+
+- Eliminates the previous browser-side `getCurrentUserId()` lookup, which used the browser Supabase singleton and would silently fail in a server-action context.
+- Gives the use-case body the caller's identity for downstream side effects (notifications, audit logging — see [ARC-31](https://linear.app/arc-and-anchor/issue/ARC-31)).
+- Makes use-cases pure: tests register fake services and pass an actor, no global mocking.
+
+**Cache invalidation.** Each action documents two surfaces:
+
+- `revalidatePath(...)` — RSC and route-segment caches
+- React Query `invalidateQueries({ queryKey: [...] })` — client-side cache, called from the hook after `await action(...)`
+
+Forgetting either creates a stale-data bug. If the pattern starts showing drift, wrap actions in a helper that takes both as required params.
+
+**Server vs. API route trade-off.** Actions for use-case orchestration; API routes (`app/api/**`) for external/Bearer-token entry points (e.g., the Rust API client paths and `app/api/internal/tax/po-preview/route.ts`). Actions don't replace API routes — they replace the browser-side `resolveUseCase` pattern.
+
+### Database client resolution (RLS preserved end-to-end)
+
+ARC-147 surfaced a real RLS bug: server actions resolved the actor correctly via cookies, then services wrote with the **browser-singleton** `supabase` (built from `createBrowserClient`, session in `localStorage`). On a Node runtime the singleton has no JWT, so Postgres saw `auth.uid() = NULL` and rejected every insert with `42501` even though the caller was signed in. The naïve fix would be a service-role bypass; we explicitly rejected that — service-role escapes are a last resort, and RLS is the security model.
+
+The Phase 0 fix:
+
+- **`src/infrastructure/supabase/get-database-client.ts`** exposes `getDatabaseClient()` and `registerServerDatabaseClientFactory(factory)`. Services call `await getDatabaseClient()` and get the right client for the runtime — a cookie-bound `createServerClient` server-side or the browser singleton client-side. Factory registration is **process-global, request-scoped at invocation**: the factory captures `next/headers cookies()` per-call, which Next.js threads via its own AsyncLocalStorage, so concurrent requests each see their own cookies.
+- **`app/server/database/register-factory.ts`** owns the cookie-bound factory and exposes `ensureDatabaseFactoryRegistered()` (idempotent). Server actions call this as their first line. We deliberately do **not** register the factory as a `app/layout.tsx` side effect: per Codex review, Next.js does not contractually guarantee layout module evaluation before a server-action POST in serverless workers. Action-entry registration removes that risk.
+- **No service-role bypass.** The factory uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`, identical to the browser client. RLS continues to enforce `auth.uid() = user_id`; the only difference is _where_ the JWT comes from (cookies on the server, localStorage in the browser). The service-role helpers in `src/infrastructure/supabase/server-clients.ts` (`makeAdminClient`) stay reserved for explicitly-authorized admin route handlers.
+- **Migration scope.** Phase 0 migrated every infrastructure service reachable from the seven ARC-147 server actions: `purchaseOrderService`, `supplierService`, `reorderService`, `taxService`, `reorderCalculations`, `notificationService`, plus the `notifications.repository`. Methods that previously used `import { supabase }` now do `const supabase = await getDatabaseClient()` at the top of each method. The shape is identity-preserving for browser callers (the helper resolves the same singleton via dynamic import). Use-cases that need to write user-scoped rows (e.g., `updateReorderRule`) take `userId` from `actor.id` instead of relying on a browser-side `getCurrentUserId()` lookup.
+- **Phase 1+** (follow-up tickets) migrates the remaining ~57 dashboard browser-direct callers off the singleton entirely, so all DB interactions route through the server.
+
+### Architectural exceptions (`no-direct-supabase` allowlist)
+
+The auth helper at `app/server/auth/require-authenticated-user.ts` constructs a cookie-bound `createServerClient` and reads `profiles` directly. The factory wrapper at `app/server/database/register-factory.ts` constructs a cookie-bound `createServerClient` (no `.from(...)` calls — only client construction). Both patterns are flagged by `tests/architecture/no-direct-supabase.test.ts`, so both files are in that test's `ALLOWLIST` alongside `proxy.ts` and `app/(auth)/callback/route.ts`. The `next/headers cookies()` binding is unavoidable in `app/`. Future cleanup: extend `getProfileAccess` in `authService.ts` to include `is_deleted`, then move the helper's profile read into that service so the action helper stays in `app/` without needing `.from('profiles')`.
+
+### Pre-existing gaps tracked as follow-ups
+
+- **`proxy.ts` deactivation hole — partial closure.** ARC-147 added an `access.isDeleted` check to `proxy.ts` inside the `requiredPermission || needsAdmin` branch (signs the user out, redirects to `/login?deactivated=1`). That covers every permission-gated route and every `/admin/*` path. The remaining gap is "deactivated user can hit unguarded authenticated paths (e.g., `/dashboard` root, `/dashboard/settings/profile`) until their cookie expires." Closing it fully needs either a profile load on every authenticated request (one extra DB round-trip per request — meaningful at scale) or refresh-token revocation on deactivation. Tracked separately.
+- **`getCurrentUserId()` browser fallback in `purchaseOrderService`.** The service still falls back to the browser singleton `getCurrentUserId()` when callers don't pass `userId`. Action-path callers always pass it; legacy callers (e.g., `reorder-po-handlers.ts::handleCreateBulkPO`) keep the fallback. Once those callers migrate, `userId` becomes required and the fallback drops.
+- **Next 16 server-action CSRF.** No `serverActions.allowedOrigins` config in `next.config.mjs`. Next 16 enforces same-origin by default; verify production hostnames before merge if a reverse proxy is in front of the app.
+
+---
+
+## Edge security — Vercel Firewall (V13.4) — [ARC-219](https://linear.app/arc-and-anchor/issue/ARC-219)
+
+The application sits behind Vercel's edge network. The firewall layer provides defenses that complement (but do not replace) the application layer: anti-automation, geo-restriction, and bot management. This section records what is deployed and which decisions were made for the pilot launch tracked under [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218).
+
+### Plan tier
+
+The `Development` (slug `arcanchor`) Vercel team is on **Pro**. Some firewall capabilities are Enterprise-gated and were considered then explicitly descoped — see "OWASP Core Rule Set" below. All currently deployed rules are Pro-tier.
+
+### Managed rulesets — what is enabled
+
+Per project, configured via Vercel Dashboard → Firewall:
+
+| Ruleset                                 | Status                                       | Notes                                                   |
+| --------------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| AI Bots                                 | Enabled per-project (see policy table below) | Vercel-managed signature matching for known AI scrapers |
+| Bot Protection (`botIdEnabled`)         | Enabled per-project (see policy table below) | Per-request bot scoring; challenge or log per path      |
+| Vercel Managed Ruleset (reputation IPs) | TBD — confirm Pro availability               | Reputation-based IP deny                                |
+| OWASP Core Rule Set (`crs.*`)           | **Descoped** — see below                     | Enterprise-only on Vercel                               |
+
+### AI Bots & Bot Protection policy (per project)
+
+The pilot's customer-facing surfaces split into two groups with different intent and threat models:
+
+| Project group              | Projects                                                                               | AI Bots                            | Bot Protection                                  |
+| -------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------- |
+| Authenticated app surfaces | `rubberfit`, `sigilix-app-proxy`                                                       | `challenge` → `deny` if not solved | `challenge` on auth/write, `log` on read paths  |
+| Public marketing & docs    | `sigilix-marketing`, `rubberfit-marketing`, `rubberfit-docs`, `arc-and-anchor-website` | `log` only — AI scrapers welcome   | `log` only — friction-free for public discovery |
+
+**Why allow AI on marketing/docs:** these surfaces are explicitly designed for discovery, including by LLM-powered tools that read public docs to answer user questions about Rubberfit, Sigilix, and Arc & Anchor. Blocking AI here directly costs reach. The product surfaces (`rubberfit`, `sigilix-app-proxy`) sit behind authentication and have no legitimate AI-scraper traffic; aggressive filtering is appropriate.
+
+### Geoblock — OFAC sanctioned countries
+
+`Block OFAC Countries` custom firewall rule deployed across the 6 self-hosted Vercel projects in the `arcanchor` team:
+
+- Blocked: `CU` (Cuba), `IR` (Iran), `KP` (North Korea), `SY` (Syria).
+- Action: `deny` at the edge; no application-layer cost.
+- Excluded from coverage: `docs.sigilix.ai`, hosted on Mintlify outside the `arcanchor` Vercel team — see [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218) for the Mintlify scope decision.
+
+**Decision: OFAC list only (CU / IR / KP / SY).** RU and BY were considered and **not blocked**. Rationale: lowest-friction for VPN-using employees and contractors; OFAC is the legal minimum and is sufficient signaling for vendor security questionnaires. Revisit trigger: pilot customer requires expanded sanctions coverage.
+
+### Rate limits at the edge — [ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220)
+
+Custom rate-limit rules deployed via Vercel Firewall, complementary to (not a substitute for) Supabase Auth's own rate limiting and the app-layer rate limiting tracked in [ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142). Three distinct layers, each with different signals.
+
+**Layer model:**
+
+- **Edge (Vercel Firewall — this section)** — IP and path keyed; runs before function invocation. Best for volumetric and origin-based abuse. Cheap because it skips function execution.
+- **Supabase Auth** — auth-attempt throttling (sign-in, sign-up, password reset, magic-link). Configured in Supabase Dashboard → Auth → Rate Limits. **Vercel Firewall cannot intercept these requests** — auth flows go browser → `*.supabase.co` directly, not through our Vercel deployment. See [`authService.ts`](../../src/infrastructure/services/authService.ts) for call sites.
+- **App layer** ([ARC-142](https://linear.app/arc-and-anchor/issue/ARC-142) — `asvs-bundle-4-rate-limiting`) — per-authenticated-identity business invariants (max concurrent cuts per user, max PO line items, etc.). Stub today; lands when Upstash or equivalent is provisioned.
+
+**Edge rules deployed:**
+
+| Rule                   | Match               | Window | Limit | Key | Action                                | Applies to                 |
+| ---------------------- | ------------------- | ------ | ----- | --- | ------------------------------------- | -------------------------- |
+| Site-wide DDoS floor   | All paths           | 60s    | 1000  | IP  | `deny`                                | All 6 self-hosted projects |
+| General API rate limit | Path prefix `/api/` | 60s    | 100   | IP  | `log` initially → `deny` after tuning | `rubberfit` only           |
+
+Rules are applied via the `rate-limits.js` API script (mirrors the `geoblock.js` pattern: idempotent by rule name, supports `--dry-run`).
+
+**Auth flows are intentionally out of scope** at this layer:
+
+- **No `/api/auth/*` rate limits** — rema-portal does not expose REST auth endpoints. Sign-in, sign-up, and password-reset use the Supabase Auth client SDK which posts directly to `*.supabase.co`. Auth-attempt rate limiting is Supabase's responsibility.
+- **No auth-page rate limit** — `/login`, `/register`, `/forgot-password` are Vercel-served, but the actual auth attempts at those URLs are JS-side calls to Supabase (Vercel never sees them). A rate limit on the page paths catches scrapers hitting the URL, not credential-stuffing — and the site-wide DDoS floor already covers that pattern.
+
+**Per-project applicability:**
+
+| Project                  | DDoS floor | General `/api/*` | Notes                                                                 |
+| ------------------------ | ---------- | ---------------- | --------------------------------------------------------------------- |
+| `rubberfit`              | ✓          | ✓                | Full app surface                                                      |
+| `sigilix-app-proxy`      | ✓          | TBD              | `/api/*` rule deferred pending endpoint inventory of `app.sigilix.ai` |
+| `sigilix-marketing`      | ✓          | N/A              | Static — no API surface                                               |
+| `rubberfit-marketing`    | ✓          | N/A              | Static — no API surface                                               |
+| `rubberfit-docs`         | ✓          | N/A              | Static — no API surface                                               |
+| `arc-and-anchor-website` | ✓          | N/A              | Static — no API surface                                               |
+
+**Tuning (soak step):** the `/api/*` rule deploys in `log` mode. After 7 days the false-positive baseline is captured (which IPs hit the threshold, which paths, whether they look human, internal monitoring vs external traffic). If no legitimate traffic exceeds 100/min, flip to `deny`. If internal monitoring or specific NATs trip the threshold, either bump the limit or add an IP allowlist before flipping. Same flip-after-soak pattern as the OWASP CRS plan that was descoped — applied here at the rule level.
+
+### OWASP Core Rule Set — descoped
+
+OWASP CRS (`managedRules.owasp`) provides managed pattern matching for SQLi, XSS, RCE, LFI / RFI, scanner detection, and other payload-based attacks. On Vercel, it requires the Enterprise plan; for the pilot the upgrade cost was judged not worth it.
+
+**What we lose:** managed payload-based pattern matching at the edge.
+
+**Compensating controls already deployed or in scope:**
+
+- **Browser-layer XSS defense** — the CSP rollout ([ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218) cluster C, [ARC-223](https://linear.app/arc-and-anchor/issue/ARC-223) → [ARC-224](https://linear.app/arc-and-anchor/issue/ARC-224)) is the meaningful XSS mitigation; arguably more effective than WAF pattern matching for that specific class. CSP is report-only today (see "Middleware architecture" above) and promotes to enforcing as part of the same initiative.
+- **SQLi defense** — Postgres parameterized queries via Supabase client libraries; no string-concatenated SQL in the codebase.
+- **Input validation** — Zod with `.strict()` mode on every API write route ([ARC-141](https://linear.app/arc-and-anchor/issue/ARC-141), [ARC-137](https://linear.app/arc-and-anchor/issue/ARC-137)). Unknown keys cause a 400 before any handler logic runs. The architectural guard at [`tests/architecture/api-routes-validate-bodies.test.ts`](../../tests/architecture/api-routes-validate-bodies.test.ts) ratchets new write routes into the same rule.
+- **Volumetric / origin abuse** — geoblock + rate limits ([ARC-220](https://linear.app/arc-and-anchor/issue/ARC-220)) handle the volumetric and origin-based attack surface CRS would also catch.
+- **Scanner detection** — Bot Protection partially overlaps the CRS `sd` category by tagging known scanner tooling (Nikto, sqlmap, ZAP) via user-agent and reputation.
+
+**Revisit trigger:** if the `Development` Vercel team upgrades to Enterprise (most likely as a result of pilot expansion or a customer requirement), enabling CRS in `log` mode is a 5-minute change. Until then, accept as residual risk for the pilot.
+
+### Out-of-scope domains
+
+| Domain            | Hosting                                                       | Decision                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs.sigilix.ai` | Mintlify (proxied through Mintlify's own multi-tenant Vercel) | Not in `arcanchor` Vercel dashboard — we do not control the firewall, headers, or CSP for this domain. Tracked in [ARC-218](https://linear.app/arc-and-anchor/issue/ARC-218). |
+
+### Revisit triggers
+
+- **Plan tier upgrade to Enterprise** → enable OWASP CRS in `log` mode, observe baseline, then move to per-rule `deny` after a 7-day soak.
+- **Material customer in CU / IR / KP / SY** → revisit geoblock policy with legal / compliance sign-off.
+- **Bot Protection false-positives on auth flows** → drop affected paths to `log` and capture telemetry before adjusting the threshold.
+- **Pilot-customer security questionnaire requires CRS** → either upgrade tier or document compensating controls in the response with reference to this section.

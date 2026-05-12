@@ -13,6 +13,11 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
+  // Note: the description-text contrast override lives in
+  // `app/globals.css` (`[data-sonner-toast] [data-description]`)
+  // rather than as an inline `<style>` here — keeps it CSP-friendly
+  // and lets React 19 dedupe naturally without an inline tag at
+  // every Toaster mount.
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}

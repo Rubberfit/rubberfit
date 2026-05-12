@@ -25,10 +25,7 @@ import {
 } from "@/app/components/ui/select"
 import { jobService } from "@/src/infrastructure/services/jobService"
 import { rolls as rollsSdk } from "@/src/infrastructure/api-client/rf/inventory"
-import type {
-  JobRollAllocationWithRoll,
-  Roll,
-} from "@/src/infrastructure/models/supabase"
+import type { JobRollAllocationWithRoll, Roll } from "@/src/infrastructure/models/supabase"
 
 /**
  * Roll-allocation panel — lists inventory rolls earmarked to fulfil
@@ -127,8 +124,8 @@ export function JobAllocationsPanel({ jobId, allocations, onChanged }: JobAlloca
             Allocated rolls
           </h2>
           <p className="text-muted-foreground text-xs">
-            {allocations.length} roll{allocations.length === 1 ? "" : "s"} ·{" "}
-            {totalSqft.toFixed(1)} sqft committed
+            {allocations.length} roll{allocations.length === 1 ? "" : "s"} · {totalSqft.toFixed(1)}{" "}
+            sqft committed
           </p>
         </div>
         <Button size="sm" onClick={() => setOpen(true)}>
@@ -141,9 +138,7 @@ export function JobAllocationsPanel({ jobId, allocations, onChanged }: JobAlloca
         {allocations.length === 0 ? (
           <div className="flex items-center gap-3 px-4 py-5">
             <Layers className="size-4 text-muted-foreground" aria-hidden="true" />
-            <p className="text-muted-foreground text-sm">
-              No rolls earmarked for this job yet.
-            </p>
+            <p className="text-muted-foreground text-sm">No rolls earmarked for this job yet.</p>
           </div>
         ) : (
           allocations.map((a) => {
@@ -188,7 +183,13 @@ export function JobAllocationsPanel({ jobId, allocations, onChanged }: JobAlloca
         )}
       </Card>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v)
+          if (!v) reset()
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Allocate a roll</DialogTitle>

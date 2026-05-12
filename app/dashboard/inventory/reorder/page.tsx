@@ -1,35 +1,46 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, ShoppingCart, Truck, Activity } from "lucide-react"
 
 import {
   type MaterialType,
   type ReorderRuleWithDetails,
   type Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Badge } from "@/app/components/ui/badge"
-import { Button } from "@/app/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import { PageHeader, PageShell } from "@/app/components/patterns"
-import { Progress } from "@/app/components/ui/progress"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select"
-import { Plus } from "lucide-react"
-import { ReorderRuleModal } from "./_components/reorder-rule-modal"
-import type { ReorderSuggestion } from "./_components/reorder-suggestions"
-import { ReorderRulesTable, type EditableRule } from "./_components/reorder-rules-table"
-import { ReorderSuggestionsTable } from "./_components/reorder-suggestions-table"
-import { fetchReorderData } from "./_components/reorder-data-fetcher"
+import { cn } from "@/app/lib/utils"
 
+import { AnalyticsSection } from "./_components/reorder-analytics-section"
+import { BulkActionBar } from "./_components/reorder-bulk-action-bar"
+import { fetchReorderData } from "./_components/reorder-data-fetcher"
+import { handleCreateBulkPO } from "./_components/reorder-po-handlers"
+import { ReorderRuleSheet } from "./_components/reorder-rule-sheet"
+import { type EditableRule } from "./_components/reorder-rules-table"
+import { RulesSection } from "./_components/reorder-rules-section"
+import { ReorderStatsHero } from "./_components/reorder-stats-hero"
+import { SuggestionsSection } from "./_components/reorder-suggestions-section"
+import type { ReorderSuggestion } from "./_components/reorder-suggestions"
+
+/**
+ * Reorder workbench — Phase 3 PR 3e.
+ *
+ * Restyle pass over the existing real-wired surface. The tab strip
+ * (`Rules / Suggestions / Analytics`) is replaced with three
+ * scroll-anchored sections — only three of them, so a sticky
+ * sub-nav would be more chrome than payoff. The page reads top-to-
+ * bottom: stats hero (with a `<InlineNotice intent="danger">`
+ * banner when critical stock exists) → Rules section
+ * (`<ViewToolbar>` + the rules table) → Suggestions (the existing
+ * selectable table) → Analytics (3-card grid, hairline borders).
+ *
+ * When `selectedSuggestions.size > 0`, a sticky bulk action bar
+ * pins to the viewport bottom: "{N} selected" + Clear + Create POs
+ * in batch. The rule modal stays as-is for this PR (3f converts it
+ * to a right `<Sheet>`).
+ *
+ * See `docs/superpowers/specs/2026-05-07-dashboard-refactor-roadmap.md` §3.
+ */
 export default function ReorderRulesPage() {
   const router = useRouter()
   const [reorderRules, setReorderRules] = useState<ReorderRuleWithDetails[]>([])
@@ -39,7 +50,6 @@ export default function ReorderRulesPage() {
   const [loading, setLoading] = useState(true)
   const [editingRules, setEditingRules] = useState<Record<string, EditableRule>>({})
   const [selectedMaterial, setSelectedMaterial] = useState<string>("all")
-  const [activeTab, setActiveTab] = useState("rules")
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
   const [selectedRule, setSelectedRule] = useState<ReorderRuleWithDetails | null>(null)
   const [creatingIndividualPOs, setCreatingIndividualPOs] = useState(false)
@@ -56,28 +66,30 @@ export default function ReorderRulesPage() {
       setSuppliers(data.suppliers)
       setSuggestions(data.suggestions)
     } catch (error) {
-      console.error("Error fetching data:", error)
+      console.error("Error fetching reorder data:", error)
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchData()
+    void fetchData()
   }, [fetchData])
 
-  // Filter rules
   const filteredRules = useMemo(() => {
     if (selectedMaterial === "all") return reorderRules
     return reorderRules.filter((r) => r.material_type_id === selectedMaterial)
   }, [reorderRules, selectedMaterial])
 
-  // PO handler callbacks
+  // PO handler callbacks. `reorderRules` was dropped in the
+  // tier-2 follow-up — the action regenerates suggestions
+  // server-side, so the browser no longer ships rules to the write
+  // path. Display surfaces (stats, analytics) still use rules via
+  // their own props.
   const poCallbacks = useMemo(
     () => ({
       fetchData,
       routerPush: (url: string) => router.push(url),
-      reorderRules,
       suggestions,
       selectedSuggestions,
       setCreatingPOFor,
@@ -85,8 +97,37 @@ export default function ReorderRulesPage() {
       setCreatingBulkPO,
       setSelectedSuggestions,
     }),
-    [fetchData, router, reorderRules, suggestions, selectedSuggestions]
+    [fetchData, router, suggestions, selectedSuggestions]
   )
+
+  const stats = useMemo(() => {
+    const activeCount = reorderRules.filter((r) => r.active).length
+    const autoCount = reorderRules.filter((r) => r.auto_reorder).length
+    const criticalCount = suggestions.filter((s) => s.urgencyLevel === "critical").length
+    const estOrderValue = suggestions.reduce((sum, s) => sum + s.estimatedCost, 0)
+    const avgLeadTime =
+      reorderRules.length > 0
+        ? Math.round(
+            reorderRules.reduce((sum, r) => sum + r.lead_time_days, 0) / reorderRules.length
+          )
+        : 0
+    return {
+      activeCount,
+      autoCount,
+      reorderCount: suggestions.length,
+      criticalCount,
+      estOrderValue,
+      avgLeadTime,
+    }
+  }, [reorderRules, suggestions])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedSuggestions(new Set())
+  }, [])
+
+  const handleBulkPOClick = useCallback(() => {
+    void handleCreateBulkPO(poCallbacks)
+  }, [poCallbacks])
 
   return (
     <PageShell variant="dense">
@@ -100,300 +141,59 @@ export default function ReorderRulesPage() {
         subtitle="Automatic reorder rules, low-stock suggestions, and reorder-point analytics."
       />
 
-      <ReorderQuickStats reorderRules={reorderRules} suggestions={suggestions} />
+      {/* `pb-24` reserves space for the sticky bulk action bar so
+          the Analytics section's last card never gets covered. */}
+      <div className={cn("space-y-12", selectedSuggestions.size > 0 && "pb-24")}>
+        <ReorderStatsHero stats={stats} />
 
-      {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="rules">Reorder Rules</TabsTrigger>
-          <TabsTrigger value="suggestions">
-            Reorder Suggestions
-            {suggestions.length > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {suggestions.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
+        <RulesSection
+          loading={loading}
+          materialTypes={materialTypes}
+          selectedMaterial={selectedMaterial}
+          onMaterialChange={setSelectedMaterial}
+          filteredRules={filteredRules}
+          editingRules={editingRules}
+          setEditingRules={setEditingRules}
+          setReorderRules={setReorderRules}
+          onAddRule={() => {
+            setSelectedRule(null)
+            setIsRuleModalOpen(true)
+          }}
+        />
 
-        {/* Reorder Rules Tab */}
-        <TabsContent value="rules" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Filters</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
-                <Select value={selectedMaterial} onValueChange={setSelectedMaterial}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue placeholder="All Materials" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Materials</SelectItem>
-                    {materialTypes.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={() => {
-                    setSelectedRule(null)
-                    setIsRuleModalOpen(true)
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Rule
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <SuggestionsSection
+          suggestions={suggestions}
+          selectedSuggestions={selectedSuggestions}
+          setSelectedSuggestions={setSelectedSuggestions}
+          creatingPOFor={creatingPOFor}
+          creatingIndividualPOs={creatingIndividualPOs}
+          creatingBulkPO={creatingBulkPO}
+          poCallbacks={poCallbacks}
+        />
 
-          <ReorderRulesTable
-            loading={loading}
-            filteredRules={filteredRules}
-            editingRules={editingRules}
-            setEditingRules={setEditingRules}
-            setReorderRules={setReorderRules}
-          />
-        </TabsContent>
+        <AnalyticsSection reorderRules={reorderRules} />
+      </div>
 
-        {/* Reorder Suggestions Tab */}
-        <TabsContent value="suggestions" className="space-y-4">
-          <ReorderSuggestionsTable
-            suggestions={suggestions}
-            selectedSuggestions={selectedSuggestions}
-            setSelectedSuggestions={setSelectedSuggestions}
-            creatingPOFor={creatingPOFor}
-            creatingIndividualPOs={creatingIndividualPOs}
-            creatingBulkPO={creatingBulkPO}
-            poCallbacks={poCallbacks}
-          />
-        </TabsContent>
+      {selectedSuggestions.size > 0 && (
+        <BulkActionBar
+          count={selectedSuggestions.size}
+          creatingBulkPO={creatingBulkPO}
+          onClear={handleClearSelection}
+          onCreateBulk={handleBulkPOClick}
+        />
+      )}
 
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-4">
-          <AnalyticsSection reorderRules={reorderRules} />
-        </TabsContent>
-      </Tabs>
-
-      <ReorderRuleModal
+      <ReorderRuleSheet
         open={isRuleModalOpen}
         onOpenChange={setIsRuleModalOpen}
         rule={selectedRule}
         materialTypes={materialTypes}
         suppliers={suppliers}
         onSuccess={() => {
-          fetchData()
+          void fetchData()
           setIsRuleModalOpen(false)
         }}
       />
     </PageShell>
-  )
-}
-
-function ReorderQuickStats({
-  reorderRules,
-  suggestions,
-}: {
-  reorderRules: ReorderRuleWithDetails[]
-  suggestions: ReorderSuggestion[]
-}) {
-  const criticalCount = suggestions.filter((s) => s.urgencyLevel === "critical").length
-
-  return (
-    <>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Rules</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{reorderRules.filter((r) => r.active).length}</div>
-            <p className="text-xs text-muted-foreground">
-              {reorderRules.filter((r) => r.auto_reorder).length} auto-enabled
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reorder Needed</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{suggestions.length}</div>
-            <p className="text-xs text-muted-foreground">{criticalCount} critical</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Est. Order Value</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              $
-              {suggestions
-                .reduce((sum, s) => sum + s.estimatedCost, 0)
-                .toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <p className="text-xs text-muted-foreground">For {suggestions.length} items</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Lead Time</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {reorderRules.length > 0
-                ? Math.round(
-                    reorderRules.reduce((sum, r) => sum + r.lead_time_days, 0) / reorderRules.length
-                  )
-                : 0}{" "}
-              days
-            </div>
-            <p className="text-xs text-muted-foreground">Across all materials</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {criticalCount > 0 && (
-        <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Critical Stock Levels</AlertTitle>
-          <AlertDescription>
-            {criticalCount} material(s) require immediate reordering. Expected stockout within 2
-            days if not actioned.
-          </AlertDescription>
-        </Alert>
-      )}
-    </>
-  )
-}
-
-function AnalyticsSection({ reorderRules }: { reorderRules: ReorderRuleWithDetails[] }) {
-  return (
-    <>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Reorder Performance</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Track reorder efficiency and optimization
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm">Stock Availability</span>
-                  <span className="text-sm font-medium">94%</span>
-                </div>
-                <Progress value={94} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm">Order Accuracy</span>
-                  <span className="text-sm font-medium">88%</span>
-                </div>
-                <Progress value={88} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm">Lead Time Compliance</span>
-                  <span className="text-sm font-medium">76%</span>
-                </div>
-                <Progress value={76} className="h-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Cost Optimization</CardTitle>
-            <p className="text-sm text-muted-foreground">Savings from EOQ and bulk ordering</p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm">Monthly Ordering Cost</span>
-                <span className="text-sm font-medium">$2,450</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm">EOQ Savings</span>
-                <span className="text-sm font-medium text-green-600">$340</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm">Bulk Order Discount</span>
-                <span className="text-sm font-medium text-green-600">$580</span>
-              </div>
-              <div className="border-t pt-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Total Monthly Savings</span>
-                  <span className="font-bold text-green-600">$920</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Stockout Risk Analysis</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Materials at risk of stockout in the next 30 days
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {reorderRules.slice(0, 5).map((rule) => {
-              const currentStock = rule.current_stock ?? 0
-              const reorderPoint = rule.reorder_point ?? 0
-              const risk =
-                reorderPoint > 0
-                  ? Math.max(
-                      0,
-                      Math.min(100, ((reorderPoint - currentStock) / reorderPoint) * 100 + 50)
-                    )
-                  : 0
-              return (
-                <div key={rule.id}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm">{rule.material_type?.name || "Unknown"}</span>
-                    <span
-                      className={`text-sm font-medium ${
-                        risk > 70
-                          ? "text-red-600"
-                          : risk > 40
-                            ? "text-yellow-600"
-                            : "text-green-600"
-                      }`}
-                    >
-                      {risk.toFixed(0)}% risk
-                    </span>
-                  </div>
-                  <Progress
-                    value={risk}
-                    className={`h-2 ${
-                      risk > 70 ? "[&>div]:bg-red-500" : risk > 40 ? "[&>div]:bg-yellow-500" : ""
-                    }`}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-    </>
   )
 }

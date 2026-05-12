@@ -144,7 +144,7 @@ the server's first `IPackingService` resolve.
 
 ### Data Flow
 
-Two valid flows, chosen based on the operation's complexity:
+Two valid flows, chosen by the operation's complexity:
 
 **Simple (pure CRUD):**
 
@@ -154,20 +154,33 @@ app/ hook or component  →  infrastructure service  →  Supabase
 
 Used for list/get/delete and single-field updates. Example: `app/dashboard/inventory/suppliers/` calls `supplierService.getAllSuppliers()` directly.
 
-**Complex (business rules or multi-service):**
+**Orchestrated (multi-service writes, side effects, auth-bound work):**
 
 ```text
-app/ hook  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
+app/ hook  →  app/actions/<domain>.ts (server action)  →  src/application/use-cases/  →  infrastructure service(s)  →  Supabase
 ```
 
-The hook still owns UI concerns (toast, `router.push`, loading state). The use-case owns business logic (tax calculation, cross-service coordination, notification side effects). Example: `po-action-handlers.ts::createPO` resolves `ICreatePurchaseOrderUseCase` from the container and invokes `.execute(...)` → `purchaseOrderService` + `taxService`.
+Server actions enforce the orchestration boundary as a hard physical line — the use-case body runs server-side, never in the browser bundle. Each action's first lines are `requireAuthenticatedUser()` (resolves the caller via cookies, throws on unauthenticated/deactivated/missing-profile) and `requirePermission(actor, ...)` (RBAC check). The use-case takes `actor: ActionActor` in its input so audit logging and side effects have the caller's identity without reaching for a global. Cache invalidation is per-action: `revalidatePath()` for RSC routes plus React Query `invalidateQueries` from the client. Example: `app/actions/purchase-orders.ts::createPurchaseOrder` wraps `ICreatePurchaseOrderUseCase`; [`po-action-handlers.ts::createPO`](app/dashboard/inventory/purchase-orders/_components/po-action-handlers.ts) imports the action and `await`s it.
 
 **Use-case wiring:**
 
 - Each use-case is a class marked `@injectable()` with `@inject(TOKEN)` constructor params; it also exports an `I*UseCase` interface (see `src/application/use-cases/purchase-orders/create-purchase-order.use-case.ts`).
 - Registered via `container.registerSingleton(TOKENS.IFooUseCase, FooUseCase)` in `di/di-registration.ts`.
-- Resolved at call sites via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container.
+- Resolved server-side at the action layer via `resolveUseCase<IFooUseCase>(TOKENS.IFooUseCase)` from `@/di/resolve`. **Never** import or re-create a use-case singleton; always go through the container. **Never** put request-scoped state into TSyringe singletons — they're shared across serverless requests on the same worker.
 - No module-level singleton exports — use-case class files are import-safe in isolation. Unit tests register fakes with `container.registerInstance(TOKENS.IDependency, fake)` before resolving the use-case, without pulling Supabase at import time.
+
+**Action wiring:**
+
+- Each domain has one file under `app/actions/<domain>.ts` with `"use server"` at the top.
+- Public action input is `Omit<UseCaseInput, "actor">` — clients can't spoof identity. The action injects `actor` from `requireAuthenticatedUser()` before invoking the use-case.
+- Errors propagate via three typed classes: `UnauthorizedError` (401-class), `ForbiddenError` (403-class), `AuthConfigError` (5xx-class). Catch wrappers discriminate on `code`, not `instanceof` (errors lose prototype chain across the RPC boundary).
+- `app/server/auth/require-authenticated-user.ts` is in [`tests/architecture/no-direct-supabase.test.ts`](tests/architecture/no-direct-supabase.test.ts)'s allowlist — its cookie-bound `createServerClient` is the unavoidable framework boundary, like `proxy.ts`.
+
+**Database client resolution:**
+
+- Infrastructure services do **not** import the browser-singleton `supabase` from `@/src/infrastructure/models/supabase` directly. Instead, they call `await getDatabaseClient()` from [`@/src/infrastructure/supabase/get-database-client`](src/infrastructure/supabase/get-database-client.ts). The helper returns the right client for the runtime: a cookie-bound `createServerClient` on the server (RLS-respecting — Postgres sees `auth.uid()` from the request JWT) or the browser singleton in the client bundle.
+- Server actions and route handlers must call `ensureDatabaseFactoryRegistered()` from [`@/app/server/database/register-factory`](app/server/database/register-factory.ts) as the first line of every entry point that may touch the database. The call is idempotent. Codex review flagged layout-based registration as risky in serverless runtimes (Next.js does not contractually guarantee layout module evaluation before a server-action POST), so registration happens at action entry instead.
+- **Never** use the service-role key for normal CRUD. RLS is the security model; the anon-key + cookie pattern preserves it. Service-role escapes (`makeAdminClient` in `src/infrastructure/supabase/server-clients.ts`) are reserved for explicitly-authorized admin route handlers.
 
 ### When to create a use-case
 
@@ -188,7 +201,7 @@ See `src/application/use-cases/` for current examples (7 use-cases across `purch
 
 ### Controllers
 
-`src/interface-adapters/` is reserved for controllers but currently empty. Controllers only earn their cost once server actions or API routes exist — at that point the action/route handler delegates to a controller that parses input, calls a use-case, and shapes the response. Until then, client hooks fill the controller role (form validation + use-case invocation + UI side effects).
+`src/interface-adapters/` is reserved for controllers but stays empty. Server actions in `app/actions/<domain>.ts` fill the controller role — they parse input, enforce auth + permission, invoke the use-case, and shape the response. Adding a separate controllers tier on top would be a layer without a job.
 
 ### Notifications gotcha
 
@@ -287,3 +300,43 @@ catch (_error) {         // use when error is intentionally ignored
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+## Versioning + Tagging
+
+Bump `package.json` semver every few significant changes — don't let it drift across dozens of merged PRs. Cadence is judgement-based, not mechanical: ship a version bump after a meaningful bundle of work lands (e.g., a phase wrap, a new feature surface, a major refactor), not after every PR.
+
+**Industry-standard SemVer** (`MAJOR.MINOR.PATCH`):
+
+- **Patch** (`1.1.0` → `1.1.1`) — bug fixes, copy tweaks, dependency bumps that don't change behavior
+- **Minor** (`1.1.4` → `1.2.0`) — new feature surfaces, multi-PR refactors, design system additions. **Patch number resets to 0** on a minor bump
+- **Major** (`1.x.y` → `2.0.0`) — release-worthy milestones (large UX shifts, new product capabilities, breaking changes operators would notice). **Both minor and patch reset to 0** on a major bump
+
+Numbers do NOT roll over at 9 — `1.1.9` → `1.1.10` → `1.1.11` is correct semver. There's no cap. A long-stable line might legitimately reach `1.4.27` before a minor or major bump is warranted.
+
+**Cadence example (this is the live one starting now):**
+
+| Step | Trigger | Version |
+|------|---------|---------|
+| 1 | Phase 3 + 4 dashboard refactor wraps (today) | `1.1.0` ← we're here |
+| 2 | A few PRs of polish + small features land on dev | `1.1.1` |
+| 3 | A few more bug-fix PRs | `1.1.2` |
+| ... | (no rule on how many — judgement) | `1.1.3` ... `1.1.X` |
+| N | Phase 5 (Konva canvas redesign) wraps — new feature surface | `1.2.0` (patch resets) |
+| ... | Polish + bug fixes on top of Phase 5 | `1.2.1`, `1.2.2`, ... |
+| Eventually | Phase 6 (perf) + Phase 7 (PDF) both ship — release-worthy product milestone | `2.0.0` + dev → main merge |
+
+**Major bumps trigger a dev → main merge.** Most bumps stay on `dev` (the integration branch where work accumulates) — `1.23.4` accumulating on dev is the normal pattern. But when Claude judges that the accumulated work hits a real product-release milestone — substantial enough to deserve a major version like `2.0` or `3.1` instead of yet another minor — that's the signal to also merge `dev` → `main` and ship to production. Patch/minor bumps don't carry that obligation.
+
+The judgement is qualitative: "would a user reasonably notice this is a different product version?" If yes, major + main merge. If it's just more polish on top of an existing release, minor and stay on dev.
+
+**The bump itself ships as its own PR**, not bundled with feature work. Title format: `chore(release): bump version to X.Y.Z`. The PR description summarizes what's been shipped since the previous tag — it's the changelog entry.
+
+**After the bump PR merges, tag dev's HEAD** as `vX.Y.Z` and push the tag:
+
+```bash
+git checkout dev && git pull
+git tag -a vX.Y.Z -m "vX.Y.Z — <one-line summary>"
+git push origin vX.Y.Z
+```
+
+The tag is what other tools (Vercel deploy logs, GitHub release notes, the `git log --tags` view) anchor on. Existing `s*-*` descriptive tags (e.g., `s4-ui-polish`) stay where they are for sprint-milestone marking, but `vX.Y.Z` is the canonical version reference going forward.

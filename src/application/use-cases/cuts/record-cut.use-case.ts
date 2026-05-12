@@ -27,6 +27,14 @@ export interface OffcutPiecePayload {
 }
 
 export interface RecordCutInput {
+  /**
+   * Optional client-supplied row id. Set when the browser uploaded
+   * the cut-report PDF before invoking this use case so the storage
+   * filename and the cut_history row id stay aligned (see
+   * app/actions/cut-history.ts::saveCut). Falls back to the DB
+   * default (`gen_random_uuid()`) when omitted.
+   */
+  id?: string
   material_id: number
   part_id: number
   roll_id?: string | null
@@ -57,6 +65,13 @@ export interface RecordCutInput {
   fab_score: number
   stock_label?: string | null
   cost_per_sqft?: number | null
+  /**
+   * Public URL of the cut-report PDF, generated and uploaded by the
+   * client *before* invoking this use case. cut_history is write-once
+   * (see migration 20260412055550), so pdf_url must arrive at INSERT
+   * time — there is no UPDATE path to fill it in later.
+   */
+  pdf_url?: string | null
   source?: "auto" | "manual"
   layout_json?: unknown
 }
@@ -137,6 +152,7 @@ function buildInsertPayload(
       ? r2(body.cost_per_sqft)
       : null
   return {
+    ...(body.id ? { id: body.id } : {}),
     user_id: userId,
     roll_id: rollId,
     job_id: jobId,
@@ -164,7 +180,7 @@ function buildInsertPayload(
     part_selected_label: body.part_selected_label ?? null,
     stock_label: body.stock_label?.trim() || null,
     cost_per_sqft: costPerSqft,
-    pdf_url: null,
+    pdf_url: body.pdf_url ?? null,
     source: body.source === "manual" ? "manual" : "auto",
     layout_json: body.layout_json != null ? (body.layout_json as CutHistoryLayoutJson) : null,
   }

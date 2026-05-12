@@ -8,6 +8,7 @@ import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 export function SimpleModeDimensionLabels({
   layout,
   zoom = 1,
+  markerId,
 }: {
   layout: SimpleModeLayout
   /**
@@ -15,6 +16,13 @@ export function SimpleModeDimensionLabels({
    * the labels stay at constant screen-pixel size at any zoom level.
    */
   zoom?: number
+  /**
+   * Per-sheet marker id (e.g. `${layout.markerId}-s1`) so multi-sheet
+   * layouts reference the correct `<marker>` definition. Falls back
+   * to `layout.markerId` for the first sheet's namespace and for any
+   * legacy caller that hasn't yet plumbed the suffix through.
+   */
+  markerId?: string
 }) {
   // When displayRotated, the visual horizontal edge of the sheet is
   // the original length and the visual vertical edge is the original
@@ -44,8 +52,8 @@ export function SimpleModeDimensionLabels({
         className="stroke-muted-foreground"
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
-        markerStart={`url(#${layout.markerId})`}
-        markerEnd={`url(#${layout.markerId})`}
+        markerStart={`url(#${markerId ?? layout.markerId})`}
+        markerEnd={`url(#${markerId ?? layout.markerId})`}
       />
       <text
         x={
@@ -74,8 +82,8 @@ export function SimpleModeDimensionLabels({
         className="stroke-muted-foreground"
         strokeWidth="1.5"
         vectorEffect="non-scaling-stroke"
-        markerStart={`url(#${layout.markerId})`}
-        markerEnd={`url(#${layout.markerId})`}
+        markerStart={`url(#${markerId ?? layout.markerId})`}
+        markerEnd={`url(#${markerId ?? layout.markerId})`}
       />
       <text
         x={layout.colLabelX + 26}

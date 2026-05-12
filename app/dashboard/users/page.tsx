@@ -6,34 +6,64 @@ import { toast } from "sonner"
 
 import type { UserProfile } from "@/src/infrastructure/models/supabase"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
+import { deactivateUser, reactivateUser } from "@/app/actions/users"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select"
+import { PageHeader, PageShell } from "@/app/components/patterns"
 
-import { UsersTable } from "./_components/users-table"
-import { UserFormModal } from "./_components/user-form-modal"
 import { DeactivateUserDialog } from "./_components/deactivate-user-dialog"
+import { UserFormModal } from "./_components/user-form-modal"
+import { UsersTable } from "./_components/users-table"
 
-type TabValue = "active" | "all"
+/**
+ * Users administration — Phase 2 PR 4.
+ *
+ * Restyled chrome on the existing real-wired surface (admin gate
+ * via `useRole`, CRUD via `userManagementService`). Replaces the
+ * Phase 1 h1 + `<Card>` wrapper with the dashboard `<PageHeader>`
+ * + a flat filter row, and swaps the `<Card>`-wrapped `<Table>`
+ * for the Phase 1b `<DataTable>` + token-based `<StatusBadge>`
+ * role/status pills.
+ *
+ * Bulk action bar (per the spec §4 Users acceptance criteria) is
+ * deliberately deferred — selection state would require schema
+ * coordination with the bulk endpoints in `userManagementService`,
+ * which is out of scope for the visual pass. Tracked for the S6
+ * wiring task.
+ *
+ * `UserFormModal` and `DeactivateUserDialog` retain their existing
+ * shadcn `<Dialog>` chrome — they're complex form bodies that
+ * deserve their own restyle PR rather than rolling into this one.
+ *
+ * See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
+ */
+
+type StatusFilter = "active" | "deactivated" | "all"
 
 export default function UsersPage() {
   const { userId: currentUserId, isAdmin, isLoading: isRoleLoading } = useRole()
- 
+
   const [users, setUsers] = useState<UserProfile[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [tab, setTab] = useState<TabValue>("active")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
+  const [roleFilter, setRoleFilter] = useState<string>("all")
 
-  // Modal state
   const [formModalOpen, setFormModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
 
-  // Deactivate dialog state
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
   const [userToDeactivate, setUserToDeactivate] = useState<UserProfile | null>(null)
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [reactivatingUserId, setReactivatingUserId] = useState<string | null>(null)
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true)
@@ -48,131 +78,186 @@ export default function UsersPage() {
   }, [])
 
   useEffect(() => {
-    fetchUsers()
+    void fetchUsers()
   }, [fetchUsers])
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      const matchesTab = tab === "all" || !user.is_deleted
-      const term = searchTerm.toLowerCase()
-      const matchesSearch =
-        !term ||
-        user.full_name?.toLowerCase().includes(term) ||
-        user.email?.toLowerCase().includes(term) ||
-        (user.roles ?? []).some((r) => r.toLowerCase().includes(term))
-      return matchesTab && matchesSearch
-    })
-  }, [users, tab, searchTerm])
+  const availableRoles = useMemo(() => {
+    const set = new Set<string>()
+    users.forEach((user) => (user.roles ?? []).forEach((role) => set.add(role)))
+    return Array.from(set).sort()
+  }, [users])
 
-  function handleCreateUser() {
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    return users.filter((user) => {
+      if (statusFilter === "active" && user.is_deleted) return false
+      if (statusFilter === "deactivated" && !user.is_deleted) return false
+
+      if (roleFilter !== "all" && !(user.roles ?? []).includes(roleFilter)) return false
+
+      if (!term) return true
+      return (
+        (user.full_name?.toLowerCase().includes(term) ?? false) ||
+        (user.email?.toLowerCase().includes(term) ?? false) ||
+        (user.roles ?? []).some((role) => role.toLowerCase().includes(term))
+      )
+    })
+  }, [users, statusFilter, roleFilter, searchTerm])
+
+  const handleInvite = useCallback(() => {
     setSelectedUser(null)
     setFormModalOpen(true)
-  }
+  }, [])
 
-  function handleEditUser(user: UserProfile) {
+  const handleEditUser = useCallback((user: UserProfile) => {
     setSelectedUser(user)
     setFormModalOpen(true)
-  }
+  }, [])
 
-  function handleDeactivateClick(user: UserProfile) {
+  const handleDeactivateClick = useCallback((user: UserProfile) => {
     setUserToDeactivate(user)
     setDeactivateDialogOpen(true)
-  }
+  }, [])
 
-  async function handleDeactivateConfirm() {
+  const handleDeactivateConfirm = useCallback(async () => {
     if (!userToDeactivate) return
     setIsDeactivating(true)
     try {
-      await userManagementService.deactivateUser(userToDeactivate.id)
+      await deactivateUser({ userId: userToDeactivate.id })
       toast.success(`${userToDeactivate.full_name ?? "User"} has been deactivated`)
       await fetchUsers()
-    } catch (_error) {
-      toast.error("Failed to deactivate user")
+    } catch (error) {
+      // Surface the action's own error message — actions throw with
+      // human-readable messages for permission failures and the
+      // "cannot deactivate your own account" guard.
+      toast.error(error instanceof Error ? error.message : "Failed to deactivate user")
     } finally {
       setIsDeactivating(false)
       setDeactivateDialogOpen(false)
       setUserToDeactivate(null)
     }
-  }
+  }, [userToDeactivate, fetchUsers])
 
-  async function handleReactivate(user: UserProfile) {
-    try {
-      await userManagementService.reactivateUser(user.id)
-      toast.success(`${user.full_name ?? "User"} has been reactivated`)
-      await fetchUsers()
-    } catch (_error) {
-      toast.error("Failed to reactivate user")
-    }
-  }
+  const handleReactivate = useCallback(
+    async (user: UserProfile) => {
+      // Per-user pending guard so an in-flight reactivate can't be re-fired
+      // (matches the deactivate flow's `isDeactivating` discipline). Keyed
+      // by user id so other rows stay interactive.
+      setReactivatingUserId((current) => (current === null ? user.id : current))
+      try {
+        await reactivateUser({ userId: user.id })
+        toast.success(`${user.full_name ?? "User"} has been reactivated`)
+        await fetchUsers()
+      } catch (error) {
+        // Surface the action's own error message — actions throw with
+        // human-readable messages for permission failures.
+        toast.error(error instanceof Error ? error.message : "Failed to reactivate user")
+      } finally {
+        setReactivatingUserId((current) => (current === user.id ? null : current))
+      }
+    },
+    [fetchUsers]
+  )
 
   if (isRoleLoading) {
     return null
   }
 
   if (!isAdmin) {
-    console.log(isRoleLoading, "isAdmin", isAdmin);
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <Shield className="h-12 w-12 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Access Restricted</h2>
-        <p className="text-muted-foreground">Only admins can manage users.</p>
-      </div>
+      <PageShell variant="overview">
+        <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-3 py-20 text-center">
+          <Shield className="size-10 text-muted-foreground" aria-hidden="true" />
+          <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
+            Access restricted
+          </h2>
+          <p className="text-sm text-muted-foreground">Only admins can manage users.</p>
+        </div>
+      </PageShell>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-muted-foreground">
-            Manage user accounts, roles, and access control
-          </p>
-        </div>
-        <Button onClick={handleCreateUser} size="lg" className="min-h-[44px]">
-          <Plus className="mr-2 h-5 w-5" />
-          Create User
-        </Button>
-      </div>
-
-      {/* Search + Tab filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Search & Filter</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or role…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 min-h-[44px]"
-              />
-            </div>
-            <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
-              <TabsList>
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="all">All</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Table */}
-      <UsersTable
-        users={filteredUsers}
-        isLoading={isLoading}
-        currentUserId={currentUserId}
-        onEdit={handleEditUser}
-        onDeactivate={handleDeactivateClick}
-        onReactivate={handleReactivate}
+    // Users table is wide (name + 4 role pills + status + last
+    // sign-in + joined + actions); the 760px `form` variant clipped
+    // it and forced a horizontal scroll. `dense` (1800px) matches
+    // the inventory / suppliers list pages where the same chrome
+    // lives.
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Users" }]}
+        title="Users"
+        subtitle={`${users.length} member${users.length === 1 ? "" : "s"} on this workspace.`}
+        actions={
+          <Button size="sm" onClick={handleInvite}>
+            <Plus className="size-3.5" aria-hidden="true" />
+            Invite user
+          </Button>
+        }
       />
 
-      {/* Create / Edit modal */}
+      <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            placeholder="Search by name, email, or role…"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="pl-10"
+            aria-label="Search users"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Select
+            value={roleFilter}
+            onValueChange={(value) => setRoleFilter(value)}
+            aria-label="Role filter"
+          >
+            <SelectTrigger className="w-[160px]" aria-label="Role filter">
+              <SelectValue placeholder="Role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All roles</SelectItem>
+              {availableRoles.map((role) => (
+                <SelectItem key={role} value={role} className="capitalize">
+                  {role}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+            aria-label="Status filter"
+          >
+            <SelectTrigger className="w-[160px]" aria-label="Status filter">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="deactivated">Deactivated</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <UsersTable
+          users={filteredUsers}
+          isLoading={isLoading}
+          currentUserId={currentUserId}
+          reactivatingUserId={reactivatingUserId}
+          onInvite={handleInvite}
+          onEdit={handleEditUser}
+          onDeactivate={handleDeactivateClick}
+          onReactivate={handleReactivate}
+        />
+      </div>
+
       <UserFormModal
         open={formModalOpen}
         onOpenChange={setFormModalOpen}
@@ -182,7 +267,6 @@ export default function UsersPage() {
         onSuccess={fetchUsers}
       />
 
-      {/* Deactivate confirmation */}
       <DeactivateUserDialog
         open={deactivateDialogOpen}
         onOpenChange={setDeactivateDialogOpen}
@@ -190,6 +274,6 @@ export default function UsersPage() {
         onConfirm={handleDeactivateConfirm}
         isSubmitting={isDeactivating}
       />
-    </div>
+    </PageShell>
   )
 }

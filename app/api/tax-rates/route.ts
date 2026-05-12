@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { AuthConfigError, UnauthorizedError } from "@/app/server/auth/errors"
+import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
+
 interface ZiptaxResult {
   geoPostalCode: string
   geoCity: string
@@ -20,6 +23,26 @@ interface ZiptaxResponse {
 }
 
 export async function GET(request: NextRequest) {
+  // Defense-in-depth: the proxy.ts auth-allowlist already gates this
+  // route (see src/middleware/auth-allowlist.ts — `/api/tax-rates` was
+  // removed from PUBLIC_PATHS in ARC-134). This in-route check ensures
+  // the route still fails closed if a future allowlist edit re-exposes
+  // it. Cookie-based — matches the only caller (taxApiService in the
+  // browser bundle). RBAC is intentionally not enforced here: any
+  // authenticated user able to reach the PO supplier-address dialog is
+  // already cleared for the action that triggers this lookup.
+  try {
+    await requireAuthenticatedUser()
+  } catch (error) {
+    if (error instanceof AuthConfigError) {
+      return NextResponse.json({ error: "Auth not configured" }, { status: 503 })
+    }
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    throw error
+  }
+
   const { searchParams } = new URL(request.url)
   const postalCode = searchParams.get("postalCode")
 

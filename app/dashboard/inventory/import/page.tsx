@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { createMaterialType } from "@/app/actions/materials"
 import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { useRouter } from "next/navigation"
 
@@ -149,7 +150,7 @@ export default function CSVImportPage() {
         const newTypes = uniqueMaterialTypes.filter((name) => !existingNames.has(name))
 
         for (const name of newTypes) {
-          await materialTypeService.create({
+          await createMaterialType({
             name,
             description: "",
             default_cost: 0,

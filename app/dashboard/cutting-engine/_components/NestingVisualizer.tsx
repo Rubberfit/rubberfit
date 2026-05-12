@@ -48,6 +48,17 @@ interface NestingVisualizerExtraProps {
    * result is the final answer in that case).
    */
   isAutoBoostPending?: boolean
+  /**
+   * Phase 5 PR 7 — the most recent pack-cli failure surfaced by
+   * `usePackJob`. When set, the visualizer renders the inline error
+   * banner in place of the canvas. The error is independent of
+   * `packGateStatus` (which is a UI timing primitive); a failed pack
+   * leaves the gate at `done` with no layouts, so the renderer needs
+   * this signal to distinguish "empty" from "broken."
+   */
+  packError?: string | null
+  /** Called from the error banner's Retry button. Wired to `requestPack`. */
+  onRetryPack?: () => void
 }
 
 export default function NestingVisualizer({
@@ -61,6 +72,8 @@ export default function NestingVisualizer({
   debugOverlays,
   isPacking = false,
   isAutoBoostPending = false,
+  packError = null,
+  onRetryPack,
 }: NestingVisualizerProps & NestingVisualizerExtraProps) {
   const patternSeed = useId().replace(/:/g, "")
   const hasFrozenLayouts = (frozenLayouts?.length ?? 0) > 0
@@ -201,6 +214,27 @@ export default function NestingVisualizer({
   // be misleading.
   const showPackTimer = hasPackMeasurement && !hasFrozenLayouts
 
+  // PR 7 — pack state for the auto-nest visualizer. Decision tree:
+  //   1. packError              → "error" (with Retry)
+  //   2. isPackingState         → "loading" when there's nothing renderable
+  //   3. no renderable layouts  → "empty"
+  //   4. otherwise              → "ready" (render the actual layout)
+  //
+  // `activeLayouts` is the right signal because it already accounts
+  // for both `showLive` (auto-boost suppresses partial first-round
+  // results) and frozen layouts. Using raw `hasLiveLayouts` would
+  // fall through to "ready" during auto-boost — the first round has
+  // returned a partial result but the renderer should still be showing
+  // the loading panel until the second round resolves.
+  const hasRenderableLayouts = activeLayouts !== null && activeLayouts.length > 0
+  const packState: "empty" | "loading" | "error" | "ready" = packError
+    ? "error"
+    : isPackingState && !hasRenderableLayouts
+      ? "loading"
+      : !hasRenderableLayouts
+        ? "empty"
+        : "ready"
+
   return (
     <NestingVizSimpleMode
       preview={preview}
@@ -213,7 +247,18 @@ export default function NestingVisualizer({
       isOptimizing={packGateStatus === "packing"}
       nfpError={null}
       multiSheet={multiSheet}
-      layouts={activeLayouts ?? undefined}
+      packState={packState}
+      packError={packError ?? undefined}
+      onRetryPack={onRetryPack}
+      // PR 7 — when an error replaces the canvas, the downstream
+      // components (CutLegend, useSheetSelection, thumbnail strip)
+      // must not see stale layouts. `useSheetSelection` already
+      // clears stale ids when its `layouts` input no longer contains
+      // them; passing `undefined` here triggers that cleanup so the
+      // drawer doesn't keep a selection that points at a now-invisible
+      // sheet. The strip is already gated on `packState === "ready"`,
+      // so this is additional defense-in-depth.
+      layouts={packState === "error" ? undefined : (activeLayouts ?? undefined)}
       debugOverlays={debugOverlays}
       packDurationMs={packDurationMs}
       isPackLive={isPackLive}

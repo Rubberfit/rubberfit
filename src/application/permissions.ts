@@ -72,4 +72,7 @@ export const ROUTE_PERMISSIONS = {
   // Settings & Users (S4 Task 10 consolidation)
   "/dashboard/settings": "manageUsers",
   "/dashboard/settings/general": "manageUsers",
+
+  // Admin surfaces (Phase 2 PR 5)
+  "/dashboard/admin/security": "manageUsers",
 } as const satisfies Record<string, Permission>

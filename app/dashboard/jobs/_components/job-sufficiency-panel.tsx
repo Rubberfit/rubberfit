@@ -101,10 +101,7 @@ export function JobSufficiencyPanel({ jobId, rows }: JobSufficiencyPanelProps) {
                       aria-hidden="true"
                     />
                   ) : severity === "infeasible" ? (
-                    <Ruler
-                      className="mt-0.5 size-4 text-danger-foreground"
-                      aria-hidden="true"
-                    />
+                    <Ruler className="mt-0.5 size-4 text-danger-foreground" aria-hidden="true" />
                   ) : (
                     <AlertTriangle
                       className="mt-0.5 size-4 text-danger-foreground"
@@ -113,9 +110,7 @@ export function JobSufficiencyPanel({ jobId, rows }: JobSufficiencyPanelProps) {
                   )}
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-foreground text-sm">
-                        {row.material}
-                      </span>
+                      <span className="font-medium text-foreground text-sm">{row.material}</span>
                       {severity === "infeasible" ? (
                         <Badge
                           variant="outline"
@@ -140,8 +135,8 @@ export function JobSufficiencyPanel({ jobId, rows }: JobSufficiencyPanelProps) {
                       )}
                     </div>
                     <p className="font-mono text-[11px] text-muted-foreground">
-                      Need {row.needed_sqft.toFixed(1)} sqft · Have{" "}
-                      {row.available_sqft.toFixed(1)} sqft
+                      Need {row.needed_sqft.toFixed(1)} sqft · Have {row.available_sqft.toFixed(1)}{" "}
+                      sqft
                       {row.shortfall_sqft > 0 && (
                         <span className="ml-1 text-danger-foreground">
                           · Short {row.shortfall_sqft.toFixed(1)} sqft
@@ -155,9 +150,8 @@ export function JobSufficiencyPanel({ jobId, rows }: JobSufficiencyPanelProps) {
                     </p>
                     {severity === "infeasible" && (
                       <p className="text-[11px] text-danger-foreground">
-                        Widest part {row.max_required_width.toFixed(1)}" vs
-                        widest roll {row.max_available_width.toFixed(1)}" —{" "}
-                        {row.infeasible_parts.length} part
+                        Widest part {row.max_required_width.toFixed(1)}" vs widest roll{" "}
+                        {row.max_available_width.toFixed(1)}" — {row.infeasible_parts.length} part
                         {row.infeasible_parts.length === 1 ? "" : "s"} can't be cut from stock:{" "}
                         {row.infeasible_parts
                           .slice(0, 3)

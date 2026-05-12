@@ -19,7 +19,7 @@ Shared components used across multiple dashboard pages. Roll-specific components
 - **dashboard-recent-cuts-card.tsx** -- Compact `DataTable` of the 5 most recent cuts (Job, Operator, Util%, When). Utilization column colour-coded by threshold via `--success/warning/danger-foreground` tokens. Added in S4 Task 5.
 - **dashboard-export-menu.tsx** -- CSV/PDF dropdown wiring the Operations overview Export action (issue #122). CSV goes through `exportService.exportToCSV`; PDF goes through the branded jsPDF builder in `dashboard-pdf.ts` (no longer the generic HTML-to-PDF path).
 - **dashboard-export-utils.ts** -- Pure data shaper `buildOperationsCsv` for the CSV export. Filename is period-scoped (`operations-overview_<week|month|quarter>`). Cells starting with formula-prefix characters are sanitized for spreadsheet safety.
-- **dashboard-pdf.ts** -- Branded jsPDF builder for the Operations overview PDF — mirrors the `cut-history-pdf.ts` visual standard (Arc & Anchor logo, brand-color underline, rounded summary cards, brand-bar table headers, alternating row backgrounds, page-numbered footer). Exposes `buildOperationsPdf(input)` for tests and `downloadOperationsPdf(input)` for the menu.
+- **dashboard-pdf.ts** -- jsPDF builder for the Operations overview PDF. **Phase 7 PR 2:** rebuilt on the shared `app/lib/pdf` design system. Internal canvas (A4 595×842pt @ 42pt margin — moved from millimetres). Composes `drawInternalChrome`, `drawKpiCard` (4-up summary strip), `drawSectionDivider`, `drawRuledTable` (utilization + recent-cuts), `stampFooterOnEveryPage`. Exposes `buildOperationsPdf(input): Blob` for tests and `downloadOperationsPdf(input)` for the menu.
 
 ### \_components/sidebar/
 

@@ -1,6 +1,5 @@
 /* eslint-disable max-lines -- canonical PO service aggregates CRUD + status + receive flows; follow-up may extract a `_receive.ts` helper */
 import {
-  supabase,
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
   type PurchaseOrderItemWithDetails,
@@ -10,6 +9,7 @@ import {
   type UpdatePurchaseOrderItem,
   type Roll,
 } from "@/src/infrastructure/models/supabase"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"
@@ -36,6 +36,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   ) {}
   async getAllPurchaseOrders(): Promise<PurchaseOrderWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("purchase_orders")
         .select(
@@ -69,6 +70,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     status: PurchaseOrder["status"]
   ): Promise<PurchaseOrderWithDetails[]> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("purchase_orders")
         .select(
@@ -93,6 +95,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     statuses: PurchaseOrder["status"][]
   ): Promise<PurchaseOrderWithDetails[]> {
     if (statuses.length === 0) return []
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("purchase_orders")
       .select(
@@ -113,6 +116,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
   async getPurchaseOrderById(id: string): Promise<PurchaseOrderWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const { data, error } = await supabase
         .from("purchase_orders")
         .select(
@@ -136,10 +140,19 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     }
   }
 
-  async createPurchaseOrder(order: CreatePurchaseOrder): Promise<PurchaseOrderWithDetails> {
+  async createPurchaseOrder(
+    order: CreatePurchaseOrder,
+    userId?: string
+  ): Promise<PurchaseOrderWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const poNumber = await this.generatePONumber()
-      const user_id = await getCurrentUserId()
+      // Server-action callers (use-cases invoked from `app/actions/`)
+      // pass `userId` explicitly. Legacy browser-side callers fall
+      // back to the deprecated `getCurrentUserId()` browser-singleton
+      // lookup. Once those callers migrate to actions, the fallback
+      // can be removed and `userId` made required.
+      const user_id = userId ?? (await getCurrentUserId())
 
       const { data, error } = await supabase
         .from("purchase_orders")
@@ -172,6 +185,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     updates: UpdatePurchaseOrder
   ): Promise<PurchaseOrderWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       if (updates.subtotal !== undefined) {
         let supplierId = updates.supplier_id
         if (!supplierId) {
@@ -221,6 +235,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
   async deletePurchaseOrder(id: string): Promise<boolean> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: po, error: checkError } = await supabase
         .from("purchase_orders")
         .select("status")
@@ -246,11 +261,14 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 
   async addItemToPurchaseOrder(
-    item: CreatePurchaseOrderItem
+    item: CreatePurchaseOrderItem,
+    userId?: string
   ): Promise<PurchaseOrderItemWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       const lineTotal = item.quantity_sqft * item.unit_cost
-      const user_id = await getCurrentUserId()
+      // See createPurchaseOrder note re: legacy fallback.
+      const user_id = userId ?? (await getCurrentUserId())
 
       const { data: existingItems, error: countError } = await supabase
         .from("purchase_order_items")
@@ -299,6 +317,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     updates: UpdatePurchaseOrderItem
   ): Promise<PurchaseOrderItemWithDetails> {
     try {
+      const supabase = await getDatabaseClient()
       let lineTotal
       if (updates.quantity_sqft !== undefined || updates.unit_cost !== undefined) {
         const { data: currentItem } = await supabase
@@ -342,6 +361,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
   async deletePurchaseOrderItem(id: string): Promise<boolean> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: item, error: fetchError } = await supabase
         .from("purchase_order_items")
         .select("purchase_order_id")
@@ -372,6 +392,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     _reason?: string
   ): Promise<PurchaseOrder> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: currentPO, error: fetchError } = await supabase
         .from("purchase_orders")
         .select("status")
@@ -454,8 +475,12 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     receivedBy?: string
   ): Promise<POReceiptResult> {
     try {
+      const supabase = await getDatabaseClient()
       const rollsCreated: Roll[] = []
-      const user_id = await getCurrentUserId()
+      // Server-action callers pass `receivedBy = actor.id` from the use-case;
+      // browser-side legacy callers fall back to the deprecated
+      // `getCurrentUserId()` singleton lookup.
+      const user_id = receivedBy ?? (await getCurrentUserId())
 
       for (const item of items) {
         const { data: poItem, error: itemError } = await supabase
@@ -564,6 +589,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 
   async generatePONumber(): Promise<string> {
+    const supabase = await getDatabaseClient()
     const date = new Date()
     const year = date.getFullYear()
 
@@ -579,6 +605,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
 
   async recalculatePOTotals(purchaseOrderId: string): Promise<void> {
     try {
+      const supabase = await getDatabaseClient()
       const { data: items, error: itemsError } = await supabase
         .from("purchase_order_items")
         .select("line_total")
@@ -632,6 +659,7 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   }
 
   async existsItemsByMaterialType(materialTypeId: string): Promise<boolean> {
+    const supabase = await getDatabaseClient()
     const { count, error } = await supabase
       .from("purchase_order_items")
       .select("id", { count: "exact", head: true })

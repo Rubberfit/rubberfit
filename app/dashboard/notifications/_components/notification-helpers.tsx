@@ -13,7 +13,9 @@ export function getActivityIcon(type: string) {
   }
 }
 
-export function getActivityColor(type: string) {
+export type ActivityBadgeVariant = "default" | "secondary" | "destructive" | "outline"
+
+export function getActivityColor(type: string): ActivityBadgeVariant {
   switch (type) {
     case "cut":
       return "default"
