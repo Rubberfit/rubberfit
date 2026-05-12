@@ -139,13 +139,24 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
           <Link href={config.secondaryHref} className="auth-link text-[14px]">
             {config.secondaryLabel}
           </Link>
-          <Link
-            href={config.tertiaryHref}
-            prefetch={false}
-            className="auth-link text-[14px] opacity-60 hover:opacity-100"
-          >
-            {config.tertiaryLabel}
-          </Link>
+          {config.tertiaryHref === "/logout" ? (
+            // POST-only logout: a GET handler would let any third-party
+            // origin force-log Rubberfit users out via `<img>` / location
+            // navigation. Same-origin form submit is the safe way.
+            <form method="POST" action={config.tertiaryHref}>
+              <button type="submit" className="auth-link text-[14px] opacity-60 hover:opacity-100">
+                {config.tertiaryLabel}
+              </button>
+            </form>
+          ) : (
+            <Link
+              href={config.tertiaryHref}
+              prefetch={false}
+              className="auth-link text-[14px] opacity-60 hover:opacity-100"
+            >
+              {config.tertiaryLabel}
+            </Link>
+          )}
         </div>
         {billingError ? (
           <p role="alert" className="mt-4 text-[13px] text-[var(--color-signal)]">

@@ -191,6 +191,14 @@ CREATE POLICY organizations_update_admin
   USING      (is_organization_admin(id))
   WITH CHECK (is_organization_admin(id));
 
+-- Defense-in-depth: RLS lets admins UPDATE rows in this table, but
+-- billing-owned columns (`stripe_customer_id`, `created_by`) must only
+-- be written by the webhook handler / org-creation server action via
+-- the service-role client. Revoke column-level UPDATE for the
+-- end-user roles so a hand-crafted PostgREST call cannot mutate them.
+REVOKE UPDATE (stripe_customer_id, created_by) ON organizations FROM authenticated;
+REVOKE UPDATE (stripe_customer_id, created_by) ON organizations FROM anon;
+
 -- DELETE intentionally has no policy — orgs are not user-deletable.
 
 -- organization_members: members see the roster; admins manage rows;
@@ -314,11 +322,17 @@ CREATE TRIGGER organization_subscriptions_updated_at
 
 ALTER TABLE organization_subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Members read the entitlement; admins read history; writes are
--- service-role only (webhook handler).
-CREATE POLICY organization_subscriptions_select_member
+-- Members read ONLY the current entitlement row (status, plan_tier,
+-- seat_count) — they don't need the historical audit trail or the
+-- Stripe identifiers attached to past rows. Admins get the full
+-- history for the org's billing settings UI.
+CREATE POLICY organization_subscriptions_select_member_current
   ON organization_subscriptions FOR SELECT
-  USING (is_organization_member(organization_id));
+  USING (is_organization_member(organization_id) AND is_current = TRUE);
+
+CREATE POLICY organization_subscriptions_select_admin_history
+  ON organization_subscriptions FOR SELECT
+  USING (is_organization_admin(organization_id));
 
 -- No INSERT / UPDATE / DELETE policies — writes require service-role
 -- (the Stripe webhook handler). Anon/auth users cannot mutate billing.
@@ -415,9 +429,15 @@ CREATE POLICY organization_invitations_owner_update_admin
   USING      (is_organization_owner(organization_id) AND role = 'admin')
   WITH CHECK (is_organization_owner(organization_id) AND role = 'admin');
 
+-- Mirror the insert/update split: admins delete non-admin invites,
+-- only owners delete admin-role invites.
 CREATE POLICY organization_invitations_admin_delete
   ON organization_invitations FOR DELETE
-  USING (is_organization_admin(organization_id));
+  USING (is_organization_admin(organization_id) AND role <> 'admin');
+
+CREATE POLICY organization_invitations_owner_delete_admin
+  ON organization_invitations FOR DELETE
+  USING (is_organization_owner(organization_id) AND role = 'admin');
 
 -- ─────────────────────────────────────────────────────────────
 -- stripe_events — webhook idempotency dedupe (service-role only)

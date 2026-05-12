@@ -89,7 +89,12 @@ export async function createBillingPortalSession(): Promise<{ url: string } | { 
   await requireAuthenticatedUser()
   // PR 5 ships the lock-screen UI that calls this; the Stripe Billing Portal
   // session creation lands in a follow-up PR alongside the cancel/resume flow.
-  return { error: "not_implemented" }
+  // Until then, return a user-facing message — the lock screen surfaces
+  // this string directly to the operator on `intent=update_billing`.
+  return {
+    error:
+      "Billing portal isn't available yet. Please email support@rubberfit.app to update your card.",
+  }
 }
 
 export async function leaveOrganization(): Promise<{ ok: true } | { error: string }> {

@@ -116,10 +116,21 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
 
     if (!send.success) {
       // Revoke so the seat is not stranded on a never-deliverable invite.
-      await this.organizationService.updateInvitation(invitation.id, {
-        status: "revoked",
-        revoked_at: new Date().toISOString(),
-      })
+      // Wrap in try/catch — if the revocation update itself fails, log it
+      // server-side so the orphaned-invite case is visible, but still
+      // surface the email-send failure as the root-cause error so the
+      // UI explains what the user can actually do about it.
+      try {
+        await this.organizationService.updateInvitation(invitation.id, {
+          status: "revoked",
+          revoked_at: new Date().toISOString(),
+        })
+      } catch (revokeErr) {
+        console.error(
+          `[create-invitation] failed to revoke invitation=${invitation.id} after email send failure:`,
+          revokeErr
+        )
+      }
       return { error: "invite_email_failed" }
     }
 

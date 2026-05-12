@@ -9,12 +9,17 @@ type PendingCookie = {
 }
 
 /**
- * GET /logout — signs the caller out of Supabase and bounces to /login.
+ * POST /logout — signs the caller out of Supabase and bounces to /login.
  *
  * Used by the subscription lock screen's tertiary action so a blocked
  * user can always exit. Kept on the `(auth)` route group so cookie
  * scope matches the rest of the auth surface. Exempted from the
  * subscription gate in `proxy.ts` so a `blocked` user can reach it.
+ *
+ * Only POST is exposed: a GET handler would let any third-party origin
+ * force-log a Rubberfit user out via `<img src="https://rubberfit.app/logout">`
+ * or a `window.location` navigation. Callers must submit a same-origin
+ * form (or fetch with credentials).
  */
 async function handleLogout(request: NextRequest): Promise<NextResponse> {
   const pendingCookies: PendingCookie[] = []
@@ -49,10 +54,6 @@ async function handleLogout(request: NextRequest): Promise<NextResponse> {
 
   response.headers.set("Cache-Control", "private, no-store")
   return response
-}
-
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  return handleLogout(request)
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
