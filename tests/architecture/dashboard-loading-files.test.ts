@@ -39,7 +39,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it, expect } from "vitest"
 
-const expectedDashboardLoadingFiles = [
+const EXPECTED_DASHBOARD_LOADING_FILES = [
   "app/dashboard/loading.tsx",
   "app/dashboard/admin/security/loading.tsx",
   "app/dashboard/analytics/loading.tsx",
@@ -57,7 +57,7 @@ const expectedDashboardLoadingFiles = [
   "app/dashboard/settings/loading.tsx",
   "app/dashboard/settings/materials/loading.tsx",
   "app/dashboard/users/loading.tsx",
-] as const
+] satisfies readonly string[]
 
 describe("dashboard loading.tsx boundary files", () => {
   // A duplicate entry would silently mask a missing file: the per-path
@@ -65,12 +65,12 @@ describe("dashboard loading.tsx boundary files", () => {
   // missing boundary slipped through. Pinning the list size keeps
   // coverage honest.
   it("has no duplicate pinned paths", () => {
-    expect(new Set(expectedDashboardLoadingFiles).size).toBe(
-      expectedDashboardLoadingFiles.length
+    expect(new Set(EXPECTED_DASHBOARD_LOADING_FILES).size).toBe(
+      EXPECTED_DASHBOARD_LOADING_FILES.length
     )
   })
 
-  it.each(expectedDashboardLoadingFiles)("keeps %s", (relativePath) => {
+  it.each(EXPECTED_DASHBOARD_LOADING_FILES)("keeps %s", (relativePath) => {
     expect(existsSync(join(process.cwd(), relativePath))).toBe(true)
   })
 })
