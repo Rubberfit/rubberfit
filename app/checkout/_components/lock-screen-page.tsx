@@ -8,6 +8,11 @@ import { IconCircle } from "@/app/components/billing/IconCircle"
 import { LockCard } from "@/app/components/billing/LockCard"
 import { LockScreen } from "@/app/components/billing/LockScreen"
 import { OnboardingDialog } from "@/app/(auth)/_components/onboarding-dialog"
+import {
+  DEFAULT_ONBOARDING_INTENT,
+  readOnboardingIntent,
+  type OnboardingIntent,
+} from "@/app/(auth)/_lib/onboarding-intent"
 import { createBillingPortalSession } from "@/app/actions/billing"
 
 type Intent = "complete_checkout" | "needs_workspace" | "update_billing" | "restart_subscription"
@@ -33,6 +38,12 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
   const [showOnboarding, setShowOnboarding] = React.useState(false)
   const [billingError, setBillingError] = React.useState<string | null>(null)
   const [isOpeningPortal, setIsOpeningPortal] = React.useState(false)
+  const [onboardingIntent, setOnboardingIntent] =
+    React.useState<OnboardingIntent>(DEFAULT_ONBOARDING_INTENT)
+
+  React.useEffect(() => {
+    setOnboardingIntent(readOnboardingIntent())
+  }, [])
 
   const goToCheckout = React.useCallback(() => {
     if (orgId) {
@@ -137,15 +148,18 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
           </Link>
         </div>
         {billingError ? (
-          <p
-            role="alert"
-            className="mt-4 text-[13px] text-[var(--color-signal)]"
-          >
+          <p role="alert" className="mt-4 text-[13px] text-[var(--color-signal)]">
             {billingError}
           </p>
         ) : null}
       </LockCard>
-      {showOnboarding ? <OnboardingDialog open={showOnboarding} planTier="pro" /> : null}
+      {showOnboarding ? (
+        <OnboardingDialog
+          open={showOnboarding}
+          planTier={onboardingIntent.plan}
+          billingInterval={onboardingIntent.billing}
+        />
+      ) : null}
     </LockScreen>
   )
 }

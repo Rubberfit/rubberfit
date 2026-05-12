@@ -1,3 +1,5 @@
+import { Suspense } from "react"
+
 import Link from "next/link"
 
 import { Globe } from "lucide-react"
@@ -6,10 +8,15 @@ import { APP_CONFIG } from "@/config/app-config"
 
 import { RegisterForm } from "../_components/register-form"
 import { GoogleButton } from "../_components/social-auth/google-button"
+import { OnboardingIntentCapture } from "./_components/onboarding-intent-capture"
 
 export default function RegisterV2() {
   return (
     <>
+      {/* `useSearchParams` requires a Suspense boundary in Next 16. */}
+      <Suspense fallback={null}>
+        <OnboardingIntentCapture />
+      </Suspense>
       <div className="mx-auto flex w-full flex-col justify-center space-y-8 sm:w-[350px]">
         <div className="space-y-2 text-center">
           <h1 className="font-medium text-3xl">Create your account</h1>

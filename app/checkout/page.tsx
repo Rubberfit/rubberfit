@@ -18,6 +18,7 @@ interface CheckoutPageProps {
   searchParams?: Promise<{
     org?: string | string[]
     intent?: string | string[]
+    billing?: string | string[]
   }>
 }
 
@@ -31,8 +32,39 @@ const VALID_INTENTS = [
 ] as const
 type ValidIntent = (typeof VALID_INTENTS)[number]
 
+const VALID_BILLING_INTERVALS = ["monthly", "annual"] as const
+type ValidBillingInterval = (typeof VALID_BILLING_INTERVALS)[number]
+
 function isValidIntent(value: string | undefined): value is ValidIntent {
   return value !== undefined && (VALID_INTENTS as readonly string[]).includes(value)
+}
+
+function isValidBillingInterval(value: string | undefined): value is ValidBillingInterval {
+  return value !== undefined && (VALID_BILLING_INTERVALS as readonly string[]).includes(value)
+}
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
+interface ParsedCheckoutParams {
+  org: string | undefined
+  intent: ValidIntent | undefined
+  billing: ValidBillingInterval | undefined
+}
+
+function parseCheckoutParams(raw: {
+  org?: string | string[]
+  intent?: string | string[]
+  billing?: string | string[]
+}): ParsedCheckoutParams {
+  const rawIntent = firstParam(raw.intent)
+  const rawBilling = firstParam(raw.billing)
+  return {
+    org: firstParam(raw.org),
+    intent: isValidIntent(rawIntent) ? rawIntent : undefined,
+    billing: isValidBillingInterval(rawBilling) ? rawBilling : undefined,
+  }
 }
 
 export default async function CheckoutPage({ searchParams }: CheckoutPageProps) {
@@ -40,14 +72,11 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
   const actor = await requireAuthenticatedUser()
 
   const resolvedSearchParams = await searchParams
-  const rawOrg = Array.isArray(resolvedSearchParams?.org)
-    ? resolvedSearchParams.org[0]
-    : resolvedSearchParams?.org
-  const rawIntent = Array.isArray(resolvedSearchParams?.intent)
-    ? resolvedSearchParams.intent[0]
-    : resolvedSearchParams?.intent
-
-  const intent = isValidIntent(rawIntent) ? rawIntent : undefined
+  const {
+    org: rawOrg,
+    intent,
+    billing: initialBillingInterval,
+  } = parseCheckoutParams(resolvedSearchParams ?? {})
 
   if (intent) {
     const validatedOrg = rawOrg && orgParamSchema.safeParse(rawOrg).success ? rawOrg : undefined
@@ -74,6 +103,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       seatCount={subscription.seat_count}
       billingEmail={(organization.billing_email ?? actor.email) || null}
       name={organization.name}
+      initialBillingInterval={initialBillingInterval}
     />
   )
 }

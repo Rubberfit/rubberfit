@@ -6,6 +6,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 
 import { createCheckoutSession } from "@/app/actions/billing"
+import { readOnboardingIntent } from "@/app/(auth)/_lib/onboarding-intent"
 import type { CheckoutPlanTier } from "@/src/application/use-cases/billing/billing-plan"
 
 const EASE = [0.22, 1, 0.36, 1] as const
@@ -25,6 +26,7 @@ export interface CheckoutFormProps {
   seatCount: number
   billingEmail: string | null
   name: string
+  initialBillingInterval?: "monthly" | "annual"
 }
 
 function CheckIcon({ className }: { className?: string }) {
@@ -48,11 +50,24 @@ function CheckIcon({ className }: { className?: string }) {
   )
 }
 
-export function CheckoutForm({ orgId, planTier, seatCount }: CheckoutFormProps) {
+export function CheckoutForm({
+  orgId,
+  planTier,
+  seatCount,
+  initialBillingInterval,
+}: CheckoutFormProps) {
   const router = useRouter()
-  const [billingInterval, setBillingInterval] = React.useState<"annual" | "monthly">("annual")
+  const [billingInterval, setBillingInterval] = React.useState<"annual" | "monthly">(
+    initialBillingInterval ?? "annual"
+  )
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (initialBillingInterval !== undefined) return
+    const stored = readOnboardingIntent()
+    if (stored.billing !== "annual") setBillingInterval(stored.billing)
+  }, [initialBillingInterval])
 
   const price = PRICES[planTier]
   const total =

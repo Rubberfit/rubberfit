@@ -15,9 +15,10 @@ import { createOrganizationFromOnboarding } from "@/app/actions/billing"
 interface OnboardingDialogProps {
   open: boolean
   planTier: "standard" | "pro" | "max"
+  billingInterval?: "monthly" | "annual"
 }
 
-export function OnboardingDialog({ open, planTier }: OnboardingDialogProps) {
+export function OnboardingDialog({ open, planTier, billingInterval }: OnboardingDialogProps) {
   const router = useRouter()
   const [companyName, setCompanyName] = React.useState("")
   const [seatCount, setSeatCount] = React.useState(1)
@@ -41,7 +42,8 @@ export function OnboardingDialog({ open, planTier }: OnboardingDialogProps) {
       return
     }
 
-    router.push(`/checkout?org=${result.organizationId}`)
+    const billingQuery = billingInterval ? `&billing=${billingInterval}` : ""
+    router.push(`/checkout?org=${result.organizationId}${billingQuery}`)
   }
 
   return (
