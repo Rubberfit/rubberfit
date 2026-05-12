@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf"
 
+import { BRAND_BLUE, GHOST, INK, SLATE, TYPE, WHITE } from "@/app/lib/pdf"
 import { makeAdminClient } from "@/app/api/_lib/supabase-server"
 import {
   getPublicRollByPartNumberOrId,
@@ -126,34 +127,35 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   let y = 72
   doc.setProperties({ title: `Rubberfit · ${roll.part_number ?? roll.id}` })
 
-  doc.setFillColor(37, 99, 235)
+  // Brand-blue header bar — single mark on the page. Phase 7 tokens.
+  doc.setFillColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
   doc.rect(0, 0, pageWidth, 48, "F")
-  doc.setTextColor(255, 255, 255)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(18)
+  doc.setTextColor(WHITE[0], WHITE[1], WHITE[2])
+  doc.setFont(TYPE.h1.family, TYPE.h1.weight)
+  doc.setFontSize(TYPE.h1.size)
   doc.text("Rubberfit", 40, 32)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
   doc.text("Roll Info", pageWidth - 40, 32, { align: "right" })
 
-  doc.setTextColor(17, 24, 39)
-  doc.setFont("courier", "bold")
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.setFont(TYPE.mono.family, "bold")
   doc.setFontSize(28)
   doc.text(roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`, 40, (y += 16))
-  doc.setFont("helvetica", "bold")
+  doc.setFont(TYPE.h2.family, TYPE.h2.weight)
   doc.setFontSize(16)
   doc.text(roll.material_type, 40, (y += 22))
 
   if (roll.color) {
-    doc.setFont("helvetica", "normal")
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
     doc.setFontSize(11)
-    doc.setTextColor(107, 114, 128)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
     doc.text(roll.color, 40, (y += 16))
-    doc.setTextColor(17, 24, 39)
+    doc.setTextColor(INK[0], INK[1], INK[2])
   }
 
   y += 18
-  doc.setDrawColor(229, 231, 235)
+  doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
   doc.line(40, y, pageWidth - 40, y)
   y += 20
 
@@ -175,13 +177,13 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   // can align its top with the first row.
   const rowsStartY = y
 
-  doc.setFontSize(10)
+  doc.setFontSize(TYPE.body.size)
   for (const [label, value] of rows) {
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(107, 114, 128)
+    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
     doc.text(label.toUpperCase(), 40, y)
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(17, 24, 39)
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
+    doc.setTextColor(INK[0], INK[1], INK[2])
     doc.text(value, 180, y)
     y += 20
   }
@@ -190,8 +192,8 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   // with the top of the info rows.
   drawRollDiagram(doc, roll, 320, rowsStartY - 10, pageWidth - 320 - 40, 260)
 
-  doc.setFontSize(8)
-  doc.setTextColor(107, 114, 128)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
   doc.text(`Generated ${new Date().toLocaleString()}`, 40, doc.internal.pageSize.getHeight() - 30)
   doc.text("rubberfit.com", pageWidth - 40, doc.internal.pageSize.getHeight() - 30, {
     align: "right",

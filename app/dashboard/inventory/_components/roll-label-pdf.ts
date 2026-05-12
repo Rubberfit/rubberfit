@@ -4,6 +4,16 @@
 import bwipjs from "bwip-js/browser"
 import { jsPDF } from "jspdf"
 
+import {
+  BRAND_BLUE,
+  drawLabelTopRule,
+  GHOST,
+  INK,
+  LABEL_TOP_RULE,
+  SLATE,
+  STATUS_CHIPS,
+  TYPE,
+} from "@/app/lib/pdf"
 import type { Roll } from "@/src/infrastructure/models/supabase"
 
 /**
@@ -15,11 +25,17 @@ import type { Roll } from "@/src/infrastructure/models/supabase"
  *     roll's key details. No app login, no landing page click.
  *   • **Code 128 barcode** — encodes just the part number. Lives
  *     for handheld laser scanners that can't read 2-D codes.
- *   • Large mono part number, material, dimensions, location,
- *     and a REUSABLE OFFCUT tag when applicable.
+ *   • Mono part number, material, dimensions, location,
+ *     and a REUSABLE OFFCUT chip when applicable.
  *
  * Single roll → one centered label on US Letter. Multiple rolls
  * → 2-column grid, up to N labels per page, clean pagination.
+ *
+ * Phase 7 — colors, fonts, and the 2pt brand-blue top rule come from
+ * the shared design tokens at `@/app/lib/pdf`. The 4"×2" label aspect
+ * is preserved (operator muscle memory + thermal-printer constraints)
+ * so the existing horizontal QR+text split stays — Kimi's per-PDF
+ * spec is met via the token application, not a layout rethink.
  */
 
 const PAGE_W_PT = 612 // US Letter
@@ -93,19 +109,25 @@ function renderBarcodePng(text: string, bcid: "code128" | "qrcode"): string {
 }
 
 function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string) {
-  // Frame
-  doc.setDrawColor(180)
-  doc.setLineWidth(0.75)
-  doc.roundedRect(x, y, LABEL_W_PT, LABEL_H_PT, 6, 6)
+  // Brand-blue top rule (Kimi spec #5 — the only brand mark on the
+  // label). Pulled from the shared `drawLabelTopRule` helper so every
+  // label in the catalog produces the same 2pt stripe.
+  drawLabelTopRule(doc, x, y, LABEL_W_PT)
+
+  // Hairline frame in ghost — keeps the label boundary visible on
+  // print without competing with the brand rule.
+  doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+  doc.setLineWidth(0.5)
+  doc.rect(x, y + LABEL_TOP_RULE, LABEL_W_PT, LABEL_H_PT - LABEL_TOP_RULE)
 
   // Left block — QR code (phone scan → info PDF).
   const qrX = x + 14
-  const qrY = y + (LABEL_H_PT - QR_SIZE_PT) / 2
+  const qrY = y + LABEL_TOP_RULE + (LABEL_H_PT - LABEL_TOP_RULE - QR_SIZE_PT) / 2
   try {
     const qrPng = renderBarcodePng(buildScanUrl(roll, origin), "qrcode")
     doc.addImage(qrPng, "PNG", qrX, qrY, QR_SIZE_PT, QR_SIZE_PT)
   } catch {
-    doc.setDrawColor(200)
+    doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
     doc.rect(qrX, qrY, QR_SIZE_PT, QR_SIZE_PT)
   }
 
@@ -113,75 +135,82 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   const textX = qrX + QR_SIZE_PT + 12
   const textRight = x + LABEL_W_PT - 14
   const textWidth = textRight - textX
+  const contentTop = y + LABEL_TOP_RULE + 14
 
-  // Part number — primary human-readable ID, big mono. Falls back
-  // to a short UUID slice when the roll predates the part-number
-  // migration so the label still prints an identifier instead of a
-  // blank dash. The QR + Code 128 already encode the full id in
-  // that case so lookups keep working.
+  // Part number — primary human-readable ID. Kimi spec: Mono Bold,
+  // 12pt floor (we use 14pt here so the operator can read it at arm's
+  // length on a roll on the floor). Falls back to a short UUID slice
+  // when the roll predates the part-number migration so the label
+  // still prints an identifier instead of a blank dash. The QR + Code
+  // 128 already encode the full id in that case so lookups keep working.
   const displayId = roll.part_number ?? `ID ${roll.id.slice(0, 8).toUpperCase()}`
-  doc.setFont("courier", "bold")
-  doc.setFontSize(17)
-  doc.setTextColor(20)
-  doc.text(displayId, textX, y + 26)
+  doc.setFont(TYPE.mono.family, "bold")
+  doc.setFontSize(14)
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.text(displayId, textX, contentTop + TYPE.mono.size + 2)
 
-  // Material name — below part number.
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(7)
-  doc.setTextColor(120)
-  doc.text("MATERIAL", textX, y + 40)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  doc.setTextColor(40)
-  doc.text(roll.material_type ?? "—", textX, y + 52)
+  // Material name — caption label + body value (slate / ink).
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  doc.text("MATERIAL", textX, contentTop + 28)
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.text(roll.material_type ?? "—", textX, contentTop + 40)
 
   // Dimensions.
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(7)
-  doc.setTextColor(120)
-  doc.text("DIMENSIONS", textX, y + 68)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  doc.setTextColor(40)
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  doc.text("DIMENSIONS", textX, contentTop + 56)
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  doc.setTextColor(INK[0], INK[1], INK[2])
   const dims = `${roll.width}" × ${roll.length}" × ${roll.thickness}"`
-  doc.text(dims, textX, y + 80)
+  doc.text(dims, textX, contentTop + 68)
 
   // Code 128 band — bottom-right, for handheld laser scanners.
   try {
     const linearPng = renderBarcodePng(roll.part_number ?? roll.id, "code128")
-    doc.addImage(linearPng, "PNG", textX, y + 92, textWidth, 22)
+    doc.addImage(linearPng, "PNG", textX, contentTop + 80, textWidth, 22)
   } catch {
-    doc.setDrawColor(200)
-    doc.rect(textX, y + 92, textWidth, 22)
+    doc.setDrawColor(GHOST[0], GHOST[1], GHOST[2])
+    doc.rect(textX, contentTop + 80, textWidth, 22)
   }
 
-  // Footer row inside label — location + offcut flag.
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(90)
+  // Footer row inside label — location + offcut chip.
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
   if (roll.location) {
     doc.text(roll.location, textX, y + LABEL_H_PT - 10)
   }
   if (roll.is_offcut) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(7)
-    doc.setTextColor(180, 96, 20)
+    const chip = STATUS_CHIPS.warning
+    doc.setFont(TYPE.caption.family, "bold")
+    doc.setFontSize(TYPE.caption.size)
+    doc.setTextColor(chip.text[0], chip.text[1], chip.text[2])
     doc.text("REUSABLE OFFCUT", textRight, y + LABEL_H_PT - 10, {
       align: "right",
     })
-    doc.setTextColor(40)
+    doc.setTextColor(INK[0], INK[1], INK[2])
   }
 }
 
 function addHeader(doc: jsPDF, pageIndex: number) {
   if (pageIndex > 0) doc.addPage()
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
-  doc.setTextColor(20)
-  doc.text("Rubberfit — Roll Labels", PAGE_MARGIN, PAGE_MARGIN - 6)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(120)
+  // Multi-label print runs get a single page-header line above the
+  // grid (operator orientation only — labels themselves wear no
+  // chrome per Kimi spec). Tokenized so it reads as part of the
+  // family even on its own page.
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(BRAND_BLUE[0], BRAND_BLUE[1], BRAND_BLUE[2])
+  doc.text("RUBBERFIT · ROLL LABELS", PAGE_MARGIN, PAGE_MARGIN - 6)
+  doc.setFont(TYPE.mono.family, TYPE.mono.weight)
+  doc.setFontSize(TYPE.mono.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
   doc.text(new Date().toLocaleString(), PAGE_W_PT - PAGE_MARGIN, PAGE_MARGIN - 6, {
     align: "right",
   })
