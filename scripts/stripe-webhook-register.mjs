@@ -7,9 +7,9 @@
 // already exists, we reuse it. Live mode is gated behind --confirm-live.
 //
 // Usage:
-//   node scripts/stripe-webhook-register.mjs https://app.rubberfit.com/api/stripe/webhook
+//   node scripts/stripe-webhook-register.mjs https://rubberfit.app/api/stripe/webhook
 //   node scripts/stripe-webhook-register.mjs --dry-run http://localhost:3000/api/stripe/webhook
-//   node scripts/stripe-webhook-register.mjs --confirm-live https://app.rubberfit.com/api/stripe/webhook
+//   node scripts/stripe-webhook-register.mjs --confirm-live https://rubberfit.app/api/stripe/webhook
 //
 // Reads STRIPE_SECRET_KEY from .env.local automatically.
 
@@ -81,7 +81,7 @@ async function main() {
 
   if (!url) {
     throw new Error(
-      "Pass the webhook URL as an argument, e.g.:\n  node scripts/stripe-webhook-register.mjs https://app.rubberfit.com/api/stripe/webhook"
+      "Pass the webhook URL as an argument, e.g.:\n  node scripts/stripe-webhook-register.mjs https://rubberfit.app/api/stripe/webhook"
     )
   }
 

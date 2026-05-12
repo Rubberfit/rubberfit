@@ -35,7 +35,7 @@ The script auto-detects `sk_live_` and refuses to run without `--confirm-live` a
 
 ### 4. Register the live webhook endpoint
 
-When PR 3 lands, run the webhook-registration helper (also auto-detects live mode and gates behind `--confirm-live`). It calls `stripe.webhookEndpoints.create` against your production URL (`https://app.rubberfit.com/api/stripe/webhook`) and returns a fresh signing secret.
+When PR 3 lands, run the webhook-registration helper (also auto-detects live mode and gates behind `--confirm-live`). It calls `stripe.webhookEndpoints.create` against your production URL (`https://rubberfit.app/api/stripe/webhook`) and returns a fresh signing secret.
 
 Paste that secret into `.env.local` / Vercel env:
 
@@ -47,7 +47,7 @@ The test-mode `whsec_…` stays in your local dev `.env.local`; live is for depl
 
 ### 5. Smoke-test before announcing
 
-- Open `app.rubberfit.com/register` → `/checkout` → pick a plan → enter a real card → verify the charge appears in Live Mode → cancel the subscription.
+- Open `rubberfit.app/register` → `/checkout` → pick a plan → enter a real card → verify the charge appears in Live Mode → cancel the subscription.
 - Verify the webhook delivery in Stripe Dashboard → Webhooks → your endpoint → Events tab shows `checkout.session.completed` etc. as `Succeeded`.
 - Verify the org row in Supabase shows `status=trialing` and the cancellation flow flips `status=canceled` at period end.
 

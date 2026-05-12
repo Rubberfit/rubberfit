@@ -32,7 +32,7 @@ function appUrl(): string {
   return (
     process.env.APP_URL?.trim() ??
     process.env.NEXT_PUBLIC_APP_URL?.trim() ??
-    "https://app.rubberfit.com"
+    "https://rubberfit.app"
   )
 }
 
