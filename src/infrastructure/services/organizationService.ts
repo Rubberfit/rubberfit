@@ -19,14 +19,22 @@ import {
   type UpdateOrganizationMember,
   type UpsertOrganizationSubscription,
 } from "@/src/infrastructure/models/billing"
-import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
+import {
+  type DatabaseClient,
+  getDatabaseClient,
+} from "@/src/infrastructure/supabase/get-database-client"
+import { makeAdminClient } from "@/src/infrastructure/supabase/server-clients"
+
+async function getBillingWriteClient(): Promise<DatabaseClient> {
+  return makeAdminClient() ?? (await getDatabaseClient())
+}
 
 @injectable()
 export class OrganizationService implements IOrganizationService {
   // ─── Organization CRUD ──────────────────────────────────────
 
   async createOrganization(input: CreateOrganization): Promise<Organization> {
-    const supabase = await getDatabaseClient()
+    const supabase = await getBillingWriteClient()
     const { data, error } = await supabase.from("organizations").insert(input).select("*").single()
     if (error) throw error
     return data as Organization
@@ -55,7 +63,7 @@ export class OrganizationService implements IOrganizationService {
   }
 
   async updateOrganization(id: string, updates: UpdateOrganization): Promise<Organization> {
-    const supabase = await getDatabaseClient()
+    const supabase = await getBillingWriteClient()
     const { data, error } = await supabase
       .from("organizations")
       .update(updates)
@@ -70,11 +78,18 @@ export class OrganizationService implements IOrganizationService {
 
   async getCurrentOrganizationForUser(userId: string): Promise<Organization | null> {
     const supabase = await getDatabaseClient()
+    // PR 1's schema enforces UNIQUE(user_id) on organization_members so the
+    // happy path returns a single row. The `.limit(1).order(...)` guards a
+    // future multi-org world: PGRST116 from `.maybeSingle()` on >1 row would
+    // surface as a generic "Billing action failed" toast and we'd rather
+    // silently take the earliest joined membership than throw.
     const { data, error } = await supabase
       .from("organization_members")
       .select("organization:organizations(*)")
       .eq("user_id", userId)
       .eq("status", "active")
+      .order("joined_at", { ascending: true })
+      .limit(1)
       .maybeSingle()
     if (error) throw error
     if (!data) return null
@@ -95,7 +110,7 @@ export class OrganizationService implements IOrganizationService {
   }
 
   async addMember(input: CreateOrganizationMember): Promise<OrganizationMember> {
-    const supabase = await getDatabaseClient()
+    const supabase = await getBillingWriteClient()
     const { data, error } = await supabase
       .from("organization_members")
       .insert(input)
@@ -148,7 +163,7 @@ export class OrganizationService implements IOrganizationService {
   async upsertSubscription(
     input: UpsertOrganizationSubscription
   ): Promise<OrganizationSubscription> {
-    const supabase = await getDatabaseClient()
+    const supabase = await getBillingWriteClient()
 
     // Match-or-insert on stripe_subscription_id when provided; otherwise
     // we treat the call as a new-subscription insert and flip the

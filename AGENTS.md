@@ -23,13 +23,18 @@
   - Clean architecture styled directory
   - application/
     - services/ — service interfaces
+      - `stripe-client.service.interface.ts` — narrow Stripe SDK surface used by billing use-cases
     - repositories/ — repository interfaces
     - use-cases/ — business-logic orchestrators (complex ops only; pure CRUD skips this layer)
+      - `billing/` — onboarding org creation and Stripe Checkout session orchestration
   - entities/
     - Models and custom errors
   - infrastructure/
     - services/ and repositories/ — Supabase-backed implementations
       - `rollBarcodeAssetService.ts` — stores generated roll barcode PNGs in Supabase Storage and stamps barcode metadata onto `rolls`
+      - `stripeClientService.ts` — DI adapter around the lazy Stripe SDK client
+    - stripe/
+      - `client.ts` — lazy server-side Stripe SDK client pinned to the rollout API version
     - supabase/ — generated types + SQL migrations
       - `migrations/20260421000002_roll_barcodes_and_scan_pdf.sql` — roll barcode asset columns + `roll-barcodes` storage bucket
   - interface-adapters/
@@ -37,7 +42,8 @@
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
-  - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `Omit<UseCaseInput, "actor">` so clients can't spoof identity.
+  - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`billing.ts`, `purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `Omit<UseCaseInput, "actor">` so clients can't spoof identity.
+  - `checkout/` — pre-dashboard billing recovery/Checkout shell with no dashboard sidebar; delegates form UI to `_components/checkout-form.tsx`
   - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
   - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels

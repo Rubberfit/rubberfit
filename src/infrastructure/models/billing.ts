@@ -129,6 +129,8 @@ export type CreateOrganizationMember = Pick<
   "organization_id" | "user_id" | "role"
 > & {
   invited_by?: OrganizationMember["invited_by"]
+  status?: OrganizationMember["status"]
+  joined_at?: OrganizationMember["joined_at"]
 }
 
 export type UpdateOrganizationMember = Partial<

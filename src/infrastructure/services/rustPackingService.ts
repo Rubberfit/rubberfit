@@ -4,20 +4,15 @@ import type { IPackingService } from "@/src/application/services/packing.service
 import type { PackRequest, PackResult } from "@/src/application/packing/types"
 
 // Server-only: spawns the `pack-cli` binary via `node:child_process`.
-// Wrapped behind a runtime `import()` so this module body stays free of
+// Wrapped behind an opaque require so this module body stays free of
 // `node:` specifiers — Turbopack refuses to bundle them for client
-// chunks even under guards. The Function() wrapper hides the specifier
-// from the bundler's static analysis.
+// chunks even under guards.
 let cachedChildProcess: typeof import("node:child_process") | null = null
-const nodeImport = new Function("specifier", "return import(specifier)") as (
-  specifier: string
-) => Promise<unknown>
 
 async function loadChildProcess(): Promise<typeof import("node:child_process")> {
   if (cachedChildProcess) return cachedChildProcess
-  cachedChildProcess = (await nodeImport(
-    "node:child_process"
-  )) as typeof import("node:child_process")
+  const nodeRequire = eval("require") as (specifier: string) => typeof import("node:child_process")
+  cachedChildProcess = nodeRequire("node:child_process")
   return cachedChildProcess
 }
 

@@ -21,6 +21,7 @@ export const TOKENS = {
   IReorderService: Symbol("IReorderService"),
   IReorderCalculationsService: Symbol("IReorderCalculationsService"),
   IRollService: Symbol("IRollService"),
+  IStripeClientService: Symbol("IStripeClientService"),
   ISupplierService: Symbol("ISupplierService"),
   ITaxService: Symbol("ITaxService"),
   ITaxApiService: Symbol("ITaxApiService"),
@@ -50,4 +51,6 @@ export const TOKENS = {
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
+  ICreateOrganizationFromOnboardingUseCase: Symbol("ICreateOrganizationFromOnboardingUseCase"),
+  ICreateCheckoutSessionUseCase: Symbol("ICreateCheckoutSessionUseCase"),
 } as const

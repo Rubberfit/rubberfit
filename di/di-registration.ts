@@ -19,6 +19,7 @@ import type { IReorderService } from "@/src/application/services/reorder.service
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { IRollService } from "@/src/application/services/roll.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
+import type { IStripeClientService } from "@/src/application/services/stripe-client.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ITaxApiService } from "@/src/application/services/tax-api.service.interface"
 import type { IVisionExtractionService } from "@/src/application/services/vision-extraction.service.interface"
@@ -50,6 +51,7 @@ import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { stripeClientService } from "@/src/infrastructure/services/stripeClientService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
@@ -72,6 +74,8 @@ import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/r
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import { CreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
+import { CreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -159,6 +163,7 @@ container.registerInstance<IReorderCalculationsService>(
 )
 container.registerInstance<IRollService>(TOKENS.IRollService, rollService)
 container.registerInstance<ISupplierService>(TOKENS.ISupplierService, supplierService)
+container.registerInstance<IStripeClientService>(TOKENS.IStripeClientService, stripeClientService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)
 container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
 container.registerInstance<IVisionExtractionService>(
@@ -207,5 +212,10 @@ container.registerSingleton(
   CreateBulkReorderPurchaseOrderUseCase
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
+container.registerSingleton(
+  TOKENS.ICreateOrganizationFromOnboardingUseCase,
+  CreateOrganizationFromOnboardingUseCase
+)
+container.registerSingleton(TOKENS.ICreateCheckoutSessionUseCase, CreateCheckoutSessionUseCase)
 
 export { container }
