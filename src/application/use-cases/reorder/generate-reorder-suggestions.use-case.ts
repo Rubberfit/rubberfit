@@ -130,16 +130,13 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
     if (rule.supplier_id) {
       return { supplierId: rule.supplier_id, supplierName: rule.supplier?.name }
     }
-    try {
-      const preferred = await this.supplierService.getPreferredSupplierForMaterial(
-        rule.material_type_id
-      )
-      if (preferred) {
-        return { supplierId: preferred.supplier_id, supplierName: preferred.supplier?.name }
-      }
-    } catch (_error) {
-      // Ignore — supplier just won't be set
-    }
+    // The preferred-supplier-by-material fallback used to live on
+    // `supplierService.getPreferredSupplierForMaterial`. That method
+    // belongs to the material_suppliers aggregate, which hasn't been
+    // migrated to DDD yet. Until `IMaterialSuppliersService` lands,
+    // rules without an explicit `supplier_id` get no fallback —
+    // operators fill the supplier on the suggestion before creating
+    // the PO. Tracked as the next service-migration commit.
     return {}
   }
 }

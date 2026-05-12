@@ -11,7 +11,7 @@ import type {
   Supplier,
 } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { updatePurchaseOrder } from "@/app/actions/purchase-orders"

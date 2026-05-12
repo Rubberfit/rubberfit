@@ -9,7 +9,7 @@ import type {
   MaterialType,
 } from "@/src/infrastructure/models/supabase"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 
 import { type TaxDetails } from "./po-tax-helpers"

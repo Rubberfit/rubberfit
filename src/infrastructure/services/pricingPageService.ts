@@ -7,7 +7,7 @@ import type {
 } from "@/src/infrastructure/models/supabase"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import {
   priceHistoryService,
   type PriceHistoryWithJoins,

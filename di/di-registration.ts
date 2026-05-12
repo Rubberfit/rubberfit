@@ -47,7 +47,9 @@ import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOr
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { SupplierService } from "@/src/infrastructure/services/supplierService"
+import { suppliersRepository } from "@/src/infrastructure/repositories/suppliers.repository"
+import type { ISuppliersRepository } from "@/src/application/repositories/suppliers.repository.interface"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
 import { visionExtractionService } from "@/src/infrastructure/services/visionExtractionService"
@@ -154,7 +156,8 @@ container.registerInstance<IReorderCalculationsService>(
   reorderCalculations
 )
 container.registerInstance<IRollService>(TOKENS.IRollService, rollService)
-container.registerInstance<ISupplierService>(TOKENS.ISupplierService, supplierService)
+container.registerInstance<ISuppliersRepository>(TOKENS.ISuppliersRepository, suppliersRepository)
+container.registerSingleton<ISupplierService>(TOKENS.ISupplierService, SupplierService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)
 container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
 container.registerInstance<IVisionExtractionService>(

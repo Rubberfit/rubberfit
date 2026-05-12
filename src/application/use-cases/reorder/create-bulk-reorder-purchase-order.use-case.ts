@@ -91,17 +91,6 @@ const DELIVERY_WINDOW_DAYS = 7
 const DEFAULT_ROLL_WIDTH = 60
 const DEFAULT_ROLL_THICKNESS = 0.125
 
-function buildSupplierAddress(s: {
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  country?: string | null
-}): string {
-  const parts = [s.address, s.city, s.state, s.zip_code, s.country].filter(Boolean)
-  return parts.join(", ")
-}
-
 function groupBySupplier(suggestions: ReorderSuggestionOutput[]): {
   withSupplier: Map<string, ReorderSuggestionOutput[]>
   withoutSupplier: ReorderSuggestionOutput[]
@@ -329,13 +318,12 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
     const orderDate = new Date().toISOString()
     try {
       const supplier = await this.supplierService.getSupplierById(supplierId)
-      if (!supplier) return { order_date: orderDate }
-      const address = buildSupplierAddress(supplier)
+      // Address fields would come from supplier.addressId → addresses
+      // repository, not yet wired here. Operators fill the empty
+      // shipping/billing on review.
       return {
         order_date: orderDate,
-        payment_terms: supplier.payment_terms || undefined,
-        shipping_address: address || undefined,
-        billing_address: address || undefined,
+        payment_terms: supplier.paymentTerms ?? undefined,
       }
     } catch (_error) {
       return { order_date: orderDate }

@@ -23,7 +23,7 @@ import {
 
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { SupplierSelect } from "@/app/dashboard/inventory/materials/suppliers/_components/supplier-selection"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 
 import type { RollFormValues } from "./roll-form-schema"
 

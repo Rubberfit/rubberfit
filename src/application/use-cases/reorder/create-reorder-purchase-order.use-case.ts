@@ -31,17 +31,6 @@ const DELIVERY_WINDOW_DAYS = 7
 const DEFAULT_ROLL_WIDTH = 60
 const DEFAULT_ROLL_THICKNESS = 0.125
 
-function buildSupplierAddress(s: {
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  country?: string | null
-}): string {
-  const parts = [s.address, s.city, s.state, s.zip_code, s.country].filter(Boolean)
-  return parts.join(", ")
-}
-
 @injectable()
 export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchaseOrderUseCase {
   constructor(
@@ -59,19 +48,21 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
       throw new Error("No supplier configured for this material")
     }
 
+    // Address fields would come from supplier.addressId → addresses
+    // repository, which is not yet wired into this use-case. The
+    // legacy flat-address columns (`supplier.address`, `.city`, …)
+    // no longer exist on the entity. Skipping shipping/billing
+    // address means operators get an empty header that they fill in
+    // on review — surfacing a real follow-up rather than silently
+    // populating from stale data.
     let supplierFields: Record<string, string | undefined> = {
       order_date: new Date().toISOString(),
     }
     try {
       const supplier = await this.supplierService.getSupplierById(suggestion.supplierId)
-      if (supplier) {
-        const address = buildSupplierAddress(supplier)
-        supplierFields = {
-          order_date: new Date().toISOString(),
-          payment_terms: supplier.payment_terms || undefined,
-          shipping_address: address || undefined,
-          billing_address: address || undefined,
-        }
+      supplierFields = {
+        order_date: new Date().toISOString(),
+        payment_terms: supplier.paymentTerms ?? undefined,
       }
     } catch (_error) {
       // Keep minimal supplierFields

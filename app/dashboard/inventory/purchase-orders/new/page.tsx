@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
 import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { createPurchaseOrder } from "@/app/actions/purchase-orders"

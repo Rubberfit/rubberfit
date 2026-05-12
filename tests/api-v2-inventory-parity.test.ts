@@ -17,8 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
-const { legacyMaterialTypesHandles, legacySuppliersHandles, legacyRollsHandles } =
-  vi.hoisted(() => ({
+const { legacyMaterialTypesHandles, legacySuppliersHandles, legacyRollsHandles } = vi.hoisted(
+  () => ({
     legacyMaterialTypesHandles: {
       getAll: vi.fn(),
       getByIds: vi.fn(),
@@ -50,13 +50,14 @@ const { legacyMaterialTypesHandles, legacySuppliersHandles, legacyRollsHandles }
       getInventoryGrowthPercentage: vi.fn(),
       getRecentRolls: vi.fn(),
     },
-  }))
+  })
+)
 
 vi.mock("@/src/infrastructure/repositories/material-types.repository", () => ({
   materialTypeRepository: legacyMaterialTypesHandles,
 }))
-vi.mock("@/src/infrastructure/services/supplierService", () => ({
-  supplierService: legacySuppliersHandles,
+vi.mock("@/src/infrastructure/services/legacySupplierService", () => ({
+  legacySupplierService: legacySuppliersHandles,
 }))
 vi.mock("@/src/infrastructure/repositories/rolls.repository", () => ({
   rollsRepository: legacyRollsHandles,
@@ -76,9 +77,7 @@ function stubFetch(impl: (input: string, init?: RequestInit) => Promise<Response
 }
 
 function stubJsonOnce(body: unknown, status = 200): FetchMock {
-  return stubFetch(
-    async () => new Response(JSON.stringify(body), { status })
-  )
+  return stubFetch(async () => new Response(JSON.stringify(body), { status }))
 }
 
 describe("inventory SDK — v1/v2 parity", () => {
@@ -102,9 +101,7 @@ describe("inventory SDK — v1/v2 parity", () => {
 
   describe("materialTypes", () => {
     it("list() hits legacy repo when flag OFF", async () => {
-      legacyMaterialTypesHandles.getAll.mockResolvedValue([
-        { id: "mt-1", name: "Neoprene" },
-      ])
+      legacyMaterialTypesHandles.getAll.mockResolvedValue([{ id: "mt-1", name: "Neoprene" }])
       const rows = await materialTypes.list()
       expect(legacyMaterialTypesHandles.getAll).toHaveBeenCalled()
       expect(rows[0].name).toBe("Neoprene")
@@ -112,9 +109,7 @@ describe("inventory SDK — v1/v2 parity", () => {
 
     it("list() hits /api/v2 when flag ON", async () => {
       process.env.NEXT_PUBLIC_USE_RUST_INVENTORY = "true"
-      const fetchSpy = stubJsonOnce([
-        { id: "mt-1", name: "Neoprene", default_cost: 4.5 },
-      ])
+      const fetchSpy = stubJsonOnce([{ id: "mt-1", name: "Neoprene", default_cost: 4.5 }])
       const rows = await materialTypes.list()
       expect(fetchSpy).toHaveBeenCalledTimes(1)
       const arg = fetchSpy.mock.calls[0][0] as unknown
@@ -126,9 +121,7 @@ describe("inventory SDK — v1/v2 parity", () => {
 
     it("normalizes DTO null → TS undefined on v2 path", async () => {
       process.env.NEXT_PUBLIC_USE_RUST_INVENTORY = "true"
-      stubJsonOnce([
-        { id: "mt-1", name: "Neoprene", description: null, default_cost: null },
-      ])
+      stubJsonOnce([{ id: "mt-1", name: "Neoprene", description: null, default_cost: null }])
       const rows = await materialTypes.list()
       expect(rows[0].description).toBeUndefined()
       expect(rows[0].default_cost).toBeUndefined()
@@ -199,9 +192,7 @@ describe("inventory SDK — v1/v2 parity", () => {
     it("list() with material_type_id maps to legacy (flag OFF)", async () => {
       legacySuppliersHandles.getSuppliersByMaterialType.mockResolvedValue([])
       await materialSuppliers.list({ material_type_id: "mt-1" })
-      expect(
-        legacySuppliersHandles.getSuppliersByMaterialType
-      ).toHaveBeenCalledWith("mt-1")
+      expect(legacySuppliersHandles.getSuppliersByMaterialType).toHaveBeenCalledWith("mt-1")
     })
 
     it("list() with material_type_id forwards to v2 (flag ON)", async () => {

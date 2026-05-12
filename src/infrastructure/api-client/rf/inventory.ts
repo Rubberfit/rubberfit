@@ -19,7 +19,7 @@
  */
 import { materialTypeRepository as legacyMaterialTypes } from "@/src/infrastructure/repositories/material-types.repository"
 import { rollsRepository as legacyRolls } from "@/src/infrastructure/repositories/rolls.repository"
-import { supplierService as legacySuppliers } from "@/src/infrastructure/services/supplierService"
+import { legacySupplierService as legacySuppliers } from "@/src/infrastructure/services/legacySupplierService"
 import type {
   MaterialSupplier,
   MaterialType,

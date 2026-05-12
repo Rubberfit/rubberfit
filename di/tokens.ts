@@ -26,6 +26,9 @@ export const TOKENS = {
   ITaxApiService: Symbol("ITaxApiService"),
   IVisionExtractionService: Symbol("IVisionExtractionService"),
 
+  // Repositories
+  ISuppliersRepository: Symbol("ISuppliersRepository"),
+
   // Admin portal services
   IUserManagementService: Symbol("IUserManagementService"),
   IHealthAlertService: Symbol("IHealthAlertService"),
