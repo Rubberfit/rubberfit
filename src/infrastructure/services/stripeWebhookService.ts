@@ -91,6 +91,13 @@ function extractPlanTier(
   if (fromSub) return fromSub
   const fromPriceMeta = asPlanTier((price?.metadata as Record<string, string> | undefined)?.tier)
   if (fromPriceMeta) return fromPriceMeta
+  // Stripe stores plan tier on subscription.metadata.plan_tier (set at
+  // Checkout) or price.metadata.tier (set by stripe-setup). Reaching this
+  // line means the catalog is mis-provisioned — warn loudly so on-call sees
+  // it before a customer notices the silent downgrade.
+  console.warn(
+    `[stripe-webhook] subscription=${subscription.id} missing plan_tier metadata on both subscription and price; defaulting to "standard". Re-run npm run stripe:setup to backfill.`
+  )
   return "standard"
 }
 
@@ -188,6 +195,23 @@ function extractInvoiceOrganizationId(invoice: Stripe.Invoice): string | null {
  * Map a Stripe Subscription onto the org subscription upsert payload.
  * Trial / period / cancellation fields all flow from Stripe-side truth.
  */
+function extractSeatCount(
+  subscription: Stripe.Subscription,
+  firstItem: Stripe.SubscriptionItem | undefined
+): number {
+  const quantity = firstItem?.quantity
+  if (typeof quantity === "number" && Number.isInteger(quantity) && quantity >= 1) {
+    return quantity
+  }
+  // Subscription line items don't equal seats; if the first item lacks a
+  // valid quantity, the subscription is mis-configured. Fall back to 1 so
+  // the upsert succeeds but warn so on-call notices.
+  console.warn(
+    `[stripe-webhook] subscription=${subscription.id} first item missing quantity; defaulting seat_count to 1. Check Stripe Dashboard for the affected line item.`
+  )
+  return 1
+}
+
 function subscriptionToUpsert(
   organizationId: string,
   subscription: Stripe.Subscription,
@@ -204,7 +228,7 @@ function subscriptionToUpsert(
     stripe_product_id: extractProductId(price),
     plan_tier: extractPlanTier(subscription, price),
     billing_interval: extractBillingInterval(subscription, price),
-    seat_count: firstItem?.quantity ?? subscription.items.data.length ?? 1,
+    seat_count: extractSeatCount(subscription, firstItem),
     status: asSubscriptionStatus(subscription.status),
     trial_end: tsToIso(subscription.trial_end ?? null),
     current_period_start: extractPeriodTimestamp(firstItem, subscription, "current_period_start"),

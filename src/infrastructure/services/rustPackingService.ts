@@ -11,8 +11,17 @@ let cachedChildProcess: typeof import("node:child_process") | null = null
 
 async function loadChildProcess(): Promise<typeof import("node:child_process")> {
   if (cachedChildProcess) return cachedChildProcess
-  const nodeRequire = eval("require") as (specifier: string) => typeof import("node:child_process")
-  cachedChildProcess = nodeRequire("node:child_process")
+  try {
+    const nodeRequire = eval("require") as (
+      specifier: string
+    ) => typeof import("node:child_process")
+    cachedChildProcess = nodeRequire("node:child_process")
+  } catch (error) {
+    throw new Error(
+      "Failed to load node:child_process — RustPackingService can only run on the Node.js runtime.",
+      { cause: error }
+    )
+  }
   return cachedChildProcess
 }
 

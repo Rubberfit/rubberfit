@@ -35,6 +35,13 @@ export default async function TeamSettingsPage() {
     organizationService.getMemberRole(organization.id, actor.id),
   ])
 
+  // A null role means the actor isn't a member of this org. The proxy gate
+  // ordinarily blocks this path, but bounce to the dashboard root rather than
+  // grant default member-level access if anything ever slips through.
+  if (role === null) {
+    redirect("/dashboard")
+  }
+
   const pricing = getPlanPricing(
     subscription?.plan_tier ?? "pro",
     subscription?.billing_interval ?? null
@@ -43,7 +50,7 @@ export default async function TeamSettingsPage() {
   return (
     <TeamClient
       currentUserId={actor.id}
-      currentUserRole={role ?? "member"}
+      currentUserRole={role}
       members={members.map((m) => ({
         id: m.id,
         userId: m.user_id,

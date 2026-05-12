@@ -26,7 +26,14 @@ export interface IResendInvitationUseCase {
 }
 
 function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "https://app.rubberfit.com"
+  // Prefer the server-only APP_URL so the invite host doesn't leak into the
+  // client bundle. Falls back to NEXT_PUBLIC_APP_URL for compatibility with
+  // existing dev/preview environments that only set the public variant.
+  return (
+    process.env.APP_URL?.trim() ??
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ??
+    "https://app.rubberfit.com"
+  )
 }
 
 @injectable()
