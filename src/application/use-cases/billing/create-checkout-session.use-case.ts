@@ -17,9 +17,23 @@ import {
 const PRODUCT_KEY = "rubberfit"
 const PRICE_VERSION = "v1"
 const TRIAL_PERIOD_DAYS = 14
-const CHECKOUT_SUCCESS_URL =
-  "https://get.rubberfit.app/checkout/success?session_id={CHECKOUT_SESSION_ID}"
-const CHECKOUT_CANCEL_URL = "https://get.rubberfit.app/checkout/cancel"
+
+// Marketing site origin. MARKETING_URL is server-only; falls back to
+// NEXT_PUBLIC_MARKETING_URL for compatibility with dev/preview envs that
+// only set the public variant, then to the production canonical.
+function marketingUrl(): string {
+  return (
+    process.env.MARKETING_URL?.trim() ||
+    process.env.NEXT_PUBLIC_MARKETING_URL?.trim() ||
+    "https://get.rubberfit.app"
+  )
+}
+function checkoutSuccessUrl(): string {
+  return `${marketingUrl()}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
+}
+function checkoutCancelUrl(): string {
+  return `${marketingUrl()}/checkout/cancel`
+}
 
 export interface CreateCheckoutSessionInput {
   organizationId: string
@@ -99,8 +113,8 @@ export class CreateCheckoutSessionUseCase implements ICreateCheckoutSessionUseCa
         metadata,
       },
       metadata,
-      success_url: CHECKOUT_SUCCESS_URL,
-      cancel_url: CHECKOUT_CANCEL_URL,
+      success_url: checkoutSuccessUrl(),
+      cancel_url: checkoutCancelUrl(),
     }
 
     const session = await stripe.checkout.sessions.create(params)

@@ -1,7 +1,6 @@
 "use server"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
-import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { profileRepository } from "@/src/infrastructure/repositories/profiles.repository"
 
@@ -47,9 +46,12 @@ import { profileRepository } from "@/src/infrastructure/repositories/profiles.re
  *      ASVS V7.4 (no information disclosure in error messages).
  */
 export async function requestSelfDelete(): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Self-delete is intentionally recovery-exempt: a user whose subscription
+  // has lapsed is locked out of the dashboard by the proxy gate and must
+  // still be able to close their account. Authentication is the only
+  // authorization required — there is no `requireActiveSubscription` here.
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  await requireActiveSubscription(actor)
 
   const result = await profileRepository.requestSelfDelete(actor.id)
   if (!result.success) {

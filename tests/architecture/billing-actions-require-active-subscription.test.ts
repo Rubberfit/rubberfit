@@ -20,6 +20,10 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
   // has no own subscription yet; the use-case validates the invited org's
   // subscription instead.
   ["app/actions/team.ts", new Set(["acceptInvitation"])],
+  // PR 7 hotfix: self-delete is recovery-exempt by design — a user with a
+  // lapsed subscription is locked out of the dashboard by the proxy gate
+  // and must still be able to close their account (compliance + UX).
+  ["app/actions/profile.ts", new Set(["requestSelfDelete"])],
 ])
 
 interface ActionFunction {

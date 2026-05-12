@@ -307,7 +307,7 @@ export class EmailService implements IEmailService {
     const html = `
       <p>You've been invited to join <strong>${escapeHtml(params.organizationName)}</strong> on Rubberfit${inviterFrom ? ` by ${escapeHtml(inviterFrom.trim())}` : ""}.</p>
       <p>Your role on the team will be <strong>${escapeHtml(params.role)}</strong>.</p>
-      <p><a href="${escapeHtml(params.inviteUrl)}">Accept the invitation</a></p>
+      <p><a href="${params.inviteUrl}">Accept the invitation</a></p>
       <p>This invitation expires on ${escapeHtml(expires)}.</p>
     `
     return this.sendEmail({

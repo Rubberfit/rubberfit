@@ -87,7 +87,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return ok({ dedupe: true, event_id: event.id })
   }
   if (record.kind === "error") {
-    return badRequest(`Failed to record stripe_event: ${record.error.message}`, 500)
+    // Log the full error server-side; the response body — visible in
+    // Stripe Dashboard webhook logs — only references the event id so
+    // we don't leak DB/connection-string details to anyone with access
+    // to those logs.
+    console.error(`[stripe-webhook] record event=${event.id} failed:`, record.error)
+    return badRequest(`Failed to record stripe_event (event_id=${event.id})`, 500)
   }
   // `record.kind === "retry"` falls through to re-run handleEvent.
   // The bumped attempt_count was persisted by recordEventReceived.
@@ -104,13 +109,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       eventType: event.type,
       error,
     })
-    return badRequest(`Unhandled exception in webhook service: ${error.message}`, 500)
+    console.error(`[stripe-webhook] handler threw event=${event.id} type=${event.type}:`, error)
+    return badRequest(`Unhandled exception in webhook service (event_id=${event.id})`, 500)
   }
 
   await service.markEventOutcome(event.id, outcome)
 
   if (outcome.kind === "error") {
-    return badRequest(`Webhook handler failed: ${outcome.error.message}`, 500)
+    console.error(
+      `[stripe-webhook] handler failed event=${event.id} type=${event.type}:`,
+      outcome.error
+    )
+    return badRequest(`Webhook handler failed (event_id=${event.id})`, 500)
   }
 
   return ok({

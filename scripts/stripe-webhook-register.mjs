@@ -77,6 +77,7 @@ async function main() {
   const args = process.argv.slice(2)
   const dryRun = args.includes("--dry-run")
   const confirmLive = args.includes("--confirm-live")
+  const printSecret = args.includes("--print-secret")
   const url = args.find((a) => a.startsWith("http"))
 
   if (!url) {
@@ -91,6 +92,9 @@ async function main() {
 
   if (mode === "live" && !confirmLive && !dryRun) {
     throw new Error("Live mode requires --confirm-live to register a live webhook")
+  }
+  if (mode === "live" && !url.startsWith("https://")) {
+    throw new Error(`Live mode requires an https:// webhook URL — got ${url}`)
   }
 
   console.log(`Stripe webhook register — mode: ${mode}${dryRun ? " (dry-run)" : ""}`)
@@ -116,7 +120,9 @@ async function main() {
     console.log(
       "Note: Stripe only returns the signing secret on initial creation. If you need it, rotate via the Dashboard or delete + recreate."
     )
-    console.log(`Stripe Dashboard: https://dashboard.stripe.com/${mode === "live" ? "" : "test/"}webhooks/${updated.id}`)
+    console.log(
+      `Stripe Dashboard: https://dashboard.stripe.com/${mode === "live" ? "" : "test/"}webhooks/${updated.id}`
+    )
     return
   }
 
@@ -135,12 +141,24 @@ async function main() {
 
   console.log(`Created endpoint ${created.id}`)
   console.log("")
-  console.log(`Stripe Dashboard: https://dashboard.stripe.com/${mode === "live" ? "" : "test/"}webhooks/${created.id}`)
+  console.log(
+    `Stripe Dashboard: https://dashboard.stripe.com/${mode === "live" ? "" : "test/"}webhooks/${created.id}`
+  )
   console.log("")
   console.log("─────────────────────────────────────────────────────────────")
-  console.log("Paste this signing secret into .env.local / Vercel env as STRIPE_WEBHOOK_SECRET:")
+  console.log(
+    "Signing secret retrieved. Paste into .env.local / Vercel env as STRIPE_WEBHOOK_SECRET."
+  )
   console.log("")
-  console.log(`  STRIPE_WEBHOOK_SECRET=${created.secret}`)
+  if (printSecret) {
+    console.log(`  STRIPE_WEBHOOK_SECRET=${created.secret}`)
+  } else {
+    const masked = `${created.secret.slice(0, 8)}…${created.secret.slice(-4)}`
+    console.log(`  STRIPE_WEBHOOK_SECRET=${masked}`)
+    console.log("")
+    console.log("  (Rerun with --print-secret to emit the full value to stdout.")
+    console.log("   Otherwise, copy it from the Stripe Dashboard endpoint detail page.)")
+  }
   console.log("")
   console.log("─────────────────────────────────────────────────────────────")
   console.log("This secret is only shown ONCE. Rotate via the Dashboard if lost.")

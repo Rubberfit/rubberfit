@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT organizations_valid_billing_email
-    CHECK (billing_email IS NULL OR billing_email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
+    CHECK (billing_email IS NULL OR billing_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$')
 );
 
 CREATE INDEX IF NOT EXISTS idx_organizations_stripe_customer_id
@@ -334,7 +334,7 @@ CREATE TABLE IF NOT EXISTS organization_invitations (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT organization_invitations_valid_email
-    CHECK (email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
+    CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$')
 );
 
 -- A given org should have at most one pending invite for a given email

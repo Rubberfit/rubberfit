@@ -65,6 +65,15 @@ export async function createCheckoutSession(input: {
   const actor = await requireAuthenticatedUser()
   const parsed = CreateCheckoutSessionSchema.parse(input)
 
+  // Action-layer membership guard. The use-case re-validates, but bouncing
+  // unauthorized callers here returns a clean `{ error: "forbidden" }`
+  // instead of leaking the use-case's internal error string.
+  const organizationService = resolveUseCase<IOrganizationService>(TOKENS.IOrganizationService)
+  const role = await organizationService.getMemberRole(parsed.organizationId, actor.id)
+  if (role !== "owner" && role !== "admin") {
+    return { error: "forbidden" }
+  }
+
   try {
     const useCase = resolveUseCase<ICreateCheckoutSessionUseCase>(
       TOKENS.ICreateCheckoutSessionUseCase
