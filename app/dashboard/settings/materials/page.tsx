@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { Button } from "@/app/components/ui/button"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { createMaterialType, deleteMaterialType, updateMaterialType } from "@/app/actions/materials"
 
 import { MaterialDeleteDialog } from "./_components/material-delete-dialog"

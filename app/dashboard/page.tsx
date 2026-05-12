@@ -9,7 +9,7 @@ import { cn } from "@/app/lib/utils"
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 
 import { SummaryCards } from "./_components/dashboard-summary-cards"
 import { DashboardSidebar } from "./_components/dashboard-activity-aside"
@@ -164,9 +164,7 @@ export default function DashboardPage() {
 
   const eyebrow = useMemo(
     () =>
-      period === "week"
-        ? `Operations / Week · ${data.weekLabel}`
-        : `Operations / ${periodLabel}`,
+      period === "week" ? `Operations / Week · ${data.weekLabel}` : `Operations / ${periodLabel}`,
     [period, data.weekLabel, periodLabel]
   )
 

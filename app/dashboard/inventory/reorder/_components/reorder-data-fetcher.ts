@@ -5,7 +5,7 @@ import type {
 } from "@/src/infrastructure/models/supabase"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { generateReorderSuggestions } from "@/app/actions/reorder"
 // `ReorderSuggestionOutput` lives on the use-case (the canonical

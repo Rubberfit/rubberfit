@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 export function MaterialTypesOverview() {

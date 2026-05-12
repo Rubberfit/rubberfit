@@ -1,9 +1,73 @@
+import "reflect-metadata"
+import { injectable } from "tsyringe"
+
+import type { MaterialType as MaterialTypeEntity } from "@/src/entities/material-type"
+import {
+  materialTypeToInsertRow,
+  materialTypeToUpdateRow,
+  rowToMaterialType,
+  type MaterialTypeRow,
+} from "@/src/infrastructure/mappers/material-type.mapper"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 
+@injectable()
 export class MaterialTypeRepository implements IMaterialTypeRepository {
+  // ─── Entity-typed (new DDD surface) ───────────────────────────────────
+
+  async findAll(): Promise<MaterialTypeEntity[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from("material_types")
+      .select("*")
+      .is("deleted_at", null)
+      .order("name", { ascending: true })
+    if (error) throw error
+    return (data as MaterialTypeRow[]).map(rowToMaterialType)
+  }
+
+  async findById(id: string): Promise<MaterialTypeEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client.from("material_types").select("*").eq("id", id).single()
+    if (error) throw error
+    return rowToMaterialType(data as MaterialTypeRow)
+  }
+
+  async findByIds(ids: string[]): Promise<MaterialTypeEntity[]> {
+    if (ids.length === 0) return []
+    const client = await getDatabaseClient()
+    const { data, error } = await client.from("material_types").select("*").in("id", ids)
+    if (error) throw error
+    return (data as MaterialTypeRow[]).map(rowToMaterialType)
+  }
+
+  async insert(entity: MaterialTypeEntity): Promise<MaterialTypeEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from("material_types")
+      .insert(materialTypeToInsertRow(entity))
+      .select("*")
+      .single()
+    if (error) throw error
+    return rowToMaterialType(data as MaterialTypeRow)
+  }
+
+  async updateEntity(entity: MaterialTypeEntity): Promise<MaterialTypeEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from("material_types")
+      .update(materialTypeToUpdateRow(entity))
+      .eq("id", entity.id.value)
+      .select("*")
+      .single()
+    if (error) throw error
+    return rowToMaterialType(data as MaterialTypeRow)
+  }
+
+  // ─── Legacy raw-row surface (pre-DDD consumers) ───────────────────────
+
   async getAll(): Promise<MaterialType[]> {
     const client = await getDatabaseClient()
     const { data, error } = await client

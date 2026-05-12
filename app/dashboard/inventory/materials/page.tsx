@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Database, DollarSign, Package, TrendingUp } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { PageHeader, PageShell, StatCard } from "@/app/components/patterns"
 
 import { MaterialTypesOverview } from "./_components/material-types-overview"

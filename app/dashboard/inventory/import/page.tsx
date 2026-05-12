@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { createMaterialType } from "@/app/actions/materials"
 import { importRolls as importRollsSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { useRouter } from "next/navigation"

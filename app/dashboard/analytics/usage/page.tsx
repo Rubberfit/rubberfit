@@ -5,7 +5,7 @@ import { Activity, BarChart3, Package, TrendingUp } from "lucide-react"
 import { format, subMonths } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { PageHeader, PageShell, StatCard } from "@/app/components/patterns"
 

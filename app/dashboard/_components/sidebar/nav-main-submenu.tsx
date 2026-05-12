@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { addRoll } from "@/app/actions/inventory"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"

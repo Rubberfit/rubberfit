@@ -42,7 +42,9 @@ import { ApiPackingService } from "@/src/infrastructure/services/apiPackingServi
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { MaterialSupplierService } from "@/src/infrastructure/services/materialSupplierService"
 import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { MaterialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
+import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
 import { profileService } from "@/src/infrastructure/services/profileService"
@@ -92,7 +94,11 @@ container.registerSingleton<IMaterialSupplierService>(
   TOKENS.IMaterialSupplierService,
   MaterialSupplierService
 )
-container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
+container.registerInstance<IMaterialTypeRepository>(
+  TOKENS.IMaterialTypesRepository,
+  materialTypeRepository
+)
+container.registerSingleton<IMaterialTypeService>(TOKENS.IMaterialTypeService, MaterialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
 // IPackingService: production now lives in `api/v2/pack.rs` (a Vercel
 // Rust serverless function), so the browser POSTs the PackRequest to

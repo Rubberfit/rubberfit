@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { Download } from "lucide-react"

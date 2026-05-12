@@ -34,7 +34,7 @@ import {
   type MaterialType,
   type PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { authService } from "@/src/infrastructure/services/authService"
 import { saveCut } from "@/app/actions/cut-history"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"

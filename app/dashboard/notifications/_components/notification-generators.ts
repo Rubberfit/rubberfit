@@ -1,5 +1,5 @@
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { rollService } from "@/src/infrastructure/services/rollService"
 
 export async function generateLowStockNotifications() {
