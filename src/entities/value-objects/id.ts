@@ -229,3 +229,22 @@ export const JobId = {
   create: (value: string): JobId => Id.create(value, "Job"),
   fromPersistence: (value: string): JobId => Id.fromPersistence<"Job">(value),
 }
+
+/** Identifier for an invoice. Source: invoices.id. */
+export type InvoiceId = Id<"Invoice">
+export const InvoiceId = {
+  create: (value: string): InvoiceId => Id.create(value, "Invoice"),
+  fromPersistence: (value: string): InvoiceId => Id.fromPersistence<"Invoice">(value),
+}
+
+/**
+ * Identifier for a project. Source: projects.id.
+ *
+ * Forward-declared like `JobId` — `Invoice.projectId` and
+ * `Job.projectId` reference it before the Project aggregate ships.
+ */
+export type ProjectId = Id<"Project">
+export const ProjectId = {
+  create: (value: string): ProjectId => Id.create(value, "Project"),
+  fromPersistence: (value: string): ProjectId => Id.fromPersistence<"Project">(value),
+}
