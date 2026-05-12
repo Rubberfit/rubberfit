@@ -14,8 +14,10 @@ CREATE TABLE IF NOT EXISTS cut_history (
   cut_thickness                 FLOAT NOT NULL,
   -- Saw-blade kerf in inches (inter-part clearance the packer enforced).
   -- Defaulted at the column level so pre-kerf rows + seed inserts that
-  -- predate the field load with the UI default (1/8").
-  kerf                          FLOAT NOT NULL DEFAULT 0.125,
+  -- predate the field load with the UI default (1/8"). Stored as
+  -- DECIMAL(10,4) to match `cuts.kerf` so cross-table joins stay
+  -- exact and the value round-trips without floating-point drift.
+  kerf                          DECIMAL(10,4) NOT NULL DEFAULT 0.125,
   
   --Custom part sizes selected by the user (if applicable)
   part_custom_width            FLOAT NULL,
