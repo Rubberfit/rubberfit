@@ -261,7 +261,21 @@ function drawInfoColumns(doc: jsPDF, job: JobFullDetail, y: number): number {
 // ── Roster ──────────────────────────────────────────────────────────────────
 
 function drawRoster(doc: jsPDF, job: JobFullDetail, y: number): number {
-  y = ensure(doc, y, 80)
+  // Pre-compute the worker name wrap so the page-break check below
+  // knows the real height. CR catch — the prior `ensure(doc, y, 80)`
+  // was a static estimate that would overflow when a large roster
+  // wrapped to many lines.
+  const lead = job.assignees.find((a) => a.role === "lead")
+  const workers = job.assignees.filter((a) => a.role === "worker")
+  const names = workers.length > 0 ? workers.map((w) => w.name).join(", ") : "—"
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  const nameLines = doc.splitTextToSize(names, CONTENT_W - 80)
+  // Divider + 12pt gap + lead line + worker lines + 16pt trailing gap.
+  const neededHeight =
+    TYPE.h2.lineHeight + 12 + TYPE.body.lineHeight + nameLines.length * TYPE.body.lineHeight + 16
+
+  y = ensure(doc, y, neededHeight)
   y = drawSectionDivider(doc, {
     x: PAGE_MARGIN,
     y,
@@ -269,9 +283,6 @@ function drawRoster(doc: jsPDF, job: JobFullDetail, y: number): number {
     title: "Roster",
   })
   y += 12
-
-  const lead = job.assignees.find((a) => a.role === "lead")
-  const workers = job.assignees.filter((a) => a.role === "worker")
 
   doc.setFont(TYPE.body.family, TYPE.body.weight)
   doc.setFontSize(TYPE.body.size)
@@ -287,8 +298,6 @@ function drawRoster(doc: jsPDF, job: JobFullDetail, y: number): number {
   doc.text("Workers", PAGE_MARGIN, y)
   doc.setFont(TYPE.body.family, "bold")
   doc.setTextColor(INK[0], INK[1], INK[2])
-  const names = workers.length > 0 ? workers.map((w) => w.name).join(", ") : "—"
-  const nameLines = doc.splitTextToSize(names, CONTENT_W - 80)
   doc.text(nameLines, PAGE_MARGIN + 80, y)
   y += nameLines.length * TYPE.body.lineHeight
 
@@ -517,7 +526,11 @@ export function downloadJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}
 
 /** Base file name used for both local downloads and bucket uploads. */
 export function jobPdfFileName(job: JobFullDetail): string {
-  const jobRef = job.job_number ?? job.id
+  // `||` (not `??`) so an empty-string job_number falls back to the
+  // id — schema says job_number is always present, but the
+  // pre-trigger legacy rows in prod have empty strings. Without this
+  // the filename degrades to a bare `.pdf` for those rows.
+  const jobRef = job.job_number || job.id
   const customer = job.customer_name ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}` : ""
   return `${jobRef}${customer}.pdf`
 }

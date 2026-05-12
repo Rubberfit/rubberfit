@@ -175,9 +175,12 @@ describe("jobPdfFileName", () => {
     expect(name).toBe("J-000001_Acme-Rubber-Co-.pdf")
   })
 
-  it("falls back to id + skips customer slug when customer_name missing", () => {
+  it("falls back to exact id when both customer_name and job_number are missing", () => {
+    // Pins the precise filename for the legacy pre-trigger row case.
+    // CR catch — previous assertion only checked `.endsWith(".pdf")`
+    // and `not.toContain("Acme")`, which would have re-passed even
+    // if the fallback degraded to a bare ".pdf".
     const name = jobPdfFileName(makeJob({ customer_name: null, job_number: "" }))
-    expect(name.endsWith(".pdf")).toBe(true)
-    expect(name).not.toContain("Acme")
+    expect(name).toBe("00000000-0000-0000-0000-000000000001.pdf")
   })
 })
