@@ -10,7 +10,7 @@
  */
 // @vitest-environment node
 import { jsPDF } from "jspdf"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 import {
   CUSTOMER_PAGE,
@@ -103,6 +103,107 @@ describe("primitives — ruled table", () => {
     })
     expect(finalY).toBeGreaterThan(contentStartY("customer"))
     expect(pdfHasBytes(doc)).toBe(true)
+  })
+
+  it("zebra default-on paints alternating Surface fills on odd body rows", () => {
+    // CR catch in PR 2 — the zebra option was added to the interface
+    // but the body row loop never read it. The original test only
+    // checked "PDF has bytes," which would still pass if zebra wiring
+    // broke again. This test counts the actual `setFillColor(SURFACE)`
+    // calls and the matching `rect` fills.
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    const fillColorSpy = vi.spyOn(doc, "setFillColor")
+    const rectSpy = vi.spyOn(doc, "rect")
+    const fillsBefore = fillColorSpy.mock.calls.length
+    const rectsBefore = rectSpy.mock.calls.length
+
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Item", width: 360 },
+        { header: "Count", width: 156, align: "right", mono: true },
+      ],
+      // 6 rows → odd body rows are indices 1, 3, 5 → 3 zebra fills.
+      rows: Array.from({ length: 6 }, (_, i) => ({
+        cells: [`Row ${i + 1}`, String(i + 1)],
+      })),
+      // zebra omitted — defaults to true.
+    })
+
+    // SURFACE = [248, 250, 252] per tokens.ts.
+    const surfaceFills = fillColorSpy.mock.calls
+      .slice(fillsBefore)
+      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+    expect(surfaceFills).toBe(3)
+
+    // Each Surface fill is followed by a `doc.rect(..., "F")` call.
+    const filledRects = rectSpy.mock.calls
+      .slice(rectsBefore)
+      .filter((args) => args[args.length - 1] === "F").length
+    expect(filledRects).toBeGreaterThanOrEqual(3)
+  })
+
+  it("zebra false makes the SURFACE fill count drop to zero", () => {
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    const fillColorSpy = vi.spyOn(doc, "setFillColor")
+    const fillsBefore = fillColorSpy.mock.calls.length
+
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Item", width: 360 },
+        { header: "Count", width: 156, align: "right", mono: true },
+      ],
+      rows: Array.from({ length: 4 }, (_, i) => ({
+        cells: [`Row ${i + 1}`, String(i + 1)],
+      })),
+      zebra: false,
+    })
+
+    const surfaceFills = fillColorSpy.mock.calls
+      .slice(fillsBefore)
+      .filter((args) => args[0] === 248 && args[1] === 250 && args[2] === 252).length
+    expect(surfaceFills).toBe(0)
+  })
+
+  it("auto-paginates and redraws chrome + header on overflow", () => {
+    // Codex catch in PR 2 — drawRuledTable used to draw all rows in
+    // one call without checking page bounds, so a long table
+    // overflowed the page footer silently. This pins the new
+    // pageBreak option: when set, a 60-row table must spill onto a
+    // second page and call the redraw callback.
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    let redrawCount = 0
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Index", width: 80, align: "right", mono: true },
+        { header: "Label", width: 436 },
+      ],
+      rows: Array.from({ length: 60 }, (_, i) => ({
+        cells: [String(i + 1), `Long-running parts row #${i + 1}`],
+      })),
+      pageBreak: {
+        canvas: "customer",
+        redrawChrome: (page) => {
+          redrawCount += 1
+          drawCustomerChrome(page, { title: "JOB SHEET" })
+          return contentStartY("customer")
+        },
+      },
+    })
+
+    expect(doc.getNumberOfPages()).toBeGreaterThan(1)
+    expect(redrawCount).toBeGreaterThanOrEqual(1)
   })
 })
 
