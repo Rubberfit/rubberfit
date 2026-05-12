@@ -1,26 +1,45 @@
-import type { Roll } from "@/src/infrastructure/models/supabase"
+import type { CreateRollProps, Roll } from "@/src/entities/roll"
+import type { BarcodeFormat } from "@/src/entities/roll"
+import type { ProfileId } from "@/src/entities/value-objects/id"
 
-export interface BulkAddResult {
-  imported: number
-  total: number
-}
-
+/**
+ * Roll inventory service. Wraps the `rolls` aggregate with strict
+ * state-machine discipline (mirrors `Roll` entity):
+ *
+ * - `consumeLength` is the only path that decrements `remainingLengthMm`.
+ *   The entity auto-flips status → `depleted` at zero. Cross-aggregate
+ *   side effects (recording `cut_history`, allocating reusable offcuts)
+ *   are use-case concerns — see the upcoming cut-recording use-cases.
+ * - `reserve` / `release` set the whole roll aside; not callable on
+ *   depleted rolls.
+ * - `relocate` / `updateNotes` cover metadata.
+ * - `recordBarcode` / `recordQrGenerated` track barcode and QR artifact
+ *   generation.
+ * - `softDelete` is admin-only and independent of status.
+ *
+ * Reads return entity instances. Cross-cutting queries that need joined
+ * material-type / supplier shapes (dashboard cards, inventory lists)
+ * stay on `legacyRollService` until the relevant UI page is rewritten.
+ */
 export interface IRollService {
-  getAllRolls(): Promise<Roll[]>
-  getActiveRolls(): Promise<Roll[]>
-  getRollById(id: string): Promise<Roll>
-  addRoll(roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">): Promise<Roll>
-  updateRoll(id: string, updates: Partial<Roll>): Promise<Roll>
-  markAsDepleted(id: string): Promise<Roll>
-  getInventoryValue(): Promise<number>
-  searchRolls(query: string): Promise<Roll[]>
-  getLowStockCount(): Promise<number>
-  deleteRoll(id: string): Promise<void>
-  getRecentRolls(limit: number): Promise<Roll[]>
-  bulkAddRolls(
-    rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
-    batchSize?: number
-  ): Promise<BulkAddResult>
-  getInventoryGrowthPercentage(): Promise<number>
-  getThicknessesByMaterialType(materialType: string): Promise<number[]>
+  getById(id: string): Promise<Roll>
+  getActive(): Promise<Roll[]>
+  getByMaterialType(materialTypeId: string): Promise<Roll[]>
+  getChildOffcuts(parentRollId: string): Promise<Roll[]>
+
+  createRoll(props: CreateRollProps): Promise<Roll>
+
+  consumeLength(id: string, mm: number, actor: ProfileId): Promise<Roll>
+  reserve(id: string, actor: ProfileId): Promise<Roll>
+  release(id: string, actor: ProfileId): Promise<Roll>
+  relocate(id: string, location: string | null, actor: ProfileId): Promise<Roll>
+  updateNotes(id: string, notes: string | null, actor: ProfileId): Promise<Roll>
+  recordBarcode(
+    id: string,
+    format: BarcodeFormat,
+    assetPath: string,
+    actor: ProfileId
+  ): Promise<Roll>
+  recordQrGenerated(id: string, actor: ProfileId): Promise<Roll>
+  softDelete(id: string, actor: ProfileId): Promise<Roll>
 }

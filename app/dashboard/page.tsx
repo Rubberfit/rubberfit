@@ -7,7 +7,7 @@ import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 

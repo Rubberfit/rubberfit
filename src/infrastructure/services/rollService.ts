@@ -1,6 +1,108 @@
+import "reflect-metadata"
+import { inject, injectable } from "tsyringe"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-export { rollsRepository as rollService } from "@/src/infrastructure/repositories/rolls.repository"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+import type { IRollService } from "@/src/application/services/roll.service.interface"
+import {
+  type BarcodeFormat,
+  type CreateRollProps,
+  Roll,
+} from "@/src/entities/roll"
+import type { ProfileId } from "@/src/entities/value-objects/id"
+import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
+import { TOKENS } from "@/di/tokens"
+
+@injectable()
+export class RollService implements IRollService {
+  constructor(
+    @inject(TOKENS.IRollsRepository)
+    private readonly repo: IRollsRepository
+  ) {}
+
+  getById(id: string): Promise<Roll> {
+    return this.repo.findById(id)
+  }
+
+  getActive(): Promise<Roll[]> {
+    return this.repo.findActive()
+  }
+
+  getByMaterialType(materialTypeId: string): Promise<Roll[]> {
+    return this.repo.findByMaterialType(materialTypeId)
+  }
+
+  getChildOffcuts(parentRollId: string): Promise<Roll[]> {
+    return this.repo.findChildOffcuts(parentRollId)
+  }
+
+  createRoll(props: CreateRollProps): Promise<Roll> {
+    const roll = Roll.create(props)
+    return this.repo.insert(roll)
+  }
+
+  async consumeLength(id: string, mm: number, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.consumeLength(mm, actor)
+    return this.repo.update(roll)
+  }
+
+  async reserve(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.reserve(actor)
+    return this.repo.update(roll)
+  }
+
+  async release(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.release(actor)
+    return this.repo.update(roll)
+  }
+
+  async relocate(id: string, location: string | null, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.relocate(location, actor)
+    return this.repo.update(roll)
+  }
+
+  async updateNotes(id: string, notes: string | null, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.updateNotes(notes, actor)
+    return this.repo.update(roll)
+  }
+
+  async recordBarcode(
+    id: string,
+    format: BarcodeFormat,
+    assetPath: string,
+    actor: ProfileId
+  ): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.recordBarcode(format, assetPath, actor)
+    return this.repo.update(roll)
+  }
+
+  async recordQrGenerated(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.recordQrGenerated(actor)
+    return this.repo.update(roll)
+  }
+
+  async softDelete(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.softDelete(actor)
+    return this.repo.update(roll)
+  }
+}
+
+/**
+ * Module-level singleton bound to the concrete `rollsRepository`. New
+ * consumers (use-cases, server actions) resolve through DI; legacy
+ * `app/` consumers that imported the old `rollService` re-export are
+ * routed through `legacyRollService` instead — they keep their raw-row
+ * shape until the relevant UI surface is rewritten.
+ */
+export const rollService: IRollService = new RollService(rollsRepository)
 
 /**
  * Public-facing projection of a roll — the subset of columns safe to

@@ -7,7 +7,7 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 

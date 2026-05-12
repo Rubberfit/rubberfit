@@ -54,7 +54,9 @@ import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrde
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { RollService } from "@/src/infrastructure/services/rollService"
+import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
 import { SupplierService } from "@/src/infrastructure/services/supplierService"
 import { suppliersRepository } from "@/src/infrastructure/repositories/suppliers.repository"
 import type { ISuppliersRepository } from "@/src/application/repositories/suppliers.repository.interface"
@@ -180,7 +182,8 @@ container.registerInstance<IReorderCalculationsService>(
   TOKENS.IReorderCalculationsService,
   reorderCalculations
 )
-container.registerInstance<IRollService>(TOKENS.IRollService, rollService)
+container.registerInstance<IRollsRepository>(TOKENS.IRollsRepository, rollsRepository)
+container.registerSingleton<IRollService>(TOKENS.IRollService, RollService)
 container.registerInstance<ISuppliersRepository>(TOKENS.ISuppliersRepository, suppliersRepository)
 container.registerSingleton<ISupplierService>(TOKENS.ISupplierService, SupplierService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)

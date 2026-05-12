@@ -35,8 +35,8 @@ const createSvcMock = vi.hoisted(() => vi.fn())
 const updateSvcMock = vi.hoisted(() => vi.fn())
 const deleteSvcMock = vi.hoisted(() => vi.fn())
 const getByIdsSvcMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
-  materialTypeService: {
+vi.mock("@/src/infrastructure/services/legacyMaterialTypeService", () => ({
+  legacyMaterialTypeService: {
     create: createSvcMock,
     update: updateSvcMock,
     delete: deleteSvcMock,
@@ -45,8 +45,8 @@ vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
 }))
 
 const existsByMaterialTypeMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/rollService", () => ({
-  rollService: {
+vi.mock("@/src/infrastructure/services/legacyRollService", () => ({
+  legacyRollService: {
     existsByMaterialType: existsByMaterialTypeMock,
   },
 }))

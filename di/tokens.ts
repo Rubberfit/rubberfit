@@ -31,6 +31,7 @@ export const TOKENS = {
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),
   IPriceHistoryRepository: Symbol("IPriceHistoryRepository"),
+  IRollsRepository: Symbol("IRollsRepository"),
   ISuppliersRepository: Symbol("ISuppliersRepository"),
 
   // Admin portal services

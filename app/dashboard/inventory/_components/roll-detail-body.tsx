@@ -11,7 +11,7 @@ import { SheetDescription, SheetHeader, SheetTitle } from "@/app/components/ui/s
 import { cn } from "@/app/lib/utils"
 
 import type { Roll, RollReusableOffcutSummary } from "@/src/infrastructure/models/supabase"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { ensureStoredRollBarcode } from "@/src/infrastructure/services/rollBarcodeAssetService"
 import { StockSheet } from "@/app/dashboard/cutting-engine/_components/stock-sheet"
 

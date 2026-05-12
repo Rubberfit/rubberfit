@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 
 import { ChevronRight, MailIcon, PlusCircleIcon } from "lucide-react"
 
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { isRestrictedCutter } from "@/app/lib/rbac"

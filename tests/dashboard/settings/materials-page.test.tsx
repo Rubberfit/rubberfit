@@ -47,8 +47,8 @@ const toast = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 
-vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
-  materialTypeService,
+vi.mock("@/src/infrastructure/services/legacyMaterialTypeService", () => ({
+  legacyMaterialTypeService: materialTypeService,
 }))
 vi.mock("@/app/actions/materials", () => materialActions)
 vi.mock("sonner", () => ({ toast }))

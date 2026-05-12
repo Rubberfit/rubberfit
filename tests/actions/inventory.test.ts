@@ -32,8 +32,8 @@ vi.mock("@/app/server/database/register-factory", () => ({
 }))
 
 const addRollSvcMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/rollService", () => ({
-  rollService: {
+vi.mock("@/src/infrastructure/services/legacyRollService", () => ({
+  legacyRollService: {
     addRoll: addRollSvcMock,
   },
 }))

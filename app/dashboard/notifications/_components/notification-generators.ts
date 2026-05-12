@@ -1,6 +1,6 @@
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 
 export async function generateLowStockNotifications() {
   // First check if notifications table exists

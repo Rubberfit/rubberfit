@@ -1,3 +1,14 @@
+import "reflect-metadata"
+import { injectable } from "tsyringe"
+
+import type { Roll as RollEntity } from "@/src/entities/roll"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+import {
+  rollToInsertRow,
+  rollToUpdateRow,
+  rowToRoll,
+  type RollRow,
+} from "@/src/infrastructure/mappers/roll.mapper"
 import {
   supabase,
   type Roll,
@@ -6,9 +17,82 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
 
+const TABLE = "rolls"
+const SELECT_COLUMNS = "*"
+
+@injectable()
 export class RollsRepository implements IRollsRepository {
+  // ─── Entity-typed (new DDD surface) ─────────────────────────────────────
+
+  async findById(id: string): Promise<RollEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client.from(TABLE).select(SELECT_COLUMNS).eq("id", id).single()
+    if (error) throw error
+    return rowToRoll(data as RollRow)
+  }
+
+  async findActive(): Promise<RollEntity[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .is("deleted_at", null)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+    if (error) throw error
+    return (data as RollRow[]).map(rowToRoll)
+  }
+
+  async findByMaterialType(materialTypeId: string): Promise<RollEntity[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .is("deleted_at", null)
+      .eq("material_type_id", materialTypeId)
+      .order("created_at", { ascending: false })
+    if (error) throw error
+    return (data as RollRow[]).map(rowToRoll)
+  }
+
+  async findChildOffcuts(parentRollId: string): Promise<RollEntity[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .is("deleted_at", null)
+      .eq("parent_roll_id", parentRollId)
+      .order("created_at", { ascending: false })
+    if (error) throw error
+    return (data as RollRow[]).map(rowToRoll)
+  }
+
+  async insert(roll: RollEntity): Promise<RollEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .insert(rollToInsertRow(roll))
+      .select(SELECT_COLUMNS)
+      .single()
+    if (error) throw error
+    return rowToRoll(data as RollRow)
+  }
+
+  async update(roll: RollEntity): Promise<RollEntity> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .update(rollToUpdateRow(roll))
+      .eq("id", roll.id.value)
+      .select(SELECT_COLUMNS)
+      .single()
+    if (error) throw error
+    return rowToRoll(data as RollRow)
+  }
+
+  // ─── Legacy raw-row surface ─────────────────────────────────────────────
+
   async getAllRolls(): Promise<Roll[]> {
     const { data, error } = await supabase
       .from("rolls")
