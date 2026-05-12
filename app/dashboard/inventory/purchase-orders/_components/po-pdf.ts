@@ -95,14 +95,50 @@ function activeFilterLabel(filters: POExportFilters): string {
 
 // ── Page-break helper bound to the customer canvas ──────────────────────────
 
-function ensure(doc: jsPDF, y: number, needed: number, title: string): number {
+/**
+ * Compact "you are still on PO #X" strip painted at the top of every
+ * continuation page. Without it a multi-page PO loses identity after
+ * the first break — operators / suppliers see line-items / signature
+ * blocks with no header context. Returns the Y cursor where content
+ * can resume.
+ */
+function drawPoContinuationStrip(doc: jsPDF, po: PurchaseOrderWithDetails, y: number): number {
+  // Caption-sized "Continued · PO #X" + small status chip, right-aligned.
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  const label = `CONTINUED · PO #${po.po_number ?? "—"}`
+  doc.text(label, PAGE_MARGIN, y)
+  const labelWidth = doc.getTextWidth(label)
+  drawStatusChip(doc, {
+    x: PAGE_MARGIN + labelWidth + 12,
+    y: y - 10,
+    label: formatStatus(po.status),
+    intent: intentForStatus(po.status),
+  })
+  return y + TYPE.caption.lineHeight + 12
+}
+
+/**
+ * `ensure` wrapper that knows about the active PO so continuation
+ * pages get the identity strip. Falls back to plain chrome redraw
+ * when no PO is in scope (e.g., the list-view summary page).
+ */
+function ensure(
+  doc: jsPDF,
+  y: number,
+  needed: number,
+  title: string,
+  po?: PurchaseOrderWithDetails
+): number {
   return ensureSpace(doc, {
     cursor: y,
     neededHeight: needed,
     canvas: "customer",
     redrawChrome: (page) => {
       drawCustomerChrome(page, { title })
-      return contentStartY("customer")
+      const baseY = contentStartY("customer")
+      return po ? drawPoContinuationStrip(page, po, baseY) : baseY
     },
   })
 }
@@ -205,14 +241,16 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
           canvas: "customer",
           redrawChrome: (page) => {
             drawCustomerChrome(page, { title })
-            return contentStartY("customer")
+            // Continuation strip so spillover pages still identify
+            // which PO the rows belong to.
+            return drawPoContinuationStrip(page, po, contentStartY("customer"))
           },
         },
       }) + 16
   }
 
   // Totals — right-aligned label/value rows.
-  y = ensure(doc, y, 80, title)
+  y = ensure(doc, y, 80, title, po)
   const totalsX = PAGE_MARGIN + CONTENT_W - 220
   const totalsRows: ReadonlyArray<readonly [string, string, boolean]> = [
     ["Subtotal", formatMoney(po.subtotal), false],
@@ -248,7 +286,7 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
       // CR catch — paginate per line so a long supplier note never
       // bleeds into the footer band. `ensure` redraws chrome on a
       // new page if the next line would overflow.
-      y = ensure(doc, y, TYPE.body.lineHeight, title)
+      y = ensure(doc, y, TYPE.body.lineHeight, title, po)
       y += TYPE.body.lineHeight
       doc.text(line, PAGE_MARGIN, y)
     }
@@ -256,7 +294,7 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
   }
 
   // Signature block.
-  y = ensure(doc, y, 80, title)
+  y = ensure(doc, y, 80, title, po)
   drawSignatureBlock(doc, {
     x: PAGE_MARGIN,
     y,
@@ -277,40 +315,42 @@ function drawAddressBlock(
   lines: ReadonlyArray<string>
 ): void {
   const innerX = x + 16
-  // Eyebrow caption in brand-blue.
+  // Width budget — 16pt inset on each side, leave 4pt right padding so
+  // wrapped text never kisses the panel's right edge.
+  const textMaxW = width - 32 - 4
+
+  // Eyebrow caption in signal orange.
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
   doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
   doc.text(eyebrow, innerX, y + 16)
 
-  // Lines: first as h2 (name), rest as body.
+  // Lines: first as h2 (name), rest as body. Each value gets
+  // `splitTextToSize` so long supplier names, emails, or shipping
+  // addresses wrap inside the panel instead of bleeding into the
+  // opposite column (CR catch).
   let cursor = y + 30
   let isFirst = true
+  const bottomLimit = y + height
   for (const line of lines) {
     if (!line) continue
-    if (isFirst) {
-      doc.setFont(TYPE.h2.family, TYPE.h2.weight)
-      doc.setFontSize(TYPE.h2.size)
-      doc.setTextColor(INK[0], INK[1], INK[2])
-      doc.text(line, innerX, cursor)
-      cursor += TYPE.h2.lineHeight
-      isFirst = false
-    } else {
-      doc.setFont(TYPE.body.family, TYPE.body.weight)
-      doc.setFontSize(TYPE.body.size)
-      doc.setTextColor(CHARCOAL[0], CHARCOAL[1], CHARCOAL[2])
-      doc.text(line, innerX, cursor)
-      cursor += TYPE.body.lineHeight
+    const role = isFirst ? "h2" : "body"
+    const roleSpec = TYPE[role]
+    doc.setFont(roleSpec.family, roleSpec.weight)
+    doc.setFontSize(roleSpec.size)
+    doc.setTextColor(
+      ...(isFirst
+        ? ([INK[0], INK[1], INK[2]] as const)
+        : ([CHARCOAL[0], CHARCOAL[1], CHARCOAL[2]] as const))
+    )
+    const wrapped = doc.splitTextToSize(line, textMaxW)
+    for (const wrappedLine of wrapped) {
+      if (cursor > bottomLimit) return
+      doc.text(wrappedLine, innerX, cursor)
+      cursor += roleSpec.lineHeight
     }
-    // CR catch — previously compared `cursor > y + width` (card width)
-    // instead of `y + height`, which let long supplier strings bleed
-    // into the next section. `height` is the panel's actual vertical
-    // budget so the clip is correct.
-    if (cursor > y + height) return
+    isFirst = false
   }
-  // Caller may consult `width` for horizontal layout downstream; keep it
-  // referenced explicitly so unused-imports doesn't flag the parameter.
-  void width
 }
 
 // ── Single-PO builder + downloader ──────────────────────────────────────────

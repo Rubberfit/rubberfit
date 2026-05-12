@@ -197,16 +197,25 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
       { header: "Waste", width: 60, align: "right", mono: true },
       { header: "Job ref", width: 80, mono: true },
     ]
-    const cutRows = input.recentCuts.map((cut) => ({
-      cells: [
-        format(new Date(cut.created_at), "MM/dd/yyyy"),
-        cut.roll?.material_type ?? "Unknown",
-        `${cut.cut_width}" × ${cut.cut_length}"`,
-        String(cut.quantity),
-        `${(Number(cut.waste_percentage) || 0).toFixed(1)}%`,
-        cut.job_reference ?? "—",
-      ],
-    }))
+    const cutRows = input.recentCuts.map((cut) => {
+      // `Number(null) === 0` and `Number(undefined) === NaN`, so neither
+      // `??` nor `||` cleanly handles every shape (`??` lets NaN
+      // propagate; `||` does the right thing but trips the no-falsy-OR
+      // lint on numerics). Explicit `Number.isFinite` guard satisfies
+      // both the CR style nudge AND the NaN edge case.
+      const wasteNum = Number(cut.waste_percentage)
+      const waste = Number.isFinite(wasteNum) ? wasteNum : 0
+      return {
+        cells: [
+          format(new Date(cut.created_at), "MM/dd/yyyy"),
+          cut.roll?.material_type ?? "Unknown",
+          `${cut.cut_width}" × ${cut.cut_length}"`,
+          String(cut.quantity),
+          `${waste.toFixed(1)}%`,
+          cut.job_reference ?? "—",
+        ],
+      }
+    })
     drawRuledTable(doc, {
       x: PAGE_MARGIN,
       y,
