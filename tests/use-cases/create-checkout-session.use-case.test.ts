@@ -240,6 +240,16 @@ class FakeOrganizationService implements IOrganizationService {
   async getMemberRole(): Promise<OrganizationRole | null> {
     return this.role
   }
+
+  async getInvitationById() {
+    return null
+  }
+  async getInvitationPreviewByToken() {
+    return null
+  }
+  async acceptInvitationAtomically() {
+    return { result_code: "not_found" as const }
+  }
 }
 
 function makeStripeClient(
@@ -268,14 +278,22 @@ function makeStripeClient(
     }
   })
 
+  const updateSubscription = vi.fn(
+    async (_id: string, _params: Stripe.SubscriptionUpdateParams) => ({
+      id: "sub_test",
+      status: "active" as const,
+    })
+  )
+
   const client: StripeBillingClient = {
     prices: { list: listPrices },
     customers: { create: createCustomer },
     checkout: { sessions: { create: createSession } },
+    subscriptions: { update: updateSubscription },
   }
   const service: IStripeClientService = { getClient: () => client }
 
-  return { service, listPrices, createCustomer, createSession }
+  return { service, listPrices, createCustomer, createSession, updateSubscription }
 }
 
 describe("CreateCheckoutSessionUseCase", () => {

@@ -16,6 +16,10 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
       "leaveOrganization",
     ]),
   ],
+  // PR 6: only acceptInvitation is recovery-exempt. The newly invited user
+  // has no own subscription yet; the use-case validates the invited org's
+  // subscription instead.
+  ["app/actions/team.ts", new Set(["acceptInvitation"])],
 ])
 
 interface ActionFunction {

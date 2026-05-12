@@ -5,6 +5,7 @@ export interface StripePriceListResult {
 }
 export type StripeCustomerResult = Pick<Stripe.Customer, "id">
 export type StripeCheckoutSessionResult = Pick<Stripe.Checkout.Session, "url">
+export type StripeSubscriptionUpdateResult = Pick<Stripe.Subscription, "id" | "status">
 
 export interface StripeBillingClient {
   prices: {
@@ -20,6 +21,12 @@ export interface StripeBillingClient {
     sessions: {
       create(params: Stripe.Checkout.SessionCreateParams): Promise<StripeCheckoutSessionResult>
     }
+  }
+  subscriptions: {
+    update(
+      id: string,
+      params: Stripe.SubscriptionUpdateParams
+    ): Promise<StripeSubscriptionUpdateResult>
   }
 }
 

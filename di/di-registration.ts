@@ -76,6 +76,12 @@ import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cas
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 import { CreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
 import { CreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
+import { UpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
+import { AcceptInvitationUseCase } from "@/src/application/use-cases/team/accept-invitation.use-case"
+import { CreateInvitationUseCase } from "@/src/application/use-cases/team/create-invitation.use-case"
+import { RevokeInvitationUseCase } from "@/src/application/use-cases/team/revoke-invitation.use-case"
+import { ResendInvitationUseCase } from "@/src/application/use-cases/team/resend-invitation.use-case"
+import { DeactivateMemberUseCase } from "@/src/application/use-cases/team/deactivate-member.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -217,5 +223,16 @@ container.registerSingleton(
   CreateOrganizationFromOnboardingUseCase
 )
 container.registerSingleton(TOKENS.ICreateCheckoutSessionUseCase, CreateCheckoutSessionUseCase)
+
+// PR 6 — team invites + seat management
+container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)
+container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
+container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
+container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
+container.registerSingleton(TOKENS.IDeactivateMemberUseCase, DeactivateMemberUseCase)
+container.registerSingleton(
+  TOKENS.IUpdateSubscriptionSeatCountUseCase,
+  UpdateSubscriptionSeatCountUseCase
+)
 
 export { container }

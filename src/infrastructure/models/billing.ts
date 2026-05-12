@@ -145,7 +145,7 @@ export type CreateOrganizationInvitation = Pick<
 }
 
 export type UpdateOrganizationInvitation = Partial<
-  Pick<OrganizationInvitation, "status" | "accepted_at" | "revoked_at">
+  Pick<OrganizationInvitation, "status" | "accepted_at" | "revoked_at" | "expires_at">
 >
 
 /**
@@ -169,3 +169,37 @@ export interface OrganizationSeatUsage {
   used: number
   available: number
 }
+
+/**
+ * Read-only invitation preview returned by `get_invitation_preview_by_token`
+ * RPC. Powers the public `/invite/[token]` landing page without exposing
+ * internal columns (no `token`, no `invited_by`, no `created_at`).
+ */
+export interface OrganizationInvitationPreview {
+  invitation_id: string
+  organization_id: string
+  organization_name: string
+  email: string
+  role: Exclude<OrganizationRole, "owner">
+  status: OrganizationInvitationStatus
+  expires_at: string
+  inviter_name: string | null
+}
+
+/** Typed result of the atomic accept-invitation RPC. */
+export type AcceptInvitationResult =
+  | {
+      result_code: "ok"
+      organization_id: string
+      membership_id: string
+    }
+  | {
+      result_code:
+        | "not_found"
+        | "already_accepted"
+        | "revoked"
+        | "expired"
+        | "email_mismatch"
+        | "org_subscription_inactive"
+        | "membership_exists"
+    }

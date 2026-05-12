@@ -3,11 +3,13 @@ import { injectable } from "tsyringe"
 
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import {
+  type AcceptInvitationResult,
   type CreateOrganization,
   type CreateOrganizationInvitation,
   type CreateOrganizationMember,
   type Organization,
   type OrganizationInvitation,
+  type OrganizationInvitationPreview,
   type OrganizationMember,
   type OrganizationMemberWithProfile,
   type OrganizationRole,
@@ -290,6 +292,101 @@ export class OrganizationService implements IOrganizationService {
       .maybeSingle()
     if (error) throw error
     return (data as OrganizationInvitation | null) ?? null
+  }
+
+  async getInvitationById(invitationId: string): Promise<OrganizationInvitation | null> {
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase
+      .from("organization_invitations")
+      .select("*")
+      .eq("id", invitationId)
+      .maybeSingle()
+    if (error) throw error
+    return (data as OrganizationInvitation | null) ?? null
+  }
+
+  async getInvitationPreviewByToken(token: string): Promise<OrganizationInvitationPreview | null> {
+    // The RPC is SECURITY DEFINER so the request client suffices for the
+    // anonymous /invite/[token] case. Authenticated callers go through the
+    // same path; no admin-client needed.
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase.rpc("get_invitation_preview_by_token", {
+      p_token: token,
+    })
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : null
+    if (!row) return null
+    const preview = row as {
+      invitation_id: string
+      organization_id: string
+      organization_name: string
+      email: string
+      role: "admin" | "member"
+      status: OrganizationInvitationPreview["status"]
+      expires_at: string
+      inviter_name: string | null
+    }
+    return {
+      invitation_id: preview.invitation_id,
+      organization_id: preview.organization_id,
+      organization_name: preview.organization_name,
+      email: preview.email,
+      role: preview.role,
+      status: preview.status,
+      expires_at: preview.expires_at,
+      inviter_name: preview.inviter_name,
+    }
+  }
+
+  async acceptInvitationAtomically(input: {
+    token: string
+    actorId: string
+    actorEmail: string
+    acceptedAt: string
+  }): Promise<AcceptInvitationResult> {
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase.rpc("accept_organization_invitation", {
+      p_token: input.token,
+      p_actor_id: input.actorId,
+      p_actor_email: input.actorEmail,
+      p_accepted_at: input.acceptedAt,
+    })
+    if (error) throw error
+    const row = Array.isArray(data) ? data[0] : null
+    if (!row) {
+      return { result_code: "not_found" }
+    }
+    const result = row as {
+      result_code: string
+      organization_id: string | null
+      membership_id: string | null
+    }
+    if (result.result_code === "ok") {
+      if (!result.organization_id || !result.membership_id) {
+        throw new Error("accept_organization_invitation returned ok without ids")
+      }
+      return {
+        result_code: "ok",
+        organization_id: result.organization_id,
+        membership_id: result.membership_id,
+      }
+    }
+    const knownCodes = [
+      "not_found",
+      "already_accepted",
+      "revoked",
+      "expired",
+      "email_mismatch",
+      "org_subscription_inactive",
+      "membership_exists",
+    ] as const
+    type KnownCode = (typeof knownCodes)[number]
+    if (!(knownCodes as readonly string[]).includes(result.result_code)) {
+      throw new Error(
+        `accept_organization_invitation returned unknown result_code: ${result.result_code}`
+      )
+    }
+    return { result_code: result.result_code as KnownCode }
   }
 
   async updateInvitation(

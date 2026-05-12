@@ -24,6 +24,9 @@ export class StripeClientService implements IStripeClientService {
           create: (params) => stripe.checkout.sessions.create(params),
         },
       },
+      subscriptions: {
+        update: (id, params) => stripe.subscriptions.update(id, params),
+      },
     }
   }
 }

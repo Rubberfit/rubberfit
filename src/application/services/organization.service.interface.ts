@@ -1,9 +1,11 @@
 import type {
+  AcceptInvitationResult,
   CreateOrganization,
   CreateOrganizationInvitation,
   CreateOrganizationMember,
   Organization,
   OrganizationInvitation,
+  OrganizationInvitationPreview,
   OrganizationMember,
   OrganizationMemberWithProfile,
   OrganizationRole,
@@ -68,11 +70,31 @@ export interface IOrganizationService {
   // ─── Invitations ────────────────────────────────────────────
   createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation>
   getInvitationByToken(token: string): Promise<OrganizationInvitation | null>
+  getInvitationById(invitationId: string): Promise<OrganizationInvitation | null>
+  /**
+   * Public preview backed by the `get_invitation_preview_by_token` SECURITY
+   * DEFINER RPC. Anonymous + authenticated callers may resolve this so the
+   * `/invite/[token]` landing page can render before sign-in.
+   */
+  getInvitationPreviewByToken(token: string): Promise<OrganizationInvitationPreview | null>
   updateInvitation(
     invitationId: string,
     updates: UpdateOrganizationInvitation
   ): Promise<OrganizationInvitation>
   listPendingInvitations(organizationId: string): Promise<OrganizationInvitation[]>
+  /**
+   * Wraps the `accept_organization_invitation` SECURITY DEFINER RPC. The
+   * function locks the invite row, validates state + email match + active
+   * org subscription, inserts the member, and marks the invite accepted —
+   * all inside a single transaction. Sequential calls to addMember +
+   * updateInvitation cannot give us the same atomicity under invitee RLS.
+   */
+  acceptInvitationAtomically(input: {
+    token: string
+    actorId: string
+    actorEmail: string
+    acceptedAt: string
+  }): Promise<AcceptInvitationResult>
 
   // ─── Seat accounting ────────────────────────────────────────
   /**

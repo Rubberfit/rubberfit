@@ -18,11 +18,17 @@ describe("PR 4 billing server actions", () => {
     expect(source).toMatch(/export async function createCheckoutSession\s*\(/)
   })
 
-  it("keeps Supabase and subscription gating out of the action boundary", () => {
+  it("keeps direct Supabase calls out of the action boundary", () => {
+    // PR 4 forbade `requireActiveSubscription` from billing.ts because the
+    // only actions in this file were recovery-exempt (onboarding +
+    // checkout). PR 6 adds `updateSubscriptionSeatCount`, which MUST call
+    // the gate. The per-action allowlist in
+    // `billing-actions-require-active-subscription.test.ts` enforces the
+    // recovery-vs-gated split; this test now only guards against the
+    // action file touching Supabase directly.
     const source = readAction()
     expect(source).not.toMatch(/@supabase\/(?:ssr|supabase-js)/)
     expect(source).not.toMatch(/@\/src\/infrastructure\/models\/supabase/)
     expect(source).not.toMatch(/\.from\(\s*["'][a-z_]/)
-    expect(source).not.toMatch(/requireActiveSubscription/)
   })
 })

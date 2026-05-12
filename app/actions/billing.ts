@@ -8,7 +8,9 @@ import { TOKENS } from "@/di/tokens"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import type { ICreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
 import type { ICreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
+import type { IUpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
@@ -24,6 +26,10 @@ const CreateOrganizationFromOnboardingSchema = z.object({
 const CreateCheckoutSessionSchema = z.object({
   organizationId: z.string().uuid(),
   billingInterval: billingIntervalSchema,
+})
+
+const UpdateSubscriptionSeatCountSchema = z.object({
+  newSeatCount: z.number().int().min(1).max(500),
 })
 
 function errorMessage(err: unknown): string {
@@ -69,9 +75,7 @@ export async function createCheckoutSession(input: {
   }
 }
 
-export async function createBillingPortalSession(): Promise<
-  { url: string } | { error: string }
-> {
+export async function createBillingPortalSession(): Promise<{ url: string } | { error: string }> {
   ensureDatabaseFactoryRegistered()
   await requireAuthenticatedUser()
   // PR 5 ships the lock-screen UI that calls this; the Stripe Billing Portal
@@ -88,6 +92,44 @@ export async function leaveOrganization(): Promise<{ ok: true } | { error: strin
     await organizationService.deactivateOwnMembership(actor.id)
     revalidatePath("/checkout")
     return { ok: true }
+  } catch (err) {
+    return { error: errorMessage(err) }
+  }
+}
+
+export async function updateSubscriptionSeatCount(input: { newSeatCount: number }): Promise<
+  | { ok: true; newSeatCount: number }
+  | {
+      error:
+        | "forbidden"
+        | "seat_count_out_of_range"
+        | "subscription_not_found"
+        | "subscription_inactive"
+        | "stripe_subscription_missing"
+        | "stripe_subscription_item_missing"
+        | "cannot_downsize_below_used"
+        | "stripe_update_failed"
+      used?: number
+    }
+  | { error: string }
+> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  const gate = await requireActiveSubscription(actor)
+  const parsed = UpdateSubscriptionSeatCountSchema.parse(input)
+
+  try {
+    const useCase = resolveUseCase<IUpdateSubscriptionSeatCountUseCase>(
+      TOKENS.IUpdateSubscriptionSeatCountUseCase
+    )
+    const result = await useCase.execute({
+      organizationId: gate.organizationId,
+      newSeatCount: parsed.newSeatCount,
+      actor,
+    })
+    revalidatePath("/dashboard/settings/team")
+    revalidatePath("/checkout")
+    return result
   } catch (err) {
     return { error: errorMessage(err) }
   }

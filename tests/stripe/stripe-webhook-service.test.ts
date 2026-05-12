@@ -133,6 +133,15 @@ class FakeOrganizationService implements IOrganizationService {
   async getMemberRole(): Promise<OrganizationRole | null> {
     return null
   }
+  async getInvitationById() {
+    return null
+  }
+  async getInvitationPreviewByToken() {
+    return null
+  }
+  async acceptInvitationAtomically() {
+    return { result_code: "not_found" as const }
+  }
 }
 
 const ORG_ID = "00000000-0000-0000-0000-0000000000ab"
