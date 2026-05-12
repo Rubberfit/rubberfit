@@ -60,18 +60,15 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
 
     const newExpiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
 
-    // Reuse the original token so any unread copy of the prior email still
-    // works. Bump only the expiry.
-    await this.organizationService.updateInvitation(invitation.id, {
-      expires_at: newExpiresAt.toISOString(),
-    })
-
     const organization = await this.organizationService.getOrganizationById(
       invitation.organization_id
     )
     const organizationName = organization?.name ?? "your team"
     const inviteUrl = `${appUrl()}/invite/${invitation.token}`
 
+    // Send the email first; persist the new expiry only if the send
+    // succeeded. Otherwise the old invite stays in its original window
+    // — we don't want a failed resend to silently extend the link.
     const send = await this.emailService.sendInvitationEmail({
       to: invitation.email,
       organizationName,
@@ -82,6 +79,12 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     })
 
     if (!send.success) return { error: "invite_email_failed" }
+
+    // Reuse the original token so any unread copy of the prior email still
+    // works. Bump only the expiry.
+    await this.organizationService.updateInvitation(invitation.id, {
+      expires_at: newExpiresAt.toISOString(),
+    })
     return { ok: true }
   }
 }

@@ -155,10 +155,23 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION is_organization_owner(p_org_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM organization_members
+    WHERE organization_id = p_org_id
+      AND user_id = auth.uid()
+      AND status = 'active'
+      AND role = 'owner'
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
 COMMENT ON FUNCTION is_organization_member(UUID)
   IS 'True if auth.uid() is an active member of the given org. SECURITY DEFINER avoids recursive RLS on organization_members.';
 COMMENT ON FUNCTION is_organization_admin(UUID)
   IS 'True if auth.uid() is an active owner or admin of the given org. SECURITY DEFINER avoids recursive RLS on organization_members.';
+COMMENT ON FUNCTION is_organization_owner(UUID)
+  IS 'True if auth.uid() is the owner of the given org. SECURITY DEFINER avoids recursive RLS on organization_members.';
 
 -- ─────────────────────────────────────────────────────────────
 -- RLS for organizations + organization_members
@@ -186,14 +199,19 @@ CREATE POLICY organization_members_select
   ON organization_members FOR SELECT
   USING (is_organization_member(organization_id));
 
+-- Admin write policies exclude owner rows so a regular admin cannot
+-- promote themselves to owner, demote the current owner, or remove the
+-- owner via PostgREST. Owner-level transitions stay service-role only
+-- (the org-creation server action inserts the founding owner row using
+-- the service-role client).
 CREATE POLICY organization_members_admin_insert
   ON organization_members FOR INSERT
-  WITH CHECK (is_organization_admin(organization_id));
+  WITH CHECK (is_organization_admin(organization_id) AND role <> 'owner');
 
 CREATE POLICY organization_members_admin_update
   ON organization_members FOR UPDATE
-  USING      (is_organization_admin(organization_id))
-  WITH CHECK (is_organization_admin(organization_id));
+  USING      (is_organization_admin(organization_id) AND role <> 'owner')
+  WITH CHECK (is_organization_admin(organization_id) AND role <> 'owner');
 
 -- Self-leave is intentionally NOT a row-level policy. RLS UPDATE cannot
 -- reference OLD.* in WITH CHECK, so a self-update policy can't safely
@@ -207,7 +225,7 @@ CREATE POLICY organization_members_admin_update
 
 CREATE POLICY organization_members_admin_delete
   ON organization_members FOR DELETE
-  USING (is_organization_admin(organization_id));
+  USING (is_organization_admin(organization_id) AND role <> 'owner');
 
 -- ─────────────────────────────────────────────────────────────
 -- organization_subscriptions — Stripe subscription history
@@ -376,14 +394,26 @@ CREATE POLICY organization_invitations_select_invitee
     ))
   );
 
+-- Admins can write non-admin invitations directly; only owners can issue
+-- admin-role invitations. Mirrors the application-layer rule in
+-- create-invitation.use-case.ts so an admin can't bypass it via PostgREST.
 CREATE POLICY organization_invitations_admin_insert
   ON organization_invitations FOR INSERT
-  WITH CHECK (is_organization_admin(organization_id));
+  WITH CHECK (is_organization_admin(organization_id) AND role <> 'admin');
+
+CREATE POLICY organization_invitations_owner_insert_admin
+  ON organization_invitations FOR INSERT
+  WITH CHECK (is_organization_owner(organization_id) AND role = 'admin');
 
 CREATE POLICY organization_invitations_admin_update
   ON organization_invitations FOR UPDATE
-  USING      (is_organization_admin(organization_id))
-  WITH CHECK (is_organization_admin(organization_id));
+  USING      (is_organization_admin(organization_id) AND role <> 'admin')
+  WITH CHECK (is_organization_admin(organization_id) AND role <> 'admin');
+
+CREATE POLICY organization_invitations_owner_update_admin
+  ON organization_invitations FOR UPDATE
+  USING      (is_organization_owner(organization_id) AND role = 'admin')
+  WITH CHECK (is_organization_owner(organization_id) AND role = 'admin');
 
 CREATE POLICY organization_invitations_admin_delete
   ON organization_invitations FOR DELETE
