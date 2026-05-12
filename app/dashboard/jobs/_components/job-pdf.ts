@@ -23,7 +23,6 @@ import {
   TYPE,
 } from "@/app/lib/pdf"
 import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supabase"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 
 /**
  * Customer-facing Job Sheet PDF — the project confirmation document a
@@ -54,7 +53,6 @@ const COLUMN_W = (CONTENT_W - COLUMN_GAP) / 2
 
 // Immutable data URL — built once per module load, no mutable cache.
 // CR catch: prior `let cachedLogo` was mutable singleton state.
-const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—"
@@ -115,7 +113,6 @@ function ensure(doc: jsPDF, y: number, needed: number): number {
     redrawChrome: (page) => {
       drawCustomerChrome(page, {
         title: "JOB SHEET",
-        logoDataUrl: LOGO_DATA_URL,
       })
       return contentStartY("customer")
     },
@@ -394,7 +391,7 @@ function drawPartsTable(
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
+        drawCustomerChrome(page, { title: "JOB SHEET" })
         return contentStartY("customer")
       },
     },
@@ -468,7 +465,7 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
     pageBreak: {
       canvas: "customer",
       redrawChrome: (page) => {
-        drawCustomerChrome(page, { title: "JOB SHEET", logoDataUrl: LOGO_DATA_URL })
+        drawCustomerChrome(page, { title: "JOB SHEET" })
         return contentStartY("customer")
       },
     },
@@ -491,7 +488,6 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
   drawCustomerChrome(doc, {
     title: "JOB SHEET",
     subtitle: job.job_number ?? undefined,
-    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 

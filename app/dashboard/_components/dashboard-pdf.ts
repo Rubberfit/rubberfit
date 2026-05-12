@@ -17,7 +17,6 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 
 import type { OperationsExportInput } from "./dashboard-export-utils"
 
@@ -39,9 +38,6 @@ const PAGE_W = INTERNAL_PAGE.width
 const PAGE_MARGIN = INTERNAL_PAGE.margin
 const CONTENT_W = INTERNAL_PAGE.contentWidth
 
-// Immutable data URL — no mutable singleton (CR catch).
-const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -58,7 +54,6 @@ function ensure(doc: jsPDF, y: number, needed: number): number {
     redrawChrome: (page) => {
       drawInternalChrome(page, {
         title: "OPERATIONS OVERVIEW",
-        logoDataUrl: LOGO_DATA_URL,
       })
       return contentStartY("internal")
     },
@@ -149,7 +144,7 @@ function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: numbe
     pageBreak: {
       canvas: "internal",
       redrawChrome: (page) => {
-        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: LOGO_DATA_URL })
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW" })
         return contentStartY("internal")
       },
     },
@@ -196,7 +191,7 @@ function drawRecentCutsTable(doc: jsPDF, input: OperationsExportInput, y: number
     pageBreak: {
       canvas: "internal",
       redrawChrome: (page) => {
-        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW", logoDataUrl: LOGO_DATA_URL })
+        drawInternalChrome(page, { title: "OPERATIONS OVERVIEW" })
         return contentStartY("internal")
       },
     },
@@ -221,7 +216,6 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
 
   drawInternalChrome(doc, {
     title: "OPERATIONS OVERVIEW",
-    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 

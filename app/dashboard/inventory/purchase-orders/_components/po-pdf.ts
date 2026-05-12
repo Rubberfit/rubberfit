@@ -24,7 +24,6 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 import type { POExportFilters, POExportSummary, PurchaseOrdersExportInput } from "./po-export-utils"
@@ -51,8 +50,6 @@ import type { POExportFilters, POExportSummary, PurchaseOrdersExportInput } from
 
 const PAGE_MARGIN = CUSTOMER_PAGE.margin
 const CONTENT_W = CUSTOMER_PAGE.contentWidth
-
-const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 const STATUS_INTENT: Readonly<Record<string, ChipIntent>> = {
   draft: "info",
@@ -104,7 +101,7 @@ function ensure(doc: jsPDF, y: number, needed: number, title: string): number {
     neededHeight: needed,
     canvas: "customer",
     redrawChrome: (page) => {
-      drawCustomerChrome(page, { title, logoDataUrl: LOGO_DATA_URL })
+      drawCustomerChrome(page, { title })
       return contentStartY("customer")
     },
   })
@@ -207,7 +204,7 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
         pageBreak: {
           canvas: "customer",
           redrawChrome: (page) => {
-            drawCustomerChrome(page, { title, logoDataUrl: LOGO_DATA_URL })
+            drawCustomerChrome(page, { title })
             return contentStartY("customer")
           },
         },
@@ -332,7 +329,6 @@ export function buildSinglePoPdf(po: PurchaseOrderWithDetails): jsPDF {
   drawCustomerChrome(doc, {
     title,
     subtitle: po.po_number ?? undefined,
-    logoDataUrl: LOGO_DATA_URL,
   })
   resetColors(doc)
 
@@ -365,7 +361,7 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
     creator: "Rubberfit",
   })
 
-  drawCustomerChrome(doc, { title, logoDataUrl: LOGO_DATA_URL })
+  drawCustomerChrome(doc, { title })
   resetColors(doc)
 
   let y = contentStartY("customer")
@@ -413,7 +409,7 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
       if (!po) continue
       if (i > 0) {
         doc.addPage()
-        drawCustomerChrome(doc, { title, logoDataUrl: LOGO_DATA_URL })
+        drawCustomerChrome(doc, { title })
         y = contentStartY("customer")
       }
       y = renderPo(doc, po, y, title)

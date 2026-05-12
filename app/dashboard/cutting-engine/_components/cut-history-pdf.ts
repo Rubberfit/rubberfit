@@ -1,7 +1,6 @@
 import jsPDF from "jspdf"
 import { format } from "date-fns"
 
-import { ARC_ANCHOR_LOGO_BASE64 } from "./arc-anchor-logo"
 import { uploadCutPdfFromBrowser } from "@/src/infrastructure/services/cutPdfBrowserStorage"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import type { PartTemplate } from "./PresetDimensionSelector"
@@ -42,6 +41,7 @@ export interface CutPdfData {
 
 import {
   CHARCOAL as GRAY_700,
+  drawRubberfitMark,
   INK as GRAY_900,
   type RGB,
   RULE as GRAY_200,
@@ -94,16 +94,11 @@ const MIN_LABEL_FONT_PT = 2.5
 const MAX_LABEL_FONT_PT = 10
 const PT_TO_MM = 25.4 / 72
 
-// ── Logo Loader ──────────────────────────────────────────────────────────────
-
-let cachedLogo: string | null = null
-
-function getLogo(): string {
-  if (!cachedLogo) {
-    cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  }
-  return cachedLogo
-}
+// ── Logo loader ─────────────────────────────────────────────────────────────
+// Phase 7 brand correction (2026-05-12) — the compass-rose Arc & Anchor
+// JPEG is gone. The Rubberfit mark is drawn imperatively by
+// `drawRubberfitMark` (imported from `@/app/lib/pdf`). No asset
+// round-trip, no image cache.
 
 // ── SVG Print-Color Swaps ────────────────────────────────────────────────────
 
@@ -184,17 +179,27 @@ function checkNewPage(doc: jsPDF, y: number, needed: number): number {
 
 // ── Section Renderers ────────────────────────────────────────────────────────
 
-function addHeader(doc: jsPDF, data: CutPdfData, logo: string): number {
-  // Phase 7 chrome — internal-canvas header (logo + ARC&ANCHOR brand
-  // lockup + H1 title + ghost divider rule) reproduced in mm.
+function addHeader(doc: jsPDF, data: CutPdfData): number {
+  // Phase 7 chrome (mm reproduction of the shared internal-canvas
+  // chrome). Brand correction (2026-05-12): dropped the Arc & Anchor
+  // compass-rose `addImage` call and the "ARC & ANCHOR / RUBBERFIT"
+  // wordmark. The top-left now carries the geometric Rubberfit mark
+  // drawn by `drawRubberfitMark`; the top-right carries a "RUBBERFIT"
+  // wordmark + signal-orange inspection-stamp underline.
   const topY = MARGIN
-  doc.addImage(logo, "JPEG", MARGIN, topY, 0, 7, undefined, "FAST")
+  drawRubberfitMark(doc, MARGIN, topY, 7)
 
-  // Right-aligned brand lockup (caption, brand-blue) + H1 title (ink).
+  // Right-aligned wordmark — caption ink, no brand-blue.
   doc.setFontSize(7)
   doc.setFont("helvetica", "bold")
-  doc.setTextColor(...BRAND)
-  doc.text("ARC & ANCHOR / RUBBERFIT", PAGE_W - MARGIN, topY + 2, { align: "right" })
+  doc.setTextColor(...GRAY_900)
+  doc.text("RUBBERFIT", PAGE_W - MARGIN, topY + 2, { align: "right" })
+
+  // Signal-orange inspection underline beneath the wordmark.
+  doc.setDrawColor(...BRAND)
+  doc.setLineWidth(0.18)
+  doc.line(PAGE_W - MARGIN - 8, topY + 3, PAGE_W - MARGIN, topY + 3)
+
   doc.setFontSize(13)
   doc.setTextColor(...GRAY_900)
   doc.text("CUT REPORT", PAGE_W - MARGIN, topY + 6.5, { align: "right" })
@@ -205,7 +210,7 @@ function addHeader(doc: jsPDF, data: CutPdfData, logo: string): number {
   doc.setTextColor(...GRAY_500)
   doc.text(`#${data.cutId}`, PAGE_W - MARGIN, topY + 10.5, { align: "right" })
 
-  // Ghost divider rule below the chrome content.
+  // Divider rule below the chrome content.
   const ruleY = topY + 13
   doc.setDrawColor(...GRAY_200)
   doc.setLineWidth(0.18)
@@ -1224,12 +1229,11 @@ export async function generateCutPdf(args: {
     creator: "Rubberfit Pro",
   })
 
-  const logo = getLogo()
   // Compute the offcut summary once up front so the diagram pass and
   // the table section share the same numbering and filtering.
   const offcutSummary = layouts.length > 0 ? buildOffcutSummary(layouts) : []
 
-  let y = addHeader(doc, data, logo)
+  let y = addHeader(doc, data)
   y = addSummaryCards(doc, data, y)
   y = addCutLegend(doc, data.tagMap, y)
   // Vector path when layouts are provided, raster fallback otherwise.

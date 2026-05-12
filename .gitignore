@@ -117,4 +117,9 @@ engine/target/
 
 # Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
 /target/
-*.pdf
+
+# Test-output PDFs at the repo root (jsPDF's `doc.save(name)` lands here when
+# tests run from the repo root). Root-scoped on purpose so committed docs
+# under `docs/`, design specs, or any future tracked PDF asset stay
+# trackable. CR catch on PR #238.
+/*.pdf

@@ -17,7 +17,6 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 
 /**
@@ -33,8 +32,6 @@ import type { CutWithRoll } from "@/src/application/services/cut.service.interfa
 
 const PAGE_MARGIN = CUSTOMER_PAGE.margin
 const CONTENT_W = CUSTOMER_PAGE.contentWidth
-
-const LOGO_DATA_URL = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
 
 export interface AnalyticsReportSummary {
   readonly totalCuts: number
@@ -82,7 +79,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
     creator: "Rubberfit",
   })
 
-  drawCustomerChrome(doc, { title, logoDataUrl: LOGO_DATA_URL })
+  drawCustomerChrome(doc, { title })
   resetColors(doc)
 
   let y = contentStartY("customer")
@@ -170,7 +167,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
         pageBreak: {
           canvas: "customer",
           redrawChrome: (page) => {
-            drawCustomerChrome(page, { title, logoDataUrl: LOGO_DATA_URL })
+            drawCustomerChrome(page, { title })
             return contentStartY("customer")
           },
         },
@@ -218,7 +215,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
       pageBreak: {
         canvas: "customer",
         redrawChrome: (page) => {
-          drawCustomerChrome(page, { title, logoDataUrl: LOGO_DATA_URL })
+          drawCustomerChrome(page, { title })
           return contentStartY("customer")
         },
       },
