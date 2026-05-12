@@ -60,6 +60,16 @@ const expectedDashboardLoadingFiles = [
 ] as const
 
 describe("dashboard loading.tsx boundary files", () => {
+  // A duplicate entry would silently mask a missing file: the per-path
+  // assertion would still pass for the duplicate while the actual
+  // missing boundary slipped through. Pinning the list size keeps
+  // coverage honest.
+  it("has no duplicate pinned paths", () => {
+    expect(new Set(expectedDashboardLoadingFiles).size).toBe(
+      expectedDashboardLoadingFiles.length
+    )
+  })
+
   it.each(expectedDashboardLoadingFiles)("keeps %s", (relativePath) => {
     expect(existsSync(join(process.cwd(), relativePath))).toBe(true)
   })
