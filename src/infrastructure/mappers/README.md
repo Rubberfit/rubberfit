@@ -77,3 +77,4 @@ the mapper at `tests/infrastructure/mappers/<aggregate>.mapper.test.ts`.
 ## Existing mappers
 
 - `supplier.mapper.ts` — first mapper, established the convention.
+- `material-supplier.mapper.ts` — junction-table mapper. `cost_per_sqm_cents` hydrates into a Money VO with a tenant-level default currency (USD until the per-tenant currency column lands); `effective_date` / `expiration_date` are `date` columns, round-tripped through `toISOString().slice(0, 10)`.

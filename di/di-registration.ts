@@ -9,6 +9,8 @@ import type { ICutService } from "@/src/application/services/cut.service.interfa
 import type { IEmailService } from "@/src/application/services/email.service.interface"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
 import type { IExportService } from "@/src/application/services/export.service.interface"
+import type { IMaterialSupplierService } from "@/src/application/services/material-supplier.service.interface"
+import type { IMaterialSuppliersRepository } from "@/src/application/repositories/material_suppliers.repository.interface"
 import type { IMaterialTypeService } from "@/src/application/services/material-type.service.interface"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
@@ -38,6 +40,8 @@ import { exportPdfService } from "@/src/infrastructure/services/exportPdfService
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
+import { MaterialSupplierService } from "@/src/infrastructure/services/materialSupplierService"
+import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
 import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
@@ -80,6 +84,14 @@ container.registerInstance<ICutService>(TOKENS.ICutService, cutService)
 container.registerInstance<IEmailService>(TOKENS.IEmailService, emailService)
 container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPdfService)
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
+container.registerInstance<IMaterialSuppliersRepository>(
+  TOKENS.IMaterialSuppliersRepository,
+  materialSuppliersRepository
+)
+container.registerSingleton<IMaterialSupplierService>(
+  TOKENS.IMaterialSupplierService,
+  MaterialSupplierService
+)
 container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
 // IPackingService: production now lives in `api/v2/pack.rs` (a Vercel

@@ -14,6 +14,7 @@ export const TOKENS = {
   // Both surfaces must resolve to the same Symbol — do not replace with Symbol("IPackingService")
   // or PACKING_TOKENS consumers break.
   IPackingService: PACKING_TOKENS.IPackingService,
+  IMaterialSupplierService: Symbol("IMaterialSupplierService"),
   IPriceHistoryService: Symbol("IPriceHistoryService"),
   IProfileService: Symbol("IProfileService"),
   IPurchaseOrderService: Symbol("IPurchaseOrderService"),
@@ -27,6 +28,7 @@ export const TOKENS = {
   IVisionExtractionService: Symbol("IVisionExtractionService"),
 
   // Repositories
+  IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   ISuppliersRepository: Symbol("ISuppliersRepository"),
 
   // Admin portal services

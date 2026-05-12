@@ -1,5 +1,6 @@
 import "reflect-metadata"
-import { injectable, inject } from "tsyringe"
+import { inject, injectable } from "tsyringe"
+import type { IMaterialSupplierService } from "@/src/application/services/material-supplier.service.interface"
 import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
@@ -55,6 +56,8 @@ function sumPendingQuantities(
 export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSuggestionsUseCase {
   constructor(
     @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
+    @inject(TOKENS.IMaterialSupplierService)
+    private readonly materialSupplierService: IMaterialSupplierService,
     @inject(TOKENS.IReorderCalculationsService)
     private readonly reorderCalculations: IReorderCalculationsService
   ) {}
@@ -130,13 +133,17 @@ export class GenerateReorderSuggestionsUseCase implements IGenerateReorderSugges
     if (rule.supplier_id) {
       return { supplierId: rule.supplier_id, supplierName: rule.supplier?.name }
     }
-    // The preferred-supplier-by-material fallback used to live on
-    // `supplierService.getPreferredSupplierForMaterial`. That method
-    // belongs to the material_suppliers aggregate, which hasn't been
-    // migrated to DDD yet. Until `IMaterialSuppliersService` lands,
-    // rules without an explicit `supplier_id` get no fallback —
-    // operators fill the supplier on the suggestion before creating
-    // the PO. Tracked as the next service-migration commit.
-    return {}
+    try {
+      const preferred = await this.materialSupplierService.getPreferredForMaterialType(
+        rule.material_type_id
+      )
+      if (!preferred) return {}
+      const supplier = await this.supplierService.getSupplierById(preferred.supplierId.value)
+      return { supplierId: preferred.supplierId.value, supplierName: supplier.name }
+    } catch (_error) {
+      // Lookup failure shouldn't drop the suggestion — just leave the
+      // supplier slot empty so the operator can fill it on review.
+      return {}
+    }
   }
 }
