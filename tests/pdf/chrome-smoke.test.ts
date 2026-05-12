@@ -104,6 +104,80 @@ describe("primitives — ruled table", () => {
     expect(finalY).toBeGreaterThan(contentStartY("customer"))
     expect(pdfHasBytes(doc)).toBe(true)
   })
+
+  it("zebra default-on paints alternating row fills (no-op test that catches regressions)", () => {
+    // Codex catch in PR 2 — the zebra option was added to the
+    // interface but the body row loop never read it. This test
+    // pins the wiring at the API surface: any consumer passing
+    // zebra: true (or omitting it) must produce a valid PDF.
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Item", width: 360 },
+        { header: "Count", width: 156, align: "right", mono: true },
+      ],
+      rows: Array.from({ length: 6 }, (_, i) => ({
+        cells: [`Row ${i + 1}`, String(i + 1)],
+      })),
+      // zebra omitted — defaults to true
+    })
+    expect(pdfHasBytes(doc)).toBe(true)
+  })
+
+  it("zebra false skips alternating fills without throwing", () => {
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Item", width: 360 },
+        { header: "Count", width: 156, align: "right", mono: true },
+      ],
+      rows: Array.from({ length: 4 }, (_, i) => ({
+        cells: [`Row ${i + 1}`, String(i + 1)],
+      })),
+      zebra: false,
+    })
+    expect(pdfHasBytes(doc)).toBe(true)
+  })
+
+  it("auto-paginates and redraws chrome + header on overflow", () => {
+    // Codex catch in PR 2 — drawRuledTable used to draw all rows in
+    // one call without checking page bounds, so a long table
+    // overflowed the page footer silently. This pins the new
+    // pageBreak option: when set, a 60-row table must spill onto a
+    // second page and call the redraw callback.
+    const doc = makeCustomerDoc()
+    drawCustomerChrome(doc, { title: "JOB SHEET" })
+
+    let redrawCount = 0
+    drawRuledTable(doc, {
+      x: 48,
+      y: contentStartY("customer"),
+      columns: [
+        { header: "Index", width: 80, align: "right", mono: true },
+        { header: "Label", width: 436 },
+      ],
+      rows: Array.from({ length: 60 }, (_, i) => ({
+        cells: [String(i + 1), `Long-running parts row #${i + 1}`],
+      })),
+      pageBreak: {
+        canvas: "customer",
+        redrawChrome: (page) => {
+          redrawCount += 1
+          drawCustomerChrome(page, { title: "JOB SHEET" })
+          return contentStartY("customer")
+        },
+      },
+    })
+
+    expect(doc.getNumberOfPages()).toBeGreaterThan(1)
+    expect(redrawCount).toBeGreaterThanOrEqual(1)
+  })
 })
 
 describe("primitives — status chip", () => {

@@ -30,6 +30,8 @@ import {
   KPI_PADDING,
   KPI_TOP_BORDER,
   LABEL_TOP_RULE,
+  PAGE_BY_CANVAS,
+  type PdfCanvas,
   type RGB,
   SLATE,
   STATUS_CHIPS,
@@ -40,6 +42,7 @@ import {
   TABLE_TOTALS_BORDER,
   TYPE,
   WHITE,
+  FOOTER_RESERVED_HEIGHT,
 } from "./tokens"
 
 function setFillRgb(doc: jsPDF, [r, g, b]: RGB): void {
@@ -134,6 +137,17 @@ export interface TableRowOptions {
   readonly isTotals?: boolean
 }
 
+export interface RuledTablePageBreak {
+  /** Canvas the table is rendering on — drives the bottom-margin lookup. */
+  readonly canvas: PdfCanvas
+  /**
+   * Called on each new page after `doc.addPage()`. Re-renders the
+   * page chrome (header, optional KPI strip, etc.) and returns the
+   * Y cursor where the table should resume drawing the header row.
+   */
+  readonly redrawChrome: (doc: jsPDF) => number
+}
+
 export interface RuledTableOptions {
   readonly x: number
   readonly y: number
@@ -146,55 +160,148 @@ export interface RuledTableOptions {
   readonly rowHeight?: number
   /** Header row height. Defaults to body row height. */
   readonly headerHeight?: number
+  /**
+   * Alternate fill every row: White / Surface. Default true per Kimi's
+   * spec ("Rows — alternate fill every row"). Pass `false` for tables
+   * where zebra would compete with foreground content (e.g. dense
+   * roll-allocations tables where row backgrounds confuse status
+   * chips painted inside the row).
+   */
+  readonly zebra?: boolean
+  /**
+   * Optional auto-pagination. When set, the primitive checks each
+   * row against the canvas's `contentBottomY` and, if it'd overflow,
+   * calls `doc.addPage()`, invokes `redrawChrome` to repaint the
+   * header chrome (so the operator doesn't lose orientation
+   * mid-document), and re-draws the table header at the new top.
+   *
+   * Without this option a long parts/cuts table silently overflows
+   * the page footer (Codex caught the regression in PR 2 review).
+   */
+  readonly pageBreak?: RuledTablePageBreak
 }
 
 const DEFAULT_ROW_HEIGHT = TYPE.body.lineHeight + BASELINE * 2 // 16 + 8 = 24pt
+
+/**
+ * Draws the per-cell text for one body row. Extracted from
+ * `drawRuledTable` to keep the orchestrator's cyclomatic complexity
+ * under the lint threshold; no behavioral change.
+ */
+function drawRowCells(
+  doc: jsPDF,
+  columns: ReadonlyArray<TableColumn>,
+  row: TableRowOptions,
+  x: number,
+  rowY: number,
+  rowHeight: number
+): void {
+  setTextRgb(doc, INK)
+  let cellX = x
+  for (let i = 0; i < columns.length; i += 1) {
+    const col = columns[i]
+    if (!col) continue
+    const cellText = row.cells[i] ?? ""
+    if (col.mono) {
+      applyType(doc, "mono")
+    } else if (row.isTotals) {
+      applyType(doc, "body")
+      doc.setFont(TYPE.body.family, "bold")
+    } else {
+      applyType(doc, "body")
+    }
+    const textX =
+      col.align === "right"
+        ? cellX + col.width - TABLE_CELL_PADDING_X
+        : cellX + TABLE_CELL_PADDING_X
+    const baseline = rowY + rowHeight - BASELINE - 2
+    doc.text(cellText, textX, baseline, { align: col.align === "right" ? "right" : "left" })
+    cellX += col.width
+  }
+}
 
 /**
  * Draws a ruled table per Kimi's spec:
  *
  *   • Header — transparent fill, 9pt Bold ALL CAPS, 1pt brand-blue
  *     bottom border. No vertical strokes.
- *   • Rows — 0.25pt ghost stroke between rows. No alternating fill
- *     by default (zebra is the consumer's call — pass row.isTotals
- *     for the totals row only).
+ *   • Rows — alternate fill White / Surface (zebra) by default. Pass
+ *     `zebra: false` to suppress on tables where alternating fill
+ *     would compete with foreground content. 0.25pt ghost stroke
+ *     between rows.
  *   • Totals row — 0.5pt ink top border, transparent fill, bold body.
+ *     Zebra is suppressed on the totals row.
  *   • Numeric columns right-align; mono columns use Courier 9pt.
+ *   • Auto-pagination — pass `pageBreak: { canvas, redrawChrome }`
+ *     and the primitive will call `addPage` + the redraw callback +
+ *     reprint the table header whenever a body row would overflow
+ *     the canvas's footer-band-aware bottom limit. Without this
+ *     option a long table silently overflows the page footer.
  *
  * Returns the Y coordinate just below the table (caller's next cursor).
  */
 export function drawRuledTable(doc: jsPDF, opts: RuledTableOptions): number {
-  const { x, y, columns, rows } = opts
+  const { x, columns, rows, pageBreak } = opts
   const rowHeight = opts.rowHeight ?? DEFAULT_ROW_HEIGHT
   const headerHeight = opts.headerHeight ?? rowHeight
+  const zebra = opts.zebra ?? true
   const tableWidth = columns.reduce((sum, c) => sum + c.width, 0)
 
-  // ── Header row ──────────────────────────────────────────────────────────
-  applyType(doc, "caption")
-  doc.setFontSize(9) // Kimi: "Text 9 pt Bold, Ink, ALL CAPS"
-  setTextRgb(doc, INK)
-  let colX = x
-  for (const col of columns) {
-    const headerText = col.header.toUpperCase()
-    const textX =
-      col.align === "right" ? colX + col.width - TABLE_CELL_PADDING_X : colX + TABLE_CELL_PADDING_X
-    const baseline = y + headerHeight - BASELINE - 2
-    doc.text(headerText, textX, baseline, { align: col.align === "right" ? "right" : "left" })
-    colX += col.width
+  // Footer-band-aware bottom limit, used only when paginating.
+  const bottomLimit = pageBreak
+    ? PAGE_BY_CANVAS[pageBreak.canvas].height -
+      PAGE_BY_CANVAS[pageBreak.canvas].margin -
+      FOOTER_RESERVED_HEIGHT
+    : Infinity
+
+  /**
+   * Draws the header row at the given Y. Returned cursor sits at the
+   * top of where the first body row should render.
+   */
+  function drawHeaderRow(headerY: number): number {
+    applyType(doc, "caption")
+    doc.setFontSize(9) // Kimi: "Text 9 pt Bold, Ink, ALL CAPS"
+    setTextRgb(doc, INK)
+    let colX = x
+    for (const col of columns) {
+      const headerText = col.header.toUpperCase()
+      const textX =
+        col.align === "right"
+          ? colX + col.width - TABLE_CELL_PADDING_X
+          : colX + TABLE_CELL_PADDING_X
+      const baseline = headerY + headerHeight - BASELINE - 2
+      doc.text(headerText, textX, baseline, { align: col.align === "right" ? "right" : "left" })
+      colX += col.width
+    }
+    setDrawRgb(doc, BRAND_BLUE)
+    doc.setLineWidth(TABLE_HEADER_RULE)
+    doc.line(x, headerY + headerHeight, x + tableWidth, headerY + headerHeight)
+    return headerY + headerHeight
   }
-  // Brand-blue underline under header row.
-  setDrawRgb(doc, BRAND_BLUE)
-  doc.setLineWidth(TABLE_HEADER_RULE)
-  doc.line(x, y + headerHeight, x + tableWidth, y + headerHeight)
+
+  let cursor = drawHeaderRow(opts.y)
 
   // ── Body rows ───────────────────────────────────────────────────────────
-  // Zebra striping is intentionally NOT applied by default — Kimi's
-  // spec says alternating fill is a per-table call and most surfaces
-  // (Job Sheet parts table, PO line items) read better without it.
-  // When a future consumer needs zebra rows, add a `zebra: boolean`
-  // flag to `RuledTableOptions` and shade rows here.
-  let cursor = y + headerHeight
+  // `bodyRowIndex` tracks zebra alternation across page breaks so the
+  // shading doesn't reset to row 0 on every fresh page (which would
+  // put the same fill against the page top regardless of where the
+  // data actually sits in the table).
+  let bodyRowIndex = 0
   for (const row of rows) {
+    // Pagination check: does the next row + its bottom stroke fit on
+    // the current page's content area?
+    if (pageBreak && cursor + rowHeight + TABLE_ROW_STROKE > bottomLimit) {
+      doc.addPage()
+      const resumeY = pageBreak.redrawChrome(doc)
+      cursor = drawHeaderRow(resumeY)
+    }
+
+    // Zebra fill on odd body rows (transparent on totals row).
+    if (zebra && !row.isTotals && bodyRowIndex % 2 === 1) {
+      setFillRgb(doc, SURFACE)
+      doc.rect(x, cursor, tableWidth, rowHeight, "F")
+    }
+
     if (row.isTotals) {
       // 0.5pt ink top border for totals row.
       setDrawRgb(doc, INK)
@@ -202,30 +309,7 @@ export function drawRuledTable(doc: jsPDF, opts: RuledTableOptions): number {
       doc.line(x, cursor, x + tableWidth, cursor)
     }
 
-    // Cell text per column.
-    setTextRgb(doc, INK)
-    let cellX = x
-    for (let i = 0; i < columns.length; i += 1) {
-      const col = columns[i]
-      if (!col) continue
-      const cellText = row.cells[i] ?? ""
-      if (col.mono) {
-        applyType(doc, "mono")
-      } else if (row.isTotals) {
-        applyType(doc, "body")
-        doc.setFont(TYPE.body.family, "bold")
-      } else {
-        applyType(doc, "body")
-      }
-      const textX =
-        col.align === "right"
-          ? cellX + col.width - TABLE_CELL_PADDING_X
-          : cellX + TABLE_CELL_PADDING_X
-      const baseline = cursor + rowHeight - BASELINE - 2
-      doc.text(cellText, textX, baseline, { align: col.align === "right" ? "right" : "left" })
-      cellX += col.width
-    }
-
+    drawRowCells(doc, columns, row, x, cursor, rowHeight)
     cursor += rowHeight
 
     // Between-rows ghost stroke — skipped after the totals row (it's the bottom).
@@ -234,6 +318,8 @@ export function drawRuledTable(doc: jsPDF, opts: RuledTableOptions): number {
       doc.setLineWidth(TABLE_ROW_STROKE)
       doc.line(x, cursor, x + tableWidth, cursor)
     }
+
+    if (!row.isTotals) bodyRowIndex += 1
   }
 
   return cursor
