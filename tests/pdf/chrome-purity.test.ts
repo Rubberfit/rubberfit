@@ -109,7 +109,13 @@ describe("app/lib/pdf — purity guard", () => {
       const source = stripComments(fs.readFileSync(file, "utf-8"))
       for (const { pattern, reason } of FORBIDDEN_STATIC_PATTERNS) {
         if (pattern.test(source)) {
-          offenders.push(`${path.basename(file)}: ${reason}`)
+          // Path relative to PDF_LIB_DIR (forward-slash normalized) so a
+          // nested `app/lib/pdf/foo/chrome.ts` reads as `foo/chrome.ts`
+          // and never collides with a sibling `chrome.ts` at the root.
+          // CodeRabbit catch — basename hid duplicate filenames once
+          // listTsFiles started recursing.
+          const rel = path.relative(PDF_LIB_DIR, file).split(path.sep).join("/")
+          offenders.push(`${rel}: ${reason}`)
         }
       }
     }
