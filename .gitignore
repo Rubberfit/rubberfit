@@ -72,6 +72,10 @@ temp/
 # these are explicitly audited and safe to commit.
 !engine/crates/rf-api/scripts/smoke.sh
 !.claude/scripts/*.sh
+# Claude Code session hooks live in .claude/hooks/ by convention.
+# They run on session lifecycle events (Stop, etc.) and must be
+# committed so the project's hook config is reproducible. No secrets.
+!.claude/hooks/*.sh
 
 # Internal planning docs — working files for us, not part of the
 # repo. Specs + benchmarks under docs/superpowers/ stay tracked;
