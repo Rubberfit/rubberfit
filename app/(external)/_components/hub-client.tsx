@@ -12,12 +12,14 @@ export interface EntryPoint {
 
 const ease = [0.22, 1, 0.36, 1] as const
 
+// Empty parent variants — the propagation channel that lets each child's
+// explicit delay drive the timeline (matches Kimi's brief: meta 0.10s,
+// h1 0.18s, lead 0.35s, CTA 0.50s). Adding staggerChildren/delayChildren
+// here would compound with each child's own delay and push the CTA from
+// 0.5s out to ~0.96s.
 const heroContainer: Variants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.1 },
-  },
+  hidden: {},
+  show: {},
 }
 
 const heroItem = (y: number, dur: number, del: number): Variants => ({
