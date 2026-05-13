@@ -99,12 +99,14 @@ export async function selectSubscriptionPlanTier(input: {
       return { error: "subscription_already_active" }
     }
 
-    await organizationService.upsertSubscription({
-      organization_id: parsed.organizationId,
-      plan_tier: parsed.planTier,
-      seat_count: parsed.seatCount,
-      status: subscription.status,
-      is_current: true,
+    // In-place patch so pre-set fields on the row (stripe_customer_id,
+    // trial_end, etc.) survive. The general upsertSubscription path
+    // demotes-and-inserts when no stripe_subscription_id is in hand,
+    // which would null those columns on every tier change.
+    await organizationService.updateSubscriptionPlanTierAndSeats({
+      subscriptionId: subscription.id,
+      planTier: parsed.planTier,
+      seatCount: parsed.seatCount,
     })
     revalidatePath("/checkout")
     return { ok: true }

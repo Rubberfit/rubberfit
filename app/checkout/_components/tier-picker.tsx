@@ -240,7 +240,11 @@ export function TierPicker({
             min={1}
             max={500}
             value={seatCount}
-            onChange={(e) => setSeatCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+            onChange={(e) => {
+              const next = parseInt(e.target.value, 10)
+              setSeatCount(Number.isFinite(next) ? Math.max(1, Math.min(500, next)) : 1)
+            }}
+            step={1}
             disabled={isSubmitting}
             className="auth-input-minimal mt-2 max-w-[120px]"
           />
