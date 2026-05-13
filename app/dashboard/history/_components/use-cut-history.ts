@@ -284,10 +284,21 @@ export function useCutHistory() {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const csv = await exportCutHistoryCsv({
+      // The action returns a discriminated result rather than
+      // throwing FeatureLockedError — Next.js strips custom error
+      // properties on the action serialization boundary, so a
+      // `result.ok` check is the reliable way to detect the
+      // Pro-tier gate from the client.
+      const result = await exportCutHistoryCsv({
         cutIds: displayedCuts.map((c) => c.id),
       })
-      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" })
+      if (!result.ok) {
+        if (result.reason === "FEATURE_LOCKED") {
+          setUpsellOpen(true)
+        }
+        return
+      }
+      const blob = new Blob(["﻿" + result.csv], { type: "text/csv;charset=utf-8" })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -297,13 +308,8 @@ export function useCutHistory() {
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      const code = (err as { code?: string } | null)?.code
-      if (code === "FEATURE_LOCKED") {
-        setUpsellOpen(true)
-      } else {
-        console.error("Cut history CSV export failed:", err)
-        toast.error("Failed to export cut history")
-      }
+      console.error("Cut history CSV export failed:", err)
+      toast.error("Failed to export cut history")
     } finally {
       setIsExporting(false)
     }

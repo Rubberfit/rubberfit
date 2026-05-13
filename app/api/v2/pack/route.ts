@@ -129,6 +129,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 403 }
       )
     }
+    // The second `requireAuthenticatedUser` inside this try-block
+    // can throw the same Unauthorized / Forbidden / AuthConfig
+    // errors as the earlier auth block; map them to the same status
+    // codes rather than burying them under a generic 500. (e.g.
+    // session invalidated between the two calls.)
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: error.message }, { status: 401 })
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+    if (error instanceof AuthConfigError) {
+      return NextResponse.json(
+        { error: "Supabase environment variables are missing" },
+        { status: 503 }
+      )
+    }
     const message = error instanceof Error ? error.message : "Unknown error"
     console.error("[api/v2/pack] dev pack-cli failed:", error)
     return NextResponse.json({ error: "Pack failed", detail: message }, { status: 500 })

@@ -53,7 +53,9 @@ export async function listStripeInvoicesForCustomer(
 function toSummary(invoice: Stripe.Invoice): StripeInvoiceSummary {
   // `invoice.subscription` is `string | Stripe.Subscription | null` —
   // we only need the id; the expanded form would be a wasted byte.
-  const subscriptionField = (invoice as unknown as { subscription?: string | { id: string } | null }).subscription
+  const subscriptionField = (
+    invoice as unknown as { subscription?: string | { id: string } | null }
+  ).subscription
   const subscriptionId =
     typeof subscriptionField === "string"
       ? subscriptionField
@@ -70,11 +72,7 @@ function toSummary(invoice: Stripe.Invoice): StripeInvoiceSummary {
     hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
     invoicePdfUrl: invoice.invoice_pdf ?? null,
     subscriptionId,
-    periodStart: invoice.period_start
-      ? new Date(invoice.period_start * 1000).toISOString()
-      : null,
-    periodEnd: invoice.period_end
-      ? new Date(invoice.period_end * 1000).toISOString()
-      : null,
+    periodStart: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
+    periodEnd: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
   }
 }

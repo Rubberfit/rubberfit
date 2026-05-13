@@ -98,11 +98,14 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
     getOrganizationByIdMock.mockResolvedValue({ id: "org_1", name: "Acme Rubber Co." })
     const { getBrandedPdfCompanyName } = await import("@/app/actions/branding")
 
-    await expect(getBrandedPdfCompanyName()).resolves.toBe("Acme Rubber Co.")
+    await expect(getBrandedPdfCompanyName()).resolves.toEqual({
+      ok: true,
+      companyName: "Acme Rubber Co.",
+    })
     expect(getOrganizationByIdMock).toHaveBeenCalledWith("org_1")
   })
 
-  it("throws FeatureLockedError for Standard tier (caller falls back to default)", async () => {
+  it("returns a discriminated FEATURE_LOCKED result for Standard tier", async () => {
     requireFeatureMock.mockRejectedValue(
       new FeatureLockedErrorMock({
         featureKey: "branded_pdfs",
@@ -112,9 +115,9 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
     )
     const { getBrandedPdfCompanyName } = await import("@/app/actions/branding")
 
-    await expect(getBrandedPdfCompanyName()).rejects.toMatchObject({
-      code: "FEATURE_LOCKED",
-      featureKey: "branded_pdfs",
+    await expect(getBrandedPdfCompanyName()).resolves.toEqual({
+      ok: false,
+      reason: "FEATURE_LOCKED",
     })
     expect(getOrganizationByIdMock).not.toHaveBeenCalled()
   })
@@ -126,7 +129,10 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
       "@/src/application/billing/pdf-branding"
     )
 
-    await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)
+    await expect(getBrandedPdfCompanyName()).resolves.toEqual({
+      ok: true,
+      companyName: DEFAULT_PDF_COMPANY_NAME,
+    })
   })
 
   it("returns DEFAULT_PDF_COMPANY_NAME if org has empty name", async () => {
@@ -136,7 +142,10 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
       "@/src/application/billing/pdf-branding"
     )
 
-    await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)
+    await expect(getBrandedPdfCompanyName()).resolves.toEqual({
+      ok: true,
+      companyName: DEFAULT_PDF_COMPANY_NAME,
+    })
   })
 
   it("returns DEFAULT_PDF_COMPANY_NAME if active-sub gate returns no org id", async () => {
@@ -149,7 +158,10 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
       "@/src/application/billing/pdf-branding"
     )
 
-    await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)
+    await expect(getBrandedPdfCompanyName()).resolves.toEqual({
+      ok: true,
+      companyName: DEFAULT_PDF_COMPANY_NAME,
+    })
     expect(getOrganizationByIdMock).not.toHaveBeenCalled()
   })
 })

@@ -219,6 +219,15 @@ export const sidebarItems: NavGroup[] = [
             title: "Notifications",
             url: "/dashboard/settings/notifications",
           },
+          {
+            title: "Team",
+            url: "/dashboard/settings/team",
+          },
+          {
+            title: "Billing",
+            url: "/dashboard/settings/billing",
+            requiredPermission: "manageUsers",
+          },
         ],
       },
     ],

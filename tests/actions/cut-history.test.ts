@@ -118,15 +118,18 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     bindServiceReturning([])
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
-    const csv = await exportCutHistoryCsv({ cutIds: [] })
+    const result = await exportCutHistoryCsv({ cutIds: [] })
 
-    expect(csv).toBe(
-      "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (ft²),Reuse (ft²),Scrap (ft²),Fab Score"
-    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.csv).toBe(
+        "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (ft²),Reuse (ft²),Scrap (ft²),Fab Score"
+      )
+    }
     expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
   })
 
-  it("propagates FeatureLockedError when feature gate rejects", async () => {
+  it("returns a discriminated FEATURE_LOCKED result when feature gate rejects", async () => {
     requireFeatureMock.mockRejectedValue(
       new FeatureLockedErrorMock({
         featureKey: "cut_history_exports",
@@ -137,9 +140,13 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     bindServiceReturning([])
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
-    await expect(exportCutHistoryCsv({ cutIds: [CUT_ID_1] })).rejects.toMatchObject({
-      code: "FEATURE_LOCKED",
-      featureKey: "cut_history_exports",
+    const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "FEATURE_LOCKED",
+      requiredTier: "pro",
+      currentTier: "standard",
     })
     expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
   })
@@ -163,15 +170,12 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     ])
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
-    const csv = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
-    const lines = csv.split("\n")
+    const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected ok result")
+    const lines = result.csv.split("\n")
 
     expect(lines).toHaveLength(2)
-    // The row cells (date formatted server-local TZ, can't pin without
-    // mocking; check structure instead):
-    //   - 9 cells separated by commas (some quoted)
-    //   - Stock cell contains the dimensions with the quote-inch suffix,
-    //     so the whole cell is wrapped and inner quotes are doubled.
     const row = lines[1]
     expect(row).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},Rectangle,/)
     expect(row).toContain(`"60"" × 240"" × 0.5"""`)
@@ -184,7 +188,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
       {
         id: CUT_ID_1,
         cut_date: "2026-04-22T15:30:00.000Z",
-        part_id: 999, // unknown part_id falls back to `Part 999`
+        part_id: 999,
         cut_width: 60,
         cut_length: 240,
         cut_thickness: 0.5,
@@ -198,14 +202,11 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     ])
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
-    const csv = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
-    // Stock dimension cell contains the `"` quote-inch suffix and gets
-    // escaped — double quotes inside become "" and the whole cell is
-    // wrapped in quotes.
-    expect(csv).toContain(`"60"" × 240"" × 0.5"""`)
-    // Unknown part labels fall back to `Part <id>` (no escaping needed
-    // since there's no comma).
-    expect(csv).toContain("Part 999")
+    const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected ok result")
+    expect(result.csv).toContain(`"60"" × 240"" × 0.5"""`)
+    expect(result.csv).toContain("Part 999")
   })
 
   it("surfaces service errors", async () => {

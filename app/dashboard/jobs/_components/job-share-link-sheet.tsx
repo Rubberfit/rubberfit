@@ -75,19 +75,18 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
     setErrorMsg(null)
     try {
       // Branding is Pro+ — Standard tier silently falls back to the
-      // default product name. The action throws `FeatureLockedError`
-      // for Standard; we treat that as "use the default" so the PDF
-      // still renders. Anything ELSE (network, DB, unexpected bug)
-      // surfaces in the console so ops issues don't go dark.
+      // default product name. The action returns a discriminated
+      // result (Next.js strips custom error properties on the
+      // server-action serialization boundary, so a thrown
+      // FeatureLockedError isn't reliably detectable client-side).
       let companyName = DEFAULT_PDF_COMPANY_NAME
       try {
-        companyName = await getBrandedPdfCompanyName()
-      } catch (err) {
-        const code = (err as { code?: string } | null)?.code
-        if (code !== "FEATURE_LOCKED") {
-          console.error("[JobShareLinkSheet] branded-name fetch failed:", err)
+        const branding = await getBrandedPdfCompanyName()
+        if (branding.ok) {
+          companyName = branding.companyName
         }
-        companyName = DEFAULT_PDF_COMPANY_NAME
+      } catch (err) {
+        console.error("[JobShareLinkSheet] branded-name fetch failed:", err)
       }
       // Build the PDF client-side so we don't round-trip the job
       // data through a server action just to render a document the
