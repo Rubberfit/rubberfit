@@ -19,7 +19,7 @@ import type {
 } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
@@ -141,9 +141,7 @@ export async function createReorderPurchaseOrder(
   requirePermission(actor, "manageRolls")
   const parsed = createReorderPurchaseOrderInputSchema.parse(input)
 
-  const { suggestions, reorderRules } = await buildAuthoritativeReorderData([
-    parsed.materialTypeId,
-  ])
+  const { suggestions, reorderRules } = await buildAuthoritativeReorderData([parsed.materialTypeId])
 
   // No suggestion produced — material is above reorder point, has no
   // active rule, or has no resolvable supplier. Match the previous

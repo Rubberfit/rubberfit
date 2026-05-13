@@ -14,7 +14,7 @@ const poService = container.resolve<IPurchaseOrderService>(TOKENS.IPurchaseOrder
 
 Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the use-cases [README](../use-cases/README.md).
 
-## Catalog (27)
+## Catalog (28)
 
 ### Packing / Export
 
@@ -27,16 +27,17 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 
 ### Inventory / Materials
 
-| Interface                     | File                                                                                       | Purpose                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `IRollService`                | [`roll.service.interface.ts`](./roll.service.interface.ts)                                 | Roll CRUD + lifecycle (depletion, status).        |
-| `IRollInventoryService`       | [`roll-inventory.service.interface.ts`](./roll-inventory.service.interface.ts)             | Aggregate inventory queries (admin-client bound). |
-| `ICutService`                 | [`cut.service.interface.ts`](./cut.service.interface.ts)                                   | Cut log writes + queries (granular per-piece).    |
-| `IMaterialTypeService`        | [`material-type.service.interface.ts`](./material-type.service.interface.ts)               | Material catalog CRUD.                            |
-| `ISupplierService`            | [`supplier.service.interface.ts`](./supplier.service.interface.ts)                         | Supplier CRUD + contact management.               |
-| `IPriceHistoryService`        | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Price-change audit trail.                         |
-| `IReorderService`             | [`reorder.service.interface.ts`](./reorder.service.interface.ts)                           | Reorder suggestion CRUD.                          |
-| `IReorderCalculationsService` | [`reorder-calculations.service.interface.ts`](./reorder-calculations.service.interface.ts) | EOQ math + threshold derivation.                  |
+| Interface                     | File                                                                                       | Purpose                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `IRollService`                | [`roll.service.interface.ts`](./roll.service.interface.ts)                                 | Roll CRUD + lifecycle (depletion, status).                                                                                      |
+| `IRollInventoryService`       | [`roll-inventory.service.interface.ts`](./roll-inventory.service.interface.ts)             | Aggregate inventory queries (admin-client bound).                                                                               |
+| `ICutService`                 | [`cut.service.interface.ts`](./cut.service.interface.ts)                                   | Cut log writes + queries (granular per-piece).                                                                                  |
+| `IMaterialTypeService`        | [`material-type.service.interface.ts`](./material-type.service.interface.ts)               | Material catalog CRUD.                                                                                                          |
+| `ISupplierService`            | [`supplier.service.interface.ts`](./supplier.service.interface.ts)                         | Supplier CRUD + contact management.                                                                                             |
+| `IPriceHistoryService`        | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Price-change audit trail.                                                                                                       |
+| `IReorderService`             | [`reorder.service.interface.ts`](./reorder.service.interface.ts)                           | Entity-typed reorder-rule CRUD + transitions.                                                                                   |
+| `ILegacyReorderService`       | [`legacy-reorder.service.interface.ts`](./legacy-reorder.service.interface.ts)             | Pre-DDD shim — raw-row rule CRUD + inline suggestion generation + `calculateCurrentStock`. Retires per consumer-page migration. |
+| `IReorderCalculationsService` | [`reorder-calculations.service.interface.ts`](./reorder-calculations.service.interface.ts) | EOQ math + threshold derivation.                                                                                                |
 
 ### Commerce / Procurement
 

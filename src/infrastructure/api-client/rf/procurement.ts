@@ -24,7 +24,7 @@
 
 import { csvService as legacyCsv } from "@/src/infrastructure/services/csvService"
 import { purchaseOrderService as legacyPos } from "@/src/infrastructure/services/purchaseOrderService"
-import { reorderService as legacyReorder } from "@/src/infrastructure/services/reorderService"
+import { legacyReorderService as legacyReorder } from "@/src/infrastructure/services/legacyReorderService"
 import { taxService as legacyTax } from "@/src/infrastructure/services/taxService"
 
 import { rfClient } from "../client"

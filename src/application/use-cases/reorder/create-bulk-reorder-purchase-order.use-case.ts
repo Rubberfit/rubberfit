@@ -243,14 +243,10 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
         const rule = reorderRules.find((r) => r.material_type_id === item.materialTypeId)
         if (rule) {
           try {
-            await this.reorderService.updateReorderRule(
-              rule.id,
-              { last_triggered_at: new Date().toISOString() },
-              actor.id
-            )
+            await this.reorderService.recordTrigger(rule.id)
           } catch (error) {
             // Non-fatal — the PO is created; rule timestamp is just stale.
-            console.error(`[bulk-reorder] updateReorderRule failed for rule ${rule.id}:`, error)
+            console.error(`[bulk-reorder] recordTrigger failed for rule ${rule.id}:`, error)
           }
         }
 

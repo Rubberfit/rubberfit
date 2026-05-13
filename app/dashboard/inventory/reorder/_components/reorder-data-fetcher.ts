@@ -3,7 +3,7 @@ import type {
   ReorderRuleWithDetails,
   Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
 import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"

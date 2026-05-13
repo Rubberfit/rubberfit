@@ -1,69 +1,67 @@
+import type { ReorderRule, ReorderRuleUpdateProps } from "@/src/entities/reorder-rule"
 import type {
-  CreateReorderRule,
-  ReorderRuleWithDetails,
-  UpdateReorderRule,
-} from "@/src/infrastructure/models/supabase"
+  MaterialTypeId,
+  ProfileId,
+  ReorderRuleId,
+  SupplierId,
+  TenantId,
+} from "@/src/entities/value-objects/id"
 
-export interface ReorderSuggestion {
-  materialTypeId: string
-  materialName: string
-  supplierId?: string
-  supplierName?: string
-  currentStock: number
-  reorderPoint: number
-  suggestedQuantity: number
-  estimatedCost: number
-  urgency: "critical" | "high" | "normal" | "low"
-  reason: string
-  reorderRuleId?: string
+/**
+ * Input shape for `IReorderService.createRule`. Mirrors the entity's
+ * `CreateReorderRuleProps` but takes the actor `ProfileId` as a
+ * top-level required field rather than the optional `createdBy` slot —
+ * the service layer is the auth-bound boundary.
+ */
+export interface CreateReorderRuleInput {
+  id: ReorderRuleId
+  tenantId: TenantId
+  materialTypeId: MaterialTypeId
+  supplierId?: SupplierId | null
+  reorderPointSqm: number
+  reorderQuantitySqm: number
+  maxStockLevelSqm?: number | null
+  leadTimeDays?: number
+  safetyStockDays?: number
+  autoReorder?: boolean
+  notes?: string | null
+  actor: ProfileId
 }
 
-export interface OptimalOrderQuantity {
-  quantity: number
-  reasoning: string
-  costSavings?: number
-  bulkDiscountApplied: boolean
-}
-
+/**
+ * Narrow entity-typed orchestrator over `IReorderRulesRepository` +
+ * `ReorderRule` entity transitions. Read-only DTO surfaces
+ * (`generateReorderSuggestions`, `calculateCurrentStock`,
+ * `generatePONumber`) live on `ILegacyReorderService` until their
+ * consumer pages are themselves migrated.
+ */
 export interface IReorderService {
-  getAllReorderRules(): Promise<ReorderRuleWithDetails[]>
-  getActiveReorderRules(): Promise<ReorderRuleWithDetails[]>
-  getReorderRuleById(id: string): Promise<ReorderRuleWithDetails>
-  getReorderRuleByMaterial(materialTypeId: string): Promise<ReorderRuleWithDetails | null>
-  createReorderRule(rule: CreateReorderRule): Promise<ReorderRuleWithDetails>
-  updateReorderRule(
-    id: string,
-    updates: UpdateReorderRule,
-    userId?: string
-  ): Promise<ReorderRuleWithDetails>
-  deleteReorderRule(id: string): Promise<boolean>
-  checkReorderPoints(): Promise<ReorderSuggestion[]>
-  generateReorderSuggestions(includeInactive?: boolean): Promise<ReorderSuggestion[]>
-  createAutomaticPurchaseOrder(suggestion: ReorderSuggestion): Promise<unknown>
-  calculateOptimalOrderQuantity(
-    materialTypeId: string,
-    supplierId?: string
-  ): Promise<OptimalOrderQuantity>
-  bulkUpdateReorderRules(
-    updates: Array<{ id: string; updates: UpdateReorderRule }>
-  ): Promise<ReorderRuleWithDetails[]>
-  generatePONumber(): Promise<string>
-  calculateCurrentStock(materialTypeId: string): Promise<number>
-  calculateSuggestedQuantity(
-    currentStock: number,
-    reorderPoint: number,
-    reorderQuantity: number,
-    maxStock?: number
-  ): number
-  estimateReorderCost(
-    materialTypeId: string,
-    quantity: number,
-    supplierId?: string
-  ): Promise<number>
-  determineUrgency(
-    currentStock: number,
-    reorderPoint: number,
-    safetyStockDays: number
-  ): "critical" | "high" | "normal" | "low"
-  generateReorderReason(currentStock: number, reorderPoint: number): string
+  // ─── Reads ──────────────────────────────────────────────────────────────
+
+  getRuleById(id: string): Promise<ReorderRule>
+  getActiveRules(): Promise<ReorderRule[]>
+  getRuleByMaterialType(materialTypeId: string): Promise<ReorderRule | null>
+
+  // ─── Writes ─────────────────────────────────────────────────────────────
+
+  createRule(input: CreateReorderRuleInput): Promise<ReorderRule>
+
+  updateRule(id: string, props: ReorderRuleUpdateProps, actor: ProfileId): Promise<ReorderRule>
+
+  enableAutoReorder(id: string, actor: ProfileId): Promise<ReorderRule>
+  disableAutoReorder(id: string, actor: ProfileId): Promise<ReorderRule>
+
+  /** User-facing "remove rule" — flips active off; rule stops firing. */
+  deactivate(id: string, actor: ProfileId): Promise<ReorderRule>
+  reactivate(id: string, actor: ProfileId): Promise<ReorderRule>
+
+  /**
+   * System event: a PO was auto-generated (or low-stock alert fired)
+   * for this rule. Bumps `lastTriggeredAt` only — does NOT bump
+   * `updatedAt` / `updatedBy`. Distinct from human edits.
+   */
+  recordTrigger(id: string): Promise<ReorderRule>
+
+  /** Admin-only soft delete. */
+  softDelete(id: string, actor: ProfileId): Promise<ReorderRule>
 }

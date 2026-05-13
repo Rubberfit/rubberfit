@@ -5,11 +5,11 @@ import type {
   MaterialSupplierWithDetails,
   PurchaseOrder,
 } from "@/src/infrastructure/models/supabase"
+import type { ReorderSuggestion } from "@/src/application/services/legacy-reorder.service.interface"
 import type {
-  ReorderSuggestion,
+  IReorderCalculationsService,
   OptimalOrderQuantity,
-} from "@/src/application/services/reorder.service.interface"
-import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+} from "@/src/application/services/reorder-calculations.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"

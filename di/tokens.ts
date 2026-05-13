@@ -31,8 +31,12 @@ export const TOKENS = {
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),
   IPriceHistoryRepository: Symbol("IPriceHistoryRepository"),
+  IReorderRulesRepository: Symbol("IReorderRulesRepository"),
   IRollsRepository: Symbol("IRollsRepository"),
   ISuppliersRepository: Symbol("ISuppliersRepository"),
+
+  // Legacy service shims (transitional, deprecated)
+  ILegacyReorderService: Symbol("ILegacyReorderService"),
 
   // Admin portal services
   IUserManagementService: Symbol("IUserManagementService"),

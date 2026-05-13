@@ -24,48 +24,45 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
-const {
-  legacyPosHandles,
-  legacyReorderHandles,
-  legacyCsvHandles,
-  legacyTaxHandles,
-} = vi.hoisted(() => ({
-  legacyPosHandles: {
-    getAllPurchaseOrders: vi.fn(),
-    getPurchaseOrdersByStatus: vi.fn(),
-    getPurchaseOrderById: vi.fn(),
-    createPurchaseOrder: vi.fn(),
-    updatePurchaseOrder: vi.fn(),
-    updatePurchaseOrderStatus: vi.fn(),
-    deletePurchaseOrder: vi.fn(),
-    receivePurchaseOrder: vi.fn(),
-    addItemToPurchaseOrder: vi.fn(),
-    updatePurchaseOrderItem: vi.fn(),
-    deletePurchaseOrderItem: vi.fn(),
-  },
-  legacyReorderHandles: {
-    getAllReorderRules: vi.fn(),
-    getReorderRuleById: vi.fn(),
-    createReorderRule: vi.fn(),
-    updateReorderRule: vi.fn(),
-    deleteReorderRule: vi.fn(),
-    generateReorderSuggestions: vi.fn(),
-  },
-  legacyCsvHandles: {
-    parseCSV: vi.fn(),
-    transformToRolls: vi.fn(),
-    uploadRolls: vi.fn(),
-  },
-  legacyTaxHandles: {
-    calculatePurchaseOrderTax: vi.fn(),
-  },
-}))
+const { legacyPosHandles, legacyReorderHandles, legacyCsvHandles, legacyTaxHandles } = vi.hoisted(
+  () => ({
+    legacyPosHandles: {
+      getAllPurchaseOrders: vi.fn(),
+      getPurchaseOrdersByStatus: vi.fn(),
+      getPurchaseOrderById: vi.fn(),
+      createPurchaseOrder: vi.fn(),
+      updatePurchaseOrder: vi.fn(),
+      updatePurchaseOrderStatus: vi.fn(),
+      deletePurchaseOrder: vi.fn(),
+      receivePurchaseOrder: vi.fn(),
+      addItemToPurchaseOrder: vi.fn(),
+      updatePurchaseOrderItem: vi.fn(),
+      deletePurchaseOrderItem: vi.fn(),
+    },
+    legacyReorderHandles: {
+      getAllReorderRules: vi.fn(),
+      getReorderRuleById: vi.fn(),
+      createReorderRule: vi.fn(),
+      updateReorderRule: vi.fn(),
+      deleteReorderRule: vi.fn(),
+      generateReorderSuggestions: vi.fn(),
+    },
+    legacyCsvHandles: {
+      parseCSV: vi.fn(),
+      transformToRolls: vi.fn(),
+      uploadRolls: vi.fn(),
+    },
+    legacyTaxHandles: {
+      calculatePurchaseOrderTax: vi.fn(),
+    },
+  })
+)
 
 vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({
   purchaseOrderService: legacyPosHandles,
 }))
-vi.mock("@/src/infrastructure/services/reorderService", () => ({
-  reorderService: legacyReorderHandles,
+vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
+  legacyReorderService: legacyReorderHandles,
 }))
 vi.mock("@/src/infrastructure/services/csvService", () => ({
   csvService: legacyCsvHandles,
@@ -81,9 +78,7 @@ import {
   tax,
 } from "@/src/infrastructure/api-client/rf/procurement"
 
-function stubFetch(
-  impl: (input: string, init?: RequestInit) => Promise<Response>
-): FetchMock {
+function stubFetch(impl: (input: string, init?: RequestInit) => Promise<Response>): FetchMock {
   const spy: FetchMock = vi.fn(impl)
   vi.stubGlobal("fetch", spy)
   return spy
@@ -134,16 +129,12 @@ describe("procurement SDK — v1/v2 parity", () => {
     it("list() with status hits getPurchaseOrdersByStatus (flag OFF)", async () => {
       legacyPosHandles.getPurchaseOrdersByStatus.mockResolvedValue([])
       await purchaseOrders.list({ status: "ordered" })
-      expect(legacyPosHandles.getPurchaseOrdersByStatus).toHaveBeenCalledWith(
-        "ordered"
-      )
+      expect(legacyPosHandles.getPurchaseOrdersByStatus).toHaveBeenCalledWith("ordered")
     })
 
     it("list() hits /api/v2/po when flag ON", async () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
-      const fetchSpy = stubJsonOnce([
-        { id: "po-1", po_number: "PO-26-0001", status: "draft" },
-      ])
+      const fetchSpy = stubJsonOnce([{ id: "po-1", po_number: "PO-26-0001", status: "draft" }])
       const rows = await purchaseOrders.list()
       const arg = fetchSpy.mock.calls[0][0] as unknown
       const url = arg instanceof Request ? arg.url : (arg as string)
@@ -369,13 +360,10 @@ describe("procurement SDK — v1/v2 parity", () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
       stubFetch(
         async () =>
-          new Response(
-            JSON.stringify({ code: "DUPLICATE_RULE_IDS (count=1)" }),
-            {
-              status: 409,
-              headers: { "content-type": "application/json" },
-            }
-          )
+          new Response(JSON.stringify({ code: "DUPLICATE_RULE_IDS (count=1)" }), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          })
       )
       try {
         await reorderRules.createBulkPo({
@@ -423,13 +411,10 @@ describe("procurement SDK — v1/v2 parity", () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
       const fetchSpy = stubFetch(
         async () =>
-          new Response(
-            JSON.stringify({ imported: 2, skipped: 0, errors: [] }),
-            {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            }
-          )
+          new Response(JSON.stringify({ imported: 2, skipped: 0, errors: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
       )
       const file = new File(
         ["material_type,width,length,thickness\nNeoprene,48,600,0.25"],

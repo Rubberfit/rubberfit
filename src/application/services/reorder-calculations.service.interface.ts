@@ -1,7 +1,11 @@
-import type {
-  ReorderSuggestion,
-  OptimalOrderQuantity,
-} from "@/src/application/services/reorder.service.interface"
+import type { ReorderSuggestion } from "@/src/application/services/legacy-reorder.service.interface"
+
+export interface OptimalOrderQuantity {
+  quantity: number
+  reasoning: string
+  costSavings?: number
+  bulkDiscountApplied: boolean
+}
 
 export interface IReorderCalculationsService {
   getAverageDailyUsage(): Promise<number>

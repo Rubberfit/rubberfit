@@ -52,7 +52,11 @@ import type { IPriceHistoryRepository } from "@/src/application/repositories/pri
 import { profileService } from "@/src/infrastructure/services/profileService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { ReorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRulesRepository } from "@/src/infrastructure/repositories/reorder-rules.repository"
+import type { IReorderRulesRepository } from "@/src/application/repositories/reorder-rules.repository.interface"
+import { legacyReorderService } from "@/src/infrastructure/services/legacyReorderService"
+import type { ILegacyReorderService } from "@/src/application/services/legacy-reorder.service.interface"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
 import { RollService } from "@/src/infrastructure/services/rollService"
 import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
@@ -177,7 +181,15 @@ container.registerInstance<IPurchaseOrderAnalyticsService>(
   TOKENS.IPurchaseOrderAnalyticsService,
   purchaseOrderAnalytics
 )
-container.registerInstance<IReorderService>(TOKENS.IReorderService, reorderService)
+container.registerInstance<IReorderRulesRepository>(
+  TOKENS.IReorderRulesRepository,
+  reorderRulesRepository
+)
+container.registerSingleton<IReorderService>(TOKENS.IReorderService, ReorderService)
+container.registerInstance<ILegacyReorderService>(
+  TOKENS.ILegacyReorderService,
+  legacyReorderService
+)
 container.registerInstance<IReorderCalculationsService>(
   TOKENS.IReorderCalculationsService,
   reorderCalculations

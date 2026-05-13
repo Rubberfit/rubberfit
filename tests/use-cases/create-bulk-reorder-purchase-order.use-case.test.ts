@@ -92,7 +92,7 @@ function makeFakePOService(): FakePOService {
 
 function makeFakeReorderService(): IReorderService {
   return {
-    updateReorderRule: vi.fn().mockResolvedValue({}),
+    recordTrigger: vi.fn().mockResolvedValue({}),
   } as unknown as IReorderService
 }
 
@@ -368,11 +368,7 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
 
     await resolve().execute(buildInput([suggestion], [rule]))
 
-    expect(reorderService.updateReorderRule).toHaveBeenCalledWith(
-      "rule-A",
-      expect.objectContaining({ last_triggered_at: expect.any(String) }),
-      ACTOR.id
-    )
+    expect(reorderService.recordTrigger).toHaveBeenCalledWith("rule-A")
   })
 
   it("treats notification failures as non-fatal (PO is still returned, no throw)", async () => {
@@ -386,7 +382,7 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
   })
 
   it("treats reorder-rule update failures as non-fatal", async () => {
-    ;(reorderService.updateReorderRule as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    ;(reorderService.recordTrigger as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error("rls denied")
     )
     const suggestion = makeSuggestion()

@@ -47,8 +47,8 @@ const reorderServiceMock = vi.hoisted(() => ({
   getActiveReorderRules: vi.fn(),
   calculateCurrentStock: vi.fn(),
 }))
-vi.mock("@/src/infrastructure/services/reorderService", () => ({
-  reorderService: reorderServiceMock,
+vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
+  legacyReorderService: reorderServiceMock,
 }))
 
 const purchaseOrderServiceMock = vi.hoisted(() => ({
@@ -205,9 +205,7 @@ describe("app/actions/reorder", () => {
 
   it("createReorderPurchaseOrder Zod-rejects malformed materialTypeId", async () => {
     const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    await expect(
-      createReorderPurchaseOrder({ materialTypeId: "not-a-uuid" })
-    ).rejects.toThrow()
+    await expect(createReorderPurchaseOrder({ materialTypeId: "not-a-uuid" })).rejects.toThrow()
     expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
   })
 
@@ -218,9 +216,9 @@ describe("app/actions/reorder", () => {
     setupUseCaseResolver({ generateExecute })
 
     const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
-    await expect(
-      createReorderPurchaseOrder({ materialTypeId: MATERIAL_TYPE_ID })
-    ).rejects.toThrow(/No reorder needed|no supplier/i)
+    await expect(createReorderPurchaseOrder({ materialTypeId: MATERIAL_TYPE_ID })).rejects.toThrow(
+      /No reorder needed|no supplier/i
+    )
     expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 
