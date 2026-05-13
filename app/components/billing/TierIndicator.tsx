@@ -9,6 +9,21 @@ interface TierIndicatorProps {
 }
 
 export function TierIndicator({ tier, status }: TierIndicatorProps) {
+  // Hide the strip for healthy Enterprise customers. There's no
+  // in-product upgrade affordance for them (contract changes flow
+  // through their account manager), and an empty-right-side strip
+  // with just "ENTERPRISE" on the left reads as unfinished chrome.
+  // Past-due / canceled / trialing states still render so billing
+  // problems are visible even on Enterprise contracts.
+  if (
+    tier === "enterprise" &&
+    status !== "past_due" &&
+    status !== "canceled" &&
+    status !== "trialing"
+  ) {
+    return null
+  }
+
   const isPastDue = status === "past_due"
   const isCanceled = status === "canceled"
   const isTrialing = status === "trialing"
