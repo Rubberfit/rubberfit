@@ -619,21 +619,37 @@ export function SimpleModeOffcutLabels({
             if (!tag) return null
             const bandPxW = band.width * scale
             const bandPxH = band.height * scale
-            // Badge size tracks the band's narrower screen dimension so
-            // a thin strip gets a thin badge rather than overflowing.
-            // Capped at 12px / zoom so badges stay legible without
-            // dominating large bands at high zoom.
+            // Kimi K2.6 placement rule (2026-05-13):
+            //   h > 20px → top-left INSIDE the band (large bands)
+            //   8 ≤ h ≤ 20px → left edge, vertical center (long strips —
+            //     keeps the badge clear of the centered "Reusable offcut"
+            //     dim callout and away from neighboring parts below)
+            //   h < 8px or w < 12px → suppress (sliver too thin to host
+            //     a legible badge; the legend table covers identification)
+            // Width threshold + a 3px font floor ride on top so the
+            // glyph never paints sub-readable.
+            const MIN_BAND_HEIGHT_PX = 8
+            const MIN_BAND_WIDTH_PX = 12
+            const LARGE_BAND_HEIGHT_PX = 20
+            if (bandPxH < MIN_BAND_HEIGHT_PX || bandPxW < MIN_BAND_WIDTH_PX) return null
             const badgeFontSize = Math.max(
               0,
-              Math.min(12 / zoom, bandPxW * 0.5, bandPxH * 0.4)
+              Math.min(12 / zoom, bandPxW * 0.5, bandPxH * 0.6)
             )
-            // Below 3px the glyph would be sub-readable; skip rather
-            // than paint visual noise.
             if (badgeFontSize < 3) return null
             const padX = badgeFontSize * 0.35
-            const padY = badgeFontSize * 0.25
-            const tagX = surfaceX + band.x * scale + padX
-            const tagY = surfaceY + band.y * scale + padY + badgeFontSize
+            const isLargeBand = bandPxH > LARGE_BAND_HEIGHT_PX
+            const bandLeftPx = surfaceX + band.x * scale
+            const bandTopPx = surfaceY + band.y * scale
+            const tagX = bandLeftPx + padX
+            // Large band: anchor near the top edge so the badge sits in
+            // the corner; long strip: anchor at vertical mid-height so
+            // the glyph rides centered between the band's edges. SVG
+            // text `y` is the BASELINE — add the font size to descend
+            // from the top, or half the size to mid-height.
+            const tagY = isLargeBand
+              ? bandTopPx + badgeFontSize * 1.1
+              : bandTopPx + bandPxH / 2 + badgeFontSize * 0.35
             const center = {
               x: surfaceX + (band.x + band.width / 2) * scale,
               y: surfaceY + (band.y + band.height / 2) * scale,
