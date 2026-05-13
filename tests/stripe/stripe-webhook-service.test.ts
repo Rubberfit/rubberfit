@@ -81,7 +81,9 @@ class FakeOrganizationService implements IOrganizationService {
   async getCurrentSubscription(): Promise<OrganizationSubscription | null> {
     return this.currentSubscription
   }
-  async upsertSubscription(input: UpsertOrganizationSubscription): Promise<OrganizationSubscription> {
+  async upsertSubscription(
+    input: UpsertOrganizationSubscription
+  ): Promise<OrganizationSubscription> {
     this.subscriptionUpserts.push(input)
     return {
       id: "sub_row_id",
@@ -108,6 +110,9 @@ class FakeOrganizationService implements IOrganizationService {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
+  }
+  async updateSubscriptionPlanTierAndSeats(): Promise<OrganizationSubscription> {
+    throw new Error("not used")
   }
   async createInvitation(): Promise<OrganizationInvitation> {
     throw new Error("not used")

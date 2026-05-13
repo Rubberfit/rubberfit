@@ -182,6 +182,10 @@ class FakeOrganizationService implements IOrganizationService {
     return subscription
   }
 
+  async updateSubscriptionPlanTierAndSeats(): Promise<OrganizationSubscription> {
+    throw new Error("not used")
+  }
+
   async createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation> {
     return {
       id: "00000000-0000-4000-8000-000000000005",

@@ -67,6 +67,20 @@ export interface IOrganizationService {
    */
   upsertSubscription(input: UpsertOrganizationSubscription): Promise<OrganizationSubscription>
 
+  /**
+   * In-place patch for the pre-checkout tier/seat-count change. Updates
+   * the existing subscription row by id so callers don't trip the
+   * upsertSubscription demote-and-insert path (which would drop fields
+   * like stripe_customer_id and trial_end when no
+   * stripe_subscription_id is in hand). Caller must already hold the
+   * subscription row from getCurrentSubscription.
+   */
+  updateSubscriptionPlanTierAndSeats(input: {
+    subscriptionId: string
+    planTier: "standard" | "pro" | "max"
+    seatCount: number
+  }): Promise<OrganizationSubscription>
+
   // ─── Invitations ────────────────────────────────────────────
   createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation>
   getInvitationByToken(token: string): Promise<OrganizationInvitation | null>
