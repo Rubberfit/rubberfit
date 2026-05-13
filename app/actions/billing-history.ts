@@ -169,15 +169,30 @@ function buildSubscriptionRows(
 }
 
 /**
- * Stripe invoice statuses map to the 4-state UI pill. `draft` and
- * `open` are unpaid-but-active states — surfaced as `pending`.
+ * Stripe invoice statuses map to the 4-state UI pill.
+ *
+ *   - paid → paid
+ *   - uncollectible → failed (Stripe gave up collecting)
+ *   - draft / open / void → pending (no money changed hands)
+ *
+ * `void` is critical: a voided invoice was canceled BEFORE payment
+ * was collected, so no refund occurred. Mapping it to `refunded`
+ * would mislead customers reviewing the audit into thinking money
+ * was returned. The 4-state model has no `canceled` slot, so
+ * `pending` is the least-wrong unresolved bucket.
+ *
+ * Real refunds — when money WAS collected and then returned — come
+ * through Stripe Refund objects, not invoice status, and would
+ * surface as `refunded` once we wire the refund-events fetch.
+ * Tracked separately.
  */
 function mapInvoiceStatus(
   status: StripeInvoiceSummary["status"]
 ): BillingHistoryActionRow["status"] {
   if (status === "paid") return "paid"
   if (status === "uncollectible") return "failed"
-  if (status === "void") return "refunded"
+  // draft / open / void / null all surface as pending (no money
+  // changed hands, no refund occurred).
   return "pending"
 }
 
