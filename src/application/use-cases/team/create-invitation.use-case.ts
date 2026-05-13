@@ -100,21 +100,34 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
       expires_at: expiresAt.toISOString(),
     })
 
-    const inviteUrl = `${appUrl()}/invite/${token}`
-    const organization = await this.organizationService.getOrganizationById(input.organizationId)
-    const organizationName = organization?.name ?? "your team"
-    const inviterName = input.actor.email ?? null
+    // Treat any thrown failure in the send-prep path (org lookup, email
+    // service) the same as `send.success === false` — the invitation row
+    // is already created so we MUST revoke it on any send failure or the
+    // seat stays stranded on a never-deliverable invite.
+    let sendSucceeded = false
+    try {
+      const inviteUrl = `${appUrl()}/invite/${token}`
+      const organization = await this.organizationService.getOrganizationById(input.organizationId)
+      const organizationName = organization?.name ?? "your team"
+      const inviterName = input.actor.email ?? null
 
-    const send = await this.emailService.sendInvitationEmail({
-      to: email,
-      organizationName,
-      role: input.role,
-      inviterName,
-      inviteUrl,
-      expiresAt,
-    })
+      const send = await this.emailService.sendInvitationEmail({
+        to: email,
+        organizationName,
+        role: input.role,
+        inviterName,
+        inviteUrl,
+        expiresAt,
+      })
+      sendSucceeded = send.success
+    } catch (sendErr) {
+      console.error(
+        `[create-invitation] failed to prepare/send invitation email for invitation=${invitation.id}:`,
+        sendErr
+      )
+    }
 
-    if (!send.success) {
+    if (!sendSucceeded) {
       // Revoke so the seat is not stranded on a never-deliverable invite.
       // Wrap in try/catch — if the revocation update itself fails, log it
       // server-side so the orphaned-invite case is visible, but still

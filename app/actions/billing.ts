@@ -36,6 +36,10 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Billing action failed"
 }
 
+function invalidInputError(): { error: string } {
+  return { error: "Invalid input" }
+}
+
 export async function createOrganizationFromOnboarding(input: {
   companyName: string
   seatCount: number
@@ -43,7 +47,9 @@ export async function createOrganizationFromOnboarding(input: {
 }): Promise<{ organizationId: string } | { error: string }> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  const parsed = CreateOrganizationFromOnboardingSchema.parse(input)
+  const parsedResult = CreateOrganizationFromOnboardingSchema.safeParse(input)
+  if (!parsedResult.success) return invalidInputError()
+  const parsed = parsedResult.data
 
   try {
     const useCase = resolveUseCase<ICreateOrganizationFromOnboardingUseCase>(
@@ -63,7 +69,9 @@ export async function createCheckoutSession(input: {
 }): Promise<{ url: string } | { error: string }> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  const parsed = CreateCheckoutSessionSchema.parse(input)
+  const parsedResult = CreateCheckoutSessionSchema.safeParse(input)
+  if (!parsedResult.success) return invalidInputError()
+  const parsed = parsedResult.data
 
   // Action-layer membership guard. The use-case re-validates, but bouncing
   // unauthorized callers here returns a clean `{ error: "forbidden" }`
@@ -130,7 +138,9 @@ export async function updateSubscriptionSeatCount(input: { newSeatCount: number 
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   const gate = await requireActiveSubscription(actor)
-  const parsed = UpdateSubscriptionSeatCountSchema.parse(input)
+  const parsedResult = UpdateSubscriptionSeatCountSchema.safeParse(input)
+  if (!parsedResult.success) return invalidInputError()
+  const parsed = parsedResult.data
 
   try {
     const useCase = resolveUseCase<IUpdateSubscriptionSeatCountUseCase>(
