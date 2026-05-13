@@ -48,7 +48,7 @@ src/                        # Domain logic (framework-agnostic)
 │   ├── services/           # Supabase-backed service implementations (+ RustPackingService)
 │   ├── repositories/       # Supabase-backed repository implementations
 │   └── supabase/           # Generated types + SQL migrations
-└── interface-adapters/     # Reserved for controllers — currently empty, no server actions yet
+└── interface-adapters/     # Reserved for controllers — stays empty; server actions in app/actions/ fill the controller role
 
 app/                        # Frameworks & Drivers (Next.js)
 engine/                     # Rust nesting engine (Cargo workspace)
@@ -67,13 +67,16 @@ tests/                      # Vitest TS tests (packing, parity, service boundari
 (`src/application/services/packing.service.interface.ts`). DI binds it
 based on environment:
 
-| Context               | Implementation       | Invocation                                                                                 |
-| --------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
-| Server (Node runtime) | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout                                   |
-| Browser               | `ApiPackingService`  | `fetch("/api/v2/pack", ...)` — the route handler resolves `RustPackingService` server-side |
+| Context                     | Implementation       | Invocation                                                                                                                                                                      |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production (Vercel runtime) | (in-process)         | `POST /api/v2/pack` lands on the Rust serverless function at `api/v2/pack.rs`; it runs the packer **in-process** via the `rf-layout` crate. No child-process spawn.             |
+| Server (Node — local dev)   | `RustPackingService` | `child_process.spawn("pack-cli")` with JSON stdin/stdout via the Next.js route handler at `app/api/v2/pack/route.ts`. This is the dev-only fallback when not running on Vercel. |
+| Browser                     | `ApiPackingService`  | `fetch("/api/v2/pack", ...)` — the request hits the Rust function in production and the Node route handler in dev.                                                              |
 
 Single source of truth: every AutoNest pack — preview-grade or
-production — flows through `pack-cli`. There is no TS fallback.
+production — flows through the Rust `rf-layout` engine. In production
+it runs in-process on Vercel; in local development it's spawned as
+`pack-cli`. There is no TS fallback.
 
 AutoNest runs Rust on every Pack click. There is no TS-side
 heuristic packer or live preview generator — operators select all
@@ -315,14 +318,14 @@ Numbers do NOT roll over at 9 — `1.1.9` → `1.1.10` → `1.1.11` is correct s
 
 **Cadence example (this is the live one starting now):**
 
-| Step | Trigger | Version |
-|------|---------|---------|
-| 1 | Phase 3 + 4 dashboard refactor wraps (today) | `1.1.0` ← we're here |
-| 2 | A few PRs of polish + small features land on dev | `1.1.1` |
-| 3 | A few more bug-fix PRs | `1.1.2` |
-| ... | (no rule on how many — judgement) | `1.1.3` ... `1.1.X` |
-| N | Phase 5 (Konva canvas redesign) wraps — new feature surface | `1.2.0` (patch resets) |
-| ... | Polish + bug fixes on top of Phase 5 | `1.2.1`, `1.2.2`, ... |
+| Step       | Trigger                                                                     | Version                    |
+| ---------- | --------------------------------------------------------------------------- | -------------------------- |
+| 1          | Phase 3 + 4 dashboard refactor wraps (today)                                | `1.1.0` ← we're here       |
+| 2          | A few PRs of polish + small features land on dev                            | `1.1.1`                    |
+| 3          | A few more bug-fix PRs                                                      | `1.1.2`                    |
+| ...        | (no rule on how many — judgement)                                           | `1.1.3` ... `1.1.X`        |
+| N          | Phase 5 (Konva canvas redesign) wraps — new feature surface                 | `1.2.0` (patch resets)     |
+| ...        | Polish + bug fixes on top of Phase 5                                        | `1.2.1`, `1.2.2`, ...      |
 | Eventually | Phase 6 (perf) + Phase 7 (PDF) both ship — release-worthy product milestone | `2.0.0` + dev → main merge |
 
 **Major bumps trigger a dev → main merge.** Most bumps stay on `dev` (the integration branch where work accumulates) — `1.23.4` accumulating on dev is the normal pattern. But when Claude judges that the accumulated work hits a real product-release milestone — substantial enough to deserve a major version like `2.0` or `3.1` instead of yet another minor — that's the signal to also merge `dev` → `main` and ship to production. Patch/minor bumps don't carry that obligation.

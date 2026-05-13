@@ -7,9 +7,15 @@ SQL; mappers own the row-to-entity translation.
 
 ## When to add a mapper
 
-Add one when you migrate a domain to DDD entities. Each aggregate root
-in `src/entities/` should have exactly one mapper file. Child VOs that
-live inside an aggregate (e.g., `PurchaseOrderItem`, `JobAssignee`) are
+Add one when you migrate a domain to DDD entities. Each **DDD-migrated**
+aggregate root has exactly one mapper file; pre-DDD aggregates use
+raw-row legacy services and skip this layer until their migration
+lands. Currently 7 aggregates have mappers (`supplier`,
+`material-supplier`, `material-type`, `price-history`, `roll`,
+`reorder-rule`, `purchase-order`); the `tenant`, `profile`, `invoice`,
+`project`, `job`, and `cut-history` aggregates exist as entities but
+haven't migrated to mapper-backed services yet. Child VOs that live
+inside an aggregate (e.g., `PurchaseOrderItem`, `JobAssignee`) are
 reconstituted by the parent mapper, not by their own file.
 
 Do **not** add a mapper for:

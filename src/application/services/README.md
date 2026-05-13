@@ -14,7 +14,7 @@ const poService = container.resolve<IPurchaseOrderService>(TOKENS.IPurchaseOrder
 
 Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the use-cases [README](../use-cases/README.md).
 
-## Catalog (30)
+## Catalog (31)
 
 ### Packing / Export
 
@@ -27,18 +27,19 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 
 ### Inventory / Materials
 
-| Interface                     | File                                                                                       | Purpose                                                                                                                         |
-| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `IRollService`                | [`roll.service.interface.ts`](./roll.service.interface.ts)                                 | Roll CRUD + lifecycle (depletion, status).                                                                                      |
-| `IRollInventoryService`       | [`roll-inventory.service.interface.ts`](./roll-inventory.service.interface.ts)             | Aggregate inventory queries (admin-client bound).                                                                               |
-| `ICutService`                 | [`cut.service.interface.ts`](./cut.service.interface.ts)                                   | Cut log writes + queries (granular per-piece).                                                                                  |
-| `IMaterialTypeService`        | [`material-type.service.interface.ts`](./material-type.service.interface.ts)               | Material catalog CRUD.                                                                                                          |
-| `IMaterialSupplierService`    | [`material-supplier.service.interface.ts`](./material-supplier.service.interface.ts)       | Per-supplier material pricing + lead-time CRUD. Consumed by `UpdateMaterialPricingUseCase`.                                     |
-| `ISupplierService`            | [`supplier.service.interface.ts`](./supplier.service.interface.ts)                         | Supplier CRUD + contact management.                                                                                             |
-| `IPriceHistoryService`        | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Price-change audit trail.                                                                                                       |
-| `IReorderService`             | [`reorder.service.interface.ts`](./reorder.service.interface.ts)                           | Entity-typed reorder-rule CRUD + transitions.                                                                                   |
-| `ILegacyReorderService`       | [`legacy-reorder.service.interface.ts`](./legacy-reorder.service.interface.ts)             | Pre-DDD shim — raw-row rule CRUD + inline suggestion generation + `calculateCurrentStock`. Retires per consumer-page migration. |
-| `IReorderCalculationsService` | [`reorder-calculations.service.interface.ts`](./reorder-calculations.service.interface.ts) | EOQ math + threshold derivation.                                                                                                |
+| Interface                     | File                                                                                       | Purpose                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IRollService`                | [`roll.service.interface.ts`](./roll.service.interface.ts)                                 | Roll CRUD + lifecycle (depletion, status).                                                                                                                            |
+| `IRollInventoryService`       | [`roll-inventory.service.interface.ts`](./roll-inventory.service.interface.ts)             | Aggregate inventory queries (admin-client bound).                                                                                                                     |
+| `ICutService`                 | [`cut.service.interface.ts`](./cut.service.interface.ts)                                   | Cut log writes + queries (granular per-piece).                                                                                                                        |
+| `IMaterialTypeService`        | [`material-type.service.interface.ts`](./material-type.service.interface.ts)               | Material catalog CRUD.                                                                                                                                                |
+| `IMaterialSupplierService`    | [`material-supplier.service.interface.ts`](./material-supplier.service.interface.ts)       | Per-supplier material pricing + lead-time CRUD. Consumed by `UpdateMaterialPricingUseCase`.                                                                           |
+| `ISupplierService`            | [`supplier.service.interface.ts`](./supplier.service.interface.ts)                         | Supplier CRUD + contact management.                                                                                                                                   |
+| `IPriceHistoryService`        | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Price-change audit trail (entity-typed).                                                                                                                              |
+| `ILegacyPriceHistoryService`  | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Pre-DDD shim — raw-row write API exported from the same file; used by callers that haven't migrated to the entity-typed surface. Retires per consumer-page migration. |
+| `IReorderService`             | [`reorder.service.interface.ts`](./reorder.service.interface.ts)                           | Entity-typed reorder-rule CRUD + transitions.                                                                                                                         |
+| `ILegacyReorderService`       | [`legacy-reorder.service.interface.ts`](./legacy-reorder.service.interface.ts)             | Pre-DDD shim — raw-row rule CRUD + inline suggestion generation + `calculateCurrentStock`. Retires per consumer-page migration.                                       |
+| `IReorderCalculationsService` | [`reorder-calculations.service.interface.ts`](./reorder-calculations.service.interface.ts) | EOQ math + threshold derivation.                                                                                                                                      |
 
 ### Commerce / Procurement
 
@@ -94,7 +95,7 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 ## Notes
 
 - Interface files are import-safe — they declare types only and never pull Supabase or Next.js. Unit tests can import them freely.
-- Concrete implementations under [`src/infrastructure/services/`](../../infrastructure/services/) call `await getDatabaseClient()` from `@/src/infrastructure/supabase/get-database-client` so they receive the cookie-bound `createServerClient` on the server (RLS-respecting) and the browser singleton client-side. They **never** import the browser singleton directly.
+- DDD-migrated concretes under [`src/infrastructure/services/`](../../infrastructure/services/) call `await getDatabaseClient()` from `@/src/infrastructure/supabase/get-database-client` so they receive the cookie-bound `createServerClient` on the server (RLS-respecting) and the browser singleton client-side. A handful of pre-DDD services (`authService`, `csvService`, `cutService`, `emailService`) still import the browser singleton from `@/src/infrastructure/models/supabase` directly — those will retire as their domains migrate. `IHealthCheckAdapter` has no DI token; it's wired by the health-check service factory, not the container.
 - A few interfaces are "admin-client-bound" (`IRollInventoryService`, `ICutFavoritesService`) — their concretes use the service-role client because they read across tenants. Treat these as escape hatches; do not extend the pattern without a clear reason.
 
 ---

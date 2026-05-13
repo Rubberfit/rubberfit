@@ -19,12 +19,12 @@ interface XSnapshot {
 
 class X {
   static create(props: CreateXProps): X // validates invariants, throws on bad input
-  static fromPersistence(props: ReconstituteXProps): X // trusted, no validation
-  toSnapshot(): XSnapshot
+  static reconstitute(props: ReconstituteXProps): X // trusted DB hydration, no validation
+  toJSON(): XSnapshot
 }
 ```
 
-State transitions are methods on the entity (`po.approve(actor)`, `roll.depleteBy(length)`) that return a new instance, never mutate. Invariants enforced at the boundary so an instance is never observably invalid.
+State transitions are methods on the entity (`po.approve(actor)`, `roll.depleteBy(length)`) that mutate internal `#` fields and stamp `updatedAt` / `updatedBy`. Invariants are enforced at the boundary so an instance is never observably invalid; mutators throw `InvalidEntityError` rather than producing an invalid state.
 
 ## Catalog
 
@@ -74,19 +74,19 @@ Grouped by aggregate cluster. Aggregate roots are bold.
 
 ### Commerce / Procurement
 
-| File                                                 | Role               | Purpose                                                                                                                                                                                                           |
-| ---------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`purchase-order.ts`](./purchase-order.ts)           | **Aggregate root** | PO with 7-state lifecycle (`draft → pending_approval → approved → ordered → partial_received/received/cancelled`). Owns approval stamps, receipt tracking, money invariant (`total = subtotal + tax + shipping`). |
-| [`purchase-order-item.ts`](./purchase-order-item.ts) | Entity (child VO)  | Immutable PO line item. `withReceipt()` returns a new instance.                                                                                                                                                   |
-| [`invoice.ts`](./invoice.ts)                         | **Aggregate root** | Customer invoice with 5-state lifecycle (`draft → sent → paid` happy-path; `sent → overdue → paid`; `* → void` from any non-paid). Owns money invariants (`total = subtotal + tax − discount`, `balance = total − paid`) and payment accumulation via `recordPayment(amount)`. |
-| [`project.ts`](./project.ts)                         | **Aggregate root** | A unit of work for a customer. 4-state lifecycle (`draft → active → completed`; `* → cancelled`). Owns three VO collections: `owners`, `materials` (required/allocated qty in m²), `cutHistories` (junctions). Budget is an optional `Money`. `endDate >= startDate` invariant.   |
-| [`project-owner.ts`](./project-owner.ts)             | Entity (child VO)  | Project ↔ Profile junction. Identity = `(projectId, ownerProfileId)`. Immutable.                                                                                                                                  |
-| [`project-material.ts`](./project-material.ts)       | Entity (child VO)  | Material attached to a project with required/allocated qty in m². Functional updates via `withAllocation`, `withAdditionalAllocation`, `withRequired`. Identity = `(projectId, materialTypeId)`.                  |
-| [`project-cut-history.ts`](./project-cut-history.ts) | Entity (child VO)  | Project ↔ CutHistory junction. Identity = `(projectId, cutHistoryId)`. Immutable.                                                                                                                                 |
+| File                                                 | Role               | Purpose                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`purchase-order.ts`](./purchase-order.ts)           | **Aggregate root** | PO with 7-state lifecycle (`draft → pending_approval → approved → ordered → partial_received/received/cancelled`). Owns approval stamps, receipt tracking, money invariant (`total = subtotal + tax + shipping`).                                                               |
+| [`purchase-order-item.ts`](./purchase-order-item.ts) | Entity (child VO)  | Immutable PO line item. `withReceipt()` returns a new instance.                                                                                                                                                                                                                 |
+| [`invoice.ts`](./invoice.ts)                         | **Aggregate root** | Customer invoice with 5-state lifecycle (`draft → sent → paid` happy-path; `sent → overdue → paid`; `* → void` from any non-paid). Owns money invariants (`total = subtotal + tax − discount`, `balance = total − paid`) and payment accumulation via `recordPayment(amount)`.  |
+| [`project.ts`](./project.ts)                         | **Aggregate root** | A unit of work for a customer. 4-state lifecycle (`draft → active → completed`; `* → cancelled`). Owns three VO collections: `owners`, `materials` (required/allocated qty in m²), `cutHistories` (junctions). Budget is an optional `Money`. `endDate >= startDate` invariant. |
+| [`project-owner.ts`](./project-owner.ts)             | Entity (child VO)  | Project ↔ Profile junction. Identity = `(projectId, ownerProfileId)`. Immutable.                                                                                                                                                                                                |
+| [`project-material.ts`](./project-material.ts)       | Entity (child VO)  | Material attached to a project with required/allocated qty in m². Functional updates via `withAllocation`, `withAdditionalAllocation`, `withRequired`. Identity = `(projectId, materialTypeId)`.                                                                                |
+| [`project-cut-history.ts`](./project-cut-history.ts) | Entity (child VO)  | Project ↔ CutHistory junction. Identity = `(projectId, cutHistoryId)`. Immutable.                                                                                                                                                                                               |
 | [`job.ts`](./job.ts)                                 | **Aggregate root** | Shop-floor work order. 5-state lifecycle (`draft → scheduled → in_progress → completed`; `* → cancelled`). Owns three VO collections: `parts`, `assignees` (one `lead` max), `rollAllocations`. Hybrid anchoring + has-identifier invariants mirror DB CHECKs.                  |
-| [`job-part.ts`](./job-part.ts)                       | Entity (child VO)  | Job line item (material × dims × quantity, dims in mm). Identity = `(jobId, lineNumber)`. Immutable.                                                                                                              |
-| [`job-assignee.ts`](./job-assignee.ts)               | Entity (child VO)  | Shop-floor roster entry. Free-text `name` + `role: 'lead' \| 'worker'`. Identity = `(jobId, name)`; at-most-one `lead` enforced at the aggregate root.                                                            |
-| [`job-roll-allocation.ts`](./job-roll-allocation.ts) | Entity (child VO)  | Informational pre-allocation of a roll to a job (`allocatedLengthMm`). Does NOT decrement `rolls.remaining_length_mm` — real consumption flows through `cut_history`. Identity = `(jobId, rollId)`.                |
+| [`job-part.ts`](./job-part.ts)                       | Entity (child VO)  | Job line item (material × dims × quantity, dims in mm). Identity = `(jobId, lineNumber)`. Immutable.                                                                                                                                                                            |
+| [`job-assignee.ts`](./job-assignee.ts)               | Entity (child VO)  | Shop-floor roster entry. Free-text `name` + `role: 'lead' \| 'worker'`. Identity = `(jobId, name)`; at-most-one `lead` enforced at the aggregate root.                                                                                                                          |
+| [`job-roll-allocation.ts`](./job-roll-allocation.ts) | Entity (child VO)  | Informational pre-allocation of a roll to a job (`allocatedLengthMm`). Does NOT decrement `rolls.remaining_length_mm` — real consumption flows through `cut_history`. Identity = `(jobId, rollId)`.                                                                             |
 
 ## Shared
 

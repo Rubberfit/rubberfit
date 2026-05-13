@@ -44,6 +44,8 @@ export interface IXUseCase {
 - Server actions take `Omit<XInput, "actor">` as their public input and inject `actor` after `requireAuthenticatedUser()` — clients can't spoof identity.
 - Class files have no module-level singleton exports. They are import-safe in isolation, so unit tests can register fakes (`container.registerInstance(TOKENS.IDependency, fake)`) before resolving the use-case without pulling Supabase.
 
+Two legacy use-cases predate this convention and have different signatures: `RecordCutUseCase.execute(client, body, userId)` (takes a Supabase client + raw `userId` instead of an `actor`) and `UpdateMaterialPricingUseCase`'s input uses `actorId: string` instead of `actor: ActionActor`. Both retire when their consumer pages migrate to the entity-typed action shape — until then, treat them as exceptions, not patterns to copy.
+
 ## Catalog (10)
 
 ### Purchase Orders (5)
@@ -72,9 +74,17 @@ export interface IXUseCase {
 
 ### Pricing (1)
 
-| Use case                                                                                          | Input (shape)                                                                                                          | Orchestrates                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`update-material-pricing.use-case.ts`](./pricing/update-material-pricing.use-case.ts)            | `UpdateMaterialPricingInput` (materialSupplierId, newCostCents, newEffectiveDate, newExpirationDate, changeReason, actorId) | Loads the `material_supplier` entity → captures the prior cost → updates pricing via `IMaterialSupplierService` → appends an audit row via `IPriceHistoryService`. Two writes; not transactional yet. |
+| Use case                                                                               | Input (shape)                                                                                                               | Orchestrates                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`update-material-pricing.use-case.ts`](./pricing/update-material-pricing.use-case.ts) | `UpdateMaterialPricingInput` (materialSupplierId, newCostCents, newEffectiveDate, newExpirationDate, changeReason, actorId) | Loads the `material_supplier` entity → captures the prior cost → updates pricing via `IMaterialSupplierService` → appends an audit row via `IPriceHistoryService`. Two writes; not transactional yet. |
+
+### Helpers
+
+Not use-cases themselves — pure helper modules that live in `use-cases/<domain>/` because their lifetime is tied to a use-case input boundary.
+
+| File                                                                                 | Used by                                                    | Purpose                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`purchase-orders/po-input-conversion.ts`](./purchase-orders/po-input-conversion.ts) | `CreatePurchaseOrderUseCase`, `UpdatePurchaseOrderUseCase` | Unit conversion at the input boundary — sqft → sqm (× 0.0929030400), inches → mm (× 25.4), dollars → cents. Forms still send imperial; the PO aggregate is strictly metric + cents. |
 
 ## Patterns to copy
 
