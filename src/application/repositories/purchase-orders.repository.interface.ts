@@ -31,6 +31,16 @@ export interface IPurchaseOrdersRepository {
   insert(po: PurchaseOrder): Promise<PurchaseOrder>
 
   /**
+   * Resolves a `Map<itemId, lineNumber>` for the non-deleted items of
+   * the given PO. The entity surface for `PurchaseOrderItem` deliberately
+   * doesn't expose the row id (identity is `(poId, lineNumber)`), so the
+   * receive use-case — whose action input is `itemId`-keyed — needs this
+   * boundary helper to correlate input rows back to entity items.
+   * The mapper/SQL layer sees the row id; the entity doesn't.
+   */
+  itemIdToLineNumberMap(poId: string): Promise<Map<string, number>>
+
+  /**
    * Persists state-transition mutations. The PO header row is UPDATEd;
    * item rows are synced — existing rows get UPDATE, new lines get
    * INSERT, lines no longer present in the aggregate get soft-deleted.

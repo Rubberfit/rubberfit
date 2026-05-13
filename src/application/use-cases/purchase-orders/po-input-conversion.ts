@@ -1,6 +1,14 @@
+import type { PurchaseOrderItem } from "@/src/entities/purchase-order-item"
 import type { CreatePurchaseOrderItemProps } from "@/src/entities/purchase-order-item"
+import type { CreateRollProps } from "@/src/entities/roll"
 import type { Currency } from "@/src/entities/value-objects/currency"
-import { MaterialTypeId } from "@/src/entities/value-objects/id"
+import {
+  MaterialTypeId,
+  type ProfileId,
+  type RollId,
+  type SupplierId,
+  type TenantId,
+} from "@/src/entities/value-objects/id"
 import { Money } from "@/src/entities/value-objects/money"
 
 /**
@@ -84,4 +92,122 @@ export function mapItemsToEntityProps(
       notes: item.notes ?? null,
     }
   })
+}
+
+// ─── Roll input (receive-PO flow) ──────────────────────────────────────────
+
+/**
+ * Default roll dimensions for receive-flow fallbacks. Mirror the
+ * pre-DDD legacy defaults from `legacyPurchaseOrderService.receivePurchaseOrder`:
+ *   width  = 60"     → 1524 mm
+ *   thick  = 0.125"  → 3.175 mm
+ * Entity invariants: `widthMm` is a positive integer, `thicknessMm` is
+ * positive finite. 1524 is an integer; 3.175 is a finite float — both fine.
+ */
+export const DEFAULT_ROLL_WIDTH_MM = 1524
+export const DEFAULT_ROLL_THICKNESS_MM = 3.175
+
+/**
+ * Form-shape for the receive-flow's per-item roll-creation payload.
+ * Mirrors `rollDataSchema` in `app/actions/purchase-orders.ts` — legacy
+ * column names, imperial units. Translated to entity `CreateRollProps`
+ * via `buildCreateRollProps`.
+ */
+export interface RollDataInput {
+  width?: number
+  length?: number
+  thickness?: number
+  color?: string
+  location?: string
+  cost_per_sqft?: number
+  notes?: string
+  date_received?: string
+}
+
+export interface BuildCreateRollPropsArgs {
+  /** Fresh UUID for the roll; caller generates so the helper stays pure. */
+  id: RollId
+  tenantId: TenantId
+  supplierId: SupplierId
+  poItem: PurchaseOrderItem
+  rollData: RollDataInput
+  /** Fallback length-in-inches when `rollData.length` is missing — mirrors legacy parity. */
+  quantityReceivedSqft: number
+  actor: ProfileId
+  poNumber: string
+  /** Defaults to `poItem.unitCost.currency`. */
+  currency?: Currency
+}
+
+/**
+ * Imperial → metric conversion for a roll's cost basis.
+ *
+ *   cost_per_sqft (dollars) → cost_per_sqm (cents)
+ *   cents/sqm = cost_per_sqft × SQFT_PER_SQM × 100, rounded
+ *
+ * The Roll aggregate stores `cost` as `Money` over a cents-per-sqm
+ * column (`rolls.cost_per_sqm_cents`); the form sends imperial.
+ */
+export function costPerSqftToCostPerSqmMoney(costPerSqft: number, currency: Currency): Money {
+  return Money.fromCents(Math.round(costPerSqft * SQFT_PER_SQM * 100), currency)
+}
+
+/**
+ * Maps the receive-flow's per-item `rollData` (imperial / legacy column
+ * names) onto the entity-layer `CreateRollProps`. Fallback chain matches
+ * the pre-DDD legacy behavior so receive-flow outputs stay equivalent:
+ *
+ *   widthMm     = rollData.width  → poItem.widthMm     → DEFAULT_ROLL_WIDTH_MM
+ *   lengthMm    = rollData.length → inchesToMm(quantityReceivedSqft)
+ *   thicknessMm = rollData.thickness → poItem.thicknessMm → DEFAULT_ROLL_THICKNESS_MM
+ *   cost        = rollData.cost_per_sqft → poItem.unitCost
+ *   color       = rollData.color    → poItem.color → null
+ *   location    = rollData.location → "Receiving"
+ *   notes       = rollData.notes    → `Received from PO ${poNumber}`
+ *
+ * `lengthMm` from `quantityReceivedSqft` is a numerically odd fallback
+ * (sqft → mm conflates area with length), but it mirrors the legacy
+ * code exactly for behavior parity. A future refactor can introduce an
+ * explicit length-in-inches field on the receive form.
+ */
+export function buildCreateRollProps(args: BuildCreateRollPropsArgs): CreateRollProps {
+  const currency = args.currency ?? args.poItem.unitCost.currency
+  const widthMm =
+    args.rollData.width != null
+      ? Math.round(inchesToMm(args.rollData.width))
+      : (args.poItem.widthMm ?? DEFAULT_ROLL_WIDTH_MM)
+  const lengthMm =
+    args.rollData.length != null
+      ? Math.round(inchesToMm(args.rollData.length))
+      : Math.round(inchesToMm(args.quantityReceivedSqft))
+  const thicknessMm =
+    args.rollData.thickness != null
+      ? inchesToMm(args.rollData.thickness)
+      : (args.poItem.thicknessMm ?? DEFAULT_ROLL_THICKNESS_MM)
+  const cost =
+    args.rollData.cost_per_sqft != null
+      ? costPerSqftToCostPerSqmMoney(args.rollData.cost_per_sqft, currency)
+      : args.poItem.unitCost
+  const dateReceived = args.rollData.date_received
+    ? new Date(args.rollData.date_received)
+    : new Date()
+
+  return {
+    id: args.id,
+    tenantId: args.tenantId,
+    materialTypeId: args.poItem.materialTypeId,
+    supplierId: args.supplierId,
+    sourceType: "received",
+    parentRollId: null,
+    sourceCutHistoryId: null,
+    widthMm,
+    lengthMm,
+    thicknessMm,
+    color: args.rollData.color ?? args.poItem.color ?? null,
+    location: args.rollData.location ?? "Receiving",
+    dateReceived,
+    cost,
+    notes: args.rollData.notes ?? `Received from PO ${args.poNumber}`,
+    createdBy: args.actor,
+  }
 }

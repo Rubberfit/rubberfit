@@ -13,7 +13,10 @@ import type { IPurchaseOrdersRepository } from "@/src/application/repositories/p
 import type {
   IPurchaseOrderService,
   ReceiptDelta,
+  ReceiptDeltaByItemId,
+  RecordReceiptsByItemIdResult,
 } from "@/src/application/services/purchase-order.service.interface"
+import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { TOKENS } from "@/di/tokens"
 
 /**
@@ -135,6 +138,37 @@ export class PurchaseOrderService implements IPurchaseOrderService {
       )
     }
     return this.repo.update(po)
+  }
+
+  async recordReceiptsByItemId(
+    id: string,
+    receipts: ReceiptDeltaByItemId[],
+    actor: ProfileId
+  ): Promise<RecordReceiptsByItemIdResult> {
+    const [po, itemIdToLineNumber] = await Promise.all([
+      this.repo.findById(id),
+      this.repo.itemIdToLineNumberMap(id),
+    ])
+    const previousStatus = po.status
+    const now = new Date()
+    for (const receipt of receipts) {
+      const lineNumber = itemIdToLineNumber.get(receipt.itemId)
+      if (lineNumber === undefined) {
+        throw new InvalidEntityError(
+          "PurchaseOrder",
+          `no item with id '${receipt.itemId}' on PO ${id}`
+        )
+      }
+      po.recordReceipt(
+        lineNumber,
+        receipt.quantityReceivedSqm,
+        receipt.receivedDate ?? now,
+        actor,
+        now
+      )
+    }
+    const purchaseOrder = await this.repo.update(po)
+    return { previousStatus, purchaseOrder, itemIdToLineNumber }
   }
 
   async softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder> {

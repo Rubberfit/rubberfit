@@ -20,6 +20,35 @@ export interface ReceiptDelta {
 }
 
 /**
+ * Per-line receipt delta keyed by the PO item's persistence row id
+ * rather than `lineNumber`. The action layer's contract uses row IDs
+ * (the form sends `itemId` from a hydrated PO row), but the entity
+ * identity is `(poId, lineNumber)`. The service translates internally.
+ */
+export interface ReceiptDeltaByItemId {
+  itemId: string
+  quantityReceivedSqm: number
+  receivedDate?: Date
+}
+
+/**
+ * Return shape for `recordReceiptsByItemId`. The use-case body needs
+ * all three values to correctly orchestrate cross-aggregate side effects:
+ *   • `previousStatus` powers the notification's `oldStatus` so a
+ *     `partial_received → received` transition reads correctly (the
+ *     entity has already mutated by the time this returns).
+ *   • `purchaseOrder` is the updated aggregate.
+ *   • `itemIdToLineNumber` lets the caller correlate `rollData` inputs
+ *     (action-shape, keyed by row id) back to entity items (keyed by
+ *     `lineNumber`).
+ */
+export interface RecordReceiptsByItemIdResult {
+  previousStatus: PoStatus
+  purchaseOrder: PurchaseOrder
+  itemIdToLineNumber: Map<string, number>
+}
+
+/**
  * Narrow entity-typed orchestrator over `IPurchaseOrdersRepository` +
  * `PurchaseOrder` aggregate transitions. Item-collection mutations and
  * money invariants live in the entity; this service only wires actor
@@ -112,6 +141,27 @@ export interface IPurchaseOrderService {
    * persisted to avoid orphan inventory if the PO write fails.
    */
   recordReceipts(id: string, receipts: ReceiptDelta[], actor: ProfileId): Promise<PurchaseOrder>
+
+  /**
+   * `recordReceipts` variant accepting itemId-keyed receipts. Resolves
+   * the `itemId → lineNumber` map via the repository, captures the
+   * `previousStatus` before mutating, then runs the same entity
+   * `recordReceipt` path as the line-number-keyed variant.
+   *
+   * Returns the previous status + updated aggregate + the resolved
+   * id-to-line-number map (the caller's cross-aggregate orchestration
+   * needs the map to correlate ancillary inputs like roll-creation
+   * payloads back to entity items).
+   *
+   * Cross-aggregate side effects (roll creation, notification fan-out)
+   * are still the caller's responsibility — invoke them AFTER this
+   * returns, against the persisted state.
+   */
+  recordReceiptsByItemId(
+    id: string,
+    receipts: ReceiptDeltaByItemId[],
+    actor: ProfileId
+  ): Promise<RecordReceiptsByItemIdResult>
 
   /** Admin-only soft delete. */
   softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder>

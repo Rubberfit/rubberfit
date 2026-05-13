@@ -66,6 +66,7 @@ function makeFakeRepo(): IPurchaseOrdersRepository {
     findByStatuses: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
+    itemIdToLineNumberMap: vi.fn(),
   }
 }
 

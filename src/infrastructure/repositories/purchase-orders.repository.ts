@@ -30,6 +30,22 @@ const DEFAULT_CURRENCY = Currency.fromPersistence("USD")
 
 @injectable()
 export class PurchaseOrdersRepository implements IPurchaseOrdersRepository {
+  async itemIdToLineNumberMap(poId: string): Promise<Map<string, number>> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(ITEMS_TABLE)
+      .select("id, line_number")
+      .eq("purchase_order_id", poId)
+      .is("deleted_at", null)
+    if (error) throw error
+
+    const map = new Map<string, number>()
+    for (const row of (data ?? []) as Array<{ id: string; line_number: number }>) {
+      map.set(row.id, row.line_number)
+    }
+    return map
+  }
+
   async findById(id: string): Promise<PurchaseOrder> {
     const client = await getDatabaseClient()
     const { data: header, error: headerError } = await client
