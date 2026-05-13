@@ -8,7 +8,7 @@ import {
 import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
 
 describe("getProfileAccess", () => {
-  it("unions roles across active memberships and surfaces isSuperAdmin", async () => {
+  it("unions roles across active memberships when no tenant id is passed", async () => {
     const client = makeFakeClient({
       tables: {
         profiles: {
@@ -30,6 +30,34 @@ describe("getProfileAccess", () => {
     expect(access.hasProfile).toBe(true)
     expect(access.isInaccessible).toBe(false)
     expect(access.roles.sort()).toEqual(["admin", "cutter", "manager"])
+  })
+
+  it("scopes roles to the given tenant when tenantId is passed", async () => {
+    // The fake client serves the SAME `select` data for every
+    // memberships read. With a tenantId, the resolver short-circuits
+    // on the single-tenant `.maybeSingle()` query — which unwraps
+    // the array to its first element. So the roles array of the
+    // first row is what the actor receives.
+    const client = makeFakeClient({
+      tables: {
+        profiles: {
+          select: { data: [{ is_platform_admin: false }], error: null },
+        },
+        memberships: {
+          select: {
+            data: [{ roles: ["cutter"] }],
+            error: null,
+          },
+        },
+      },
+    })
+    const access = await getProfileAccess(
+      client,
+      "u1",
+      "00000000-0000-0000-0000-000000000abc"
+    )
+    expect(access.roles).toEqual(["cutter"])
+    expect(access.isInaccessible).toBe(false)
   })
 
   it("returns isInaccessible=true when the profile has zero active memberships and is not a platform admin", async () => {

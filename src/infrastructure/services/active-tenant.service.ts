@@ -71,6 +71,35 @@ export async function resolveActiveTenantId(
 }
 
 /**
+ * Returns `true` when the caller has an active (non-deleted)
+ * membership in the target tenant. Used by the chooser action to
+ * validate user input before persisting the cookie + last_active —
+ * we don't want the actor to carry (or the cookie to advertise) a
+ * tenant id the user can't actually act in.
+ *
+ * Throws on read errors so the caller can map to a 403/500 instead
+ * of silently denying.
+ */
+export async function verifyTenantMembership(
+  client: SupabaseClient,
+  profileId: string,
+  tenantId: string
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("memberships")
+    .select("tenant_id")
+    .eq("profile_id", profileId)
+    .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (error) {
+    console.error("verifyTenantMembership failed:", error)
+    throw error
+  }
+  return data !== null
+}
+
+/**
  * Persists `profiles.last_active_tenant_id`. Best-effort — logs and
  * swallows on failure so a transient write hiccup doesn't break the
  * login flow. The cookie is the request-level source of truth; the

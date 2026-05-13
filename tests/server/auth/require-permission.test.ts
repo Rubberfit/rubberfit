@@ -10,6 +10,7 @@ function actor(overrides: Partial<ActionActor> = {}): ActionActor {
     email: "a@b.com",
     roles: [],
     isSuperAdmin: false,
+    activeTenantId: null,
     ...overrides,
   }
 }

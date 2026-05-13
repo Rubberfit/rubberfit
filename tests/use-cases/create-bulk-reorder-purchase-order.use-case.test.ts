@@ -42,6 +42,7 @@ const ACTOR: ActionActor = {
   email: "alice@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 function makeSuggestion(overrides: Partial<ReorderSuggestionOutput> = {}): ReorderSuggestionOutput {

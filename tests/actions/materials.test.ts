@@ -68,6 +68,7 @@ const ACTOR: ActionActor = {
   email: "manager@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const MATERIAL_ID = "00000000-0000-0000-0000-000000000aaa"

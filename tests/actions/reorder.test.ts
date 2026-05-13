@@ -68,6 +68,7 @@ const ACTOR: ActionActor = {
   email: "alice@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 // Stable test UUIDs.

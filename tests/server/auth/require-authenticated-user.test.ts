@@ -10,6 +10,11 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: createServerClientMock,
 }))
 
+const resolveActiveTenantIdMock = vi.hoisted(() => vi.fn())
+vi.mock("@/src/infrastructure/services/active-tenant.service", () => ({
+  resolveActiveTenantId: resolveActiveTenantIdMock,
+}))
+
 interface FakeProfile {
   is_platform_admin: boolean | null
 }
@@ -25,6 +30,12 @@ function makeClient(opts: {
   profileError?: { message: string } | null
   memberships?: FakeMembership[] | null
   membershipsError?: { message: string } | null
+  /**
+   * Optional override for the tenant-scoped membership row returned by
+   * the maybeSingle() call in getProfileAccess when a tenantId is
+   * passed. Defaults to the first of `memberships` (or null).
+   */
+  tenantScopedMembership?: FakeMembership | null
 }) {
   const profileQuery = {
     select: vi.fn().mockReturnThis(),
@@ -40,10 +51,18 @@ function makeClient(opts: {
         error: opts.membershipsError ?? null,
       }).then(resolve),
   }
+  const tenantScoped =
+    opts.tenantScopedMembership !== undefined
+      ? opts.tenantScopedMembership
+      : opts.memberships?.[0] ?? null
   const membershipsQuery = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     is: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({
+      data: tenantScoped,
+      error: opts.membershipsError ?? null,
+    }),
     then: (resolve: (v: unknown) => unknown) =>
       Promise.resolve({
         data: opts.memberships ?? [],
@@ -70,7 +89,9 @@ describe("requireAuthenticatedUser", () => {
     vi.resetModules()
     cookiesMock.mockReset()
     createServerClientMock.mockReset()
-    cookiesMock.mockResolvedValue({ getAll: () => [] })
+    resolveActiveTenantIdMock.mockReset()
+    cookiesMock.mockResolvedValue({ getAll: () => [], get: () => undefined })
+    resolveActiveTenantIdMock.mockResolvedValue(null)
     process.env = {
       ...ENV,
       NEXT_PUBLIC_SUPABASE_URL: "https://x.supabase.co",
@@ -154,7 +175,7 @@ describe("requireAuthenticatedUser", () => {
     })
   })
 
-  it("returns ActionActor with the role union when authenticated", async () => {
+  it("returns ActionActor with the role union when no tenant resolves", async () => {
     createServerClientMock.mockReturnValue(
       makeClient({
         user: { id: "u1", email: "a@b.com" },
@@ -162,13 +183,30 @@ describe("requireAuthenticatedUser", () => {
         memberships: [{ roles: ["manager"] }, { roles: ["cutter", "manager"] }],
       })
     )
+    resolveActiveTenantIdMock.mockResolvedValue(null)
     const { requireAuthenticatedUser } =
       await import("@/app/server/auth/require-authenticated-user")
     const actor = await requireAuthenticatedUser()
     expect(actor.id).toBe("u1")
     expect(actor.email).toBe("a@b.com")
     expect(actor.isSuperAdmin).toBe(false)
+    expect(actor.activeTenantId).toBeNull()
     expect(actor.roles.sort()).toEqual(["cutter", "manager"])
+  })
+
+  it("populates activeTenantId from the resolver", async () => {
+    createServerClientMock.mockReturnValue(
+      makeClient({
+        user: { id: "u1", email: "a@b.com" },
+        profile: { is_platform_admin: false },
+        memberships: [{ roles: ["manager"] }],
+      })
+    )
+    resolveActiveTenantIdMock.mockResolvedValue("00000000-0000-0000-0000-000000000abc")
+    const { requireAuthenticatedUser } =
+      await import("@/app/server/auth/require-authenticated-user")
+    const actor = await requireAuthenticatedUser()
+    expect(actor.activeTenantId).toBe("00000000-0000-0000-0000-000000000abc")
   })
 
   it("flags platform admins regardless of role list", async () => {
@@ -185,5 +223,6 @@ describe("requireAuthenticatedUser", () => {
     expect(actor.isSuperAdmin).toBe(true)
     // Empty roles is fine; platform admin bypass handles the access path.
     expect(actor.roles).toEqual([])
+    expect(actor.activeTenantId).toBeNull()
   })
 })

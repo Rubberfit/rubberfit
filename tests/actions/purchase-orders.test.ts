@@ -40,6 +40,7 @@ const ACTOR: ActionActor = {
   email: "alice@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const PO_LIST_PATH = "/dashboard/inventory/purchase-orders"

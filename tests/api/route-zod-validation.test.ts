@@ -267,6 +267,7 @@ describe("/api/v2/pack POST validates body via Zod", () => {
       email: "u1@example.com",
       roles: ["admin"],
       isSuperAdmin: false,
+      activeTenantId: null,
     })
     requirePermissionMock.mockReturnValue(undefined)
   })

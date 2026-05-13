@@ -26,6 +26,8 @@ import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import type { SupabaseClient } from "@supabase/supabase-js"
+
 import {
   ACTIVE_TENANT_COOKIE,
   applyActiveTenantCookie,
@@ -102,9 +104,16 @@ export async function proxy(request: NextRequest) {
   const needsAdmin = pathname.startsWith("/admin")
 
   if (requiredPermission || needsAdmin) {
+    // Scope role lookup to the cookie-pinned tenant when present so
+    // per-tenant role assignments take effect at the route guard. On
+    // cookie-miss we fall back to the union across all memberships —
+    // the guard stays permissive for the pre-chooser window; the
+    // recovery block further down sets the cookie for next time.
+    const cookieTenantHint = request.cookies.get(ACTIVE_TENANT_COOKIE)?.value ?? null
+
     let access
     try {
-      access = await getProfileAccess(supabase, user.id)
+      access = await getProfileAccess(supabase, user.id, cookieTenantHint)
     } catch (_err) {
       // Treat profile-load failures as denials rather than letting
       // requests through with no role information.
@@ -144,27 +153,34 @@ export async function proxy(request: NextRequest) {
       )
     }
 
-    // Active-tenant cookie recovery — fires only when we're already
-    // reading the profile for permission/admin gating, so the
-    // amortized cost is one extra query per cookie miss (rare; cookie
-    // lives 24h). Other authenticated paths (e.g. dashboard root)
-    // skip recovery and pick up the cookie the next time the user
-    // hits a gated route. Failure is non-fatal: downstream code
-    // tolerates missing cookies by falling back to `last_active_tenant_id`
-    // / first-membership resolution itself.
-    if (!request.cookies.get(ACTIVE_TENANT_COOKIE)?.value) {
-      try {
-        const tenantId = await resolveActiveTenantId(supabase, user.id)
-        if (tenantId) {
-          applyActiveTenantCookie(response, tenantId)
-        }
-      } catch (_err) {
-        // best-effort; the next gated request will retry
-      }
-    }
+    await recoverActiveTenantCookieIfMissing(request, response, supabase, user.id)
   }
 
   return applySecurityHeaders(privateResponse(response))
+}
+
+/**
+ * Sets `rema_active_tenant` on the response when the request lacks it
+ * and the user has a resolvable tenant. Best-effort — failure is
+ * silent because downstream code tolerates a missing cookie via its
+ * own resolver fallback. Only invoked from the permission-gated path
+ * (where a profile read already amortizes the round-trip).
+ */
+async function recoverActiveTenantCookieIfMissing(
+  request: NextRequest,
+  response: NextResponse,
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  if (request.cookies.get(ACTIVE_TENANT_COOKIE)?.value) return
+  try {
+    const tenantId = await resolveActiveTenantId(supabase, userId)
+    if (tenantId) {
+      applyActiveTenantCookie(response, tenantId)
+    }
+  } catch (_err) {
+    // best-effort; the next gated request will retry
+  }
 }
 
 function privateResponse(response: NextResponse): NextResponse {

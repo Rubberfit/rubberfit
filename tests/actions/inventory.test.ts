@@ -48,6 +48,7 @@ const ACTOR: ActionActor = {
   email: "manager@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 describe("app/actions/inventory.addRoll", () => {

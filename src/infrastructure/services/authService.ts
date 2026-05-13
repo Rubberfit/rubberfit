@@ -351,8 +351,12 @@ export const authService = new AuthService()
 
 export interface ProfileAccess {
   /**
-   * Union of roles across all active memberships. Interim shape until
-   * ActionActor grows an `activeTenantId` and roles become per-tenant.
+   * When `tenantId` is passed to `getProfileAccess`, this is the roles
+   * array from the specific membership in that tenant (or `[]` when
+   * the user has no active membership there). Without a tenant hint
+   * it's the union across all active memberships — used by the proxy
+   * permission gate before a cookie-resolved tenant is available, and
+   * the chooser flow where there's no tenant yet.
    */
   roles: string[]
   /** Mirrors `profiles.is_platform_admin`. */
@@ -381,20 +385,40 @@ export interface ProfileAccess {
 }
 
 /**
- * Fetches the role union + platform-admin flag + accessibility for an
+ * Fetches the roles + platform-admin flag + accessibility for an
  * already-authenticated user. Used by the admin guard helper, the proxy
  * middleware, and `requireAuthenticatedUser` to centralize the RBAC +
  * accessibility lookup that every protected boundary needs.
  *
- * Returns `isInaccessible: true` when no profile row exists, so callers
- * can fail-closed with a single check instead of separately handling
- * the missing-row case.
+ * Pass `tenantId` to scope `roles` to a single membership (per-tenant
+ * roles — the production shape once a tenant is resolved). Omit it
+ * for the role-union fallback used before a tenant is known
+ * (proxy permission gate without cookie, chooser flow).
+ *
+ * `isInaccessible` is computed against the **set of all** active
+ * memberships, not just the tenant-scoped roles array — a user with
+ * an active membership in tenant B is still accessible even if we
+ * filter roles to tenant A and that membership row hasn't been read.
+ *
+ * Returns `isInaccessible: true` + `hasProfile: false` when no profile
+ * row exists so callers can fail-closed with one check.
  */
 export async function getProfileAccess(
   client: SupabaseClient,
-  userId: string
+  userId: string,
+  tenantId?: string | null
 ): Promise<ProfileAccess> {
-  const [profileResult, membershipsResult] = await Promise.all([
+  const tenantRolesQuery = tenantId
+    ? client
+        .from("memberships")
+        .select("roles")
+        .eq("profile_id", userId)
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null })
+
+  const [profileResult, allMembershipsResult, tenantRolesResult] = await Promise.all([
     client
       .from("profiles")
       .select("is_platform_admin")
@@ -405,37 +429,48 @@ export async function getProfileAccess(
       .select("roles")
       .eq("profile_id", userId)
       .is("deleted_at", null),
+    tenantRolesQuery,
   ])
 
   if (profileResult.error) {
     console.error("authService.getProfileAccess profile error:", profileResult.error)
     throw profileResult.error
   }
-  if (membershipsResult.error) {
-    console.error("authService.getProfileAccess memberships error:", membershipsResult.error)
-    throw membershipsResult.error
+  if (allMembershipsResult.error) {
+    console.error(
+      "authService.getProfileAccess memberships error:",
+      allMembershipsResult.error
+    )
+    throw allMembershipsResult.error
   }
 
   if (!profileResult.data) {
     return { roles: [], isSuperAdmin: false, isInaccessible: true, hasProfile: false }
   }
 
-  const rolesUnion = new Set<string>()
-  for (const row of membershipsResult.data ?? []) {
-    for (const role of row.roles ?? []) {
-      rolesUnion.add(role)
-    }
-  }
-
+  const allMembershipRows = (allMembershipsResult.data ?? []) as { roles: string[] | null }[]
   const isSuperAdmin = profileResult.data.is_platform_admin === true
-  const membershipCount = membershipsResult.data?.length ?? 0
   // Platform admins remain accessible without memberships; their
   // is_platform_admin flag drives the auth_is_platform_admin() RLS
   // bypass so they can still act across tenants.
-  const isInaccessible = !isSuperAdmin && membershipCount === 0
+  const isInaccessible = !isSuperAdmin && allMembershipRows.length === 0
+
+  let roles: string[]
+  if (tenantId) {
+    const tenantRow = tenantRolesResult.data as { roles: string[] | null } | null
+    roles = tenantRow?.roles ?? []
+  } else {
+    const rolesUnion = new Set<string>()
+    for (const row of allMembershipRows) {
+      for (const role of row.roles ?? []) {
+        rolesUnion.add(role)
+      }
+    }
+    roles = Array.from(rolesUnion)
+  }
 
   return {
-    roles: Array.from(rolesUnion),
+    roles,
     isSuperAdmin,
     isInaccessible,
     hasProfile: true,

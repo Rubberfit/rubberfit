@@ -53,6 +53,7 @@ const ADMIN: ActionActor = {
   email: "admin@example.com",
   roles: ["admin"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const TARGET_ID = "00000000-0000-0000-0000-000000000002"
