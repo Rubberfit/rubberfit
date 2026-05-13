@@ -22,17 +22,42 @@ export default async function TeamSettingsPage() {
   const actor = await requireAuthenticatedUser()
   const organizationService = resolveUseCase<IOrganizationService>(TOKENS.IOrganizationService)
 
-  const organization = await organizationService.getCurrentOrganizationForUser(actor.id)
+  // Diagnostic wrapper: when the page errors on the preview DB the
+  // founder hits a generic 500. Run each query in its own try and
+  // log the failing step + message + Postgres error code so the next
+  // reload tells us exactly which call broke instead of guessing.
+  // Cheap noise — pruned once the root cause is fixed.
+  const organization = await traceTeamPageStep(
+    "getCurrentOrganizationForUser",
+    () => organizationService.getCurrentOrganizationForUser(actor.id),
+    { actorId: actor.id }
+  )
   if (!organization) {
     redirect("/checkout")
   }
 
   const [members, pendingInvites, seatUsage, subscription, role] = await Promise.all([
-    organizationService.listMembers(organization.id),
-    organizationService.listPendingInvitations(organization.id),
-    organizationService.getSeatUsage(organization.id),
-    organizationService.getCurrentSubscription(organization.id),
-    organizationService.getMemberRole(organization.id, actor.id),
+    traceTeamPageStep("listMembers", () => organizationService.listMembers(organization.id), {
+      organizationId: organization.id,
+    }),
+    traceTeamPageStep(
+      "listPendingInvitations",
+      () => organizationService.listPendingInvitations(organization.id),
+      { organizationId: organization.id }
+    ),
+    traceTeamPageStep("getSeatUsage", () => organizationService.getSeatUsage(organization.id), {
+      organizationId: organization.id,
+    }),
+    traceTeamPageStep(
+      "getCurrentSubscription",
+      () => organizationService.getCurrentSubscription(organization.id),
+      { organizationId: organization.id }
+    ),
+    traceTeamPageStep(
+      "getMemberRole",
+      () => organizationService.getMemberRole(organization.id, actor.id),
+      { organizationId: organization.id, actorId: actor.id }
+    ),
   ])
 
   // A null role means the actor isn't a member of this org. The proxy gate
@@ -80,4 +105,38 @@ export default async function TeamSettingsPage() {
       }}
     />
   )
+}
+
+/**
+ * Wraps a single team-page data fetch with structured logging. The
+ * preview deployment currently 500s somewhere in this flow and the
+ * runtime log stream keeps timing out before we capture which step
+ * threw — this helper makes the failing step + Postgres code
+ * obvious in the next reload's logs. Prune once the root cause is
+ * fixed.
+ */
+async function traceTeamPageStep<T>(
+  step: string,
+  fn: () => Promise<T>,
+  context: Record<string, unknown>
+): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    const pgError = err as { code?: string; message?: string; details?: string; hint?: string }
+    // eslint-disable-next-line no-console
+    console.error(
+      `[settings/team] step "${step}" failed`,
+      {
+        step,
+        ...context,
+        pgCode: pgError?.code,
+        message: pgError?.message,
+        details: pgError?.details,
+        hint: pgError?.hint,
+      },
+      err
+    )
+    throw err
+  }
 }
