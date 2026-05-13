@@ -21,6 +21,7 @@ export const TOKENS = {
   IReorderService: Symbol("IReorderService"),
   IReorderCalculationsService: Symbol("IReorderCalculationsService"),
   IRollService: Symbol("IRollService"),
+  IStripeClientService: Symbol("IStripeClientService"),
   ISupplierService: Symbol("ISupplierService"),
   ITaxService: Symbol("ITaxService"),
   ITaxApiService: Symbol("ITaxApiService"),
@@ -36,6 +37,10 @@ export const TOKENS = {
   ICutFavoritesService: Symbol("ICutFavoritesService"),
   IRollInventoryService: Symbol("IRollInventoryService"),
 
+  // Billing / organizations (Stripe rollout)
+  IOrganizationService: Symbol("IOrganizationService"),
+  IStripeWebhookService: Symbol("IStripeWebhookService"),
+
   // Use cases
   ICreatePurchaseOrderUseCase: Symbol("ICreatePurchaseOrderUseCase"),
   IUpdatePurchaseOrderUseCase: Symbol("IUpdatePurchaseOrderUseCase"),
@@ -46,4 +51,14 @@ export const TOKENS = {
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
+  ICreateOrganizationFromOnboardingUseCase: Symbol("ICreateOrganizationFromOnboardingUseCase"),
+  ICreateCheckoutSessionUseCase: Symbol("ICreateCheckoutSessionUseCase"),
+
+  // PR 6 — team invites + seat management
+  IAcceptInvitationUseCase: Symbol("IAcceptInvitationUseCase"),
+  ICreateInvitationUseCase: Symbol("ICreateInvitationUseCase"),
+  IRevokeInvitationUseCase: Symbol("IRevokeInvitationUseCase"),
+  IResendInvitationUseCase: Symbol("IResendInvitationUseCase"),
+  IDeactivateMemberUseCase: Symbol("IDeactivateMemberUseCase"),
+  IUpdateSubscriptionSeatCountUseCase: Symbol("IUpdateSubscriptionSeatCountUseCase"),
 } as const

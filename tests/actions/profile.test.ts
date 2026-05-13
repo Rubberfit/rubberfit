@@ -21,6 +21,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/database/register-factory", () => ({
   ensureDatabaseFactoryRegistered: ensureDatabaseFactoryRegisteredMock,
@@ -43,6 +48,7 @@ const ACTOR: ActionActor = {
 describe("app/actions/profile.requestSelfDelete", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requestSelfDeleteRepoMock.mockResolvedValue({ success: true })
   })
 

@@ -28,6 +28,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
@@ -131,6 +136,7 @@ function setupUseCaseResolver(opts: {
 describe("app/actions/reorder", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requirePermissionMock.mockReturnValue(undefined)
     reorderServiceMock.getActiveReorderRules.mockResolvedValue([ACTIVE_RULE])
     reorderServiceMock.calculateCurrentStock.mockResolvedValue(10)

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
@@ -94,6 +95,7 @@ export async function createMaterialType(
 ): Promise<MaterialType> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = createMaterialTypeSchema.parse(input)
 
@@ -115,6 +117,7 @@ export async function updateMaterialType(
 ): Promise<MaterialType> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = updateMaterialTypeSchema.parse(input)
 
@@ -143,6 +146,7 @@ export async function deleteMaterialType(
 ): Promise<DeleteMaterialTypeResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = deleteMaterialTypeSchema.parse(input)
 

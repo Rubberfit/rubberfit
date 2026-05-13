@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { rollService } from "@/src/infrastructure/services/rollService"
@@ -80,6 +81,7 @@ export type AddRollActionInput = z.input<typeof addRollSchema>
 export async function addRoll(input: AddRollActionInput): Promise<Roll> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = addRollSchema.parse(input)
 

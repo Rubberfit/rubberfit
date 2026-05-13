@@ -21,6 +21,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
@@ -75,6 +80,7 @@ const MATERIAL_ID = "00000000-0000-0000-0000-000000000aaa"
 describe("app/actions/materials", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requirePermissionMock.mockReturnValue(undefined)
     createSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })
     updateSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })

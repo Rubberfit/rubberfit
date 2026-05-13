@@ -6,6 +6,7 @@ import { z } from "zod"
 import { ALL_ROLES } from "@/src/application/permissions"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 import { ForbiddenError } from "@/app/server/auth/errors"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { userManagementService } from "@/src/infrastructure/services/userManagementService"
@@ -60,6 +61,7 @@ export type ReactivateUserActionInput = z.input<typeof userIdInputSchema>
 export async function updateUser(input: UpdateUserActionInput): Promise<UserProfile> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageUsers")
   const parsed = updateUserSchema.parse(input)
 
@@ -75,6 +77,7 @@ export async function updateUser(input: UpdateUserActionInput): Promise<UserProf
 export async function deactivateUser(input: DeactivateUserActionInput): Promise<UserProfile> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageUsers")
   const parsed = userIdInputSchema.parse(input)
 
@@ -99,6 +102,7 @@ export async function deactivateUser(input: DeactivateUserActionInput): Promise<
 export async function reactivateUser(input: ReactivateUserActionInput): Promise<UserProfile> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageUsers")
   const parsed = userIdInputSchema.parse(input)
 

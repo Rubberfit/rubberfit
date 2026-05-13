@@ -52,6 +52,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         <LoginForm redirectTo={redirectTo} />
+
+        <p className="mt-6 text-center text-[14px] text-[var(--color-graphite)]/60">
+          New here?{" "}
+          <a
+            href="https://get.rubberfit.app/pricing"
+            className="auth-link hover:text-[var(--color-signal)]"
+          >
+            Start your trial →
+          </a>
+        </p>
       </div>
     </>
   )
