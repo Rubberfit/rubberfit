@@ -3,7 +3,13 @@ const nextConfig = {
   reactCompiler: true,
   devIndicators: false,
   compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
+    // Strip console noise from production builds, but preserve
+    // `console.error` and `console.warn` so server-side incident
+    // diagnostics survive into Vercel function logs.
+    removeConsole:
+      process.env.NODE_ENV === "production"
+        ? { exclude: ["error", "warn"] }
+        : false,
   },
   // Empty turbopack config to silence the warning
   turbopack: {},

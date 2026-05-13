@@ -31,7 +31,10 @@ export function IconCircle({
           height={iconSize}
           viewBox="0 0 24 24"
           fill="none"
-          stroke={stroke}
+          // `style` (not the bare `stroke` attribute) so a CSS custom
+          // property like `var(--color-signal)` resolves correctly —
+          // raw SVG attributes don't process CSS variables.
+          style={{ stroke }}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"

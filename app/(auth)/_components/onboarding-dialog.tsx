@@ -16,12 +16,20 @@ interface OnboardingDialogProps {
   open: boolean
   planTier: "standard" | "pro" | "max"
   billingInterval?: "monthly" | "annual"
+  initialCompanyName?: string
+  initialSeatCount?: number
 }
 
-export function OnboardingDialog({ open, planTier, billingInterval }: OnboardingDialogProps) {
+export function OnboardingDialog({
+  open,
+  planTier,
+  billingInterval,
+  initialCompanyName,
+  initialSeatCount,
+}: OnboardingDialogProps) {
   const router = useRouter()
-  const [companyName, setCompanyName] = React.useState("")
-  const [seatCount, setSeatCount] = React.useState(1)
+  const [companyName, setCompanyName] = React.useState(initialCompanyName ?? "")
+  const [seatCount, setSeatCount] = React.useState(initialSeatCount ?? 1)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
