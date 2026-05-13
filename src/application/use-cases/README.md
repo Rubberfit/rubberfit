@@ -44,7 +44,7 @@ export interface IXUseCase {
 - Server actions take `Omit<XInput, "actor">` as their public input and inject `actor` after `requireAuthenticatedUser()` — clients can't spoof identity.
 - Class files have no module-level singleton exports. They are import-safe in isolation, so unit tests can register fakes (`container.registerInstance(TOKENS.IDependency, fake)`) before resolving the use-case without pulling Supabase.
 
-## Catalog (9)
+## Catalog (10)
 
 ### Purchase Orders (5)
 
@@ -69,6 +69,12 @@ export interface IXUseCase {
 | Use case                                                  | Input (shape)                                    | Orchestrates                                                                                                  |
 | --------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | [`record-cut.use-case.ts`](./cuts/record-cut.use-case.ts) | `RecordCutInput` (rollId, length, jobRef, actor) | Deplete roll → write cut log → queue completion notification. Enforces "no cut from depleted roll" invariant. |
+
+### Pricing (1)
+
+| Use case                                                                                          | Input (shape)                                                                                                          | Orchestrates                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`update-material-pricing.use-case.ts`](./pricing/update-material-pricing.use-case.ts)            | `UpdateMaterialPricingInput` (materialSupplierId, newCostCents, newEffectiveDate, newExpirationDate, changeReason, actorId) | Loads the `material_supplier` entity → captures the prior cost → updates pricing via `IMaterialSupplierService` → appends an audit row via `IPriceHistoryService`. Two writes; not transactional yet. |
 
 ## Patterns to copy
 

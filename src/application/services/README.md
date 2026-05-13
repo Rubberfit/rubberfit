@@ -14,7 +14,7 @@ const poService = container.resolve<IPurchaseOrderService>(TOKENS.IPurchaseOrder
 
 Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the use-cases [README](../use-cases/README.md).
 
-## Catalog (29)
+## Catalog (30)
 
 ### Packing / Export
 
@@ -33,6 +33,7 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 | `IRollInventoryService`       | [`roll-inventory.service.interface.ts`](./roll-inventory.service.interface.ts)             | Aggregate inventory queries (admin-client bound).                                                                               |
 | `ICutService`                 | [`cut.service.interface.ts`](./cut.service.interface.ts)                                   | Cut log writes + queries (granular per-piece).                                                                                  |
 | `IMaterialTypeService`        | [`material-type.service.interface.ts`](./material-type.service.interface.ts)               | Material catalog CRUD.                                                                                                          |
+| `IMaterialSupplierService`    | [`material-supplier.service.interface.ts`](./material-supplier.service.interface.ts)       | Per-supplier material pricing + lead-time CRUD. Consumed by `UpdateMaterialPricingUseCase`.                                     |
 | `ISupplierService`            | [`supplier.service.interface.ts`](./supplier.service.interface.ts)                         | Supplier CRUD + contact management.                                                                                             |
 | `IPriceHistoryService`        | [`price-history.service.interface.ts`](./price-history.service.interface.ts)               | Price-change audit trail.                                                                                                       |
 | `IReorderService`             | [`reorder.service.interface.ts`](./reorder.service.interface.ts)                           | Entity-typed reorder-rule CRUD + transitions.                                                                                   |

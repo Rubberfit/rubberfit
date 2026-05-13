@@ -200,7 +200,7 @@ Four commits landed building toward the per-tenant action boundary that PO commi
 
 | Commit     | Title                                                                                              | Files | LOC          |
 | ---------- | -------------------------------------------------------------------------------------------------- | ----- | ------------ |
-| `e1f89af8` | `feat(db):` profiles.last_active_tenant_id + 4-digit PO numbering                                  | 2     | +5/-3        |
+| `e1f89af8` | `feat(db):` profiles.last_active_tenant_id + 4-digit PO numbering                                  | 2     | +6/-3        |
 | `31d60011` | `fix(auth):` align auth boundary + admin user mgmt with new multi-tenant schema (wide repair)      | 26    | +756/-329    |
 | `89e7b92d` | `feat(auth):` resolveActiveTenant + login callback + middleware recovery                           | 7     | +302/-36     |
 | `003d3dcd` | `feat(auth):` activeTenantId on ActionActor + strict cookie reader + chooser action                | 21    | +500/-56     |
@@ -245,7 +245,7 @@ Several non-obvious choices made during the session, each documented in the rele
 | `src/entities/README.md`                          | ✅     | No entity touches.                                                                                                                              |
 | `src/application/use-cases/README.md`             | ✅     | No use-cases touched.                                                                                                                           |
 
-**Observation, not drift:** `app/server/auth/` has grown to 6 files (`active-tenant.ts`, `require-active-tenant.ts`, `require-authenticated-user.ts`, `require-permission.ts`, `errors.ts`) and has no README. The directory's role is self-evident from filenames + JSDoc, but it might cross the threshold where a one-page index pays off. Defer until the surface stabilizes after step 4–7.
+**Observation, not drift:** `app/server/auth/` has grown to 5 files (`active-tenant.ts`, `require-active-tenant.ts`, `require-authenticated-user.ts`, `require-permission.ts`, `errors.ts`) and has no README. The directory's role is self-evident from filenames + JSDoc, but it might cross the threshold where a one-page index pays off. Defer until the surface stabilizes after step 4–7.
 
 ## Test totals — continuation 2
 

@@ -22,7 +22,7 @@ The most common failure mode is reinventing a utility that already exists. Scan 
 | You need…                            | Use this — don't reinvent                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | A monetary value                     | `Money` + `Currency` VOs in [`src/entities/value-objects/`](./src/entities/value-objects/)                                     |
-| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 20 branded ID types already declared |
+| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 22 branded ID types already declared |
 | String length / trim validation      | `trimRequired` / `trimOptional` in [`src/entities/shared/string-helpers.ts`](./src/entities/shared/string-helpers.ts)          |
 | Null-safe VO equality                | `nullableEqual` in [`src/entities/shared/equality.ts`](./src/entities/shared/equality.ts)                                      |
 | A status enum with transition guards | Pattern in [`po-status.ts`](./src/entities/value-objects/po-status.ts) — copy the shape, don't hardcode strings                |
@@ -63,15 +63,11 @@ Per-domain catalogs — each one lists what exists, with file paths and one-line
 
 - app/
   - Frameworks & Drivers Layer — Next.js pages, hooks, components, styles
-  - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `Omit<UseCaseInput, "actor">` so clients can't spoof identity.
-  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
+  - `actions/<domain>.ts` — server actions ("use server"). One file per domain (`active-tenant.ts`, `purchase-orders.ts`, `reorder.ts`, `users.ts`, `materials.ts`, `inventory.ts`, `profile.ts`, `cut-history.ts`). Each export is a hard server-only entrypoint that callers `await` from client code. Public input is `z.input<typeof schema>` derived from the Zod schema (which is the source of truth for the runtime parse contract) — clients can't spoof identity because actions inject `actor` from `requireAuthenticatedUser()` after parsing.
+  - `server/auth/` — `requireAuthenticatedUser`, `requirePermission`, `requireActiveTenant`, the active-tenant cookie wrapper, and the three typed error classes. Plain functions, NOT registered in TSyringe (request-scoped auth must not enter a singleton container).
   - `server/database/register-factory.ts` — installs the cookie-bound `getDatabaseClient` factory. Server actions call `ensureDatabaseFactoryRegistered()` as their first line.
   - `r/[partNumber]/pdf/route.ts` — public roll-info PDF response used by printed QR labels
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
-
-- .claude/
-  - handoff/ — task briefs and second-opinion assignments
-  - research/ — investigation notes and reports
 
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - nesting/ — 2D nesting engine
@@ -85,7 +81,7 @@ Per-domain catalogs — each one lists what exists, with file paths and one-line
 - Use-cases are TSyringe-registered. Classes use `@injectable()` + `@inject(TOKEN)`; the action layer resolves them via `resolveUseCase<IFoo>(TOKENS.IFoo)` from `@/di/resolve`. No module-level singletons; never put request-scoped state into the container (singletons are reused across serverless requests).
 - Cache invalidation per action: `revalidatePath()` server-side + React Query `invalidateQueries` client-side. Forgetting either creates stale data.
 - Create a use-case when the op fires side effects, touches >1 service, or enforces rules. Skip for list/get/delete.
-- Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`. Services call `await getDatabaseClient()` from `@/src/infrastructure/supabase/get-database-client` — the helper returns a cookie-bound `createServerClient` server-side (RLS-respecting, JWT from request cookies) or the browser singleton client-side. Server actions call `ensureDatabaseFactoryRegistered()` from `@/app/server/database/register-factory` as their first line. Architectural exceptions: `app/server/auth/require-authenticated-user.ts` and `app/server/database/register-factory.ts` (both allowlisted in `tests/architecture/no-direct-supabase.test.ts`).
+- Infra services are the only code that touches Supabase. No direct Supabase calls outside `src/infrastructure/`. Services call `await getDatabaseClient()` from `@/src/infrastructure/supabase/get-database-client` — the helper returns a cookie-bound `createServerClient` server-side (RLS-respecting, JWT from request cookies) or the browser singleton client-side. Server actions call `ensureDatabaseFactoryRegistered()` from `@/app/server/database/register-factory` as their first line. Architectural exceptions, all allowlisted in `tests/architecture/no-direct-supabase.test.ts`: `proxy.ts`, `app/(auth)/callback/route.ts`, `app/(auth)/_components/reset-password-form.tsx`, `app/contexts/auth-actions.ts`, `app/api/internal/tax/po-preview/route.ts`, `app/api/v2/_lib/bridge.ts`, `app/api/_lib/supabase-server.ts`, `app/server/auth/require-authenticated-user.ts`, `app/server/database/register-factory.ts`.
 - Notifications: `notifications` table (in-app feed) and `notification_queue` (email/SMS) are separate. Always go through `notificationService.sendX()` — it writes both. Type CHECK limits `notifications.type` to `low_stock | roll_depleted | cut_completed | system_alert`; everything else persists as `system_alert`.
 
 ## 5-step recipe: add a new entity end-to-end
