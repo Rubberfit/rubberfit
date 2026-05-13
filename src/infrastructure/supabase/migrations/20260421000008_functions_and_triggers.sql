@@ -393,7 +393,7 @@ CREATE TRIGGER trg_jobs_assign_number
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FUNCTION 9: generate_po_number — race-safe per-year PO numbering
 -- ═══════════════════════════════════════════════════════════════════════════
--- Format: PO-YY-NNNN. Uses a per-year Postgres sequence (lazily created) to
+-- Format: PO-YYYY-NNNN. Uses a per-year Postgres sequence (lazily created) to
 -- avoid the SELECT MAX(...) + 1 race that bites under concurrent PO creates
 -- (Fly autoscale + reorder-suggestion auto-create can fire in parallel).
 -- Ported from dev's 20260419000001_s3c_po_number_sequence_and_rpc_shells.sql.
@@ -411,7 +411,7 @@ DECLARE
   seq_name    text;
   next_seq    bigint;
 BEGIN
-  year_suffix := TO_CHAR(CURRENT_DATE, 'YY');
+  year_suffix := TO_CHAR(CURRENT_DATE, 'YYYY');
   seq_name    := po_number_sequence_name(year_suffix);
 
   -- Create the per-year sequence if missing. Scope the existence check to the
@@ -452,7 +452,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION generate_po_number() IS
-  'Returns the next PO-YY-NNNN number using a per-year sequence. Race-safe under concurrent callers.';
+  'Returns the next PO-YYYY-NNNN number using a per-year sequence. Race-safe under concurrent callers.';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

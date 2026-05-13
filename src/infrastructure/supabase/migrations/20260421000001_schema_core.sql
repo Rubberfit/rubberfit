@@ -138,6 +138,7 @@ CREATE TABLE profiles (
                       ) STORED,
   email               varchar(320),
   is_platform_admin   boolean NOT NULL DEFAULT false,
+  last_active_tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
 
@@ -147,6 +148,8 @@ CREATE TABLE profiles (
 
 COMMENT ON COLUMN profiles.is_platform_admin IS
   'Cross-tenant super-admin flag. RLS bypasses tenant checks when true.';
+COMMENT ON COLUMN profiles.last_active_tenant_id IS
+  'User-selected active tenant. Read by login callback + middleware to restore tenant context across sessions. Multi-tenant UX only; single-membership users never touch this.';
 COMMENT ON COLUMN profiles.full_name IS
   'Computed from first_name and last_name (stored generated column).';
 
