@@ -135,6 +135,23 @@
   --popover: #ffffff;
   --popover-foreground: #14171b;
 
+  /* Marketing-site brand tokens — mirrored here so Kimi-spec
+     components transcribed verbatim resolve in the dashboard. */
+  --color-canvas: #f6f5f2;
+  --color-surface: #eceae4;
+  --color-surface-raised: #ffffff;
+  --color-graphite: #14171b;
+  --color-ink: #14171b;
+  --color-ink-soft: #4a525c;
+  --color-ink-faint: #8a8f97;
+  --color-rule: #c4c2bb;
+  --color-rule-strong: #8e8d85;
+  --color-blueprint: #2b66c2;
+  --color-signal: #ee5a24;
+  --color-signal-deep: #c54214;
+  --color-signal-glow: rgba(238, 90, 36, 0.18);
+  --color-tape: #f6c945;
+
   --primary: #ee5a24;
   /* Graphite-on-orange (4.62:1) — passes WCAG AA. White-on-orange
    * is 3.45:1 which fails AA for the 11px mono caps the Quick
@@ -282,6 +299,22 @@
   --card-foreground: #f6f5f2;
   --popover: #14171b;
   --popover-foreground: #f6f5f2;
+
+  /* Marketing-site brand tokens — dark-mode variants */
+  --color-canvas: #0f1216;
+  --color-surface: #14171b;
+  --color-surface-raised: #1a1d22;
+  --color-graphite: #f6f5f2;
+  --color-ink: #f6f5f2;
+  --color-ink-soft: #b8bcc2;
+  --color-ink-faint: #8a8f97;
+  --color-rule: rgba(246, 245, 242, 0.12);
+  --color-rule-strong: rgba(246, 245, 242, 0.24);
+  --color-blueprint: #5a8de0;
+  --color-signal: #ee5a24;
+  --color-signal-deep: #c54214;
+  --color-signal-glow: rgba(238, 90, 36, 0.24);
+  --color-tape: #f6c945;
 
   --primary: #ee5a24;
   --primary-foreground: #0f1216;

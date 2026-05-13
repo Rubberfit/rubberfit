@@ -88,6 +88,11 @@ export async function createCheckoutSession(input: {
     )
     return await useCase.execute({ ...parsed, actor })
   } catch (err) {
+    console.error("[createCheckoutSession] failed", {
+      organizationId: parsed.organizationId,
+      billingInterval: parsed.billingInterval,
+      error: err,
+    })
     return { error: errorMessage(err) }
   }
 }
