@@ -82,7 +82,7 @@ export function NavUserTierPill({ tier: tierProp }: NavUserTierPillProps) {
           router.push("/dashboard/settings/billing")
         }
       }}
-      className={`absolute -top-1 -right-1 z-10 inline-flex h-[14px] cursor-pointer items-center justify-center rounded-[2px] px-[5px] font-[family-name:var(--font-mono)] text-[9px] uppercase leading-none tracking-[0.08em] ring-1 ring-white transition-opacity hover:opacity-90 ${TIER_STYLES[tier]}`}
+      className={`absolute -top-[7px] left-0 z-20 inline-flex h-[14px] cursor-pointer items-center justify-center whitespace-nowrap rounded-[2px] px-[5px] font-[family-name:var(--font-mono)] text-[9px] uppercase leading-none tracking-[0.08em] ring-1 ring-white transition-opacity hover:opacity-90 ${TIER_STYLES[tier]}`}
     >
       {tier}
     </span>

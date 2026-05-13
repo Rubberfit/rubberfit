@@ -189,13 +189,52 @@ export class OrganizationService implements IOrganizationService {
 
   async listMembers(organizationId: string): Promise<OrganizationMemberWithProfile[]> {
     const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
+
+    // Manual two-query join. The Supabase REST `profile:profiles(...)`
+    // syntax requires the schema cache to know about a FK between
+    // `organization_members.user_id` and `profiles.id`. Both columns
+    // reference `auth.users(id)` indirectly, but the cache doesn't
+    // always infer the cross-relationship — it fails with PGRST200 on
+    // any DB where the auto-discovery hasn't fired. Doing the join in
+    // app code is resilient: the only DB contract here is "members
+    // and profiles both share auth.users.id."
+    const { data: members, error: membersError } = await supabase
       .from("organization_members")
-      .select("*, profile:profiles(id, email, full_name, avatar_url)")
+      .select("*")
       .eq("organization_id", organizationId)
       .order("joined_at", { ascending: true })
-    if (error) throw error
-    return (data ?? []) as OrganizationMemberWithProfile[]
+    if (membersError) throw membersError
+
+    const memberRows = (members ?? []) as Array<OrganizationMember & { user_id: string | null }>
+    const userIds = memberRows
+      .map((m) => m.user_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+
+    if (userIds.length === 0) {
+      return memberRows.map((m) => ({ ...m, profile: null })) as OrganizationMemberWithProfile[]
+    }
+
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, avatar_url")
+      .in("id", userIds)
+    if (profilesError) throw profilesError
+
+    const profileById = new Map(
+      (
+        (profiles ?? []) as Array<{
+          id: string
+          email: string | null
+          full_name: string | null
+          avatar_url: string | null
+        }>
+      ).map((p) => [p.id, p])
+    )
+
+    return memberRows.map((m) => ({
+      ...m,
+      profile: m.user_id ? (profileById.get(m.user_id) ?? null) : null,
+    })) as OrganizationMemberWithProfile[]
   }
 
   // ─── Subscriptions ──────────────────────────────────────────
