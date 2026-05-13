@@ -36,7 +36,12 @@ export default async function BillingHistoryPage() {
  * Map a subscription history row to the table's display shape.
  * `last_payment_status` drives the pill when present; otherwise we
  * derive a sensible fallback from `status` (active/trialing → paid,
- * past_due/unpaid → failed, canceled → refunded, others → pending).
+ * past_due/unpaid → failed, canceled → pending, others → pending).
+ *
+ * `canceled` falls back to `pending` rather than `refunded`: a
+ * canceled subscription is a lifecycle state, not a payment outcome.
+ * Plenty of canceled rows paid in full and simply didn't renew; the
+ * audit table must not imply Stripe refunded them.
  */
 function toTableRow(row: BillingHistoryActionRow): BillingHistoryRow {
   return {
@@ -78,6 +83,5 @@ function mapStatus(
   // the pill is informative rather than blank.
   if (subStatus === "active" || subStatus === "trialing") return "paid"
   if (subStatus === "past_due" || subStatus === "unpaid") return "failed"
-  if (subStatus === "canceled") return "refunded"
   return "pending"
 }

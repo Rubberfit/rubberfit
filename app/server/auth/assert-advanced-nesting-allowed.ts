@@ -46,7 +46,7 @@ export function requestUsesAdvancedNesting(request: PackRequest): boolean {
  * Next.js dev fallback (`app/api/v2/pack/route.ts`). Closing the
  * prod hole means either (a) adding a tier query inside Rust, or
  * (b) putting a Next.js route in front that gates then forwards.
- * Tracked as a follow-up — for now, the architecture test sees a
+ * Tracked at #253 — for now, the architecture test sees a
  * `requireFeature(actor, "advanced_nesting")` callsite and the dev
  * path enforces.
  */
