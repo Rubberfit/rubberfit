@@ -215,38 +215,6 @@ export const userManagementService = new UserManagementService()
 
 // ── Server-side (admin client) helpers ───────────────────────────────
 
-/**
- * Resolves the caller's "current" tenant for server-side admin paths
- * that need to scope writes to a single tenant (e.g., creating a user
- * + membership). Reads `profiles.last_active_tenant_id` first, falling
- * back to the oldest active membership. Returns `null` when the caller
- * has no usable tenant — the route should 400.
- *
- * Interim helper until the active-tenant cookie flow (step 3) makes
- * the tenant id available on `ActionActor` directly.
- */
-export async function resolveActiveTenantId(
-  client: SupabaseClient,
-  callerId: string
-): Promise<string | null> {
-  const { data: profile } = await client
-    .from("profiles")
-    .select("last_active_tenant_id")
-    .eq("id", callerId)
-    .maybeSingle<{ last_active_tenant_id: string | null }>()
-  if (profile?.last_active_tenant_id) return profile.last_active_tenant_id
-
-  const { data: membership } = await client
-    .from("memberships")
-    .select("tenant_id")
-    .eq("profile_id", callerId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<{ tenant_id: string }>()
-  return membership?.tenant_id ?? null
-}
-
 export interface DirectoryUser {
   id: string
   full_name: string | null

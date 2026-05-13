@@ -3,10 +3,8 @@ import { z } from "zod"
 
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 import { ALL_ROLES, type AppRole } from "@/src/application/permissions"
-import {
-  createUserWithProfile,
-  resolveActiveTenantId,
-} from "@/src/infrastructure/services/userManagementService"
+import { createUserWithProfile } from "@/src/infrastructure/services/userManagementService"
+import { resolveActiveTenantId } from "@/src/infrastructure/services/active-tenant.service"
 
 // .strict() rejects unknown keys with a 400 (ARC-137 / V8.2.3) — the
 // highest-impact mass-assignment guard in the codebase: a request

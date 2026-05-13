@@ -26,7 +26,12 @@ import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import {
+  ACTIVE_TENANT_COOKIE,
+  applyActiveTenantCookie,
+} from "@/app/server/auth/active-tenant"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
+import { resolveActiveTenantId } from "@/src/infrastructure/services/active-tenant.service"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 import {
   getRequiredPermission,
@@ -137,6 +142,25 @@ export async function proxy(request: NextRequest) {
       return applySecurityHeaders(
         redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
       )
+    }
+
+    // Active-tenant cookie recovery — fires only when we're already
+    // reading the profile for permission/admin gating, so the
+    // amortized cost is one extra query per cookie miss (rare; cookie
+    // lives 24h). Other authenticated paths (e.g. dashboard root)
+    // skip recovery and pick up the cookie the next time the user
+    // hits a gated route. Failure is non-fatal: downstream code
+    // tolerates missing cookies by falling back to `last_active_tenant_id`
+    // / first-membership resolution itself.
+    if (!request.cookies.get(ACTIVE_TENANT_COOKIE)?.value) {
+      try {
+        const tenantId = await resolveActiveTenantId(supabase, user.id)
+        if (tenantId) {
+          applyActiveTenantCookie(response, tenantId)
+        }
+      } catch (_err) {
+        // best-effort; the next gated request will retry
+      }
     }
   }
 
