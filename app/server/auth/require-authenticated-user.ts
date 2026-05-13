@@ -13,18 +13,19 @@ export type { ActionActor }
  * request cookies and returns their `ActionActor`. Throws on:
  *
  * - `AuthConfigError` if Supabase env is missing (5xx-class)
- * - `UnauthorizedError` if no session, no profile row, or the profile
- *   is soft-deleted (`is_deleted = true`)
+ * - `UnauthorizedError` if no session, no profile row, or the account
+ *   is inaccessible (no active memberships and not a platform admin)
  *
  * Server actions ship action IDs in the client bundle — the route-level
  * proxy gates page navigation but cannot gate action invocations. Each
  * action MUST call this (and `requirePermission`) at entry.
  *
- * Profile read is delegated to `getProfileAccess` (Phase 4 cleanup).
- * That helper now selects `is_deleted` alongside roles + super_admin,
- * so middleware (proxy.ts), API admin guards (require-admin.ts), and
- * the action layer share a single round-trip and a single deactivation
- * fail-closed check.
+ * Profile read is delegated to `getProfileAccess`. That helper unions
+ * roles across active memberships and collapses "missing profile" /
+ * "no active memberships" / "deactivated mid-session" into a single
+ * `isInaccessible` deny-flag so middleware (proxy.ts), API admin
+ * guards (require-admin.ts), and the action layer share one
+ * round-trip and one fail-closed check.
  */
 export async function requireAuthenticatedUser(): Promise<ActionActor> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -53,7 +54,7 @@ export async function requireAuthenticatedUser(): Promise<ActionActor> {
     throw new UnauthorizedError("Profile lookup failed")
   }
   if (!access.hasProfile) throw new UnauthorizedError("Profile not found")
-  if (access.isDeleted) throw new UnauthorizedError("Account deactivated")
+  if (access.isInaccessible) throw new UnauthorizedError("Account deactivated")
 
   return {
     id: user.id,

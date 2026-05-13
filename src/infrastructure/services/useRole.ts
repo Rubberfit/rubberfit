@@ -57,29 +57,54 @@ export function useRole(): UseRoleReturn {
           return
         }
 
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("roles, full_name, email, is_deleted")
-          .eq("id", session.user.id)
-          .single()
+        // Roles live on memberships now (per-tenant). The hook returns
+        // the union of roles across all active memberships so existing
+        // permission checks (which still assume one flat role list)
+        // keep working until `activeTenantId` is wired into the actor
+        // and roles become per-tenant.
+        const [profileResult, membershipsResult] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, email, is_platform_admin")
+            .eq("id", session.user.id)
+            .maybeSingle(),
+          supabase
+            .from("memberships")
+            .select("roles")
+            .eq("profile_id", session.user.id)
+            .is("deleted_at", null),
+        ])
 
-        if (mounted) {
-          if (error || !profile) {
-            // Profile missing — treat as member until synced
-            setRoles([...DEFAULT_ROLES])
-          } else if (profile.is_deleted) {
-            // Deactivated account — sign out immediately
-            await supabase.auth.signOut()
-            return
-          } else {
-            setRoles((profile.roles ?? [...DEFAULT_ROLES]) as AppRole[])
-            setFullName(profile.full_name ?? null)
-            setEmail(profile.email ?? session.user.email ?? null)
-          }
-          setUserId(session.user.id)
-          hasLoaded.current = true
-          setIsLoading(false)
+        if (!mounted) return
+
+        const profile = profileResult.data
+        const memberships = membershipsResult.data ?? []
+        const isPlatformAdmin = profile?.is_platform_admin === true
+        const hasNoActiveMemberships = memberships.length === 0
+
+        if (!profile || (hasNoActiveMemberships && !isPlatformAdmin)) {
+          // Inaccessible account — no profile, or no active memberships
+          // and not a platform admin. Sign out so RLS-scoped reads on
+          // downstream pages don't quietly return empty results.
+          await supabase.auth.signOut()
+          return
         }
+
+        const rolesUnion = new Set<string>()
+        for (const row of memberships) {
+          for (const role of row.roles ?? []) {
+            rolesUnion.add(role)
+          }
+        }
+        const resolvedRoles =
+          rolesUnion.size > 0 ? (Array.from(rolesUnion) as AppRole[]) : [...DEFAULT_ROLES]
+
+        setRoles(resolvedRoles)
+        setFullName(profile.full_name ?? null)
+        setEmail(profile.email ?? session.user.email ?? null)
+        setUserId(session.user.id)
+        hasLoaded.current = true
+        setIsLoading(false)
       } catch (err) {
         console.error("[useRole] Failed to fetch roles:", err)
         if (mounted) {

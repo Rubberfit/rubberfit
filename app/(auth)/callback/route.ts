@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr"
 
 import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/app/lib/auth-redirect"
 import { type AppRole, DEFAULT_ROLES } from "@/src/application/permissions"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 type PendingCookie = {
   name: string
@@ -98,13 +99,17 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("roles, is_deleted")
-      .eq("id", user.id)
-      .maybeSingle()
+    let access
+    try {
+      access = await getProfileAccess(supabase, user.id)
+    } catch (_err) {
+      await supabase.auth.signOut()
+      const loginParams = new URLSearchParams()
+      loginParams.set("error", "Authentication failed. Please try again.")
+      return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    }
 
-    if (profile?.is_deleted) {
+    if (access.isInaccessible) {
       await supabase.auth.signOut()
       const loginParams = new URLSearchParams()
       loginParams.set(
@@ -114,7 +119,7 @@ export async function GET(request: NextRequest) {
       return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
     }
 
-    roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
+    roles = access.roles.length > 0 ? (access.roles as AppRole[]) : [...DEFAULT_ROLES]
 
     // MFA enforcement for OAuth: the email+password login form
     // challenges inline, but OAuth hands us a fresh session with no

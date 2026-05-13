@@ -116,13 +116,13 @@ export function UsersTable({
       header: "Status",
       cell: (row) => (
         <StatusBadge
-          intent={row.is_deleted ? "neutral" : "success"}
-          variant={row.is_deleted ? "outline" : "solid"}
+          intent={row.is_inaccessible ? "neutral" : "success"}
+          variant={row.is_inaccessible ? "outline" : "solid"}
         >
-          {row.is_deleted ? "Deactivated" : "Active"}
+          {row.is_inaccessible ? "Deactivated" : "Active"}
         </StatusBadge>
       ),
-      sortFn: (row) => (row.is_deleted ? 1 : 0),
+      sortFn: (row) => (row.is_inaccessible ? 1 : 0),
     },
     {
       id: "last_sign_in",
@@ -162,7 +162,7 @@ export function UsersTable({
             >
               <Edit className="size-3.5" aria-hidden="true" />
             </Button>
-            {row.is_deleted ? (
+            {row.is_inaccessible ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -207,7 +207,7 @@ export function UsersTable({
       isLoading={isLoading}
       sort={sort}
       onSortChange={setSort}
-      rowClassName={(row) => (row.is_deleted ? "opacity-60" : undefined)}
+      rowClassName={(row) => (row.is_inaccessible ? "opacity-60" : undefined)}
       empty={
         <EmptyState
           variant="blank"

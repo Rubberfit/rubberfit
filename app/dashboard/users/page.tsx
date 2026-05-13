@@ -90,8 +90,8 @@ export default function UsersPage() {
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
     return users.filter((user) => {
-      if (statusFilter === "active" && user.is_deleted) return false
-      if (statusFilter === "deactivated" && !user.is_deleted) return false
+      if (statusFilter === "active" && user.is_inaccessible) return false
+      if (statusFilter === "deactivated" && !user.is_inaccessible) return false
 
       if (roleFilter !== "all" && !(user.roles ?? []).includes(roleFilter)) return false
 

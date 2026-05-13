@@ -59,9 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Reuse the action-layer auth gate so dev exercises the same policy
-  // production does (cookie session → profile load → is_deleted check
-  // → role/permission check). Calling `auth.getUser()` alone leaves a
-  // weaker dev policy than prod, which masks regressions in CI.
+  // production does (cookie session → profile load → accessibility
+  // check → role/permission check). Calling `auth.getUser()` alone
+  // leaves a weaker dev policy than prod, which masks regressions in CI.
   //
   // `accessCutPlanner` is the same permission `proxy.ts` enforces on
   // `/dashboard/cutting-engine`, so any user who can reach the page

@@ -11,9 +11,11 @@ vi.mock("@supabase/ssr", () => ({
 }))
 
 interface FakeProfile {
+  is_platform_admin: boolean | null
+}
+
+interface FakeMembership {
   roles: string[] | null
-  super_admin: boolean | null
-  is_deleted: boolean | null
 }
 
 function makeClient(opts: {
@@ -21,14 +23,32 @@ function makeClient(opts: {
   authError?: { message: string } | null
   profile?: FakeProfile | null
   profileError?: { message: string } | null
+  memberships?: FakeMembership[] | null
+  membershipsError?: { message: string } | null
 }) {
   const profileQuery = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({
       data: opts.profile ?? null,
       error: opts.profileError ?? null,
     }),
+    then: (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({
+        data: opts.memberships ?? [],
+        error: opts.membershipsError ?? null,
+      }).then(resolve),
+  }
+  const membershipsQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    then: (resolve: (v: unknown) => unknown) =>
+      Promise.resolve({
+        data: opts.memberships ?? [],
+        error: opts.membershipsError ?? null,
+      }).then(resolve),
   }
   return {
     auth: {
@@ -37,7 +57,9 @@ function makeClient(opts: {
         error: opts.authError ?? null,
       }),
     },
-    from: vi.fn().mockReturnValue(profileQuery),
+    from: vi.fn((table: string) =>
+      table === "memberships" ? membershipsQuery : profileQuery
+    ),
   }
 }
 
@@ -89,7 +111,7 @@ describe("requireAuthenticatedUser", () => {
 
   it("throws UnauthorizedError when the profile row is missing (fail-closed)", async () => {
     createServerClientMock.mockReturnValue(
-      makeClient({ user: { id: "u1", email: "a@b.com" }, profile: null })
+      makeClient({ user: { id: "u1", email: "a@b.com" }, profile: null, memberships: [] })
     )
     const { requireAuthenticatedUser } =
       await import("@/app/server/auth/require-authenticated-user")
@@ -101,11 +123,12 @@ describe("requireAuthenticatedUser", () => {
     void UnauthorizedError
   })
 
-  it("throws UnauthorizedError when the profile is soft-deleted", async () => {
+  it("throws UnauthorizedError when the profile has no active memberships and isn't a platform admin", async () => {
     createServerClientMock.mockReturnValue(
       makeClient({
         user: { id: "u1", email: "a@b.com" },
-        profile: { roles: ["admin"], super_admin: false, is_deleted: true },
+        profile: { is_platform_admin: false },
+        memberships: [],
       })
     )
     const { requireAuthenticatedUser } =
@@ -131,49 +154,36 @@ describe("requireAuthenticatedUser", () => {
     })
   })
 
-  it("returns ActionActor with raw roles when authenticated", async () => {
+  it("returns ActionActor with the role union when authenticated", async () => {
     createServerClientMock.mockReturnValue(
       makeClient({
         user: { id: "u1", email: "a@b.com" },
-        profile: { roles: ["manager", "cutter"], super_admin: false, is_deleted: false },
+        profile: { is_platform_admin: false },
+        memberships: [{ roles: ["manager"] }, { roles: ["cutter", "manager"] }],
       })
     )
     const { requireAuthenticatedUser } =
       await import("@/app/server/auth/require-authenticated-user")
     const actor = await requireAuthenticatedUser()
-    expect(actor).toEqual({
-      id: "u1",
-      email: "a@b.com",
-      roles: ["manager", "cutter"],
-      isSuperAdmin: false,
-    })
+    expect(actor.id).toBe("u1")
+    expect(actor.email).toBe("a@b.com")
+    expect(actor.isSuperAdmin).toBe(false)
+    expect(actor.roles.sort()).toEqual(["cutter", "manager"])
   })
 
-  it("returns empty roles array when the profile has null roles", async () => {
+  it("flags platform admins regardless of role list", async () => {
     createServerClientMock.mockReturnValue(
       makeClient({
         user: { id: "u1", email: "a@b.com" },
-        profile: { roles: null, super_admin: false, is_deleted: false },
-      })
-    )
-    const { requireAuthenticatedUser } =
-      await import("@/app/server/auth/require-authenticated-user")
-    const actor = await requireAuthenticatedUser()
-    expect(actor.roles).toEqual([])
-    // Important: not normalized to ["member"] — that would silently
-    // grant the default role. Permission checks normalize at check-time.
-  })
-
-  it("flags super admins regardless of role list", async () => {
-    createServerClientMock.mockReturnValue(
-      makeClient({
-        user: { id: "u1", email: "a@b.com" },
-        profile: { roles: [], super_admin: true, is_deleted: false },
+        profile: { is_platform_admin: true },
+        memberships: [],
       })
     )
     const { requireAuthenticatedUser } =
       await import("@/app/server/auth/require-authenticated-user")
     const actor = await requireAuthenticatedUser()
     expect(actor.isSuperAdmin).toBe(true)
+    // Empty roles is fine; platform admin bypass handles the access path.
+    expect(actor.roles).toEqual([])
   })
 })

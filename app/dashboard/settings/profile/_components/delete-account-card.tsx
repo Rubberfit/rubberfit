@@ -26,11 +26,11 @@ import { requestSelfDelete } from "@/app/actions/profile"
  *
  * Requires the user to type their own email in the confirmation
  * dialog — standard destructive-action guard. Server-side this
- * just flips `profiles.is_deleted` to true; the login / OAuth
- * callback routes already reject deleted profiles with a
- * "deactivated" message, so the auth row stays intact but the
- * account is unusable. Admins can restore within the 30-day DPA
- * retention window.
+ * soft-deletes every active `memberships` row for the caller; the
+ * login / OAuth callback routes reject accounts with zero active
+ * memberships, so the auth row stays intact but the account is
+ * unusable. An admin in any of the user's former tenants can
+ * restore within the 30-day DPA retention window.
  */
 
 export function DeleteAccountCard() {

@@ -337,27 +337,38 @@ export interface NotificationQueue {
   updated_at: string
 }
 
-// User profile — mirrors the `profiles` table shape so admin and
-// auth layers have a single typed handle on it. `last_sign_in_at`
-// is an admin-surface addition: mirrored from `auth.users` into
-// `profiles` via a DB trigger so the admin users table can sort
-// by activity without a separate auth call.
+// User profile + active-tenant membership join shape. The admin users
+// table reads this; `roles` and `is_inaccessible` come from the
+// tenant-scoped `memberships` row, not from `profiles` (roles are
+// per-tenant under the new schema). `is_platform_admin` stays on
+// profiles because it's cross-tenant.
+//
+// `last_sign_in_at` is intentionally nullable — the legacy trigger
+// that mirrored `auth.users.last_sign_in_at` into `profiles` is not
+// in the new migration set, so the column is absent. Surfacing
+// `null` keeps the UI column working ("Never").
 export interface UserProfile {
   id: string
   email: string | null
   full_name: string | null
-  avatar_url: string | null
-  roles: string[] | null
-  super_admin: boolean | null
-  is_deleted: boolean | null
+  is_platform_admin: boolean
+  last_active_tenant_id: string | null
+  /**
+   * Not on the new `profiles` schema — kept here as `null` for the
+   * admin users table column ("Last sign-in"). Revive via a DB
+   * trigger mirroring `auth.users.last_sign_in_at` when the column
+   * is needed for sorting/analytics.
+   */
   last_sign_in_at: string | null
   created_at: string
   updated_at: string
+  // ── joined from memberships scoped to the active tenant ──
+  membership_id: string | null
+  roles: string[]
+  is_inaccessible: boolean
 }
 
-export type UpdateUserProfile = Partial<
-  Pick<UserProfile, "full_name" | "email" | "roles" | "is_deleted" | "super_admin" | "avatar_url">
->
+export type UpdateUserProfile = Partial<Pick<UserProfile, "full_name" | "email" | "roles">>
 
 // Extended types for joins and computed fields
 export interface MaterialSupplierWithDetails extends MaterialSupplier {

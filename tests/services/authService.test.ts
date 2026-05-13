@@ -8,64 +8,77 @@ import {
 import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
 
 describe("getProfileAccess", () => {
-  it("returns roles + isSuperAdmin + isDeleted from the profiles row", async () => {
+  it("unions roles across active memberships and surfaces isSuperAdmin", async () => {
     const client = makeFakeClient({
       tables: {
         profiles: {
           select: {
-            data: [{ roles: ["admin", "manager"], super_admin: true, is_deleted: false }],
+            data: [{ is_platform_admin: true }],
             error: null,
           },
         },
-      },
-    })
-    expect(await getProfileAccess(client, "u1")).toEqual({
-      roles: ["admin", "manager"],
-      isSuperAdmin: true,
-      isDeleted: false,
-      hasProfile: true,
-    })
-  })
-
-  it("returns isDeleted=true when the profiles row has is_deleted set", async () => {
-    const client = makeFakeClient({
-      tables: {
-        profiles: {
+        memberships: {
           select: {
-            data: [{ roles: ["admin"], super_admin: false, is_deleted: true }],
+            data: [{ roles: ["admin", "manager"] }, { roles: ["cutter"] }],
             error: null,
           },
         },
       },
     })
     const access = await getProfileAccess(client, "u1")
-    expect(access.isDeleted).toBe(true)
-    // Roles still surfaced — caller decides whether to use them after
-    // checking isDeleted; the helper itself doesn't pre-filter.
-    expect(access.roles).toEqual(["admin"])
+    expect(access.isSuperAdmin).toBe(true)
+    expect(access.hasProfile).toBe(true)
+    expect(access.isInaccessible).toBe(false)
+    expect(access.roles.sort()).toEqual(["admin", "cutter", "manager"])
   })
 
-  it("treats a missing row as deactivated (fail-closed) with hasProfile=false", async () => {
-    // Phase 4 change: previously this returned { roles: [], isSuperAdmin: false }
-    // and callers had to layer their own missing-row check. Returning
-    // isDeleted=true collapses missing-profile and deactivated into one
-    // deny path so middleware / route guards can fail-closed with one
-    // condition.
+  it("returns isInaccessible=true when the profile has zero active memberships and is not a platform admin", async () => {
     const client = makeFakeClient({
-      tables: { profiles: { select: { data: null, error: null } } },
+      tables: {
+        profiles: { select: { data: [{ is_platform_admin: false }], error: null } },
+        memberships: { select: { data: [], error: null } },
+      },
+    })
+    const access = await getProfileAccess(client, "u1")
+    expect(access.isInaccessible).toBe(true)
+    expect(access.hasProfile).toBe(true)
+    expect(access.roles).toEqual([])
+  })
+
+  it("keeps platform admins accessible even with no memberships", async () => {
+    const client = makeFakeClient({
+      tables: {
+        profiles: { select: { data: [{ is_platform_admin: true }], error: null } },
+        memberships: { select: { data: [], error: null } },
+      },
+    })
+    const access = await getProfileAccess(client, "u1")
+    expect(access.isSuperAdmin).toBe(true)
+    expect(access.isInaccessible).toBe(false)
+  })
+
+  it("treats a missing profile row as inaccessible (fail-closed) with hasProfile=false", async () => {
+    const client = makeFakeClient({
+      tables: {
+        profiles: { select: { data: null, error: null } },
+        memberships: { select: { data: [], error: null } },
+      },
     })
     expect(await getProfileAccess(client, "u1")).toEqual({
       roles: [],
       isSuperAdmin: false,
-      isDeleted: true,
+      isInaccessible: true,
       hasProfile: false,
     })
   })
 
-  it("propagates errors so the caller can map to 500", async () => {
+  it("propagates profile read errors so the caller can map to 500", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
     const client = makeFakeClient({
-      tables: { profiles: { select: { data: null, error: { message: "rls" } } } },
+      tables: {
+        profiles: { select: { data: null, error: { message: "rls" } } },
+        memberships: { select: { data: [], error: null } },
+      },
     })
     await expect(getProfileAccess(client, "u1")).rejects.toMatchObject({ message: "rls" })
     consoleSpy.mockRestore()
@@ -73,16 +86,16 @@ describe("getProfileAccess", () => {
 })
 
 describe("getSuperAdminFlag", () => {
-  it("returns true when the row reports super_admin", async () => {
+  it("returns true when the row reports is_platform_admin", async () => {
     const client = makeFakeClient({
-      tables: { profiles: { select: { data: [{ super_admin: true }], error: null } } },
+      tables: { profiles: { select: { data: [{ is_platform_admin: true }], error: null } } },
     })
     expect(await getSuperAdminFlag(client, "u1")).toBe(true)
   })
 
-  it("returns false when the row exists but flag is null", async () => {
+  it("returns false when the row exists but the flag is null", async () => {
     const client = makeFakeClient({
-      tables: { profiles: { select: { data: [{ super_admin: null }], error: null } } },
+      tables: { profiles: { select: { data: [{ is_platform_admin: null }], error: null } } },
     })
     expect(await getSuperAdminFlag(client, "u1")).toBe(false)
   })
