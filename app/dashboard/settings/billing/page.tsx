@@ -4,6 +4,7 @@ import Link from "next/link"
 import { getBillingSummary, type BillingSummaryData } from "@/app/actions/billing-summary"
 
 import { StatusPill } from "@/app/components/billing/StatusPill"
+import { ManageSubscriptionButton } from "./_components/manage-subscription-button"
 
 export const dynamic = "force-dynamic"
 
@@ -40,10 +41,10 @@ const TIER_TAGLINES: Record<(typeof RETAIL_TIERS)[number], string> = {
  * data loaded synchronously via `getBillingSummary` so there's no
  * render flash on what is effectively read-only state.
  *
- * The action buttons (Upgrade / Downgrade / Manage in Stripe) are
- * visual-only for v2.0.0. Wiring them to a real Stripe
- * Customer-Portal session is tracked separately; until that ships
- * the "Manage subscription" section funnels customers to support.
+ * The Upgrade / Downgrade tier-switch buttons in `ComparePlansGrid`
+ * remain visual-only; tier changes still route through support. The
+ * "Manage your subscription" block below mints a real Stripe Billing
+ * Portal session via `createBillingPortalSession`.
  */
 export default async function BillingPage() {
   const data = await getBillingSummary()
@@ -75,7 +76,8 @@ export default async function BillingPage() {
         <ComparePlansGrid currentTier={data.tier} interval={interval} seatCount={data.seatCount} />
       )}
 
-      <ManageSubscriptionBlock isEnterprise={isEnterprise} />
+      <ManageSubscriptionBlock organizationId={data.organizationId} isEnterprise={isEnterprise} />
+      <ContactSupportBlock />
     </div>
   )
 }
@@ -90,8 +92,7 @@ function BillingHeader({ data }: { data: BillingSummaryData }) {
         Manage subscription
       </h1>
       <p className="mt-1 font-[family-name:var(--font-sans)] text-[14px] text-[var(--color-ink-soft)]">
-        {data.organizationName} · {data.seatCount} active{" "}
-        {data.seatCount === 1 ? "seat" : "seats"}
+        {data.organizationName} · {data.seatCount} active {data.seatCount === 1 ? "seat" : "seats"}
       </p>
     </div>
   )
@@ -134,13 +135,13 @@ function CurrentPlanCard({
             </div>
             {isEnterprise ? (
               <p className="mt-3 max-w-[44ch] font-[family-name:var(--font-sans)] text-[14px] text-[var(--color-ink-soft)]">
-                Fixed-rate contract, no per-seat metering. Changes go through your
-                Arc &amp; Anchor account manager.
+                Fixed-rate contract, no per-seat metering. Changes go through your Arc &amp; Anchor
+                account manager.
               </p>
             ) : (
               <p className="mt-3 font-[family-name:var(--font-mono)] text-[13px] text-[var(--color-ink-soft)]">
-                ${unit}/seat/mo × {data.seatCount}{" "}
-                {data.seatCount === 1 ? "seat" : "seats"} = ${total?.toLocaleString("en-US")}/mo
+                ${unit}/seat/mo × {data.seatCount} {data.seatCount === 1 ? "seat" : "seats"} = $
+                {total?.toLocaleString("en-US")}/mo
               </p>
             )}
           </div>
@@ -234,8 +235,7 @@ function PlanCard({
         : "Downgrade"
 
   const actionDisabled = isCurrent || isEnterprise
-  const actionVariant: "primary" | "ghost" =
-    direction === "upgrade" ? "primary" : "ghost"
+  const actionVariant: "primary" | "ghost" = direction === "upgrade" ? "primary" : "ghost"
 
   return (
     <div
@@ -270,8 +270,7 @@ function PlanCard({
           </span>
         </div>
         <p className="mt-2 font-[family-name:var(--font-mono)] text-[12px] text-[var(--color-ink-soft)]">
-          ${total.toLocaleString("en-US")}/mo for {seatCount}{" "}
-          {seatCount === 1 ? "seat" : "seats"}
+          ${total.toLocaleString("en-US")}/mo for {seatCount} {seatCount === 1 ? "seat" : "seats"}
         </p>
         <p className="mt-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.12em] text-[var(--color-ink-faint)]">
           {interval === "annual" ? `or $${altUnit}/seat monthly` : `or $${altUnit}/seat annual`}
@@ -313,9 +312,9 @@ function EnterpriseManagementBlock() {
         Active Enterprise contract
       </h2>
       <p className="mt-2 max-w-[60ch] font-[family-name:var(--font-sans)] text-[14px] leading-relaxed text-[var(--color-ink-soft)]">
-        Enterprise customers are on fixed-rate contracts — no per-seat metering and no
-        retail upgrades / downgrades. For seat changes, contract renewal, or billing
-        questions, reach out to your Arc &amp; Anchor account manager directly.
+        Enterprise customers are on fixed-rate contracts — no per-seat metering and no retail
+        upgrades / downgrades. For seat changes, contract renewal, or billing questions, reach out
+        to your Arc &amp; Anchor account manager directly.
       </p>
       <a
         href="mailto:sales@rubberfit.app?subject=Enterprise%20contract%20change"
@@ -327,51 +326,92 @@ function EnterpriseManagementBlock() {
   )
 }
 
-function ManageSubscriptionBlock({ isEnterprise }: { isEnterprise: boolean }) {
+function ManageSubscriptionBlock({
+  organizationId,
+  isEnterprise,
+}: {
+  organizationId: string
+  isEnterprise: boolean
+}) {
   return (
-    <section className="border-t border-[var(--color-rule)] pt-8">
-      <div className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-ink-faint)]">
-        Manage subscription
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-6">
+    <section className="mb-10 border border-[var(--color-rule)] bg-[var(--color-surface-raised)] p-6">
+      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.22em] text-[var(--color-ink-faint)]">
+        /BILLING
+      </p>
+      <h2 className="mt-2 font-[family-name:var(--font-display)] text-[20px] font-medium text-[var(--color-ink)]">
+        Manage your subscription
+      </h2>
+      <p className="mt-2 max-w-[60ch] font-[family-name:var(--font-sans)] text-[14px] leading-relaxed text-[var(--color-ink-soft)]">
+        Open the Stripe Customer Portal to update your card, cancel, and pull invoices.
+      </p>
+
+      {isEnterprise ? (
+        <p className="mt-5 max-w-[60ch] font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
+          Enterprise customers are on fixed-rate contracts. Use the link above to reach your account
+          manager.
+        </p>
+      ) : (
+        <>
+          <div className="mt-5">
+            <ManageSubscriptionButton organizationId={organizationId} />
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>Update payment method</strong> — replace card on file
+            </p>
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>Cancel subscription</strong> — stops at period end
+            </p>
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>View &amp; download invoices</strong> — receipt + tax document access
+            </p>
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>Update profile + tax ID</strong> — billing address, VAT/EIN
+            </p>
+          </div>
+        </>
+      )}
+
+      <div className="mt-6 flex flex-col gap-3 border-t border-[var(--color-rule)] pt-6 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.12em] text-[var(--color-ink)]">
         <Link
           href="/dashboard/settings/billing/history"
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.12em] text-[var(--color-ink)] underline-offset-4 hover:underline"
+          className="underline-offset-4 hover:underline"
         >
-          View payment history
-          <span aria-hidden="true">→</span>
+          View payment history →
         </Link>
-
         <a
           href="https://get.rubberfit.app/pricing"
           target="_blank"
           rel="noreferrer noopener"
-          className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.12em] text-[var(--color-ink)] underline-offset-4 hover:underline"
+          className="underline-offset-4 hover:underline"
         >
-          Compare features
-          <span aria-hidden="true">→</span>
+          Compare features →
         </a>
-
-        {isEnterprise ? null : (
-          <a
-            href="mailto:support@rubberfit.app?subject=Plan%20change%20request"
-            className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.12em] text-[var(--color-ink)] underline-offset-4 hover:underline"
-          >
-            Email support to change plan
-            <span aria-hidden="true">→</span>
-          </a>
-        )}
       </div>
-      <p className="mt-4 max-w-[64ch] font-[family-name:var(--font-mono)] text-[11px] leading-[1.6] text-[var(--color-ink-faint)]">
-        Plan changes, cancellation, and card updates will flow through the Stripe
-        Customer Portal in a follow-up release. Until then, email{" "}
+    </section>
+  )
+}
+
+function ContactSupportBlock() {
+  return (
+    <section className="mt-10 border-t border-[var(--color-rule)] pt-8">
+      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.22em] text-[var(--color-ink-faint)]">
+        /SUPPORT
+      </p>
+      <p className="mt-2 max-w-[60ch] font-[family-name:var(--font-sans)] text-[14px] leading-relaxed text-[var(--color-ink-soft)]">
+        Questions about billing, contracts, or your account? Email{" "}
         <a
           href="mailto:support@rubberfit.app"
-          className="text-[var(--color-ink-soft)] underline-offset-2 hover:text-[var(--color-ink)] hover:underline"
+          className="text-[var(--color-ink)] underline-offset-4 hover:underline"
         >
           support@rubberfit.app
         </a>{" "}
-        and we'll make the change manually within one business day.
+        and we&apos;ll respond within one business day.
       </p>
     </section>
   )

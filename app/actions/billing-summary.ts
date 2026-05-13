@@ -15,6 +15,7 @@ export interface BillingSummaryData {
   currentPeriodEnd: string | null
   billingInterval: "monthly" | "annual" | null
   seatCount: number
+  organizationId: string
   organizationName: string
 }
 
@@ -62,6 +63,7 @@ export async function getBillingSummary(): Promise<BillingSummaryData> {
     // Floor at 1 — every org has at least the owner, even if the
     // count query gave a transient 0.
     seatCount: Math.max(1, seatCount),
+    organizationId: gate.organizationId,
     organizationName: org?.name?.trim() || "Your organization",
   }
 }

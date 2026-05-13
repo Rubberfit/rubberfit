@@ -33,6 +33,10 @@ supabase/.temp/
 supabase/.branches/
 supabase/.env
 supabase/.env.local
+# Supabase CLI also drops env-specific state under the nested infra path
+# (project_ref, pooler URL, etc.). These leak environment metadata if
+# committed; only the top-level ignore was here before PR1.
+src/infrastructure/supabase/.temp/
 
 # OS files
 .DS_Store

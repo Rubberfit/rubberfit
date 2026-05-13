@@ -64,9 +64,13 @@ export function LockScreenPage({
 
   const handleUpdateBilling = React.useCallback(async () => {
     setBillingError(null)
+    if (!orgId) {
+      setBillingError("Workspace isn't linked yet. Please refresh and try again.")
+      return
+    }
     setIsOpeningPortal(true)
     try {
-      const result = await createBillingPortalSession()
+      const result = await createBillingPortalSession({ organizationId: orgId })
       if ("error" in result) {
         setBillingError(result.error)
         return
@@ -77,7 +81,7 @@ export function LockScreenPage({
     } finally {
       setIsOpeningPortal(false)
     }
-  }, [])
+  }, [orgId])
 
   const configs: Record<Intent, IntentConfig> = {
     complete_checkout: {

@@ -6,6 +6,10 @@ import { z } from "zod"
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import type {
+  CreateBillingPortalSessionError,
+  ICreateBillingPortalSessionUseCase,
+} from "@/src/application/use-cases/billing/create-billing-portal-session.use-case"
 import type { ICreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
 import type { ICreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
 import type { IUpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
@@ -31,6 +35,38 @@ const CreateCheckoutSessionSchema = z.object({
 const UpdateSubscriptionSeatCountSchema = z.object({
   newSeatCount: z.number().int().min(1).max(500),
 })
+
+const CreateBillingPortalSessionSchema = z.object({
+  organizationId: z.string().uuid(),
+  returnPath: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2048)
+    .refine(
+      (value) =>
+        value.startsWith("/") &&
+        !value.startsWith("//") &&
+        !value.includes("\\") &&
+        !/^https?:\/\//i.test(value),
+      "returnPath must be a same-origin path"
+    )
+    .optional(),
+})
+
+const PORTAL_ERROR_MESSAGES: Record<CreateBillingPortalSessionError, string> = {
+  forbidden: "Only organization owners and admins can manage billing.",
+  organization_not_found: "We couldn't find your organization. Please refresh and try again.",
+  subscription_not_found: "No active subscription found for this organization.",
+  checkout_required: "Finish checkout before managing billing.",
+  restart_subscription: "Your subscription has ended — start a new one to manage billing.",
+  enterprise_account: "Enterprise contracts are managed by your account manager.",
+  stripe_customer_missing:
+    "Your Stripe customer record is missing. Please email support@rubberfit.app.",
+  stripe_portal_unavailable:
+    "Stripe billing portal is temporarily unavailable. Please try again in a moment.",
+  invalid_return_path: "Invalid return path.",
+}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Billing action failed"
@@ -97,16 +133,37 @@ export async function createCheckoutSession(input: {
   }
 }
 
-export async function createBillingPortalSession(): Promise<{ url: string } | { error: string }> {
+export async function createBillingPortalSession(input: {
+  organizationId: string
+  returnPath?: string
+}): Promise<{ url: string } | { error: string }> {
   ensureDatabaseFactoryRegistered()
-  await requireAuthenticatedUser()
-  // PR 5 ships the lock-screen UI that calls this; the Stripe Billing Portal
-  // session creation lands in a follow-up PR alongside the cancel/resume flow.
-  // Until then, return a user-facing message — the lock screen surfaces
-  // this string directly to the operator on `intent=update_billing`.
-  return {
-    error:
-      "Billing portal isn't available yet. Please email support@rubberfit.app to update your card.",
+  const actor = await requireAuthenticatedUser()
+  const parsedResult = CreateBillingPortalSessionSchema.safeParse(input)
+  if (!parsedResult.success) return invalidInputError()
+  const parsed = parsedResult.data
+
+  try {
+    const useCase = resolveUseCase<ICreateBillingPortalSessionUseCase>(
+      TOKENS.ICreateBillingPortalSessionUseCase
+    )
+    const result = await useCase.execute({
+      organizationId: parsed.organizationId,
+      returnPath: parsed.returnPath,
+      actor,
+    })
+    if ("error" in result) return { error: PORTAL_ERROR_MESSAGES[result.error] }
+    return { url: result.url }
+  } catch (err) {
+    // The use-case maps its known failure modes onto the typed error union
+    // above; reaching this catch means a programming-level failure (DI miss,
+    // exhaustiveness throw, etc.). Don't surface raw error text to the user —
+    // the message is logged for on-call to follow up.
+    console.error("[createBillingPortalSession] failed", {
+      organizationId: parsed.organizationId,
+      error: err,
+    })
+    return { error: "Unable to open billing portal. Please try again." }
   }
 }
 
