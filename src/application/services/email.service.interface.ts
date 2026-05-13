@@ -58,6 +58,14 @@ export interface IEmailService {
     to: string
     userName: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }>
+  sendInvitationEmail(params: {
+    to: string
+    organizationName: string
+    role: "admin" | "member"
+    inviterName: string | null
+    inviteUrl: string
+    expiresAt: Date
+  }): Promise<{ success: boolean; messageId?: string; error?: string }>
   queueEmail(
     notification: Omit<
       NotificationQueue,

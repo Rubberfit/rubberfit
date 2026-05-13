@@ -34,6 +34,16 @@ describe("auth-allowlist: isPublicPath", () => {
     expect(PUBLIC_PATHS).not.toContain("/api/tax-rates")
     expect(isPublicPath("/api/tax-rates")).toBe(false)
   })
+
+  it("allowlists /invite/[token] (PR 6 invitation landing)", () => {
+    // The /invite/[token] landing must render for un-authenticated invitees;
+    // the route fetches a public preview via a SECURITY DEFINER RPC and the
+    // accept action remains gated. Path-prefix-overlap still must not match.
+    expect(PUBLIC_PATHS).toContain("/invite")
+    expect(isPublicPath("/invite")).toBe(true)
+    expect(isPublicPath("/invite/abc123")).toBe(true)
+    expect(isPublicPath("/inviteabc")).toBe(false)
+  })
 })
 
 describe("auth-allowlist: isApiPath", () => {
