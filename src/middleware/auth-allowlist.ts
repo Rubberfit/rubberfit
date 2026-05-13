@@ -9,6 +9,11 @@
  * (allowlist of public endpoints).
  */
 export const PUBLIC_PATHS = [
+  // Public product hub. This is intentionally crawlable so brand
+  // searches can discover the marketing and docs subdomains without
+  // being sent straight to the login screen.
+  "/",
+
   // Auth pages — user has no session yet by definition.
   "/login",
   "/register",
@@ -34,6 +39,10 @@ export const PUBLIC_PATHS = [
   // the invite still requires authentication — the gate moves from the
   // route to the action.
   "/invite",
+
+  // Crawler metadata. These must be readable without a session.
+  "/robots.txt",
+  "/sitemap.xml",
 ] as const
 
 /**
