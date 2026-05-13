@@ -13,12 +13,14 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 
 import { CheckoutForm } from "./_components/checkout-form"
 import { LockScreenPage } from "./_components/lock-screen-page"
+import { TierPicker } from "./_components/tier-picker"
 
 interface CheckoutPageProps {
   searchParams?: Promise<{
     org?: string | string[]
     intent?: string | string[]
     billing?: string | string[]
+    step?: string | string[]
   }>
 }
 
@@ -35,12 +37,24 @@ type ValidIntent = (typeof VALID_INTENTS)[number]
 const VALID_BILLING_INTERVALS = ["monthly", "annual"] as const
 type ValidBillingInterval = (typeof VALID_BILLING_INTERVALS)[number]
 
+// The checkout flow is a two-step wizard: `tier` (default — confirm/select
+// plan + seats) then `billing` (annual vs monthly + Stripe Checkout). The
+// `tier` step also re-prompts when the locked workspace's "Choose a plan"
+// button routes here, so users can't silently inherit a marketing-side
+// pre-selection.
+const VALID_STEPS = ["tier", "billing"] as const
+type ValidStep = (typeof VALID_STEPS)[number]
+
 function isValidIntent(value: string | undefined): value is ValidIntent {
   return value !== undefined && (VALID_INTENTS as readonly string[]).includes(value)
 }
 
 function isValidBillingInterval(value: string | undefined): value is ValidBillingInterval {
   return value !== undefined && (VALID_BILLING_INTERVALS as readonly string[]).includes(value)
+}
+
+function isValidStep(value: string | undefined): value is ValidStep {
+  return value !== undefined && (VALID_STEPS as readonly string[]).includes(value)
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -51,19 +65,23 @@ interface ParsedCheckoutParams {
   org: string | undefined
   intent: ValidIntent | undefined
   billing: ValidBillingInterval | undefined
+  step: ValidStep | undefined
 }
 
 function parseCheckoutParams(raw: {
   org?: string | string[]
   intent?: string | string[]
   billing?: string | string[]
+  step?: string | string[]
 }): ParsedCheckoutParams {
   const rawIntent = firstParam(raw.intent)
   const rawBilling = firstParam(raw.billing)
+  const rawStep = firstParam(raw.step)
   return {
     org: firstParam(raw.org),
     intent: isValidIntent(rawIntent) ? rawIntent : undefined,
     billing: isValidBillingInterval(rawBilling) ? rawBilling : undefined,
+    step: isValidStep(rawStep) ? rawStep : undefined,
   }
 }
 
@@ -76,6 +94,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     org: rawOrg,
     intent,
     billing: initialBillingInterval,
+    step,
   } = parseCheckoutParams(resolvedSearchParams ?? {})
 
   if (intent) {
@@ -95,6 +114,21 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
 
   const subscription = await organizationService.getCurrentSubscription(organization.id)
   if (!subscription || !isCheckoutPlanTier(subscription.plan_tier)) notFound()
+
+  // Two-step wizard. Default to the tier picker so users always confirm
+  // their plan in-app — marketing-side selections never silently advance
+  // to the billing-cycle picker. `step=billing` is set by the tier picker
+  // after a successful `selectSubscriptionPlanTier` action.
+  if (step !== "billing") {
+    return (
+      <TierPicker
+        orgId={organization.id}
+        currentPlanTier={subscription.plan_tier}
+        currentSeatCount={subscription.seat_count}
+        initialBillingInterval={initialBillingInterval}
+      />
+    )
+  }
 
   return (
     <CheckoutForm

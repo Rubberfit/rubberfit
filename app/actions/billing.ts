@@ -32,6 +32,12 @@ const UpdateSubscriptionSeatCountSchema = z.object({
   newSeatCount: z.number().int().min(1).max(500),
 })
 
+const SelectSubscriptionPlanTierSchema = z.object({
+  organizationId: z.string().uuid(),
+  planTier: checkoutPlanTierSchema,
+  seatCount: z.number().int().min(1).max(500),
+})
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Billing action failed"
 }
@@ -58,6 +64,50 @@ export async function createOrganizationFromOnboarding(input: {
     const result = await useCase.execute({ ...parsed, actor })
     revalidatePath("/checkout")
     return result
+  } catch (err) {
+    return { error: errorMessage(err) }
+  }
+}
+
+export async function selectSubscriptionPlanTier(input: {
+  organizationId: string
+  planTier: "standard" | "pro" | "max"
+  seatCount: number
+}): Promise<{ ok: true } | { error: string }> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  const parsedResult = SelectSubscriptionPlanTierSchema.safeParse(input)
+  if (!parsedResult.success) return invalidInputError()
+  const parsed = parsedResult.data
+
+  // Membership guard — only owners/admins of the org may change the
+  // pre-checkout tier. Mirrors createCheckoutSession's action-layer check.
+  const organizationService = resolveUseCase<IOrganizationService>(TOKENS.IOrganizationService)
+  const role = await organizationService.getMemberRole(parsed.organizationId, actor.id)
+  if (role !== "owner" && role !== "admin") {
+    return { error: "forbidden" }
+  }
+
+  try {
+    const subscription = await organizationService.getCurrentSubscription(parsed.organizationId)
+    if (!subscription) {
+      return { error: "subscription_not_found" }
+    }
+    // Tier selection is a pre-checkout-only operation. Once Stripe Checkout
+    // succeeds, plan changes go through the Billing Portal, not this flow.
+    if (subscription.status !== "incomplete" && subscription.status !== "incomplete_expired") {
+      return { error: "subscription_already_active" }
+    }
+
+    await organizationService.upsertSubscription({
+      organization_id: parsed.organizationId,
+      plan_tier: parsed.planTier,
+      seat_count: parsed.seatCount,
+      status: subscription.status,
+      is_current: true,
+    })
+    revalidatePath("/checkout")
+    return { ok: true }
   } catch (err) {
     return { error: errorMessage(err) }
   }
