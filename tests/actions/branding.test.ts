@@ -121,8 +121,9 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
 
   it("returns DEFAULT_PDF_COMPANY_NAME if org row is missing", async () => {
     getOrganizationByIdMock.mockResolvedValue(null)
-    const { getBrandedPdfCompanyName, DEFAULT_PDF_COMPANY_NAME } = await import(
-      "@/app/actions/branding"
+    const { getBrandedPdfCompanyName } = await import("@/app/actions/branding")
+    const { DEFAULT_PDF_COMPANY_NAME } = await import(
+      "@/src/application/billing/pdf-branding"
     )
 
     await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)
@@ -130,8 +131,9 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
 
   it("returns DEFAULT_PDF_COMPANY_NAME if org has empty name", async () => {
     getOrganizationByIdMock.mockResolvedValue({ id: "org_1", name: "   " })
-    const { getBrandedPdfCompanyName, DEFAULT_PDF_COMPANY_NAME } = await import(
-      "@/app/actions/branding"
+    const { getBrandedPdfCompanyName } = await import("@/app/actions/branding")
+    const { DEFAULT_PDF_COMPANY_NAME } = await import(
+      "@/src/application/billing/pdf-branding"
     )
 
     await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)
@@ -142,8 +144,9 @@ describe("app/actions/branding.getBrandedPdfCompanyName", () => {
       ...allowedGate("pro"),
       organizationId: null,
     })
-    const { getBrandedPdfCompanyName, DEFAULT_PDF_COMPANY_NAME } = await import(
-      "@/app/actions/branding"
+    const { getBrandedPdfCompanyName } = await import("@/app/actions/branding")
+    const { DEFAULT_PDF_COMPANY_NAME } = await import(
+      "@/src/application/billing/pdf-branding"
     )
 
     await expect(getBrandedPdfCompanyName()).resolves.toBe(DEFAULT_PDF_COMPANY_NAME)

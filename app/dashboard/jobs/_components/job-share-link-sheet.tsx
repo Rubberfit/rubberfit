@@ -14,10 +14,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet"
-import {
-  DEFAULT_PDF_COMPANY_NAME,
-  getBrandedPdfCompanyName,
-} from "@/app/actions/branding"
+import { getBrandedPdfCompanyName } from "@/app/actions/branding"
+import { DEFAULT_PDF_COMPANY_NAME } from "@/src/application/billing/pdf-branding"
 import { authService } from "@/src/infrastructure/services/authService"
 import { JOB_PDF_SHARE_TTL_SECONDS, uploadJobPdf } from "@/src/infrastructure/services/jobService"
 import type { JobFullDetail } from "@/src/infrastructure/models/supabase"

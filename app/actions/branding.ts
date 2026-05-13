@@ -1,19 +1,12 @@
 "use server"
 
+import { DEFAULT_PDF_COMPANY_NAME } from "@/src/application/billing/pdf-branding"
 import { organizationService } from "@/src/infrastructure/services/organizationService"
 
 import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requireFeature } from "@/app/server/auth/require-feature"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
-
-/**
- * Default brand string used on every customer-facing PDF when the
- * actor's tier doesn't qualify for branded output. Standard-tier
- * customers always render with this; Pro+ customers can swap it for
- * their org's own name via `getBrandedPdfCompanyName`.
- */
-export const DEFAULT_PDF_COMPANY_NAME = "Rubberfit"
 
 /**
  * Resolve the company-name string to render on customer-facing PDFs
