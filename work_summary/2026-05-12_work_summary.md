@@ -198,12 +198,12 @@ Four commits landed building toward the per-tenant action boundary that PO commi
 
 ## What shipped (continuation 2)
 
-| Commit     | Title                                                                                              | Files | LOC          |
-| ---------- | -------------------------------------------------------------------------------------------------- | ----- | ------------ |
-| `e1f89af8` | `feat(db):` profiles.last_active_tenant_id + 4-digit PO numbering                                  | 2     | +6/-3        |
-| `31d60011` | `fix(auth):` align auth boundary + admin user mgmt with new multi-tenant schema (wide repair)      | 26    | +756/-329    |
-| `89e7b92d` | `feat(auth):` resolveActiveTenant + login callback + middleware recovery                           | 7     | +302/-36     |
-| `003d3dcd` | `feat(auth):` activeTenantId on ActionActor + strict cookie reader + chooser action                | 21    | +500/-56     |
+| Commit     | Title                                                                                         | Files | LOC       |
+| ---------- | --------------------------------------------------------------------------------------------- | ----- | --------- |
+| `e1f89af8` | `feat(db):` profiles.last_active_tenant_id + 4-digit PO numbering                             | 2     | +6/-3     |
+| `31d60011` | `fix(auth):` align auth boundary + admin user mgmt with new multi-tenant schema (wide repair) | 26    | +756/-329 |
+| `89e7b92d` | `feat(auth):` resolveActiveTenant + login callback + middleware recovery                      | 7     | +302/-36  |
+| `003d3dcd` | `feat(auth):` activeTenantId on ActionActor + strict cookie reader + chooser action           | 21    | +500/-56  |
 
 Cumulative: **45 files, +1467/-327**.
 
@@ -211,23 +211,23 @@ Cumulative: **45 files, +1467/-327**.
 
 Agreed during the long architectural discussion before PO commit 2/2 could land. Tenant resolution was the unblocking dependency.
 
-| Step | Status | What it does |
-|------|--------|--------------|
-| 1 — DB schema | ✅ `e1f89af8` | Adds `profiles.last_active_tenant_id` (nullable, FK to tenants, ON DELETE SET NULL); changes `generate_po_number()` from `PO-YY-NNNN` to `PO-YYYY-NNNN`. Edits the original CREATE migration in place per the local-first workflow. |
-| 1.5 — Auth-schema repair (interstitial) | ✅ `31d60011` | The auth boundary on the new schema was silently broken — `proxy.ts`, `require-authenticated-user.ts`, `useRole`, the admin user-management surface, and the e2e fixtures all queried `profiles.{roles, super_admin, is_deleted}`, none of which exist post-redesign. Hand-written types in `models/supabase.ts` were stale, so typecheck masked the runtime breakage. Wide fix — 20+ files in one commit per user direction. |
-| 2 — resolveActiveTenant plumbing | ✅ `89e7b92d` | New `active-tenant.service.ts` resolver (cookie → `last_active_tenant_id` → oldest membership, each tier membership-validated). New cookie wrapper module. Login callback resolves + writes cookie + persists `last_active_tenant_id`. Proxy recovers the cookie on permission-gated reads when missing. |
-| 3 — ActionActor wiring | ✅ `003d3dcd` | `ActionActor.activeTenantId: string \| null`. `require-authenticated-user` reads cookie, calls resolver, populates actor. `getProfileAccess` accepts optional `tenantId` and scopes roles per-tenant when set. New `requireActiveTenant` helper for actions that mutate tenant-scoped data. `selectTenant` server action behind the (step 4) chooser UI. |
-| 4 — `/select-tenant` chooser page | ⏳ | UI — multi-tenant users land here when no `last_active_tenant_id` is set; calls `selectTenant`. |
-| 5 — Swap legacy `generatePONumber` to RPC | ⏳ | `legacyPurchaseOrderService.generatePONumber` count-query → `generate_po_number()` race-safe sequence RPC. |
-| 6 — PO single-aggregate use-cases | ⏳ | Rewrite 4 PO use-cases to the entity-typed surface. Tenant resolution now available via actor. |
-| 7 — Cross-aggregate `ReceivePurchaseOrderUseCase` | ⏳ | First cross-aggregate use-case (PurchaseOrder + Roll). Uses the **best-effort + idempotency + reconciliation view** pattern decided earlier today (UoW rejected — RLS bypass risk from pg side-channel JWT injection). |
+| Step                                              | Status        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — DB schema                                     | ✅ `e1f89af8` | Adds `profiles.last_active_tenant_id` (nullable, FK to tenants, ON DELETE SET NULL); changes `generate_po_number()` from `PO-YY-NNNN` to `PO-YYYY-NNNN`. Edits the original CREATE migration in place per the local-first workflow.                                                                                                                                                                                           |
+| 1.5 — Auth-schema repair (interstitial)           | ✅ `31d60011` | The auth boundary on the new schema was silently broken — `proxy.ts`, `require-authenticated-user.ts`, `useRole`, the admin user-management surface, and the e2e fixtures all queried `profiles.{roles, super_admin, is_deleted}`, none of which exist post-redesign. Hand-written types in `models/supabase.ts` were stale, so typecheck masked the runtime breakage. Wide fix — 20+ files in one commit per user direction. |
+| 2 — resolveActiveTenant plumbing                  | ✅ `89e7b92d` | New `active-tenant.service.ts` resolver (cookie → `last_active_tenant_id` → oldest membership, each tier membership-validated). New cookie wrapper module. Login callback resolves + writes cookie + persists `last_active_tenant_id`. Proxy recovers the cookie on permission-gated reads when missing.                                                                                                                      |
+| 3 — ActionActor wiring                            | ✅ `003d3dcd` | `ActionActor.activeTenantId: string \| null`. `require-authenticated-user` reads cookie, calls resolver, populates actor. `getProfileAccess` accepts optional `tenantId` and scopes roles per-tenant when set. New `requireActiveTenant` helper for actions that mutate tenant-scoped data. `selectTenant` server action behind the (step 4) chooser UI.                                                                      |
+| 4 — `/select-tenant` chooser page                 | ⏳            | UI — multi-tenant users land here when no `last_active_tenant_id` is set; calls `selectTenant`.                                                                                                                                                                                                                                                                                                                               |
+| 5 — Swap legacy `generatePONumber` to RPC         | ⏳            | `legacyPurchaseOrderService.generatePONumber` count-query → `generate_po_number()` race-safe sequence RPC.                                                                                                                                                                                                                                                                                                                    |
+| 6 — PO single-aggregate use-cases                 | ⏳            | Rewrite 4 PO use-cases to the entity-typed surface. Tenant resolution now available via actor.                                                                                                                                                                                                                                                                                                                                |
+| 7 — Cross-aggregate `ReceivePurchaseOrderUseCase` | ⏳            | First cross-aggregate use-case (PurchaseOrder + Roll). Uses the **best-effort + idempotency + reconciliation view** pattern decided earlier today (UoW rejected — RLS bypass risk from pg side-channel JWT injection).                                                                                                                                                                                                        |
 
 ## Architectural decisions captured in commits
 
 Several non-obvious choices made during the session, each documented in the relevant commit body but worth flagging here for the next reader:
 
-- **Cookie shape.** `rema_active_tenant`, HttpOnly, SameSite=lax, 24h max-age. Lifetime renews on every middleware recovery + every explicit `selectTenant` call, so the effective behavior is "expires after 24h of inactivity," not a hard wall clock. Cookie expresses *intent*; RLS provides *authority* — tampering is safe but routing the UI to a tenant the user can't see would surface as silent empty results, so every read of the cookie is membership-validated before it's trusted.
-- **Deactivation under multi-tenant.** No global `profiles.is_deleted` anymore. "Deactivate user" is now per-tenant via `memberships.deleted_at`; "delete my account" (self-serve) soft-deletes *every* active membership the caller owns. Idempotent under the existing `memberships_unique_active UNIQUE(tenant_id, profile_id)` constraint — re-activating just clears `deleted_at` on the same row. `isInaccessible` renamed from `isDeleted` everywhere it touched.
+- **Cookie shape.** `rema_active_tenant`, HttpOnly, SameSite=lax, 24h max-age. Lifetime renews on every middleware recovery + every explicit `selectTenant` call, so the effective behavior is "expires after 24h of inactivity," not a hard wall clock. Cookie expresses _intent_; RLS provides _authority_ — tampering is safe but routing the UI to a tenant the user can't see would surface as silent empty results, so every read of the cookie is membership-validated before it's trusted.
+- **Deactivation under multi-tenant.** No global `profiles.is_deleted` anymore. "Deactivate user" is now per-tenant via `memberships.deleted_at`; "delete my account" (self-serve) soft-deletes _every_ active membership the caller owns. Idempotent under the existing `memberships_unique_active UNIQUE(tenant_id, profile_id)` constraint — re-activating just clears `deleted_at` on the same row. `isInaccessible` renamed from `isDeleted` everywhere it touched.
 - **Per-tenant roles.** `actor.roles` becomes per-tenant when `activeTenantId` resolves. Union across all active memberships is the fallback used by the proxy permission gate before the cookie is set, and by callers in the chooser flow. `isInaccessible` is still computed against the **full** membership set even when roles are tenant-scoped — a multi-tenant user with an active membership in tenant B isn't locked out just because we filtered roles to tenant A.
 - **Platform admin bypass.** A profile with `is_platform_admin = true` is always accessible, even with zero memberships — the `auth_is_platform_admin()` RLS bypass handles their cross-tenant operations.
 - **`requireActiveTenant` is separate from `requireAuthenticatedUser`.** Deliberate — the chooser action itself runs without an active tenant (that's the state it resolves). Making the actor's tenant load-bearing in `requireAuthenticatedUser` would create a chicken-and-egg.
@@ -236,26 +236,26 @@ Several non-obvious choices made during the session, each documented in the rele
 
 ## Drift audit — continuation 2
 
-| Index                                             | Status | Notes                                                                                                                                           |
-| ------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/actions/README.md` (8 files)                 | ✅ (patched inline) | Was at 7 — `active-tenant.ts` row added during this work-summary write-up. Caught by the audit, not by the commit. |
-| `src/application/services/README.md`              | ✅     | `IUserManagementService` interface signatures changed but no add/rename. `active-tenant.service.ts` is plain helper exports (no `I*Service` interface) so it doesn't belong in the catalog. |
-| `di/README.md`                                    | ✅     | No new DI tokens. The new service module exports plain functions; the chooser action wires them up directly. |
-| `src/infrastructure/mappers/README.md`            | ✅     | No mapper touches.                                                                                                                              |
-| `src/entities/README.md`                          | ✅     | No entity touches.                                                                                                                              |
-| `src/application/use-cases/README.md`             | ✅     | No use-cases touched.                                                                                                                           |
+| Index                                  | Status              | Notes                                                                                                                                                                                       |
+| -------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/actions/README.md` (8 files)      | ✅ (patched inline) | Was at 7 — `active-tenant.ts` row added during this work-summary write-up. Caught by the audit, not by the commit.                                                                          |
+| `src/application/services/README.md`   | ✅                  | `IUserManagementService` interface signatures changed but no add/rename. `active-tenant.service.ts` is plain helper exports (no `I*Service` interface) so it doesn't belong in the catalog. |
+| `di/README.md`                         | ✅                  | No new DI tokens. The new service module exports plain functions; the chooser action wires them up directly.                                                                                |
+| `src/infrastructure/mappers/README.md` | ✅                  | No mapper touches.                                                                                                                                                                          |
+| `src/entities/README.md`               | ✅                  | No entity touches.                                                                                                                                                                          |
+| `src/application/use-cases/README.md`  | ✅                  | No use-cases touched.                                                                                                                                                                       |
 
 **Observation, not drift:** `app/server/auth/` has grown to 5 files (`active-tenant.ts`, `require-active-tenant.ts`, `require-authenticated-user.ts`, `require-permission.ts`, `errors.ts`) and has no README. The directory's role is self-evident from filenames + JSDoc, but it might cross the threshold where a one-page index pays off. Defer until the surface stabilizes after step 4–7.
 
 ## Test totals — continuation 2
 
-| Checkpoint                          | Passing | Failing | Notes |
-| ----------------------------------- | ------- | ------- | ----- |
-| Start of continuation (`844e6dcb`)  | 1672    | 9       | PO commit 1/2 just shipped. |
-| After step 1 (`e1f89af8`)           | 1672    | 9       | SQL-only commit, no TS test deltas. |
-| After auth repair (`31d60011`)      | 1671    | 10 → 9  | One pre-existing architecture violation (admin route inline Supabase call) **fixed** by extracting the tenant resolver to a service helper. New tests: `authService.test.ts` rewritten, `require-authenticated-user.test.ts` rewritten, `userManagementService.test.ts` updated for tenant + membership writes. |
-| After step 2 (`89e7b92d`)           | ~1675   | 9       | +4 new from `active-tenant.service.test.ts` (resolver tiers + persist best-effort). |
-| After step 3 (`003d3dcd`)           | ~1683   | 9       | +8 new across `active-tenant.test.ts` (chooser action) + `require-active-tenant.test.ts` (assertion helper) + extended `require-authenticated-user.test.ts` cases. 10 existing actor fixtures patched with `activeTenantId: null`. |
+| Checkpoint                         | Passing | Failing | Notes                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Start of continuation (`844e6dcb`) | 1672    | 9       | PO commit 1/2 just shipped.                                                                                                                                                                                                                                                                                     |
+| After step 1 (`e1f89af8`)          | 1672    | 9       | SQL-only commit, no TS test deltas.                                                                                                                                                                                                                                                                             |
+| After auth repair (`31d60011`)     | 1671    | 10 → 9  | One pre-existing architecture violation (admin route inline Supabase call) **fixed** by extracting the tenant resolver to a service helper. New tests: `authService.test.ts` rewritten, `require-authenticated-user.test.ts` rewritten, `userManagementService.test.ts` updated for tenant + membership writes. |
+| After step 2 (`89e7b92d`)          | ~1675   | 9       | +4 new from `active-tenant.service.test.ts` (resolver tiers + persist best-effort).                                                                                                                                                                                                                             |
+| After step 3 (`003d3dcd`)          | ~1683   | 9       | +8 new across `active-tenant.test.ts` (chooser action) + `require-active-tenant.test.ts` (assertion helper) + extended `require-authenticated-user.test.ts` cases. 10 existing actor fixtures patched with `activeTenantId: null`.                                                                              |
 
 All 9 failures remain pre-existing and unrelated to the rollout: price-history architecture violation (1), cutting-engine NFP rendering (6), proxy matcher (1), po-new-page prefill (1).
 
@@ -279,3 +279,92 @@ Plus the **`IPoNumberingService` extraction** flagged by Codex during the PO sco
 3. **Pre-existing test failures (9)** unchanged. Architecture allowlist gap for `price-history.repository.ts` + `legacyPriceHistoryService.ts` is the easiest fix — pattern from `roll.repository.ts` migration applies.
 4. **`requireActiveTenant` has no production callers yet.** The helper + test exist; the audit point where it matters most is PO commit 2/2 and the cross-aggregate receive use-case (steps 6–7). Until then existing actions stay tenant-agnostic.
 5. **The auth-schema repair fixed an architecture violation that pre-existed step 1.** `tests/architecture/no-direct-supabase.test.ts` had 2 failures at the start of this session; now only 1 (the price-history one). The admin-users-route inline Supabase calls were absorbed into `resolveActiveTenantId`.
+
+---
+
+# Continuation — tenant-resolution rollout (steps 4–7 of 7) + drift + cross-aggregate safety net
+
+Closes out the 7-step rollout, with the seventh step landing as a deliberate two-commit pair (7a infrastructure + 7b safety net) per Codex's pre-flight recommendation. Multiple drift patches and an opportunistic addresses-table refactor landed between rollout steps. DDD queue is now 8/10 services migrated.
+
+Spans 8 commits over multiple sessions (2026-05-12 evening → 2026-05-13 early morning).
+
+## What shipped (continuation 3)
+
+| Commit     | Title                                                                                           | Files | LOC       |
+| ---------- | ----------------------------------------------------------------------------------------------- | ----- | --------- |
+| `7c6ddc1a` | `feat(ui):` `/select-tenant` chooser page (step 4)                                              | —     | —         |
+| `bbd12bdb` | `docs(agents):` patch drift surfaced by codex audit                                             | —     | —         |
+| `53060f93` | `fix(infrastructure):` legacy `generatePONumber` uses race-safe RPC (step 5)                    | —     | —         |
+| `08c22a9b` | `feat(infrastructure):` approve + reject PO use-cases on entity-typed service (step 6 — part 1) | —     | —         |
+| `bb9bd2b1` | `feat(infrastructure):` create + update PO use-cases on entity-typed service (step 6 — part 2)  | —     | —         |
+| `d0b5e8d4` | `refactor(schema):` drop addresses table; inline addresses on owning records                    | —     | —         |
+| `e28d1662` | `docs(agents):` patch drift from tenant-resolution + addresses cleanup                          | 7     | —         |
+| `53949858` | `feat(infrastructure):` receive PO use-case on entity-typed service (**step 7a**)               | 10    | +886/-25  |
+| `26611684` | `feat(infrastructure):` receive-PO best-effort + reconciliation view (**step 7b**)              | 13    | +415/-147 |
+
+## Step 7 detail — the first cross-aggregate use-case
+
+Per the **best-effort + idempotency + reconciliation view** decision logged on 2026-05-12 (rejected UoW; RLS bypass risk from pg side-channel JWT injection). Split into two commits on Codex's recommendation so the entity-migration scope stayed reviewable.
+
+**7a — entity-typed surface** (`53949858`)
+
+- New `IPurchaseOrderService.recordReceiptsByItemId(id, receipts, actor)` returns `{ previousStatus, purchaseOrder, itemIdToLineNumber }`. Previous-status capture is what lets the notification correctly distinguish `ordered → received` from `partial_received → received`.
+- Repo gains `itemIdToLineNumberMap(poId)` so the entity's logical identity stays `(purchaseOrderId, lineNumber)` while the mapper translates row IDs internally.
+- Use-case is now a 4-aggregate orchestrator (PO + Item + Roll + Supplier-for-notification) running entirely against entity-typed services. `IRollService.createRoll` consumes branded-ID + Money + metric props; new `buildCreateRollProps` helper handles the imperial→metric fallback chain.
+- New `rollEntityToLegacy` adapter so `POReceiptResult.rollsCreated` stays the legacy `Roll[]` shape — calling form + UI untouched.
+- Latent runtime bug also fixed: the legacy `receivePurchaseOrder` wrote imperial column names (`quantity_sqft`, `width`, `length`, `cost_per_sqft`, `remaining_length`) that no longer exist post-redesign. Same shape as the tax-service fix that rode the addresses cleanup.
+- 13 new tests; strict-throw semantics preserved (any per-roll failure throws the whole use-case — left the partial-state window for 7b).
+
+**7b — safety net** (`26611684`)
+
+- `rolls.purchase_order_item_id` FK added via `ALTER TABLE` in file 4 (`schema_commerce.sql`), mirroring the deferred-FK pattern used for `source_cut_history_id` in file 3. `ON DELETE SET NULL` so a roll's provenance can be archived without deleting real inventory; soft-delete (the normal path) leaves the FK intact.
+- New `PurchaseOrderItemId` brand. PO-item entity identity stays `(purchaseOrderId, lineNumber)` — the brand only exists so cross-aggregate FKs can be typed without leaking row ids into the entity surface.
+- New migration `20260513000001_po_receipts_reconciliation.sql` defines view `po_receipts_pending_roll_creation`. Joins `purchase_order_items LEFT JOIN rolls ON purchase_order_item_id` and `HAVING COUNT(r.id) = 0`. The view surfaces every PO item that received material but has no matching roll — the failure case 7a still throws on.
+- **Codex pre-flight caught 2 blockers in the view**:
+  1. Default Postgres views run as the definer (owner), bypassing the calling user's RLS — fixed with `WITH (security_invoker = true)` so RLS evaluates against the caller's JWT.
+  2. The `LEFT JOIN rolls ON r.purchase_order_item_id = poi.id` didn't constrain `tenant_id`, leaving a theoretical cross-tenant leak if the FK ever pointed across tenants. Added `r.tenant_id = poi.tenant_id` (and the same for the `purchase_orders` join) as belt-and-suspenders.
+- Use-case loop swapped from strict-throw to sequential try/catch (Codex Q3 — `Promise.allSettled` rejected because the RLS-cookied DB client makes parallelism a pressure-spike without atomicity benefit). Per-failure: push `itemId` to `failedItemIds`, log with PO number, continue. Notification still fires on full receipt because the PO aggregate's state is real regardless of roll outcomes.
+- `POReceiptResult.failedItemIds: string[]` is now required; legacy strict-throw path returns `[]` when it reaches its `return` (failures throw earlier).
+- 5 new tests; full suite stays at 9 pre-existing failures (unchanged).
+
+## Drift audit — continuation 3
+
+| Index                                   | Status                       | Notes                                                                                                                                                                                                                                        |
+| --------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                             | ✅ patched in `e28d1662`     | Softened the auth-on-every-action claim; selectTenant + requestSelfDelete are documented exceptions.                                                                                                                                         |
+| `CLAUDE.md`                             | ✅ patched in `e28d1662`     | Interface-adapters note tightened; packing table now distinguishes Vercel-Rust prod from Node-CLI dev.                                                                                                                                       |
+| `src/entities/README.md`                | ✅ patched in `e28d1662`     | `fromPersistence` → `reconstitute`, `toSnapshot` → `toJSON`, mutating-mutator language.                                                                                                                                                      |
+| `src/application/services/README.md`    | ✅ patched in `e28d1662`     | Catalog count 30 → 31, ILegacyPriceHistoryService added, "no browser singleton" softened with exceptions.                                                                                                                                    |
+| `src/application/use-cases/README.md`   | ✅ patched in `e28d1662`     | Legacy use-case note added; helpers subsection introduced for `po-input-conversion.ts`.                                                                                                                                                      |
+| `src/infrastructure/mappers/README.md`  | ✅ patched in `e28d1662`     | Explicit list of 7 migrated + 6 unmigrated aggregates replaces the one-mapper-per-aggregate aspiration.                                                                                                                                      |
+| `app/actions/README.md`                 | ✅ patched in `e28d1662`     | Two requirePermission exceptions added; cut-history row fixed (`saveCut` not `recordCut`); inventory row narrowed to `addRoll` only.                                                                                                         |
+| `src/infrastructure/supabase/README.md` | ⚠️ heavy drift, **deferred** | Reviewed but not patched — wrong product name ("rubber manufacturing"), wrong table count, wrong migration files, dangerous RLS claim, dead Tauri reference, wrong type-gen path. Needs full rewrite-as-index rather than incremental edits. |
+
+## Test totals — continuation 3
+
+| Checkpoint                    | Passing | Failing | Notes                                                                                              |
+| ----------------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------- |
+| Start of step 7a (`d0b5e8d4`) | ~1691   | 9       | Pre-7a baseline after addresses cleanup.                                                           |
+| After 7a (`53949858`)         | 1704    | 9       | +13 new from `receive-purchase-order.use-case.test.ts` (5) + `po-input-conversion.test.ts` (8).    |
+| After 7b (`26611684`)         | 1709    | 9       | +5 new (best-effort, mixed success/fail, happy-path empty, FK threading, PO-item-ID pass-through). |
+
+All 9 failures remain pre-existing and unrelated: cutting-engine NFP rendering (6), proxy matcher (1), po-new-page prefill (1), price-history architecture allowlist (1).
+
+## DDD queue status — continuation 3
+
+**Done (8/10):** supplier, material-supplier, material-type, price-history, roll, reorder, **purchase-order (fully — 4 single-aggregate use-cases + cross-aggregate receive)**.
+
+**Remaining (3):**
+
+1. **`cutService`** — granular per-piece cut log. Smaller scope.
+2. **`cutHistoryService`** — job-level cut record (aggregate root). Joined query for layout JSON + linked rolls.
+3. **`notificationService`** — careful one. Two-table dance (`notifications` in-app feed vs `notification_queue` async dispatch). Lots of consumers.
+
+The PO surface is now end-to-end DDD. The receive flow is the only cross-aggregate use-case in the codebase; its safety net (FK + reconciliation view + best-effort) establishes the pattern for any future multi-aggregate orchestrator.
+
+## Follow-ups out of continuation 3
+
+1. **Step 7c — idempotency key + admin retry action.** Today an operator retry of `receivePurchaseOrder` would double-count receipt math (additive `quantity_received_sqm` updates) and could create duplicate rolls. The reconciliation view detects missing-rolls, not duplicates. 7c adds a per-receipt idempotency key + an admin action that consumes the view to backfill failed itemIds.
+2. **`src/infrastructure/supabase/README.md` full rewrite.** Reviewed during this session, deferred. Either remove the file or rewrite as a thin index pointing at the migrations directory; the current content is misleading enough to be worse than absent.
+3. **Pre-existing test failures (9)** unchanged. Architecture allowlist gap for the two price-history files is still the cheapest fix.
+4. **`roll.ts` is now at 532 lines (lint max 500).** +1 net warning vs baseline from threading `purchaseOrderItemId` through the entity. Same warning class as the 5 pre-existing entity threshold breaches (job, project, purchase-order). Could be addressed by extracting `RollSnapshot` to a sibling file, but matches the project's accepted pattern as-is.
