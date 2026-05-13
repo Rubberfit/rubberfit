@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
+import { isPlanTier, type PlanTier } from "@/src/application/billing/feature-tiers"
 import type {
   BillingStatus,
   SubscriptionGateResult,
@@ -12,6 +13,7 @@ interface CurrentSubscriptionRow {
   id: string
   stripe_subscription_id: string | null
   status: BillingStatus
+  plan_tier: PlanTier
   cancel_at_period_end: boolean | null
   cancel_at: string | null
   current_period_end: string | null
@@ -64,6 +66,7 @@ export async function getSubscriptionGateForUser(
           id,
           stripe_subscription_id,
           status,
+          plan_tier,
           cancel_at_period_end,
           cancel_at,
           current_period_end,
@@ -94,6 +97,9 @@ export async function getSubscriptionGateForUser(
   if (!isBillingStatus(subscription.status)) {
     throw new Error(`Unexpected billing status: ${String(subscription.status)}`)
   }
+  if (!isPlanTier(subscription.plan_tier)) {
+    throw new Error(`Unexpected plan tier: ${String(subscription.plan_tier)}`)
+  }
 
   const status = subscription.status
   if (status === "trialing" || status === "active") {
@@ -102,6 +108,7 @@ export async function getSubscriptionGateForUser(
       organizationId: organization.id,
       subscriptionId: subscription.stripe_subscription_id ?? subscription.id,
       status,
+      planTier: subscription.plan_tier,
       cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
       cancelAt: subscription.cancel_at,
       currentPeriodEnd: subscription.current_period_end,
