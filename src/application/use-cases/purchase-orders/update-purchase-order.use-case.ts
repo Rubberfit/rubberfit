@@ -1,6 +1,6 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
@@ -33,7 +33,8 @@ export interface IUpdatePurchaseOrderUseCase {
 @injectable()
 export class UpdatePurchaseOrderUseCase implements IUpdatePurchaseOrderUseCase {
   constructor(
-    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ILegacyPurchaseOrderService)
+    private readonly poService: ILegacyPurchaseOrderService,
     @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
   ) {}
 

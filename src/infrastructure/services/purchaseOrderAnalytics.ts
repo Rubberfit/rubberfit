@@ -4,10 +4,10 @@ import {
   type PurchaseOrderWithDetails,
 } from "@/src/infrastructure/models/supabase"
 import type {
-  IPurchaseOrderService,
+  ILegacyPurchaseOrderService,
   POReceiptItem,
   POReceiptResult,
-} from "@/src/application/services/purchase-order.service.interface"
+} from "@/src/application/services/legacy-purchase-order.service.interface"
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import { TOKENS } from "@/di/tokens"
@@ -26,27 +26,27 @@ export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsSer
   // `@inject` metadata here is used when analytics is constructed via the
   // container; the module-level singleton below performs the back-assignment
   // manually after both singletons exist.
-  private _purchaseOrderService: IPurchaseOrderService | undefined
+  private _purchaseOrderService: ILegacyPurchaseOrderService | undefined
 
   constructor(
-    @inject(TOKENS.IPurchaseOrderService)
-    purchaseOrderService?: IPurchaseOrderService
+    @inject(TOKENS.ILegacyPurchaseOrderService)
+    purchaseOrderService?: ILegacyPurchaseOrderService
   ) {
     this._purchaseOrderService = purchaseOrderService
   }
 
-  setPurchaseOrderService(service: IPurchaseOrderService): void {
+  setPurchaseOrderService(service: ILegacyPurchaseOrderService): void {
     this._purchaseOrderService = service
   }
 
-  private get purchaseOrderService(): IPurchaseOrderService {
+  private get purchaseOrderService(): ILegacyPurchaseOrderService {
     if (!this._purchaseOrderService) {
       throw new Error("PurchaseOrderAnalyticsService: purchaseOrderService has not been wired yet")
     }
     return this._purchaseOrderService
   }
 
-  // Delegates to the canonical implementation on IPurchaseOrderService.
+  // Delegates to the canonical implementation on ILegacyPurchaseOrderService.
   // The `updateStatus` callback is kept for interface compatibility but is
   // unused — the service uses its own `updatePurchaseOrderStatus` internally.
   async receivePurchaseOrder(

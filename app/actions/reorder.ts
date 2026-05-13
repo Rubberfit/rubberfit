@@ -20,7 +20,7 @@ import type {
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
 
 import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"

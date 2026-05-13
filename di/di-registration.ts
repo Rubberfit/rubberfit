@@ -50,7 +50,11 @@ import { PriceHistoryService } from "@/src/infrastructure/services/priceHistoryS
 import { priceHistoryRepository } from "@/src/infrastructure/repositories/price-history.repository"
 import type { IPriceHistoryRepository } from "@/src/application/repositories/price-history.repository.interface"
 import { profileService } from "@/src/infrastructure/services/profileService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { PurchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { purchaseOrdersRepository } from "@/src/infrastructure/repositories/purchase-orders.repository"
+import type { IPurchaseOrdersRepository } from "@/src/application/repositories/purchase-orders.repository.interface"
+import { legacyPurchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
 import { ReorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderRulesRepository } from "@/src/infrastructure/repositories/reorder-rules.repository"
@@ -173,9 +177,17 @@ container.registerInstance<IPriceHistoryRepository>(
 )
 container.registerSingleton<IPriceHistoryService>(TOKENS.IPriceHistoryService, PriceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
-container.registerInstance<IPurchaseOrderService>(
+container.registerInstance<IPurchaseOrdersRepository>(
+  TOKENS.IPurchaseOrdersRepository,
+  purchaseOrdersRepository
+)
+container.registerSingleton<IPurchaseOrderService>(
   TOKENS.IPurchaseOrderService,
-  purchaseOrderService
+  PurchaseOrderService
+)
+container.registerInstance<ILegacyPurchaseOrderService>(
+  TOKENS.ILegacyPurchaseOrderService,
+  legacyPurchaseOrderService
 )
 container.registerInstance<IPurchaseOrderAnalyticsService>(
   TOKENS.IPurchaseOrderAnalyticsService,

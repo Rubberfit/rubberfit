@@ -10,7 +10,7 @@ import type {
   PurchaseOrderWithDetails,
   Supplier,
 } from "@/src/infrastructure/models/supabase"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"

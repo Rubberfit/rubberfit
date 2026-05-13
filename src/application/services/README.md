@@ -14,7 +14,7 @@ const poService = container.resolve<IPurchaseOrderService>(TOKENS.IPurchaseOrder
 
 Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the use-cases [README](../use-cases/README.md).
 
-## Catalog (28)
+## Catalog (29)
 
 ### Packing / Export
 
@@ -41,10 +41,11 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 
 ### Commerce / Procurement
 
-| Interface                        | File                                                                                               | Purpose                                              |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `IPurchaseOrderService`          | [`purchase-order.service.interface.ts`](./purchase-order.service.interface.ts)                     | PO CRUD + lifecycle transitions + receipt recording. |
-| `IPurchaseOrderAnalyticsService` | [`purchase-order-analytics.service.interface.ts`](./purchase-order-analytics.service.interface.ts) | PO analytics queries (totals, vendor performance).   |
+| Interface                        | File                                                                                               | Purpose                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `IPurchaseOrderService`          | [`purchase-order.service.interface.ts`](./purchase-order.service.interface.ts)                     | Entity-typed PO lifecycle transitions + receipt recording.                              |
+| `ILegacyPurchaseOrderService`    | [`legacy-purchase-order.service.interface.ts`](./legacy-purchase-order.service.interface.ts)       | Pre-DDD shim — raw-row CRUD + status transitions + helpers; consumers migrate per page. |
+| `IPurchaseOrderAnalyticsService` | [`purchase-order-analytics.service.interface.ts`](./purchase-order-analytics.service.interface.ts) | PO analytics queries (totals, vendor performance).                                      |
 
 ### Operations / Cuts
 

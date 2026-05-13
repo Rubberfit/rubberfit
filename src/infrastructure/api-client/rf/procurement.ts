@@ -23,7 +23,7 @@
  */
 
 import { csvService as legacyCsv } from "@/src/infrastructure/services/csvService"
-import { purchaseOrderService as legacyPos } from "@/src/infrastructure/services/purchaseOrderService"
+import { legacyPurchaseOrderService as legacyPos } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import { legacyReorderService as legacyReorder } from "@/src/infrastructure/services/legacyReorderService"
 import { taxService as legacyTax } from "@/src/infrastructure/services/taxService"
 

@@ -26,7 +26,7 @@ import type {
   ICreateBulkReorderPurchaseOrderUseCase,
 } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
@@ -154,8 +154,8 @@ describe("CreateBulkReorderPurchaseOrderUseCase", () => {
     taxService = makeFakeTaxService()
 
     container.registerInstance(
-      TOKENS.IPurchaseOrderService,
-      poService as unknown as IPurchaseOrderService
+      TOKENS.ILegacyPurchaseOrderService,
+      poService as unknown as ILegacyPurchaseOrderService
     )
     container.registerInstance(TOKENS.IReorderService, reorderService)
     container.registerInstance(TOKENS.ISupplierService, supplierService)

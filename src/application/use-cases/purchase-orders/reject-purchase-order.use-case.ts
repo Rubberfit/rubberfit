@@ -1,7 +1,7 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
@@ -19,7 +19,8 @@ export interface IRejectPurchaseOrderUseCase {
 @injectable()
 export class RejectPurchaseOrderUseCase implements IRejectPurchaseOrderUseCase {
   constructor(
-    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ILegacyPurchaseOrderService)
+    private readonly poService: ILegacyPurchaseOrderService,
     @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 

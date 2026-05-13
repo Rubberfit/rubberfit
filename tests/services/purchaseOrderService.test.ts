@@ -35,14 +35,14 @@ function makeQuery(data: unknown, error: unknown = null): QueryShape {
   return query
 }
 
-describe("purchaseOrderService.getPurchaseOrdersByStatuses", () => {
-  let purchaseOrderService: typeof import("@/src/infrastructure/services/purchaseOrderService").purchaseOrderService
+describe("legacyPurchaseOrderService.getPurchaseOrdersByStatuses", () => {
+  let purchaseOrderService: typeof import("@/src/infrastructure/services/legacyPurchaseOrderService").legacyPurchaseOrderService
 
   beforeEach(async () => {
     vi.resetModules()
     mockSupabase.from.mockReset()
-    const mod = await import("@/src/infrastructure/services/purchaseOrderService")
-    purchaseOrderService = mod.purchaseOrderService
+    const mod = await import("@/src/infrastructure/services/legacyPurchaseOrderService")
+    purchaseOrderService = mod.legacyPurchaseOrderService
   })
 
   afterEach(() => {
@@ -68,7 +68,7 @@ describe("purchaseOrderService.getPurchaseOrdersByStatuses", () => {
     expect(mockSupabase.from).toHaveBeenCalledWith("purchase_orders")
     expect(query.in).toHaveBeenCalledWith("status", ["pending", "approved"])
     expect(query.order).toHaveBeenCalledWith("created_at", { ascending: false })
-    expect(result.map((r) => r.id)).toEqual(["po1", "po2"])
+    expect(result.map((r: { id: string }) => r.id)).toEqual(["po1", "po2"])
   })
 
   it("propagates Supabase errors", async () => {

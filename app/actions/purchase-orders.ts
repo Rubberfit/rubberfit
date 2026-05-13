@@ -16,7 +16,7 @@ import type {
 import type { IApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
 import type { IRejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
 import type { IReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
-import type { POReceiptResult } from "@/src/application/services/purchase-order.service.interface"
+import type { POReceiptResult } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"

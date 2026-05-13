@@ -3,7 +3,7 @@ import type {
   PurchaseOrderWithDetails,
   Roll,
 } from "@/src/infrastructure/models/supabase"
-import type { POReceiptItem } from "@/src/application/services/purchase-order.service.interface"
+import type { POReceiptItem } from "@/src/application/services/legacy-purchase-order.service.interface"
 
 export interface POAnalyticsStats {
   total: number

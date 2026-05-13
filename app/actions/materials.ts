@@ -8,7 +8,7 @@ import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticate
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 
 /**

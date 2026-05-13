@@ -58,8 +58,8 @@ const { legacyPosHandles, legacyReorderHandles, legacyCsvHandles, legacyTaxHandl
   })
 )
 
-vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({
-  purchaseOrderService: legacyPosHandles,
+vi.mock("@/src/infrastructure/services/legacyPurchaseOrderService", () => ({
+  legacyPurchaseOrderService: legacyPosHandles,
 }))
 vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
   legacyReorderService: legacyReorderHandles,

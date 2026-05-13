@@ -1,7 +1,7 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
@@ -112,7 +112,8 @@ function groupBySupplier(suggestions: ReorderSuggestionOutput[]): {
 @injectable()
 export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorderPurchaseOrderUseCase {
   constructor(
-    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ILegacyPurchaseOrderService)
+    private readonly poService: ILegacyPurchaseOrderService,
     @inject(TOKENS.IReorderService) private readonly reorderService: IReorderService,
     @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
     @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService,

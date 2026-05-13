@@ -15,12 +15,12 @@ Resolution sites:
 
 ## Token catalog
 
-### Services (28)
+### Services (29)
 
 Two binding styles:
 
 - **Module singleton via `registerInstance`** — the default. Binds the token to a long-lived singleton instance exported from `src/infrastructure/services/`. Used by every service that hasn't been DDD-migrated yet.
-- **Class via `registerSingleton`** — used by the 6 DDD-migrated services (`Supplier`, `MaterialSupplier`, `MaterialType`, `PriceHistory`, `Roll`, `Reorder`). The container lazily constructs the class on first resolve and threads the repository in through `@inject`. Class rows are marked with the constructor name (e.g. `RollService`) in the table; singleton rows use the lowercase instance name (e.g. `rollService`).
+- **Class via `registerSingleton`** — used by the 7 DDD-migrated services (`Supplier`, `MaterialSupplier`, `MaterialType`, `PriceHistory`, `Roll`, `Reorder`, `PurchaseOrder`). The container lazily constructs the class on first resolve and threads the repository in through `@inject`. Class rows are marked with the constructor name (e.g. `RollService`) in the table; singleton rows use the lowercase instance name (e.g. `rollService`).
 
 Order in `tokens.ts` is alphabetical within each group.
 
@@ -38,7 +38,8 @@ Order in `tokens.ts` is alphabetical within each group.
 | `IPackingService`                | **Runtime-branching factory** — see below |
 | `IPriceHistoryService`           | `PriceHistoryService` (class)             |
 | `IProfileService`                | `profileService`                          |
-| `IPurchaseOrderService`          | `purchaseOrderService`                    |
+| `IPurchaseOrderService`          | `PurchaseOrderService` (class)            |
+| `ILegacyPurchaseOrderService`    | `legacyPurchaseOrderService`              |
 | `IPurchaseOrderAnalyticsService` | `purchaseOrderAnalytics`                  |
 | `IReorderService`                | `ReorderService` (class)                  |
 | `ILegacyReorderService`          | `legacyReorderService`                    |
@@ -55,7 +56,7 @@ Order in `tokens.ts` is alphabetical within each group.
 | `ICutFavoritesService`           | `cutFavoritesService`                     |
 | `IRollInventoryService`          | `rollInventoryService`                    |
 
-### Repositories (6)
+### Repositories (7)
 
 Registered with `container.registerInstance` — each binds the token to the module-singleton repository exported from `src/infrastructure/repositories/`. Repositories are the entity-typed persistence boundary that DDD-migrated services inject through `@inject`.
 
@@ -64,6 +65,7 @@ Registered with `container.registerInstance` — each binds the token to the mod
 | `IMaterialSuppliersRepository` | `materialSuppliersRepository` |
 | `IMaterialTypesRepository`     | `materialTypeRepository`      |
 | `IPriceHistoryRepository`      | `priceHistoryRepository`      |
+| `IPurchaseOrdersRepository`    | `purchaseOrdersRepository`    |
 | `IReorderRulesRepository`      | `reorderRulesRepository`      |
 | `IRollsRepository`             | `rollsRepository`             |
 | `ISuppliersRepository`         | `suppliersRepository`         |

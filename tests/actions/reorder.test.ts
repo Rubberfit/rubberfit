@@ -54,8 +54,8 @@ vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
 const purchaseOrderServiceMock = vi.hoisted(() => ({
   getPurchaseOrdersByStatuses: vi.fn(),
 }))
-vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({
-  purchaseOrderService: purchaseOrderServiceMock,
+vi.mock("@/src/infrastructure/services/legacyPurchaseOrderService", () => ({
+  legacyPurchaseOrderService: purchaseOrderServiceMock,
 }))
 
 const revalidatePathMock = vi.hoisted(() => vi.fn())
