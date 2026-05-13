@@ -4,6 +4,23 @@ import { useState, useTransition } from "react"
 
 import { createBillingPortalSession } from "@/app/actions/billing"
 
+/**
+ * Stripe-hosted Portal sessions live at `billing.stripe.com`. We validate
+ * before navigating so a future refactor or compromised upstream can't
+ * turn the server action's URL field into an open redirect — the action
+ * is the security boundary, but defense-in-depth costs us nothing here.
+ */
+function isStripePortalUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== "https:") return false
+  return parsed.hostname === "stripe.com" || parsed.hostname.endsWith(".stripe.com")
+}
+
 export function ManageSubscriptionButton({
   organizationId,
   returnPath = "/dashboard/settings/billing",
@@ -20,6 +37,10 @@ export function ManageSubscriptionButton({
       const result = await createBillingPortalSession({ organizationId, returnPath })
       if ("error" in result) {
         setError(result.error)
+        return
+      }
+      if (!isStripePortalUrl(result.url)) {
+        setError("Unexpected billing portal URL. Please try again.")
         return
       }
       window.location.href = result.url
