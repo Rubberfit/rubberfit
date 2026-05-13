@@ -17,7 +17,12 @@ Resolution sites:
 
 ### Services (27)
 
-Registered with `container.registerInstance` — each binds the token to a module-singleton instance from `src/infrastructure/services/`. Order in `tokens.ts` is alphabetical within each group.
+Two binding styles:
+
+- **Module singleton via `registerInstance`** — the default. Binds the token to a long-lived singleton instance exported from `src/infrastructure/services/`. Used by every service that hasn't been DDD-migrated yet.
+- **Class via `registerSingleton`** — used by the 5 DDD-migrated services (`Supplier`, `MaterialSupplier`, `MaterialType`, `PriceHistory`, `Roll`). The container lazily constructs the class on first resolve and threads the repository in through `@inject`. Class rows are marked with the constructor name (e.g. `RollService`) in the table; singleton rows use the lowercase instance name (e.g. `rollService`).
+
+Order in `tokens.ts` is alphabetical within each group.
 
 | Token                            | Concrete implementation                   |
 | -------------------------------- | ----------------------------------------- |
@@ -27,17 +32,18 @@ Registered with `container.registerInstance` — each binds the token to a modul
 | `IEmailService`                  | `emailService`                            |
 | `IExportPdfService`              | `exportPdfService`                        |
 | `IExportService`                 | `exportService`                           |
-| `IMaterialTypeService`           | `materialTypeService`                     |
+| `IMaterialSupplierService`       | `MaterialSupplierService` (class)         |
+| `IMaterialTypeService`           | `MaterialTypeService` (class)             |
 | `INotificationService`           | `notificationService`                     |
 | `IPackingService`                | **Runtime-branching factory** — see below |
-| `IPriceHistoryService`           | `priceHistoryService`                     |
+| `IPriceHistoryService`           | `PriceHistoryService` (class)             |
 | `IProfileService`                | `profileService`                          |
 | `IPurchaseOrderService`          | `purchaseOrderService`                    |
 | `IPurchaseOrderAnalyticsService` | `purchaseOrderAnalytics`                  |
 | `IReorderService`                | `reorderService`                          |
 | `IReorderCalculationsService`    | `reorderCalculations`                     |
-| `IRollService`                   | `rollService`                             |
-| `ISupplierService`               | `supplierService`                         |
+| `IRollService`                   | `RollService` (class)                     |
+| `ISupplierService`               | `SupplierService` (class)                 |
 | `ITaxService`                    | `taxService`                              |
 | `ITaxApiService`                 | `taxApiService`                           |
 | `IVisionExtractionService`       | `visionExtractionService`                 |
@@ -48,7 +54,19 @@ Registered with `container.registerInstance` — each binds the token to a modul
 | `ICutFavoritesService`           | `cutFavoritesService`                     |
 | `IRollInventoryService`          | `rollInventoryService`                    |
 
-### Use cases (9)
+### Repositories (5)
+
+Registered with `container.registerInstance` — each binds the token to the module-singleton repository exported from `src/infrastructure/repositories/`. Repositories are the entity-typed persistence boundary that DDD-migrated services inject through `@inject`.
+
+| Token                          | Concrete implementation       |
+| ------------------------------ | ----------------------------- |
+| `IMaterialSuppliersRepository` | `materialSuppliersRepository` |
+| `IMaterialTypesRepository`     | `materialTypeRepository`      |
+| `IPriceHistoryRepository`      | `priceHistoryRepository`      |
+| `IRollsRepository`             | `rollsRepository`             |
+| `ISuppliersRepository`         | `suppliersRepository`         |
+
+### Use cases (10)
 
 Registered with `container.registerSingleton` — the container lazily constructs each class on first resolve. This keeps use-case modules import-safe for unit tests: importing `create-purchase-order.use-case.ts` does not instantiate it and does not pull Supabase.
 
@@ -63,6 +81,7 @@ Registered with `container.registerSingleton` — the container lazily construct
 | `ICreateReorderPurchaseOrderUseCase`     | `CreateReorderPurchaseOrderUseCase`     |
 | `ICreateBulkReorderPurchaseOrderUseCase` | `CreateBulkReorderPurchaseOrderUseCase` |
 | `IRecordCutUseCase`                      | `RecordCutUseCase`                      |
+| `IUpdateMaterialPricingUseCase`          | `UpdateMaterialPricingUseCase`          |
 
 ## Special case: `IPackingService`
 
