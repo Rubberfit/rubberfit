@@ -18,6 +18,18 @@ const COMPANY_NAME = "Arc & Anchor"
 const FROM_EMAIL = process.env.SENDER_EMAIL ?? "notifications@arcandanchor.com"
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL ?? "support@arcandanchor.com"
 
+// Minimal HTML entity escape for inline strings rendered into transactional
+// emails. Replace with a full email-template renderer once the React Email
+// templates above are uncommented.
+function escapeHtml(input: string): string {
+  return input
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
 interface EmailOptions {
   to: string | string[]
   subject: string
@@ -269,6 +281,43 @@ export class EmailService implements IEmailService {
       subject: `Welcome to ${COMPANY_NAME} RubberFit`,
       html,
       tags: [{ name: "notification_type", value: "welcome" }],
+    })
+  }
+
+  /**
+   * Send an organization invitation email.
+   *
+   * The link points at `${NEXT_PUBLIC_APP_URL}/invite/${token}` which the
+   * public landing page resolves via the SECURITY DEFINER preview RPC.
+   */
+  async sendInvitationEmail(params: {
+    to: string
+    organizationName: string
+    role: "admin" | "member"
+    inviterName: string | null
+    inviteUrl: string
+    expiresAt: Date
+  }) {
+    const inviterFrom = params.inviterName ? `${params.inviterName} ` : ""
+    const expires = params.expiresAt.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+    const html = `
+      <p>You've been invited to join <strong>${escapeHtml(params.organizationName)}</strong> on Rubberfit${inviterFrom ? ` by ${escapeHtml(inviterFrom.trim())}` : ""}.</p>
+      <p>Your role on the team will be <strong>${escapeHtml(params.role)}</strong>.</p>
+      <p><a href="${params.inviteUrl}">Accept the invitation</a></p>
+      <p>This invitation expires on ${escapeHtml(expires)}.</p>
+    `
+    return this.sendEmail({
+      to: params.to,
+      subject: `You're invited to join ${params.organizationName} on Rubberfit`,
+      html,
+      tags: [
+        { name: "notification_type", value: "team_invitation" },
+        { name: "role", value: params.role },
+      ],
     })
   }
 

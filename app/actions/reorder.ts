@@ -22,6 +22,7 @@ import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabas
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -138,6 +139,7 @@ export async function createReorderPurchaseOrder(
 ): Promise<CreateReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = createReorderPurchaseOrderInputSchema.parse(input)
 
@@ -179,6 +181,7 @@ export async function createBulkReorderPurchaseOrder(
 ): Promise<CreateBulkReorderPurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = createBulkReorderPurchaseOrderInputSchema.parse(input)
 
@@ -209,6 +212,7 @@ export async function createBulkReorderPurchaseOrder(
 export async function generateReorderSuggestions(): Promise<ReorderSuggestionOutput[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
 
   const allRules = await reorderService.getActiveReorderRules()

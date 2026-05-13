@@ -19,6 +19,7 @@ import type { IReceivePurchaseOrderUseCase } from "@/src/application/use-cases/p
 import type { POReceiptResult } from "@/src/application/services/purchase-order.service.interface"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -169,6 +170,7 @@ export async function createPurchaseOrder(
 ): Promise<CreatePurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = createPurchaseOrderSchema.parse(input)
 
@@ -187,6 +189,7 @@ export async function updatePurchaseOrder(
 ): Promise<UpdatePurchaseOrderResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = updatePurchaseOrderSchema.parse(input)
 
@@ -205,6 +208,7 @@ export async function approvePurchaseOrder(
 ): Promise<PurchaseOrder> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = approvePurchaseOrderSchema.parse(input)
 
@@ -219,6 +223,7 @@ export async function rejectPurchaseOrder(
 ): Promise<PurchaseOrder> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = rejectPurchaseOrderSchema.parse(input)
 
@@ -233,6 +238,7 @@ export async function receivePurchaseOrder(
 ): Promise<POReceiptResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const parsed = receivePurchaseOrderSchema.parse(input)
 

@@ -32,7 +32,11 @@ const REPO_ROOT = path.resolve(__dirname, "../..")
 const API_DIR = path.join(REPO_ROOT, "app", "api")
 
 const ALLOWLIST = new Set<string>([
-  // empty — every route currently fits one of the two patterns
+  // Stripe webhook signs its raw-bytes body via stripe-signature
+  // header; stripe.webhooks.constructEvent is the equivalent guard.
+  // Re-validating with Zod after Stripe's signature pass would be
+  // redundant and would corrupt the raw-bytes path Stripe needs.
+  "app/api/stripe/webhook/route.ts",
 ])
 
 const WRITE_METHOD_RE = /export\s+(?:async\s+)?(?:function|const)\s+(POST|PATCH|PUT|DELETE)\b/g

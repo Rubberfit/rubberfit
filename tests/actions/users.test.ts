@@ -21,6 +21,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const requirePermissionMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-permission", () => ({
   requirePermission: requirePermissionMock,
@@ -59,6 +64,7 @@ const TARGET_ID = "00000000-0000-0000-0000-000000000002"
 describe("app/actions/users", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ADMIN)
+    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requirePermissionMock.mockReturnValue(undefined)
     updateUserSvcMock.mockResolvedValue({ id: TARGET_ID })
     deactivateUserSvcMock.mockResolvedValue({ id: TARGET_ID, is_deleted: true })
