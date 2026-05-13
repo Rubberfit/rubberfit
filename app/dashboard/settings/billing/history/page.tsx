@@ -45,13 +45,14 @@ function toTableRow(row: BillingHistoryActionRow): BillingHistoryRow {
     plan: row.planTier.toUpperCase() as BillingHistoryRow["plan"],
     // `billing_interval` is nullable in DB — rows from the early
     // pre-Stripe-rollout era can carry NULL. Map explicitly so the
-    // table doesn't silently mis-label them as MONTHLY.
+    // table doesn't silently mis-label them as MONTHLY; null flows
+    // through to the table where it renders as `—`.
     interval:
       row.billingInterval === "annual"
         ? "ANNUAL"
         : row.billingInterval === "monthly"
           ? "MONTHLY"
-          : "MONTHLY",
+          : null,
     seats: row.seatCount,
     periodStart: row.currentPeriodStart
       ? format(new Date(row.currentPeriodStart), "yyyy-MM-dd")

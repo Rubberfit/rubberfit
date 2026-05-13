@@ -7,7 +7,9 @@ export interface BillingHistoryRow {
   id: string
   date: string
   plan: "STANDARD" | "PRO" | "MAX" | "ENTERPRISE"
-  interval: "MONTHLY" | "ANNUAL"
+  // Pre-Stripe-rollout rows can have NULL `billing_interval`. Render
+  // those as `—` rather than silently labelling them MONTHLY.
+  interval: "MONTHLY" | "ANNUAL" | null
   seats: number | null
   periodStart: string | null
   periodEnd: string | null
@@ -24,17 +26,25 @@ interface BillingHistoryTableProps {
  * Formats a cents amount as `$N` for whole dollars or `$N.CC` for
  * non-zero remainders. Null returns the em-dash placeholder so empty
  * cells line up with the spec.
+ *
+ * Handles negative amounts (Stripe refunds) by extracting the sign
+ * first and operating on `Math.abs` — `Math.floor` on negatives
+ * rounds away from zero, and `%` on negatives keeps the sign, so a
+ * naive `Math.floor(cents / 100)` + `cents % 100` would produce
+ * `$-51.-50` for -5050 cents instead of `-$50.50`.
  */
 function formatAmount(cents: number | null): string {
   if (cents === null) return "—"
-  const dollars = Math.floor(cents / 100)
-  const remainder = cents % 100
+  const sign = cents < 0 ? "-" : ""
+  const abs = Math.abs(cents)
+  const dollars = Math.floor(abs / 100)
+  const remainder = abs % 100
   const formattedDollars = dollars.toLocaleString("en-US")
   if (remainder === 0) {
-    return `$${formattedDollars}`
+    return `${sign}$${formattedDollars}`
   }
   const centsStr = remainder.toString().padStart(2, "0")
-  return `$${formattedDollars}.${centsStr}`
+  return `${sign}$${formattedDollars}.${centsStr}`
 }
 
 function nullableText(value: string | number | null): React.ReactNode {
@@ -100,7 +110,7 @@ export function BillingHistoryTable({ rows }: BillingHistoryTableProps) {
               >
                 <td className={BODY_MONO}>{row.date}</td>
                 <td className={BODY_MONO_UPPER}>{row.plan}</td>
-                <td className={BODY_MONO_UPPER}>{row.interval}</td>
+                <td className={BODY_MONO_UPPER}>{row.interval ?? "—"}</td>
                 <td className={`${BODY_MONO} text-right`}>{nullableText(row.seats)}</td>
                 <td className={BODY_MONO_SOFT}>{nullableText(row.periodStart)}</td>
                 <td className={BODY_MONO_SOFT}>{nullableText(row.periodEnd)}</td>
