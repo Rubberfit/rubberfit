@@ -214,9 +214,15 @@ export class OrganizationService implements IOrganizationService {
       return memberRows.map((m) => ({ ...m, profile: null })) as OrganizationMemberWithProfile[]
     }
 
+    // `avatar_url` is in the TS model but no migration adds the
+    // column to the profiles table — selecting it throws 42703 on
+    // preview / older envs. Drop it from the SELECT and default
+    // the field to null. The column-vs-model drift is tracked
+    // separately; until then customer rows render with the initials
+    // fallback (the team UI already handles avatar_url === null).
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("id, email, full_name, avatar_url")
+      .select("id, email, full_name")
       .in("id", userIds)
     if (profilesError) throw profilesError
 
@@ -226,9 +232,8 @@ export class OrganizationService implements IOrganizationService {
           id: string
           email: string | null
           full_name: string | null
-          avatar_url: string | null
         }>
-      ).map((p) => [p.id, p])
+      ).map((p) => [p.id, { ...p, avatar_url: null as string | null }])
     )
 
     return memberRows.map((m) => ({

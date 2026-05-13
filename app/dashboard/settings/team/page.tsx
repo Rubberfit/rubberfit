@@ -44,9 +44,12 @@ export default async function TeamSettingsPage() {
   // diagnostic log line. Members + role still throw because without
   // them the page is fundamentally meaningless.
   const [members, pendingInvitesResult, seatUsageResult, subscription, role] = await Promise.all([
-    traceTeamPageStep("listMembers", () => organizationService.listMembers(organization.id), {
-      organizationId: organization.id,
-    }),
+    softTeamPageStep(
+      "listMembers",
+      () => organizationService.listMembers(organization.id),
+      [] as Awaited<ReturnType<IOrganizationService["listMembers"]>>,
+      { organizationId: organization.id }
+    ),
     softTeamPageStep(
       "listPendingInvitations",
       () => organizationService.listPendingInvitations(organization.id),
