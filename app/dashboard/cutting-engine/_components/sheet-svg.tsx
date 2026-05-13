@@ -37,6 +37,12 @@ const SHEET_BEVEL_SHADE = "var(--svg-bevel-shadow)"
 // convention.
 const DRAG_CLICK_THRESHOLD_PX = 5
 
+// Maximum interactive zoom factor. Sized for inspecting tiny parts
+// and reusable-offcut slivers — the prior 8× cap was too tight to
+// read labels on parts under a couple of inches.
+const MAX_ZOOM = 100
+const MIN_ZOOM = 1
+
 // Single-pass min/max bounding box for an SVG render item. Used by the
 // dev-only "Show AABB" overlay. Falls back to the placement's
 // `x/y/width/height` when no rotated polygon is present (plain rects
@@ -248,7 +254,7 @@ export default function SheetSvg({
       const zoomSpeed = 0.003
       setZoom((prevZoom) => {
         const raw = prevZoom * Math.pow(2, -e.deltaY * zoomSpeed)
-        const newZoom = Math.min(8, Math.max(1, raw))
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, raw))
         if (newZoom === prevZoom) return prevZoom
         const curPan = panRef.current
         const rect = svg.getBoundingClientRect()
@@ -527,7 +533,7 @@ export default function SheetSvg({
           type="button"
           onClick={() => {
             setZoom((z) => {
-              const nz = Math.max(1, +(z * 0.67).toFixed(2))
+              const nz = Math.max(MIN_ZOOM, +(z * 0.67).toFixed(2))
               setPan((p) => (nz === 1 ? { x: 0, y: 0 } : clampPan(p.x, p.y, nz)))
               return nz
             })
@@ -542,7 +548,7 @@ export default function SheetSvg({
         </span>
         <button
           type="button"
-          onClick={() => setZoom((z) => Math.min(8, +(z * 1.5).toFixed(2)))}
+          onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z * 1.5).toFixed(2)))}
           className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold text-foreground hover:bg-muted"
           aria-label="Zoom in"
         >
