@@ -1,13 +1,6 @@
-import "reflect-metadata"
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import { resolveUseCase } from "@/di/resolve"
-import { TOKENS } from "@/di/tokens"
-import type {
-  IRecordCutUseCase,
-  RecordCutInput,
-} from "@/src/application/use-cases/cuts/record-cut.use-case"
 import { listCutHistoryPaginated } from "@/src/infrastructure/services/cutHistoryService"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
@@ -96,64 +89,5 @@ export async function GET(request: NextRequest) {
     })
   } catch (_err) {
     return NextResponse.json({ error: "Failed to fetch cut history" }, { status: 500 })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const authClient = makeAuthClient(request)
-  if (!authClient) {
-    return NextResponse.json(
-      { error: "Supabase environment variables are missing" },
-      { status: 503 }
-    )
-  }
-
-  const {
-    data: { user },
-  } = await authClient.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const db = makeAdminClient()
-  if (!db) {
-    return NextResponse.json(
-      { error: "Server configuration error: SUPABASE_SERVICE_ROLE_KEY is not set" },
-      { status: 503 }
-    )
-  }
-
-  let body: RecordCutInput
-  try {
-    body = (await request.json()) as RecordCutInput
-  } catch (_error) {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
-  }
-
-  try {
-    // Make sure DI registrations are loaded before resolving the use-case.
-    await import("@/di/di-registration")
-    const useCase = resolveUseCase<IRecordCutUseCase>(TOKENS.IRecordCutUseCase)
-    const result = await useCase.execute(db, body, user.id)
-
-    if (!result.ok) {
-      if (result.status === 400) {
-        return NextResponse.json({ error: result.error }, { status: 400 })
-      }
-      return NextResponse.json(
-        {
-          error: result.error,
-          detail: result.detail,
-          code: result.code,
-        },
-        { status: result.status }
-      )
-    }
-
-    return NextResponse.json({ data: result.cut }, { status: 201 })
-  } catch (err) {
-    console.error("POST /api/cuts/history:", err)
-    return NextResponse.json({ error: "Failed to record cut history" }, { status: 500 })
   }
 }

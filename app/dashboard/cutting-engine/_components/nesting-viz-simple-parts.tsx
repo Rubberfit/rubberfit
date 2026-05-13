@@ -157,9 +157,7 @@ export function SimpleModeHeader({
           )}
           {hasPackMeasurement && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 font-medium text-indigo-600 dark:text-indigo-300">
-              {isPackLive && (
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-              )}
+              {isPackLive && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
               <span className="tabular-nums">
                 Time to Pack: {((packDurationMs ?? 0) / 1000).toFixed(1)}s
               </span>
@@ -233,6 +231,107 @@ export function SimpleModePatternDefs({
       >
         <rect width="18" height="18" fill="#f0fdf4" />
         <line x1="0" y1="0" x2="0" y2="18" stroke="rgba(34,197,94,0.55)" strokeWidth="2" />
+      </pattern>
+      <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />
+      </marker>
+    </defs>
+  )
+}
+
+/**
+ * Phase 5 PR 3 (Treatment 1 — Precision Nesting / Industrial CAD) —
+ * shared defs for the cutting-engine SVG viewer. Distinct from
+ * `SimpleModePatternDefs`, which stays bound to `stock-sheet.tsx`'s
+ * inventory roll preview palette.
+ *
+ * The aesthetic treats the viewport as a top-down photograph of a
+ * rubber workpiece under a single shop light. Depth comes from
+ * shared gradients + a single radial vignette + CSS drop-shadow
+ * (GPU-composited) on parts; we deliberately avoid per-element SVG
+ * filters because they rasterize per element and choke at 100+ parts.
+ *
+ * - `sheetVignettePatternId`: radial dark vignette overlay on the
+ *   sheet rect, multiply-blended to simulate overhead lighting fall
+ *   off at the sheet's edges.
+ * - `toolGridPatternId`: faint 20px dot grid suggesting a tooling
+ *   surface (cutting mat / CMM table), rendered on top of the sheet
+ *   base.
+ * - `scrapHatchPatternId`: 4px-spaced diagonal rust hatch — engineering
+ *   "marked for waste" notation, not a screaming red void.
+ * - `pageGridPatternId`: 40px graph grid behind the sheet, evoking
+ *   the work-surface rather than a generic page background.
+ * - `markerId`: dimension-arrow head reused across the canvas.
+ */
+interface SimpleModeCanvasDefsProps {
+  sheetVignetteId: string
+  toolGridPatternId: string
+  scrapHatchPatternId: string
+  /**
+   * Phase 5 PR 5 — offcut pinstripe pattern. Runs at -45° (perpendicular
+   * to the scrap hatch at +45°) so operators with protanopia or
+   * deuteranopia can distinguish offcut from scrap by texture direction
+   * alone, even when the warm-tan / dusty-red hue distinction collapses.
+   */
+  offcutPinstripePatternId: string
+  pageGridPatternId: string
+  markerId: string
+}
+
+export function SimpleModeCanvasDefs({
+  sheetVignetteId,
+  toolGridPatternId,
+  scrapHatchPatternId,
+  offcutPinstripePatternId,
+  pageGridPatternId,
+  markerId,
+}: SimpleModeCanvasDefsProps) {
+  return (
+    <defs>
+      {/* Every fill / stroke / stop-color below pulls from `--svg-*`
+          CSS variables defined in `globals.css`. SVG presentation
+          attributes accept `var(...)` directly in modern browsers, so
+          a single set of defs adapts to `<html class="dark">` without
+          React branching or duplicated `<defs>`. See `:root` and
+          `.dark` blocks in `globals.css` for the per-mode hex values
+          (Phase 5 PR 3 — Treatment 1 dark-mode pass per Kimi K2.6). */}
+      <radialGradient id={sheetVignetteId} cx="50%" cy="50%" r="70%">
+        <stop offset="0%" stopColor="var(--svg-vignette-end)" stopOpacity="0" />
+        <stop offset="100%" stopColor="var(--svg-vignette-end)" />
+      </radialGradient>
+      <pattern id={toolGridPatternId} width="20" height="20" patternUnits="userSpaceOnUse">
+        <circle cx="10" cy="10" r="1" fill="var(--svg-dot-grid)" />
+      </pattern>
+      <pattern
+        id={scrapHatchPatternId}
+        width="6"
+        height="6"
+        patternUnits="userSpaceOnUse"
+        patternTransform="rotate(45)"
+      >
+        {/* Light: red-100 base + red-600 @ 55%. Dark: red-950 base +
+            red-600 @ 65%. Both modes read unambiguously as "waste"
+            against their respective sheet base. */}
+        <rect width="6" height="6" fill="var(--svg-scrap-base)" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="var(--svg-scrap-stripe)" strokeWidth="1.5" />
+      </pattern>
+      <pattern
+        id={offcutPinstripePatternId}
+        width="6"
+        height="6"
+        patternUnits="userSpaceOnUse"
+        patternTransform="rotate(-45)"
+      >
+        {/* Subtle warm-brown pinstripe over the offcut fill — color-blind
+            redundancy for the offcut-vs-scrap signal. Stripe color
+            picks up the new `--svg-offcut-pinstripe` token; orientation
+            is the inverse of the scrap hatch so direction alone is the
+            discriminator. */}
+        <rect width="6" height="6" fill="var(--svg-offcut-fill)" />
+        <line x1="0" y1="0" x2="0" y2="6" stroke="var(--svg-offcut-pinstripe)" strokeWidth="1.25" />
+      </pattern>
+      <pattern id={pageGridPatternId} width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--svg-grid)" strokeWidth="0.5" />
       </pattern>
       <marker id={markerId} markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
         <path d="M0,0 L8,4 L0,8 Z" fill="#57534e" />
@@ -477,13 +576,21 @@ export function SimpleModeOffcutLabels({
             y={centerY}
             transform={displayRotated ? `rotate(90 ${centerX} ${centerY})` : undefined}
             textAnchor="middle"
-            fill="#78350f"
+            // Slate-900 reads cleanly on the cream offcut fill
+            // (Treatment 1). Dark-mode flips to amber-50 since the
+            // cream fill darkens to amber-950 there.
+            className="fill-slate-900 dark:fill-amber-50"
             fontWeight="600"
           >
             <tspan x={centerX} dy={-dimsSize * 0.6} fontSize={titleSize}>
               Reusable offcut
             </tspan>
-            <tspan x={centerX} dy={titleSize + dimsSize * 0.3} fontSize={dimsSize} fill="#b45309">
+            <tspan
+              x={centerX}
+              dy={titleSize + dimsSize * 0.3}
+              fontSize={dimsSize}
+              className="fill-slate-700 dark:fill-amber-100"
+            >
               {dims}
             </tspan>
           </text>

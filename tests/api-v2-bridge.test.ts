@@ -21,10 +21,7 @@
 import { NextRequest } from "next/server"
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
-import {
-  forwardToRust,
-  __setAccessTokenResolverForTests,
-} from "@/app/api/v2/_lib/bridge"
+import { forwardToRust, __setAccessTokenResolverForTests } from "@/app/api/v2/_lib/bridge"
 
 // Next.js 16 has two NextRequest shapes visible to tsc — one from the
 // repo root `node_modules/next`, one from `app/node_modules/next` (an
@@ -105,7 +102,7 @@ describe("cookie→bearer bridge", () => {
   })
 
   it("returns 401 when no Supabase session is present", async () => {
-    __setAccessTokenResolverForTests(async () => null)
+    __setAccessTokenResolverForTests(async () => ({ token: null, refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn()
     global.fetch = fetchSpy as unknown as typeof fetch
 
@@ -116,7 +113,7 @@ describe("cookie→bearer bridge", () => {
   })
 
   it("forwards GET with bearer and query string, streams body back", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn(async () => {
       return new Response(JSON.stringify([{ id: 1 }]), {
         status: 200,
@@ -138,13 +135,9 @@ describe("cookie→bearer bridge", () => {
     expect(response.status).toBe(200)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const [url, init] = fetchSpy.mock.calls[0]
-    expect(url).toBe(
-      "https://rf-api.example.com/api/v2/cuts/history?limit=5"
-    )
+    expect(url).toBe("https://rf-api.example.com/api/v2/cuts/history?limit=5")
     expect(init?.method).toBe("GET")
-    expect((init?.headers as Record<string, string>).authorization).toBe(
-      "Bearer jwt-xyz"
-    )
+    expect((init?.headers as Record<string, string>).authorization).toBe("Bearer jwt-xyz")
 
     expect(response.headers.get("x-request-id")).toBe("abc-123")
     expect(response.headers.get("content-encoding")).toBeNull()
@@ -155,7 +148,7 @@ describe("cookie→bearer bridge", () => {
 
   it("strips trailing slash from RF_API_URL to avoid double slashes", async () => {
     process.env.RF_API_URL = "https://rf-api.example.com/"
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn(async () => new Response("[]", { status: 200 }))
     global.fetch = fetchSpy as unknown as typeof fetch
 
@@ -167,7 +160,7 @@ describe("cookie→bearer bridge", () => {
   })
 
   it("returns 502 when upstream fetch throws", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
     const fetchSpy: FetchMock = vi.fn(async () => {
       throw new Error("ECONNREFUSED")
@@ -183,7 +176,7 @@ describe("cookie→bearer bridge", () => {
   })
 
   it("passes upstream 4xx status + body through verbatim", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn(async () => {
       return new Response("not found", {
         status: 404,
@@ -206,7 +199,7 @@ describe("cookie→bearer bridge", () => {
   // button in the UI.
 
   it("forwards POST body + content-type to upstream", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn(
       async () =>
         new Response(JSON.stringify({ id: "mt-1", name: "Neoprene" }), {
@@ -231,13 +224,11 @@ describe("cookie→bearer bridge", () => {
     const bytes = new Uint8Array(init?.body as ArrayBuffer)
     const sent = new TextDecoder().decode(bytes)
     expect(JSON.parse(sent)).toEqual({ name: "Neoprene" })
-    expect((init?.headers as Record<string, string>)["content-type"]).toBe(
-      "application/json"
-    )
+    expect((init?.headers as Record<string, string>)["content-type"]).toBe("application/json")
   })
 
   it("forwards PUT body to upstream", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
     const fetchSpy: FetchMock = vi.fn(
       async () =>
         new Response(JSON.stringify({ id: "mt-1", name: "EPDM" }), {
@@ -260,16 +251,11 @@ describe("cookie→bearer bridge", () => {
   })
 
   it("forwards DELETE without a body", async () => {
-    __setAccessTokenResolverForTests(async () => "jwt-xyz")
-    const fetchSpy: FetchMock = vi.fn(
-      async () => new Response(null, { status: 204 })
-    )
+    __setAccessTokenResolverForTests(async () => ({ token: "jwt-xyz", refreshedCookies: [] }))
+    const fetchSpy: FetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     global.fetch = fetchSpy as unknown as typeof fetch
 
-    const response = await forwardWithMethod(
-      "/api/v2/inventory/material-types/mt-1",
-      "DELETE"
-    )
+    const response = await forwardWithMethod("/api/v2/inventory/material-types/mt-1", "DELETE")
 
     expect(response.status).toBe(204)
     const [, init] = fetchSpy.mock.calls[0]
@@ -282,5 +268,68 @@ describe("cookie→bearer bridge", () => {
       const bytes = new Uint8Array(init.body as ArrayBuffer)
       expect(bytes.length).toBe(0)
     }
+  })
+
+  it("forwards refreshed Supabase cookies onto the response (no silent token-refresh drop)", async () => {
+    // Regression for the silent-401 bug: if the SSR client minted
+    // refreshed access/refresh cookies during `getSession()`, the
+    // previous `setAll: () => {}` ate them and the browser kept the
+    // stale cookie. The next request would then 401 because the
+    // server-side rotated cookie didn't match what the client sent.
+    __setAccessTokenResolverForTests(async () => ({
+      token: "jwt-xyz",
+      refreshedCookies: [
+        {
+          name: "sb-access-token",
+          value: "rotated-access",
+          options: { path: "/", httpOnly: true, sameSite: "lax" },
+        },
+        {
+          name: "sb-refresh-token",
+          value: "rotated-refresh",
+          options: { path: "/", httpOnly: true, sameSite: "lax" },
+        },
+      ],
+    }))
+    const fetchSpy: FetchMock = vi.fn(
+      async () =>
+        new Response("[]", { status: 200, headers: { "content-type": "application/json" } })
+    )
+    global.fetch = fetchSpy as unknown as typeof fetch
+
+    const response = await forward("/api/v2/cuts/history")
+
+    expect(response.status).toBe(200)
+    const setCookieHeaders =
+      response.headers.getSetCookie?.() ??
+      [response.headers.get("set-cookie") ?? ""].filter(Boolean)
+    expect(setCookieHeaders.length).toBe(2)
+    expect(setCookieHeaders.some((c) => c.startsWith("sb-access-token=rotated-access"))).toBe(true)
+    expect(setCookieHeaders.some((c) => c.startsWith("sb-refresh-token=rotated-refresh"))).toBe(
+      true
+    )
+  })
+
+  it("does NOT leak refreshed cookies on 401 (no token)", async () => {
+    // Even if the resolver had cookies in flight (unusual, but
+    // possible if Supabase issued partial state mid-refresh and we
+    // still ended up with a null session), don't stamp them on a
+    // 401 — the user must re-login, and stamping rotated cookies
+    // for a session we just rejected would be inconsistent.
+    __setAccessTokenResolverForTests(async () => ({
+      token: null,
+      refreshedCookies: [{ name: "sb-access-token", value: "rotated", options: { path: "/" } }],
+    }))
+    const fetchSpy: FetchMock = vi.fn()
+    global.fetch = fetchSpy as unknown as typeof fetch
+
+    const response = await forward("/api/v2/cuts/history")
+
+    expect(response.status).toBe(401)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    const setCookieHeaders =
+      response.headers.getSetCookie?.() ??
+      [response.headers.get("set-cookie") ?? ""].filter(Boolean)
+    expect(setCookieHeaders.length).toBe(0)
   })
 })

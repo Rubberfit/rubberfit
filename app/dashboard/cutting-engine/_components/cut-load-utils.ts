@@ -16,7 +16,7 @@ import type {
   PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
 import { parseDimsFromLabel } from "./cut-planner-utils"
-import { isLayoutModelArray, type LayoutModel } from "./layout-model"
+import { coerceLayoutModelArray, type LayoutModel } from "./layout-model"
 import type { PartTemplate } from "./preset-template-data"
 import type { SupportedPartType } from "./preset-template-data"
 
@@ -82,7 +82,12 @@ export function extractPerTemplatePartTypes(
 export function extractFrozenLayouts(cut: Pick<CutHistory, "layout_json">): LayoutModel[] | null {
   const layout = cut.layout_json
   if (!layout || layout.kind !== "auto") return null
-  return isLayoutModelArray(layout.layouts) ? layout.layouts : null
+  // Use the tolerant coercer instead of the strict guard — the JSONB
+  // blob may have been written by an older `LayoutModel` shape and we
+  // never want a missing/extra optional field to wipe out an entire
+  // saved cut. The coercer back-fills defaults so the visualizer can
+  // still render the geometry that IS present.
+  return coerceLayoutModelArray(layout.layouts)
 }
 
 /**

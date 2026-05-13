@@ -6,13 +6,13 @@ import type {
   POReceiptItem,
   POReceiptResult,
 } from "@/src/application/services/purchase-order.service.interface"
+import type { ActionActor } from "@/src/application/types/action-actor"
 import { TOKENS } from "@/di/tokens"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 
 export interface ReceivePurchaseOrderInput {
   purchaseOrderId: string
   items: POReceiptItem[]
-  receivedBy?: string
+  actor: ActionActor
 }
 
 export interface IReceivePurchaseOrderUseCase {
@@ -27,20 +27,23 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
   ) {}
 
   async execute(input: ReceivePurchaseOrderInput): Promise<POReceiptResult> {
-    const [existing, userId] = await Promise.all([
-      this.poService.getPurchaseOrderById(input.purchaseOrderId),
-      getCurrentUserId(),
-    ])
+    const existing = await this.poService.getPurchaseOrderById(input.purchaseOrderId)
+    // Always attribute the receipt to the authenticated actor — never
+    // a client-supplied uuid. Quantity updates run before RLS would
+    // catch a forged user_id on the roll insert (Daniel review #177),
+    // so accepting a separate `receivedBy` here would let a caller
+    // attribute the receive to someone else and leave partial state.
     const result = await this.poService.receivePurchaseOrder(
       input.purchaseOrderId,
       input.items,
-      input.receivedBy ?? userId
+      input.actor.id
     )
 
     if (!result.partialReceipt) {
       try {
         await this.notificationService.sendPOStatusUpdate({
-          userIdentifier: userId,
+          actorId: input.actor.id,
+          userIdentifier: input.actor.id,
           poNumber: existing.po_number,
           supplier: existing.supplier?.name ?? "Unknown supplier",
           oldStatus: existing.status,

@@ -9,23 +9,17 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
-import { Button } from "@/app/components/ui/button"
-import { Checkbox } from "@/app/components/ui/checkbox"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/app/components/ui/form"
-import { Input } from "@/app/components/ui/input"
-import { Label } from "@/app/components/ui/label"
 import { useAuth } from "@/app/contexts/AuthContext"
 
+// Login form deliberately does NOT enforce the registration min(6)
+// constraint. A login attempt should fail with "Sign in failed"
+// based on the auth backend's response — not preemptively shame
+// the operator about password length when they may be typing an
+// account that pre-dates the policy. Min-length lives on the
+// register / reset-password schemas where it's setting state.
 const FormSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Enter a valid email address." }),
+  password: z.string().min(1, { message: "Enter your password." }),
   remember: z.boolean().optional(),
 })
 
@@ -43,7 +37,7 @@ interface LoginFormProps {
  *      is deferred until the code verifies.
  *   3. User enters the 6-digit TOTP code → `completeMfaChallenge`
  *      upgrades the session and routes to the dashboard.
- *   4. "Back to sign-in" resets the state without calling signOut;
+ *   4. "Return to sign-in" resets the state without calling signOut;
  *      the aal1 session will be replaced on the next signIn.
  */
 export function LoginForm({ redirectTo }: LoginFormProps) {
@@ -65,7 +59,6 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
     setIsLoading(true)
-
     try {
       const result = await signIn(data.email, data.password, redirectTo)
 
@@ -76,7 +69,17 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return
       }
 
-      if (result.mfaRequired && result.factorId) {
+      if (result.mfaRequired) {
+        if (!result.factorId) {
+          // Defense-in-depth: signIn shouldn't return mfaRequired without
+          // a factorId, but if it ever does, treat the missing factor as
+          // a hard failure rather than falling through to the success
+          // toast and silently letting the user past the challenge.
+          toast.error("Sign in failed", {
+            description: "Multi-factor verification could not be started. Please try again.",
+          })
+          return
+        }
         setMfaFactorId(result.factorId)
         setMfaCode("")
         setMfaError(null)
@@ -86,9 +89,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return
       }
 
-      toast.success("Sign in successful!", {
-        description: "Welcome back! Redirecting to dashboard...",
-      })
+      toast.success("Signed in — redirecting…")
     } catch (_error) {
       toast.error("Sign in failed", {
         description: "An unexpected error occurred. Please try again.",
@@ -99,10 +100,10 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   const handleMfaSubmit = async () => {
-    if (!mfaFactorId) return
+    if (mfaSubmitting || !mfaFactorId) return
     const trimmed = mfaCode.replace(/\s+/g, "")
     if (!/^\d{6}$/.test(trimmed)) {
-      setMfaError("Enter the 6-digit code from your authenticator app")
+      setMfaError("Enter the 6-digit code from your authenticator app.")
       return
     }
     setMfaSubmitting(true)
@@ -110,12 +111,12 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
     try {
       const result = await completeMfaChallenge(mfaFactorId, trimmed, redirectTo)
       if (!result.success) {
-        setMfaError(result.error ?? "Invalid code")
+        setMfaError(result.error ?? "Invalid code.")
         return
       }
       toast.success("Verified — redirecting…")
     } catch (_error) {
-      setMfaError("Verification failed — please try again")
+      setMfaError("Verification failed — please try again.")
     } finally {
       setMfaSubmitting(false)
     }
@@ -123,38 +124,51 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
   if (mfaFactorId) {
     return (
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="login-mfa-code">Authenticator code</Label>
-          <Input
+      <div>
+        <span className="auth-eyebrow">Multi-factor auth</span>
+        <h2 className="auth-heading">Verify identity.</h2>
+
+        <div className="auth-field">
+          <label htmlFor="login-mfa-code" className="auth-input-label">
+            Authenticator code
+          </label>
+          <input
             id="login-mfa-code"
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder="000000"
             value={mfaCode}
-            onChange={(e) => setMfaCode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleMfaSubmit()
-            }}
-            className="font-mono tracking-[0.4em]"
             maxLength={6}
+            pattern="[0-9]*"
+            disabled={mfaSubmitting}
+            onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, ""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                void handleMfaSubmit()
+              }
+            }}
+            className="auth-mfa-input"
             autoFocus
           />
-          <p className="text-muted-foreground text-xs">
-            Open your authenticator app and enter the current 6-digit code.
-          </p>
+          <p className="auth-helper">Enter the code from your authenticator app.</p>
         </div>
-        {mfaError && (
-          <p className="text-destructive text-xs">{mfaError}</p>
-        )}
-        <Button
-          className="w-full"
+
+        {mfaError ? (
+          <p className="auth-input-error" role="alert" aria-live="polite">
+            {mfaError}
+          </p>
+        ) : null}
+
+        <button
           type="button"
-          onClick={handleMfaSubmit}
+          onClick={() => void handleMfaSubmit()}
           disabled={mfaSubmitting}
+          className="auth-btn-primary auth-spaced"
         >
-          {mfaSubmitting ? "Verifying…" : "Verify & continue"}
-        </Button>
+          {mfaSubmitting ? "Verifying…" : "Verify"}
+        </button>
+
         <button
           type="button"
           onClick={() => {
@@ -162,89 +176,72 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             setMfaCode("")
             setMfaError(null)
           }}
-          className="text-muted-foreground text-sm hover:text-foreground"
+          disabled={mfaSubmitting}
+          className="auth-link auth-link-button auth-spaced"
         >
-          ← Back to sign-in
+          ← Return to sign-in
         </button>
       </div>
     )
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email Address</FormLabel>
-              <FormControl>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+    <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <div className="auth-field">
+        <label htmlFor="login-email" className="auth-input-label">
+          Email address
+        </label>
+        <input
+          id="login-email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          className="auth-input-minimal"
+          {...form.register("email")}
         />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        {form.formState.errors.email ? (
+          <p className="auth-input-error">{form.formState.errors.email.message}</p>
+        ) : null}
+      </div>
+
+      <div className="auth-field">
+        <label htmlFor="login-password" className="auth-input-label">
+          Password
+        </label>
+        <input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          className="auth-input-minimal"
+          {...form.register("password")}
         />
-        <FormField
-          control={form.control}
-          name="remember"
-          render={({ field }) => (
-            <FormItem className="flex flex-row items-center">
-              <FormControl>
-                <Checkbox
-                  id="login-remember"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="size-4"
-                />
-              </FormControl>
-              <FormLabel
-                htmlFor="login-remember"
-                className="ml-1 font-medium text-muted-foreground text-sm"
-              >
-                Remember me for 30 days
-              </FormLabel>
-            </FormItem>
-          )}
+        {form.formState.errors.password ? (
+          <p className="auth-input-error">{form.formState.errors.password.message}</p>
+        ) : null}
+      </div>
+
+      <div className="auth-checkbox-row">
+        <input
+          id="login-remember"
+          type="checkbox"
+          {...form.register("remember")}
+          className="size-4 cursor-pointer accent-primary"
         />
-        <Button className="w-full" type="submit" disabled={isLoading}>
-          {isLoading ? "Signing in..." : "Login"}
-        </Button>
-        <div className="text-center">
-          <Link
-            href="/auth/v2/forgot-password"
-            className="text-muted-foreground text-sm underline-offset-4 hover:text-primary hover:underline"
-          >
-            Forgot your password?
-          </Link>
-        </div>
-      </form>
-    </Form>
+        <label htmlFor="login-remember" className="auth-checkbox-label">
+          Keep session active for 30 days
+        </label>
+      </div>
+
+      <button type="submit" disabled={isLoading} className="auth-btn-primary mt-6">
+        {isLoading ? "Signing in…" : "Sign in"}
+      </button>
+
+      <div className="auth-spaced">
+        <Link href="/forgot-password" className="auth-link">
+          Forgot password?
+        </Link>
+      </div>
+    </form>
   )
 }

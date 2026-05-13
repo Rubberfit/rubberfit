@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { rollService } from "@/src/infrastructure/services/rollService"
+import { addRoll } from "@/app/actions/inventory"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import {
@@ -96,14 +96,20 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         return
       }
 
+      // The action computes most derived fields (status, remaining_length)
+      // server-side. `date_received` is computed here from the user's
+      // local calendar so users in negative-UTC offsets near local
+      // midnight don't get tomorrow's UTC date written to the row —
+      // matches the pre-action browser behavior. If we ever drop this
+      // line, the action falls back to UTC server-side.
       const now = new Date()
-      const dateReceived = [
+      const date_received = [
         now.getFullYear(),
         String(now.getMonth() + 1).padStart(2, "0"),
         String(now.getDate()).padStart(2, "0"),
       ].join("-")
 
-      const newRoll: Parameters<typeof rollService.addRoll>[0] = {
+      await addRoll({
         material_type: formData.material_type,
         width,
         length,
@@ -113,12 +119,8 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
         supplier: formData.supplier || undefined,
         cost_per_sqft: costPerSqft,
         notes: formData.notes || undefined,
-        remaining_length: length,
-        status: "active",
-        date_received: dateReceived,
-      }
-
-      await rollService.addRoll(newRoll)
+        date_received,
+      })
 
       toast.success("Roll added successfully!")
       onOpenChange(false)
@@ -128,7 +130,11 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
       router.push("/dashboard/inventory")
     } catch (error) {
       console.error("Error adding roll:", error)
-      toast.error("Failed to add roll")
+      // The action throws ForbiddenError ("forbidden") for non-manage-rolls
+      // callers and Zod validation errors for bad input — surface those
+      // messages instead of the generic "Failed to add roll" so users
+      // get actionable feedback (esp. permission failures).
+      toast.error(error instanceof Error ? error.message : "Failed to add roll")
     }
   }
 

@@ -1,71 +1,70 @@
 import { jsPDF } from "jspdf"
 
+import {
+  SIGNAL,
+  CHARCOAL,
+  type ChipIntent,
+  contentStartY,
+  CUSTOMER_PAGE,
+  drawCustomerChrome,
+  drawKpiCard,
+  drawRuledTable,
+  drawSectionDivider,
+  drawStatusChip,
+  ensureSpace,
+  INK,
+  KPI_GAP,
+  KPI_MIN_HEIGHT,
+  resetColors,
+  SLATE,
+  stampFooterOnEveryPage,
+  SURFACE,
+  type TableColumn,
+  TYPE,
+} from "@/app/lib/pdf"
 import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supabase"
-import { ARC_ANCHOR_LOGO_BASE64 } from "@/app/dashboard/cutting-engine/_components/arc-anchor-logo"
 
 /**
  * Customer-facing Job Sheet PDF — the project confirmation document a
- * manufacturer hands their customer once a cut job is scoped. Editorial-
- * commercial direction: generous whitespace, left-edge brand stripes on
- * each section, KPI card trio for totals, fine-ruled tables with brand-
- * tinted zebra rows.
+ * manufacturer hands their customer once a cut job is scoped.
  *
  * **Does NOT include cut layouts, nesting diagrams, or offcut visuals** —
  * that is the internal cut history's job (`cut-history-pdf.ts`). Layouts
  * never appear in customer-facing deliverables.
+ *
+ * Phase 7 PR 2 — adopts the shared `app/lib/pdf` chrome + primitives so
+ * this document reads as a sibling of the Purchase Order, Analytics
+ * Report, and Dashboard Export. Per-PDF design choices that survive the
+ * refactor: two-column Bill To / Project Details block under the
+ * chrome, KPI trio for totals, parts + allocations as ruled tables.
  */
 
 export interface BuildJobPdfOptions {
-  companyName?: string
+  /** Company name shown in the footer. Defaults to "Rubberfit". */
+  readonly companyName?: string
 }
 
-// ── Design Tokens ────────────────────────────────────────────────────────────
-// Shares the Arc & Anchor palette with cut-history-pdf.ts so both documents
-// feel like siblings. Units are PDF points (pt) — US Letter is 612 × 792pt.
+const PAGE_MARGIN = CUSTOMER_PAGE.margin
+const CONTENT_W = CUSTOMER_PAGE.contentWidth
+const COLUMN_GAP = 16
+const COLUMN_W = (CONTENT_W - COLUMN_GAP) / 2
 
-type RGB = readonly [number, number, number]
+// ── Logo + formatters ───────────────────────────────────────────────────────
 
-const PAGE_W = 612
-const PAGE_H = 792
-const MARGIN = 48
-const CONTENT_W = PAGE_W - MARGIN * 2
-
-const BRAND: RGB = [37, 99, 235]
-const BRAND_50: RGB = [239, 246, 255]
-const GRAY_900: RGB = [17, 24, 39]
-const GRAY_700: RGB = [55, 65, 81]
-const GRAY_500: RGB = [107, 114, 128]
-const GRAY_300: RGB = [209, 213, 219]
-const GRAY_200: RGB = [229, 231, 235]
-const GRAY_100: RGB = [243, 244, 246]
-const GRAY_50: RGB = [249, 250, 251]
-const WHITE: RGB = [255, 255, 255]
-
-// Status chip palette (background, text)
-const STATUS_COLORS: Record<JobStatus, { bg: RGB; fg: RGB }> = {
-  draft: { bg: [243, 244, 246], fg: [55, 65, 81] },
-  scheduled: { bg: [239, 246, 255], fg: [30, 64, 175] },
-  in_progress: { bg: [255, 247, 237], fg: [154, 52, 18] },
-  completed: { bg: [236, 253, 245], fg: [6, 95, 70] },
-  cancelled: { bg: [254, 242, 242], fg: [153, 27, 27] },
-}
-
-// ── Logo Loader ──────────────────────────────────────────────────────────────
-
-let cachedLogo: string | null = null
-
-function getLogo(): string {
-  if (!cachedLogo) cachedLogo = `data:image/jpeg;base64,${ARC_ANCHOR_LOGO_BASE64}`
-  return cachedLogo
-}
-
-// ── Formatters ───────────────────────────────────────────────────────────────
+// Immutable data URL — built once per module load, no mutable cache.
+// CR catch: prior `let cachedLogo` was mutable singleton state.
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  // YYYY-MM-DD strings parsed by `new Date(value)` are interpreted as
+  // UTC midnight, which shifts the calendar day backward in negative
+  // UTC offsets (US time zones). Appending `T00:00:00` forces local
+  // interpretation so a job created on the 15th never prints as the
+  // 14th in San Francisco. CR catch.
+  const isoLocal = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value
+  const date = new Date(isoLocal)
+  if (Number.isNaN(date.getTime())) return "—"
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -78,481 +77,405 @@ function formatStatus(status: JobStatus): string {
 }
 
 function formatSqft(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  }).format(value)
-}
-
-// ── Page Break Helper ────────────────────────────────────────────────────────
-
-function checkNewPage(doc: jsPDF, y: number, needed: number): number {
-  if (y + needed > PAGE_H - 60) {
-    doc.addPage()
-    return MARGIN
-  }
-  return y
-}
-
-// ── Section Stripe (left-edge brand bar + heading) ───────────────────────────
-
-function drawSectionHeader(doc: jsPDF, label: string, y: number): number {
-  doc.setFillColor(...BRAND)
-  doc.rect(MARGIN, y - 9, 3, 12, "F")
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_900)
-  doc.text(label, MARGIN + 10, y)
-  return y + 14
-}
-
-// ── Header Band ──────────────────────────────────────────────────────────────
-
-function drawHeader(doc: jsPDF, job: JobFullDetail, company: string): number {
-  const y0 = MARGIN
-
-  // Logo + company
-  doc.addImage(getLogo(), "JPEG", MARGIN, y0, 28, 28)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.setTextColor(...BRAND)
-  doc.text(company, MARGIN + 36, y0 + 12)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(...GRAY_500)
-  doc.text("Job Sheet", MARGIN + 36, y0 + 23)
-
-  // Right side: Job number chip
-  const chipLabel = job.job_number ?? "—"
-  const chipPadX = 10
-  const chipH = 22
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(12)
-  const chipTextW = doc.getTextWidth(chipLabel)
-  const chipW = chipTextW + chipPadX * 2
-  const chipX = PAGE_W - MARGIN - chipW
-  doc.setFillColor(...GRAY_900)
-  doc.roundedRect(chipX, y0, chipW, chipH, 4, 4, "F")
-  doc.setTextColor(...WHITE)
-  doc.text(chipLabel, chipX + chipPadX, y0 + 15)
-
-  // Small caption above the chip
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(7)
-  doc.setTextColor(...GRAY_500)
-  doc.text("JOB NUMBER", PAGE_W - MARGIN, y0 + 32, { align: "right" })
-
-  // Hairline under header
-  const ruleY = y0 + 44
-  doc.setDrawColor(...GRAY_200)
-  doc.setLineWidth(0.5)
-  doc.line(MARGIN, ruleY, PAGE_W - MARGIN, ruleY)
-
-  // Job title + description
-  let y = ruleY + 24
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(22)
-  doc.setTextColor(...GRAY_900)
-  const titleLines = doc.splitTextToSize(job.name, CONTENT_W)
-  doc.text(titleLines[0], MARGIN, y)
-  y += 22
-
-  if (job.description) {
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(10)
-    doc.setTextColor(...GRAY_500)
-    const descLines = doc.splitTextToSize(job.description, CONTENT_W)
-    const clipped = descLines.slice(0, 3)
-    doc.text(clipped, MARGIN, y)
-    y += clipped.length * 13
-  }
-
-  return y + 16
-}
-
-// ── Two-Column Info Block (Customer | Project Meta) ──────────────────────────
-
-function drawInfoColumns(doc: jsPDF, job: JobFullDetail, y: number): number {
-  const colGap = 16
-  const colW = (CONTENT_W - colGap) / 2
-  const leftX = MARGIN
-  const rightX = MARGIN + colW + colGap
-
-  // Subtle panels behind each column
-  const panelH = 108
-  doc.setFillColor(...GRAY_50)
-  doc.roundedRect(leftX, y, colW, panelH, 6, 6, "F")
-  doc.roundedRect(rightX, y, colW, panelH, 6, 6, "F")
-
-  // Left: Customer
-  drawColumnHeader(doc, "BILL TO", leftX + 16, y + 20)
-  let lyL = y + 38
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.setTextColor(...GRAY_900)
-  doc.text(job.customer_name ?? "—", leftX + 16, lyL)
-  lyL += 14
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.setTextColor(...GRAY_700)
-  if (job.customer_email) {
-    doc.text(job.customer_email, leftX + 16, lyL)
-    lyL += 12
-  }
-  if (job.customer_phone) {
-    doc.text(job.customer_phone, leftX + 16, lyL)
-    lyL += 12
-  }
-  if (job.customer_po_number) {
-    doc.setTextColor(...GRAY_500)
-    doc.text("PO", leftX + 16, lyL)
-    doc.setTextColor(...GRAY_900)
-    doc.setFont("helvetica", "bold")
-    doc.text(job.customer_po_number, leftX + 36, lyL)
-  }
-
-  // Right: Project meta
-  drawColumnHeader(doc, "PROJECT DETAILS", rightX + 16, y + 20)
-
-  // Status chip on its own row
-  const statusColor = STATUS_COLORS[job.status]
-  const statusLabel = formatStatus(job.status)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(8)
-  const statusTextW = doc.getTextWidth(statusLabel)
-  const statusW = statusTextW + 16
-  const statusY = y + 32
-  doc.setFillColor(...statusColor.bg)
-  doc.roundedRect(rightX + 16, statusY, statusW, 14, 7, 7, "F")
-  doc.setTextColor(...statusColor.fg)
-  doc.text(statusLabel, rightX + 16 + statusW / 2, statusY + 9, { align: "center" })
-
-  // Meta rows
-  const metaRows: Array<[string, string]> = [
-    ["Due date", formatDate(job.due_date)],
-    ["Created", formatDate(job.created_at)],
-    ["Completed", formatDate(job.completed_at)],
-  ]
-  let lyR = statusY + 26
-  doc.setFontSize(9)
-  for (const [label, value] of metaRows) {
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(...GRAY_500)
-    doc.text(label, rightX + 16, lyR)
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...GRAY_900)
-    doc.text(value, rightX + colW - 16, lyR, { align: "right" })
-    lyR += 13
-  }
-
-  return y + panelH + 20
-}
-
-function drawColumnHeader(doc: jsPDF, label: string, x: number, y: number): void {
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(7)
-  doc.setTextColor(...BRAND)
-  doc.text(label, x, y)
-}
-
-// ── Roster ───────────────────────────────────────────────────────────────────
-
-function drawRoster(doc: jsPDF, job: JobFullDetail, y: number): number {
-  y = checkNewPage(doc, y, 50)
-  y = drawSectionHeader(doc, "Roster", y)
-
-  const lead = job.assignees.find((a) => a.role === "lead")
-  const workers = job.assignees.filter((a) => a.role === "worker")
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.setTextColor(...GRAY_500)
-  doc.text("Lead", MARGIN, y)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_900)
-  doc.text(lead?.name ?? "—", MARGIN + 80, y)
-  y += 16
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  doc.setTextColor(...GRAY_500)
-  doc.text("Workers", MARGIN, y)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_900)
-  const names = workers.length > 0 ? workers.map((w) => w.name).join(", ") : "—"
-  const nameLines = doc.splitTextToSize(names, CONTENT_W - 80)
-  doc.text(nameLines, MARGIN + 80, y)
-  y += nameLines.length * 13
-
-  return y + 18
-}
-
-// ── Parts Table ──────────────────────────────────────────────────────────────
-
-interface PartsTotals {
-  totalSqft: number
-  totalValue: number
-  partsCount: number
-}
-
-function drawPartsTable(doc: jsPDF, job: JobFullDetail, y: number): { y: number; totals: PartsTotals } {
-  y = checkNewPage(doc, y, 80)
-  y = drawSectionHeader(doc, "Parts", y)
-
-  const cols = {
-    part: MARGIN + 4,
-    material: MARGIN + 90,
-    dims: MARGIN + 210,
-    qty: MARGIN + 360,
-    sqft: MARGIN + 420,
-    price: PAGE_W - MARGIN - 4,
-  }
-
-  // Header row
-  const headerH = 22
-  doc.setFillColor(...GRAY_900)
-  doc.rect(MARGIN, y, CONTENT_W, headerH, "F")
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(8)
-  doc.setTextColor(...WHITE)
-  const th = y + 14
-  doc.text("PART #", cols.part, th)
-  doc.text("MATERIAL", cols.material, th)
-  doc.text("DIMENSIONS", cols.dims, th)
-  doc.text("QTY", cols.qty, th, { align: "right" })
-  doc.text("SQ FT", cols.sqft, th, { align: "right" })
-  doc.text("UNIT PRICE", cols.price, th, { align: "right" })
-  y += headerH
-
-  // Rows
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-
-  const rowH = 22
-  const totals: PartsTotals = { totalSqft: 0, totalValue: 0, partsCount: 0 }
-
-  if (job.parts.length === 0) {
-    doc.setFillColor(...WHITE)
-    doc.rect(MARGIN, y, CONTENT_W, rowH, "F")
-    doc.setTextColor(...GRAY_500)
-    doc.setFont("helvetica", "italic")
-    doc.text("No parts recorded for this job.", MARGIN + CONTENT_W / 2, y + 14, { align: "center" })
-    y += rowH
-  } else {
-    for (let i = 0; i < job.parts.length; i++) {
-      y = checkNewPage(doc, y, rowH + 4)
-      const p = job.parts[i]
-      const sqft = (p.width * p.length * p.quantity) / 144
-      totals.totalSqft += sqft
-      totals.partsCount += p.quantity
-      if (p.unit_price !== null && p.unit_price !== undefined) {
-        totals.totalValue += p.unit_price * p.quantity
-      }
-
-      // Zebra stripe
-      if (i % 2 === 1) {
-        doc.setFillColor(...GRAY_50)
-        doc.rect(MARGIN, y, CONTENT_W, rowH, "F")
-      }
-
-      const ty = y + 14
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(...GRAY_900)
-      doc.text(p.part_number ?? "—", cols.part, ty)
-
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(...GRAY_700)
-      doc.text(truncate(doc, p.material_type ?? "—", 110), cols.material, ty)
-
-      const dims = `${p.width}" × ${p.length}"${p.thickness ? ` × ${p.thickness}"` : ""}`
-      doc.text(dims, cols.dims, ty)
-
-      doc.setTextColor(...GRAY_900)
-      doc.setFont("helvetica", "bold")
-      doc.text(String(p.quantity), cols.qty, ty, { align: "right" })
-      doc.text(formatSqft(sqft), cols.sqft, ty, { align: "right" })
-      doc.setFont("helvetica", "normal")
-      doc.text(formatCurrency(p.unit_price), cols.price, ty, { align: "right" })
-
-      y += rowH
-    }
-  }
-
-  // Hairline under last row
-  doc.setDrawColor(...GRAY_200)
-  doc.setLineWidth(0.5)
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y)
-  y += 16
-
-  return { y, totals }
+  return value >= 100
+    ? Math.round(value).toLocaleString("en-US")
+    : value.toFixed(1).replace(/\.0$/, "")
 }
 
 function truncate(doc: jsPDF, text: string, maxWidth: number): string {
   if (doc.getTextWidth(text) <= maxWidth) return text
   let t = text
-  while (t.length > 1 && doc.getTextWidth(`${t}…`) > maxWidth) {
-    t = t.slice(0, -1)
-  }
+  while (t.length > 1 && doc.getTextWidth(`${t}…`) > maxWidth) t = t.slice(0, -1)
   return `${t}…`
 }
 
-// ── Totals KPI Trio ──────────────────────────────────────────────────────────
-
-function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
-  y = checkNewPage(doc, y, 72)
-  const gap = 12
-  const cardW = (CONTENT_W - gap * 2) / 3
-  const cardH = 64
-
-  const cards: Array<{ label: string; value: string; accent: boolean }> = [
-    { label: "PIECES", value: String(totals.partsCount), accent: false },
-    { label: "TOTAL AREA", value: `${formatSqft(totals.totalSqft)} sq ft`, accent: false },
-    { label: "TOTAL VALUE", value: totals.totalValue > 0 ? formatCurrency(totals.totalValue) : "—", accent: true },
-  ]
-
-  for (let i = 0; i < cards.length; i++) {
-    const x = MARGIN + i * (cardW + gap)
-    const card = cards[i]
-
-    if (card.accent) {
-      doc.setFillColor(...BRAND)
-      doc.roundedRect(x, y, cardW, cardH, 6, 6, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(7)
-      doc.setTextColor(...BRAND_50)
-      doc.text(card.label, x + 16, y + 20)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(22)
-      doc.setTextColor(...WHITE)
-      doc.text(card.value, x + 16, y + 48)
-    } else {
-      doc.setFillColor(...WHITE)
-      doc.setDrawColor(...GRAY_200)
-      doc.setLineWidth(0.6)
-      doc.roundedRect(x, y, cardW, cardH, 6, 6, "FD")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(7)
-      doc.setTextColor(...GRAY_500)
-      doc.text(card.label, x + 16, y + 20)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(22)
-      doc.setTextColor(...GRAY_900)
-      doc.text(card.value, x + 16, y + 48)
-    }
-  }
-
-  return y + cardH + 24
+/**
+ * Status chip palette — maps the domain's `JobStatus` union onto the
+ * shared `ChipIntent` palette in `app/lib/pdf/tokens.ts`. Centralizing
+ * the mapping (vs. duplicating in every consumer) keeps the visual
+ * vocabulary consistent across the eight PDFs.
+ */
+const STATUS_INTENT: Readonly<Record<JobStatus, ChipIntent>> = {
+  draft: "info",
+  scheduled: "info",
+  in_progress: "warning",
+  completed: "success",
+  cancelled: "error",
 }
 
-// ── Allocations Table ────────────────────────────────────────────────────────
+// ── Page-break helper bound to this document ────────────────────────────────
 
-function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number {
-  if (job.allocations.length === 0) return y
-  y = checkNewPage(doc, y, 80)
-  y = drawSectionHeader(doc, "Allocated Rolls", y)
+function ensure(doc: jsPDF, y: number, needed: number): number {
+  return ensureSpace(doc, {
+    cursor: y,
+    neededHeight: needed,
+    canvas: "customer",
+    redrawChrome: (page) => {
+      drawCustomerChrome(page, {
+        title: "JOB SHEET",
+      })
+      return contentStartY("customer")
+    },
+  })
+}
 
-  const cols = {
-    part: MARGIN + 4,
-    material: MARGIN + 110,
-    allocated: MARGIN + 250,
-    location: PAGE_W - MARGIN - 4,
+// ── Page intro block (job title + description, just under the chrome) ───────
+
+function drawJobIntro(doc: jsPDF, job: JobFullDetail, y: number): number {
+  // Job number and "JOB SHEET" title both live in the chrome — here we
+  // surface the human-readable job name + description so the customer
+  // gets the project context immediately.
+  doc.setFont(TYPE.h1.family, TYPE.h1.weight)
+  doc.setFontSize(TYPE.h1.size)
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  // Render every wrapped title line, not just the first. CR catch —
+  // the previous one-line render truncated long job names AND the
+  // description block started too high because the cursor advanced
+  // as if the title were single-line.
+  const titleLines = doc.splitTextToSize(job.name, CONTENT_W)
+  let cursor = y
+  for (const line of titleLines) {
+    cursor += TYPE.h1.lineHeight
+    doc.text(line, PAGE_MARGIN, cursor)
   }
+  cursor += 4
 
-  // Header row
-  const headerH = 22
-  doc.setFillColor(...GRAY_100)
-  doc.rect(MARGIN, y, CONTENT_W, headerH, "F")
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(8)
-  doc.setTextColor(...GRAY_700)
-  const th = y + 14
-  doc.text("PART #", cols.part, th)
-  doc.text("MATERIAL", cols.material, th)
-  doc.text("ALLOCATED", cols.allocated, th)
-  doc.text("LOCATION", cols.location, th, { align: "right" })
-  y += headerH
-
-  const rowH = 20
-  for (let i = 0; i < job.allocations.length; i++) {
-    y = checkNewPage(doc, y, rowH + 4)
-    const a = job.allocations[i]
-    const roll = a.roll
-    const sqft = roll ? (a.allocated_length * roll.width) / 144 : 0
-
-    if (i % 2 === 1) {
-      doc.setFillColor(...GRAY_50)
-      doc.rect(MARGIN, y, CONTENT_W, rowH, "F")
+  if (job.description) {
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
+    doc.setFontSize(TYPE.body.size)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    const descLines = doc.splitTextToSize(job.description, CONTENT_W)
+    const clipped = descLines.slice(0, 3)
+    for (const line of clipped) {
+      cursor += TYPE.body.lineHeight
+      doc.text(line, PAGE_MARGIN, cursor)
     }
-
-    const ty = y + 13
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(9)
-    doc.setTextColor(...GRAY_900)
-    doc.text(roll?.part_number ?? "—", cols.part, ty)
-
-    doc.setFont("helvetica", "normal")
-    doc.setTextColor(...GRAY_700)
-    doc.text(truncate(doc, roll?.material_type ?? "—", 130), cols.material, ty)
-
-    doc.setTextColor(...GRAY_900)
-    doc.text(`${a.allocated_length}″  `, cols.allocated, ty)
-    doc.setTextColor(...GRAY_500)
-    doc.text(`(${formatSqft(sqft)} sq ft)`, cols.allocated + 40, ty)
-
-    doc.setTextColor(...GRAY_700)
-    doc.text(truncate(doc, roll?.location ?? "—", 120), cols.location, ty, { align: "right" })
-
-    y += rowH
   }
 
-  doc.setDrawColor(...GRAY_200)
-  doc.setLineWidth(0.5)
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y)
+  return cursor + 16
+}
+
+// ── Bill To + Project Details two-column block ──────────────────────────────
+
+function drawCustomerColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number): number {
+  const innerX = x + 16
+  const headerY = y + 16
+
+  // Eyebrow (caption + brand-blue, ALL CAPS)
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
+  doc.text("BILL TO", innerX, headerY)
+
+  // Customer name (h2)
+  let cursor = headerY + 18
+  doc.setFont(TYPE.h2.family, TYPE.h2.weight)
+  doc.setFontSize(TYPE.h2.size)
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.text(job.customer_name ?? "—", innerX, cursor)
+  cursor += 16
+
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  doc.setTextColor(CHARCOAL[0], CHARCOAL[1], CHARCOAL[2])
+  if (job.customer_email) {
+    doc.text(job.customer_email, innerX, cursor)
+    cursor += TYPE.body.lineHeight
+  }
+  if (job.customer_phone) {
+    doc.text(job.customer_phone, innerX, cursor)
+    cursor += TYPE.body.lineHeight
+  }
+  if (job.customer_po_number) {
+    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+    doc.setFontSize(TYPE.caption.size)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    doc.text("PO REF", innerX, cursor + 4)
+    doc.setFont(TYPE.body.family, "bold")
+    doc.setFontSize(TYPE.body.size)
+    doc.setTextColor(INK[0], INK[1], INK[2])
+    doc.text(job.customer_po_number, innerX + 60, cursor + 4)
+    cursor += TYPE.body.lineHeight + 4
+  }
+
+  return cursor
+}
+
+function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number): number {
+  const innerX = x + 16
+  const headerY = y + 16
+
+  doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+  doc.setFontSize(TYPE.caption.size)
+  doc.setTextColor(SIGNAL[0], SIGNAL[1], SIGNAL[2])
+  doc.text("PROJECT DETAILS", innerX, headerY)
+
+  // Status chip — maps JobStatus → ChipIntent and uses the shared primitive.
+  const statusY = headerY + 12
+  drawStatusChip(doc, {
+    x: innerX,
+    y: statusY,
+    label: formatStatus(job.status),
+    intent: STATUS_INTENT[job.status],
+  })
+
+  // Date rows — label left, value right.
+  const rows: ReadonlyArray<readonly [string, string]> = [
+    ["Due date", formatDate(job.due_date)],
+    ["Created", formatDate(job.created_at)],
+    ["Completed", formatDate(job.completed_at)],
+  ]
+  let cursor = statusY + 32
+  doc.setFontSize(TYPE.body.size)
+  for (const [label, value] of rows) {
+    doc.setFont(TYPE.body.family, TYPE.body.weight)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    doc.text(label, innerX, cursor)
+    doc.setFont(TYPE.body.family, "bold")
+    doc.setTextColor(INK[0], INK[1], INK[2])
+    doc.text(value, x + COLUMN_W - 16, cursor, { align: "right" })
+    cursor += TYPE.body.lineHeight
+  }
+
+  return cursor
+}
+
+function drawInfoColumns(doc: jsPDF, job: JobFullDetail, y: number): number {
+  const panelH = 132
+  y = ensure(doc, y, panelH + 24)
+
+  // Surface-fill panels (rectangles per Kimi spec — no rounded corners).
+  doc.setFillColor(SURFACE[0], SURFACE[1], SURFACE[2])
+  doc.rect(PAGE_MARGIN, y, COLUMN_W, panelH, "F")
+  doc.rect(PAGE_MARGIN + COLUMN_W + COLUMN_GAP, y, COLUMN_W, panelH, "F")
+
+  drawCustomerColumn(doc, job, PAGE_MARGIN, y)
+  drawProjectColumn(doc, job, PAGE_MARGIN + COLUMN_W + COLUMN_GAP, y)
+
+  return y + panelH + 24
+}
+
+// ── Roster ──────────────────────────────────────────────────────────────────
+
+function drawRoster(doc: jsPDF, job: JobFullDetail, y: number): number {
+  // Pre-compute the worker name wrap so the page-break check below
+  // knows the real height. CR catch — the prior `ensure(doc, y, 80)`
+  // was a static estimate that would overflow when a large roster
+  // wrapped to many lines.
+  const lead = job.assignees.find((a) => a.role === "lead")
+  const workers = job.assignees.filter((a) => a.role === "worker")
+  const names = workers.length > 0 ? workers.map((w) => w.name).join(", ") : "—"
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  const nameLines = doc.splitTextToSize(names, CONTENT_W - 80)
+  // Divider + 12pt gap + lead line + worker lines + 16pt trailing gap.
+  const neededHeight =
+    TYPE.h2.lineHeight + 12 + TYPE.body.lineHeight + nameLines.length * TYPE.body.lineHeight + 16
+
+  y = ensure(doc, y, neededHeight)
+  y = drawSectionDivider(doc, {
+    x: PAGE_MARGIN,
+    y,
+    width: CONTENT_W,
+    title: "Roster",
+  })
+  y += 12
+
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setFontSize(TYPE.body.size)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  doc.text("Lead", PAGE_MARGIN, y)
+  doc.setFont(TYPE.body.family, "bold")
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.text(lead?.name ?? "—", PAGE_MARGIN + 80, y)
+  y += TYPE.body.lineHeight
+
+  doc.setFont(TYPE.body.family, TYPE.body.weight)
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+  doc.text("Workers", PAGE_MARGIN, y)
+  doc.setFont(TYPE.body.family, "bold")
+  doc.setTextColor(INK[0], INK[1], INK[2])
+  doc.text(nameLines, PAGE_MARGIN + 80, y)
+  y += nameLines.length * TYPE.body.lineHeight
 
   return y + 16
 }
 
-// ── Footer (every page) ──────────────────────────────────────────────────────
+// ── Parts table + totals ────────────────────────────────────────────────────
 
-function drawFooter(doc: jsPDF, company: string, jobNumber: string): void {
-  // jsPDF v2 exposes an internal pages array; length includes a leading blank.
-  const totalPages = doc.getNumberOfPages()
-  const ts = new Date().toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    const fy = PAGE_H - 32
-    doc.setDrawColor(...GRAY_200)
-    doc.setLineWidth(0.4)
-    doc.line(MARGIN, fy, PAGE_W - MARGIN, fy)
-
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(8)
-    doc.setTextColor(...GRAY_500)
-    doc.text(`Generated ${ts}`, MARGIN, fy + 14)
-
-    if (totalPages > 1) {
-      doc.text(`Page ${i} of ${totalPages}`, PAGE_W / 2, fy + 14, { align: "center" })
-    }
-
-    doc.setFont("helvetica", "bold")
-    doc.setTextColor(...GRAY_700)
-    doc.text(`${company} · ${jobNumber}`, PAGE_W - MARGIN, fy + 14, { align: "right" })
-  }
+interface PartsTotals {
+  totalSqft: number
+  totalValue: number
+  partsCount: number
+  /**
+   * True iff at least one part carries an explicit `unit_price`. Lets
+   * the totals KPI distinguish "no pricing entered" (render "—") from
+   * a legitimate $0 total on a free/sample job. CR catch — prior
+   * `totalValue > 0` check collapsed valid zeros into the dash.
+   */
+  hasPricing: boolean
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+function drawPartsTable(
+  doc: jsPDF,
+  job: JobFullDetail,
+  y: number
+): { y: number; totals: PartsTotals } {
+  y = ensure(doc, y, 100)
+  y = drawSectionDivider(doc, {
+    x: PAGE_MARGIN,
+    y,
+    width: CONTENT_W,
+    title: "Parts",
+  })
+  y += 12
+
+  const totals: PartsTotals = {
+    totalSqft: 0,
+    totalValue: 0,
+    partsCount: 0,
+    hasPricing: false,
+  }
+
+  if (job.parts.length === 0) {
+    doc.setFont(TYPE.body.family, "italic")
+    doc.setFontSize(TYPE.body.size)
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
+    doc.text("No parts recorded for this job.", PAGE_MARGIN, y + TYPE.body.size)
+    return { y: y + TYPE.body.lineHeight + 16, totals }
+  }
+
+  // Pre-compute totals so the table call has the right values.
+  for (const p of job.parts) {
+    const sqft = (p.width * p.length * p.quantity) / 144
+    totals.totalSqft += sqft
+    totals.partsCount += p.quantity
+    if (p.unit_price !== null && p.unit_price !== undefined) {
+      totals.hasPricing = true
+      totals.totalValue += p.unit_price * p.quantity
+    }
+  }
+
+  // Column widths sum to CONTENT_W = 516pt. Typed annotation drops
+  // the per-row `as const` casts (CR catch — no-cast rule applies to
+  // table column literals too; the union narrows via the annotation).
+  const columns: ReadonlyArray<TableColumn> = [
+    { header: "Part #", width: 90 },
+    { header: "Material", width: 140 },
+    { header: "Dimensions", width: 116 },
+    { header: "Qty", width: 50, align: "right", mono: true },
+    { header: "Sq ft", width: 60, align: "right", mono: true },
+    { header: "Unit price", width: 60, align: "right", mono: true },
+  ]
+
+  const rows = job.parts.map((p) => {
+    const sqft = (p.width * p.length * p.quantity) / 144
+    const dims = `${p.width}" × ${p.length}"${p.thickness ? ` × ${p.thickness}"` : ""}`
+    return {
+      cells: [
+        p.part_number ?? "—",
+        truncate(doc, p.material_type ?? "—", 130),
+        dims,
+        String(p.quantity),
+        formatSqft(sqft),
+        formatCurrency(p.unit_price),
+      ],
+    }
+  })
+
+  const finalY = drawRuledTable(doc, {
+    x: PAGE_MARGIN,
+    y,
+    columns,
+    rows,
+    pageBreak: {
+      canvas: "customer",
+      redrawChrome: (page) => {
+        drawCustomerChrome(page, { title: "JOB SHEET" })
+        return contentStartY("customer")
+      },
+    },
+  })
+
+  return { y: finalY + 24, totals }
+}
+
+function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
+  y = ensure(doc, y, KPI_MIN_HEIGHT + 24)
+  const cardW = (CONTENT_W - KPI_GAP * 2) / 3
+  const cards: ReadonlyArray<{ label: string; value: string; unit?: string }> = [
+    { label: "Pieces", value: String(totals.partsCount) },
+    { label: "Total area", value: formatSqft(totals.totalSqft), unit: "SQ FT" },
+    {
+      label: "Total value",
+      // hasPricing distinguishes "no prices on file" (render "—") from
+      // a legitimate $0 on free/sample jobs.
+      value: totals.hasPricing ? formatCurrency(totals.totalValue) : "—",
+    },
+  ]
+
+  for (let i = 0; i < cards.length; i += 1) {
+    const x = PAGE_MARGIN + i * (cardW + KPI_GAP)
+    const card = cards[i]
+    if (!card) continue
+    drawKpiCard(doc, { x, y, width: cardW, label: card.label, value: card.value, unit: card.unit })
+  }
+
+  return y + KPI_MIN_HEIGHT + 24
+}
+
+// ── Allocations table ───────────────────────────────────────────────────────
+
+function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number {
+  if (job.allocations.length === 0) return y
+  y = ensure(doc, y, 100)
+  y = drawSectionDivider(doc, {
+    x: PAGE_MARGIN,
+    y,
+    width: CONTENT_W,
+    title: "Allocated rolls",
+  })
+  y += 12
+
+  const columns: ReadonlyArray<TableColumn> = [
+    { header: "Part #", width: 110 },
+    { header: "Material", width: 160 },
+    { header: "Allocated", width: 130, align: "right", mono: true },
+    { header: "Location", width: 116, align: "right" },
+  ]
+
+  const rows = job.allocations.map((a) => {
+    const roll = a.roll
+    const sqft = roll ? (a.allocated_length * roll.width) / 144 : 0
+    return {
+      cells: [
+        roll?.part_number ?? "—",
+        truncate(doc, roll?.material_type ?? "—", 150),
+        `${a.allocated_length}″  (${formatSqft(sqft)} sq ft)`,
+        truncate(doc, roll?.location ?? "—", 110),
+      ],
+    }
+  })
+
+  return drawRuledTable(doc, {
+    x: PAGE_MARGIN,
+    y,
+    columns,
+    rows,
+    pageBreak: {
+      canvas: "customer",
+      redrawChrome: (page) => {
+        drawCustomerChrome(page, { title: "JOB SHEET" })
+        return contentStartY("customer")
+      },
+    },
+  })
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────
 
 export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): jsPDF {
-  const doc = new jsPDF({ unit: "pt", format: "letter" })
+  const doc = new jsPDF({ unit: "pt", format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })
   const company = opts.companyName ?? "Rubberfit"
 
   doc.setProperties({
@@ -562,14 +485,32 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
     creator: company,
   })
 
-  let y = drawHeader(doc, job, company)
+  drawCustomerChrome(doc, {
+    title: "JOB SHEET",
+    subtitle: job.job_number ?? undefined,
+  })
+  resetColors(doc)
+
+  let y = contentStartY("customer")
+  y = drawJobIntro(doc, job, y)
   y = drawInfoColumns(doc, job, y)
   y = drawRoster(doc, job, y)
   const { y: afterParts, totals } = drawPartsTable(doc, job, y)
   y = afterParts
   y = drawTotalsKpi(doc, totals, y)
   drawAllocationsTable(doc, job, y)
-  drawFooter(doc, company, job.job_number ?? "—")
+
+  // Stamp footer on EVERY page in a final pass so "n of N" lands
+  // correctly even if the content paginated mid-table.
+  const ts = new Date().toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+  const ref = job.job_number ?? "—"
+  stampFooterOnEveryPage(doc, "customer", () => `${ref} • ${ts}`, company)
 
   return doc
 }
@@ -581,10 +522,12 @@ export function downloadJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}
 
 /** Base file name used for both local downloads and bucket uploads. */
 export function jobPdfFileName(job: JobFullDetail): string {
-  const jobRef = job.job_number ?? job.id
-  const customer = job.customer_name
-    ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}`
-    : ""
+  // `||` (not `??`) so an empty-string job_number falls back to the
+  // id — schema says job_number is always present, but the
+  // pre-trigger legacy rows in prod have empty strings. Without this
+  // the filename degrades to a bare `.pdf` for those rows.
+  const jobRef = job.job_number || job.id
+  const customer = job.customer_name ? `_${job.customer_name.replace(/[^A-Za-z0-9]+/g, "-")}` : ""
   return `${jobRef}${customer}.pdf`
 }
 
@@ -592,9 +535,6 @@ export function jobPdfFileName(job: JobFullDetail): string {
  * Blob output of the job PDF — for uploading to storage and
  * sharing via signed URL rather than a forced download.
  */
-export function buildJobPdfBlob(
-  job: JobFullDetail,
-  opts: BuildJobPdfOptions = {}
-): Blob {
+export function buildJobPdfBlob(job: JobFullDetail, opts: BuildJobPdfOptions = {}): Blob {
   return buildJobPdf(job, opts).output("blob")
 }

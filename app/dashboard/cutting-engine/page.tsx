@@ -5,8 +5,9 @@ import { toast } from "sonner"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { InlineNotice, PageHeader, PageShell } from "@/app/components/patterns"
 import { DebugOverlayToggles, type DebugOverlays } from "./_components/debug-overlay-toggles"
-import { FileUp, Info, Ruler, Scissors, Shapes, X } from "lucide-react"
+import { FileUp, Ruler, Scissors, Shapes, X } from "lucide-react"
 import NestingVisualizer from "./_components/NestingVisualizer"
 import { usePackGate } from "./_hooks/use-pack-gate"
 import PresetDimensionSelector, {
@@ -34,6 +35,8 @@ import {
   type PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { authService } from "@/src/infrastructure/services/authService"
+import { saveCut } from "@/app/actions/cut-history"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import type { LayoutModel } from "./_components/layout-model"
 import { CutLoader } from "./_components/cut-loader"
@@ -589,7 +592,57 @@ function CutPlannerPageInner() {
           length_in: p.lengthIn,
         })) ?? []
 
+      // PDF first, INSERT second: cut_history is write-once (no
+      // UPDATE policy on the table — see migration 20260412055550),
+      // so pdf_url must arrive on the original INSERT. Generate the
+      // row id client-side, build + upload the PDF directly to
+      // storage, then call the saveCut server action which inserts
+      // the row with pdf_url already populated.
+      const cutId = crypto.randomUUID()
+
+      const user = await authService.getCurrentUser()
+      if (!user) {
+        toast.error("Not signed in — please sign in again")
+        return
+      }
+
+      // Build tag→label map for PDF legend (keyed by tag letter, value is dimension label)
+      const pdfTagMap = new Map<string, string>()
+      for (const [idxStr, tag] of tagMap.entries()) {
+        const t = selectedTemplates[Number(idxStr)]
+        if (t) pdfTagMap.set(tag, t.label)
+      }
+
+      // Boolean signal — the action constructs the authoritative URL
+      // server-side from actor.id + cutId, ignoring any URL the client
+      // could try to inject (sigilix follow-up on PR #197). The browser
+      // still kicks off the upload here for the same reason: PDF must
+      // exist at storage before cut_history.pdf_url is populated, and
+      // cut_history is write-once so there's no UPDATE path to fill it
+      // in later.
+      let pdfUploaded = false
+      try {
+        const url = await buildAndUploadCutPdf(
+          cutId,
+          user.id,
+          stock,
+          cutMetrics,
+          selectedTemplate,
+          selectedTemplates,
+          pdfTagMap,
+          layouts
+        )
+        pdfUploaded = url != null
+      } catch (err) {
+        // Best-effort — record the cut anyway with pdf_url=null. The
+        // server action's orphan-cleanup path handles the inverse
+        // (PDF uploaded then INSERT failed).
+        console.error("PDF generation failed:", err)
+      }
+
       const payload = {
+        cutId,
+        pdfUploaded,
         material_id: materialId,
         part_id: partId,
         roll_id: resolvedRollId,
@@ -635,69 +688,30 @@ function CutPlannerPageInner() {
         },
       }
 
-      const response = await fetch("/api/cuts/history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        // Read the body as text first so we see *something* even
-        // when the server returns the Next.js default HTML error
-        // page (e.g. when an unhandled throw bypasses our JSON
-        // response). Then try to parse as JSON for the structured
-        // `{ error, detail, code }` case.
-        const rawText = await response.text()
-        let detail: string | undefined
-        let code: string | undefined
-        try {
-          const payload = JSON.parse(rawText) as {
-            error?: string
-            detail?: string
-            code?: string
-          }
-          detail = payload.detail ?? payload.error
-          code = payload.code
-        } catch {
-          // Not JSON — surface the raw text (truncated) so we can
-          // at least see what the server actually sent.
-          detail = rawText.slice(0, 200) || `HTTP ${response.status}`
-        }
-        console.error("Failed to record cut:", {
-          status: response.status,
-          rawText: rawText.slice(0, 500),
-          detail,
-          code,
-        })
+      let result: Awaited<ReturnType<typeof saveCut>>
+      try {
+        result = await saveCut(payload)
+      } catch (err) {
+        console.error("saveCut threw:", err)
         toast.error("Failed to save cut to history", {
-          description: detail ? (code ? `${detail} (${code})` : detail) : `HTTP ${response.status}`,
+          description: err instanceof Error ? err.message : undefined,
         })
-      } else {
-        const { data: savedCut } = (await response.json()) as { data: CutHistory }
-        toast.success("Cut recorded!")
-        setCutListRefreshKey((k) => k + 1)
-
-        // Build tag→label map for PDF legend (keyed by tag letter, value is dimension label)
-        const pdfTagMap = new Map<string, string>()
-        for (const [idxStr, tag] of tagMap.entries()) {
-          const t = selectedTemplates[Number(idxStr)]
-          if (t) pdfTagMap.set(tag, t.label)
-        }
-        // Generate and upload PDF (awaited so pdf_url is available in history)
-        try {
-          await buildAndUploadCutPdf(
-            savedCut.id,
-            stock,
-            cutMetrics,
-            selectedTemplate,
-            selectedTemplates,
-            pdfTagMap,
-            layouts
-          )
-        } catch (err) {
-          console.error("PDF generation failed:", err)
-        }
+        return
       }
+
+      if (!result.ok) {
+        const description = result.detail
+          ? result.code
+            ? `${result.detail} (${result.code})`
+            : result.detail
+          : result.error
+        console.error("Failed to record cut:", result)
+        toast.error("Failed to save cut to history", { description })
+        return
+      }
+
+      toast.success("Cut recorded!")
+      setCutListRefreshKey((k) => k + 1)
     } catch (error) {
       console.error("Record cut error:", error)
       toast.error("Failed to save cut to history")
@@ -719,74 +733,62 @@ function CutPlannerPageInner() {
 
   // Render
   return (
-    <div className="space-y-6">
+    <PageShell variant="workspace">
+      <PageHeader
+        crumbs={[{ label: "Operations", href: "/dashboard" }, { label: "Cutting engine" }]}
+        title="Cutting engine"
+        subtitle="Select a finished profile, choose the standard size, set the cut count, and preview the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts."
+        actions={<RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />}
+      />
+
       <RollLoader onLoad={handleLoadRoll} />
       <JobLoader onLoad={handleLoadJob} />
-      {sourceJob && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cutting for <strong className="font-mono">{sourceJob.job_number}</strong>
-            {" — "}
-            {sourceJob.name}
-            {sourceJob.customer_name ? (
-              <span className="text-blue-700 dark:text-blue-400">
-                {" · "}
-                {sourceJob.customer_name}
-              </span>
-            ) : null}
-            . This cut will link back to the job's Cuts Recorded panel.
-          </span>
-          <button
-            type="button"
-            aria-label="Clear job"
-            onClick={() => setSourceJob(null)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {sourceJob ? (
+        <InlineNotice
+          intent="info"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Clear job"
+              onClick={() => setSourceJob(null)}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          }
+        >
+          Cutting for <strong className="font-mono">{sourceJob.job_number ?? "job"}</strong>
+          {" — "}
+          {sourceJob.name}
+          {sourceJob.customer_name ? (
+            <span className="text-muted-foreground">
+              {" · "}
+              {sourceJob.customer_name}
+            </span>
+          ) : null}
+          . This cut will link back to the job&apos;s Cuts Recorded panel.
+        </InlineNotice>
+      ) : null}
       <CutLoader onLoad={handleCutLoaderLoad} />
 
-      {loadedFromHistory && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Cut loaded from history — all fields are editable. Adjust and click{" "}
-            <strong>Save Cut</strong> to record a new entry.
-          </span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setLoadedFromHistory(false)}
-            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <Badge variant="outline" className="w-fit">
-            Cutting Engine
-          </Badge>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-300">
-              Cutting Engine
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Select a finished profile, choose the standard size, set the cut count, and preview
-              the nested cut sheet for rectangles, strips, wraps, spreads, and panel layouts.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 md:shrink-0">
-          <RecordedCutSelect onLoad={handleLoadCut} refreshKey={cutListRefreshKey} />
-        </div>
-      </div>
+      {loadedFromHistory ? (
+        <InlineNotice
+          intent="info"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss"
+              onClick={() => setLoadedFromHistory(false)}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          }
+        >
+          Cut loaded from history — all fields are editable. Adjust and click{" "}
+          <strong>Save cut</strong> to record a new entry.
+        </InlineNotice>
+      ) : null}
 
       <CutListUpload onPartsConfirmed={handleUploadedParts} />
 
@@ -893,7 +895,7 @@ function CutPlannerPageInner() {
                   {hasRenderedLayout && cutMetrics !== null && cutMetrics.partsCompleted > 0 && (
                     <Button size="sm" onClick={handleRecordCut} disabled={isRecordingCut}>
                       <Scissors className="mr-1.5 h-4 w-4" />
-                      {isRecordingCut ? "Saving…" : "Save Cut"}
+                      {isRecordingCut ? "Saving…" : "Save cut"}
                     </Button>
                   )}
                 </div>
@@ -924,6 +926,8 @@ function CutPlannerPageInner() {
                 isPacking={isPacking}
                 isAutoBoostPending={isAutoBoostPending}
                 debugOverlays={debugOverlays}
+                packError={packError}
+                onRetryPack={requestPack}
               />
             </CardContent>
           </Card>
@@ -971,7 +975,7 @@ function CutPlannerPageInner() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   )
 }
 

@@ -25,10 +25,7 @@ import {
 } from "@/app/components/ui/select"
 import { Textarea } from "@/app/components/ui/textarea"
 import { jobService } from "@/src/infrastructure/services/jobService"
-import type {
-  JobAssignee,
-  JobAssigneeRole,
-} from "@/src/infrastructure/models/supabase"
+import type { JobAssignee, JobAssigneeRole } from "@/src/infrastructure/models/supabase"
 
 /**
  * Roster panel — lead + worker assignees on the job. Appears on
@@ -182,7 +179,13 @@ export function JobRosterPanel({ jobId, assignees, onChanged }: JobRosterPanelPr
         )}
       </Card>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset() }}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v)
+          if (!v) reset()
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add to roster</DialogTitle>

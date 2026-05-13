@@ -1,10 +1,12 @@
-import { supabase, type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 
 export class MaterialTypeRepository implements IMaterialTypeRepository {
   async getAll(): Promise<MaterialType[]> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("material_types")
       .select("*")
       .order("name", { ascending: true })
@@ -15,14 +17,16 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
 
   async getByIds(ids: string[]): Promise<MaterialType[]> {
     if (ids.length === 0) return []
-    const { data, error } = await supabase.from("material_types").select("*").in("id", ids)
+    const client = await getDatabaseClient()
+    const { data, error } = await client.from("material_types").select("*").in("id", ids)
 
     if (error) throw error
     return data as MaterialType[]
   }
 
   async getNames(): Promise<Pick<MaterialType, "id" | "name">[]> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("material_types")
       .select("id, name")
       .order("name", { ascending: true })
@@ -32,7 +36,8 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
   }
 
   async getTopByCost(limit: number): Promise<MaterialType[]> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("material_types")
       .select("*")
       .order("default_cost", { ascending: false })
@@ -43,10 +48,14 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
   }
 
   async create(
-    material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">
+    material: Omit<MaterialType, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
   ): Promise<MaterialType> {
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
+    // Server-action callers pass actor.id explicitly. Browser callers
+    // can omit it; the fallback keeps legacy paths working.
+    const user_id = userId ?? (await getCurrentUserId())
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("material_types")
       .insert([{ ...material, user_id }])
       .select()
@@ -57,7 +66,8 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
   }
 
   async update(id: string, updates: Partial<MaterialType>): Promise<MaterialType> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from("material_types")
       .update(updates)
       .eq("id", id)
@@ -69,7 +79,8 @@ export class MaterialTypeRepository implements IMaterialTypeRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from("material_types").delete().eq("id", id)
+    const client = await getDatabaseClient()
+    const { error } = await client.from("material_types").delete().eq("id", id)
 
     if (error) throw error
   }

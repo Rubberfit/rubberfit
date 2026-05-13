@@ -5,17 +5,18 @@ import type { IPurchaseOrderService } from "@/src/application/services/purchase-
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
 import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
+import type { ActionActor } from "@/src/application/types/action-actor"
 import type {
   PurchaseOrderWithDetails,
   ReorderRuleWithDetails,
 } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use-case"
 
 export interface CreateReorderPurchaseOrderInput {
   suggestion: ReorderSuggestionOutput
   reorderRules: ReorderRuleWithDetails[]
+  actor: ActionActor
 }
 
 export interface CreateReorderPurchaseOrderResult {
@@ -83,42 +84,52 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
       Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
     ).toISOString()
 
-    const po = await this.poService.createPurchaseOrder({
-      supplier_id: suggestion.supplierId,
-      status: "draft",
-      ...supplierFields,
-      requested_delivery_date: deliveryDate,
-      notes: `Reorder for ${suggestion.materialName} - ${suggestion.urgencyLevel} priority`,
-      subtotal,
-      tax_amount: taxAmount,
-      shipping_cost: 0,
-      total_amount: subtotal + taxAmount,
-      auto_generated: false,
-    })
+    const po = await this.poService.createPurchaseOrder(
+      {
+        supplier_id: suggestion.supplierId,
+        status: "draft",
+        ...supplierFields,
+        requested_delivery_date: deliveryDate,
+        notes: `Reorder for ${suggestion.materialName} - ${suggestion.urgencyLevel} priority`,
+        subtotal,
+        tax_amount: taxAmount,
+        shipping_cost: 0,
+        total_amount: subtotal + taxAmount,
+        auto_generated: false,
+      },
+      input.actor.id
+    )
 
     if (!po) throw new Error("Failed to create purchase order")
 
-    await this.poService.addItemToPurchaseOrder({
-      purchase_order_id: po.id,
-      material_type_id: suggestion.materialTypeId,
-      description: suggestion.materialName,
-      quantity_sqft: suggestion.suggestedQuantity,
-      unit_cost: suggestion.estimatedCost / suggestion.suggestedQuantity,
-      width: DEFAULT_ROLL_WIDTH,
-      thickness: DEFAULT_ROLL_THICKNESS,
-    })
+    await this.poService.addItemToPurchaseOrder(
+      {
+        purchase_order_id: po.id,
+        material_type_id: suggestion.materialTypeId,
+        description: suggestion.materialName,
+        quantity_sqft: suggestion.suggestedQuantity,
+        unit_cost: suggestion.estimatedCost / suggestion.suggestedQuantity,
+        width: DEFAULT_ROLL_WIDTH,
+        thickness: DEFAULT_ROLL_THICKNESS,
+      },
+      input.actor.id
+    )
 
     const rule = reorderRules.find((r) => r.material_type_id === suggestion.materialTypeId)
     if (rule) {
-      await this.reorderService.updateReorderRule(rule.id, {
-        last_triggered_at: new Date().toISOString(),
-      })
+      await this.reorderService.updateReorderRule(
+        rule.id,
+        {
+          last_triggered_at: new Date().toISOString(),
+        },
+        input.actor.id
+      )
     }
 
     try {
-      const userId = await getCurrentUserId()
       await this.notificationService.sendReorderTriggered({
-        userIdentifier: userId,
+        actorId: input.actor.id,
+        userIdentifier: input.actor.id,
         materialName: suggestion.materialName,
         reorderQuantity: suggestion.suggestedQuantity,
         supplier: suggestion.supplierName ?? "Unknown supplier",

@@ -61,16 +61,8 @@ function renderShape(item: PreviewItem, tagLetter = "A"): string {
         unitOriginX={0}
         unitOriginY={0}
         scale={10}
-        shapeFirstView={false}
-        preview={STUB_PREVIEW}
-        displayPreview={STUB_PREVIEW}
-        usablePatternId="usable"
-        wastePatternId="waste"
-        viewHeight={500}
-        surfacePxW={1000}
         tagLetter={tagLetter}
         zoom={1}
-        renderPass={undefined}
       />
     </svg>
   )
@@ -157,11 +149,14 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
       // The tag text must be present
       expect(html, `${name} markup missing tag letter`).toContain(">A</text>")
       // …and must use the theme-aware foreground class
-      expect(html, `${name} markup missing fill-foreground`).toContain('class="fill-foreground"')
-      // …and must NOT use the legacy hardcoded light gray that caused #120
-      expect(html, `${name} still uses legacy fill-stone-200 — issue #120 regression`).not.toContain(
-        "fill-stone-200"
+      expect(html, `${name} markup missing fill-foreground`).toContain(
+        'class="fill-shape-label stroke-shape-label-halo"'
       )
+      // …and must NOT use the legacy hardcoded light gray that caused #120
+      expect(
+        html,
+        `${name} still uses legacy fill-stone-200 — issue #120 regression`
+      ).not.toContain("fill-stone-200")
     })
   }
 
@@ -177,19 +172,11 @@ describe("issue #120 — tag letters render with theme-aware fill on every shape
           unitOriginX={0}
           unitOriginY={0}
           scale={10}
-          shapeFirstView={false}
-          preview={STUB_PREVIEW}
-          displayPreview={STUB_PREVIEW}
-          usablePatternId="usable"
-          wastePatternId="waste"
-          viewHeight={500}
-          surfacePxW={1000}
           zoom={1}
-          renderPass={undefined}
         />
       </svg>
     )
     expect(html).toContain(">24x14</text>")
-    expect(html).toContain('class="fill-foreground"')
+    expect(html).toContain('class="fill-shape-label stroke-shape-label-halo"')
   })
 })

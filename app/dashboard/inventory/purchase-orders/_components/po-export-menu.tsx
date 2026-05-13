@@ -12,11 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
 import { exportService } from "@/src/infrastructure/services/exportService"
-import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 
 import {
   buildPurchaseOrdersCsv,
-  buildPurchaseOrdersPdfHtml,
+  downloadPurchaseOrdersListPdf,
   type PurchaseOrdersExportInput,
 } from "./po-export-utils"
 
@@ -55,8 +54,10 @@ export function PurchaseOrdersExportMenu({ input, disabled }: PurchaseOrdersExpo
     }
     setIsExporting(true)
     try {
-      const { title, content } = buildPurchaseOrdersPdfHtml(input)
-      await exportPdfService.generatePDFReport(title, content)
+      // Phase 7 PR 4 — imperative jsPDF builder (was: HTML stamper via
+      // `exportPdfService.generatePDFReport`). Each PO renders as one
+      // section + page break.
+      await downloadPurchaseOrdersListPdf(input)
     } catch (error) {
       console.error("Error generating PO PDF:", error)
       toast.error("Failed to generate report")

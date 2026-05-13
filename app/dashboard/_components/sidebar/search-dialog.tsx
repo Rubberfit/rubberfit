@@ -29,7 +29,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/app/components/ui/command"
 import { useRole } from "@/src/infrastructure/services/useRole"
 import type { Permission } from "@/src/application/permissions"
@@ -243,7 +242,6 @@ export function SearchDialog() {
     let gPressedAt: number | null = null
 
     const down = (e: KeyboardEvent) => {
-      // Skip chord capture when typing in an editable field.
       const target = e.target as HTMLElement | null
       const isEditable =
         target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable
@@ -254,6 +252,42 @@ export function SearchDialog() {
         return
       }
 
+      // Chord capture inside the cmdk input: track "g" pressed on an
+      // empty input but DO NOT preventDefault — let the "g" land in
+      // the search box normally. If the next keystroke within
+      // CHORD_WINDOW_MS matches a chord letter, close the palette and
+      // navigate (the transient "g" never matters because the input
+      // unmounts). If the next key doesn't match, the "g" stays and
+      // the operator keeps typing — searching for "general" or any
+      // other "g…" term works as expected. Per Sigilix review on
+      // PR #232.
+      const isCmdkInput =
+        target instanceof HTMLInputElement && target.getAttribute("cmdk-input") !== null
+      if (isCmdkInput) {
+        if (gPressedAt !== null && Date.now() - gPressedAt <= CHORD_WINDOW_MS) {
+          const cmd = chordMap.get(e.key.toLowerCase())
+          gPressedAt = null
+          if (cmd) {
+            e.preventDefault()
+            setOpen(false)
+            router.push(cmd.href)
+            return
+          }
+        }
+        if (
+          e.key === "g" &&
+          target.value === "" &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey &&
+          !e.shiftKey
+        ) {
+          gPressedAt = Date.now()
+        }
+        return
+      }
+
+      // Skip chord capture for OTHER editable fields (page-level inputs).
       if (isEditable) return
 
       if (e.key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
@@ -308,11 +342,21 @@ export function SearchDialog() {
                         key={cmd.id}
                         value={`${cmd.label} ${cmd.id}`}
                         onSelect={() => handleSelect(cmd)}
-                        className="!py-1.5"
+                        className="group !py-1.5"
                       >
                         <Icon />
                         <span>{cmd.label}</span>
-                        {cmd.chord && <CommandShortcut>g {cmd.chord}</CommandShortcut>}
+                        {Boolean(cmd.chord) && (
+                          <span className="ml-auto flex items-center gap-1">
+                            <kbd className="inline-flex h-5 min-w-5 select-none items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground group-data-[selected=true]:bg-background group-data-[selected=true]:text-foreground">
+                              g
+                            </kbd>
+                            <span className="sr-only"> then </span>
+                            <kbd className="inline-flex h-5 min-w-5 select-none items-center justify-center rounded border bg-muted px-1 font-mono text-[10px] font-medium text-muted-foreground group-data-[selected=true]:bg-background group-data-[selected=true]:text-foreground">
+                              {cmd.chord}
+                            </kbd>
+                          </span>
+                        )}
                       </CommandItem>
                     )
                   })}

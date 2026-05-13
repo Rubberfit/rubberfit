@@ -143,37 +143,36 @@ export default function ProfileSettingsPage() {
   return (
     <PageShell variant="form">
       <PageHeader
-        crumbs={[
-          { label: "Settings", href: "/dashboard/settings" },
-          { label: "Profile & account" },
-        ]}
-        title="Profile & account"
-        subtitle="Profile, avatar, password, and account metadata."
+        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: "Profile" }]}
+        title="Profile"
+        subtitle="Personal info, password, two-factor authentication, and account metadata."
       />
 
-      <ProfileCard
-        user={user}
-        avatarUrl={avatarUrl}
-        profileData={profileData}
-        isLoading={isLoading}
-        fileInputRef={fileInputRef}
-        onProfileDataChange={setProfileData}
-        onAvatarUpload={handleAvatarUpload}
-        onProfileSave={handleProfileSave}
-      />
+      <div className="mx-auto w-full max-w-2xl space-y-10 pb-20">
+        <ProfileCard
+          user={user}
+          avatarUrl={avatarUrl}
+          profileData={profileData}
+          isLoading={isLoading}
+          fileInputRef={fileInputRef}
+          onProfileDataChange={setProfileData}
+          onAvatarUpload={handleAvatarUpload}
+          onProfileSave={handleProfileSave}
+        />
 
-      <SecurityCard
-        passwordData={passwordData}
-        isLoading={isLoading}
-        onPasswordDataChange={setPasswordData}
-        onPasswordChange={handlePasswordChange}
-      />
+        <SecurityCard
+          passwordData={passwordData}
+          isLoading={isLoading}
+          onPasswordDataChange={setPasswordData}
+          onPasswordChange={handlePasswordChange}
+        />
 
-      <MfaCard />
+        <MfaCard />
 
-      <AccountInfoCard user={user} />
+        <AccountInfoCard user={user} />
 
-      <DeleteAccountCard />
+        <DeleteAccountCard />
+      </div>
     </PageShell>
   )
 }

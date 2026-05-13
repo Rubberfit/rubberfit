@@ -250,6 +250,33 @@ describe("RecordCutUseCase.execute (DI fakes pattern)", () => {
       code: "23503",
     })
   })
+
+  it("forwards pdf_url and id (when provided) onto the cut_history insert", async () => {
+    const input: RecordCutInput = {
+      ...VALID_INPUT,
+      id: "33333333-3333-3333-3333-333333333333",
+      pdf_url: "https://supabase.local/storage/v1/object/public/cut-history-pdfs/user-1/cut.pdf",
+    }
+    await useCase.execute(client, input, userId)
+    expect(insertCutHistory).toHaveBeenCalledOnce()
+    const insertPayload = insertCutHistory.mock.calls[0][1]
+    expect(insertPayload).toMatchObject({
+      id: "33333333-3333-3333-3333-333333333333",
+      user_id: userId,
+      pdf_url: input.pdf_url,
+    })
+  })
+
+  it("omits id when not supplied so the DB default (gen_random_uuid) fires", async () => {
+    await useCase.execute(client, VALID_INPUT, userId)
+    expect(insertCutHistory).toHaveBeenCalledOnce()
+    const insertPayload = insertCutHistory.mock.calls[0][1]
+    expect(insertPayload).not.toHaveProperty("id")
+    expect(insertPayload).toMatchObject({
+      user_id: userId,
+      pdf_url: null,
+    })
+  })
 })
 
 // Suppress unused-variable warning for the imported SupabaseClient type

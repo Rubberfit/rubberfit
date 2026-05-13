@@ -12,12 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
-import { MultiMetricChart } from "./_components/multi-metric-chart"
-import { TrendAnalysis } from "./_components/trend-analysis"
-import { SeasonalAnalysis } from "./_components/seasonal-analysis"
-import { TrendMetricCards } from "./_components/trend-metric-cards"
 import { KeyInsightsCard } from "./_components/key-insights-card"
+import { MultiMetricChart } from "./_components/multi-metric-chart"
+import { SeasonalAnalysis } from "./_components/seasonal-analysis"
+import { TrendAnalysis } from "./_components/trend-analysis"
+import { TrendMetricCards } from "./_components/trend-metric-cards"
 
 interface TrendData {
   date: string
@@ -39,25 +40,30 @@ interface TrendMetrics {
 export default function TrendsPage() {
   const [timeframe, setTimeframe] = useState("30days")
 
-  const { startDate, groupBy } = useMemo(() => {
+  // `endDate` is recomputed inside the same `[timeframe]`-keyed memo
+  // as `startDate` so each timeframe switch queries through the
+  // current moment. The previous mount-time `now` snapshot kept the
+  // upper bound stale on long-open sessions — newer cuts wouldn't
+  // appear in the result until a full page refresh.
+  const { startDate, endDate, groupBy } = useMemo(() => {
+    const endDate = new Date()
     switch (timeframe) {
       case "7days":
-        return { startDate: subDays(new Date(), 7), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 7), endDate, groupBy: "day" as const }
       case "30days":
-        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 30), endDate, groupBy: "day" as const }
       case "12weeks":
-        return { startDate: subWeeks(new Date(), 12), groupBy: "week" as const }
+        return { startDate: subWeeks(endDate, 12), endDate, groupBy: "week" as const }
       case "12months":
-        return { startDate: subMonths(new Date(), 12), groupBy: "month" as const }
+        return { startDate: subMonths(endDate, 12), endDate, groupBy: "month" as const }
       default:
-        return { startDate: subDays(new Date(), 30), groupBy: "day" as const }
+        return { startDate: subDays(endDate, 30), endDate, groupBy: "day" as const }
     }
   }, [timeframe])
 
-  const now = useMemo(() => new Date(), [])
   const { data: cutsData, isLoading: loading } = useCutHistoryAnalytics({
     from: startDate,
-    to: now,
+    to: endDate,
   })
 
   const { trendData, trendMetrics } = useMemo(() => {
@@ -159,61 +165,63 @@ export default function TrendsPage() {
     return `${sign}${value.toFixed(1)}%`
   }
 
-  const getTrendColor = (value: number, inverse = false) => {
-    const isPositive = inverse ? value < 0 : value > 0
-    return isPositive ? "text-green-600" : "text-red-600"
-  }
+  return (
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Trends" },
+        ]}
+        title="Trend analysis"
+        subtitle="Explore cutting metric patterns over custom time ranges."
+      />
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4 md:gap-6">
+      <ViewToolbar
+        hideSearch
+        filters={
+          <Select value={timeframe} onValueChange={setTimeframe}>
+            <SelectTrigger className="h-9 w-[160px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7days">Last 7 days</SelectItem>
+              <SelectItem value="30days">Last 30 days</SelectItem>
+              <SelectItem value="12weeks">Last 12 weeks</SelectItem>
+              <SelectItem value="12months">Last 12 months</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
+
+      {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <Activity className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Loading trend analysis...</p>
+            <Activity
+              className="mx-auto size-8 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+            <p className="mt-2 text-sm text-muted-foreground">Loading trend analysis…</p>
           </div>
         </div>
-      </div>
-    )
-  }
+      ) : (
+        <>
+          {trendMetrics ? (
+            <TrendMetricCards metrics={trendMetrics} formatTrendValue={formatTrendValue} />
+          ) : null}
 
-  return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Timeframe filter — tab strip above carries the page identity. */}
-      <div className="flex justify-end">
-        <Select value={timeframe} onValueChange={setTimeframe}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7days">Last 7 Days</SelectItem>
-            <SelectItem value="30days">Last 30 Days</SelectItem>
-            <SelectItem value="12weeks">Last 12 Weeks</SelectItem>
-            <SelectItem value="12months">Last 12 Months</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          <MultiMetricChart data={trendData} timeframe={timeframe} />
 
-      {trendMetrics && (
-        <TrendMetricCards
-          metrics={trendMetrics}
-          formatTrendValue={formatTrendValue}
-          getTrendColor={getTrendColor}
-        />
+          <div className="grid gap-4 md:grid-cols-2">
+            <TrendAnalysis data={trendData} />
+            <SeasonalAnalysis data={trendData} timeframe={timeframe} />
+          </div>
+
+          {trendMetrics ? (
+            <KeyInsightsCard metrics={trendMetrics} formatTrendValue={formatTrendValue} />
+          ) : null}
+        </>
       )}
-
-      {/* Multi-Metric Chart */}
-      <MultiMetricChart data={trendData} timeframe={timeframe} />
-
-      {/* Analysis Components */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <TrendAnalysis data={trendData} />
-        <SeasonalAnalysis data={trendData} timeframe={timeframe} />
-      </div>
-
-      {trendMetrics && (
-        <KeyInsightsCard metrics={trendMetrics} formatTrendValue={formatTrendValue} />
-      )}
-    </div>
+    </PageShell>
   )
 }

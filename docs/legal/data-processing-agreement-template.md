@@ -342,7 +342,7 @@ review. This is a current snapshot as of **[Effective Date]**.
   (failed login thresholds, role-change spikes).
 - Written incident response runbook; Rubberfit maintains a
   security point of contact reachable at
-  `security@arcandanchor.com`.
+  `support@rubberfit.app`.
 
 ### A.5 Personnel
 

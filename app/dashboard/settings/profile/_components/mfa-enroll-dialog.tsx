@@ -113,16 +113,13 @@ export function MfaEnrollDialog({ open, onOpenChange, onEnrolled }: MfaEnrollDia
             Set up two-factor authentication
           </DialogTitle>
           <DialogDescription>
-            Scan the QR code with an authenticator app (1Password,
-            Authy, Google Authenticator), then enter the 6-digit code
-            to verify.
+            Scan the QR code with an authenticator app (1Password, Authy, Google Authenticator),
+            then enter the 6-digit code to verify.
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="py-10 text-center text-muted-foreground text-sm">
-            Generating secret…
-          </div>
+          <div className="py-10 text-center text-muted-foreground text-sm">Generating secret…</div>
         ) : handle ? (
           <div className="space-y-4">
             <div className="flex flex-col items-center gap-2 rounded-md border bg-card p-4">
@@ -135,11 +132,7 @@ export function MfaEnrollDialog({ open, onOpenChange, onEnrolled }: MfaEnrollDia
                 contract.
               */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={handle.qrSvg}
-                alt="TOTP QR code"
-                className="size-44 rounded bg-white p-1"
-              />
+              <img src={handle.qrSvg} alt="TOTP QR code" className="size-44 rounded bg-white p-1" />
               <p className="text-muted-foreground text-[11px]">
                 Can't scan? Copy the secret below instead.
               </p>
@@ -172,9 +165,7 @@ export function MfaEnrollDialog({ open, onOpenChange, onEnrolled }: MfaEnrollDia
               />
             </div>
 
-            {error && (
-              <p className="text-danger-foreground text-xs">{error}</p>
-            )}
+            {error && <p className="text-danger-foreground text-xs">{error}</p>}
           </div>
         ) : error ? (
           <div className="py-6 text-center text-danger-foreground text-sm">{error}</div>

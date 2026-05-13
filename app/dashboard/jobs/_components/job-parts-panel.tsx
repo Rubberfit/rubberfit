@@ -17,7 +17,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/app/components/ui/form"
 import { Input } from "@/app/components/ui/input"
 import { Textarea } from "@/app/components/ui/textarea"
 import {
@@ -174,10 +181,11 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                   <TableCell className="font-mono text-muted-foreground text-xs">
                     {p.part_number ?? "—"}
                   </TableCell>
-                  <TableCell className="text-foreground text-sm">{p.material_type ?? "—"}</TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    {p.material_type ?? "—"}
+                  </TableCell>
                   <TableCell className="font-mono text-muted-foreground text-xs">
-                    {p.width}″ × {p.length}″
-                    {p.thickness ? ` × ${p.thickness}″` : ""}
+                    {p.width}″ × {p.length}″{p.thickness ? ` × ${p.thickness}″` : ""}
                   </TableCell>
                   <TableCell className="text-right text-sm">{p.quantity}</TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground text-xs">
@@ -271,7 +279,15 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                     <FormItem>
                       <FormLabel>Thickness (in)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.001" {...field} />
+                        {/* `field.value ?? ""` keeps the input controlled
+                            from first render. Without it, an optional
+                            number field starts uncontrolled (defaultValue
+                            undefined) and React 19 logs the classic
+                            "changing an uncontrolled input to be
+                            controlled" warning on the first keystroke
+                            (ARC-213). The Zod schema preprocesses "" →
+                            undefined so submit semantics are unchanged. */}
+                        <Input type="number" step="0.001" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -297,7 +313,9 @@ export function JobPartsPanel({ jobId, parts, onChanged }: JobPartsPanelProps) {
                     <FormItem>
                       <FormLabel>Unit price ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" {...field} />
+                        {/* See thickness above — same controlled-from-
+                            first-render pattern (ARC-213). */}
+                        <Input type="number" step="0.01" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

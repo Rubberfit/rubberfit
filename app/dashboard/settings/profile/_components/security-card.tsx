@@ -1,11 +1,14 @@
 "use client"
 
-import { Shield } from "lucide-react"
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
-import { Label } from "@/app/components/ui/label"
+import {
+  FormActions,
+  FormField,
+  FormFieldGroup,
+  FormFieldRow,
+  FormFieldset,
+  FormSectionHeader,
+} from "@/app/components/ui/forms"
 
 interface SecurityCardProps {
   passwordData: {
@@ -22,75 +25,90 @@ interface SecurityCardProps {
   onPasswordChange: () => void
 }
 
+/**
+ * Password change section. Phase 2 PR 2b chrome — flat
+ * `<FormFieldset>` instead of the Phase 1 `<Card>` shell. Wired
+ * behavior is unchanged: parent owns the password draft and
+ * dispatches the actual update via auth-context.
+ */
 export function SecurityCard({
   passwordData,
   isLoading,
   onPasswordDataChange,
   onPasswordChange,
 }: SecurityCardProps) {
+  const isComplete =
+    passwordData.currentPassword.length > 0 &&
+    passwordData.newPassword.length > 0 &&
+    passwordData.confirmPassword.length > 0
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          Security
-        </CardTitle>
-        <CardDescription>Manage your password and security settings</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
+    <FormFieldset>
+      <FormSectionHeader
+        eyebrow="Security"
+        title="Password"
+        description="Change the password used to sign in to your account."
+      />
+      <div className="mt-6 space-y-5">
+        <FormFieldGroup>
+          <FormField label="Current password" htmlFor="current-password" required>
             <Input
-              id="currentPassword"
+              id="current-password"
               type="password"
+              autoComplete="current-password"
               value={passwordData.currentPassword}
-              onChange={(e) =>
+              onChange={(event) =>
                 onPasswordDataChange({
                   ...passwordData,
-                  currentPassword: e.target.value,
+                  currentPassword: event.target.value,
                 })
               }
             />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
+          </FormField>
+          <FormFieldRow>
+            <FormField
+              label="New password"
+              htmlFor="new-password"
+              required
+              helperText="Use at least 8 characters."
+            >
               <Input
-                id="newPassword"
+                id="new-password"
                 type="password"
+                autoComplete="new-password"
                 value={passwordData.newPassword}
-                onChange={(e) =>
+                onChange={(event) =>
                   onPasswordDataChange({
                     ...passwordData,
-                    newPassword: e.target.value,
+                    newPassword: event.target.value,
                   })
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            </FormField>
+            <FormField label="Confirm new password" htmlFor="confirm-password" required>
               <Input
-                id="confirmPassword"
+                id="confirm-password"
                 type="password"
+                autoComplete="new-password"
                 value={passwordData.confirmPassword}
-                onChange={(e) =>
+                onChange={(event) =>
                   onPasswordDataChange({
                     ...passwordData,
-                    confirmPassword: e.target.value,
+                    confirmPassword: event.target.value,
                   })
                 }
               />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <Button onClick={onPasswordChange} disabled={isLoading}>
-            {isLoading ? "Updating..." : "Update Password"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+            </FormField>
+          </FormFieldRow>
+        </FormFieldGroup>
+        <FormActions
+          isSaving={isLoading}
+          saveDisabled={!isComplete}
+          saveLabel={isLoading ? "Updating…" : "Update password"}
+          onSave={onPasswordChange}
+          hideCancel
+        />
+      </div>
+    </FormFieldset>
   )
 }

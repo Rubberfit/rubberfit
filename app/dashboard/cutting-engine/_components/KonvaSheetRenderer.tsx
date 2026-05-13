@@ -1,330 +1,13 @@
 "use client"
 
 import { memo, useEffect, useRef, useState } from "react"
-import type { KonvaEventObject } from "konva/lib/Node"
-import { Stage, Layer, Rect, Circle, Ellipse, Ring, Line, Text, Group } from "react-konva"
-import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
-import { useKonvaTheme, type KonvaThemeTokens } from "./konva-theme"
+import { Layer, Rect, Stage } from "react-konva"
 
-/**
- * Callback when a draggable part finishes moving. Coordinates are
- * in SHEET INCHES (not pixels) so callers don't need to know the
- * canvas scale. Only fires when `draggable` is enabled.
- */
-type PartDragEnd = (partId: string, xIn: number, yIn: number) => void
-
-/**
- * Callback fired continuously during drag. Coordinates are in SHEET
- * INCHES. Callers should throttle downstream work (e.g. via rAF) —
- * this fires at pointer-move rate.
- */
-type PartDragMove = (partId: string, xIn: number, yIn: number) => void
-
-/** Callback when a part is clicked. Fires before any drag. */
-type PartClick = (partId: string) => void
-
-// ── Shape renderers ──────────────────────────────────────────────────────────
-
-/**
- * Memoized so stationary parts skip React reconciliation during a
- * drag of one of their siblings (issue #117 phase 3). Default shallow
- * compare is sufficient because:
- *   - `part` ref is stable across renders that don't change geometry
- *     (see `buildFreeRoamLayout`'s `previousParts` reuse).
- *   - `theme` ref is stable across renders that don't toggle dark mode
- *     (see `useKonvaTheme`'s memoization).
- *   - `fill` is a string from a frozen palette → value-equal.
- *   - `scale`, `draggable`, `selected`, `realistic` are primitives.
- *   - Handler props are `useCallback`'d in the parent.
- */
-const PartShape = memo(function PartShape({
-  part,
-  scale,
-  fill,
-  theme,
-  draggable,
-  selected,
-  realistic,
-  onDragEnd,
-  onDragMove,
-  onClick,
-}: {
-  part: PlacedPart
-  scale: number
-  fill: string
-  theme: KonvaThemeTokens
-  draggable: boolean
-  selected: boolean
-  /**
-   * When true, parts render with a drop shadow + rounded corners so
-   * they read as physical chunks of material on the sheet. Enabled
-   * on the Free-roam CAD surface; Auto-nest keeps the flat look so
-   * the nest preview stays crisp at every scale.
-   */
-  realistic: boolean
-  onDragEnd?: PartDragEnd
-  onDragMove?: PartDragMove
-  onClick?: PartClick
-}) {
-  const pw = part.width * scale
-  const ph = part.height * scale
-
-  // Outer Group pivots around the part's CENTER so rotation pivots
-  // there too (users expect a part to spin in place, not swing around
-  // its top-left corner). Using Konva's offset pattern: the group's
-  // `x/y` represents the position of the pivot point in world space,
-  // and `offsetX/Y` sets where that pivot sits in the group's local
-  // frame. Children still render from local (0,0) = part top-left.
-  //
-  // On drag end, `e.target.x()` is the new pivot (= center) in world
-  // pixels; subtract the offset to get the top-left back out.
-  const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    if (!onDragEnd) return
-    onDragEnd(part.id, (e.target.x() - pw / 2) / scale, (e.target.y() - ph / 2) / scale)
-  }
-  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
-    if (!onDragMove) return
-    onDragMove(part.id, (e.target.x() - pw / 2) / scale, (e.target.y() - ph / 2) / scale)
-  }
-  const rotationDeg = (part.rotationRad * 180) / Math.PI
-
-  const selectedStroke = "#3b82f6" // blue-500 — visible against any vibrant part fill
-  const stroke = selected ? selectedStroke : theme.partStroke
-  const strokeWidth = selected ? 2 : 1
-
-  // Shared shadow props — dropped onto each body shape so the part
-  // reads as a physical chunk of material lifted off the sheet.
-  // Shadow follows the shape's outline (not the bbox), which is why
-  // the props live on the body, not the wrapping Group.
-  const shadowProps = realistic
-    ? {
-        shadowColor: "rgba(15, 23, 42, 0.35)", // slate-900 @ 35%
-        shadowBlur: 6,
-        shadowOffsetX: 0,
-        shadowOffsetY: 2,
-        shadowOpacity: 1,
-      }
-    : {}
-  // Rounded corners only on the Rect fallback path — softens the
-  // CAD sticker look without distorting shapes that carry their
-  // own vertex list.
-  const cornerRadius = realistic ? Math.min(pw, ph) * 0.03 : 0
-
-  // Dispatch order:
-  //   1. Konva native primitives when the shape has one (Circle,
-  //      Ellipse, Ring) — exact geometry, crisp hit-testing, no
-  //      polygon-approximation artifacts.
-  //   2. Polygon-as-Line (closed) for any shape that carries a
-  //      precomputed vertex array (trapezoid, sector, triangle,
-  //      n-gon, star, custom polygon).
-  //   3. Axis-aligned Rect as last-resort fallback so a broken
-  //      template still renders something at the right bbox.
-  let body: React.ReactNode
-  if (part.renderShape === "circle" && part.diameter != null) {
-    const r = (part.diameter / 2) * scale
-    body = (
-      <Circle
-        x={pw / 2}
-        y={ph / 2}
-        radius={r}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
-  } else if (part.renderShape === "ellipse") {
-    body = (
-      <Ellipse
-        x={pw / 2}
-        y={ph / 2}
-        radiusX={pw / 2}
-        radiusY={ph / 2}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
-  } else if (part.renderShape === "ring" && part.innerRadius != null && part.outerRadius != null) {
-    body = (
-      <Ring
-        x={pw / 2}
-        y={ph / 2}
-        innerRadius={part.innerRadius * scale}
-        outerRadius={part.outerRadius * scale}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
-  } else if (part.polygon && part.polygon.length >= 3) {
-    const points = part.polygon.flatMap((pt) => [(pt.x - part.x) * scale, (pt.y - part.y) * scale])
-    body = (
-      <Line
-        points={points}
-        closed
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
-  } else {
-    body = (
-      <Rect
-        x={0}
-        y={0}
-        width={pw}
-        height={ph}
-        cornerRadius={cornerRadius}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-        {...shadowProps}
-      />
-    )
-  }
-
-  const fontSize = Math.max(9, Math.min(14, Math.min(pw, ph) / 3))
-
-  return (
-    <Group
-      x={part.x * scale + pw / 2}
-      y={part.y * scale + ph / 2}
-      offsetX={pw / 2}
-      offsetY={ph / 2}
-      rotation={rotationDeg}
-      draggable={draggable}
-      onDragMove={handleDragMove}
-      onDragEnd={handleDragEnd}
-      onMouseDown={() => onClick?.(part.id)}
-      onTap={() => onClick?.(part.id)}
-    >
-      {body}
-      <Text
-        x={0}
-        y={ph / 2 - fontSize}
-        width={pw}
-        height={fontSize * 2}
-        text={part.label}
-        fontSize={fontSize}
-        fill={theme.labelFill}
-        stroke={theme.labelStroke}
-        strokeWidth={2}
-        fillAfterStrokeEnabled
-        fontStyle="bold"
-        align="center"
-        verticalAlign="middle"
-        listening={false}
-      />
-    </Group>
-  )
-})
-
-/**
- * Memoized so unchanged scrap regions skip React reconciliation +
- * Konva node updates during drag (issue #117 phase 4). For ~200 scrap
- * strips emitted per drag tick of a 50-part scene, only the regions
- * around the dragged part actually change — the rest hit the memo.
- *
- * Default shallow compare won't work because the `region` object is
- * a fresh `LayoutRegion` each tick (returned from `finalizeRegions`).
- * Custom comparator does a structural compare on geometry — cheap
- * (a few number compares + a vertex loop for polys, ~1μs per region).
- */
-const RegionShape = memo(
-  function RegionShape({
-    region,
-    scale,
-    fill,
-    stroke,
-  }: {
-    region: LayoutRegion
-    scale: number
-    fill: string
-    stroke: string
-  }) {
-    if (region.polygon && region.polygon.length >= 3) {
-      const points = region.polygon.flatMap((pt) => [pt.x * scale, pt.y * scale])
-      return <Line points={points} closed fill={fill} stroke={stroke} strokeWidth={0.5} />
-    }
-    return (
-      <Rect
-        x={region.x * scale}
-        y={region.y * scale}
-        width={region.width * scale}
-        height={region.height * scale}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={0.5}
-      />
-    )
-  },
-  (prev, next) => {
-    if (prev.scale !== next.scale || prev.fill !== next.fill || prev.stroke !== next.stroke) {
-      return false
-    }
-    const a = prev.region
-    const b = next.region
-    if (a === b) return true
-    if (a.x !== b.x || a.y !== b.y || a.width !== b.width || a.height !== b.height) return false
-    if (a.polygon === b.polygon) return true
-    if (a.polygon == null || b.polygon == null) return a.polygon == null && b.polygon == null
-    if (a.polygon.length !== b.polygon.length) return false
-    for (let i = 0; i < a.polygon.length; i++) {
-      const pa = a.polygon[i]
-      const pb = b.polygon[i]
-      if (pa.x !== pb.x || pa.y !== pb.y) return false
-    }
-    return true
-  }
-)
-
-// ── Grid lines (12" intervals) ───────────────────────────────────────────────
-
-function GridLines({
-  sheetW,
-  sheetL,
-  scale,
-  stroke,
-}: {
-  sheetW: number
-  sheetL: number
-  scale: number
-  stroke: string
-}) {
-  const vLines: number[] = []
-  for (let x = 12; x < sheetW; x += 12) vLines.push(x)
-  const hLines: number[] = []
-  for (let y = 12; y < sheetL; y += 12) hLines.push(y)
-
-  return (
-    <>
-      {vLines.map((x) => (
-        <Line
-          key={`v${x}`}
-          points={[x * scale, 0, x * scale, sheetL * scale]}
-          stroke={stroke}
-          strokeWidth={0.5}
-          listening={false}
-        />
-      ))}
-      {hLines.map((y) => (
-        <Line
-          key={`h${y}`}
-          points={[0, y * scale, sheetW * scale, y * scale]}
-          stroke={stroke}
-          strokeWidth={0.5}
-          listening={false}
-        />
-      ))}
-    </>
-  )
-}
-
-// ── Main renderer ────────────────────────────────────────────────────────────
+import GridLines from "./konva-grid-lines"
+import PartShape, { type PartClick, type PartDragEnd, type PartDragMove } from "./konva-part-shape"
+import RegionShape from "./konva-region-shape"
+import { useKonvaTheme } from "./konva-theme"
+import type { LayoutModel } from "./layout-model"
 
 interface KonvaSheetRendererProps {
   layout: LayoutModel
@@ -348,15 +31,24 @@ interface KonvaSheetRendererProps {
   /** Fires when the empty sheet (not a part) is clicked. Useful for clearing selection. */
   onSheetClick?: () => void
   /**
-   * Controls the sheet's default background color. `"sheet"` (default)
-   * uses the neutral sheet fill — the Auto-nest look where offcut /
-   * scrap regions render on top as classified overlays. `"offcut"`
-   * paints the sheet in the reusable amber color, so any area not
-   * covered by a part or a scrap overlay is visually classified as
-   * reusable by default — matches the Free-roam semantic where an
-   * empty sheet IS one big reusable offcut.
+   * Sheet base fill. `"neutral"` (default) paints the stone-100 sheet
+   * — the Auto-nest look where offcut / scrap regions render on top
+   * as classified overlays. `"offcut"` paints the sheet in the
+   * reusable amber color, so any area not covered by a part or a
+   * scrap overlay is visually classified as reusable by default —
+   * matches the Free-roam semantic where an empty sheet IS one big
+   * reusable offcut.
    */
-  defaultFill?: "sheet" | "offcut"
+  sheetBase?: "neutral" | "offcut"
+  /**
+   * Whether to render `layout.offcuts` as classified overlay shapes.
+   * Defaults to `true` when `sheetBase="neutral"` and `false` when
+   * `sheetBase="offcut"` — when the sheet background is already amber,
+   * an amber-on-amber overlay only adds rectangle outlines that read
+   * as visual noise. Override with an explicit boolean if a consumer
+   * wants the non-default behavior on either base.
+   */
+  shouldRenderOffcutRegions?: boolean
   /**
    * User zoom percentage applied on top of the auto-fit scale.
    * 100 = fit-to-container (default); 200 = 2× that fit. Values
@@ -377,13 +69,17 @@ function KonvaSheetRenderer({
   selectedPartId,
   onPartClick,
   onSheetClick,
-  defaultFill = "sheet",
+  sheetBase = "neutral",
+  shouldRenderOffcutRegions,
   zoomPct = 100,
   showGrid = true,
 }: KonvaSheetRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const theme = useKonvaTheme()
+  // Default: hide offcut overlays when base is already amber. JSDoc
+  // on the prop carries the full rationale.
+  const showOffcutRegions = shouldRenderOffcutRegions ?? sheetBase !== "offcut"
 
   useEffect(() => {
     const el = containerRef.current
@@ -417,7 +113,7 @@ function KonvaSheetRenderer({
         <Stage width={size.w} height={size.h} style={{ display: "block" }}>
           <Layer x={offsetX} y={offsetY}>
             {/* Sheet background — clicking clears selection. Fill
-                tracks `defaultFill`: the Auto-nest surface stays
+                tracks `sheetBase`: the Auto-nest surface stays
                 neutral grey, the Free-roam surface paints amber so
                 any uncovered area is visually reusable by default. */}
             <Rect
@@ -425,7 +121,7 @@ function KonvaSheetRenderer({
               y={0}
               width={stageW}
               height={stageH}
-              fill={defaultFill === "offcut" ? theme.offcutFill : theme.sheetFill}
+              fill={sheetBase === "offcut" ? theme.offcutFill : theme.sheetFill}
               stroke={theme.sheetStroke}
               strokeWidth={1}
               onMouseDown={() => onSheetClick?.()}
@@ -442,13 +138,8 @@ function KonvaSheetRenderer({
               />
             )}
 
-            {/* Reusable offcut — amber. When the sheet background
-                is already amber (Free-roam surface), these would be
-                amber on amber; their strokes would add visible
-                rectangle outlines around every classified region,
-                which reads as busy noise rather than information.
-                Skip them — the background carries the semantic. */}
-            {defaultFill !== "offcut" &&
+            {/* Reusable offcut — amber. Gated by `shouldRenderOffcutRegions`. */}
+            {showOffcutRegions &&
               layout.offcuts.map((region, i) => (
                 <RegionShape
                   key={`offcut-${i}`}
@@ -470,7 +161,10 @@ function KonvaSheetRenderer({
               />
             ))}
 
-            {/* Parts */}
+            {/* Parts — flat at rest, elevated on hover/selected/drag.
+                The `realistic` boolean is gone; PartShape decides
+                elevation from its own interaction state (issue
+                phase-5 PR 2). */}
             {layout.parts.map((part) => (
               <PartShape
                 key={part.id}
@@ -478,9 +172,9 @@ function KonvaSheetRenderer({
                 scale={scale}
                 fill={theme.partFills[part.specIndex % theme.partFills.length]}
                 theme={theme}
-                draggable={typeof onPartDragEnd === "function"}
-                selected={selectedPartId === part.id}
-                realistic={defaultFill === "offcut"}
+                isDark={theme.isDark}
+                isDraggable={typeof onPartDragEnd === "function"}
+                isSelected={selectedPartId === part.id}
                 onDragEnd={onPartDragEnd}
                 onDragMove={onPartDragMove}
                 onClick={onPartClick}
@@ -499,8 +193,8 @@ function KonvaSheetRenderer({
  * Fix C-4). Default shallow compare is sufficient because:
  *   - `layout` ref is stable across drag ticks when content-equal
  *     (see `useFreeRoamLayout`'s `layoutCache` bailout).
- *   - `zoomPct`, `showGrid`, `selectedPartId`, `defaultFill` are
- *     primitives.
+ *   - `zoomPct`, `showGrid`, `selectedPartId`, `sheetBase`,
+ *     `shouldRenderOffcutRegions` are primitives.
  *   - Handler props are `useCallback`'d in `free-roam-content.tsx`.
  */
 export default memo(KonvaSheetRenderer)

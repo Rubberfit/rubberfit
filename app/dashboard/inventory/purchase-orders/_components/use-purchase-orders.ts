@@ -13,7 +13,6 @@ import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 
 import { type TaxDetails } from "./po-tax-helpers"
-import { usePOFormState } from "./use-po-form-state"
 import { usePOActions } from "./use-po-actions"
 
 interface POStats {
@@ -68,16 +67,9 @@ export function usePurchaseOrders() {
     fetchData()
   }, [fetchData])
 
-  // Form state management
-  const formState = usePOFormState(suppliers)
-
   // Actions
   const actions = usePOActions({
-    suppliers,
-    fetchData,
     setPurchaseOrders,
-    setSelectedPO,
-    setIsViewDialogOpen,
     setSelectedPOTaxDetails,
   })
 
@@ -164,31 +156,6 @@ export function usePurchaseOrders() {
     })
   }, [purchaseOrders, statusFilter, supplierFilter, searchQuery])
 
-  // Wrap create/update to pass form state. Accepts an optional
-  // `jobId` so callers coming from the job sufficiency panel can
-  // stamp `purchase_orders.job_id` on the resulting row.
-  const handleCreatePO = async (jobId?: string) => {
-    await actions.handleCreatePO(
-      formState.formData,
-      formState.setIsCreating,
-      formState.setIsCreateDialogOpen,
-      formState.setFormData,
-      jobId
-    )
-  }
-
-  const handleUpdatePO = async () => {
-    if (!formState.editingPO) return
-    await actions.handleUpdatePO(
-      formState.editFormData,
-      formState.editingPO,
-      formState.setIsUpdating,
-      formState.setIsEditDialogOpen,
-      formState.setEditingPO,
-      formState.setEditFormData
-    )
-  }
-
   return {
     // Data
     purchaseOrders,
@@ -198,7 +165,7 @@ export function usePurchaseOrders() {
     stats,
     filteredPOs,
 
-    // View dialog
+    // View drawer (read-only PO inspection)
     selectedPO,
     setSelectedPO,
     isViewDialogOpen,
@@ -206,33 +173,11 @@ export function usePurchaseOrders() {
     selectedPOTaxDetails,
     fetchTaxDetailsForPO: actions.fetchTaxDetailsForPO,
 
-    // Create dialog
-    isCreateDialogOpen: formState.isCreateDialogOpen,
-    setIsCreateDialogOpen: formState.setIsCreateDialogOpen,
-    formData: formState.formData,
-    setFormData: formState.setFormData,
-    isCreating: formState.isCreating,
-    createFormTaxDetails: formState.createFormTaxDetails,
-    handleCreatePO,
-
-    // Edit dialog
-    isEditDialogOpen: formState.isEditDialogOpen,
-    setIsEditDialogOpen: formState.setIsEditDialogOpen,
-    editingPO: formState.editingPO,
-    setEditingPO: formState.setEditingPO,
-    editFormData: formState.editFormData,
-    setEditFormData: formState.setEditFormData,
-    isUpdating: formState.isUpdating,
-    editFormTaxDetails: formState.editFormTaxDetails,
-    handleUpdatePO,
-    handleEditPO: formState.handleEditPO,
-
     // Shared
     updatePOStatus: actions.updatePOStatus,
     fetchData,
     confirmAction: actions.confirmAction,
     setConfirmAction: actions.setConfirmAction,
-    handleConfirmRemoveItem: actions.handleConfirmRemoveItem,
 
     // Filters
     statusFilter,

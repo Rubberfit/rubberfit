@@ -222,6 +222,190 @@ export function isLayoutModelArray(value: unknown): value is LayoutModel[] {
   return Array.isArray(value) && value.length > 0 && value.every(isLayoutModel)
 }
 
+// ── Tolerant coercer for cut_history.layout_json (versioned reads) ──────────
+//
+// The strict `isLayoutModel` guard above is correct for in-memory data we just
+// produced — but it's wrong for JSONB blobs that were saved by an OLDER
+// `LayoutModel` shape. Every PR that adds or tightens a field invalidates
+// every cut saved before that PR (the "saves but doesn't load" symptom).
+//
+// `coerceLayoutModel` is a forgiving deserializer: it requires only the
+// load-bearing fields the renderer truly needs (sheet dimensions, valid
+// parts) and back-fills sensible defaults for optional / new fields. The
+// renderer itself is robust to missing optional fields — what it can't
+// recover from is a wholesale guard rejection that returns `null` and
+// makes it look like the cut had no layout at all.
+//
+// Use this on the LOAD path (cut history → render). Continue to use the
+// strict `isLayoutModel` for fresh in-memory layouts where any deviation
+// IS a bug worth noisy-failing.
+
+function coercePoint(value: unknown): { x: number; y: number } | null {
+  return isPoint(value) ? { x: value.x, y: value.y } : null
+}
+
+function coercePointArray(value: unknown): Array<{ x: number; y: number }> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const points: Array<{ x: number; y: number }> = []
+  for (const entry of value) {
+    const p = coercePoint(entry)
+    if (p) points.push(p)
+  }
+  return points.length > 0 ? points : undefined
+}
+
+function coerceLayoutRegion(value: unknown): LayoutRegion | null {
+  if (!isRecord(value)) return null
+  if (
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.y) ||
+    !isFiniteNumber(value.width) ||
+    !isFiniteNumber(value.height)
+  ) {
+    return null
+  }
+  const polygon = coercePointArray(value.polygon)
+  return polygon
+    ? { x: value.x, y: value.y, width: value.width, height: value.height, polygon }
+    : { x: value.x, y: value.y, width: value.width, height: value.height }
+}
+
+function coerceLayoutRegionArray(value: unknown): LayoutRegion[] {
+  if (!Array.isArray(value)) return []
+  const regions: LayoutRegion[] = []
+  for (const entry of value) {
+    const r = coerceLayoutRegion(entry)
+    if (r) regions.push(r)
+  }
+  return regions
+}
+
+function coerceOptionalNumber(value: unknown): number | undefined {
+  return isFiniteNumber(value) ? value : undefined
+}
+
+function coercePlacedPart(value: unknown): PlacedPart | null {
+  if (!isRecord(value)) return null
+  // Required identity + geometry — without these the renderer cannot
+  // place the part. `id` and `shapeId` get synthetic fallbacks because
+  // earlier shapes used different naming conventions; the IDs are only
+  // used for React keys and don't affect rendering.
+  if (
+    !isFiniteNumber(value.x) ||
+    !isFiniteNumber(value.y) ||
+    !isFiniteNumber(value.width) ||
+    !isFiniteNumber(value.height)
+  ) {
+    return null
+  }
+  const renderShape: RenderShape =
+    typeof value.renderShape === "string" && RENDER_SHAPES.has(value.renderShape as RenderShape)
+      ? (value.renderShape as RenderShape)
+      : "rect"
+  const id = typeof value.id === "string" ? value.id : `coerced-part-${value.x}-${value.y}`
+  const shapeId = typeof value.shapeId === "string" ? value.shapeId : id
+  const label = typeof value.label === "string" ? value.label : ""
+  const partNumber = typeof value.partNumber === "string" ? value.partNumber : undefined
+  const specIndex = isFiniteNumber(value.specIndex) ? value.specIndex : 0
+  const rotationRad = isFiniteNumber(value.rotationRad) ? value.rotationRad : 0
+
+  const polygon = coercePointArray(value.polygon)
+  const packPolygon = coercePointArray(value.packPolygon)
+
+  return {
+    id,
+    shapeId,
+    partNumber,
+    label,
+    renderShape,
+    specIndex,
+    x: value.x,
+    y: value.y,
+    rotationRad,
+    width: value.width,
+    height: value.height,
+    diameter: coerceOptionalNumber(value.diameter),
+    topWidth: coerceOptionalNumber(value.topWidth),
+    bottomWidth: coerceOptionalNumber(value.bottomWidth),
+    innerRadius: coerceOptionalNumber(value.innerRadius),
+    outerRadius: coerceOptionalNumber(value.outerRadius),
+    arcDegrees: coerceOptionalNumber(value.arcDegrees),
+    polygon,
+    packPolygon,
+    cutDirection:
+      value.cutDirection === "vertical_split" ||
+      value.cutDirection === "horizontal_split" ||
+      value.cutDirection === "radial_split" ||
+      value.cutDirection === "arc_bands" ||
+      value.cutDirection === "wrap_panels" ||
+      value.cutDirection === "wrap_bands"
+        ? value.cutDirection
+        : undefined,
+    flipped: typeof value.flipped === "boolean" ? value.flipped : undefined,
+    rotated90: typeof value.rotated90 === "boolean" ? value.rotated90 : undefined,
+  }
+}
+
+export function coerceLayoutModel(value: unknown): LayoutModel | null {
+  if (!isRecord(value)) return null
+  // Sheet dimensions are the one true non-negotiable — without them
+  // the renderer has no canvas to draw on.
+  if (!isFiniteNumber(value.sheetWidth) || !isFiniteNumber(value.sheetLength)) {
+    return null
+  }
+
+  const parts: PlacedPart[] = []
+  if (Array.isArray(value.parts)) {
+    for (const entry of value.parts) {
+      const part = coercePlacedPart(entry)
+      if (part) parts.push(part)
+    }
+  }
+
+  const offcuts = coerceLayoutRegionArray(value.offcuts)
+  const scrap = coerceLayoutRegionArray(value.scrap)
+  const debugScrapRectsRaw = value.debugScrapRects
+  const debugScrapRects = Array.isArray(debugScrapRectsRaw)
+    ? coerceLayoutRegionArray(debugScrapRectsRaw)
+    : undefined
+
+  const source: "ts-nfp" | "rust-rf-layout" =
+    value.source === "ts-nfp" ? "ts-nfp" : "rust-rf-layout"
+
+  return {
+    sheetWidth: value.sheetWidth,
+    sheetLength: value.sheetLength,
+    parts,
+    offcuts,
+    scrap,
+    placedCount: isFiniteNumber(value.placedCount) ? value.placedCount : parts.length,
+    overflowCount: isFiniteNumber(value.overflowCount) ? value.overflowCount : 0,
+    usedAreaSqFt: isFiniteNumber(value.usedAreaSqFt) ? value.usedAreaSqFt : 0,
+    reusableAreaSqFt: isFiniteNumber(value.reusableAreaSqFt) ? value.reusableAreaSqFt : 0,
+    scrapAreaSqFt: isFiniteNumber(value.scrapAreaSqFt) ? value.scrapAreaSqFt : 0,
+    fabScore: isFiniteNumber(value.fabScore) ? value.fabScore : 0,
+    source,
+    sheetKind: value.sheetKind === "offcut-extract" ? "offcut-extract" : undefined,
+    parentSheetIndex:
+      isFiniteNumber(value.parentSheetIndex) &&
+      Number.isInteger(value.parentSheetIndex) &&
+      value.parentSheetIndex >= 0
+        ? value.parentSheetIndex
+        : undefined,
+    debugScrapRects: debugScrapRects && debugScrapRects.length > 0 ? debugScrapRects : undefined,
+  }
+}
+
+export function coerceLayoutModelArray(value: unknown): LayoutModel[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null
+  const layouts: LayoutModel[] = []
+  for (const entry of value) {
+    const layout = coerceLayoutModel(entry)
+    if (layout) layouts.push(layout)
+  }
+  return layouts.length > 0 ? layouts : null
+}
+
 // ── Normaliser ───────────────────────────────────────────────────────────────
 
 function bandToRegion(b: OffcutBand): LayoutRegion {

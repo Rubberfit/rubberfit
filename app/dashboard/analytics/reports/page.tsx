@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Filter, Calendar } from "lucide-react"
+import { Calendar } from "lucide-react"
 import { toast } from "sonner"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -12,16 +12,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import { Badge } from "@/app/components/ui/badge"
-import { STANDARD_REPORT_COLORS, DEFAULT_REPORT_TEMPLATES } from "./_components/report-templates"
+import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
+
 import { generateReport } from "./_components/report-generator"
 import { getPeriodDateRange, getPeriodLabel } from "./_components/report-helpers"
 import { ReportList } from "./_components/report-list"
+import { DEFAULT_REPORT_TEMPLATES, STANDARD_REPORT_COLORS } from "./_components/report-templates"
+
+type ReportPeriod = "daily" | "weekly" | "monthly" | "quarterly"
+
+const REPORT_PERIODS: ReadonlyArray<{ value: ReportPeriod; label: string }> = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+]
+
+// Typed as `ReadonlySet<string>` (not `ReadonlySet<ReportPeriod>`)
+// so `.has(value)` accepts any string without a cast — the type
+// guard's `value is ReportPeriod` return narrows correctly anyway.
+const REPORT_PERIOD_VALUES: ReadonlySet<string> = new Set(REPORT_PERIODS.map((p) => p.value))
+
+function isReportPeriod(value: string): value is ReportPeriod {
+  return REPORT_PERIOD_VALUES.has(value)
+}
 
 export default function ReportsPage() {
-  const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly" | "quarterly">(
-    "monthly"
-  )
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("monthly")
   const [reportType, setReportType] = useState<string>("all")
   const [generating, setGenerating] = useState<string | null>(null)
   const [dynamicTypeColorMap] = useState<Map<string, string>>(new Map())
@@ -50,88 +67,69 @@ export default function ReportsPage() {
       : reportTemplates.filter((report) => report.type === reportType)
 
   return (
-    <div className="flex flex-col gap-4 md:gap-6">
-      {/* Report Filters */}
-      <Card
-        className={reportType !== "all" || reportPeriod !== "monthly" ? "border-primary/50" : ""}
-      >
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Report Configuration
-            {(reportType !== "all" || reportPeriod !== "monthly") && (
-              <Badge variant="secondary" className="ml-auto">
-                Filters Active
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start">
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium">Report Period</label>
-              <Select
-                value={reportPeriod}
-                onValueChange={(value) =>
-                  setReportPeriod(value as "daily" | "weekly" | "monthly" | "quarterly")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                This period will be used for all generated reports
-              </p>
-            </div>
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium">Report Type</label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {Object.keys(STANDARD_REPORT_COLORS).map((type) => (
+    <PageShell variant="dense">
+      <PageHeader
+        crumbs={[
+          { label: "Operations", href: "/dashboard" },
+          { label: "Analytics", href: "/dashboard/analytics" },
+          { label: "Reports" },
+        ]}
+        title="Reports"
+        subtitle="Build, schedule, and download automated analytics reports."
+      />
+
+      <ViewToolbar
+        hideSearch
+        filters={
+          <>
+            <Select
+              value={reportPeriod}
+              onValueChange={(value) => {
+                if (isReportPeriod(value)) setReportPeriod(value)
+              }}
+            >
+              <SelectTrigger className="h-9 w-[140px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REPORT_PERIODS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={reportType} onValueChange={setReportType}>
+              <SelectTrigger className="h-9 w-[200px] text-sm">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {Object.keys(STANDARD_REPORT_COLORS).map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </SelectItem>
+                ))}
+                {uniqueReportTypes
+                  .filter((type) => !STANDARD_REPORT_COLORS[type.toLowerCase()])
+                  .map((type) => (
                     <SelectItem key={type} value={type}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                      {type.charAt(0).toUpperCase() + type.slice(1)} (custom)
                     </SelectItem>
                   ))}
-                  {uniqueReportTypes
-                    .filter((type) => !STANDARD_REPORT_COLORS[type.toLowerCase()])
-                    .map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)} (Custom)
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Filter which report templates are displayed
-                {uniqueReportTypes.some((type) => !STANDARD_REPORT_COLORS[type.toLowerCase()]) &&
-                  " \u2022 Custom types from CSV imports are marked"}
-              </p>
-            </div>
-          </div>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
-          {/* Show the current period range */}
-          <div className="rounded-lg bg-muted/50 p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{getPeriodLabel(reportPeriod)} Period Selected:</span>
-              <span className="text-muted-foreground">{getPeriodDateRange(reportPeriod)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Calendar className="size-3.5" aria-hidden="true" />
+        <span className="font-medium text-foreground">{getPeriodLabel(reportPeriod)} period:</span>
+        <span className="font-mono tabular-nums">{getPeriodDateRange(reportPeriod)}</span>
+      </div>
 
-      {/* Report Templates */}
       <ReportList
         filteredReports={filteredReports}
         totalReports={reportTemplates.length}
@@ -142,27 +140,25 @@ export default function ReportsPage() {
         onGenerate={handleGenerateReport}
       />
 
-      {/* Report Features */}
       <Card>
         <CardHeader>
-          <CardTitle>Report Features</CardTitle>
-          <CardDescription>Current and planned reporting capabilities</CardDescription>
+          <CardTitle>Report features</CardTitle>
+          <CardDescription>Current and planned reporting capabilities.</CardDescription>
         </CardHeader>
         <CardContent>
           <ReportFeaturesList />
         </CardContent>
       </Card>
 
-      {/* Usage Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle>How to Use Reports</CardTitle>
+          <CardTitle>How to use reports</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <ReportUsageSteps />
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   )
 }
 
@@ -170,8 +166,8 @@ function ReportFeaturesList() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
-        <h4 className="font-medium text-green-700 dark:text-green-300">Available Now</h4>
-        <ul className="text-sm text-muted-foreground space-y-1">
+        <h4 className="font-medium text-[color:var(--success)]">Available now</h4>
+        <ul className="space-y-1 text-sm text-muted-foreground">
           <li>JSON data export for all reports</li>
           <li>Configurable date ranges</li>
           <li>Real-time data from Supabase</li>
@@ -180,8 +176,8 @@ function ReportFeaturesList() {
         </ul>
       </div>
       <div className="space-y-2">
-        <h4 className="font-medium text-blue-700 dark:text-blue-300">Coming in Phase 2</h4>
-        <ul className="text-sm text-muted-foreground space-y-1">
+        <h4 className="font-medium text-[color:var(--accent)]">Coming in Phase 2</h4>
+        <ul className="space-y-1 text-sm text-muted-foreground">
           <li>PDF report generation</li>
           <li>Automated report scheduling</li>
           <li>Email report delivery</li>
@@ -193,41 +189,50 @@ function ReportFeaturesList() {
   )
 }
 
+function ReportStepBadge({ step }: { step: number }) {
+  return (
+    <>
+      <span className="sr-only">{`Step ${step}`}</span>
+      <span
+        aria-hidden="true"
+        className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-accent font-mono text-xs font-semibold text-accent-foreground tabular-nums"
+      >
+        {step}
+      </span>
+    </>
+  )
+}
+
 function ReportUsageSteps() {
   return (
     <>
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-primary text-primary-foreground w-6 h-6 flex items-center justify-center text-sm font-medium">
-          1
-        </div>
+        <ReportStepBadge step={1} />
         <div>
-          <h4 className="font-medium">Configure Report Settings</h4>
+          <h4 className="font-medium">Configure report settings</h4>
           <p className="text-sm text-muted-foreground">
-            Set the <span className="font-medium">Report Period</span> to define the date range for
-            ALL generated reports. Use <span className="font-medium">Report Type</span> to filter
-            which templates are displayed.
+            Set the <span className="font-medium text-foreground">period</span> to define the date
+            range for all generated reports. Use{" "}
+            <span className="font-medium text-foreground">type</span> to filter which templates are
+            displayed.
           </p>
         </div>
       </div>
 
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-primary text-primary-foreground w-6 h-6 flex items-center justify-center text-sm font-medium">
-          2
-        </div>
+        <ReportStepBadge step={2} />
         <div>
-          <h4 className="font-medium">Generate Report</h4>
+          <h4 className="font-medium">Generate report</h4>
           <p className="text-sm text-muted-foreground">
-            Click "Generate Report" on any template to create a report with current data.
+            Click &quot;Generate report&quot; on any template to create a report with current data.
           </p>
         </div>
       </div>
 
       <div className="flex items-start gap-3">
-        <div className="rounded-full bg-primary text-primary-foreground w-6 h-6 flex items-center justify-center text-sm font-medium">
-          3
-        </div>
+        <ReportStepBadge step={3} />
         <div>
-          <h4 className="font-medium">Download and Analyze</h4>
+          <h4 className="font-medium">Download and analyze</h4>
           <p className="text-sm text-muted-foreground">
             Reports are downloaded as JSON files containing all relevant data and metrics.
           </p>

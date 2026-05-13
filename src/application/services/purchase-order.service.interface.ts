@@ -30,10 +30,16 @@ export interface IPurchaseOrderService {
     statuses: PurchaseOrder["status"][]
   ): Promise<PurchaseOrderWithDetails[]>
   getPurchaseOrderById(id: string): Promise<PurchaseOrderWithDetails>
-  createPurchaseOrder(order: CreatePurchaseOrder): Promise<PurchaseOrderWithDetails>
+  createPurchaseOrder(
+    order: CreatePurchaseOrder,
+    userId?: string
+  ): Promise<PurchaseOrderWithDetails>
   updatePurchaseOrder(id: string, updates: UpdatePurchaseOrder): Promise<PurchaseOrderWithDetails>
   deletePurchaseOrder(id: string): Promise<boolean>
-  addItemToPurchaseOrder(item: CreatePurchaseOrderItem): Promise<PurchaseOrderItemWithDetails>
+  addItemToPurchaseOrder(
+    item: CreatePurchaseOrderItem,
+    userId?: string
+  ): Promise<PurchaseOrderItemWithDetails>
   updatePurchaseOrderItem(
     id: string,
     updates: UpdatePurchaseOrderItem
