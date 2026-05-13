@@ -1,7 +1,15 @@
 "use server"
 
 import { isPlanTier, type PlanTier } from "@/src/application/billing/feature-tiers"
-import { listSubscriptionHistoryForOrg } from "@/src/infrastructure/services/organizationBillingService"
+import { organizationService } from "@/src/infrastructure/services/organizationService"
+import {
+  listSubscriptionHistoryForOrg,
+  type SubscriptionHistoryRow,
+} from "@/src/infrastructure/services/organizationBillingService"
+import {
+  listStripeInvoicesForCustomer,
+  type StripeInvoiceSummary,
+} from "@/src/infrastructure/services/stripeInvoicesService"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
 import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
@@ -10,41 +18,42 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 
 export interface BillingHistoryActionRow {
   id: string
-  /** ISO-8601 timestamp of when the subscription row was created. */
+  /** ISO-8601 timestamp of the invoice creation (or sub row created_at fallback). */
   createdAt: string
   planTier: PlanTier
   billingInterval: "monthly" | "annual" | null
-  seatCount: number
-  currentPeriodStart: string | null
-  currentPeriodEnd: string | null
-  status:
-    | "incomplete"
-    | "incomplete_expired"
-    | "trialing"
-    | "active"
-    | "past_due"
-    | "canceled"
-    | "unpaid"
-    | "paused"
-  lastPaymentStatus: string | null
-  stripeSubscriptionId: string | null
+  seatCount: number | null
+  periodStart: string | null
+  periodEnd: string | null
+  amountCents: number | null
+  /**
+   * UI-friendly status — narrowed to the 4-state model the
+   * StatusPill renders. Driven by `invoice.status` when present,
+   * with a fallback derived from the subscription row.
+   */
+  status: "paid" | "failed" | "refunded" | "pending"
+  /**
+   * Stripe's hosted invoice page if available — opens to a public
+   * invoice view with download links. Customers click this rather
+   * than fetching a PDF the dashboard would have to proxy.
+   */
+  invoiceUrl: string | null
 }
 
 /**
- * Per-payment audit feed for the org's billing history page. Pulls
- * every `organization_subscriptions` row owned by the actor's org —
- * including superseded (`is_current=false`) rows — newest first, so
- * the table reflects the full historical lifecycle of plan changes.
+ * Per-payment audit feed. Live-fetches invoices from Stripe and
+ * joins them with the org's `organization_subscriptions` rows so
+ * each invoice row carries plan tier + billing interval context.
  *
- * RLS scopes by `organization_id`; the proxy gate ensures the actor
- * is an active member before this action is invoked.
+ * Falls back gracefully:
+ *   - Stripe unreachable → returns subscription-row history only
+ *     (no amounts, no invoice URLs).
+ *   - No `stripe_customer_id` on the org (legacy / grandfather
+ *     migration) → ditto.
  *
- * Amount + invoice URL fields are intentionally not joined here yet
- * — they live in Stripe (no local `invoices` table). The page maps
- * each row to a `BillingHistoryRow` with `amountCents: null` so the
- * table renders the `—` placeholder. Adding the Stripe `invoices.list`
- * join is tracked as a follow-up after the rest of the tier-gating
- * phase ships.
+ * Idempotent + side-effect-free; the audit page calls this on
+ * every render (which is fine — the page is rate-limited by the
+ * proxy auth gate, not by content cost).
  */
 export async function listBillingHistory(): Promise<BillingHistoryActionRow[]> {
   ensureDatabaseFactoryRegistered()
@@ -53,12 +62,95 @@ export async function listBillingHistory(): Promise<BillingHistoryActionRow[]> {
   if (!gate.organizationId) return []
 
   const db = await getDatabaseClient()
-  const rows = await listSubscriptionHistoryForOrg(db, gate.organizationId)
+  const [org, subRows] = await Promise.all([
+    organizationService.getOrganizationById(gate.organizationId),
+    listSubscriptionHistoryForOrg(db, gate.organizationId),
+  ])
 
-  return rows.flatMap((row) => {
+  const invoices = await fetchInvoicesQuietly(org?.stripe_customer_id)
+
+  if (invoices.length > 0) {
+    return buildInvoiceRows(invoices, subRows)
+  }
+  // No Stripe data — render the local subscription-row history as
+  // the fallback so the page still shows something useful when
+  // Stripe is down or the org has no customer id yet.
+  return buildSubscriptionRows(subRows)
+}
+
+async function fetchInvoicesQuietly(
+  stripeCustomerId: string | null | undefined
+): Promise<StripeInvoiceSummary[]> {
+  if (!stripeCustomerId) return []
+  try {
+    return await listStripeInvoicesForCustomer(stripeCustomerId)
+  } catch (err) {
+    // Stripe rate-limit / network / config error must not break the
+    // audit page — log + return empty so the local fallback runs.
+    console.error("[billing-history] Stripe invoices fetch failed:", err)
+    return []
+  }
+}
+
+function buildInvoiceRows(
+  invoices: readonly StripeInvoiceSummary[],
+  subRows: readonly SubscriptionHistoryRow[]
+): BillingHistoryActionRow[] {
+  const subByStripeId = new Map<string, SubscriptionHistoryRow>()
+  for (const sub of subRows) {
+    if (sub.stripe_subscription_id) {
+      subByStripeId.set(sub.stripe_subscription_id, sub)
+    }
+  }
+
+  // Stripe returns invoices newest-first already, but defend against
+  // the order ever shifting — explicit sort keeps the audit row
+  // ordering deterministic.
+  const sorted = [...invoices].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+  return sorted.flatMap((inv) => {
+    const sub = inv.subscriptionId ? subByStripeId.get(inv.subscriptionId) ?? null : null
+    const planTier = sub && isPlanTier(sub.plan_tier) ? sub.plan_tier : null
+    if (!planTier) {
+      // Can't classify a tier — skip rather than render an
+      // ambiguous row. Edge case: one-off invoices or invoices for
+      // a subscription the local table doesn't have.
+      return []
+    }
+    const billingInterval: BillingHistoryActionRow["billingInterval"] =
+      sub?.billing_interval === "annual"
+        ? "annual"
+        : sub?.billing_interval === "monthly"
+          ? "monthly"
+          : null
+    return [
+      {
+        id: inv.id,
+        createdAt: inv.createdAt,
+        planTier,
+        billingInterval,
+        seatCount: sub?.seat_count ?? null,
+        periodStart: inv.periodStart,
+        periodEnd: inv.periodEnd,
+        amountCents: inv.amountPaid,
+        status: mapInvoiceStatus(inv.status),
+        invoiceUrl: inv.hostedInvoiceUrl,
+      },
+    ]
+  })
+}
+
+function buildSubscriptionRows(
+  subRows: readonly SubscriptionHistoryRow[]
+): BillingHistoryActionRow[] {
+  return subRows.flatMap((row) => {
     if (!isPlanTier(row.plan_tier)) return []
-    if (!isKnownStatus(row.status)) return []
-    const billingInterval = isKnownInterval(row.billing_interval) ? row.billing_interval : null
+    const billingInterval: BillingHistoryActionRow["billingInterval"] =
+      row.billing_interval === "annual"
+        ? "annual"
+        : row.billing_interval === "monthly"
+          ? "monthly"
+          : null
     return [
       {
         id: row.id,
@@ -66,29 +158,39 @@ export async function listBillingHistory(): Promise<BillingHistoryActionRow[]> {
         planTier: row.plan_tier,
         billingInterval,
         seatCount: row.seat_count,
-        currentPeriodStart: row.current_period_start,
-        currentPeriodEnd: row.current_period_end,
-        status: row.status,
-        lastPaymentStatus: row.last_payment_status,
-        stripeSubscriptionId: row.stripe_subscription_id,
+        periodStart: row.current_period_start,
+        periodEnd: row.current_period_end,
+        amountCents: null,
+        status: mapSubFallbackStatus(row.status, row.last_payment_status),
+        invoiceUrl: null,
       },
     ]
   })
 }
 
-function isKnownStatus(s: string): s is BillingHistoryActionRow["status"] {
-  return (
-    s === "incomplete" ||
-    s === "incomplete_expired" ||
-    s === "trialing" ||
-    s === "active" ||
-    s === "past_due" ||
-    s === "canceled" ||
-    s === "unpaid" ||
-    s === "paused"
-  )
+/**
+ * Stripe invoice statuses map to the 4-state UI pill. `draft` and
+ * `open` are unpaid-but-active states — surfaced as `pending`.
+ */
+function mapInvoiceStatus(
+  status: StripeInvoiceSummary["status"]
+): BillingHistoryActionRow["status"] {
+  if (status === "paid") return "paid"
+  if (status === "uncollectible") return "failed"
+  if (status === "void") return "refunded"
+  return "pending"
 }
 
-function isKnownInterval(s: string | null): s is "monthly" | "annual" {
-  return s === "monthly" || s === "annual"
+function mapSubFallbackStatus(
+  subStatus: string,
+  paymentStatus: string | null
+): BillingHistoryActionRow["status"] {
+  if (paymentStatus === "paid") return "paid"
+  if (paymentStatus === "failed") return "failed"
+  if (paymentStatus === "refunded") return "refunded"
+  if (paymentStatus === "pending") return "pending"
+  if (subStatus === "active" || subStatus === "trialing") return "paid"
+  if (subStatus === "past_due" || subStatus === "unpaid") return "failed"
+  return "pending"
 }
+

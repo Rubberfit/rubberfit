@@ -12,14 +12,20 @@ import {
 export const dynamic = "force-dynamic"
 
 /**
- * Per-payment audit page. Streams `organization_subscriptions` rows
- * via the `listBillingHistory` action; maps the Stripe sub status to
- * the `<StatusPill>`'s 4-state model and leaves `amountCents` /
- * `invoiceUrl` null pending the Stripe `invoices.list` join (tracked
- * as a follow-up).
+ * Per-payment audit page.
  *
- * Server component — keeps the action call off the client bundle and
- * avoids a render flash for what is effectively read-only data.
+ * Data flow: `listBillingHistory` action live-fetches invoices from
+ * Stripe for the org's customer and joins them with the local
+ * `organization_subscriptions` rows so each invoice carries plan
+ * tier + billing interval context. The action falls back to a
+ * subscription-only view when Stripe is unreachable or the org has
+ * no customer id yet (legacy / grandfather migration), so the page
+ * always renders something useful.
+ *
+ * Server component — keeps the Stripe SDK off the client bundle.
+ * Cost per render is one `stripe.invoices.list` call; the audit
+ * page is visited rarely enough that this is cheaper than syncing
+ * an `invoices` table locally.
  */
 export default async function BillingHistoryPage() {
   const rows = await listBillingHistory()
@@ -32,25 +38,13 @@ export default async function BillingHistoryPage() {
   )
 }
 
-/**
- * Map a subscription history row to the table's display shape.
- * `last_payment_status` drives the pill when present; otherwise we
- * derive a sensible fallback from `status` (active/trialing → paid,
- * past_due/unpaid → failed, canceled → pending, others → pending).
- *
- * `canceled` falls back to `pending` rather than `refunded`: a
- * canceled subscription is a lifecycle state, not a payment outcome.
- * Plenty of canceled rows paid in full and simply didn't renew; the
- * audit table must not imply Stripe refunded them.
- */
 function toTableRow(row: BillingHistoryActionRow): BillingHistoryRow {
   return {
     id: row.id,
     date: format(new Date(row.createdAt), "yyyy-MM-dd"),
     plan: row.planTier.toUpperCase() as BillingHistoryRow["plan"],
-    // `billing_interval` is nullable in DB — rows from the early
-    // pre-Stripe-rollout era can carry NULL. Map explicitly so the
-    // table doesn't silently mis-label them as MONTHLY; null flows
+    // `billing_interval` is nullable on legacy rows. Map explicitly
+    // so the table doesn't silently mis-label them; null flows
     // through to the table where it renders as `—`.
     interval:
       row.billingInterval === "annual"
@@ -59,29 +53,10 @@ function toTableRow(row: BillingHistoryActionRow): BillingHistoryRow {
           ? "MONTHLY"
           : null,
     seats: row.seatCount,
-    periodStart: row.currentPeriodStart
-      ? format(new Date(row.currentPeriodStart), "yyyy-MM-dd")
-      : null,
-    periodEnd: row.currentPeriodEnd
-      ? format(new Date(row.currentPeriodEnd), "yyyy-MM-dd")
-      : null,
-    amountCents: null,
-    status: mapStatus(row.lastPaymentStatus, row.status),
-    invoiceUrl: null,
+    periodStart: row.periodStart ? format(new Date(row.periodStart), "yyyy-MM-dd") : null,
+    periodEnd: row.periodEnd ? format(new Date(row.periodEnd), "yyyy-MM-dd") : null,
+    amountCents: row.amountCents,
+    status: row.status,
+    invoiceUrl: row.invoiceUrl,
   }
-}
-
-function mapStatus(
-  paymentStatus: string | null,
-  subStatus: BillingHistoryActionRow["status"]
-): BillingHistoryRow["status"] {
-  if (paymentStatus === "paid") return "paid"
-  if (paymentStatus === "failed") return "failed"
-  if (paymentStatus === "refunded") return "refunded"
-  if (paymentStatus === "pending") return "pending"
-  // No payment status mirrored yet — fall back to the sub status so
-  // the pill is informative rather than blank.
-  if (subStatus === "active" || subStatus === "trialing") return "paid"
-  if (subStatus === "past_due" || subStatus === "unpaid") return "failed"
-  return "pending"
 }
