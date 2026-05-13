@@ -23,13 +23,31 @@ export function UpgradeModal({
   body,
   requiredTier,
 }: UpgradeModalProps) {
+  const dialogRef = React.useRef<HTMLDivElement>(null)
+  // Remember which element opened the modal so we can return focus
+  // to it on close — keyboard-only and screen-reader users expect
+  // the prior context to be restored rather than landing at the
+  // body root.
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+
   React.useEffect(() => {
     if (!open) return
+    triggerRef.current = (document.activeElement as HTMLElement) ?? null
+    // Defer focus until the dialog is actually mounted so the focus
+    // call doesn't race the AnimatePresence enter animation.
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.focus()
+    }, 0)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onOpenChange(false)
     }
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    return () => {
+      window.clearTimeout(focusTimer)
+      window.removeEventListener("keydown", onKey)
+      triggerRef.current?.focus?.()
+      triggerRef.current = null
+    }
   }, [open, onOpenChange])
 
   return (
@@ -47,11 +65,13 @@ export function UpgradeModal({
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
+              ref={dialogRef}
+              tabIndex={-1}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={{ duration: 0.3, ease: EASE }}
-              className="relative w-[480px] max-w-[calc(100vw-32px)] border border-t-2 border-[var(--color-rule)] border-t-[var(--color-signal)] bg-[var(--color-surface-raised)] p-8"
+              className="relative w-[480px] max-w-[calc(100vw-32px)] border border-t-2 border-[var(--color-rule)] border-t-[var(--color-signal)] bg-[var(--color-surface-raised)] p-8 outline-none"
               role="dialog"
               aria-modal="true"
             >
