@@ -314,6 +314,22 @@ export class OrganizationService implements IOrganizationService {
     return data as OrganizationSubscription
   }
 
+  async updateSubscriptionPlanTierAndSeats(input: {
+    subscriptionId: string
+    planTier: "standard" | "pro" | "max"
+    seatCount: number
+  }): Promise<OrganizationSubscription> {
+    const supabase = await getBillingWriteClient()
+    const { data, error } = await supabase
+      .from("organization_subscriptions")
+      .update({ plan_tier: input.planTier, seat_count: input.seatCount })
+      .eq("id", input.subscriptionId)
+      .select("*")
+      .single()
+    if (error) throw error
+    return data as OrganizationSubscription
+  }
+
   // ─── Invitations ────────────────────────────────────────────
 
   async createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation> {
