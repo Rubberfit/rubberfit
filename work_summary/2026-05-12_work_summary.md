@@ -112,3 +112,80 @@ If you treat this as the canonical drift audit, the natural next step after each
 1. Patch the two drifted indexes (mappers + DI) — ~10-line edits each. Can ship in a tiny `docs(agents):` commit on this branch.
 2. Continue the DDD queue when ready: `reorderService` is the natural next target (closes the pricing-stack family that supplier/material-supplier/material-type/price-history started).
 3. The 9 pre-existing test failures remain pre-existing — don't conflate them with new work.
+
+---
+
+# Continuation (same day, post-handoff)
+
+Three additional commits landed after the initial drift-audit work. The DDD queue moved from 5/10 to 7/10 services migrated.
+
+## What shipped (continuation)
+
+| Commit     | Title                                                                                      | Files | LOC        |
+| ---------- | ------------------------------------------------------------------------------------------ | ----- | ---------- |
+| `d4c9dc43` | `docs(agents):` patch mapper + DI indexes for DDD service migrations                       | 2     | +26/-6     |
+| `e51c4249` | `docs(work-summary):` add 2026-05-12 session summary + drift audit                         | 1     | +114       |
+| `ad31376c` | `feat(infrastructure):` reorder service — sixth DDD migration + interface split            | 24    | +1224/-602 |
+| `844e6dcb` | `feat(infrastructure):` purchase-order service — seventh DDD migration (commit 1/2: infra) | 36    | +2100/-764 |
+
+## Migration details
+
+**Sixth migration — `reorderService` (`ad31376c`)**
+
+Wider-than-usual interface split because the 22-method legacy surface bundled 4 concerns (rule CRUD / suggestion generation / calculation pass-throughs / PO numbering). Codex review (per durable feedback) identified 7 unreachable-from-production methods to drop: `checkReorderPoints`, `createAutomaticPurchaseOrder`, `calculateSuggestedQuantity`, `estimateReorderCost`, `determineUrgency`, `generateReorderReason`, `calculateOptimalOrderQuantity`. Also `generatePONumber` (canonical lives on `purchaseOrderService`). Narrow new `IReorderService` is 11 entity-typed methods over `IReorderRulesRepository`; legacy shim retains rule raw-row CRUD + inline `generateReorderSuggestions` + `calculateCurrentStock` for the 4 consumer files that still need them.
+
+**Seventh migration — `purchaseOrderService` commit 1/2 (`844e6dcb`)**
+
+Biggest migration to date — 688-LOC service, 796-LOC entity, 22-method surface, 8 consumers, 5 PO use-cases injecting it. Codex review revised scope:
+
+- **Split commits**: this is 1 of 2. Commit 2/2 will rewrite the 5 PO use-cases to adopt the new entity-typed surface (confronts the tenant-resolution problem — `ActionActor` has no `tenantId` today, entity factories require one) and migrate consumer page imports. Both commits must compile green.
+- **First nested-aggregate mapper**: PO header + `PurchaseOrderItem` VO collection rehydrated from joined rows. Currency injected externally (DB stores cents only). `repo.update(po)` syncs child rows by `(purchase_order_id, line_number)` — UPDATE on existing, INSERT new, soft-delete dropped — avoiding row-id churn on status-only updates.
+- **Service hides `load → mutate → save`**: every entity-typed method internally fetches the aggregate, calls the entity transition, persists. Use-cases stay thin.
+- **Deferred**: `IPoNumberingService` extraction (DB RPC-backed, race-safe) is its own follow-up commit; `generatePONumber` stays on legacy shim for now. `recalculatePOTotals` deliberately not on new service — aggregate maintains the money invariant automatically.
+
+Use-cases temporarily flipped `@inject` from `TOKENS.IPurchaseOrderService` → `TOKENS.ILegacyPurchaseOrderService` (mechanical edit; zero behavior change). 7 consumer files repathed imports from `purchaseOrderService` → `legacyPurchaseOrderService`.
+
+## Test totals
+
+| Checkpoint                       | Passing | Failing | Notes                                                                           |
+| -------------------------------- | ------- | ------- | ------------------------------------------------------------------------------- |
+| Start of session (`b6a03a14`)    | 1635    | 9       | Rollservice migration just shipped.                                             |
+| After reorder (`ad31376c`)       | 1654    | 9       | +19 net new passing (mapper 14 + service 13, −8 changes due to method renames). |
+| After PO commit 1/2 (`844e6dcb`) | 1672    | 9       | +18 new (mapper 8 + service 10).                                                |
+
+All 9 failures are pre-existing and unrelated to migrations: cutting-engine NFP rendering (7), proxy matcher (1), po-new-page prefill (1), price-history architecture allowlist gap (1 — Codex caught this on a separate run; affects `tests/architecture/no-direct-supabase.test.ts`).
+
+## Drift audit — continuation
+
+Same methodology as the initial audit. All indexes touched by these commits are now verified in sync:
+
+| Index                                             | Status | Notes                                                                                                                                           |
+| ------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/infrastructure/mappers/README.md`            | ✅     | 7 mappers listed, 7 on disk. PO mapper added with nested-aggregate notes.                                                                       |
+| `di/README.md` Services (29)                      | ✅     | All 29 tokens accounted for; `ILegacyReorderService` + `ILegacyPurchaseOrderService` added; class flips marked for the 7 DDD-migrated services. |
+| `di/README.md` Repositories (7)                   | ✅     | All 7 DI-registered repos listed: Suppliers, MaterialSuppliers, MaterialTypes, PriceHistory, Rolls, ReorderRules, PurchaseOrders.               |
+| `di/README.md` Use cases (10)                     | ✅     | 10 use-cases on disk, 10 in README.                                                                                                             |
+| `src/application/services/README.md` Catalog (29) | ✅     | Catalog count matches; both `ILegacyXxxService` rows added with retire-on-consumer-migration notes.                                             |
+| `src/application/use-cases/README.md`             | ✅     | No use-cases added/renamed in these commits — just `@inject` token flips (interior change).                                                     |
+| `src/entities/README.md`                          | ✅     | No entity files added/renamed.                                                                                                                  |
+
+**Observation, not drift:** `jobs.repository.ts`, `notifications.repository.ts`, `profiles.repository.ts` exist on disk but aren't DI-registered (no token, no row in `di/README.md` Repositories table). They're consumed via direct module imports by their services. Consistent with the DI README's stated scope (tracks DI tokens, not all repository files). Worth a follow-up note when those services hit the DDD migration queue.
+
+## DDD queue status
+
+**Done (7/10):** supplier, material-supplier, material-type, price-history, roll, reorder, purchase-order (infra surface only — use-case rewrite + consumer migration pending in commit 2/2).
+
+**Remaining (3 + 1 follow-up):**
+
+1. **PO commit 2/2** — rewrite 5 PO use-cases to adopt the new entity-typed `IPurchaseOrderService`. Confronts tenant resolution (`ActionActor.tenantId` doesn't exist; entity factories require `TenantId`). Migrate 7 consumer page imports back off the legacy shim where feasible. Update mocks.
+2. **`cutService`** — granular per-piece cut log. Smaller scope, narrow consumer set.
+3. **`cutHistoryService`** — job-level cut record (aggregate root). Joined query for layout JSON + linked rolls.
+4. **`notificationService`** — careful one. Two-table dance per CLAUDE.md (`notifications` in-app feed vs `notification_queue` async dispatch). Lots of consumers (every action that fires a notification side-effect).
+
+Plus the **`IPoNumberingService` extraction** (DB RPC-backed, race-safe) flagged by Codex during the PO scope review — its own follow-up commit between or after the rest.
+
+## Follow-ups out of continuation
+
+1. **PO commit 2/2** is the most urgent — leaving the use-cases mid-flight (pointed at legacy shim while new service exists unused) is technically working but architecturally awkward. Should be completed in the next session.
+2. **Tenant resolution decision** before commit 2/2 lands: extend `ActionActor` with `tenantId`, or derive from supplier/job context at the use-case level? This is Codex's open flag, not a small refactor.
+3. **Pre-existing test failures** (still 9). Architecture allowlist gap for the price-history files is the easiest fix; the cutting-engine NFP failures need real investigation (7 of the 9).
