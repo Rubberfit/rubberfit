@@ -27,6 +27,13 @@ import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { getEffectiveTier } from "@/src/application/billing/effective-tier"
+import {
+  FEATURE_TIERS,
+  meetsFeatureTier,
+  type FeatureKey,
+  type PlanTier,
+} from "@/src/application/billing/feature-tiers"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 import {
@@ -35,6 +42,7 @@ import {
 } from "@/src/infrastructure/services/permissionService"
 import { getSubscriptionGateForUser } from "@/src/infrastructure/services/organizationBillingService"
 import { isApiPath, isPublicPath } from "@/src/middleware/auth-allowlist"
+import { getRequiredFeature } from "@/src/middleware/feature-gate"
 import { applySecurityHeaders } from "@/src/middleware/security-headers"
 
 type PendingCookie = { name: string; value: string; options?: CookieOptions }
@@ -145,6 +153,23 @@ export async function proxy(request: NextRequest) {
     if (gate.kind !== "allowed") {
       return applySecurityHeaders(buildSubscriptionRequiredResponse(request, pendingCookies, gate))
     }
+
+    // Per-tier feature gate. Runs only after the subscription gate
+    // passes — a `needs_workspace` or blocked sub already gets routed
+    // to the recovery flow before tier evaluation matters.
+    const requiredFeature = getRequiredFeature(pathname)
+    if (requiredFeature !== null) {
+      const effectiveTier = getEffectiveTier(gate.planTier, gate.status)
+      if (!meetsFeatureTier(effectiveTier, requiredFeature)) {
+        return applySecurityHeaders(
+          buildFeatureLockedResponse(request, pendingCookies, {
+            featureKey: requiredFeature,
+            requiredTier: FEATURE_TIERS[requiredFeature],
+            currentTier: effectiveTier,
+          })
+        )
+      }
+    }
   }
 
   return applySecurityHeaders(privateResponse(response))
@@ -249,6 +274,51 @@ function subscriptionErrorBody(gate: SubscriptionBlockedResponse): {
     recovery: gate.recovery,
     organizationId: gate.organizationId,
   }
+}
+
+interface FeatureLockedContext {
+  featureKey: FeatureKey
+  requiredTier: PlanTier
+  currentTier: PlanTier
+}
+
+function buildFeatureLockedResponse(
+  request: NextRequest,
+  pendingCookies: PendingCookie[],
+  context: FeatureLockedContext
+): NextResponse {
+  if (isApiPath(request.nextUrl.pathname)) {
+    const response = NextResponse.json(
+      {
+        code: "FEATURE_LOCKED" as const,
+        featureKey: context.featureKey,
+        requiredTier: context.requiredTier,
+        currentTier: context.currentTier,
+      },
+      { status: 403 }
+    )
+    for (const { name, value, options } of pendingCookies) {
+      response.cookies.set(name, value, options)
+    }
+    return privateResponse(response)
+  }
+
+  // HTML route: rewrite (not redirect) so the URL bar still shows the
+  // page the user attempted. The destination `/dashboard/locked` page
+  // reads the search params and renders the Kimi-designed LockScreen.
+  // We preserve `from` so the page can show a "you tried to visit X"
+  // breadcrumb and offer a back-button after upgrade.
+  const lockedUrl = new URL("/dashboard/locked", request.url)
+  lockedUrl.searchParams.set("feature", context.featureKey)
+  lockedUrl.searchParams.set("required", context.requiredTier)
+  lockedUrl.searchParams.set("current", context.currentTier)
+  lockedUrl.searchParams.set("from", request.nextUrl.pathname)
+
+  const response = NextResponse.rewrite(lockedUrl)
+  for (const { name, value, options } of pendingCookies) {
+    response.cookies.set(name, value, options)
+  }
+  return privateResponse(response)
 }
 
 export const config = {
