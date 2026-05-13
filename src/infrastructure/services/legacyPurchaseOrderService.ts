@@ -13,7 +13,6 @@ import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-cl
 import { taxService } from "./taxService"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { purchaseOrderAnalytics } from "./purchaseOrderAnalytics"
-import { generatePoNumber } from "./generatePoNumber"
 import type {
   ILegacyPurchaseOrderService,
   POReceiptItem,
@@ -596,18 +595,21 @@ export class LegacyPurchaseOrderService implements ILegacyPurchaseOrderService {
   }
 
   async generatePONumber(): Promise<string> {
+    // Race-safe per-year sequence — see `generate_po_number()` in
+    // `20260421000008_functions_and_triggers.sql`. The pre-redesign
+    // SELECT COUNT + format-in-TS path raced under Fly autoscale +
+    // reorder-suggestion concurrent creates; the RPC owns sequence
+    // allocation atomically via a per-year Postgres sequence.
     const supabase = await getDatabaseClient()
-    const date = new Date()
-    const year = date.getFullYear()
-
-    const startOfYear = new Date(year, 0, 1).toISOString()
-    const { count, error: _error } = await supabase
-      .from("purchase_orders")
-      .select("*", { count: "exact", head: true })
-      .gte("created_at", startOfYear)
-
-    const sequence = (count || 0) + 1
-    return generatePoNumber(year, sequence)
+    const { data, error } = await supabase.rpc("generate_po_number")
+    if (error) {
+      console.error("generatePONumber RPC failed:", error)
+      throw error
+    }
+    if (typeof data !== "string" || data.length === 0) {
+      throw new Error(`generate_po_number returned unexpected value: ${JSON.stringify(data)}`)
+    }
+    return data
   }
 
   async recalculatePOTotals(purchaseOrderId: string): Promise<void> {
