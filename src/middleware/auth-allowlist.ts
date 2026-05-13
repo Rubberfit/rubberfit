@@ -10,6 +10,13 @@
  */
 const PUBLIC_ROOT_PATH = "/"
 
+const EXACT_ONLY_PUBLIC_PATHS = new Set<string>([
+  "/auth-email-logo",
+  "/api/stripe/webhook",
+  "/robots.txt",
+  "/sitemap.xml",
+])
+
 export const PUBLIC_PATHS = [
   // Auth pages — user has no session yet by definition.
   "/login",
@@ -45,8 +52,9 @@ export const PUBLIC_PATHS = [
 /**
  * Returns true if `pathname` is on the public allowlist.
  *
- * Matches exact paths and sub-paths under each entry. So `/login` matches
+ * Matches exact paths and sub-paths under route entries. So `/login` matches
  * `/login`, `/login/`, and `/login/anything` — but NOT `/loginadmin`.
+ * File/webhook-style entries remain exact-only.
  */
 export function isPublicPath(pathname: string): boolean {
   // The product hub is public, but only for the exact root path.
@@ -54,6 +62,7 @@ export function isPublicPath(pathname: string): boolean {
 
   for (const publicPath of PUBLIC_PATHS) {
     if (pathname === publicPath) return true
+    if (EXACT_ONLY_PUBLIC_PATHS.has(publicPath)) continue
     if (pathname.startsWith(`${publicPath}/`)) return true
   }
   return false

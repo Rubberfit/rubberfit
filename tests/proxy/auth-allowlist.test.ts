@@ -23,6 +23,18 @@ describe("auth-allowlist: isPublicPath", () => {
     expect(isPublicPath("//dashboard")).toBe(false)
   })
 
+  it("treats crawler metadata routes as public", () => {
+    expect(isPublicPath("/robots.txt")).toBe(true)
+    expect(isPublicPath("/sitemap.xml")).toBe(true)
+  })
+
+  it("keeps file and webhook public entries exact-only", () => {
+    expect(isPublicPath("/robots.txt/anything")).toBe(false)
+    expect(isPublicPath("/sitemap.xml/anything")).toBe(false)
+    expect(isPublicPath("/auth-email-logo/anything")).toBe(false)
+    expect(isPublicPath("/api/stripe/webhook/anything")).toBe(false)
+  })
+
   it("treats unrelated paths as non-public", () => {
     expect(isPublicPath("/dashboard")).toBe(false)
     expect(isPublicPath("/dashboard/inventory")).toBe(false)
