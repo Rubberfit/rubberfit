@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/api/", "/dashboard/"],
+        disallow: ["/admin", "/admin/", "/api", "/api/", "/dashboard", "/dashboard/"],
       },
     ],
     sitemap: "https://rubberfit.app/sitemap.xml",

@@ -1,7 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-const entryPoints = [
+interface EntryPoint {
+  label: string
+  href: string
+  kicker: string
+  description: string
+}
+
+const entryPoints: EntryPoint[] = [
   {
     label: "Get RubberFit",
     href: "https://get.rubberfit.app",

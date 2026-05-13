@@ -18,8 +18,12 @@ describe("auth-allowlist: isPublicPath", () => {
     expect(isPublicPath("/registerme")).toBe(false)
   })
 
+  it("treats only the exact root product hub as public", () => {
+    expect(isPublicPath("/")).toBe(true)
+    expect(isPublicPath("//dashboard")).toBe(false)
+  })
+
   it("treats unrelated paths as non-public", () => {
-    expect(isPublicPath("/")).toBe(false)
     expect(isPublicPath("/dashboard")).toBe(false)
     expect(isPublicPath("/dashboard/inventory")).toBe(false)
     expect(isPublicPath("/api/cuts/history")).toBe(false)

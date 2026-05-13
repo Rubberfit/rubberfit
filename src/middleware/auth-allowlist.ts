@@ -8,12 +8,9 @@
  * ASVS reference: V8.3 (page-level access control delegation), V13.2
  * (allowlist of public endpoints).
  */
-export const PUBLIC_PATHS = [
-  // Public product hub. This is intentionally crawlable so brand
-  // searches can discover the marketing and docs subdomains without
-  // being sent straight to the login screen.
-  "/",
+const PUBLIC_ROOT_PATH = "/"
 
+export const PUBLIC_PATHS = [
   // Auth pages — user has no session yet by definition.
   "/login",
   "/register",
@@ -52,6 +49,9 @@ export const PUBLIC_PATHS = [
  * `/login`, `/login/`, and `/login/anything` — but NOT `/loginadmin`.
  */
 export function isPublicPath(pathname: string): boolean {
+  // The product hub is public, but only for the exact root path.
+  if (pathname === PUBLIC_ROOT_PATH) return true
+
   for (const publicPath of PUBLIC_PATHS) {
     if (pathname === publicPath) return true
     if (pathname.startsWith(`${publicPath}/`)) return true
