@@ -935,7 +935,30 @@ async function addLayoutDiagrams(
     const boxW = drawW + DIM_GUTTER_RIGHT_MM
     const boxH = drawH + DIM_GUTTER_BOTTOM_MM
 
-    const rollOffcuts = offcutSummary.filter((row) => row.rollIndex === i + 1)
+    const rollOffcutsRaw = offcutSummary.filter((row) => row.rollIndex === i + 1)
+    // Marker chips reference row.region.(x, y) in the original sheet
+    // coordinate space. When the body is rotated for landscape, those
+    // coords land outside the rotated bounding box (the (29", 152.125")
+    // anchor of an offcut on a 78×396 sheet plots at ~98mm of vertical
+    // offset, well below a 50mm-tall rotated diagram). Re-apply the
+    // same rotation so the marker numbers visually sit on top of the
+    // amber zones they identify. The page-4 summary table receives the
+    // un-rotated rows so operators can read the physical (x, y) anchor.
+    const rollOffcuts = rotateBody
+      ? rollOffcutsRaw.map((row) => ({
+          ...row,
+          region: {
+            x: row.region.y,
+            y: layout.sheetWidth - row.region.x - row.region.width,
+            width: row.region.height,
+            height: row.region.width,
+            polygon: row.region.polygon?.map((pt) => ({
+              x: pt.y,
+              y: layout.sheetWidth - pt.x,
+            })),
+          },
+        }))
+      : rollOffcutsRaw
     renderLayoutToDoc(doc, renderLayout, MARGIN, pageY, boxW, boxH, rollOffcuts)
     // y for the next non-diagram section. We force a fresh page after
     // the last diagram so portrait flow resumes from the top.

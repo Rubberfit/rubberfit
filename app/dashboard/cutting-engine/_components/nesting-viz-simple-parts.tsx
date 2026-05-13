@@ -4,7 +4,6 @@
 import React from "react"
 import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
-import type { LayoutRegion } from "./layout-model"
 import { formatInches } from "./nesting-layout-utils"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
 
@@ -527,8 +526,6 @@ export function SimpleModeOffcutLabels({
   scale,
   displayRotated,
   zoom = 1,
-  allOffcutBands,
-  offcutTagMap,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
@@ -546,20 +543,6 @@ export function SimpleModeOffcutLabels({
    * the operator zooms in.
    */
   zoom?: number
-  /**
-   * Every offcut band on this sheet, unfiltered. The "Reusable offcut"
-   * full label suppresses small/overlapping bands so the canvas doesn't
-   * crowd; the R-tag pass below uses `allOffcutBands` so even narrow
-   * strips get a badge as long as their pixel size can host a legible
-   * glyph. Source comes straight from `sheet.preview.offcutBands`.
-   */
-  allOffcutBands?: OffcutBand[]
-  /**
-   * Region → R-tag mapping shared with the legend (see
-   * `buildOffcutTagMap`). Looked up by `OffcutBand` reference, which
-   * is the same JS object as the `LayoutRegion` used as the key.
-   */
-  offcutTagMap?: WeakMap<LayoutRegion, string>
 }) {
   return (
     <>
@@ -613,66 +596,6 @@ export function SimpleModeOffcutLabels({
           </text>
         )
       })}
-      {allOffcutBands && offcutTagMap
-        ? allOffcutBands.map((band, index) => {
-            const tag = offcutTagMap.get(band as unknown as LayoutRegion)
-            if (!tag) return null
-            const bandPxW = band.width * scale
-            const bandPxH = band.height * scale
-            // Kimi K2.6 placement rule (2026-05-13):
-            //   h > 20px → top-left INSIDE the band (large bands)
-            //   8 ≤ h ≤ 20px → left edge, vertical center (long strips —
-            //     keeps the badge clear of the centered "Reusable offcut"
-            //     dim callout and away from neighboring parts below)
-            //   h < 8px or w < 12px → suppress (sliver too thin to host
-            //     a legible badge; the legend table covers identification)
-            // Width threshold + a 3px font floor ride on top so the
-            // glyph never paints sub-readable.
-            const MIN_BAND_HEIGHT_PX = 8
-            const MIN_BAND_WIDTH_PX = 12
-            const LARGE_BAND_HEIGHT_PX = 20
-            if (bandPxH < MIN_BAND_HEIGHT_PX || bandPxW < MIN_BAND_WIDTH_PX) return null
-            const badgeFontSize = Math.max(
-              0,
-              Math.min(12 / zoom, bandPxW * 0.5, bandPxH * 0.6)
-            )
-            if (badgeFontSize < 3) return null
-            const padX = badgeFontSize * 0.35
-            const isLargeBand = bandPxH > LARGE_BAND_HEIGHT_PX
-            const bandLeftPx = surfaceX + band.x * scale
-            const bandTopPx = surfaceY + band.y * scale
-            const tagX = bandLeftPx + padX
-            // Large band: anchor near the top edge so the badge sits in
-            // the corner; long strip: anchor at vertical mid-height so
-            // the glyph rides centered between the band's edges. SVG
-            // text `y` is the BASELINE — add the font size to descend
-            // from the top, or half the size to mid-height.
-            const tagY = isLargeBand
-              ? bandTopPx + badgeFontSize * 1.1
-              : bandTopPx + bandPxH / 2 + badgeFontSize * 0.35
-            const center = {
-              x: surfaceX + (band.x + band.width / 2) * scale,
-              y: surfaceY + (band.y + band.height / 2) * scale,
-            }
-            return (
-              <text
-                key={`offcut-rtag-${index}`}
-                x={tagX}
-                y={tagY}
-                transform={displayRotated ? `rotate(90 ${center.x} ${center.y})` : undefined}
-                fontSize={badgeFontSize}
-                fontWeight="800"
-                // amber-700 over the cream offcut fill mirrors the
-                // legend chip color. Dark-mode flips to amber-100
-                // (the offcut fill darkens to amber-950).
-                className="fill-amber-700 dark:fill-amber-100"
-                pointerEvents="none"
-              >
-                {tag}
-              </text>
-            )
-          })
-        : null}
     </>
   )
 }

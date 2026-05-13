@@ -76,23 +76,3 @@ export function buildTaggedReusableOffcuts(layouts: LayoutModel[]): TaggedOffcut
       ...entry,
     }))
 }
-
-/**
- * Indexes the area-ranked tags by region reference so per-sheet
- * renderers can resolve a band's R-tag without re-running the global
- * sort. Returns a WeakMap so layouts can be garbage-collected without
- * needing an explicit teardown when the operator clears the pack.
- *
- * Relies on `fromLayoutModelToPreview` passing `layout.offcuts` to
- * `SheetPreview.offcutBands` by reference (see layout-model.ts:582) —
- * the SVG renderer reaches a band whose identity matches a LayoutRegion
- * in this map.
- */
-export function buildOffcutTagMap(layouts: LayoutModel[]): WeakMap<LayoutRegion, string> {
-  const tagged = buildTaggedReusableOffcuts(layouts)
-  const map = new WeakMap<LayoutRegion, string>()
-  for (const entry of tagged) {
-    map.set(entry.region, entry.tag)
-  }
-  return map
-}

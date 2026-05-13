@@ -18,7 +18,6 @@ import { computeFabricationScore } from "./nesting-preview-builders"
 import { formatInches } from "./nesting-layout-utils"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { LayoutModel, PlacedPart } from "./layout-model"
-import { buildOffcutTagMap } from "./reusable-offcut-tags"
 import { CutLegend } from "./cut-legend"
 import SheetSvg from "./sheet-svg"
 import SheetThumbnail from "./sheet-thumbnail"
@@ -174,16 +173,6 @@ export default function NestingVizSimpleMode({
   const sheets = multiSheet?.sheets ?? [
     { sheetIndex: 0, preview: layout.displayPreview, isPartial: false },
   ]
-
-  // R-tag lookup keyed by offcut region identity so SheetSvg can paint
-  // the same R1..Rn badges the Reusable Offcuts card legend uses,
-  // letting operators visually trace each listed offcut to its position
-  // on the sheet. Memoised on layouts so re-renders don't rebuild the
-  // global area-sort.
-  const offcutTagMap = React.useMemo(
-    () => (layouts && layouts.length > 0 ? buildOffcutTagMap(layouts) : null),
-    [layouts]
-  )
 
   const { selectedId, selectPart } = useSheetSelection(layouts)
 
@@ -370,7 +359,6 @@ export default function NestingVizSimpleMode({
             selectedPartId={selectedId}
             onSelectPart={selectPart}
             ariaSummary={activeSheetSummary}
-            offcutTagMap={offcutTagMap ?? undefined}
           />
         ) : (
           <NestingPackStatePanel
