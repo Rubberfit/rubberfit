@@ -71,6 +71,70 @@ export async function resolveActiveTenantId(
 }
 
 /**
+ * Tenant the caller can switch to, with the roles they hold there.
+ * Returned by `listAccessibleTenants` to render the chooser UI.
+ */
+export interface AccessibleTenant {
+  tenantId: string
+  name: string
+  slug: string
+  roles: string[]
+}
+
+interface MembershipWithTenantRow {
+  roles: string[] | null
+  tenant:
+    | { id: string; name: string; slug: string }
+    | { id: string; name: string; slug: string }[]
+    | null
+}
+
+/**
+ * Lists every tenant the caller has an active membership in, with the
+ * roles they hold per tenant. Ordered oldest-membership-first so the
+ * chooser UI has a stable, predictable surface ("first one you joined
+ * lands at the top"). Used by the /select-tenant chooser page.
+ *
+ * Filters `memberships.deleted_at IS NULL` so a per-tenant deactivation
+ * removes that row from the chooser silently — the user can't re-pick
+ * a tenant they've been removed from.
+ */
+export async function listAccessibleTenants(
+  client: SupabaseClient,
+  profileId: string
+): Promise<AccessibleTenant[]> {
+  const { data, error } = await client
+    .from("memberships")
+    .select(
+      `
+      roles,
+      tenant:tenants!inner ( id, name, slug )
+    `
+    )
+    .eq("profile_id", profileId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+
+  if (error) {
+    console.error("listAccessibleTenants failed:", error)
+    throw error
+  }
+
+  return ((data ?? []) as unknown as MembershipWithTenantRow[])
+    .map((row) => {
+      const tenant = Array.isArray(row.tenant) ? row.tenant[0] : row.tenant
+      if (!tenant) return null
+      return {
+        tenantId: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        roles: row.roles ?? [],
+      }
+    })
+    .filter((t): t is AccessibleTenant => t !== null)
+}
+
+/**
  * Returns `true` when the caller has an active (non-deleted)
  * membership in the target tenant. Used by the chooser action to
  * validate user input before persisting the cookie + last_active —

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  listAccessibleTenants,
   persistLastActiveTenant,
   resolveActiveTenantId,
 } from "@/src/infrastructure/services/active-tenant.service"
@@ -71,6 +72,98 @@ describe("resolveActiveTenantId", () => {
     })
     const result = await resolveActiveTenantId(client, "u1")
     expect(result).toBeNull()
+  })
+})
+
+describe("listAccessibleTenants", () => {
+  it("flattens the membership + tenant join into AccessibleTenant rows", async () => {
+    const client = makeFakeClient({
+      tables: {
+        memberships: {
+          select: {
+            data: [
+              {
+                roles: ["admin", "manager"],
+                tenant: { id: TENANT_A, name: "Tenant A", slug: "tenant-a" },
+              },
+              {
+                roles: ["member"],
+                tenant: { id: TENANT_B, name: "Tenant B", slug: "tenant-b" },
+              },
+            ],
+            error: null,
+          },
+        },
+      },
+    })
+    const result = await listAccessibleTenants(client, "u1")
+    expect(result).toEqual([
+      { tenantId: TENANT_A, name: "Tenant A", slug: "tenant-a", roles: ["admin", "manager"] },
+      { tenantId: TENANT_B, name: "Tenant B", slug: "tenant-b", roles: ["member"] },
+    ])
+  })
+
+  it("returns an empty array when the caller has no active memberships", async () => {
+    const client = makeFakeClient({
+      tables: {
+        memberships: { select: { data: null, error: null } },
+      },
+    })
+    const result = await listAccessibleTenants(client, "u1")
+    expect(result).toEqual([])
+  })
+
+  it("propagates read errors so the page can render a fail-state", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const client = makeFakeClient({
+      tables: { memberships: { select: { data: null, error: { message: "rls" } } } },
+    })
+    await expect(listAccessibleTenants(client, "u1")).rejects.toMatchObject({ message: "rls" })
+    consoleSpy.mockRestore()
+  })
+
+  it("handles tenants returned as a single-element array (PostgREST join shape variation)", async () => {
+    const client = makeFakeClient({
+      tables: {
+        memberships: {
+          select: {
+            data: [
+              {
+                roles: ["member"],
+                tenant: [{ id: TENANT_A, name: "Tenant A", slug: "tenant-a" }],
+              },
+            ],
+            error: null,
+          },
+        },
+      },
+    })
+    const result = await listAccessibleTenants(client, "u1")
+    expect(result).toEqual([
+      { tenantId: TENANT_A, name: "Tenant A", slug: "tenant-a", roles: ["member"] },
+    ])
+  })
+
+  it("filters out rows where the joined tenant came back null", async () => {
+    const client = makeFakeClient({
+      tables: {
+        memberships: {
+          select: {
+            data: [
+              { roles: ["member"], tenant: null },
+              {
+                roles: ["admin"],
+                tenant: { id: TENANT_A, name: "Tenant A", slug: "tenant-a" },
+              },
+            ],
+            error: null,
+          },
+        },
+      },
+    })
+    const result = await listAccessibleTenants(client, "u1")
+    expect(result).toHaveLength(1)
+    expect(result[0]!.tenantId).toBe(TENANT_A)
   })
 })
 
