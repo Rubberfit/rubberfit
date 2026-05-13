@@ -3,7 +3,6 @@
 import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot, ShieldCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-import { NavUserTierPill } from "@/app/components/billing/NavUserTierPill"
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import {
   DropdownMenu,
@@ -63,20 +62,15 @@ export function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="relative">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage
-                    src={user.avatar || undefined}
-                    alt={user.name}
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                  />
-                  <AvatarFallback className="rounded-lg">
-                    {getInitials(user.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <NavUserTierPill />
-              </div>
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarImage
+                  src={user.avatar || undefined}
+                  alt={user.name}
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                />
+                <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
+              </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="truncate text-muted-foreground text-xs">{user.email}</span>
