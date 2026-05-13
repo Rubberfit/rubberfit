@@ -143,8 +143,13 @@ export class CreateCheckoutSessionUseCase implements ICreateCheckoutSessionUseCa
     // Pass an idempotency key keyed on the org id so a retry within
     // Stripe's 24h idempotency window reuses the same Customer instead
     // of orphaning one if the DB write below transiently fails.
+    //
+    // `-v2` suffix invalidates an earlier-poisoned cache entry where a
+    // diagnostic curl reused the `org-customer:<id>` key with different
+    // params; bumping the prefix is the only safe way to break out of
+    // that 24h conflict window short of waiting it out.
     const customer = await stripe.customers.create(params, {
-      idempotencyKey: `org-customer:${organization.id}`,
+      idempotencyKey: `org-customer-v2:${organization.id}`,
     })
     const updates: UpdateOrganization = { stripe_customer_id: customer.id }
     if (billingEmail) updates.billing_email = billingEmail

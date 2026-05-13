@@ -5,11 +5,15 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
+import { exportCutHistoryCsv } from "@/app/actions/cut-history"
+import { PART_LABELS } from "@/src/application/cuts/part-labels"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { isLayoutModelArray } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import { useRegenerateCutPdf } from "@/app/hooks/use-regenerate-cut-pdf"
 import { useRole } from "@/src/infrastructure/services/useRole"
+
+export { PART_LABELS }
 
 // Types
 
@@ -21,15 +25,6 @@ export interface User {
   id: string
   full_name: string | null
   email: string | null
-}
-
-// Constants
-
-export const PART_LABELS: Record<number, string> = {
-  1: "Rectangle",
-  2: "Cylinder Wrap",
-  3: "Cone Spread",
-  4: "Hopper Panel",
 }
 
 // Helpers
@@ -278,41 +273,47 @@ export function useCutHistory() {
   // Star + 9 data cols + actions
   const totalColSpan = 1 + 9 + 1
 
-  // CSV export
-  const exportToCsv = useCallback(() => {
-    const headers = [
-      "Cut Date",
-      "Part Type",
-      "Stock (W×L×T)",
-      "Qty",
-      "Parts Done",
-      "Mat Used (ft²)",
-      "Reuse (ft²)",
-      "Scrap (ft²)",
-      "Fab Score",
-    ]
-    const csvData = displayedCuts.map((cut) => [
-      format(new Date(cut.cut_date), "yyyy-MM-dd HH:mm:ss"),
-      PART_LABELS[cut.part_id] ?? `Part ${cut.part_id}`,
-      `${cut.cut_width}" × ${cut.cut_length}" × ${cut.cut_thickness}"`,
-      cut.cut_amount.toString(),
-      cut.parts_completed.toString(),
-      cut.material_used_sqft.toFixed(2),
-      cut.reusable_offset_sqft.toFixed(2),
-      cut.scrap_sqft.toFixed(2),
-      `${Math.round(cut.fab_score * 100)}%`,
-    ])
-    const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n")
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `cut-history-${format(new Date(), "yyyy-MM-dd")}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-  }, [displayedCuts])
+  // CSV export — Pro-tier gated. The server action enforces
+  // `requireFeature(actor, "cut_history_exports")` and re-queries
+  // by ID (RLS-respecting) before formatting the CSV. Standard
+  // tier surfaces the Kimi UpgradeModal; other failures fall
+  // through to a toast.
+  const [isExporting, setIsExporting] = useState(false)
+  const [upsellOpen, setUpsellOpen] = useState(false)
+  const exportToCsv = useCallback(async () => {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      // The action returns a discriminated result rather than
+      // throwing FeatureLockedError — Next.js strips custom error
+      // properties on the action serialization boundary, so a
+      // `result.ok` check is the reliable way to detect the
+      // Pro-tier gate from the client.
+      const result = await exportCutHistoryCsv({
+        cutIds: displayedCuts.map((c) => c.id),
+      })
+      if (!result.ok) {
+        if (result.reason === "FEATURE_LOCKED") {
+          setUpsellOpen(true)
+        }
+        return
+      }
+      const blob = new Blob(["﻿" + result.csv], { type: "text/csv;charset=utf-8" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `cut-history-${format(new Date(), "yyyy-MM-dd")}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Cut history CSV export failed:", err)
+      toast.error("Failed to export cut history")
+    } finally {
+      setIsExporting(false)
+    }
+  }, [displayedCuts, isExporting])
 
   return {
     // Data
@@ -347,6 +348,9 @@ export function useCutHistory() {
     handleReopen,
     handleViewPdf,
     exportToCsv,
+    isExporting,
+    upsellOpen,
+    setUpsellOpen,
   }
 }
 

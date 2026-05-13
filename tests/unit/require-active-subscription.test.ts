@@ -25,6 +25,7 @@ describe("requireActiveSubscription", () => {
       organizationId: "org_1",
       subscriptionId: "sub_1",
       status: "active" as const,
+      planTier: "standard" as const,
       cancelAtPeriodEnd: false,
       cancelAt: null,
       currentPeriodEnd: null,
