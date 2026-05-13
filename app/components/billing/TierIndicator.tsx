@@ -43,14 +43,12 @@ export function TierIndicator({ tier, status }: TierIndicatorProps) {
         </span>
       )
     }
-    if (tier === "enterprise") {
-      return (
-        <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-blueprint)]">
-          ENT
-        </span>
-      )
-    }
-    if (tier === "max") {
+    // Enterprise + Max: nothing on the right. The tier label on the
+    // left carries the identity — adding a duplicate `ENT` / `MAX`
+    // badge reads as redundant. Enterprise customers manage their
+    // contract through their account manager, not through an
+    // in-product upgrade affordance.
+    if (tier === "enterprise" || tier === "max") {
       return null
     }
     // Standard or Pro: show upgrade affordance

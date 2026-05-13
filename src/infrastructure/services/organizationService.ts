@@ -460,6 +460,22 @@ export class OrganizationService implements IOrganizationService {
     if (!data) return null
     return (data as { role: OrganizationRole }).role
   }
+
+  /**
+   * Active-member seat count for the org. Counts `organization_members`
+   * rows with `status='active'`. Pending invites are tracked separately
+   * via `organization_invitations` and bill when accepted.
+   */
+  async countActiveMembers(organizationId: string): Promise<number> {
+    const supabase = await getDatabaseClient()
+    const { count, error } = await supabase
+      .from("organization_members")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+    if (error) throw error
+    return count ?? 0
+  }
 }
 
 export const organizationService = new OrganizationService()
