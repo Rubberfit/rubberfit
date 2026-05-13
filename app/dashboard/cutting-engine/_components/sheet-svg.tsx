@@ -17,7 +17,7 @@ import {
 import type { DebugOverlayOptions, PreviewItem, SheetPreview } from "./nesting-visualizer-types"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
 import { formatInches } from "./nesting-viz-simple-layout"
-import type { LayoutModel, PlacedPart } from "./layout-model"
+import type { LayoutModel, LayoutRegion, PlacedPart } from "./layout-model"
 
 const IS_DEV = process.env.NODE_ENV === "development"
 
@@ -169,6 +169,14 @@ interface SheetSvgProps {
    * because it has the totalSheets + totalStockArea context.
    */
   ariaSummary?: string
+  /**
+   * Cross-sheet R-tag map (region → "R1".."Rn") shared with the
+   * `ReusableOffcutsCard` legend so badges painted on the SVG match
+   * the tile labels in card #5. Keyed by `LayoutRegion` reference, so
+   * `layout.offcuts` and `sheet.preview.offcutBands` (same refs per
+   * `fromLayoutModelToPreview`) can both look up by identity.
+   */
+  offcutTagMap?: WeakMap<LayoutRegion, string>
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -184,6 +192,7 @@ export default function SheetSvg({
   selectedPartId,
   onSelectPart,
   ariaSummary,
+  offcutTagMap,
 }: SheetSvgProps) {
   // Stable id so `aria-describedby` references the visually-hidden
   // summary span next to the SVG. React.useId guarantees uniqueness
@@ -836,6 +845,8 @@ export default function SheetSvg({
             scale={layout.scale}
             displayRotated={layout.displayRotated}
             zoom={zoom}
+            allOffcutBands={sheet.preview.offcutBands}
+            offcutTagMap={offcutTagMap}
           />
         </g>
         <SimpleModeDimensionLabels layout={layout} zoom={zoom} markerId={sMarker} />

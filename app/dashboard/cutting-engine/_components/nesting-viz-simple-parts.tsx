@@ -4,6 +4,7 @@
 import React from "react"
 import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
+import type { LayoutRegion } from "./layout-model"
 import { formatInches } from "./nesting-layout-utils"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
 
@@ -526,6 +527,8 @@ export function SimpleModeOffcutLabels({
   scale,
   displayRotated,
   zoom = 1,
+  allOffcutBands,
+  offcutTagMap,
 }: {
   offcutLabelBands: OffcutBand[]
   surfaceX: number
@@ -543,6 +546,20 @@ export function SimpleModeOffcutLabels({
    * the operator zooms in.
    */
   zoom?: number
+  /**
+   * Every offcut band on this sheet, unfiltered. The "Reusable offcut"
+   * full label suppresses small/overlapping bands so the canvas doesn't
+   * crowd; the R-tag pass below uses `allOffcutBands` so even narrow
+   * strips get a badge as long as their pixel size can host a legible
+   * glyph. Source comes straight from `sheet.preview.offcutBands`.
+   */
+  allOffcutBands?: OffcutBand[]
+  /**
+   * Region → R-tag mapping shared with the legend (see
+   * `buildOffcutTagMap`). Looked up by `OffcutBand` reference, which
+   * is the same JS object as the `LayoutRegion` used as the key.
+   */
+  offcutTagMap?: WeakMap<LayoutRegion, string>
 }) {
   return (
     <>
@@ -596,6 +613,50 @@ export function SimpleModeOffcutLabels({
           </text>
         )
       })}
+      {allOffcutBands && offcutTagMap
+        ? allOffcutBands.map((band, index) => {
+            const tag = offcutTagMap.get(band as unknown as LayoutRegion)
+            if (!tag) return null
+            const bandPxW = band.width * scale
+            const bandPxH = band.height * scale
+            // Badge size tracks the band's narrower screen dimension so
+            // a thin strip gets a thin badge rather than overflowing.
+            // Capped at 12px / zoom so badges stay legible without
+            // dominating large bands at high zoom.
+            const badgeFontSize = Math.max(
+              0,
+              Math.min(12 / zoom, bandPxW * 0.5, bandPxH * 0.4)
+            )
+            // Below 3px the glyph would be sub-readable; skip rather
+            // than paint visual noise.
+            if (badgeFontSize < 3) return null
+            const padX = badgeFontSize * 0.35
+            const padY = badgeFontSize * 0.25
+            const tagX = surfaceX + band.x * scale + padX
+            const tagY = surfaceY + band.y * scale + padY + badgeFontSize
+            const center = {
+              x: surfaceX + (band.x + band.width / 2) * scale,
+              y: surfaceY + (band.y + band.height / 2) * scale,
+            }
+            return (
+              <text
+                key={`offcut-rtag-${index}`}
+                x={tagX}
+                y={tagY}
+                transform={displayRotated ? `rotate(90 ${center.x} ${center.y})` : undefined}
+                fontSize={badgeFontSize}
+                fontWeight="800"
+                // amber-700 over the cream offcut fill mirrors the
+                // legend chip color. Dark-mode flips to amber-100
+                // (the offcut fill darkens to amber-950).
+                className="fill-amber-700 dark:fill-amber-100"
+                pointerEvents="none"
+              >
+                {tag}
+              </text>
+            )
+          })
+        : null}
     </>
   )
 }
