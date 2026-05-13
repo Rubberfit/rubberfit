@@ -27,6 +27,7 @@ const TABS: ReadonlyArray<{ id: string; href: string; label: string }> = [
   { id: "materials", href: "/dashboard/settings/materials", label: "Materials" },
   { id: "notifications", href: "/dashboard/settings/notifications", label: "Notifications" },
   { id: "team", href: "/dashboard/settings/team", label: "Team" },
+  { id: "billing", href: "/dashboard/settings/billing", label: "Billing" },
 ]
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

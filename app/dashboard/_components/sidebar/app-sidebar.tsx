@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { CircleHelp, ClipboardList, Database, File, Search, Settings } from "lucide-react"
 import { useShallow } from "zustand/react/shallow"
 
+import { TierIndicatorClient } from "@/app/components/billing/TierIndicatorClient"
 import { filterNavGroupsForRoles, getDefaultAuthorizedPath } from "@/app/lib/rbac"
 import {
   Sidebar,
@@ -98,6 +99,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
+        <TierIndicatorClient />
         {user && (
           <NavUser
             user={{
