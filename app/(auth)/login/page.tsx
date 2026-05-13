@@ -1,7 +1,17 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 
 import { LoginForm } from "../_components/login-form"
 import { GoogleButton } from "../_components/social-auth/google-button"
+
+export const metadata: Metadata = {
+  title: "Sign in to RubberFit",
+  description: "Sign in to the RubberFit manufacturing operations dashboard.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+}
 
 interface LoginPageProps {
   searchParams?:

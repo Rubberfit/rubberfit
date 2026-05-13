@@ -8,6 +8,15 @@
  * ASVS reference: V8.3 (page-level access control delegation), V13.2
  * (allowlist of public endpoints).
  */
+const PUBLIC_ROOT_PATH = "/"
+
+const EXACT_ONLY_PUBLIC_PATHS = new Set<string>([
+  "/auth-email-logo",
+  "/api/stripe/webhook",
+  "/robots.txt",
+  "/sitemap.xml",
+])
+
 export const PUBLIC_PATHS = [
   // Auth pages — user has no session yet by definition.
   "/login",
@@ -34,17 +43,26 @@ export const PUBLIC_PATHS = [
   // the invite still requires authentication — the gate moves from the
   // route to the action.
   "/invite",
+
+  // Crawler metadata. These must be readable without a session.
+  "/robots.txt",
+  "/sitemap.xml",
 ] as const
 
 /**
  * Returns true if `pathname` is on the public allowlist.
  *
- * Matches exact paths and sub-paths under each entry. So `/login` matches
+ * Matches exact paths and sub-paths under route entries. So `/login` matches
  * `/login`, `/login/`, and `/login/anything` — but NOT `/loginadmin`.
+ * File/webhook-style entries remain exact-only.
  */
 export function isPublicPath(pathname: string): boolean {
+  // The product hub is public, but only for the exact root path.
+  if (pathname === PUBLIC_ROOT_PATH) return true
+
   for (const publicPath of PUBLIC_PATHS) {
     if (pathname === publicPath) return true
+    if (EXACT_ONLY_PUBLIC_PATHS.has(publicPath)) continue
     if (pathname.startsWith(`${publicPath}/`)) return true
   }
   return false
