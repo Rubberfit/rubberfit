@@ -255,18 +255,40 @@ export class TaxService implements ITaxService {
   async getSupplierLocation(supplierId: string) {
     try {
       const supabase = await getDatabaseClient()
+      // `postal_code` replaces the legacy `zip_code` after the
+      // addresses-table inline migration (2026-05-12). Column lives
+      // directly on `suppliers` now (no shared addresses table).
       const { data, error } = await supabase
         .from("suppliers")
-        .select("state, city, zip_code, tax_exempt, tax_rate")
+        .select("state, city, postal_code, tax_exempt, tax_rate")
         .eq("id", supplierId)
-        .single()
+        .single<{
+          state: string | null
+          city: string | null
+          postal_code: string | null
+          tax_exempt: boolean | null
+          tax_rate: number | null
+        }>()
 
       if (error) {
         console.error("Error fetching supplier location:", error.message)
         return null
       }
 
+      // Map back to the legacy `zip_code` field name so the existing
+      // downstream callers (`calculatePurchaseOrderTax`,
+      // `batchCalculateTax`) don't need to change. The supplier table's
+      // column is `postal_code`; in-memory we keep using `zip_code` for
+      // continuity with the rest of the tax-rate pipeline.
       return data
+        ? {
+            state: data.state,
+            city: data.city,
+            zip_code: data.postal_code,
+            tax_exempt: data.tax_exempt,
+            tax_rate: data.tax_rate,
+          }
+        : null
     } catch (error) {
       console.error(
         "Error fetching supplier location:",

@@ -127,7 +127,15 @@ CREATE TABLE invoices (
   tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   project_id          uuid REFERENCES projects(id) ON DELETE SET NULL,
   person_id           uuid REFERENCES persons(id) ON DELETE SET NULL,
-  billing_address_id  uuid REFERENCES addresses(id) ON DELETE SET NULL,
+  -- Billing address snapshot (inline; no shared addresses table). Frozen
+  -- at issue time so historical invoices keep their issued-to address
+  -- even if the customer's current address later changes.
+  billing_line1       varchar(200),
+  billing_line2       varchar(200),
+  billing_city        varchar(100),
+  billing_state       varchar(100),
+  billing_postal_code varchar(20),
+  billing_country     varchar(100) DEFAULT 'United States',
   invoice_number      varchar(50) NOT NULL,
   issue_date          date NOT NULL DEFAULT CURRENT_DATE,
   due_date            date,
@@ -231,8 +239,21 @@ CREATE TABLE purchase_orders (
   id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id                 uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   supplier_id               uuid NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
-  shipping_address_id       uuid REFERENCES addresses(id) ON DELETE SET NULL,
-  billing_address_id        uuid REFERENCES addresses(id) ON DELETE SET NULL,
+  -- Shipping + billing address snapshots (inline; no shared addresses
+  -- table). Frozen at issue time so historical POs reflect the
+  -- destination they were sent to, not whatever's current today.
+  shipping_line1            varchar(200),
+  shipping_line2            varchar(200),
+  shipping_city             varchar(100),
+  shipping_state            varchar(100),
+  shipping_postal_code      varchar(20),
+  shipping_country          varchar(100) DEFAULT 'United States',
+  billing_line1             varchar(200),
+  billing_line2             varchar(200),
+  billing_city              varchar(100),
+  billing_state             varchar(100),
+  billing_postal_code       varchar(20),
+  billing_country           varchar(100) DEFAULT 'United States',
   reorder_rule_id           uuid REFERENCES reorder_rules(id) ON DELETE SET NULL,
   job_id                    uuid REFERENCES jobs(id) ON DELETE SET NULL,
   po_number                 varchar(50) NOT NULL,

@@ -53,7 +53,6 @@ CREATE TRIGGER trg_subscriptions_updated_at     BEFORE UPDATE ON subscriptions  
 CREATE TRIGGER trg_profiles_updated_at          BEFORE UPDATE ON profiles           FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_memberships_updated_at       BEFORE UPDATE ON memberships        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_user_preferences_updated_at  BEFORE UPDATE ON user_preferences   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE TRIGGER trg_addresses_updated_at         BEFORE UPDATE ON addresses          FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_persons_updated_at           BEFORE UPDATE ON persons            FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Inventory (file 2)

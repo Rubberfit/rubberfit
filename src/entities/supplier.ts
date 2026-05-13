@@ -6,12 +6,15 @@ import {
 } from "@/src/entities/shared/string-helpers"
 import { Email } from "@/src/entities/value-objects/email"
 import {
-  AddressId,
   ProfileId,
   SupplierId,
   TenantId,
 } from "@/src/entities/value-objects/id"
 import { Money, type MoneySnapshot } from "@/src/entities/value-objects/money"
+import {
+  PostalAddress,
+  type PostalAddressSnapshot,
+} from "@/src/entities/value-objects/postal-address"
 
 // ─── Constants (mirror DB column lengths / checks) ─────────────────────────
 
@@ -34,7 +37,7 @@ export interface CreateSupplierProps {
   id: SupplierId
   tenantId: TenantId
   name: string
-  addressId?: AddressId | null
+  address?: PostalAddress | null
   email?: Email | null
   generalPhone?: string | null
   website?: string | null
@@ -53,7 +56,7 @@ export interface ReconstituteSupplierProps {
   id: SupplierId
   tenantId: TenantId
   name: string
-  addressId: AddressId | null
+  address: PostalAddress | null
   email: Email | null
   generalPhone: string | null
   website: string | null
@@ -80,7 +83,7 @@ export interface ReconstituteSupplierProps {
  */
 export interface SupplierUpdateProps {
   name: string
-  addressId: AddressId | null
+  address: PostalAddress | null
   email: Email | null
   generalPhone: string | null
   website: string | null
@@ -98,7 +101,7 @@ export interface SupplierSnapshot {
   id: string
   tenantId: string
   name: string
-  addressId: string | null
+  address: PostalAddressSnapshot | null
   email: string | null
   generalPhone: string | null
   website: string | null
@@ -121,9 +124,11 @@ export interface SupplierSnapshot {
 // ─── Entity ────────────────────────────────────────────────────────────────
 
 /**
- * Tenant-scoped supplier directory. Address lives in a separate `Address`
- * entity — the FK (`addressId`) is held here; the Address rows are
- * loaded by a different repository.
+ * Tenant-scoped supplier directory. Address is an inline `PostalAddress`
+ * value object (no separate addresses table — dropped 2026-05-12 for
+ * snapshot semantics + blast-radius reasons). The supplier's address is
+ * mutable on the entity ("where the supplier is today"); PO/invoice
+ * addresses are snapshot at issue time.
  *
  * **`isActive` vs `deletedAt`** — distinct concepts:
  *   • `isActive = false` (deactivate) → "we no longer deal with this
@@ -148,7 +153,7 @@ export class Supplier {
   #id: SupplierId
   #tenantId: TenantId
   #name: string
-  #addressId: AddressId | null
+  #address: PostalAddress | null
   #email: Email | null
   #generalPhone: string | null
   #website: string | null
@@ -171,7 +176,7 @@ export class Supplier {
     this.#id = props.id
     this.#tenantId = props.tenantId
     this.#name = props.name
-    this.#addressId = props.addressId
+    this.#address = props.address
     this.#email = props.email
     this.#generalPhone = props.generalPhone
     this.#website = props.website
@@ -218,7 +223,7 @@ export class Supplier {
       id: props.id,
       tenantId: props.tenantId,
       name,
-      addressId: props.addressId ?? null,
+      address: props.address ?? null,
       email: props.email ?? null,
       generalPhone,
       website,
@@ -248,7 +253,7 @@ export class Supplier {
       id: SupplierId.fromPersistence(s.id),
       tenantId: TenantId.fromPersistence(s.tenantId),
       name: s.name,
-      addressId: s.addressId ? AddressId.fromPersistence(s.addressId) : null,
+      address: s.address ? PostalAddress.fromSnapshot(s.address) : null,
       email: s.email ? Email.fromPersistence(s.email) : null,
       generalPhone: s.generalPhone,
       website: s.website,
@@ -274,7 +279,7 @@ export class Supplier {
   get id(): SupplierId { return this.#id }
   get tenantId(): TenantId { return this.#tenantId }
   get name(): string { return this.#name }
-  get addressId(): AddressId | null { return this.#addressId }
+  get address(): PostalAddress | null { return this.#address }
   get email(): Email | null { return this.#email }
   get generalPhone(): string | null { return this.#generalPhone }
   get website(): string | null { return this.#website }
@@ -343,7 +348,7 @@ export class Supplier {
 
     if (
       newName === this.#name &&
-      nullableEqual(props.addressId, this.#addressId) &&
+      nullableEqual(props.address, this.#address) &&
       nullableEqual(props.email, this.#email) &&
       newGeneralPhone === this.#generalPhone &&
       newWebsite === this.#website &&
@@ -360,7 +365,7 @@ export class Supplier {
     }
 
     this.#name = newName
-    this.#addressId = props.addressId
+    this.#address = props.address
     this.#email = props.email
     this.#generalPhone = newGeneralPhone
     this.#website = newWebsite
@@ -488,7 +493,7 @@ export class Supplier {
       id: this.#id.value,
       tenantId: this.#tenantId.value,
       name: this.#name,
-      addressId: this.#addressId?.value ?? null,
+      address: this.#address?.toJSON() ?? null,
       email: this.#email?.value ?? null,
       generalPhone: this.#generalPhone,
       website: this.#website,

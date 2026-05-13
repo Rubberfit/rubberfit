@@ -2,7 +2,7 @@
 -- REDESIGN — File 1 of 9: Core schema
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Tables: plans, tenants, tenant_settings, subscriptions, profiles,
---         memberships, user_preferences, addresses, persons
+--         memberships, user_preferences, persons
 --
 -- Design decisions:
 --   • Multitenancy: tenant_id on every data table, membership via memberships
@@ -198,26 +198,6 @@ CREATE TABLE user_preferences (
 COMMENT ON COLUMN user_preferences.notification_preferences IS
   'Per-type toggles, quiet hours, timezone, channel settings, thresholds. '
   'Schema lives in src/types/notifications.ts.';
-
-
--- ─── addresses ─────────────────────────────────────────────────────────────
--- Tenant-scoped lookup. Referenced by suppliers, purchase_orders (billing/shipping).
-
-CREATE TABLE addresses (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  address_line1       varchar(200) NOT NULL,
-  address_line2       varchar(200),
-  city                varchar(100) NOT NULL,
-  state               varchar(100) NOT NULL,
-  postal_code         varchar(20) NOT NULL,
-  country             varchar(100) NOT NULL DEFAULT 'United States',
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  created_by          uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
-  updated_at          timestamptz NOT NULL DEFAULT now(),
-  updated_by          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  deleted_at          timestamptz
-);
 
 
 -- ─── persons ───────────────────────────────────────────────────────────────

@@ -8,7 +8,6 @@ import { nullableEqual } from "@/src/entities/shared/equality"
 import { trimOptional, trimRequired } from "@/src/entities/shared/string-helpers"
 import { Currency } from "@/src/entities/value-objects/currency"
 import {
-  AddressId,
   JobId,
   ProfileId,
   PurchaseOrderId,
@@ -17,6 +16,10 @@ import {
   TenantId,
 } from "@/src/entities/value-objects/id"
 import { Money, type MoneySnapshot } from "@/src/entities/value-objects/money"
+import {
+  PostalAddress,
+  type PostalAddressSnapshot,
+} from "@/src/entities/value-objects/postal-address"
 import {
   assertPoStatusTransition,
   isPoStatus,
@@ -41,8 +44,8 @@ export interface CreatePurchaseOrderProps {
    */
   currency: Currency
   poNumber: string
-  shippingAddressId?: AddressId | null
-  billingAddressId?: AddressId | null
+  shippingAddress?: PostalAddress | null
+  billingAddress?: PostalAddress | null
   reorderRuleId?: ReorderRuleId | null
   jobId?: JobId | null
   status?: PoStatus
@@ -64,8 +67,8 @@ export interface ReconstitutePurchaseOrderProps {
   id: PurchaseOrderId
   tenantId: TenantId
   supplierId: SupplierId
-  shippingAddressId: AddressId | null
-  billingAddressId: AddressId | null
+  shippingAddress: PostalAddress | null
+  billingAddress: PostalAddress | null
   reorderRuleId: ReorderRuleId | null
   jobId: JobId | null
   poNumber: string
@@ -97,8 +100,8 @@ export interface ReconstitutePurchaseOrderProps {
  */
 export interface PurchaseOrderUpdateProps {
   supplierId: SupplierId
-  shippingAddressId: AddressId | null
-  billingAddressId: AddressId | null
+  shippingAddress: PostalAddress | null
+  billingAddress: PostalAddress | null
   jobId: JobId | null
   poNumber: string
   requestedDeliveryDate: Date | null
@@ -112,8 +115,8 @@ export interface PurchaseOrderSnapshot {
   id: string
   tenantId: string
   supplierId: string
-  shippingAddressId: string | null
-  billingAddressId: string | null
+  shippingAddress: PostalAddressSnapshot | null
+  billingAddress: PostalAddressSnapshot | null
   reorderRuleId: string | null
   jobId: string | null
   poNumber: string
@@ -174,8 +177,8 @@ export class PurchaseOrder {
   #id: PurchaseOrderId
   #tenantId: TenantId
   #supplierId: SupplierId
-  #shippingAddressId: AddressId | null
-  #billingAddressId: AddressId | null
+  #shippingAddress: PostalAddress | null
+  #billingAddress: PostalAddress | null
   #reorderRuleId: ReorderRuleId | null
   #jobId: JobId | null
   #poNumber: string
@@ -203,8 +206,8 @@ export class PurchaseOrder {
     this.#id = props.id
     this.#tenantId = props.tenantId
     this.#supplierId = props.supplierId
-    this.#shippingAddressId = props.shippingAddressId
-    this.#billingAddressId = props.billingAddressId
+    this.#shippingAddress = props.shippingAddress
+    this.#billingAddress = props.billingAddress
     this.#reorderRuleId = props.reorderRuleId
     this.#jobId = props.jobId
     this.#poNumber = props.poNumber
@@ -262,8 +265,8 @@ export class PurchaseOrder {
       id: props.id,
       tenantId: props.tenantId,
       supplierId: props.supplierId,
-      shippingAddressId: props.shippingAddressId ?? null,
-      billingAddressId: props.billingAddressId ?? null,
+      shippingAddress: props.shippingAddress ?? null,
+      billingAddress: props.billingAddress ?? null,
       reorderRuleId: props.reorderRuleId ?? null,
       jobId: props.jobId ?? null,
       poNumber,
@@ -299,10 +302,8 @@ export class PurchaseOrder {
       id: PurchaseOrderId.fromPersistence(s.id),
       tenantId: TenantId.fromPersistence(s.tenantId),
       supplierId: SupplierId.fromPersistence(s.supplierId),
-      shippingAddressId: s.shippingAddressId
-        ? AddressId.fromPersistence(s.shippingAddressId)
-        : null,
-      billingAddressId: s.billingAddressId ? AddressId.fromPersistence(s.billingAddressId) : null,
+      shippingAddress: s.shippingAddress ? PostalAddress.fromSnapshot(s.shippingAddress) : null,
+      billingAddress: s.billingAddress ? PostalAddress.fromSnapshot(s.billingAddress) : null,
       reorderRuleId: s.reorderRuleId ? ReorderRuleId.fromPersistence(s.reorderRuleId) : null,
       jobId: s.jobId ? JobId.fromPersistence(s.jobId) : null,
       poNumber: s.poNumber,
@@ -339,11 +340,11 @@ export class PurchaseOrder {
   get supplierId(): SupplierId {
     return this.#supplierId
   }
-  get shippingAddressId(): AddressId | null {
-    return this.#shippingAddressId
+  get shippingAddress(): PostalAddress | null {
+    return this.#shippingAddress
   }
-  get billingAddressId(): AddressId | null {
-    return this.#billingAddressId
+  get billingAddress(): PostalAddress | null {
+    return this.#billingAddress
   }
   get reorderRuleId(): ReorderRuleId | null {
     return this.#reorderRuleId
@@ -474,8 +475,8 @@ export class PurchaseOrder {
 
     if (
       props.supplierId.equals(this.#supplierId) &&
-      nullableEqual(props.shippingAddressId, this.#shippingAddressId) &&
-      nullableEqual(props.billingAddressId, this.#billingAddressId) &&
+      nullableEqual(props.shippingAddress, this.#shippingAddress) &&
+      nullableEqual(props.billingAddress, this.#billingAddress) &&
       nullableEqual(props.jobId, this.#jobId) &&
       newPoNumber === this.#poNumber &&
       PurchaseOrder.#sameDateOrNull(props.requestedDeliveryDate, this.#requestedDeliveryDate) &&
@@ -488,8 +489,8 @@ export class PurchaseOrder {
     }
 
     this.#supplierId = props.supplierId
-    this.#shippingAddressId = props.shippingAddressId
-    this.#billingAddressId = props.billingAddressId
+    this.#shippingAddress = props.shippingAddress
+    this.#billingAddress = props.billingAddress
     this.#jobId = props.jobId
     this.#poNumber = newPoNumber
     this.#requestedDeliveryDate = props.requestedDeliveryDate
@@ -767,8 +768,8 @@ export class PurchaseOrder {
       id: this.#id.value,
       tenantId: this.#tenantId.value,
       supplierId: this.#supplierId.value,
-      shippingAddressId: this.#shippingAddressId?.value ?? null,
-      billingAddressId: this.#billingAddressId?.value ?? null,
+      shippingAddress: this.#shippingAddress?.toJSON() ?? null,
+      billingAddress: this.#billingAddress?.toJSON() ?? null,
       reorderRuleId: this.#reorderRuleId?.value ?? null,
       jobId: this.#jobId?.value ?? null,
       poNumber: this.#poNumber,

@@ -92,7 +92,7 @@ export class SupplierService implements ISupplierService {
     supplier.updateDetails(
       {
         name: supplier.name,
-        addressId: supplier.addressId,
+        address: supplier.address,
         email: supplier.email,
         generalPhone: supplier.generalPhone,
         website: supplier.website,

@@ -3,13 +3,16 @@ import { nullableEqual } from "@/src/entities/shared/equality"
 import { trimOptional, trimRequired } from "@/src/entities/shared/string-helpers"
 import { Currency } from "@/src/entities/value-objects/currency"
 import {
-  AddressId,
   InvoiceId,
   PersonId,
   ProfileId,
   ProjectId,
   TenantId,
 } from "@/src/entities/value-objects/id"
+import {
+  PostalAddress,
+  type PostalAddressSnapshot,
+} from "@/src/entities/value-objects/postal-address"
 import {
   assertInvoiceStatusTransition,
   isInvoiceStatus,
@@ -38,7 +41,7 @@ export interface CreateInvoiceProps {
   invoiceNumber: string
   projectId?: ProjectId | null
   personId?: PersonId | null
-  billingAddressId?: AddressId | null
+  billingAddress?: PostalAddress | null
   issueDate?: Date
   dueDate?: Date | null
   status?: InvoiceStatus
@@ -59,7 +62,7 @@ export interface ReconstituteInvoiceProps {
   tenantId: TenantId
   projectId: ProjectId | null
   personId: PersonId | null
-  billingAddressId: AddressId | null
+  billingAddress: PostalAddress | null
   invoiceNumber: string
   issueDate: Date
   dueDate: Date | null
@@ -90,7 +93,7 @@ export interface ReconstituteInvoiceProps {
 export interface InvoiceUpdateProps {
   projectId: ProjectId | null
   personId: PersonId | null
-  billingAddressId: AddressId | null
+  billingAddress: PostalAddress | null
   invoiceNumber: string
   issueDate: Date
   dueDate: Date | null
@@ -107,7 +110,7 @@ export interface InvoiceSnapshot {
   tenantId: string
   projectId: string | null
   personId: string | null
-  billingAddressId: string | null
+  billingAddress: PostalAddressSnapshot | null
   invoiceNumber: string
   issueDate: string
   dueDate: string | null
@@ -170,7 +173,7 @@ export class Invoice {
   #tenantId: TenantId
   #projectId: ProjectId | null
   #personId: PersonId | null
-  #billingAddressId: AddressId | null
+  #billingAddress: PostalAddress | null
   #invoiceNumber: string
   #issueDate: Date
   #dueDate: Date | null
@@ -197,7 +200,7 @@ export class Invoice {
     this.#tenantId = props.tenantId
     this.#projectId = props.projectId
     this.#personId = props.personId
-    this.#billingAddressId = props.billingAddressId
+    this.#billingAddress = props.billingAddress
     this.#invoiceNumber = props.invoiceNumber
     this.#issueDate = props.issueDate
     this.#dueDate = props.dueDate
@@ -268,7 +271,7 @@ export class Invoice {
       tenantId: props.tenantId,
       projectId: props.projectId ?? null,
       personId: props.personId ?? null,
-      billingAddressId: props.billingAddressId ?? null,
+      billingAddress: props.billingAddress ?? null,
       invoiceNumber,
       issueDate,
       dueDate: props.dueDate ?? null,
@@ -303,7 +306,7 @@ export class Invoice {
       tenantId: TenantId.fromPersistence(s.tenantId),
       projectId: s.projectId ? ProjectId.fromPersistence(s.projectId) : null,
       personId: s.personId ? PersonId.fromPersistence(s.personId) : null,
-      billingAddressId: s.billingAddressId ? AddressId.fromPersistence(s.billingAddressId) : null,
+      billingAddress: s.billingAddress ? PostalAddress.fromSnapshot(s.billingAddress) : null,
       invoiceNumber: s.invoiceNumber,
       issueDate: new Date(s.issueDate),
       dueDate: s.dueDate ? new Date(s.dueDate) : null,
@@ -341,8 +344,8 @@ export class Invoice {
   get personId(): PersonId | null {
     return this.#personId
   }
-  get billingAddressId(): AddressId | null {
-    return this.#billingAddressId
+  get billingAddress(): PostalAddress | null {
+    return this.#billingAddress
   }
   get invoiceNumber(): string {
     return this.#invoiceNumber
@@ -482,7 +485,7 @@ export class Invoice {
     if (
       nullableEqual(props.projectId, this.#projectId) &&
       nullableEqual(props.personId, this.#personId) &&
-      nullableEqual(props.billingAddressId, this.#billingAddressId) &&
+      nullableEqual(props.billingAddress, this.#billingAddress) &&
       newInvoiceNumber === this.#invoiceNumber &&
       props.issueDate.getTime() === this.#issueDate.getTime() &&
       Invoice.#sameDateOrNull(props.dueDate, this.#dueDate) &&
@@ -498,7 +501,7 @@ export class Invoice {
 
     this.#projectId = props.projectId
     this.#personId = props.personId
-    this.#billingAddressId = props.billingAddressId
+    this.#billingAddress = props.billingAddress
     this.#invoiceNumber = newInvoiceNumber
     this.#issueDate = props.issueDate
     this.#dueDate = props.dueDate
@@ -696,7 +699,7 @@ export class Invoice {
       tenantId: this.#tenantId.value,
       projectId: this.#projectId?.value ?? null,
       personId: this.#personId?.value ?? null,
-      billingAddressId: this.#billingAddressId?.value ?? null,
+      billingAddress: this.#billingAddress?.toJSON() ?? null,
       invoiceNumber: this.#invoiceNumber,
       issueDate: this.#issueDate.toISOString(),
       dueDate: this.#dueDate?.toISOString() ?? null,

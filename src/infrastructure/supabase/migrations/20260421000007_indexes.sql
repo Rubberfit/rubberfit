@@ -39,9 +39,6 @@ CREATE INDEX idx_profiles_platform_admin ON profiles(id) WHERE is_platform_admin
 -- Need the reverse for "list tenants this user belongs to":
 CREATE INDEX idx_memberships_profile_id ON memberships(profile_id);
 
--- addresses
-CREATE INDEX idx_addresses_tenant_id ON addresses(tenant_id);
-
 -- persons
 CREATE INDEX idx_persons_tenant_id  ON persons(tenant_id);
 CREATE INDEX idx_persons_profile_id ON persons(profile_id) WHERE profile_id IS NOT NULL;
@@ -54,7 +51,6 @@ CREATE INDEX idx_persons_profile_id ON persons(profile_id) WHERE profile_id IS N
 
 -- suppliers
 -- (tenant_id, name) UNIQUE already covers tenant_id-leading.
-CREATE INDEX idx_suppliers_address_id ON suppliers(address_id) WHERE address_id IS NOT NULL;
 CREATE INDEX idx_suppliers_tenant_active
   ON suppliers(tenant_id)
   WHERE active = true AND deleted_at IS NULL;
@@ -168,7 +164,6 @@ CREATE INDEX idx_project_cut_histories_tenant_id      ON project_cut_histories(t
 -- (tenant_id, invoice_number) UNIQUE covers tenant_id-leading.
 CREATE INDEX idx_invoices_project_id         ON invoices(project_id)         WHERE project_id IS NOT NULL;
 CREATE INDEX idx_invoices_person_id          ON invoices(person_id)          WHERE person_id IS NOT NULL;
-CREATE INDEX idx_invoices_billing_address_id ON invoices(billing_address_id) WHERE billing_address_id IS NOT NULL;
 CREATE INDEX idx_invoices_tenant_status
   ON invoices(tenant_id, status)
   WHERE deleted_at IS NULL;
@@ -191,8 +186,6 @@ CREATE INDEX idx_jobs_tenant_status
 -- purchase_orders
 -- (tenant_id, po_number) UNIQUE covers tenant_id-leading.
 CREATE INDEX idx_purchase_orders_supplier_id         ON purchase_orders(supplier_id);
-CREATE INDEX idx_purchase_orders_shipping_address_id ON purchase_orders(shipping_address_id) WHERE shipping_address_id IS NOT NULL;
-CREATE INDEX idx_purchase_orders_billing_address_id  ON purchase_orders(billing_address_id)  WHERE billing_address_id IS NOT NULL;
 CREATE INDEX idx_purchase_orders_reorder_rule_id     ON purchase_orders(reorder_rule_id)     WHERE reorder_rule_id IS NOT NULL;
 CREATE INDEX idx_purchase_orders_approved_by         ON purchase_orders(approved_by)         WHERE approved_by IS NOT NULL;
 CREATE INDEX idx_purchase_orders_tenant_status

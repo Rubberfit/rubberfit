@@ -22,7 +22,7 @@ The most common failure mode is reinventing a utility that already exists. Scan 
 | You need…                            | Use this — don't reinvent                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | A monetary value                     | `Money` + `Currency` VOs in [`src/entities/value-objects/`](./src/entities/value-objects/)                                     |
-| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 22 branded ID types already declared |
+| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 21 branded ID types already declared |
 | String length / trim validation      | `trimRequired` / `trimOptional` in [`src/entities/shared/string-helpers.ts`](./src/entities/shared/string-helpers.ts)          |
 | Null-safe VO equality                | `nullableEqual` in [`src/entities/shared/equality.ts`](./src/entities/shared/equality.ts)                                      |
 | A status enum with transition guards | Pattern in [`po-status.ts`](./src/entities/value-objects/po-status.ts) — copy the shape, don't hardcode strings                |

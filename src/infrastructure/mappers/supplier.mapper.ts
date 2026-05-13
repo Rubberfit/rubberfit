@@ -1,8 +1,9 @@
 import { Supplier } from "@/src/entities/supplier"
 import { Email } from "@/src/entities/value-objects/email"
-import { AddressId, ProfileId, SupplierId, TenantId } from "@/src/entities/value-objects/id"
+import { ProfileId, SupplierId, TenantId } from "@/src/entities/value-objects/id"
 import { Currency } from "@/src/entities/value-objects/currency"
 import { Money } from "@/src/entities/value-objects/money"
+import { PostalAddress } from "@/src/entities/value-objects/postal-address"
 
 /**
  * Persistence shape for the `suppliers` table. Defined locally rather
@@ -10,15 +11,21 @@ import { Money } from "@/src/entities/value-objects/money"
  * file's `Supplier` type is the pre-redesign legacy row (snake_case
  * `user_id`, flat address columns, `default_shipping_cost`). The schema
  * actually shipped in `20260421000002_schema_inventory.sql` uses
- * `tenant_id`, `address_id` FK, `general_phone`, `shipping_cost_cents`,
- * plus full audit columns. This local type is the source of truth for
+ * `tenant_id`, inline address columns (no shared addresses table —
+ * dropped 2026-05-12), `general_phone`, `shipping_cost_cents`, plus
+ * full audit columns. This local type is the source of truth for
  * mapper code; regenerated Supabase types will replace it later.
  */
 export interface SupplierRow {
   id: string
   tenant_id: string
   name: string
-  address_id: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
   email: string | null
   general_phone: string | null
   website: string | null
@@ -42,7 +49,12 @@ export interface SupplierInsertRow {
   id: string
   tenant_id: string
   name: string
-  address_id: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
   email: string | null
   general_phone: string | null
   website: string | null
@@ -62,7 +74,12 @@ export type SupplierUpdateRow = Partial<
   Pick<
     SupplierRow,
     | "name"
-    | "address_id"
+    | "address_line1"
+    | "address_line2"
+    | "city"
+    | "state"
+    | "postal_code"
+    | "country"
     | "email"
     | "general_phone"
     | "website"
@@ -90,12 +107,40 @@ export type SupplierUpdateRow = Partial<
  */
 const DEFAULT_CURRENCY = Currency.fromPersistence("USD")
 
+interface SupplierAddressColumns {
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
+}
+
+function addressToSupplierColumns(supplier: Supplier): SupplierAddressColumns {
+  const a = supplier.address
+  return {
+    address_line1: a?.line1 ?? null,
+    address_line2: a?.line2 ?? null,
+    city: a?.city ?? null,
+    state: a?.state ?? null,
+    postal_code: a?.postalCode ?? null,
+    country: a?.country ?? null,
+  }
+}
+
 export function rowToSupplier(row: SupplierRow): Supplier {
   return Supplier.reconstitute({
     id: SupplierId.fromPersistence(row.id),
     tenantId: TenantId.fromPersistence(row.tenant_id),
     name: row.name,
-    addressId: row.address_id ? AddressId.fromPersistence(row.address_id) : null,
+    address: PostalAddress.fromRow({
+      line1: row.address_line1,
+      line2: row.address_line2,
+      city: row.city,
+      state: row.state,
+      postal_code: row.postal_code,
+      country: row.country,
+    }),
     email: row.email ? Email.fromPersistence(row.email) : null,
     generalPhone: row.general_phone,
     website: row.website,
@@ -124,7 +169,7 @@ export function supplierToInsertRow(supplier: Supplier): SupplierInsertRow {
     id: supplier.id.value,
     tenant_id: supplier.tenantId.value,
     name: supplier.name,
-    address_id: supplier.addressId?.value ?? null,
+    ...addressToSupplierColumns(supplier),
     email: supplier.email?.value ?? null,
     general_phone: supplier.generalPhone,
     website: supplier.website,
@@ -144,7 +189,7 @@ export function supplierToInsertRow(supplier: Supplier): SupplierInsertRow {
 export function supplierToUpdateRow(supplier: Supplier): SupplierUpdateRow {
   return {
     name: supplier.name,
-    address_id: supplier.addressId?.value ?? null,
+    ...addressToSupplierColumns(supplier),
     email: supplier.email?.value ?? null,
     general_phone: supplier.generalPhone,
     website: supplier.website,

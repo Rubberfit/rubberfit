@@ -11,7 +11,8 @@
 --   • tenant_id on every table with ON DELETE CASCADE
 --   • Audit: created_at/by, updated_at/by, deleted_at on mutable tables.
 --            price_history is immutable (created_at/by only).
---   • Suppliers reference addresses (file 1) by FK, not inline address fields
+--   • Suppliers carry inline address columns (no shared addresses table —
+--     dropped 2026-05-12 for snapshot semantics + blast-radius reasons)
 --   • supplier_contacts joins suppliers ↔ persons (file 1)
 --   • Tax: suppliers.tax_rate is a local override; global tax_rates comes in file 6.
 --          The old tax_id → Tax_Rate FK is dropped; suppliers.tax_id is just
@@ -47,13 +48,21 @@ COMMENT ON COLUMN material_types.min_stock_sqm IS
 
 
 -- ─── suppliers ─────────────────────────────────────────────────────────────
--- Tenant-scoped supplier directory. Address lives in addresses (file 1).
+-- Tenant-scoped supplier directory. Address columns inline (no shared
+-- table — see header). Address is mutable (it's "where the supplier is
+-- today"), unlike PO/invoice address snapshots which freeze at issue
+-- time.
 
 CREATE TABLE suppliers (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id            uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name                 varchar(200) NOT NULL,
-  address_id           uuid REFERENCES addresses(id) ON DELETE SET NULL,
+  address_line1        varchar(200),
+  address_line2        varchar(200),
+  city                 varchar(100),
+  state                varchar(100),
+  postal_code          varchar(20),
+  country              varchar(100) DEFAULT 'United States',
   email                varchar(320),
   general_phone        varchar(30),
   website              varchar(500),

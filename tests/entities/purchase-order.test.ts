@@ -154,8 +154,8 @@ describe("PurchaseOrder", () => {
       po.updateDetails(
         {
           supplierId: po.supplierId,
-          shippingAddressId: null,
-          billingAddressId: null,
+          shippingAddress: null,
+          billingAddress: null,
           jobId: null,
           poNumber: "PO-NEW",
           requestedDeliveryDate: null,
@@ -179,8 +179,8 @@ describe("PurchaseOrder", () => {
       po.updateDetails(
         {
           supplierId: po.supplierId,
-          shippingAddressId: null,
-          billingAddressId: null,
+          shippingAddress: null,
+          billingAddress: null,
           jobId: null,
           poNumber: po.poNumber,
           requestedDeliveryDate: null,
@@ -200,8 +200,8 @@ describe("PurchaseOrder", () => {
       po.updateDetails(
         {
           supplierId: po.supplierId,
-          shippingAddressId: null,
-          billingAddressId: null,
+          shippingAddress: null,
+          billingAddress: null,
           jobId: null,
           poNumber: po.poNumber,
           requestedDeliveryDate: null,
@@ -222,8 +222,8 @@ describe("PurchaseOrder", () => {
         po.updateDetails(
           {
             supplierId: po.supplierId,
-            shippingAddressId: null,
-            billingAddressId: null,
+            shippingAddress: null,
+            billingAddress: null,
             jobId: null,
             poNumber: po.poNumber,
             requestedDeliveryDate: null,
@@ -246,8 +246,8 @@ describe("PurchaseOrder", () => {
         po.updateDetails(
           {
             supplierId: po.supplierId,
-            shippingAddressId: null,
-            billingAddressId: null,
+            shippingAddress: null,
+            billingAddress: null,
             jobId: null,
             poNumber: "PO-2",
             requestedDeliveryDate: null,

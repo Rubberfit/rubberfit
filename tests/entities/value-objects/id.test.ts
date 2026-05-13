@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import { InvalidValueObjectError } from "@/src/entities/errors/invalid-value-object.error"
 import {
-  AddressId,
   CutFavoriteId,
   CutHistoryId,
   CutId,
@@ -94,7 +93,6 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         InvitationId: () => InvitationId.create("x"),
         PlanId: () => PlanId.create("x"),
         SubscriptionId: () => SubscriptionId.create("x"),
-        AddressId: () => AddressId.create("x"),
         PersonId: () => PersonId.create("x"),
         MaterialTypeId: () => MaterialTypeId.create("x"),
         SupplierId: () => SupplierId.create("x"),
@@ -183,7 +181,6 @@ describe("Id factories (TenantId / ProfileId / MembershipId / InvitationId)", ()
         InvitationId,
         PlanId,
         SubscriptionId,
-        AddressId,
         PersonId,
         MaterialTypeId,
         SupplierId,

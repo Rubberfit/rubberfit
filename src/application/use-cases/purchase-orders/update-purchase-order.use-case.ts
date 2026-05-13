@@ -88,8 +88,8 @@ export class UpdatePurchaseOrderUseCase implements IUpdatePurchaseOrderUseCase {
       input.purchaseOrderId,
       {
         supplierId: SupplierId.fromPersistence(input.supplierId),
-        shippingAddressId: null,
-        billingAddressId: null,
+        shippingAddress: null,
+        billingAddress: null,
         jobId: existing.jobId
           ? JobId.fromPersistence(existing.jobId.value)
           : null,

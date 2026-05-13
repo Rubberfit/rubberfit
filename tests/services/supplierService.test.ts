@@ -121,7 +121,7 @@ describe("SupplierService", () => {
         SUPPLIER_UUID,
         {
           name: "New Name",
-          addressId: null,
+          address: null,
           email: null,
           generalPhone: null,
           website: null,

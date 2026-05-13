@@ -147,7 +147,7 @@ describe("Invoice", () => {
         {
           projectId: ProjectId.fromPersistence(PROJECT_UUID),
           personId: null,
-          billingAddressId: null,
+          billingAddress: null,
           invoiceNumber: inv.invoiceNumber,
           issueDate: inv.issueDate,
           dueDate: T2,
@@ -177,7 +177,7 @@ describe("Invoice", () => {
         {
           projectId: null,
           personId: null,
-          billingAddressId: null,
+          billingAddress: null,
           invoiceNumber: inv.invoiceNumber,
           issueDate: inv.issueDate,
           dueDate: null,
@@ -201,7 +201,7 @@ describe("Invoice", () => {
           {
             projectId: null,
             personId: null,
-            billingAddressId: null,
+            billingAddress: null,
             invoiceNumber: inv.invoiceNumber,
             issueDate: inv.issueDate,
             dueDate: null,
@@ -226,7 +226,7 @@ describe("Invoice", () => {
           {
             projectId: null,
             personId: null,
-            billingAddressId: null,
+            billingAddress: null,
             invoiceNumber: "INV-2",
             issueDate: inv.issueDate,
             dueDate: null,
@@ -257,7 +257,7 @@ describe("Invoice", () => {
           {
             projectId: null,
             personId: null,
-            billingAddressId: null,
+            billingAddress: null,
             invoiceNumber: partial.invoiceNumber,
             issueDate: partial.issueDate,
             dueDate: null,

@@ -98,7 +98,6 @@ ALTER TABLE subscriptions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memberships         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE addresses           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE persons             ENABLE ROW LEVEL SECURITY;
 
 -- Inventory (file 2)
@@ -279,12 +278,8 @@ CREATE POLICY subscriptions_write_admin ON subscriptions
 -- Any tenant member can read/write rows in their tenants. Platform admin full.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- addresses, persons (file 1)
-CREATE POLICY addresses_tenant_isolation ON addresses
-  FOR ALL
-  USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))
-  WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
-
+-- persons (file 1) — addresses table dropped 2026-05-12; addresses are
+-- inline columns on suppliers/purchase_orders/invoices now.
 CREATE POLICY persons_tenant_isolation ON persons
   FOR ALL
   USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))

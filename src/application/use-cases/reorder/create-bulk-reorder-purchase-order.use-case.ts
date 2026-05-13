@@ -315,8 +315,9 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
     const orderDate = new Date().toISOString()
     try {
       const supplier = await this.supplierService.getSupplierById(supplierId)
-      // Address fields would come from supplier.addressId → addresses
-      // repository, not yet wired here. Operators fill the empty
+      // Address fields could come from `supplier.address` (inline
+      // PostalAddress VO) but the bulk reorder flow's payload is
+      // still flat-string-shaped. Operators fill the empty
       // shipping/billing on review.
       return {
         order_date: orderDate,

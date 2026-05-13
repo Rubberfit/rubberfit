@@ -43,12 +43,13 @@ Grouped by aggregate cluster. Aggregate roots are bold.
 | [`plan.ts`](./plan.ts)                         | **Aggregate root** | Billing plan (global, not tenant-scoped). Price + feature flags.                                  |
 | [`subscription.ts`](./subscription.ts)         | **Aggregate root** | A tenant's subscription to a plan. Renewal + status.                                              |
 
-### Contacts / Locations
+### Contacts
 
-| File                         | Role   | Purpose                                                               |
-| ---------------------------- | ------ | --------------------------------------------------------------------- |
-| [`address.ts`](./address.ts) | Entity | Reusable address record (tenant-scoped). Used for shipping + billing. |
-| [`person.ts`](./person.ts)   | Entity | External contact record (e.g., supplier contact). Tenant-scoped.      |
+| File                       | Role   | Purpose                                                          |
+| -------------------------- | ------ | ---------------------------------------------------------------- |
+| [`person.ts`](./person.ts) | Entity | External contact record (e.g., supplier contact). Tenant-scoped. |
+
+> Addresses are inline on each owning record now (a `PostalAddress` value object on Supplier / PurchaseOrder / Invoice — see [`value-objects/postal-address.ts`](./value-objects/postal-address.ts)). The standalone `Address` entity + `addresses` table were dropped 2026-05-12 for snapshot semantics + blast-radius reasons.
 
 ### Inventory / Materials
 

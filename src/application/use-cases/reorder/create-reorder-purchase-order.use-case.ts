@@ -49,13 +49,12 @@ export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchase
       throw new Error("No supplier configured for this material")
     }
 
-    // Address fields would come from supplier.addressId → addresses
-    // repository, which is not yet wired into this use-case. The
-    // legacy flat-address columns (`supplier.address`, `.city`, …)
-    // no longer exist on the entity. Skipping shipping/billing
-    // address means operators get an empty header that they fill in
-    // on review — surfacing a real follow-up rather than silently
-    // populating from stale data.
+    // Address fields could come from `supplier.address` (inline
+    // PostalAddress VO) but the legacy reorder flow's address payload
+    // is still a flat-string shape that doesn't match. Skipping
+    // shipping/billing address means operators get an empty header
+    // that they fill in on review — surfacing a real follow-up
+    // rather than silently populating from stale data.
     let supplierFields: Record<string, string | undefined> = {
       order_date: new Date().toISOString(),
     }

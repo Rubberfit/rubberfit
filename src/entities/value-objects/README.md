@@ -25,13 +25,14 @@ Reuse the VOs in the table below before introducing a new primitive type or hard
 | [`invoice-status.ts`](./invoice-status.ts)     | `InvoiceStatus`         | Invoice lifecycle state machine (5 states)                              | Same shape as `po-status.ts`. Use `canInvoiceStatusTransitionTo`, `assertInvoiceStatusTransition`, `isInvoiceStatus`.                                                                   |
 | [`project-status.ts`](./project-status.ts)     | `ProjectStatus`         | Project lifecycle state machine (4 states)                              | Same shape. `canProjectStatusTransitionTo`, `assertProjectStatusTransition`, `isProjectStatus`.                                                                                         |
 | [`job-status.ts`](./job-status.ts)             | `JobStatus`             | Job lifecycle state machine (5 states)                                  | Same shape. `canJobStatusTransitionTo`, `assertJobStatusTransition`, `isJobStatus`.                                                                                                     |
-| [`id.ts`](./id.ts)                             | `Id<Brand>` + factories | Branded UUID; phantom typing per entity                                 | All entity primary keys. **22 brands already declared** — see below. Add a new brand instead of typing `string`.                                                                        |
+| [`id.ts`](./id.ts)                             | `Id<Brand>` + factories | Branded UUID; phantom typing per entity                                 | All entity primary keys. **21 brands already declared** — see below. Add a new brand instead of typing `string`.                                                                        |
+| [`postal-address.ts`](./postal-address.ts)     | `PostalAddress`         | Inline address VO (line1, line2, city, state, postal_code, country)     | Used on Supplier (live), PurchaseOrder shipping + billing (snapshot at issue time), Invoice billing (snapshot). Replaces the dropped `addresses` table + standalone `Address` entity (2026-05-12). |
 
-## ID brands (22)
+## ID brands (21)
 
 Each brand below is a `type` alias **and** a `const` factory object with `create()` / `fromPersistence()` methods. Same nominal-typing trick — `TenantId` is not assignable to `ProfileId` even though both are UUIDs at runtime.
 
-`TenantId`, `ProfileId`, `MembershipId`, `InvitationId`, `PlanId`, `SubscriptionId`, `AddressId`, `PersonId`, `MaterialTypeId`, `SupplierId`, `SupplierContactId`, `MaterialSupplierId`, `RollId`, `PriceHistoryId`, `ReorderRuleId`, `CutId`, `CutHistoryId`, `CutFavoriteId`, `PurchaseOrderId`, `JobId`, `InvoiceId`, `ProjectId`.
+`TenantId`, `ProfileId`, `MembershipId`, `InvitationId`, `PlanId`, `SubscriptionId`, `PersonId`, `MaterialTypeId`, `SupplierId`, `SupplierContactId`, `MaterialSupplierId`, `RollId`, `PriceHistoryId`, `ReorderRuleId`, `CutId`, `CutHistoryId`, `CutFavoriteId`, `PurchaseOrderId`, `JobId`, `InvoiceId`, `ProjectId`.
 
 If you need an ID brand that isn't here, add it — the pattern is ~6 lines per brand.
 

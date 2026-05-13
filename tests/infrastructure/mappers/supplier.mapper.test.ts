@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import { Supplier } from "@/src/entities/supplier"
 import { Email } from "@/src/entities/value-objects/email"
-import { AddressId, ProfileId, SupplierId, TenantId } from "@/src/entities/value-objects/id"
+import { ProfileId, SupplierId, TenantId } from "@/src/entities/value-objects/id"
 import { Currency } from "@/src/entities/value-objects/currency"
 import { Money } from "@/src/entities/value-objects/money"
+import { PostalAddress } from "@/src/entities/value-objects/postal-address"
 import {
   rowToSupplier,
   type SupplierRow,
@@ -14,14 +15,18 @@ import {
 
 const SUPPLIER_UUID = "11111111-1111-4111-8111-111111111111"
 const TENANT_UUID = "22222222-2222-4222-8222-222222222222"
-const ADDRESS_UUID = "33333333-3333-4333-8333-333333333333"
 const ACTOR_UUID = "44444444-4444-4444-8444-444444444444"
 
 const FULL_ROW: SupplierRow = {
   id: SUPPLIER_UUID,
   tenant_id: TENANT_UUID,
   name: "Acme Substrates",
-  address_id: ADDRESS_UUID,
+  address_line1: "100 Mill St",
+  address_line2: "Suite 4",
+  city: "Brooklyn",
+  state: "NY",
+  postal_code: "11211",
+  country: "United States",
   email: "orders@acme.example",
   general_phone: "+1-555-0100",
   website: "https://acme.example",
@@ -45,7 +50,12 @@ const MINIMAL_ROW: SupplierRow = {
   id: SUPPLIER_UUID,
   tenant_id: TENANT_UUID,
   name: "Bare Bones LLC",
-  address_id: null,
+  address_line1: null,
+  address_line2: null,
+  city: null,
+  state: null,
+  postal_code: null,
+  country: null,
   email: null,
   general_phone: null,
   website: null,
@@ -73,7 +83,12 @@ describe("rowToSupplier", () => {
     expect(supplier.id.value).toBe(SUPPLIER_UUID)
     expect(supplier.tenantId.value).toBe(TENANT_UUID)
     expect(supplier.name).toBe("Acme Substrates")
-    expect(supplier.addressId?.value).toBe(ADDRESS_UUID)
+    expect(supplier.address?.line1).toBe("100 Mill St")
+    expect(supplier.address?.line2).toBe("Suite 4")
+    expect(supplier.address?.city).toBe("Brooklyn")
+    expect(supplier.address?.state).toBe("NY")
+    expect(supplier.address?.postalCode).toBe("11211")
+    expect(supplier.address?.country).toBe("United States")
     expect(supplier.email?.value).toBe("orders@acme.example")
     expect(supplier.generalPhone).toBe("+1-555-0100")
     expect(supplier.website).toBe("https://acme.example")
@@ -97,7 +112,7 @@ describe("rowToSupplier", () => {
   it("leaves nullables as null when the row is sparse", () => {
     const supplier = rowToSupplier(MINIMAL_ROW)
 
-    expect(supplier.addressId).toBeNull()
+    expect(supplier.address).toBeNull()
     expect(supplier.email).toBeNull()
     expect(supplier.generalPhone).toBeNull()
     expect(supplier.taxRate).toBeNull()
@@ -125,7 +140,12 @@ describe("supplierToInsertRow", () => {
         id: SupplierId.fromPersistence(SUPPLIER_UUID),
         tenantId: TenantId.fromPersistence(TENANT_UUID),
         name: "Cobra Materials",
-        addressId: AddressId.fromPersistence(ADDRESS_UUID),
+        address: PostalAddress.create({
+          line1: "200 Park Ave",
+          city: "Manhattan",
+          state: "NY",
+          postalCode: "10003",
+        }),
         email: Email.create("hello@cobra.example"),
         generalPhone: "+1-555-0200",
         website: "https://cobra.example",
@@ -148,7 +168,12 @@ describe("supplierToInsertRow", () => {
       id: SUPPLIER_UUID,
       tenant_id: TENANT_UUID,
       name: "Cobra Materials",
-      address_id: ADDRESS_UUID,
+      address_line1: "200 Park Ave",
+      address_line2: null,
+      city: "Manhattan",
+      state: "NY",
+      postal_code: "10003",
+      country: "United States",
       email: "hello@cobra.example",
       general_phone: "+1-555-0200",
       website: "https://cobra.example",
@@ -173,7 +198,7 @@ describe("supplierToUpdateRow", () => {
     supplier.updateDetails(
       {
         name: "Acme Substrates",
-        addressId: supplier.addressId,
+        address: supplier.address,
         email: supplier.email,
         generalPhone: supplier.generalPhone,
         website: supplier.website,
@@ -214,7 +239,12 @@ describe("round-trip", () => {
     const row = supplierToUpdateRow(supplier)
 
     expect(row.name).toBe(FULL_ROW.name)
-    expect(row.address_id).toBe(FULL_ROW.address_id)
+    expect(row.address_line1).toBe(FULL_ROW.address_line1)
+    expect(row.address_line2).toBe(FULL_ROW.address_line2)
+    expect(row.city).toBe(FULL_ROW.city)
+    expect(row.state).toBe(FULL_ROW.state)
+    expect(row.postal_code).toBe(FULL_ROW.postal_code)
+    expect(row.country).toBe(FULL_ROW.country)
     expect(row.email).toBe(FULL_ROW.email)
     expect(row.general_phone).toBe(FULL_ROW.general_phone)
     expect(row.website).toBe(FULL_ROW.website)

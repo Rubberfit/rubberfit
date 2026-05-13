@@ -2,7 +2,6 @@ import { PurchaseOrder } from "@/src/entities/purchase-order"
 import { PurchaseOrderItem } from "@/src/entities/purchase-order-item"
 import { Currency } from "@/src/entities/value-objects/currency"
 import {
-  AddressId,
   JobId,
   MaterialTypeId,
   ProfileId,
@@ -13,6 +12,7 @@ import {
 } from "@/src/entities/value-objects/id"
 import { Money } from "@/src/entities/value-objects/money"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
+import { PostalAddress } from "@/src/entities/value-objects/postal-address"
 
 /**
  * Persistence shape for `purchase_orders`. Local row type — the
@@ -26,8 +26,18 @@ export interface PurchaseOrderRow {
   id: string
   tenant_id: string
   supplier_id: string
-  shipping_address_id: string | null
-  billing_address_id: string | null
+  shipping_line1: string | null
+  shipping_line2: string | null
+  shipping_city: string | null
+  shipping_state: string | null
+  shipping_postal_code: string | null
+  shipping_country: string | null
+  billing_line1: string | null
+  billing_line2: string | null
+  billing_city: string | null
+  billing_state: string | null
+  billing_postal_code: string | null
+  billing_country: string | null
   reorder_rule_id: string | null
   job_id: string | null
   po_number: string
@@ -85,8 +95,18 @@ export interface PurchaseOrderInsertRow {
   id: string
   tenant_id: string
   supplier_id: string
-  shipping_address_id: string | null
-  billing_address_id: string | null
+  shipping_line1: string | null
+  shipping_line2: string | null
+  shipping_city: string | null
+  shipping_state: string | null
+  shipping_postal_code: string | null
+  shipping_country: string | null
+  billing_line1: string | null
+  billing_line2: string | null
+  billing_city: string | null
+  billing_state: string | null
+  billing_postal_code: string | null
+  billing_country: string | null
   reorder_rule_id: string | null
   job_id: string | null
   po_number: string
@@ -110,8 +130,18 @@ export type PurchaseOrderUpdateRow = Partial<
   Pick<
     PurchaseOrderRow,
     | "supplier_id"
-    | "shipping_address_id"
-    | "billing_address_id"
+    | "shipping_line1"
+    | "shipping_line2"
+    | "shipping_city"
+    | "shipping_state"
+    | "shipping_postal_code"
+    | "shipping_country"
+    | "billing_line1"
+    | "billing_line2"
+    | "billing_city"
+    | "billing_state"
+    | "billing_postal_code"
+    | "billing_country"
     | "job_id"
     | "po_number"
     | "status"
@@ -181,6 +211,48 @@ function rowDateToDate(value: string | null): Date | null {
   return value ? new Date(value) : null
 }
 
+interface PoAddressShippingColumns {
+  shipping_line1: string | null
+  shipping_line2: string | null
+  shipping_city: string | null
+  shipping_state: string | null
+  shipping_postal_code: string | null
+  shipping_country: string | null
+}
+
+interface PoAddressBillingColumns {
+  billing_line1: string | null
+  billing_line2: string | null
+  billing_city: string | null
+  billing_state: string | null
+  billing_postal_code: string | null
+  billing_country: string | null
+}
+
+function shippingAddressColumns(snap: ReturnType<PurchaseOrder["toJSON"]>): PoAddressShippingColumns {
+  const a = snap.shippingAddress
+  return {
+    shipping_line1: a?.line1 ?? null,
+    shipping_line2: a?.line2 ?? null,
+    shipping_city: a?.city ?? null,
+    shipping_state: a?.state ?? null,
+    shipping_postal_code: a?.postalCode ?? null,
+    shipping_country: a?.country ?? null,
+  }
+}
+
+function billingAddressColumns(snap: ReturnType<PurchaseOrder["toJSON"]>): PoAddressBillingColumns {
+  const a = snap.billingAddress
+  return {
+    billing_line1: a?.line1 ?? null,
+    billing_line2: a?.line2 ?? null,
+    billing_city: a?.city ?? null,
+    billing_state: a?.state ?? null,
+    billing_postal_code: a?.postalCode ?? null,
+    billing_country: a?.country ?? null,
+  }
+}
+
 function dateToRowDate(value: Date | null): string | null {
   return value ? value.toISOString().slice(0, 10) : null
 }
@@ -236,12 +308,22 @@ export function rowToPurchaseOrder(
     id: PurchaseOrderId.fromPersistence(row.id),
     tenantId: TenantId.fromPersistence(row.tenant_id),
     supplierId: SupplierId.fromPersistence(row.supplier_id),
-    shippingAddressId: row.shipping_address_id
-      ? AddressId.fromPersistence(row.shipping_address_id)
-      : null,
-    billingAddressId: row.billing_address_id
-      ? AddressId.fromPersistence(row.billing_address_id)
-      : null,
+    shippingAddress: PostalAddress.fromRow({
+      line1: row.shipping_line1,
+      line2: row.shipping_line2,
+      city: row.shipping_city,
+      state: row.shipping_state,
+      postal_code: row.shipping_postal_code,
+      country: row.shipping_country,
+    }),
+    billingAddress: PostalAddress.fromRow({
+      line1: row.billing_line1,
+      line2: row.billing_line2,
+      city: row.billing_city,
+      state: row.billing_state,
+      postal_code: row.billing_postal_code,
+      country: row.billing_country,
+    }),
     reorderRuleId: row.reorder_rule_id ? ReorderRuleId.fromPersistence(row.reorder_rule_id) : null,
     jobId: row.job_id ? JobId.fromPersistence(row.job_id) : null,
     poNumber: row.po_number,
@@ -273,8 +355,8 @@ export function purchaseOrderToInsertRow(po: PurchaseOrder): PurchaseOrderInsert
     id: snap.id,
     tenant_id: snap.tenantId,
     supplier_id: snap.supplierId,
-    shipping_address_id: snap.shippingAddressId,
-    billing_address_id: snap.billingAddressId,
+    ...shippingAddressColumns(snap),
+    ...billingAddressColumns(snap),
     reorder_rule_id: snap.reorderRuleId,
     job_id: snap.jobId,
     po_number: snap.poNumber,
@@ -301,8 +383,8 @@ export function purchaseOrderToUpdateRow(po: PurchaseOrder): PurchaseOrderUpdate
   const snap = po.toJSON()
   return {
     supplier_id: snap.supplierId,
-    shipping_address_id: snap.shippingAddressId,
-    billing_address_id: snap.billingAddressId,
+    ...shippingAddressColumns(snap),
+    ...billingAddressColumns(snap),
     job_id: snap.jobId,
     po_number: snap.poNumber,
     status: snap.status,

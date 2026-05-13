@@ -5,17 +5,23 @@ import { Supplier, type SupplierUpdateProps } from "@/src/entities/supplier"
 import { Currency } from "@/src/entities/value-objects/currency"
 import { Email } from "@/src/entities/value-objects/email"
 import {
-  AddressId,
   ProfileId,
   SupplierId,
   TenantId,
 } from "@/src/entities/value-objects/id"
 import { Money } from "@/src/entities/value-objects/money"
+import { PostalAddress } from "@/src/entities/value-objects/postal-address"
 
 const SUPPLIER_UUID = "550e8400-e29b-41d4-a716-446655440000"
 const TENANT_UUID = "00000000-0000-4000-8000-000000000010"
-const ADDRESS_UUID = "00000000-0000-4000-8000-000000000020"
 const ACTOR_UUID = "00000000-0000-4000-8000-000000000030"
+
+const SAMPLE_ADDRESS = PostalAddress.create({
+  line1: "100 Mill St",
+  city: "Brooklyn",
+  state: "NY",
+  postalCode: "11211",
+})
 
 const T0 = new Date("2026-05-09T12:00:00.000Z")
 const T1 = new Date("2026-05-09T12:30:00.000Z")
@@ -40,7 +46,7 @@ function makeSupplier(
 
 const baseUpdate: SupplierUpdateProps = {
   name: "Acme Sign Supply",
-  addressId: null,
+  address: null,
   email: null,
   generalPhone: null,
   website: null,
@@ -60,7 +66,7 @@ describe("Supplier", () => {
       const s = makeSupplier()
       expect(s.id.value).toBe(SUPPLIER_UUID)
       expect(s.name).toBe("Acme Sign Supply")
-      expect(s.addressId).toBeNull()
+      expect(s.address).toBeNull()
       expect(s.email).toBeNull()
       expect(s.taxExempt).toBe(false)
       expect(s.preferred).toBe(false)
@@ -79,11 +85,13 @@ describe("Supplier", () => {
       expect(s.shippingCost?.currency.value).toBe("USD")
     })
 
-    it("accepts an AddressId FK", () => {
+    it("accepts an inline PostalAddress", () => {
       const s = makeSupplier({
-        addressId: AddressId.fromPersistence(ADDRESS_UUID),
+        address: SAMPLE_ADDRESS,
       })
-      expect(s.addressId?.value).toBe(ADDRESS_UUID)
+      expect(s.address?.line1).toBe("100 Mill St")
+      expect(s.address?.city).toBe("Brooklyn")
+      expect(s.address?.postalCode).toBe("11211")
     })
 
     it("trims name and free-text fields", () => {
@@ -312,7 +320,7 @@ describe("Supplier", () => {
       const s = makeSupplier({
         email: Email.create("hello@acme.com"),
         shippingCost: Money.fromCents(2500, USD),
-        addressId: AddressId.fromPersistence(ADDRESS_UUID),
+        address: SAMPLE_ADDRESS,
         rating: 5,
         preferred: true,
       })
