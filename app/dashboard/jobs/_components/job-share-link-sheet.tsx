@@ -14,6 +14,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet"
+import {
+  DEFAULT_PDF_COMPANY_NAME,
+  getBrandedPdfCompanyName,
+} from "@/app/actions/branding"
 import { authService } from "@/src/infrastructure/services/authService"
 import { JOB_PDF_SHARE_TTL_SECONDS, uploadJobPdf } from "@/src/infrastructure/services/jobService"
 import type { JobFullDetail } from "@/src/infrastructure/models/supabase"
@@ -72,10 +76,25 @@ export function JobShareLinkSheet({ open, onOpenChange, job }: JobShareLinkSheet
     setStatus("working")
     setErrorMsg(null)
     try {
+      // Branding is Pro+ — Standard tier silently falls back to the
+      // default product name. The action throws `FeatureLockedError`
+      // for Standard; we treat that as "use the default" so the PDF
+      // still renders. Anything ELSE (network, DB, unexpected bug)
+      // surfaces in the console so ops issues don't go dark.
+      let companyName = DEFAULT_PDF_COMPANY_NAME
+      try {
+        companyName = await getBrandedPdfCompanyName()
+      } catch (err) {
+        const code = (err as { code?: string } | null)?.code
+        if (code !== "FEATURE_LOCKED") {
+          console.error("[JobShareLinkSheet] branded-name fetch failed:", err)
+        }
+        companyName = DEFAULT_PDF_COMPANY_NAME
+      }
       // Build the PDF client-side so we don't round-trip the job
       // data through a server action just to render a document the
       // browser already has all the pieces for.
-      const blob = buildJobPdfBlob(job, { companyName: "Rubberfit" })
+      const blob = buildJobPdfBlob(job, { companyName })
       const user = await authService.getCurrentUser()
       if (!user) {
         throw new Error("Sign in before sharing job PDFs")

@@ -2,7 +2,9 @@ import "reflect-metadata"
 import { container } from "tsyringe"
 import { type NextRequest, NextResponse } from "next/server"
 
+import { assertAdvancedNestingAllowed } from "@/app/server/auth/assert-advanced-nesting-allowed"
 import { AuthConfigError, ForbiddenError, UnauthorizedError } from "@/app/server/auth/errors"
+import { FeatureLockedError } from "@/app/server/auth/require-feature"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { TOKENS } from "@/di/tokens"
@@ -104,10 +106,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // every required field of `PackRequest`, so it's structurally
   // assignable without a cast.
   try {
+    // Re-authenticate within this try-block so we can issue the
+    // advanced-nesting gate. The earlier auth block above already
+    // confirmed the actor; this second `requireAuthenticatedUser`
+    // returns the same actor in <1ms (cookie + cached profile),
+    // worth the redundancy for the cleaner error mapping below.
+    const actor = await requireAuthenticatedUser()
+    await assertAdvancedNestingAllowed(actor, parsed.data)
+
     const service = container.resolve<IPackingService>(TOKENS.IPackingService)
     const result = await service.pack(parsed.data)
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof FeatureLockedError) {
+      return NextResponse.json(
+        {
+          code: "FEATURE_LOCKED",
+          featureKey: error.featureKey,
+          requiredTier: error.requiredTier,
+          currentTier: error.currentTier,
+        },
+        { status: 403 }
+      )
+    }
     const message = error instanceof Error ? error.message : "Unknown error"
     console.error("[api/v2/pack] dev pack-cli failed:", error)
     return NextResponse.json({ error: "Pack failed", detail: message }, { status: 500 })

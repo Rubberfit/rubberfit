@@ -1,14 +1,17 @@
 "use server"
 
+import { format } from "date-fns"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
+import { labelForPartId } from "@/src/application/cuts/part-labels"
 import type {
   IRecordCutUseCase,
   RecordCutResult,
 } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import { getCutHistoryRowsForExport } from "@/src/infrastructure/services/cutHistoryService"
 import {
   getCutPdfPublicUrl,
   safeRemoveOrphanedCutPdf,
@@ -17,6 +20,7 @@ import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-cl
 
 import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
+import { requireFeature } from "@/app/server/auth/require-feature"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
@@ -172,4 +176,86 @@ export async function saveCut(input: SaveCutActionInput): Promise<RecordCutResul
 
   revalidatePath(CUT_HISTORY_PATH)
   return result
+}
+
+const EXPORT_MAX_ROWS = 10_000
+
+const exportCutHistoryCsvSchema = z.object({
+  cutIds: z.array(uuid).max(EXPORT_MAX_ROWS),
+})
+
+export type ExportCutHistoryCsvInput = z.input<typeof exportCutHistoryCsvSchema>
+
+const CSV_HEADERS = [
+  "Cut Date",
+  "Part Type",
+  "Stock (W×L×T)",
+  "Qty",
+  "Parts Done",
+  "Mat Used (ft²)",
+  "Reuse (ft²)",
+  "Scrap (ft²)",
+  "Fab Score",
+] as const
+
+/**
+ * Per-row CSV cell escape. Wraps values containing comma, quote, or
+ * newline in double-quotes and doubles any embedded quotes. Keeps the
+ * output spreadsheet-friendly (Excel + Numbers + Google Sheets).
+ */
+function csvCell(value: string | number): string {
+  const s = typeof value === "number" ? String(value) : value
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`
+  }
+  return s
+}
+
+/**
+ * Pro-gated CSV export of cut-history rows. Receives the IDs the
+ * client currently has displayed (already filtered by search /
+ * favorites / user-select / date-range) and returns a CSV string
+ * the client downloads as a Blob.
+ *
+ * Order: `cut_date DESC`. The client's display sort (favorites first)
+ * is intentionally NOT preserved — a spreadsheet user wants
+ * chronological order, not UX-pinned ordering.
+ *
+ * RLS is the security boundary on row scope — the cookie-bound
+ * client only returns cuts the actor's org can see, so a malicious
+ * client passing IDs from other orgs gets back an empty (or
+ * partial) result rather than data leakage.
+ */
+export async function exportCutHistoryCsv(input: ExportCutHistoryCsvInput): Promise<string> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
+  requirePermission(actor, "viewCutHistory")
+  await requireFeature(actor, "cut_history_exports")
+  const parsed = exportCutHistoryCsvSchema.parse(input)
+
+  const header = CSV_HEADERS.map(csvCell).join(",")
+  if (parsed.cutIds.length === 0) {
+    return header
+  }
+
+  const db = await getDatabaseClient()
+  const data = await getCutHistoryRowsForExport(db, parsed.cutIds)
+
+  const rows = data.map((cut) => {
+    const cells = [
+      format(new Date(cut.cut_date), "yyyy-MM-dd HH:mm:ss"),
+      labelForPartId(cut.part_id),
+      `${cut.cut_width}" × ${cut.cut_length}" × ${cut.cut_thickness}"`,
+      String(cut.cut_amount),
+      String(cut.parts_completed),
+      cut.material_used_sqft.toFixed(2),
+      cut.reusable_offset_sqft.toFixed(2),
+      cut.scrap_sqft.toFixed(2),
+      `${Math.round(cut.fab_score * 100)}%`,
+    ]
+    return cells.map(csvCell).join(",")
+  })
+
+  return [header, ...rows].join("\n")
 }

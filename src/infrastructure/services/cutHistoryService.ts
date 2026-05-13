@@ -131,6 +131,53 @@ export async function deleteCutByIdAuthorized(
   }
 }
 
+/**
+ * Subset of `cut_history` columns the CSV export consumes. Narrower
+ * than `CutHistory` so the SELECT projection stays minimal and the
+ * test assertion-surface for `exportCutHistoryCsv` doesn't drift
+ * when unrelated columns are added.
+ */
+export interface CutHistoryExportRow {
+  id: string
+  cut_date: string
+  part_id: number
+  cut_width: number
+  cut_length: number
+  cut_thickness: number
+  cut_amount: number
+  parts_completed: number
+  material_used_sqft: number
+  reusable_offset_sqft: number
+  scrap_sqft: number
+  fab_score: number
+}
+
+/**
+ * Fetch the column subset needed for the Pro-gated CSV export. RLS
+ * is the row-scope boundary — the cookie-bound client returns only
+ * rows the actor's org can see, so callers from a different org get
+ * an empty (or partial) result rather than data leakage.
+ */
+export async function getCutHistoryRowsForExport(
+  client: SupabaseClient,
+  cutIds: readonly string[]
+): Promise<CutHistoryExportRow[]> {
+  if (cutIds.length === 0) return []
+
+  const { data, error } = await client
+    .from("cut_history")
+    .select(
+      "id, cut_date, part_id, cut_width, cut_length, cut_thickness, cut_amount, parts_completed, material_used_sqft, reusable_offset_sqft, scrap_sqft, fab_score"
+    )
+    .in("id", cutIds as string[])
+    .order("cut_date", { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to load cut history for export: ${error.message}`)
+  }
+  return (data ?? []) as CutHistoryExportRow[]
+}
+
 export interface CutHistoryListParams {
   page: number
   limit: number
