@@ -340,6 +340,106 @@ describe("ReceivePurchaseOrderUseCase", () => {
     })
   })
 
+  it("roll creation failure is best-effort: no throw, surfaced in failedItemIds", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
+      previousStatus: "ordered",
+      purchaseOrder: receivedPo,
+      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+    })
+    vi.mocked(rollService.createRoll).mockRejectedValue(new Error("rolls insert failed"))
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      actor,
+    })
+
+    // PO write already persisted upstream; the use-case must not throw.
+    expect(result.failedItemIds).toEqual([ITEM1_UUID])
+    expect(result.rollsCreated).toHaveLength(0)
+    expect(result.itemsReceived).toBe(1)
+    expect(result.partialReceipt).toBe(false)
+    // Notification still fires because the PO aggregate state is real.
+    expect(notificationService.sendPOStatusUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it("mixed: one roll succeeds, one fails — only the failing item is in failedItemIds", async () => {
+    const items = [
+      makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 }),
+      makePoItem(2, { quantityReceivedSqm: 25, quantitySqm: 25 }),
+    ]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
+      previousStatus: "ordered",
+      purchaseOrder: receivedPo,
+      itemIdToLineNumber: new Map([
+        [ITEM1_UUID, 1],
+        [ITEM2_UUID, 2],
+      ]),
+    })
+    vi.mocked(rollService.createRoll)
+      .mockResolvedValueOnce(makeRoll()) // ITEM1 succeeds
+      .mockRejectedValueOnce(new Error("rolls insert failed for ITEM2")) // ITEM2 fails
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [
+        { itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } },
+        { itemId: ITEM2_UUID, quantityReceived: 100, rollData: { width: 60 } },
+      ],
+      actor,
+    })
+
+    expect(result.rollsCreated).toHaveLength(1)
+    expect(result.failedItemIds).toEqual([ITEM2_UUID])
+    expect(result.itemsReceived).toBe(2)
+  })
+
+  it("happy path: failedItemIds is empty", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
+      previousStatus: "ordered",
+      purchaseOrder: receivedPo,
+      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+    })
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      actor,
+    })
+
+    expect(result.failedItemIds).toEqual([])
+  })
+
+  it("threads purchaseOrderItemId into createRoll props for reconciliation FK", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
+      previousStatus: "ordered",
+      purchaseOrder: receivedPo,
+      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+    })
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      actor,
+    })
+
+    const props = vi.mocked(rollService.createRoll).mock.calls[0]![0]
+    expect(props.purchaseOrderItemId?.value).toBe(ITEM1_UUID)
+  })
+
   it("notification failure does not abort the receipt", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)

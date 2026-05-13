@@ -5,6 +5,7 @@ import type { Currency } from "@/src/entities/value-objects/currency"
 import {
   MaterialTypeId,
   type ProfileId,
+  type PurchaseOrderItemId,
   type RollId,
   type SupplierId,
   type TenantId,
@@ -130,6 +131,14 @@ export interface BuildCreateRollPropsArgs {
   tenantId: TenantId
   supplierId: SupplierId
   poItem: PurchaseOrderItem
+  /**
+   * PO-item row id (the table's primary key) so the new roll can be
+   * linked back to the receipt source. Powers the
+   * `po_receipts_pending_roll_creation` reconciliation view (step 7b).
+   * Distinct from `poItem.lineNumber` — the entity's logical identity
+   * — because the FK column on `rolls` references row id.
+   */
+  purchaseOrderItemId: PurchaseOrderItemId
   rollData: RollDataInput
   /** Fallback length-in-inches when `rollData.length` is missing — mirrors legacy parity. */
   quantityReceivedSqft: number
@@ -200,6 +209,7 @@ export function buildCreateRollProps(args: BuildCreateRollPropsArgs): CreateRoll
     sourceType: "received",
     parentRollId: null,
     sourceCutHistoryId: null,
+    purchaseOrderItemId: args.purchaseOrderItemId,
     widthMm,
     lengthMm,
     thicknessMm,

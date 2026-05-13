@@ -35,6 +35,7 @@ const RECEIVED_ROW: RollRow = {
   source_type: "received",
   parent_roll_id: null,
   source_cut_history_id: null,
+  purchase_order_item_id: null,
   width_mm: 1500,
   length_mm: 50000,
   remaining_length_mm: 42000,
@@ -64,6 +65,7 @@ const OFFCUT_ROW: RollRow = {
   source_type: "offcut",
   parent_roll_id: PARENT_UUID,
   source_cut_history_id: CUT_UUID,
+  purchase_order_item_id: null,
   width_mm: 800,
   length_mm: 1200,
   remaining_length_mm: 1200,
@@ -169,6 +171,7 @@ describe("rollToInsertRow", () => {
       source_type: "received",
       parent_roll_id: null,
       source_cut_history_id: null,
+      purchase_order_item_id: null,
       width_mm: 1500,
       length_mm: 50000,
       remaining_length_mm: 50000,
@@ -212,7 +215,11 @@ describe("rollToInsertRow", () => {
 describe("rollToUpdateRow", () => {
   it("captures the mutator-driven mutable fields", () => {
     const roll = rowToRoll(RECEIVED_ROW)
-    roll.consumeLength(2000, ProfileId.fromPersistence(ACTOR_UUID), new Date("2026-04-10T10:00:00.000Z"))
+    roll.consumeLength(
+      2000,
+      ProfileId.fromPersistence(ACTOR_UUID),
+      new Date("2026-04-10T10:00:00.000Z")
+    )
     const row = rollToUpdateRow(roll)
     expect(row.remaining_length_mm).toBe(40000)
     expect(row.status).toBe("active")

@@ -333,6 +333,25 @@ COMMENT ON COLUMN purchase_order_items.line_total_cents IS
   'Snapshot of quantity_sqm * unit_cost_cents at PO-issue time. Not recomputed on later edits.';
 
 
+-- ─── rolls: PO-receipt lineage (deferred column + FK) ──────────────────────
+-- rolls is defined in file 2; this FK targets purchase_order_items which is
+-- only defined above, so the column lands here. Same pattern as
+-- source_cut_history_id in file 3.
+--
+-- Step 7b safety-net: lets the po_receipts_pending_roll_creation view
+-- (separate migration) surface receipts where the PO write succeeded but the
+-- corresponding roll(s) never materialized. ON DELETE SET NULL handles the
+-- hard-delete edge case — soft-delete (the normal path) leaves the FK
+-- intact so a received roll's provenance pointer survives PO-item archival.
+
+ALTER TABLE rolls
+  ADD COLUMN purchase_order_item_id uuid
+    REFERENCES purchase_order_items(id) ON DELETE SET NULL;
+
+COMMENT ON COLUMN rolls.purchase_order_item_id IS
+  'PO item this roll was created from when source_type = received. NULL for offcuts and for legacy/manual-entry received rolls. Powers the po_receipts_pending_roll_creation reconciliation view.';
+
+
 -- ─── job_parts ─────────────────────────────────────────────────────────────
 -- Per-job line items (material × dimensions × quantity). Used by the
 -- customer-facing receipt PDF, the job-sheet PDF, and the cutting-engine

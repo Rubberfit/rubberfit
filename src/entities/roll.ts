@@ -1,11 +1,10 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
-import {
-  trimOptional,
-} from "@/src/entities/shared/string-helpers"
+import { trimOptional } from "@/src/entities/shared/string-helpers"
 import {
   CutHistoryId,
   MaterialTypeId,
   ProfileId,
+  PurchaseOrderItemId,
   RollId,
   SupplierId,
   TenantId,
@@ -27,11 +26,7 @@ export type RollStatus = "active" | "reserved" | "depleted"
  */
 export type BarcodeFormat = "code128"
 
-const ROLL_STATUSES: readonly RollStatus[] = [
-  "active",
-  "reserved",
-  "depleted",
-] as const
+const ROLL_STATUSES: readonly RollStatus[] = ["active", "reserved", "depleted"] as const
 
 const BARCODE_FORMATS: readonly BarcodeFormat[] = ["code128"] as const
 
@@ -50,6 +45,13 @@ export interface CreateRollProps {
    * `rolls_source_consistency` CHECK.
    */
   sourceCutHistoryId?: CutHistoryId | null
+  /**
+   * Optional PO-item lineage for received rolls. Only set by the
+   * receive-PO use-case; powers the `po_receipts_pending_roll_creation`
+   * reconciliation view (step 7b). Always null for offcuts and for
+   * legacy/manual-entry received rolls.
+   */
+  purchaseOrderItemId?: PurchaseOrderItemId | null
   widthMm: number
   lengthMm: number
   thicknessMm: number
@@ -71,6 +73,7 @@ export interface ReconstituteRollProps {
   sourceType: RollSourceType
   parentRollId: RollId | null
   sourceCutHistoryId: CutHistoryId | null
+  purchaseOrderItemId: PurchaseOrderItemId | null
   widthMm: number
   lengthMm: number
   remainingLengthMm: number
@@ -100,6 +103,7 @@ export interface RollSnapshot {
   sourceType: RollSourceType
   parentRollId: string | null
   sourceCutHistoryId: string | null
+  purchaseOrderItemId: string | null
   widthMm: number
   lengthMm: number
   remainingLengthMm: number
@@ -181,6 +185,7 @@ export class Roll {
   #sourceType: RollSourceType
   #parentRollId: RollId | null
   #sourceCutHistoryId: CutHistoryId | null
+  #purchaseOrderItemId: PurchaseOrderItemId | null
   #widthMm: number
   #lengthMm: number
   #remainingLengthMm: number
@@ -209,6 +214,7 @@ export class Roll {
     this.#sourceType = props.sourceType
     this.#parentRollId = props.parentRollId
     this.#sourceCutHistoryId = props.sourceCutHistoryId
+    this.#purchaseOrderItemId = props.purchaseOrderItemId
     this.#widthMm = props.widthMm
     this.#lengthMm = props.lengthMm
     this.#remainingLengthMm = props.remainingLengthMm
@@ -244,7 +250,7 @@ export class Roll {
       props.sourceType,
       props.parentRollId ?? null,
       props.sourceCutHistoryId ?? null,
-      props.id,
+      props.id
     )
 
     if (props.cost) {
@@ -252,12 +258,7 @@ export class Roll {
     }
 
     const color = trimOptional(props.color, "color", COLOR_MAX, "Roll")
-    const location = trimOptional(
-      props.location,
-      "location",
-      LOCATION_MAX,
-      "Roll",
-    )
+    const location = trimOptional(props.location, "location", LOCATION_MAX, "Roll")
     const notes = trimOptional(props.notes, "notes", null, "Roll")
 
     return new Roll({
@@ -268,6 +269,7 @@ export class Roll {
       sourceType: props.sourceType,
       parentRollId: props.parentRollId ?? null,
       sourceCutHistoryId: props.sourceCutHistoryId ?? null,
+      purchaseOrderItemId: props.purchaseOrderItemId ?? null,
       widthMm: props.widthMm,
       lengthMm: props.lengthMm,
       remainingLengthMm,
@@ -301,11 +303,12 @@ export class Roll {
       materialTypeId: MaterialTypeId.fromPersistence(s.materialTypeId),
       supplierId: s.supplierId ? SupplierId.fromPersistence(s.supplierId) : null,
       sourceType: s.sourceType,
-      parentRollId: s.parentRollId
-        ? RollId.fromPersistence(s.parentRollId)
-        : null,
+      parentRollId: s.parentRollId ? RollId.fromPersistence(s.parentRollId) : null,
       sourceCutHistoryId: s.sourceCutHistoryId
         ? CutHistoryId.fromPersistence(s.sourceCutHistoryId)
+        : null,
+      purchaseOrderItemId: s.purchaseOrderItemId
+        ? PurchaseOrderItemId.fromPersistence(s.purchaseOrderItemId)
         : null,
       widthMm: s.widthMm,
       lengthMm: s.lengthMm,
@@ -320,9 +323,7 @@ export class Roll {
       qrGeneratedAt: s.qrGeneratedAt ? new Date(s.qrGeneratedAt) : null,
       barcodeFormat: s.barcodeFormat,
       barcodeAssetPath: s.barcodeAssetPath,
-      barcodeGeneratedAt: s.barcodeGeneratedAt
-        ? new Date(s.barcodeGeneratedAt)
-        : null,
+      barcodeGeneratedAt: s.barcodeGeneratedAt ? new Date(s.barcodeGeneratedAt) : null,
       createdAt: new Date(s.createdAt),
       createdBy: s.createdBy ? ProfileId.fromPersistence(s.createdBy) : null,
       updatedAt: new Date(s.updatedAt),
@@ -333,32 +334,87 @@ export class Roll {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): RollId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get materialTypeId(): MaterialTypeId { return this.#materialTypeId }
-  get supplierId(): SupplierId | null { return this.#supplierId }
-  get sourceType(): RollSourceType { return this.#sourceType }
-  get parentRollId(): RollId | null { return this.#parentRollId }
-  get sourceCutHistoryId(): CutHistoryId | null { return this.#sourceCutHistoryId }
-  get widthMm(): number { return this.#widthMm }
-  get lengthMm(): number { return this.#lengthMm }
-  get remainingLengthMm(): number { return this.#remainingLengthMm }
-  get thicknessMm(): number { return this.#thicknessMm }
-  get color(): string | null { return this.#color }
-  get location(): string | null { return this.#location }
-  get dateReceived(): Date { return this.#dateReceived }
-  get cost(): Money | null { return this.#cost }
-  get status(): RollStatus { return this.#status }
-  get notes(): string | null { return this.#notes }
-  get qrGeneratedAt(): Date | null { return this.#qrGeneratedAt }
-  get barcodeFormat(): BarcodeFormat { return this.#barcodeFormat }
-  get barcodeAssetPath(): string | null { return this.#barcodeAssetPath }
-  get barcodeGeneratedAt(): Date | null { return this.#barcodeGeneratedAt }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): RollId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get materialTypeId(): MaterialTypeId {
+    return this.#materialTypeId
+  }
+  get supplierId(): SupplierId | null {
+    return this.#supplierId
+  }
+  get sourceType(): RollSourceType {
+    return this.#sourceType
+  }
+  get parentRollId(): RollId | null {
+    return this.#parentRollId
+  }
+  get sourceCutHistoryId(): CutHistoryId | null {
+    return this.#sourceCutHistoryId
+  }
+  get purchaseOrderItemId(): PurchaseOrderItemId | null {
+    return this.#purchaseOrderItemId
+  }
+  get widthMm(): number {
+    return this.#widthMm
+  }
+  get lengthMm(): number {
+    return this.#lengthMm
+  }
+  get remainingLengthMm(): number {
+    return this.#remainingLengthMm
+  }
+  get thicknessMm(): number {
+    return this.#thicknessMm
+  }
+  get color(): string | null {
+    return this.#color
+  }
+  get location(): string | null {
+    return this.#location
+  }
+  get dateReceived(): Date {
+    return this.#dateReceived
+  }
+  get cost(): Money | null {
+    return this.#cost
+  }
+  get status(): RollStatus {
+    return this.#status
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get qrGeneratedAt(): Date | null {
+    return this.#qrGeneratedAt
+  }
+  get barcodeFormat(): BarcodeFormat {
+    return this.#barcodeFormat
+  }
+  get barcodeAssetPath(): string | null {
+    return this.#barcodeAssetPath
+  }
+  get barcodeGeneratedAt(): Date | null {
+    return this.#barcodeGeneratedAt
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -402,21 +458,15 @@ export class Roll {
   consumeLength(mm: number, actor: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("consume length")
     if (this.#status !== "active") {
-      throw new InvalidEntityError(
-        "Roll",
-        `cannot consume length on a ${this.#status} roll`,
-      )
+      throw new InvalidEntityError("Roll", `cannot consume length on a ${this.#status} roll`)
     }
     if (!Number.isInteger(mm) || mm <= 0) {
-      throw new InvalidEntityError(
-        "Roll",
-        "mm to consume must be a positive integer",
-      )
+      throw new InvalidEntityError("Roll", "mm to consume must be a positive integer")
     }
     if (mm > this.#remainingLengthMm) {
       throw new InvalidEntityError(
         "Roll",
-        `cannot consume ${mm}mm; only ${this.#remainingLengthMm}mm remaining`,
+        `cannot consume ${mm}mm; only ${this.#remainingLengthMm}mm remaining`
       )
     }
 
@@ -436,10 +486,7 @@ export class Roll {
   reserve(actor: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("reserve")
     if (this.#status === "depleted") {
-      throw new InvalidEntityError(
-        "Roll",
-        "cannot reserve a depleted roll",
-      )
+      throw new InvalidEntityError("Roll", "cannot reserve a depleted roll")
     }
     if (this.#status === "reserved") return
     this.#status = "reserved"
@@ -454,10 +501,7 @@ export class Roll {
   release(actor: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("release")
     if (this.#status === "depleted") {
-      throw new InvalidEntityError(
-        "Roll",
-        "cannot release a depleted roll",
-      )
+      throw new InvalidEntityError("Roll", "cannot release a depleted roll")
     }
     if (this.#status === "active") return
     this.#status = "active"
@@ -465,29 +509,16 @@ export class Roll {
   }
 
   /** Change physical location. No-op if unchanged. */
-  relocate(
-    location: string | null,
-    actor: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  relocate(location: string | null, actor: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("relocate")
-    const newLocation = trimOptional(
-      location,
-      "location",
-      LOCATION_MAX,
-      "Roll",
-    )
+    const newLocation = trimOptional(location, "location", LOCATION_MAX, "Roll")
     if (newLocation === this.#location) return
     this.#location = newLocation
     this.#touchAudit(actor, now)
   }
 
   /** Edit the free-form notes field. No-op if unchanged. */
-  updateNotes(
-    notes: string | null,
-    actor: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateNotes(notes: string | null, actor: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update notes")
     const newNotes = trimOptional(notes, "notes", null, "Roll")
     if (newNotes === this.#notes) return
@@ -505,21 +536,15 @@ export class Roll {
     format: BarcodeFormat,
     assetPath: string,
     actor: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("record barcode")
     if (!BARCODE_FORMATS.includes(format)) {
-      throw new InvalidEntityError(
-        "Roll",
-        `unsupported barcodeFormat: ${format}`,
-      )
+      throw new InvalidEntityError("Roll", `unsupported barcodeFormat: ${format}`)
     }
     const trimmedPath = assetPath.trim()
     if (trimmedPath.length === 0) {
-      throw new InvalidEntityError(
-        "Roll",
-        "barcodeAssetPath must not be empty",
-      )
+      throw new InvalidEntityError("Roll", "barcodeAssetPath must not be empty")
     }
 
     this.#barcodeFormat = format
@@ -552,37 +577,22 @@ export class Roll {
 
   static #assertPositiveInteger(value: number, field: string): void {
     if (!Number.isInteger(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "Roll",
-        `${field} must be a positive integer`,
-      )
+      throw new InvalidEntityError("Roll", `${field} must be a positive integer`)
     }
   }
 
   static #assertPositiveFinite(value: number, field: string): void {
     if (!Number.isFinite(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "Roll",
-        `${field} must be greater than zero`,
-      )
+      throw new InvalidEntityError("Roll", `${field} must be greater than zero`)
     }
   }
 
-  static #assertRemainingWithinLength(
-    remainingMm: number,
-    lengthMm: number,
-  ): void {
+  static #assertRemainingWithinLength(remainingMm: number, lengthMm: number): void {
     if (!Number.isInteger(remainingMm) || remainingMm < 0) {
-      throw new InvalidEntityError(
-        "Roll",
-        "remainingLengthMm must be a non-negative integer",
-      )
+      throw new InvalidEntityError("Roll", "remainingLengthMm must be a non-negative integer")
     }
     if (remainingMm > lengthMm) {
-      throw new InvalidEntityError(
-        "Roll",
-        "remainingLengthMm cannot exceed lengthMm",
-      )
+      throw new InvalidEntityError("Roll", "remainingLengthMm cannot exceed lengthMm")
     }
   }
 
@@ -596,42 +606,27 @@ export class Roll {
     sourceType: RollSourceType,
     parentRollId: RollId | null,
     sourceCutHistoryId: CutHistoryId | null,
-    ownId: RollId,
+    ownId: RollId
   ): void {
     if (sourceType === "received") {
       if (parentRollId !== null) {
-        throw new InvalidEntityError(
-          "Roll",
-          "received rolls must not have a parentRollId",
-        )
+        throw new InvalidEntityError("Roll", "received rolls must not have a parentRollId")
       }
       if (sourceCutHistoryId !== null) {
-        throw new InvalidEntityError(
-          "Roll",
-          "received rolls must not have a sourceCutHistoryId",
-        )
+        throw new InvalidEntityError("Roll", "received rolls must not have a sourceCutHistoryId")
       }
       return
     }
 
     // sourceType === "offcut"
     if (parentRollId === null) {
-      throw new InvalidEntityError(
-        "Roll",
-        "offcut rolls must have a parentRollId",
-      )
+      throw new InvalidEntityError("Roll", "offcut rolls must have a parentRollId")
     }
     if (sourceCutHistoryId === null) {
-      throw new InvalidEntityError(
-        "Roll",
-        "offcut rolls must have a sourceCutHistoryId",
-      )
+      throw new InvalidEntityError("Roll", "offcut rolls must have a sourceCutHistoryId")
     }
     if (parentRollId.equals(ownId)) {
-      throw new InvalidEntityError(
-        "Roll",
-        "parentRollId cannot equal the roll's own id",
-      )
+      throw new InvalidEntityError("Roll", "parentRollId cannot equal the roll's own id")
     }
   }
 
@@ -649,10 +644,7 @@ export class Roll {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Roll",
-        `cannot ${operation} on a deleted roll`,
-      )
+      throw new InvalidEntityError("Roll", `cannot ${operation} on a deleted roll`)
     }
   }
 
@@ -667,6 +659,7 @@ export class Roll {
       sourceType: this.#sourceType,
       parentRollId: this.#parentRollId?.value ?? null,
       sourceCutHistoryId: this.#sourceCutHistoryId?.value ?? null,
+      purchaseOrderItemId: this.#purchaseOrderItemId?.value ?? null,
       widthMm: this.#widthMm,
       lengthMm: this.#lengthMm,
       remainingLengthMm: this.#remainingLengthMm,

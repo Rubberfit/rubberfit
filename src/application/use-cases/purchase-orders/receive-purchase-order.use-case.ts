@@ -15,7 +15,7 @@ import type {
   POReceiptItem,
 } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { Roll as LegacyRoll } from "@/src/infrastructure/models/supabase"
-import { ProfileId, RollId } from "@/src/entities/value-objects/id"
+import { ProfileId, PurchaseOrderItemId, RollId } from "@/src/entities/value-objects/id"
 import {
   buildCreateRollProps,
   sqftToSqm,
@@ -45,18 +45,25 @@ export interface IReceivePurchaseOrderUseCase {
  *      notification's `oldStatus`) and the `itemId → lineNumber` map.
  *   2. Roll aggregate — for each receipt item that ships with
  *      `rollData`, build entity-typed `CreateRollProps` (imperial →
- *      metric, branded IDs, Money cost) and persist via
- *      `IRollService.createRoll`.
+ *      metric, branded IDs, Money cost, `purchaseOrderItemId` set)
+ *      and persist via `IRollService.createRoll`.
  *   3. Notification — `sendPOStatusUpdate` on full receipt only;
  *      `previousStatus` distinguishes `ordered → received` from
- *      `partial_received → received`.
+ *      `partial_received → received`. Sent even when some roll inserts
+ *      failed, because the PO aggregate's state ("received") is real.
  *
- * **Strict-throw semantics (step 7a):** if a `createRoll` call fails
- * after the PO write succeeds, the use-case throws. The PO's receipt
- * update is already persisted, so this leaves a partial-state window
- * matching the pre-DDD legacy behavior. Step 7b adds the idempotency
- * key + `po_receipts_pending_roll_creation` reconciliation view + a
- * best-effort retry path to close the window.
+ * **Best-effort semantics (step 7b):** if a `createRoll` call fails
+ * after the PO write succeeds, the use-case catches the error, logs
+ * it with the failing `itemId`, and continues the loop. The failing
+ * itemIds are returned in `POReceiptResult.failedItemIds` so the
+ * caller can surface them in the UI. They are also queryable via the
+ * `po_receipts_pending_roll_creation` view (it joins on the
+ * `rolls.purchase_order_item_id` FK set by `buildCreateRollProps`),
+ * giving admins a stable reconciliation surface that doesn't depend
+ * on the original request's error log.
+ *
+ * Step 7c will add an admin retry action backed by the reconciliation
+ * view, plus per-receipt idempotency keys for safe operator retries.
  */
 @injectable()
 export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase {
@@ -83,6 +90,7 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
       await this.poService.recordReceiptsByItemId(input.purchaseOrderId, sqmReceipts, actorId)
 
     const rollsCreated: LegacyRoll[] = []
+    const failedItemIds: string[] = []
     for (const item of input.items) {
       if (!item.rollData || item.quantityReceived <= 0) continue
 
@@ -96,14 +104,27 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
         tenantId: purchaseOrder.tenantId,
         supplierId: purchaseOrder.supplierId,
         poItem,
+        purchaseOrderItemId: PurchaseOrderItemId.fromPersistence(item.itemId),
         rollData: item.rollData,
         quantityReceivedSqft: item.quantityReceived,
         actor: actorId,
         poNumber: purchaseOrder.poNumber,
       })
 
-      const roll = await this.rollService.createRoll(props)
-      rollsCreated.push(rollEntityToLegacy(roll))
+      try {
+        const roll = await this.rollService.createRoll(props)
+        rollsCreated.push(rollEntityToLegacy(roll))
+      } catch (error) {
+        // Best-effort: PO receipt is already persisted. Continue the
+        // loop so other items still get their rolls; surface failed
+        // ids to the caller + the reconciliation view as the safety
+        // net. Don't rethrow.
+        failedItemIds.push(item.itemId)
+        console.error(
+          `[receive-po] roll creation failed for PO ${purchaseOrder.poNumber} item ${item.itemId}:`,
+          error
+        )
+      }
     }
 
     const partial = purchaseOrder.status === "partial_received"
@@ -129,6 +150,7 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
       rollsCreated,
       partialReceipt: partial,
       completedAt: purchaseOrder.actualDeliveryDate?.toISOString(),
+      failedItemIds,
     }
   }
 }

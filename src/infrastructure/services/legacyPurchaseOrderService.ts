@@ -575,6 +575,9 @@ export class LegacyPurchaseOrderService implements ILegacyPurchaseOrderService {
         rollsCreated,
         partialReceipt: !fullyReceived,
         completedAt: fullyReceived ? new Date().toISOString() : undefined,
+        // Legacy strict-throw path: failures propagate as exceptions, so
+        // the reached return statement implies every roll was created.
+        failedItemIds: [],
       }
     } catch (error) {
       console.error("Error receiving purchase order:", error)

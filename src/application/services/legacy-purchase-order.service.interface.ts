@@ -21,6 +21,14 @@ export interface POReceiptResult {
   rollsCreated: Roll[]
   partialReceipt: boolean
   completedAt?: string
+  /**
+   * Step 7b: items whose PO-receipt write succeeded but whose downstream
+   * roll-creation call failed (best-effort semantics). Empty on the happy
+   * path. Populated entries are also surfaced by the
+   * `po_receipts_pending_roll_creation` reconciliation view so admins
+   * can backfill missing inventory without replaying the receive flow.
+   */
+  failedItemIds: string[]
 }
 
 /**

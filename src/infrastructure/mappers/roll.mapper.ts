@@ -4,6 +4,7 @@ import {
   CutHistoryId,
   MaterialTypeId,
   ProfileId,
+  PurchaseOrderItemId,
   RollId,
   SupplierId,
   TenantId,
@@ -27,6 +28,7 @@ export interface RollRow {
   source_type: "received" | "offcut"
   parent_roll_id: string | null
   source_cut_history_id: string | null
+  purchase_order_item_id: string | null
   width_mm: number
   length_mm: number
   remaining_length_mm: number
@@ -56,6 +58,7 @@ export interface RollInsertRow {
   source_type: "received" | "offcut"
   parent_roll_id: string | null
   source_cut_history_id: string | null
+  purchase_order_item_id: string | null
   width_mm: number
   length_mm: number
   remaining_length_mm: number
@@ -119,6 +122,9 @@ export function rowToRoll(row: RollRow): Roll {
     sourceCutHistoryId: row.source_cut_history_id
       ? CutHistoryId.fromPersistence(row.source_cut_history_id)
       : null,
+    purchaseOrderItemId: row.purchase_order_item_id
+      ? PurchaseOrderItemId.fromPersistence(row.purchase_order_item_id)
+      : null,
     widthMm: row.width_mm,
     lengthMm: row.length_mm,
     remainingLengthMm: row.remaining_length_mm,
@@ -153,6 +159,7 @@ export function rollToInsertRow(roll: Roll): RollInsertRow {
     source_type: roll.sourceType,
     parent_roll_id: roll.parentRollId?.value ?? null,
     source_cut_history_id: roll.sourceCutHistoryId?.value ?? null,
+    purchase_order_item_id: roll.purchaseOrderItemId?.value ?? null,
     width_mm: roll.widthMm,
     length_mm: roll.lengthMm,
     remaining_length_mm: roll.remainingLengthMm,

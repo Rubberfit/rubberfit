@@ -74,6 +74,7 @@ CREATE INDEX idx_rolls_material_type_id         ON rolls(material_type_id);
 CREATE INDEX idx_rolls_supplier_id              ON rolls(supplier_id)              WHERE supplier_id IS NOT NULL;
 CREATE INDEX idx_rolls_parent_roll_id           ON rolls(parent_roll_id)           WHERE parent_roll_id IS NOT NULL;
 CREATE INDEX idx_rolls_source_cut_history_id    ON rolls(source_cut_history_id)    WHERE source_cut_history_id IS NOT NULL;
+CREATE INDEX idx_rolls_purchase_order_item_id   ON rolls(purchase_order_item_id)   WHERE purchase_order_item_id IS NOT NULL;
 CREATE INDEX idx_rolls_tenant_status
   ON rolls(tenant_id, status)
   WHERE deleted_at IS NULL;

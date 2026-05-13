@@ -17,6 +17,7 @@ import { Currency } from "@/src/entities/value-objects/currency"
 import {
   MaterialTypeId,
   ProfileId,
+  PurchaseOrderItemId,
   RollId,
   SupplierId,
   TenantId,
@@ -29,6 +30,7 @@ const TENANT_ID = "00000000-0000-4000-8000-000000000002"
 const SUPPLIER_ID = "00000000-0000-4000-8000-000000000003"
 const ROLL_ID = "00000000-0000-4000-8000-000000000004"
 const ACTOR_ID = "00000000-0000-4000-8000-000000000005"
+const PO_ITEM_ID = "00000000-0000-4000-8000-000000000006"
 
 describe("PO input conversion helpers", () => {
   describe("sqftToSqm", () => {
@@ -149,6 +151,7 @@ describe("PO input conversion helpers", () => {
         tenantId: TenantId.fromPersistence(TENANT_ID),
         supplierId: SupplierId.fromPersistence(SUPPLIER_ID),
         poItem: makePoItem(),
+        purchaseOrderItemId: PurchaseOrderItemId.fromPersistence(PO_ITEM_ID),
         rollData: {},
         quantityReceivedSqft: 100,
         actor: ProfileId.fromPersistence(ACTOR_ID),
@@ -218,6 +221,11 @@ describe("PO input conversion helpers", () => {
       expect(props.sourceType).toBe("received")
       expect(props.parentRollId).toBeNull()
       expect(props.sourceCutHistoryId).toBeNull()
+    })
+
+    it("passes purchaseOrderItemId through so the FK can be written", () => {
+      const props = buildCreateRollProps(buildArgs())
+      expect(props.purchaseOrderItemId?.value).toBe(PO_ITEM_ID)
     })
 
     it("currency: defaults to poItem.unitCost.currency", () => {

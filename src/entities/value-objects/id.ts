@@ -211,6 +211,22 @@ export const PurchaseOrderId = {
 }
 
 /**
+ * Identifier for a purchase-order line item row. Source: purchase_order_items.id.
+ *
+ * Note: the `PurchaseOrderItem` entity's logical identity is
+ * `(purchaseOrderId, lineNumber)` — it deliberately doesn't expose row id.
+ * This brand exists so cross-aggregate FKs (e.g., `Roll.purchaseOrderItemId`
+ * for the receive-PO reconciliation view) can be typed without leaking row
+ * ids into the entity surface.
+ */
+export type PurchaseOrderItemId = Id<"PurchaseOrderItem">
+export const PurchaseOrderItemId = {
+  create: (value: string): PurchaseOrderItemId => Id.create(value, "PurchaseOrderItem"),
+  fromPersistence: (value: string): PurchaseOrderItemId =>
+    Id.fromPersistence<"PurchaseOrderItem">(value),
+}
+
+/**
  * Identifier for a job (shop-floor work order). Source: jobs.id.
  *
  * Added ahead of the Job entity so cross-aggregate FKs (e.g.,
