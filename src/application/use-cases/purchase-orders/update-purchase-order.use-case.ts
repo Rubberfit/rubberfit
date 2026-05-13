@@ -1,23 +1,40 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
-import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
+
+import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
+import { Currency } from "@/src/entities/value-objects/currency"
+import {
+  JobId,
+  ProfileId,
+  SupplierId,
+} from "@/src/entities/value-objects/id"
+import { purchaseOrderEntityToLegacy } from "@/src/infrastructure/services/po-entity-to-legacy"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
+
 import { computePoSubtotal } from "@/src/application/computePoSubtotal"
-import type { CreatePurchaseOrderItemInput } from "./create-purchase-order.use-case"
+import {
+  dollarsToMoney,
+  mapItemsToEntityProps,
+  type PoLineInput,
+} from "./po-input-conversion"
 
 export interface UpdatePurchaseOrderInput {
   purchaseOrderId: string
   supplierId: string
   requestedDeliveryDate?: string
   paymentTerms?: string
+  /**
+   * Legacy free-text address fields. New schema FKs to addresses(id);
+   * dropped here for the same reason as createPurchaseOrder.
+   */
   shippingAddress?: string
   billingAddress?: string
   notes?: string
   shippingCost?: number
-  items: CreatePurchaseOrderItemInput[]
+  items: PoLineInput[]
   actor: ActionActor
 }
 
@@ -30,54 +47,68 @@ export interface IUpdatePurchaseOrderUseCase {
   execute(input: UpdatePurchaseOrderInput): Promise<UpdatePurchaseOrderResult>
 }
 
+/**
+ * Edits an existing purchase order header AND its item collection in
+ * a single round-trip via `IPurchaseOrderService.updateDetailsAndItems`.
+ * The entity restricts edits to `draft` / `pending_approval` — POs in
+ * later states throw, mirroring how the form gates the Edit action
+ * anyway.
+ *
+ * `poNumber` and `tenantId` come from the existing aggregate (we don't
+ * re-generate the PO number or change tenancy on update). Currency
+ * pinned to USD — same TODO as create.
+ */
 @injectable()
 export class UpdatePurchaseOrderUseCase implements IUpdatePurchaseOrderUseCase {
+  // Currency on the existing PO is what we'll use; only kept here for
+  // tax + shipping Money construction when persisting the new state.
+  private static readonly DEFAULT_CURRENCY = Currency.fromPersistence("USD")
+
   constructor(
-    @inject(TOKENS.ILegacyPurchaseOrderService)
-    private readonly poService: ILegacyPurchaseOrderService,
+    @inject(TOKENS.IPurchaseOrderService)
+    private readonly poService: IPurchaseOrderService,
     @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
   ) {}
 
   async execute(input: UpdatePurchaseOrderInput): Promise<UpdatePurchaseOrderResult> {
     const subtotal = computePoSubtotal(input.items)
     const taxCalc = await this.taxService.calculatePurchaseOrderTax(input.supplierId, subtotal)
-    const shipping = input.shippingCost ?? 50
+    const shippingDollars = input.shippingCost ?? 50
 
-    const existing = await this.poService.getPurchaseOrderById(input.purchaseOrderId)
-    for (const item of existing.items ?? []) {
-      await this.poService.deletePurchaseOrderItem(item.id)
+    // Load existing for poNumber + currency. Currency is "the
+    // aggregate's currency" — every item, tax, shipping must agree
+    // with it. Today the entity always carries USD (no other path
+    // produces it), but reading from the entity keeps this honest
+    // when the supplier-driven resolver lands.
+    const existing = await this.poService.getById(input.purchaseOrderId)
+    const currency = existing.currency
+    const actorId = ProfileId.fromPersistence(input.actor.id)
+
+    const updated = await this.poService.updateDetailsAndItems(
+      input.purchaseOrderId,
+      {
+        supplierId: SupplierId.fromPersistence(input.supplierId),
+        shippingAddressId: null,
+        billingAddressId: null,
+        jobId: existing.jobId
+          ? JobId.fromPersistence(existing.jobId.value)
+          : null,
+        poNumber: existing.poNumber,
+        requestedDeliveryDate: input.requestedDeliveryDate
+          ? new Date(input.requestedDeliveryDate)
+          : null,
+        taxAmount: dollarsToMoney(taxCalc.taxAmount, currency),
+        shippingCost: dollarsToMoney(shippingDollars, currency),
+        paymentTerms: input.paymentTerms ?? null,
+        notes: input.notes ?? null,
+      },
+      mapItemsToEntityProps(input.items, currency),
+      actorId
+    )
+
+    return {
+      purchaseOrder: purchaseOrderEntityToLegacy(updated),
+      taxCalculation: taxCalc,
     }
-
-    const updated = await this.poService.updatePurchaseOrder(input.purchaseOrderId, {
-      supplier_id: input.supplierId,
-      requested_delivery_date: input.requestedDeliveryDate,
-      subtotal,
-      tax_amount: taxCalc.taxAmount,
-      shipping_cost: shipping,
-      total_amount: subtotal + taxCalc.taxAmount + shipping,
-      payment_terms: input.paymentTerms,
-      shipping_address: input.shippingAddress,
-      billing_address: input.billingAddress,
-      notes: input.notes,
-    })
-
-    for (const item of input.items) {
-      await this.poService.addItemToPurchaseOrder(
-        {
-          purchase_order_id: input.purchaseOrderId,
-          material_type_id: item.materialTypeId,
-          description: item.description || "",
-          quantity_sqft: item.quantitySqft,
-          unit_cost: item.unitCost,
-          width: item.width,
-          thickness: item.thickness,
-          color: item.color,
-          notes: item.notes,
-        },
-        input.actor.id
-      )
-    }
-
-    return { purchaseOrder: updated, taxCalculation: taxCalc }
   }
 }

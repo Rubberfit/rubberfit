@@ -6,6 +6,7 @@ import {
   type CreatePurchaseOrderProps,
   type PurchaseOrderUpdateProps,
 } from "@/src/entities/purchase-order"
+import type { CreatePurchaseOrderItemProps } from "@/src/entities/purchase-order-item"
 import type { ProfileId } from "@/src/entities/value-objects/id"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
 import type { IPurchaseOrdersRepository } from "@/src/application/repositories/purchase-orders.repository.interface"
@@ -62,6 +63,28 @@ export class PurchaseOrderService implements IPurchaseOrderService {
   ): Promise<PurchaseOrder> {
     const po = await this.repo.findById(id)
     po.updateDetails(props, actor)
+    return this.repo.update(po)
+  }
+
+  async updateDetailsAndItems(
+    id: string,
+    headerProps: PurchaseOrderUpdateProps,
+    items: CreatePurchaseOrderItemProps[],
+    actor: ProfileId
+  ): Promise<PurchaseOrder> {
+    const po = await this.repo.findById(id)
+    po.updateDetails(headerProps, actor)
+    po.replaceItems(items, actor)
+    return this.repo.update(po)
+  }
+
+  async replaceItems(
+    id: string,
+    items: CreatePurchaseOrderItemProps[],
+    actor: ProfileId
+  ): Promise<PurchaseOrder> {
+    const po = await this.repo.findById(id)
+    po.replaceItems(items, actor)
     return this.repo.update(po)
   }
 

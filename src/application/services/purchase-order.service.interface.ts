@@ -3,6 +3,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderUpdateProps,
 } from "@/src/entities/purchase-order"
+import type { CreatePurchaseOrderItemProps } from "@/src/entities/purchase-order-item"
 import type { ProfileId } from "@/src/entities/value-objects/id"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
 
@@ -52,6 +53,32 @@ export interface IPurchaseOrderService {
   updateDetails(
     id: string,
     props: PurchaseOrderUpdateProps,
+    actor: ProfileId
+  ): Promise<PurchaseOrder>
+
+  /**
+   * Header + items in one round-trip. Internal: load the aggregate
+   * once, call `updateDetails` then `replaceItems` on the same
+   * instance, persist once. Use over two sequential service calls to
+   * avoid the partial-state window when the second call fails.
+   *
+   * Like `updateDetails` + `replaceItems`, only allowed in
+   * `draft` / `pending_approval` — the entity enforces it.
+   */
+  updateDetailsAndItems(
+    id: string,
+    headerProps: PurchaseOrderUpdateProps,
+    items: CreatePurchaseOrderItemProps[],
+    actor: ProfileId
+  ): Promise<PurchaseOrder>
+
+  /**
+   * Header-immutable bulk replace of the item collection. Recomputes
+   * subtotal + total. Only allowed in `draft` / `pending_approval`.
+   */
+  replaceItems(
+    id: string,
+    items: CreatePurchaseOrderItemProps[],
     actor: ProfileId
   ): Promise<PurchaseOrder>
 
