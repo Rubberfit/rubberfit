@@ -218,7 +218,9 @@ export function CheckoutForm({
 
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() =>
+              router.push(`/checkout?org=${orgId}&intent=needs_workspace&edit=1`)
+            }
             className="mt-4 block w-full text-center font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-signal)]"
           >
             Need to change your seat count? Go back.

@@ -19,6 +19,7 @@ interface CheckoutPageProps {
     org?: string | string[]
     intent?: string | string[]
     billing?: string | string[]
+    edit?: string | string[]
   }>
 }
 
@@ -77,9 +78,38 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     intent,
     billing: initialBillingInterval,
   } = parseCheckoutParams(resolvedSearchParams ?? {})
+  const editFlag = firstParam(resolvedSearchParams?.edit) === "1"
 
   if (intent) {
     const validatedOrg = rawOrg && orgParamSchema.safeParse(rawOrg).success ? rawOrg : undefined
+
+    // Edit-seats flow: user clicked "Need to change your seat count? Go back."
+    // on the checkout form. Render the workspace lock screen with the
+    // OnboardingDialog auto-opened and pre-filled with the existing org
+    // name + seat count. The use-case is idempotent and updates the
+    // pre-checkout subscription row in place.
+    if (intent === "needs_workspace" && editFlag && validatedOrg) {
+      const organizationService = container.resolve<IOrganizationService>(
+        TOKENS.IOrganizationService
+      )
+      const organization = await organizationService.getOrganizationById(validatedOrg)
+      if (organization) {
+        const role = await organizationService.getMemberRole(organization.id, actor.id)
+        if (role === "owner" || role === "admin") {
+          const subscription = await organizationService.getCurrentSubscription(organization.id)
+          return (
+            <LockScreenPage
+              intent={intent}
+              orgId={validatedOrg}
+              autoOpenOnboarding
+              initialCompanyName={organization.name}
+              initialSeatCount={subscription?.seat_count}
+            />
+          )
+        }
+      }
+    }
+
     return <LockScreenPage intent={intent} orgId={validatedOrg} />
   }
 
