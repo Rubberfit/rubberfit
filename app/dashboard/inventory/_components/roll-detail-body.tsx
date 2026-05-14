@@ -19,6 +19,11 @@ import { RollDetailMeta } from "./roll-detail-meta"
 import { RollDetailOffcuts } from "./roll-detail-offcuts"
 import { RollDetailUsage } from "./roll-detail-usage"
 import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  getAreaUnitLabel,
+} from "@/src/application/preferences/user-unit-display"
 import { downloadRollLabelPdf } from "./roll-label-pdf"
 
 interface RollDetailBodyProps {
@@ -142,9 +147,13 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
                 <span className="font-mono text-foreground/80">{roll.part_number}</span>
               )}
               {roll.part_number && <span className="text-border">·</span>}
-              <span>
+              <span className="tabular-nums">
                 {roll.color ? `${roll.color} · ` : ""}
-                {roll.width}&quot; × {roll.length}&quot; × {roll.thickness}&quot;
+                {formatDimensionsInches(
+                  [roll.width, roll.length, roll.thickness],
+                  organizationPreferences,
+                  { precision: 3 }
+                )}
               </span>
             </SheetDescription>
           </div>
@@ -190,9 +199,14 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 Available
               </p>
-              <p className="mt-1 font-semibold text-sm text-foreground">
-                {remainingSqft.toFixed(1)}{" "}
-                <span className="font-normal text-[11px] text-muted-foreground">sqft</span>
+              <p className="mt-1 font-semibold text-sm text-foreground tabular-nums">
+                {formatAreaSqft(remainingSqft, organizationPreferences, { precision: 1 }).replace(
+                  ` ${getAreaUnitLabel(organizationPreferences)}`,
+                  ""
+                )}{" "}
+                <span className="font-normal text-[11px] text-muted-foreground">
+                  {getAreaUnitLabel(organizationPreferences)}
+                </span>
               </p>
             </div>
             <div className="rounded-md border border-border-subtle bg-muted/30 p-3">

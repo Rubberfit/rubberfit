@@ -17,7 +17,18 @@ import { isSupportedUnitSystem } from "@/src/application/preferences/constants"
  *
  * Returns `undefined` on any error so the caller falls back to
  * imperial defaults — the regen path stays best-effort, never
- * blocking the PDF render.
+ * blocking the PDF render. Errors are logged via `console.error` so
+ * production logs surface a silent metric-to-imperial regression
+ * (the visible symptom for a metric org is a one-off imperial PDF).
+ *
+ * Known limitation: when an `ownerId` belongs to multiple
+ * organizations, this picks the first membership row. `CutHistory`
+ * doesn't carry `organization_id` directly today; the live save-time
+ * path goes through `useOrganizationPreferences()` which is scoped
+ * by the cookie session's active org, so the recovery path is the
+ * only place this ambiguity surfaces. Acceptable for the v1 rollout
+ * because users are effectively single-org today; revisit when
+ * multi-org membership ships.
  */
 export async function getOrgUnitPreferencesForOwner(
   admin: SupabaseClient,
@@ -42,7 +53,8 @@ export async function getOrgUnitPreferencesForOwner(
       return { unitSystem }
     }
     return undefined
-  } catch (_error) {
+  } catch (error) {
+    console.error("[cutPdfPrefsLookup] failed to resolve org unitSystem", error)
     return undefined
   }
 }
