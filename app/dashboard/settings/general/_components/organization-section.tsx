@@ -85,7 +85,6 @@ export function OrganizationSection({
   const [draft, setDraft] = useState<OrganizationPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
-  const [, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState(() =>
     formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
   )
@@ -117,22 +116,41 @@ export function OrganizationSection({
     // (handleCancel, the next save) own the savedAt lifecycle.
     if (!isDirtyRef.current) {
       setDraft(preferences)
-      setIsEditingThreshold(false)
       setThresholdInput(
         formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
       )
     }
   }, [preferences])
 
-  const handleUnitSystemChange = (value: UnitSystem) => {
+  const handleLocaleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    if (isSupportedLocale(value)) setDraft((prev) => ({ ...prev, locale: value }))
+  }
+
+  const handleCurrencyChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    if (isSupportedCurrency(value)) setDraft((prev) => ({ ...prev, defaultCurrency: value }))
+  }
+
+  const handleTimeZoneChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    if (isSupportedTimeZone(value)) setDraft((prev) => ({ ...prev, timeZone: value }))
+  }
+
+  const handleDateFormatChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    if (isSupportedDateFormat(value)) setDraft((prev) => ({ ...prev, dateFormat: value }))
+  }
+
+  const handleUnitSystemChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value
+    if (!isSupportedUnitSystem(value)) return
     setDraft((prev) => ({ ...prev, unitSystem: value }))
-    setIsEditingThreshold(false)
     setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, value))
   }
 
-  const handleThresholdChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value
-    setIsEditingThreshold(true)
+  const handleThresholdChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const raw = event.target.value
     setThresholdInput(raw)
     const num = parseFloat(raw)
     if (Number.isFinite(num) && num >= 0) {
@@ -142,7 +160,6 @@ export function OrganizationSection({
   }
 
   const handleThresholdBlur = () => {
-    setIsEditingThreshold(false)
     setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
   }
 
@@ -215,7 +232,6 @@ export function OrganizationSection({
   const handleCancel = () => {
     setDraft(baseline)
     setSavedAt(0)
-    setIsEditingThreshold(false)
     setThresholdInput(formatThresholdDisplay(baseline.lowStockThresholdSqft, baseline.unitSystem))
   }
 
@@ -237,12 +253,7 @@ export function OrganizationSection({
                 id="org-language"
                 value={draft.locale}
                 disabled={!isAdmin}
-                onChange={(e) => {
-                  if (isSupportedLocale(e.target.value)) {
-                    const next = e.target.value
-                    setDraft((prev) => ({ ...prev, locale: next }))
-                  }
-                }}
+                onChange={handleLocaleChange}
                 className={selectClassName}
               >
                 {SUPPORTED_LOCALES.map((value) => (
@@ -262,12 +273,7 @@ export function OrganizationSection({
                 id="org-currency"
                 value={draft.defaultCurrency}
                 disabled={!isAdmin}
-                onChange={(e) => {
-                  if (isSupportedCurrency(e.target.value)) {
-                    const next = e.target.value
-                    setDraft((prev) => ({ ...prev, defaultCurrency: next }))
-                  }
-                }}
+                onChange={handleCurrencyChange}
                 className={selectClassName}
               >
                 {SUPPORTED_CURRENCIES.map((value) => (
@@ -295,12 +301,7 @@ export function OrganizationSection({
                 id="org-timeZone"
                 value={draft.timeZone}
                 disabled={!isAdmin}
-                onChange={(e) => {
-                  if (isSupportedTimeZone(e.target.value)) {
-                    const next = e.target.value
-                    setDraft((prev) => ({ ...prev, timeZone: next }))
-                  }
-                }}
+                onChange={handleTimeZoneChange}
                 className={selectClassName}
               >
                 {SUPPORTED_TIME_ZONES.map((value) => (
@@ -326,12 +327,7 @@ export function OrganizationSection({
                 id="org-dateFormat"
                 value={draft.dateFormat}
                 disabled={!isAdmin}
-                onChange={(e) => {
-                  if (isSupportedDateFormat(e.target.value)) {
-                    const next = e.target.value
-                    setDraft((prev) => ({ ...prev, dateFormat: next }))
-                  }
-                }}
+                onChange={handleDateFormatChange}
                 className={selectClassName}
               >
                 {SUPPORTED_DATE_FORMATS.map((value) => (
@@ -359,11 +355,7 @@ export function OrganizationSection({
                 id="org-unitSystem"
                 value={draft.unitSystem}
                 disabled={!isAdmin}
-                onChange={(e) => {
-                  if (isSupportedUnitSystem(e.target.value)) {
-                    handleUnitSystemChange(e.target.value)
-                  }
-                }}
+                onChange={handleUnitSystemChange}
                 className={selectClassName}
               >
                 {SUPPORTED_UNIT_SYSTEMS.map((value) => (

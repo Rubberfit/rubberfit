@@ -129,9 +129,21 @@ describe("app/actions/organization-preferences", () => {
       expect(result).toEqual({ error: "not_provisioned" })
     })
 
-    it("rethrows unexpected service errors", async () => {
-      getForOrganizationMock.mockRejectedValueOnce(new Error("network exploded"))
-      await expect(getOrganizationPreferences()).rejects.toThrow(/network exploded/)
+    it("downgrades unexpected service errors to not_provisioned (recovery-exempt resilience)", async () => {
+      // The action is recovery-exempt because the dashboard layout +
+      // billing page depend on it succeeding on every render. A
+      // service throw must NOT bubble — it would crash the layout's
+      // Promise.all and lock the user out. Layout falls back to
+      // canonical defaults; the original error logs for observability.
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+      try {
+        getForOrganizationMock.mockRejectedValueOnce(new Error("network exploded"))
+        const result = await getOrganizationPreferences()
+        expect(result).toEqual({ error: "not_provisioned" })
+        expect(consoleSpy).toHaveBeenCalled()
+      } finally {
+        consoleSpy.mockRestore()
+      }
     })
   })
 

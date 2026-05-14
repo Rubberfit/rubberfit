@@ -70,13 +70,19 @@ export async function getOrganizationPreferences(): Promise<GetOrganizationPrefe
     const data = await prefsService.getForOrganization(org.id)
     return { data }
   } catch (err) {
-    // The provision trigger should have inserted a row when the org
-    // was created; surface a typed envelope so the dashboard layout
-    // can fall back to defaults rather than tripping an error boundary.
+    // Recovery-exempt contract: the dashboard layout + billing page
+    // depend on this read succeeding on every render. The provision
+    // trigger should have inserted a row when the org was created;
+    // surface a typed envelope for the known empty-row case AND for
+    // any unexpected service failure so the layout can fall back to
+    // defaults rather than tripping an error boundary that locks the
+    // user out of the dashboard. The original error is logged for
+    // observability; the action never bubbles it.
     if (err instanceof Error && /No organization_preferences row/.test(err.message)) {
       return { error: "not_provisioned" }
     }
-    throw err
+    console.error("[organization-preferences] read failed; returning not_provisioned:", err)
+    return { error: "not_provisioned" }
   }
 }
 
