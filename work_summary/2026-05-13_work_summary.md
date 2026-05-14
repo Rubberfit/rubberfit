@@ -300,3 +300,149 @@ tests/architecture/no-legacy-supplier-service.test.ts  (NEW)
 ### Plan file reference
 
 The plan that guided this work lives at `C:\Users\Bing\.claude\plans\write-a-plan-to-encapsulated-dream.md` (overwritten from the prior Task #84 plan). New session should read it for the scope rationale + out-of-scope decisions.
+
+---
+
+## Continuation 3 — Local-dev seed (login + operational data)
+
+Same-day pick-up after the supplier cutover landed (`74de6b46`). Goal:
+get `npm run supabase:reset` to produce a database where you can
+immediately log in AND have realistic operational data on every screen,
+without manually inserting auth users or hand-running JS seeders.
+
+### What landed
+
+**One new file:** `src/infrastructure/supabase/seed.sql` (~530 lines).
+Auto-discovered by `supabase db reset` — no npm-script chain needed.
+
+Two `DO $$` blocks:
+
+1. **Block 1 — Tenant + users.** Creates one "Dev Tenant" (slug `dev-tenant`,
+   status `active`) and six RBAC-scoped auth users (one per role):
+   `admin@rema.local` / `manager@rema.local` / `supervisor@rema.local` /
+   `cutter@rema.local` / `member@rema.local` / `viewer@rema.local` — all
+   share password `changeme123`. For each user, inserts `auth.users` (with
+   bcrypt hash via `crypt(..., gen_salt('bf'))` + `email_confirmed_at` set
+   so GoTrue treats them as confirmed), `auth.identities` (email provider
+   entry GoTrue requires for password sign-in), `profiles` (with
+   `last_active_tenant_id = dev_tenant`), and `memberships`
+   (`roles = ARRAY[role]`).
+
+2. **Block 2 — Operational data.** Adapted from dev's `seed_demo.sql`
+   (which targeted the pre-redesign single-tenant schema). 8 material
+   types, 6 suppliers, 22 rolls, 54 cuts (~6 months of history), 12
+   material_suppliers, 10 price_history rows, 8 reorder_rules, 11
+   purchase_orders (across all 6 statuses), 14 PO items.
+
+### Design decisions worth remembering
+
+**Why seed.sql, not a TS seeder.** First pass built
+`src/infrastructure/scripts/seed-dev-users.ts` + chained it into
+`supabase:reset` via npm. User redirected: "Supabase auto-runs seed.sql
+on db reset — just put it there." Right call — one less moving part, no
+post-reset npm hop, no env-var coupling. The TS approach was
+forward-compatible against future GoTrue schema changes (it used
+`auth.admin.createUser`), but the SQL approach is faster, simpler, and
+ships for free with `supabase db reset`.
+
+**GoTrue scan-error gotcha.** First seed.sql draft authed but
+`POST /auth/v1/token` returned a 500 "Database error querying schema."
+Container logs surfaced the actual cause: `error finding user: sql:
+Scan error on column index 3, name "confirmation_token": converting
+NULL to string is unsupported`. The token columns
+(`confirmation_token`, `recovery_token`, `email_change`,
+`email_change_token_new`) are nullable in the SQL schema but GoTrue's
+Go struct scans them into non-nullable `string` fields. Seed them
+explicitly as `''` (empty string).
+
+**`confirmed_at` is generated.** Tried `INSERT INTO auth.users (..., confirmed_at, ...)`
+and hit `cannot insert a non-DEFAULT value into column "confirmed_at"`.
+It's a stored generated column: `GENERATED ALWAYS AS
+(LEAST(email_confirmed_at, phone_confirmed_at))`. Use
+`email_confirmed_at = now()` instead and `confirmed_at` computes itself.
+
+**`auth.identities` row is mandatory.** Newer Supabase (since the auth
+identity refactor) requires a row in `auth.identities` per (user,
+provider) for the password sign-in path. Without it, GoTrue's
+`/token?grant_type=password` errors. For email provider:
+`provider = 'email'`, `provider_id = user.id::text`, `identity_data =
+jsonb_build_object('sub', user_id, 'email', email, 'email_verified',
+true, 'phone_verified', false)`.
+
+**Unit conversions inline at INSERT time.** Block 2 keeps the dev
+source numbers visible next to the column they fill — e.g.,
+`ROUND(60 * 25.4)::int` instead of pre-computing `1524`. The formulas
+appear once in a comment at the top of block 2:
+- inches → mm: `ROUND(in * 25.4)` (3dp variant `ROUND(in * 25.4, 3)` for thickness)
+- sqft → sqm: `ROUND(sqft / 10.7639, 3)`
+- sqft → sqmm: `ROUND(sqft * 92903.04)` (cuts table stores square millimetres as bigint)
+- USD/sqft → cents/sqm: `ROUND(usd * 10.7639 * 100)`
+- USD → cents: `ROUND(usd * 100)`
+
+**Cuts trigger disable/enable dance.** The new schema has
+`trg_cuts_decrement_roll_and_notify` AFTER INSERT ON cuts that
+decrements `rolls.remaining_length_mm`. Since the seed already sets
+post-cut `remaining_length_mm` values on rolls, letting the trigger
+fire would double-debit. Block 2 wraps the cuts insert with
+`ALTER TABLE cuts DISABLE TRIGGER trg_cuts_decrement_roll_and_notify`
++ re-enable after. Mirrors dev's pattern.
+
+**`cuts.cut_by` left NULL.** Dev seed has named operators
+("Mike Torres", "Lisa Park", etc.) as TEXT in `cut_by`. New schema
+typed it as `uuid REFERENCES auth.users`. Those operators don't have
+auth accounts — mis-attributing them to the admin user_id would be
+more misleading than honest NULL. NULL it is.
+
+**PO status mapping.** Dev's `'pending'` → new schema's
+`'pending_approval'` (the only mismatch; rest pass through —
+`'draft'`, `'approved'`, `'ordered'`, `'received'`, `'cancelled'`).
+
+**Suppliers shape break.** Dev seed columns dropped: `contact_person`
+(belongs in `persons` per redesign), `shipping_calculation_type` (not
+in current schema). Dev's flat `address` (TEXT) → `address_line1`.
+`default_shipping_cost` (USD numeric) → `shipping_cost_cents` (bigint).
+
+**Idempotency strategy.** Stable seed UUIDs everywhere a stable
+identifier was needed, with `ON CONFLICT (id) DO NOTHING`. Two tables
+have no natural key (`price_history`, `cuts`) — guarded with
+`IF NOT EXISTS (SELECT 1 FROM <table> WHERE tenant_id = v_tenant_id)`
+before bulk insert.
+
+### Verification at handoff
+
+- `npm run supabase:reset` — applies 13 migrations + runs seed.sql in one
+  command; logs `NOTICE` lines confirming all entities seeded
+- Re-running `supabase:reset` on a populated DB: clean, same counts
+- `POST /auth/v1/token` for `admin@rema.local` → real JWT
+- Row counts: `tenants=1, profiles=6, memberships=6, material_types=8,
+  suppliers=6, material_suppliers=12, price_history=10, reorder_rules=8,
+  rolls=22, cuts=54, purchase_orders=11, purchase_order_items=14`
+- Spot-checked unit conversions: 60" → 1524 mm, 0.125" → 3.175 mm,
+  $12.50/sqft → 13455 cents/sqm — all match formulas
+
+### Files touched
+
+```
+src/infrastructure/supabase/seed.sql  (NEW)
+work_summary/2026-05-13_work_summary.md  (this Continuation 3 section)
+```
+
+### Resume notes for next session
+
+1. **Pull from origin.** All changes pushed to
+   `feature/DDD-implementation`. Latest commits handle both the seed
+   and this work-summary append.
+2. **`npm run supabase:reset` then `npm run dev`** — log in as
+   `admin@rema.local` / `changeme123`. Every screen should now have
+   realistic data: dashboard KPIs, inventory rolls + cuts history,
+   PO list across all statuses, supplier/material/pricing pages,
+   reorder rules.
+3. **Material-suppliers DDD caller cutover** is still queued from
+   Continuation 2 — entity + repo + service + mapper are all already
+   built; only ~4 consumer files need to be wired off
+   `legacySupplierService` to land the shim deletion. With the seed
+   now populating `material_suppliers` rows, that cutover is finally
+   smoke-testable end-to-end.
+4. **Branch state:** 2 commits ahead of pre-session HEAD
+   (`74de6b46`) — one `feat(supabase)` for the seed, one
+   `docs(work-summary)` for this section.
