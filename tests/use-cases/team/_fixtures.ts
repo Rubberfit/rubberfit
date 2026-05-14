@@ -234,6 +234,11 @@ export function makeFakeStripeClient(): {
     customers: { create: vi.fn(async () => ({ id: "cus_test" })) },
     checkout: { sessions: { create: vi.fn(async () => ({ url: "https://example.invalid" })) } },
     subscriptions: { update: updateSubscription },
+    billingPortal: {
+      sessions: {
+        create: vi.fn(async () => ({ url: "https://billing.stripe.com/test" })),
+      },
+    },
   }
   return {
     service: { getClient: () => client },

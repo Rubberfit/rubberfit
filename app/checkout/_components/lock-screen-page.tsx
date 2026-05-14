@@ -20,6 +20,9 @@ type Intent = "complete_checkout" | "needs_workspace" | "update_billing" | "rest
 interface LockScreenPageProps {
   intent: Intent
   orgId?: string
+  autoOpenOnboarding?: boolean
+  initialCompanyName?: string
+  initialSeatCount?: number
 }
 
 interface IntentConfig {
@@ -33,9 +36,15 @@ interface IntentConfig {
   tertiaryLabel: string
 }
 
-export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
+export function LockScreenPage({
+  intent,
+  orgId,
+  autoOpenOnboarding,
+  initialCompanyName,
+  initialSeatCount,
+}: LockScreenPageProps) {
   const router = useRouter()
-  const [showOnboarding, setShowOnboarding] = React.useState(false)
+  const [showOnboarding, setShowOnboarding] = React.useState(autoOpenOnboarding ?? false)
   const [billingError, setBillingError] = React.useState<string | null>(null)
   const [isOpeningPortal, setIsOpeningPortal] = React.useState(false)
   const [onboardingIntent, setOnboardingIntent] =
@@ -55,9 +64,13 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
 
   const handleUpdateBilling = React.useCallback(async () => {
     setBillingError(null)
+    if (!orgId) {
+      setBillingError("Workspace isn't linked yet. Please refresh and try again.")
+      return
+    }
     setIsOpeningPortal(true)
     try {
-      const result = await createBillingPortalSession()
+      const result = await createBillingPortalSession({ organizationId: orgId })
       if ("error" in result) {
         setBillingError(result.error)
         return
@@ -68,7 +81,7 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
     } finally {
       setIsOpeningPortal(false)
     }
-  }, [])
+  }, [orgId])
 
   const configs: Record<Intent, IntentConfig> = {
     complete_checkout: {
@@ -169,6 +182,8 @@ export function LockScreenPage({ intent, orgId }: LockScreenPageProps) {
           open={showOnboarding}
           planTier={onboardingIntent.plan}
           billingInterval={onboardingIntent.billing}
+          initialCompanyName={initialCompanyName}
+          initialSeatCount={initialSeatCount}
         />
       ) : null}
     </LockScreen>

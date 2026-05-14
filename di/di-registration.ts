@@ -76,6 +76,7 @@ import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cas
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 import { CreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
 import { CreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
+import { CreateBillingPortalSessionUseCase } from "@/src/application/use-cases/billing/create-billing-portal-session.use-case"
 import { UpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
 import { AcceptInvitationUseCase } from "@/src/application/use-cases/team/accept-invitation.use-case"
 import { CreateInvitationUseCase } from "@/src/application/use-cases/team/create-invitation.use-case"
@@ -223,6 +224,10 @@ container.registerSingleton(
   CreateOrganizationFromOnboardingUseCase
 )
 container.registerSingleton(TOKENS.ICreateCheckoutSessionUseCase, CreateCheckoutSessionUseCase)
+container.registerSingleton(
+  TOKENS.ICreateBillingPortalSessionUseCase,
+  CreateBillingPortalSessionUseCase
+)
 
 // PR 6 — team invites + seat management
 container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)

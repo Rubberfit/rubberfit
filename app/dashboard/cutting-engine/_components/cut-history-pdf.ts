@@ -827,6 +827,66 @@ function drawPolygon(
   doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], style, true)
 }
 
+/**
+ * Per Kimi K2.6 verdict (2026-05-13) on the clipped-roll bug: when the
+ * sheet's longer:shorter aspect exceeds 1.3, each roll diagram lands on
+ * its OWN landscape A4 page with the long dim running horizontally
+ * (matches the screen visualizer's auto-rotate behavior). Near-square
+ * sheets (aspect ≤ 1.3) keep the natural portrait flow and stay inline
+ * with the legend page above. Threshold 1.3 hits the sweet spot: roll
+ * stock (78×396, 5×) rotates; cut sheets (96×120, 1.25×) don't.
+ */
+const ROTATE_ASPECT_THRESHOLD = 1.3
+
+/**
+ * Rotate a LayoutModel 90° counter-clockwise so the original `length`
+ * runs along the new horizontal axis. Used by the PDF renderer when a
+ * roll's long axis must lay flat on the page; the screen visualizer
+ * does the equivalent via a `<g transform="rotate(-90)">` wrapper plus
+ * counter-rotated text. Pure transform: returns a fresh LayoutModel,
+ * never mutates the input.
+ *
+ * Transform for any point in [0, sheetWidth] × [0, sheetLength]:
+ *   (x, y)  →  (y, sheetWidth − x)
+ * A rectangle's new corners flip too, so the new bounding box is:
+ *   newX = y
+ *   newY = sheetWidth − x − width
+ *   newWidth = height
+ *   newHeight = width
+ */
+function rotateLayoutForLandscape(layout: LayoutModel): LayoutModel {
+  const origW = layout.sheetWidth
+  const remapRect = <T extends { x: number; y: number; width: number; height: number }>(
+    r: T
+  ): T => ({
+    ...r,
+    x: r.y,
+    y: origW - r.x - r.width,
+    width: r.height,
+    height: r.width,
+  })
+  const remapPolygon = (
+    poly: ReadonlyArray<{ x: number; y: number }> | undefined
+  ): Array<{ x: number; y: number }> | undefined =>
+    poly?.map((pt) => ({ x: pt.y, y: origW - pt.x }))
+  return {
+    ...layout,
+    sheetWidth: layout.sheetLength,
+    sheetLength: layout.sheetWidth,
+    parts: layout.parts.map((p) => ({
+      ...remapRect(p),
+      polygon: remapPolygon(p.polygon),
+      packPolygon: remapPolygon(p.packPolygon),
+    })),
+    offcuts: layout.offcuts.map((r) => ({ ...remapRect(r), polygon: remapPolygon(r.polygon) })),
+    scrap: layout.scrap.map((r) => ({ ...remapRect(r), polygon: remapPolygon(r.polygon) })),
+    debugScrapRects: layout.debugScrapRects?.map((r) => ({
+      ...remapRect(r),
+      polygon: remapPolygon(r.polygon),
+    })),
+  }
+}
+
 async function addLayoutDiagrams(
   doc: jsPDF,
   layouts: LayoutModel[],
@@ -836,49 +896,80 @@ async function addLayoutDiagrams(
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
     if (layout.sheetWidth <= 0 || layout.sheetLength <= 0) continue
-    const showRollHeader = layouts.length > 1
 
-    // True-aspect sizing: scale to fit CONTENT_W minus the dimension gutter,
-    // then derive the panel height from the layout's actual aspect ratio.
-    // Long rolls render flat — vector zoom keeps them legible.
-    const diagramMaxW = Math.max(1, CONTENT_W - DIM_GUTTER_RIGHT_MM)
-    const aspect = layout.sheetLength / layout.sheetWidth
-    const drawW = diagramMaxW
-    const drawH = drawW * aspect
+    const longer = Math.max(layout.sheetWidth, layout.sheetLength)
+    const shorter = Math.min(layout.sheetWidth, layout.sheetLength)
+    const aspect = shorter > 0 ? longer / shorter : 1
+    const useLandscapePage = aspect > ROTATE_ASPECT_THRESHOLD
+    // Rotate the body content only when the long axis is currently the
+    // "length" (height) axis — preserves natural orientation for sheets
+    // that are already wider than tall.
+    const rotateBody = useLandscapePage && layout.sheetLength > layout.sheetWidth
+    const renderLayout = rotateBody ? rotateLayoutForLandscape(layout) : layout
+    const sheetW = renderLayout.sheetWidth
+    const sheetL = renderLayout.sheetLength
+
+    // Each roll diagram starts on a fresh page; matches Kimi's spec
+    // that diagram pages live independently of the cover/table pages.
+    doc.addPage("a4", useLandscapePage ? "landscape" : "portrait")
+    const pageW = useLandscapePage ? PAGE_H : PAGE_W
+    const pageH = useLandscapePage ? PAGE_W : PAGE_H
+    const contentW = pageW - MARGIN * 2
+    const contentH = pageH - MARGIN * 2
+    let pageY = MARGIN
+
+    if (layouts.length > 1) {
+      doc.setFontSize(10)
+      doc.setTextColor(...GRAY_900)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Roll ${i + 1} of ${layouts.length}`, MARGIN, pageY + 3)
+      pageY += 8
+    }
+
+    // True-aspect sizing inside the page's content box.
+    const diagramMaxW = Math.max(1, contentW - DIM_GUTTER_RIGHT_MM)
+    const diagramMaxH = Math.max(1, contentH - (pageY - MARGIN) - DIM_GUTTER_BOTTOM_MM)
+    const scale = Math.min(diagramMaxW / sheetW, diagramMaxH / sheetL)
+    const drawW = sheetW * scale
+    const drawH = sheetL * scale
+    const boxW = drawW + DIM_GUTTER_RIGHT_MM
     const boxH = drawH + DIM_GUTTER_BOTTOM_MM
-    const boxW = CONTENT_W
 
-    y = renderRollHeader(doc, y, {
-      show: showRollHeader,
-      rollIndex: i,
-      rollTotal: layouts.length,
-      panelHeightMm: boxH,
-    })
-    const rollOffcuts = offcutSummary.filter((row) => row.rollIndex === i + 1)
-    renderLayoutToDoc(doc, layout, MARGIN, y, boxW, boxH, rollOffcuts)
-    y += boxH + 8
+    const rollOffcutsRaw = offcutSummary.filter((row) => row.rollIndex === i + 1)
+    // Marker chips reference row.region.(x, y) in the original sheet
+    // coordinate space. When the body is rotated for landscape, those
+    // coords land outside the rotated bounding box (the (29", 152.125")
+    // anchor of an offcut on a 78×396 sheet plots at ~98mm of vertical
+    // offset, well below a 50mm-tall rotated diagram). Re-apply the
+    // same rotation so the marker numbers visually sit on top of the
+    // amber zones they identify. The page-4 summary table receives the
+    // un-rotated rows so operators can read the physical (x, y) anchor.
+    const rollOffcuts = rotateBody
+      ? rollOffcutsRaw.map((row) => ({
+          ...row,
+          region: {
+            x: row.region.y,
+            y: layout.sheetWidth - row.region.x - row.region.width,
+            width: row.region.height,
+            height: row.region.width,
+            polygon: row.region.polygon?.map((pt) => ({
+              x: pt.y,
+              y: layout.sheetWidth - pt.x,
+            })),
+          },
+        }))
+      : rollOffcutsRaw
+    renderLayoutToDoc(doc, renderLayout, MARGIN, pageY, boxW, boxH, rollOffcuts)
+    // y for the next non-diagram section. We force a fresh page after
+    // the last diagram so portrait flow resumes from the top.
+    if (i === layouts.length - 1) {
+      doc.addPage("a4", "portrait")
+      y = MARGIN
+    } else {
+      y = pageY + boxH + 8
+    }
   }
   return y
-}
-
-interface RollHeaderArgs {
-  show: boolean
-  rollIndex: number
-  rollTotal: number
-  panelHeightMm: number
-}
-
-function renderRollHeader(doc: jsPDF, y: number, args: RollHeaderArgs): number {
-  const headerHeight = args.show ? 8 : 0
-  const reserved = headerHeight + args.panelHeightMm + 8
-  y = checkNewPage(doc, y, reserved)
-  if (!args.show) return y
-
-  doc.setFontSize(10)
-  doc.setTextColor(...GRAY_900)
-  doc.setFont("helvetica", "bold")
-  doc.text(`Roll ${args.rollIndex + 1} of ${args.rollTotal}`, MARGIN, y + 3)
-  return y + headerHeight
 }
 
 async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number): Promise<number> {

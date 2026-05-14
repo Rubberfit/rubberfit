@@ -2,6 +2,7 @@
 
 import { Download, Star } from "lucide-react"
 
+import { UpgradeModal } from "@/app/components/billing/UpgradeModal"
 import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
 import { Button } from "@/app/components/ui/button"
 import { Card } from "@/app/components/ui/card"
@@ -42,6 +43,9 @@ export default function CutHistoryPage() {
     handleReopen,
     handleViewPdf,
     exportToCsv,
+    isExporting,
+    upsellOpen,
+    setUpsellOpen,
   } = useCutHistory()
 
   return (
@@ -52,9 +56,14 @@ export default function CutHistoryPage() {
           title="Cut history"
           subtitle="Review cutting operations, audit waste, and regenerate PDFs."
           actions={
-            <Button onClick={exportToCsv} variant="outline" size="sm" disabled={loading}>
+            <Button
+              onClick={exportToCsv}
+              variant="outline"
+              size="sm"
+              disabled={loading || isExporting}
+            >
               <Download className="size-3.5" aria-hidden="true" />
-              Export CSV
+              {isExporting ? "Exporting…" : "Export CSV"}
             </Button>
           }
         />
@@ -131,6 +140,15 @@ export default function CutHistoryPage() {
           description="This will permanently remove this cut record. This action cannot be undone."
           confirmText="Delete"
           variant="danger"
+        />
+
+        <UpgradeModal
+          open={upsellOpen}
+          onOpenChange={setUpsellOpen}
+          pathLabel="/EXPORT LOCKED"
+          headline="CSV export requires Pro"
+          body="Upgrade to Pro to unlock cut-history exports, branded PDFs, and the full analytics dashboard suite."
+          requiredTier="pro"
         />
       </PageShell>
     </TooltipProvider>
