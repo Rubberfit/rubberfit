@@ -22,6 +22,15 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
+import { formatCurrency as formatCurrencyShared } from "@/app/lib/utils"
+import { formatUserDate, formatUserDateTime } from "@/src/application/preferences/user-date-format"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  formatLengthInches,
+  getAreaUnitLabel,
+} from "@/src/application/preferences/user-unit-display"
+import type { OrgPrintPreferencesInput } from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
 import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supabase"
 
 /**
@@ -42,6 +51,17 @@ import type { JobFullDetail, JobStatus } from "@/src/infrastructure/models/supab
 export interface BuildJobPdfOptions {
   /** Company name shown in the footer. Defaults to "Rubberfit". */
   readonly companyName?: string
+  /**
+   * Operator-level print preferences (unit system, date format, time
+   * zone, locale, currency). Customer PDFs render in the operator's
+   * worldview per the 2026-05-14 operator-seeds-prints ruling. When
+   * omitted, the helpers fall back to their defaults (imperial /
+   * MM/dd/yyyy / America/Chicago / en-US / USD).
+   *
+   * Currency is display-only: the helper picks the symbol/format
+   * from `defaultCurrency` + `locale`. Amounts are not converted.
+   */
+  readonly organizationPreferences?: OrgPrintPreferencesInput
 }
 
 const PAGE_MARGIN = CUSTOMER_PAGE.margin
@@ -51,10 +71,10 @@ const COLUMN_W = (CONTENT_W - COLUMN_GAP) / 2
 
 // ── Logo + formatters ───────────────────────────────────────────────────────
 
-// Immutable data URL — built once per module load, no mutable cache.
-// CR catch: prior `let cachedLogo` was mutable singleton state.
-
-function formatDate(value: string | null | undefined): string {
+function formatJobDate(
+  value: string | null | undefined,
+  prefs: OrgPrintPreferencesInput | undefined
+): string {
   if (!value) return "—"
   // YYYY-MM-DD strings parsed by `new Date(value)` are interpreted as
   // UTC midnight, which shifts the calendar day backward in negative
@@ -62,24 +82,36 @@ function formatDate(value: string | null | undefined): string {
   // interpretation so a job created on the 15th never prints as the
   // 14th in San Francisco. CR catch.
   const isoLocal = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value
-  const date = new Date(isoLocal)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  // `formatUserDate` returns `""` on unparseable input — use `||` so
+  // the visible "—" fallback persists (PR 2e pattern). `??` would
+  // accept the empty string as a "real" value.
+  return formatUserDate(isoLocal, prefs) || "—"
 }
 
-function formatCurrency(value: number | null | undefined): string {
+function formatJobCurrency(
+  value: number | null | undefined,
+  prefs: OrgPrintPreferencesInput | undefined
+): string {
   if (value === null || value === undefined) return "—"
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)
+  return formatCurrencyShared(value, {
+    currency: prefs?.defaultCurrency,
+    locale: prefs?.locale,
+  })
 }
 
 function formatStatus(status: JobStatus): string {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function formatSqft(value: number): string {
-  return value >= 100
-    ? Math.round(value).toLocaleString("en-US")
-    : value.toFixed(1).replace(/\.0$/, "")
+function formatJobArea(value: number, prefs: OrgPrintPreferencesInput | undefined): string {
+  // Use the shared helper for unit-aware rendering. The helper
+  // emits "value unit" (e.g. "12.3 sq ft" / "1.14 m²"); we want
+  // value-only in the table cell since the column header carries
+  // the unit. Split on the trailing space and keep only the value.
+  const text = formatAreaSqft(value, prefs)
+  if (!text) return ""
+  const lastSpace = text.lastIndexOf(" ")
+  return lastSpace === -1 ? text : text.slice(0, lastSpace)
 }
 
 function truncate(doc: jsPDF, text: string, maxWidth: number): string {
@@ -201,7 +233,13 @@ function drawCustomerColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number
   return cursor
 }
 
-function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number): number {
+function drawProjectColumn(
+  doc: jsPDF,
+  job: JobFullDetail,
+  x: number,
+  y: number,
+  prefs: OrgPrintPreferencesInput | undefined
+): number {
   const innerX = x + 16
   const headerY = y + 16
 
@@ -221,9 +259,9 @@ function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number)
 
   // Date rows — label left, value right.
   const rows: ReadonlyArray<readonly [string, string]> = [
-    ["Due date", formatDate(job.due_date)],
-    ["Created", formatDate(job.created_at)],
-    ["Completed", formatDate(job.completed_at)],
+    ["Due date", formatJobDate(job.due_date, prefs)],
+    ["Created", formatJobDate(job.created_at, prefs)],
+    ["Completed", formatJobDate(job.completed_at, prefs)],
   ]
   let cursor = statusY + 32
   doc.setFontSize(TYPE.body.size)
@@ -240,7 +278,12 @@ function drawProjectColumn(doc: jsPDF, job: JobFullDetail, x: number, y: number)
   return cursor
 }
 
-function drawInfoColumns(doc: jsPDF, job: JobFullDetail, y: number): number {
+function drawInfoColumns(
+  doc: jsPDF,
+  job: JobFullDetail,
+  y: number,
+  prefs: OrgPrintPreferencesInput | undefined
+): number {
   const panelH = 132
   y = ensure(doc, y, panelH + 24)
 
@@ -250,7 +293,7 @@ function drawInfoColumns(doc: jsPDF, job: JobFullDetail, y: number): number {
   doc.rect(PAGE_MARGIN + COLUMN_W + COLUMN_GAP, y, COLUMN_W, panelH, "F")
 
   drawCustomerColumn(doc, job, PAGE_MARGIN, y)
-  drawProjectColumn(doc, job, PAGE_MARGIN + COLUMN_W + COLUMN_GAP, y)
+  drawProjectColumn(doc, job, PAGE_MARGIN + COLUMN_W + COLUMN_GAP, y, prefs)
 
   return y + panelH + 24
 }
@@ -319,7 +362,8 @@ interface PartsTotals {
 function drawPartsTable(
   doc: jsPDF,
   job: JobFullDetail,
-  y: number
+  y: number,
+  prefs: OrgPrintPreferencesInput | undefined
 ): { y: number; totals: PartsTotals } {
   y = ensure(doc, y, 100)
   y = drawSectionDivider(doc, {
@@ -359,26 +403,30 @@ function drawPartsTable(
   // Column widths sum to CONTENT_W = 516pt. Typed annotation drops
   // the per-row `as const` casts (CR catch — no-cast rule applies to
   // table column literals too; the union narrows via the annotation).
+  // Area column header reflects the operator's unit system.
   const columns: ReadonlyArray<TableColumn> = [
     { header: "Part #", width: 90 },
     { header: "Material", width: 140 },
     { header: "Dimensions", width: 116 },
     { header: "Qty", width: 50, align: "right", mono: true },
-    { header: "Sq ft", width: 60, align: "right", mono: true },
+    { header: getAreaUnitLabel(prefs), width: 60, align: "right", mono: true },
     { header: "Unit price", width: 60, align: "right", mono: true },
   ]
 
   const rows = job.parts.map((p) => {
     const sqft = (p.width * p.length * p.quantity) / 144
-    const dims = `${p.width}" × ${p.length}"${p.thickness ? ` × ${p.thickness}"` : ""}`
+    const dims =
+      p.thickness !== null && p.thickness !== undefined
+        ? formatDimensionsInches([p.width, p.length, p.thickness], prefs)
+        : formatDimensionsInches([p.width, p.length], prefs)
     return {
       cells: [
         p.part_number ?? "—",
         truncate(doc, p.material_type ?? "—", 130),
-        dims,
+        dims || "—",
         String(p.quantity),
-        formatSqft(sqft),
-        formatCurrency(p.unit_price),
+        formatJobArea(sqft, prefs),
+        formatJobCurrency(p.unit_price, prefs),
       ],
     }
   })
@@ -400,17 +448,26 @@ function drawPartsTable(
   return { y: finalY + 24, totals }
 }
 
-function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
+function drawTotalsKpi(
+  doc: jsPDF,
+  totals: PartsTotals,
+  y: number,
+  prefs: OrgPrintPreferencesInput | undefined
+): number {
   y = ensure(doc, y, KPI_MIN_HEIGHT + 24)
   const cardW = (CONTENT_W - KPI_GAP * 2) / 3
   const cards: ReadonlyArray<{ label: string; value: string; unit?: string }> = [
     { label: "Pieces", value: String(totals.partsCount) },
-    { label: "Total area", value: formatSqft(totals.totalSqft), unit: "SQ FT" },
+    {
+      label: "Total area",
+      value: formatJobArea(totals.totalSqft, prefs),
+      unit: getAreaUnitLabel(prefs).toUpperCase(),
+    },
     {
       label: "Total value",
       // hasPricing distinguishes "no prices on file" (render "—") from
       // a legitimate $0 on free/sample jobs.
-      value: totals.hasPricing ? formatCurrency(totals.totalValue) : "—",
+      value: totals.hasPricing ? formatJobCurrency(totals.totalValue, prefs) : "—",
     },
   ]
 
@@ -426,7 +483,12 @@ function drawTotalsKpi(doc: jsPDF, totals: PartsTotals, y: number): number {
 
 // ── Allocations table ───────────────────────────────────────────────────────
 
-function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number {
+function drawAllocationsTable(
+  doc: jsPDF,
+  job: JobFullDetail,
+  y: number,
+  prefs: OrgPrintPreferencesInput | undefined
+): number {
   if (job.allocations.length === 0) return y
   y = ensure(doc, y, 100)
   y = drawSectionDivider(doc, {
@@ -447,11 +509,13 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
   const rows = job.allocations.map((a) => {
     const roll = a.roll
     const sqft = roll ? (a.allocated_length * roll.width) / 144 : 0
+    const length = formatLengthInches(a.allocated_length, prefs)
+    const area = formatAreaSqft(sqft, prefs)
     return {
       cells: [
         roll?.part_number ?? "—",
         truncate(doc, roll?.material_type ?? "—", 150),
-        `${a.allocated_length}″  (${formatSqft(sqft)} sq ft)`,
+        `${length || "—"}  (${area || "—"})`,
         truncate(doc, roll?.location ?? "—", 110),
       ],
     }
@@ -477,6 +541,7 @@ function drawAllocationsTable(doc: jsPDF, job: JobFullDetail, y: number): number
 export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })
   const company = opts.companyName ?? "Rubberfit"
+  const prefs = opts.organizationPreferences
 
   doc.setProperties({
     title: `Job Sheet ${job.job_number ?? ""}`.trim(),
@@ -493,22 +558,16 @@ export function buildJobPdf(job: JobFullDetail, opts: BuildJobPdfOptions = {}): 
 
   let y = contentStartY("customer")
   y = drawJobIntro(doc, job, y)
-  y = drawInfoColumns(doc, job, y)
+  y = drawInfoColumns(doc, job, y, prefs)
   y = drawRoster(doc, job, y)
-  const { y: afterParts, totals } = drawPartsTable(doc, job, y)
+  const { y: afterParts, totals } = drawPartsTable(doc, job, y, prefs)
   y = afterParts
-  y = drawTotalsKpi(doc, totals, y)
-  drawAllocationsTable(doc, job, y)
+  y = drawTotalsKpi(doc, totals, y, prefs)
+  drawAllocationsTable(doc, job, y, prefs)
 
   // Stamp footer on EVERY page in a final pass so "n of N" lands
   // correctly even if the content paginated mid-table.
-  const ts = new Date().toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  const ts = formatUserDateTime(new Date(), prefs) || "—"
   const ref = job.job_number ?? "—"
   stampFooterOnEveryPage(doc, "customer", () => `${ref} • ${ts}`, company)
 

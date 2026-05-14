@@ -167,6 +167,72 @@ describe("buildJobPdfBlob", () => {
     const blob = buildJobPdfBlob(makeJob())
     expect(blob.size).toBeGreaterThan(2048)
   })
+
+  it("accepts organizationPreferences and produces a valid PDF", () => {
+    const blob = buildJobPdfBlob(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "metric",
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "America/Los_Angeles",
+        locale: "es-MX",
+        defaultCurrency: "EUR",
+      },
+    })
+    expect(blob.size).toBeGreaterThan(2048)
+  })
+})
+
+describe("buildJobPdf with organizationPreferences (PR 2f)", () => {
+  it("renders a valid PDF with provider defaults (back-compat: no prefs passed)", () => {
+    const doc = buildJobPdf(makeJob())
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("renders a valid PDF when explicit default prefs are passed", () => {
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "imperial",
+        dateFormat: "MM/dd/yyyy",
+        timeZone: "America/Chicago",
+        locale: "en-US",
+        defaultCurrency: "USD",
+      },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("renders the metric / non-USD operator worldview without throwing", () => {
+    // Customer PDFs follow the operator per the 2026-05-14 ruling.
+    // The combination exercises every prefs-aware path: dates,
+    // dimensions, areas, currency, footer timestamp.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "metric",
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "Europe/London",
+        locale: "en-GB",
+        defaultCurrency: "GBP",
+      },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("handles a parts-empty job with non-default prefs", () => {
+    const doc = buildJobPdf(makeJob({ parts: [] }), {
+      organizationPreferences: { unitSystem: "metric", defaultCurrency: "EUR" },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+  })
+
+  it("renders allocations with metric units when prefs.unitSystem = metric", () => {
+    // Allocations table renders `${length}  (${area})`. With metric
+    // prefs the length string must contain "cm" and the area "m²",
+    // both via the shared helpers. Smoke: PDF builds + bytes exist.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: { unitSystem: "metric" },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
 })
 
 describe("jobPdfFileName", () => {
