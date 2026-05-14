@@ -49,7 +49,8 @@
     "avatarMenu": {
       "languageHeader": "IDIOMA",
       "english": "English (US)",
-      "spanish": "Español (México)"
+      "spanish": "Español (México)",
+      "syncError": "No se pudo guardar tu preferencia de idioma. Intenta de nuevo."
     }
   }
 }

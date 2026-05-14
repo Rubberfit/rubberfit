@@ -11,6 +11,7 @@ import {
 import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
+import { toast } from "sonner"
 
 import { setLocale as setLocaleAction } from "@/app/actions/locale"
 import { updateUserPreferences } from "@/app/actions/user-preferences"
@@ -59,19 +60,20 @@ export function NavUser({
       await setLocaleAction({ locale: next })
       // Persist to the user's own preferences row so General Settings'
       // Language picker reflects the same value on next render. Every
-      // authenticated user has their own row; no admin gate.
-      await updateUserPreferences({ locale: next }).catch(() => undefined)
+      // authenticated user has their own row; no admin gate. Surface
+      // any persistence failure so the cookie/DB don't silently
+      // diverge — the regional-section save path uses the same toast.
+      const result = await updateUserPreferences({ locale: next })
+      if ("error" in result) {
+        toast.error(tLocale("syncError"))
+      }
       router.refresh()
     })
   }
 
-  const localeLabel = (locale: AppLocale): string => {
-    switch (locale) {
-      case "en-US":
-        return tLocale("english")
-      case "es-MX":
-        return tLocale("spanish")
-    }
+  const localeLabel: Record<AppLocale, string> = {
+    "en-US": tLocale("english"),
+    "es-MX": tLocale("spanish"),
   }
 
   const handleSignOut = async () => {
@@ -171,7 +173,7 @@ export function NavUser({
                   onClick={() => handleLocaleChange(locale)}
                   className="justify-between"
                 >
-                  <span>{localeLabel(locale)}</span>
+                  <span>{localeLabel[locale]}</span>
                   {currentLocale === locale ? (
                     <Check className="size-3.5" />
                   ) : (

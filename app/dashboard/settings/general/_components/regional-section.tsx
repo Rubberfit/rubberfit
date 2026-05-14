@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useRef, useTransition } from "react"
 import { useTranslations, useLocale } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -46,13 +46,25 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
 
-  useEffect(() => {
-    setBaseline(preferences)
-    setDraft(preferences)
-    setSavedAt(0)
-  }, [preferences])
-
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
+  // Keep a ref in sync so the [preferences] effect can read the current
+  // dirty state without taking draft/baseline as deps (which would make
+  // the effect fire on every keystroke).
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
+
+  useEffect(() => {
+    // Always anchor baseline to the latest server value so isDirty stays
+    // accurate when a sibling section's save triggers router.refresh().
+    setBaseline(preferences)
+    // Only reset draft + savedAt when the user has no in-flight edits.
+    // Without this guard, a sibling section's refresh would wipe what
+    // the operator is mid-typing.
+    if (!isDirtyRef.current) {
+      setDraft(preferences)
+      setSavedAt(0)
+    }
+  }, [preferences])
 
   const currencyPreview = new Intl.NumberFormat(draft.locale, {
     style: "currency",
@@ -92,7 +104,16 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
   const handleSave = () => {
     const localeChanged = draft.locale !== baseline.locale
     startTransition(async () => {
-      const result = await updateUserPreferences(draft)
+      // Send only the fields this section owns. Without this filter,
+      // saving here would silently overwrite the OperationsSection's
+      // in-flight unit-system or threshold edits with stale baseline
+      // values.
+      const result = await updateUserPreferences({
+        locale: draft.locale,
+        defaultCurrency: draft.defaultCurrency,
+        timeZone: draft.timeZone,
+        dateFormat: draft.dateFormat,
+      })
       if ("error" in result) {
         toast.error(t("errors.unknown"))
         return
@@ -103,8 +124,10 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
       toast.success(t("actions.saved"))
       if (localeChanged) {
         await setLocaleAction({ locale: result.data.locale })
-        router.refresh()
       }
+      // Always refresh so the sibling section's [preferences] effect
+      // sees the latest server state and re-anchors its baseline.
+      router.refresh()
     })
   }
 

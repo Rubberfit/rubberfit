@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useTransition, type ChangeEvent } from "react"
+import { useState, useEffect, useRef, useTransition, type ChangeEvent } from "react"
 import { useTranslations, useLocale } from "next-intl"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { updateUserPreferences } from "@/app/actions/user-preferences"
@@ -43,6 +44,7 @@ function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): stri
 export function OperationsSection({ preferences, onSaved }: OperationsSectionProps) {
   const t = useTranslations("settings")
   const locale = useLocale()
+  const router = useRouter()
   const [baseline, setBaseline] = useState<UserPreferences>(preferences)
   const [draft, setDraft] = useState<UserPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
@@ -52,14 +54,27 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
     formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
   )
 
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
+  // Ref lets the [preferences] effect peek at current dirty state without
+  // taking draft/baseline as deps (which would make it fire per keystroke).
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
+
   useEffect(() => {
+    // Always anchor baseline to the latest server value so a sibling's
+    // refresh keeps isDirty accurate against fresh data.
     setBaseline(preferences)
-    setDraft(preferences)
-    setSavedAt(0)
-    setIsEditingThreshold(false)
-    setThresholdInput(
-      formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
-    )
+    // Only reset draft + threshold UI when nothing is in flight. Without
+    // this guard, a regional save's router.refresh() would wipe the
+    // operator's mid-typing unit-system or threshold change.
+    if (!isDirtyRef.current) {
+      setDraft(preferences)
+      setSavedAt(0)
+      setIsEditingThreshold(false)
+      setThresholdInput(
+        formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
+      )
+    }
   }, [preferences])
 
   useEffect(() => {
@@ -67,8 +82,6 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
       setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
     }
   }, [draft.unitSystem])
-
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
 
   const handleUnitSystemChange = (value: UnitSystem) => {
     setDraft((prev) => ({ ...prev, unitSystem: value }))
@@ -92,7 +105,13 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
 
   const handleSave = () => {
     startTransition(async () => {
-      const result = await updateUserPreferences(draft)
+      // Send only the fields this section owns. Prevents stale baseline
+      // values from regional fields (locale/currency/timeZone/dateFormat)
+      // from overwriting what the user just saved over in RegionalSection.
+      const result = await updateUserPreferences({
+        unitSystem: draft.unitSystem,
+        lowStockThresholdSqft: draft.lowStockThresholdSqft,
+      })
       if ("error" in result) {
         toast.error(t("errors.unknown"))
         return
@@ -101,6 +120,9 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
       setSavedAt(Date.now())
       onSaved?.(result.data)
       toast.success(t("actions.saved"))
+      // Refresh so the sibling section re-anchors its baseline to the
+      // server's latest state and isDirty stays accurate.
+      router.refresh()
     })
   }
 
