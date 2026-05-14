@@ -18,6 +18,8 @@ import type {
   ReorderSuggestionOutput,
 } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 import { reorderService } from "@/src/infrastructure/services/reorderService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
@@ -67,12 +69,45 @@ const createBulkReorderPurchaseOrderInputSchema = z.object({
   materialTypeIds: z.array(uuid).min(1, "Select at least one material to reorder"),
 })
 
+const nonNegativeNumber = z.number().min(0, "Must be 0 or greater")
+const positiveNumber = z.number().gt(0, "Must be greater than 0")
+
+const createReorderRuleInputSchema = z
+  .object({
+    material_type_id: uuid,
+    supplier_id: uuid.optional(),
+    /**
+     * Optional at the action boundary: when omitted the action seeds
+     * from `organization_preferences.lowStockThresholdSqft`. Explicit
+     * `0` is preserved (operator "no alert" override) via `??`.
+     */
+    reorder_point: nonNegativeNumber.optional(),
+    reorder_quantity: positiveNumber,
+    max_stock_level: nonNegativeNumber.optional(),
+    lead_time_days: z.number().int().min(0, "Lead time must be 0 or greater"),
+    safety_stock_days: z.number().int().min(0, "Safety stock must be 0 or greater").optional(),
+    auto_reorder: z.boolean().optional(),
+    active: z.boolean().optional(),
+    notes: z.string().trim().max(1000).optional(),
+  })
+  .refine(
+    (data) =>
+      data.max_stock_level === undefined ||
+      data.reorder_point === undefined ||
+      data.max_stock_level >= data.reorder_point,
+    {
+      path: ["max_stock_level"],
+      message: "Max stock level must be greater than or equal to the reorder point",
+    }
+  )
+
 export type CreateReorderPurchaseOrderActionInput = z.input<
   typeof createReorderPurchaseOrderInputSchema
 >
 export type CreateBulkReorderPurchaseOrderActionInput = z.input<
   typeof createBulkReorderPurchaseOrderInputSchema
 >
+export type CreateReorderRuleActionInput = z.input<typeof createReorderRuleInputSchema>
 
 // ── Server-side data sourcing ──────────────────────────────────────────
 //
@@ -201,6 +236,77 @@ export async function createBulkReorderPurchaseOrder(
     revalidatePath(PO_LIST_PATH)
   }
   return result
+}
+
+/**
+ * Create a reorder rule. `reorder_point` is optional on the action
+ * boundary — when the caller omits it, we seed from the org's
+ * `lowStockThresholdSqft`. Explicit values (including `0`) flow
+ * through unchanged via `??`. Auth + RBAC enforced server-side so
+ * the form can't bypass via the RPC hash.
+ */
+export async function createReorderRule(
+  input: CreateReorderRuleActionInput
+): Promise<ReorderRuleWithDetails> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  const subscription = await requireActiveSubscription(actor)
+  requirePermission(actor, "manageRolls")
+  const parsed = createReorderRuleInputSchema.parse(input)
+
+  const reorderPoint =
+    parsed.reorder_point ??
+    (await loadLowStockThresholdSeed(subscription.organizationId, actor.id))
+
+  // The Zod `.refine()` runs against the input; once seeding fills
+  // in `reorder_point`, re-validate the invariant so a high org-level
+  // seed cannot land alongside a low caller-supplied `max_stock_level`.
+  if (parsed.max_stock_level !== undefined && parsed.max_stock_level < reorderPoint) {
+    throw new Error("Max stock level must be greater than or equal to the reorder point")
+  }
+
+  const result = await reorderService.createReorderRule(
+    {
+      material_type_id: parsed.material_type_id,
+      supplier_id: parsed.supplier_id,
+      reorder_point: reorderPoint,
+      reorder_quantity: parsed.reorder_quantity,
+      max_stock_level: parsed.max_stock_level,
+      lead_time_days: parsed.lead_time_days,
+      safety_stock_days: parsed.safety_stock_days ?? 3,
+      auto_reorder: parsed.auto_reorder ?? false,
+      active: parsed.active ?? true,
+      notes: parsed.notes,
+    },
+    actor.id
+  )
+
+  revalidatePath(REORDER_PATH)
+  return result
+}
+
+/**
+ * Mirrors the materials-action helper. Best-effort: a failed prefs
+ * lookup seeds the model default so create still succeeds. Log
+ * carries `organizationId` + `actorId` for debugability.
+ */
+async function loadLowStockThresholdSeed(
+  organizationId: string,
+  actorId: string
+): Promise<number> {
+  try {
+    const prefsService = resolveUseCase<IOrganizationPreferencesService>(
+      TOKENS.IOrganizationPreferencesService
+    )
+    const prefs = await prefsService.getForOrganization(organizationId)
+    return prefs.lowStockThresholdSqft
+  } catch (error) {
+    console.error(
+      `[reorder] org-prefs threshold seed lookup failed (organizationId=${organizationId} actorId=${actorId}):`,
+      error
+    )
+    return DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft
+  }
 }
 
 /**
