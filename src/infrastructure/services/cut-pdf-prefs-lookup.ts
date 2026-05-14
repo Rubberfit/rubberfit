@@ -3,22 +3,32 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
 import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 import {
+  isSupportedCurrency,
   isSupportedDateFormat,
   isSupportedLocale,
   isSupportedTimeZone,
   isSupportedUnitSystem,
+  type SupportedCurrency,
 } from "@/src/application/preferences/constants"
 
 /**
- * Combined unit + date preferences for printed/exported output.
+ * Combined unit + date + currency preferences for printed/exported
+ * output.
  *
  * The shape is the structural intersection of the two display-helper
- * inputs so a single org-prefs lookup feeds both `formatLengthInches`
- * + family AND `formatUserDate` + family. PR 2e generalizes the
- * earlier `UnitDisplayPreferencesInput`-only path to close the date
- * i18n gap; PR 2c (org-level) + PR 2d (units) remain in force.
+ * inputs (unit + date) widened with an optional `defaultCurrency` so a
+ * single org-prefs lookup also feeds the currency rendering on
+ * customer-facing PDFs (Job Sheet — PR 2f). Currency is display-only:
+ * the helper picks the symbol/format from the operator's locale +
+ * currency, it does NOT convert amounts.
  */
-export type OrgPrintPreferencesInput = UnitDisplayPreferencesInput & UserDatePreferencesInput
+export interface OrgPrintCurrencyPreferencesInput {
+  defaultCurrency?: SupportedCurrency
+}
+
+export type OrgPrintPreferencesInput = UnitDisplayPreferencesInput &
+  UserDatePreferencesInput &
+  OrgPrintCurrencyPreferencesInput
 
 /**
  * Look up the organization-level print preferences (unit system +
@@ -82,7 +92,7 @@ export async function getOrgPreferencesForOwner(
     if (!organizationId) return undefined
     const prefsRow = await admin
       .from("organization_preferences")
-      .select("unit_system, date_format, time_zone, locale")
+      .select("unit_system, date_format, time_zone, locale, default_currency")
       .eq("organization_id", organizationId)
       .maybeSingle()
     if (prefsRow.error) {
@@ -104,6 +114,9 @@ export async function getOrgPreferencesForOwner(
     }
     if (typeof row.locale === "string" && isSupportedLocale(row.locale)) {
       result.locale = row.locale
+    }
+    if (typeof row.default_currency === "string" && isSupportedCurrency(row.default_currency)) {
+      result.defaultCurrency = row.default_currency
     }
     return result
   } catch (error) {

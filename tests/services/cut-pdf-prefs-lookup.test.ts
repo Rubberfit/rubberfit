@@ -65,7 +65,7 @@ describe("getOrgPreferencesForOwner", () => {
     vi.restoreAllMocks()
   })
 
-  it("returns the full picker quadruple when every column is valid", async () => {
+  it("returns the full picker quintuple when every column is valid", async () => {
     const { admin } = makeFakeAdmin(
       { data: { organization_id: ORG_ID }, error: null },
       {
@@ -74,6 +74,7 @@ describe("getOrgPreferencesForOwner", () => {
           date_format: "dd/MM/yyyy",
           time_zone: "Europe/London",
           locale: "en-US",
+          default_currency: "EUR",
         },
         error: null,
       }
@@ -84,6 +85,7 @@ describe("getOrgPreferencesForOwner", () => {
       dateFormat: "dd/MM/yyyy",
       timeZone: "Europe/London",
       locale: "en-US",
+      defaultCurrency: "EUR",
     })
   })
 
@@ -96,6 +98,7 @@ describe("getOrgPreferencesForOwner", () => {
           date_format: "MM/dd/yyyy",
           time_zone: "America/Chicago",
           locale: "en-US",
+          default_currency: "USD",
         },
         error: null,
       }
@@ -105,8 +108,52 @@ describe("getOrgPreferencesForOwner", () => {
 
     expect(membersQuery.eq).toHaveBeenCalledWith("user_id", OWNER_ID)
     expect(membersQuery.limit).toHaveBeenCalledWith(1)
-    expect(prefsQuery.select).toHaveBeenCalledWith("unit_system, date_format, time_zone, locale")
+    expect(prefsQuery.select).toHaveBeenCalledWith(
+      "unit_system, date_format, time_zone, locale, default_currency"
+    )
     expect(prefsQuery.eq).toHaveBeenCalledWith("organization_id", ORG_ID)
+  })
+
+  it("omits defaultCurrency when the column value isn't a supported currency", async () => {
+    const { admin } = makeFakeAdmin(
+      { data: { organization_id: ORG_ID }, error: null },
+      {
+        data: {
+          unit_system: "imperial",
+          date_format: "MM/dd/yyyy",
+          time_zone: "America/Chicago",
+          locale: "en-US",
+          default_currency: "XYZ",
+        },
+        error: null,
+      }
+    )
+
+    const result = await getOrgPreferencesForOwner(admin, OWNER_ID)
+    expect(result?.defaultCurrency).toBeUndefined()
+    // The unit + date + locale subset still populates — per-field
+    // type guards stay independent.
+    expect(result?.unitSystem).toBe("imperial")
+  })
+
+  it("returns defaultCurrency on its own when only that column is valid", async () => {
+    const { admin } = makeFakeAdmin(
+      { data: { organization_id: ORG_ID }, error: null },
+      {
+        data: {
+          unit_system: null,
+          date_format: null,
+          time_zone: null,
+          locale: null,
+          default_currency: "GBP",
+        },
+        error: null,
+      }
+    )
+
+    await expect(getOrgPreferencesForOwner(admin, OWNER_ID)).resolves.toEqual({
+      defaultCurrency: "GBP",
+    })
   })
 
   it("returns undefined when membership lookup errors (caught + logged, not thrown)", async () => {
