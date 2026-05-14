@@ -6,6 +6,8 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 
 import { exportCutHistoryCsv } from "@/app/actions/cut-history"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import { formatUserDateTime } from "@/src/application/preferences/user-date-format"
 import { PART_LABELS } from "@/src/application/cuts/part-labels"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
@@ -40,6 +42,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useCutHistory() {
   const router = useRouter()
   const { isAdmin, isManager, hasAnyRole, isLoading: roleLoading, userId } = useRole()
+  const preferences = useUserPreferences()
 
   const showDropdown = isAdmin || isManager || hasAnyRole(["supervisor"])
   const canDelete = isAdmin || isManager
@@ -260,15 +263,18 @@ export function useCutHistory() {
     let result = showFavoritesOnly ? cuts.filter((c) => c.isFavorite) : cuts
     if (searchTerm.trim()) {
       const lower = searchTerm.toLowerCase()
+      // Mirror the table's render contract — substring searches match
+      // what the operator actually sees, not a stale "MMM d, yyyy"
+      // shape that drifts from the visible row when prefs change.
       result = result.filter((cut) => {
         const partLabel = (PART_LABELS[cut.part_id] ?? "").toLowerCase()
         const sizes = (cut.part_selected_label ?? []).join(" ").toLowerCase()
-        const date = format(new Date(cut.cut_date), "MMM d, yyyy HH:mm").toLowerCase()
+        const date = formatUserDateTime(cut.cut_date, preferences).toLowerCase()
         return partLabel.includes(lower) || sizes.includes(lower) || date.includes(lower)
       })
     }
     return result
-  }, [cuts, showFavoritesOnly, searchTerm])
+  }, [cuts, showFavoritesOnly, searchTerm, preferences])
 
   // Star + 9 data cols + actions
   const totalColSpan = 1 + 9 + 1

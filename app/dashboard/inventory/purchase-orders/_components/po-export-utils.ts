@@ -2,6 +2,7 @@ import { format } from "date-fns"
 
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import type { ExportData } from "@/src/application/services/export.service.interface"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 export interface POExportFilters {
   status: string
@@ -22,6 +23,13 @@ export interface PurchaseOrdersExportInput {
   pos: PurchaseOrderWithDetails[]
   filters: POExportFilters
   stats: POExportSummary
+  /**
+   * Optional — applies to visible PDF text only (body dates, footer
+   * timestamp). CSV cell dates intentionally stay in the existing ISO
+   * format because operators import the CSV into spreadsheets where
+   * machine-stable dates matter more than localized display.
+   */
+  preferences?: UserDatePreferencesInput
 }
 
 /** Snapshot the bits of `usePurchaseOrders` the export menu needs. */

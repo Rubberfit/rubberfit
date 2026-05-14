@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import Link from "next/link"
 import { FileText, Plus, DollarSign, Truck, Clock } from "lucide-react"
 import { toast } from "sonner"
@@ -15,6 +15,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/app/components/patterns"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
@@ -27,7 +28,15 @@ import { usePurchaseOrders } from "./_components/use-purchase-orders"
 
 export default function PurchaseOrdersPage() {
   const po = usePurchaseOrders()
+  const preferences = useUserPreferences()
   const [drawerMode, setDrawerMode] = useState<PoDrawerMode>("view")
+  // Stable wrapper so the row + drawer pass the operator's prefs into
+  // the PDF builder; the underlying handler is plain and prefers
+  // explicit injection over reading context inside a wrapper module.
+  const handleDownloadPDFWithPrefs = useCallback(
+    (poItem: PurchaseOrderWithDetails) => handleDownloadPDF(poItem, preferences),
+    [preferences]
+  )
 
   const handleViewPO = async (poItem: PurchaseOrderWithDetails) => {
     po.setSelectedPO(poItem)
@@ -91,15 +100,17 @@ export default function PurchaseOrdersPage() {
   }
 
   const exportInput = useMemo(
-    () =>
-      toPurchaseOrdersExportInput({
+    () => ({
+      ...toPurchaseOrdersExportInput({
         filteredPOs: po.filteredPOs,
         statusFilter: po.statusFilter,
         supplierFilter: po.supplierFilter,
         searchQuery: po.searchQuery,
         stats: po.stats,
       }),
-    [po.filteredPOs, po.statusFilter, po.supplierFilter, po.searchQuery, po.stats]
+      preferences,
+    }),
+    [po.filteredPOs, po.statusFilter, po.supplierFilter, po.searchQuery, po.stats, preferences]
   )
 
   return (
@@ -208,7 +219,7 @@ export default function PurchaseOrdersPage() {
         materialTypes={po.materialTypes}
         onSaved={handleSavedFromDrawer}
         onUpdateStatus={po.updatePOStatus}
-        onDownloadPDF={handleDownloadPDF}
+        onDownloadPDF={handleDownloadPDFWithPrefs}
       />
 
       <ConfirmationDialog

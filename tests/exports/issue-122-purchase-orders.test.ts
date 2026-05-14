@@ -225,4 +225,20 @@ describe("buildPurchaseOrdersListPdf", () => {
     }
     expect(() => buildPurchaseOrdersListPdf(input)).not.toThrow()
   })
+
+  it("accepts non-default operator preferences without throwing", () => {
+    // PR 2 contract: body dates + footer timestamp render in the
+    // operator's chosen format/locale/timezone. Filenames stay ISO
+    // (validated by the downloader's separate filename test).
+    const withPrefs: PurchaseOrdersExportInput = {
+      ...FIXTURE,
+      preferences: {
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "Europe/Paris",
+        locale: "es-MX",
+      },
+    }
+    const doc = buildPurchaseOrdersListPdf(withPrefs)
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
 })

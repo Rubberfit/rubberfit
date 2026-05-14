@@ -39,6 +39,23 @@ export interface UserPreferences {
   updatedAt: string
 }
 
+/**
+ * Builds a fully-typed `UserPreferences` for the rare branch where
+ * the auto-provision trigger hasn't created the row yet (the dashboard
+ * layout's `not_provisioned` fallback). Row metadata is left empty —
+ * consumers of these defaults only read picker fields (locale,
+ * dateFormat, etc.); the audit fields stay blank rather than being
+ * fabricated.
+ */
+export function buildFallbackUserPreferences(): UserPreferences {
+  return {
+    userId: "",
+    createdAt: "",
+    updatedAt: "",
+    ...DEFAULT_USER_PREFERENCES,
+  }
+}
+
 export interface UpdateUserPreferencesInput {
   defaultCurrency?: SupportedCurrency
   timeZone?: SupportedTimeZone

@@ -13,8 +13,8 @@ import {
   Mail,
   User,
 } from "lucide-react"
-import { format } from "date-fns"
 
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
@@ -28,6 +28,7 @@ import {
 } from "@/app/components/ui/table"
 import { Label } from "@/app/components/ui/label"
 import { Separator } from "@/app/components/ui/separator"
+import { formatUserDate, formatUserDateTime } from "@/src/application/preferences/user-date-format"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { type TaxDetails } from "./po-tax-helpers"
 import { getStatusBadge } from "./po-status-badge"
@@ -37,6 +38,7 @@ interface OrderDetailsCardProps {
 }
 
 export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
+  const preferences = useUserPreferences()
   return (
     <Card>
       <CardHeader className="pb-3 pt-4 px-5">
@@ -50,16 +52,14 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Order Date</Label>
             <p className="text-sm font-medium">
-              {selectedPO.order_date
-                ? format(new Date(selectedPO.order_date), "MMM dd, yyyy")
-                : "--"}
+              {selectedPO.order_date ? formatUserDate(selectedPO.order_date, preferences) : "--"}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Requested Delivery</Label>
             <p className="text-sm font-medium">
               {selectedPO.requested_delivery_date
-                ? format(new Date(selectedPO.requested_delivery_date), "MMM dd, yyyy")
+                ? formatUserDate(selectedPO.requested_delivery_date, preferences)
                 : "--"}
             </p>
           </div>
@@ -67,7 +67,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Actual Delivery</Label>
               <p className="text-sm font-medium text-[#16A34A]">
-                {format(new Date(selectedPO.actual_delivery_date), "MMM dd, yyyy")}
+                {formatUserDate(selectedPO.actual_delivery_date, preferences)}
               </p>
             </div>
           )}
@@ -92,7 +92,7 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
                 </p>
                 {selectedPO.approved_at && (
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(selectedPO.approved_at), "MMM dd, yyyy 'at' h:mm a")}
+                    {formatUserDateTime(selectedPO.approved_at, preferences)}
                   </p>
                 )}
               </div>

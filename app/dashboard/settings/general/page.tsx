@@ -34,7 +34,7 @@ export default async function GeneralSettingsPage() {
         />
         <div className="mx-auto w-full max-w-2xl pb-20">
           <p className="font-[family-name:var(--font-sans)] text-[14px] text-[var(--color-ink-soft)]">
-            {t("noWorkspace")}
+            {t("notProvisioned")}
           </p>
         </div>
       </PageShell>

@@ -1,7 +1,6 @@
 "use client"
 
 import { memo, useMemo } from "react"
-import { format } from "date-fns"
 import {
   Building2,
   Calendar,
@@ -17,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react"
 
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu"
 import type { ColumnDef } from "@/app/components/patterns/data-table"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 
 import { handleDownloadPDF } from "./po-pdf-export"
 import { getStatusBadge } from "./po-status-badge"
@@ -56,6 +57,7 @@ export function usePoColumns({
   onUpdateStatus,
   onCancel,
 }: UsePoColumnsArgs): ColumnDef<PurchaseOrderWithDetails>[] {
+  const preferences = useUserPreferences()
   return useMemo<ColumnDef<PurchaseOrderWithDetails>[]>(
     () => [
       {
@@ -88,9 +90,12 @@ export function usePoColumns({
         header: "Order Date",
         cell: (po) => (
           <span className="text-sm text-muted-foreground">
-            {po.order_date ? format(new Date(po.order_date), "MMM dd, yyyy") : "—"}
+            {po.order_date ? formatUserDate(po.order_date, preferences) : "—"}
           </span>
         ),
+        // Sort uses getTime() against the raw value — keep the
+        // numeric comparison; display swap above does not change
+        // ordering semantics.
         sortFn: (po) =>
           po.order_date ? new Date(po.order_date).getTime() : Number.MIN_SAFE_INTEGER,
         defaultSort: "desc",
@@ -102,7 +107,7 @@ export function usePoColumns({
           po.requested_delivery_date ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="size-3.5" aria-hidden="true" />
-              {format(new Date(po.requested_delivery_date), "MMM dd")}
+              {formatUserDate(po.requested_delivery_date, preferences)}
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
@@ -147,11 +152,12 @@ export function usePoColumns({
             onEdit={onEdit}
             onUpdateStatus={onUpdateStatus}
             onCancel={onCancel}
+            preferences={preferences}
           />
         ),
       },
     ],
-    [onView, onEdit, onUpdateStatus, onCancel]
+    [onView, onEdit, onUpdateStatus, onCancel, preferences]
   )
 }
 
@@ -161,6 +167,7 @@ interface PoActionsCellProps {
   onEdit: (po: PurchaseOrderWithDetails) => void
   onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onCancel: (po: PurchaseOrderWithDetails) => void
+  preferences: ReturnType<typeof useUserPreferences>
 }
 
 /**
@@ -172,7 +179,14 @@ interface PoActionsCellProps {
  * when nothing in this row changed (callbacks are stable refs
  * coming from `useInventoryColumns`-style memoized parents).
  */
-function PoActionsCellInner({ po, onView, onEdit, onUpdateStatus, onCancel }: PoActionsCellProps) {
+function PoActionsCellInner({
+  po,
+  onView,
+  onEdit,
+  onUpdateStatus,
+  onCancel,
+  preferences,
+}: PoActionsCellProps) {
   // `void onUpdateStatus(...)` discards the resolved value but
   // does NOT suppress an unexpected rejection — Promise rejects
   // without a handler trigger an `unhandledrejection` global
@@ -218,7 +232,7 @@ function PoActionsCellInner({ po, onView, onEdit, onUpdateStatus, onCancel }: Po
   }
 
   function handleDownloadClick() {
-    handleDownloadPDF(po)
+    handleDownloadPDF(po, preferences)
   }
 
   function handleCancelClick() {
