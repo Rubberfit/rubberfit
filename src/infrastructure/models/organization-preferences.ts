@@ -48,6 +48,22 @@ export interface OrganizationPreferences {
   updatedAt: string
 }
 
+/**
+ * Builds a fully-typed `OrganizationPreferences` for the rare branch
+ * where the auto-provision trigger hasn't created the row yet. Mirrors
+ * `buildFallbackUserPreferences()`. Row metadata is left empty —
+ * consumers of these defaults only read picker fields; audit fields
+ * stay blank rather than being fabricated.
+ */
+export function buildFallbackOrganizationPreferences(organizationId = ""): OrganizationPreferences {
+  return {
+    organizationId,
+    createdAt: "",
+    updatedAt: "",
+    ...DEFAULT_ORGANIZATION_PREFERENCES,
+  }
+}
+
 export interface UpdateOrganizationPreferencesInput {
   defaultCurrency?: SupportedCurrency
   timeZone?: SupportedTimeZone
