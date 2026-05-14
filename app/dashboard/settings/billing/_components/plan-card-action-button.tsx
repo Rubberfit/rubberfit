@@ -25,7 +25,7 @@ function isStripePortalUrl(value: string): boolean {
 interface PlanCardActionButtonProps {
   organizationId: string
   actionLabel: string
-  actionDisabled: boolean
+  isActionDisabled: boolean
   actionVariant: "primary" | "ghost"
 }
 
@@ -41,7 +41,7 @@ const GHOST_CLASS =
 export function PlanCardActionButton({
   organizationId,
   actionLabel,
-  actionDisabled,
+  isActionDisabled,
   actionVariant,
 }: PlanCardActionButtonProps) {
   const [isPending, startTransition] = useTransition()
@@ -66,12 +66,11 @@ export function PlanCardActionButton({
     })
   }
 
-  if (actionDisabled) {
+  if (isActionDisabled) {
     return (
       <button
         type="button"
         disabled
-        aria-disabled
         title={actionLabel}
         className={DISABLED_CLASS}
       >

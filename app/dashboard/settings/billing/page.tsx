@@ -292,7 +292,7 @@ function PlanCard({
         <PlanCardActionButton
           organizationId={organizationId}
           actionLabel={actionLabel}
-          actionDisabled={actionDisabled}
+          isActionDisabled={actionDisabled}
           actionVariant={actionVariant}
         />
       </div>
