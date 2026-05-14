@@ -34,11 +34,22 @@ async function loadRoll(partNumber: string): Promise<PublicRoll | null> {
  * Returns undefined on any error so the PDF still renders with
  * imperial / `MM/dd/yyyy` / `America/Chicago` defaults — the public
  * scan endpoint must never 500 on a missing prefs row.
+ *
+ * `getOrgPreferencesForRoll` already wraps its DB calls in a
+ * try/catch internally, but `makeAdminClient()` can theoretically
+ * throw on env-var misconfiguration; the outer try/catch matches the
+ * doc-comment contract and protects against any future change to
+ * the helper that could raise (CodeRabbit catch).
  */
 async function loadPrintPrefs(rollId: string): Promise<OrgPrintPreferencesInput | undefined> {
-  const client = makeAdminClient()
-  if (!client) return undefined
-  return getOrgPreferencesForRoll(client, rollId)
+  try {
+    const client = makeAdminClient()
+    if (!client) return undefined
+    return await getOrgPreferencesForRoll(client, rollId)
+  } catch (error) {
+    console.error("[scanRoute] failed to resolve org print prefs for roll", { rollId, error })
+    return undefined
+  }
 }
 
 /**
