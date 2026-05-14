@@ -8,6 +8,12 @@ import type { StockConfig } from "./stock-preview-configurator"
 import { PART_OPTIONS } from "./preset-template-data"
 import type { LayoutModel, PlacedPart, LayoutRegion } from "./layout-model"
 import { buildOffcutSummary, type OffcutSummaryRow } from "./cut-history-pdf-offcut"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  formatLengthInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +35,14 @@ export interface CutPdfData {
   scrapPct: number
   fabScore: number
   cutDate: string
+  /**
+   * Org-level unit preferences. Drives the sqft → m² conversion in
+   * the metrics table, KPI strip, offcut location/size/area columns,
+   * dimension arrows around the stock-sheet diagram, and the stock
+   * summary line. Optional so legacy callers fall back to imperial;
+   * the production browser + server-recovery paths populate it.
+   */
+  organizationPreferences?: UnitDisplayPreferencesInput
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -241,7 +255,10 @@ function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
 
   const cards = [
     { label: "Cut Pieces", value: `${data.cutPieces}` },
-    { label: "Material Used", value: `${data.materialUsedSqFt.toFixed(1)} sqft` },
+    {
+      label: "Material Used",
+      value: formatAreaSqft(data.materialUsedSqFt, data.organizationPreferences, { precision: 1 }),
+    },
     { label: "Reusable Offcut", value: `${data.reusableOffcutPct.toFixed(1)}%` },
     { label: "Waste", value: `${data.scrapPct.toFixed(1)}%` },
     { label: "Fab Score", value: `${Math.round(data.fabScore * 100)}/100` },
@@ -271,8 +288,13 @@ function addSummaryCards(doc: jsPDF, data: CutPdfData, y: number): number {
   doc.setTextColor(...GRAY_700)
   doc.setFont("helvetica", "normal")
   const rollLabel = data.rollCount > 1 ? `${data.rollCount} rolls` : "1 roll"
+  const stockDims = formatDimensionsInches(
+    [data.stockWidth, data.stockLength, data.stockThickness],
+    data.organizationPreferences,
+    { precision: 3 }
+  )
   doc.text(
-    `${data.profileTitle}  |  Stock: ${data.stockWidth}" \u00D7 ${data.stockLength}" \u00D7 ${data.stockThickness}"  |  ${data.materialName}  |  ${rollLabel}`,
+    `${data.profileTitle}  |  Stock: ${stockDims}  |  ${data.materialName}  |  ${rollLabel}`,
     MARGIN,
     y
   )
@@ -356,7 +378,8 @@ function renderLayoutToDoc(
   boxY: number,
   boxW: number,
   boxH: number,
-  offcutRows: ReadonlyArray<OffcutSummaryRow>
+  offcutRows: ReadonlyArray<OffcutSummaryRow>,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): void {
   const sheetW = layout.sheetWidth
   const sheetL = layout.sheetLength
@@ -440,7 +463,7 @@ function renderLayoutToDoc(
   }
 
   // Dimension annotations on the right (width) + bottom (length) edges.
-  drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL)
+  drawDimensionArrows(doc, ox, oy, drawW, drawH, sheetW, sheetL, unitPreferences)
 }
 
 interface RegionStyle {
@@ -722,12 +745,12 @@ function getFittingLabelFontPt(
   return fontPt >= MIN_LABEL_FONT_PT ? fontPt : null
 }
 
-function formatInch(value: number): string {
-  // Round to the nearest 1/16" then drop trailing zeros: 12.0 → "12"",
-  // 7.5 → "7.5"", 12.0625 → "12.0625"".
-  const stepped = Math.round(value * 16) / 16
-  const text = Number.isInteger(stepped) ? `${stepped}` : `${stepped.toFixed(4).replace(/0+$/, "")}`
-  return `${text}"`
+function formatInch(value: number, unitPreferences?: UnitDisplayPreferencesInput): string {
+  // Snap to nearest 1/16" then route through formatLengthInches so the
+  // imperial render (`12.0625"`) and the metric render (`30.64 cm`)
+  // are derived from the same snapped value — keeps the PDF arrow
+  // labels visually aligned with what the operator measured.
+  return formatLengthInches(value, unitPreferences, { snapInchesTo: 1 / 16 })
 }
 
 function drawDimensionArrows(
@@ -737,7 +760,8 @@ function drawDimensionArrows(
   drawW: number,
   drawH: number,
   sheetWidthIn: number,
-  sheetLengthIn: number
+  sheetLengthIn: number,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): void {
   doc.setDrawColor(...SHEET_STROKE_RGB)
   doc.setLineWidth(0.25)
@@ -755,7 +779,11 @@ function drawDimensionArrows(
   doc.setTextColor(...LABEL_TEXT_RGB)
   // Sideways label sits to the right of the arrow. Keep horizontal so it
   // reads at default PDF orientation; jsPDF's rotated text is fragile.
-  doc.text(`${formatInch(sheetWidthIn)} width`, widthArrowX + 2, oy + drawH / 2 + 2)
+  doc.text(
+    `${formatInch(sheetWidthIn, unitPreferences)} width`,
+    widthArrowX + 2,
+    oy + drawH / 2 + 2
+  )
 
   // Length arrow — horizontal, sits in the bottom gutter, spans the panel width.
   const lengthArrowY = oy + drawH + 4
@@ -764,9 +792,14 @@ function drawDimensionArrows(
   doc.line(lengthArrowX1, lengthArrowY, lengthArrowX2, lengthArrowY)
   drawArrowhead(doc, lengthArrowX1, lengthArrowY, "left")
   drawArrowhead(doc, lengthArrowX2, lengthArrowY, "right")
-  doc.text(`${formatInch(sheetLengthIn)} length`, ox + drawW / 2, lengthArrowY + 5, {
-    align: "center",
-  })
+  doc.text(
+    `${formatInch(sheetLengthIn, unitPreferences)} length`,
+    ox + drawW / 2,
+    lengthArrowY + 5,
+    {
+      align: "center",
+    }
+  )
 }
 
 function drawArrowhead(
@@ -891,7 +924,8 @@ async function addLayoutDiagrams(
   doc: jsPDF,
   layouts: LayoutModel[],
   offcutSummary: ReadonlyArray<OffcutSummaryRow>,
-  y: number
+  y: number,
+  unitPreferences?: UnitDisplayPreferencesInput
 ): Promise<number> {
   for (let i = 0; i < layouts.length; i++) {
     const layout = layouts[i]
@@ -959,7 +993,7 @@ async function addLayoutDiagrams(
           },
         }))
       : rollOffcutsRaw
-    renderLayoutToDoc(doc, renderLayout, MARGIN, pageY, boxW, boxH, rollOffcuts)
+    renderLayoutToDoc(doc, renderLayout, MARGIN, pageY, boxW, boxH, rollOffcuts, unitPreferences)
     // y for the next non-diagram section. We force a fresh page after
     // the last diagram so portrait flow resumes from the top.
     if (i === layouts.length - 1) {
@@ -1007,7 +1041,12 @@ async function addDiagrams(doc: jsPDF, svgElements: SVGSVGElement[], y: number):
  * use this to plan strip recovery without having to read dimensions
  * off the rendered layout.
  */
-function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: number): number {
+function addOffcutSummary(
+  doc: jsPDF,
+  rows: ReadonlyArray<OffcutSummaryRow>,
+  y: number,
+  prefs?: UnitDisplayPreferencesInput
+): number {
   if (rows.length === 0) return y
   const showRoll = rows.some((r) => r.rollTotal > 1)
 
@@ -1088,15 +1127,19 @@ function addOffcutSummary(doc: jsPDF, rows: ReadonlyArray<OffcutSummaryRow>, y: 
     }
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
-    doc.text(`${formatInch(row.region.x)}, ${formatInch(row.region.y)}`, x, y)
+    doc.text(`${formatInch(row.region.x, prefs)}, ${formatInch(row.region.y, prefs)}`, x, y)
     x += widths[showRoll ? 2 : 1]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
-    doc.text(`${formatInch(row.region.width)} × ${formatInch(row.region.height)}`, x, y)
+    doc.text(
+      `${formatInch(row.region.width, prefs)} × ${formatInch(row.region.height, prefs)}`,
+      x,
+      y
+    )
     x += widths[showRoll ? 3 : 2]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "normal")
-    doc.text(`${row.areaSqFt.toFixed(2)} sqft`, x, y)
+    doc.text(formatAreaSqft(row.areaSqFt, prefs, { precision: 2 }), x, y)
     x += widths[showRoll ? 4 : 3]
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
@@ -1120,11 +1163,13 @@ function addMetrics(doc: jsPDF, data: CutPdfData, y: number): number {
   y += 11
 
   const rollNote = data.rollCount > 1 ? ` across ${data.rollCount} rolls` : ""
+  const fmtArea = (value: number) =>
+    formatAreaSqft(value, data.organizationPreferences, { precision: 2 })
   const metrics = [
     ["Parts Completed", `${data.partsCompleted}${rollNote}`],
-    ["Material Used", `${data.materialUsedSqFt.toFixed(2)} sq ft`],
-    ["Reusable Offcut", `${data.reusableOffcutSqFt.toFixed(2)} sq ft`],
-    ["Scrap / Waste", `${data.scrapSqFt.toFixed(2)} sq ft`],
+    ["Material Used", fmtArea(data.materialUsedSqFt)],
+    ["Reusable Offcut", fmtArea(data.reusableOffcutSqFt)],
+    ["Scrap / Waste", fmtArea(data.scrapSqFt)],
     ["Cut Pieces", `${data.cutPieces}`],
     ["Fab Score", `${Math.round(data.fabScore * 100)} / 100`],
   ]
@@ -1263,7 +1308,8 @@ export async function buildAndUploadCutPdf(
   selectedTemplate: PartTemplate | undefined,
   selectedTemplates: PartTemplate[],
   tags: Map<string, string>,
-  layouts?: LayoutModel[]
+  layouts?: LayoutModel[],
+  organizationPreferences?: UnitDisplayPreferencesInput
 ): Promise<string | null> {
   // Prefer vector layout diagrams when available — fall back to legacy DOM SVG
   // scraping only when called without layouts (e.g. very old call sites).
@@ -1299,6 +1345,7 @@ export async function buildAndUploadCutPdf(
     scrapPct,
     fabScore: cutMetrics?.fabScore ?? 0,
     cutDate: new Date().toISOString(),
+    organizationPreferences,
   }
 
   const pdfBlob = await generateCutPdf({ svgElements, layouts: layouts ?? [], data: pdfData })
@@ -1329,11 +1376,11 @@ export async function generateCutPdf(args: {
   y = addCutLegend(doc, data.tagMap, y)
   // Vector path when layouts are provided, raster fallback otherwise.
   if (layouts.length > 0) {
-    y = await addLayoutDiagrams(doc, layouts, offcutSummary, y)
+    y = await addLayoutDiagrams(doc, layouts, offcutSummary, y, data.organizationPreferences)
   } else {
     y = await addDiagrams(doc, svgElements, y)
   }
-  y = addOffcutSummary(doc, offcutSummary, y)
+  y = addOffcutSummary(doc, offcutSummary, y, data.organizationPreferences)
   y = addMetrics(doc, data, y)
   addAdhesives(doc, data, y)
   addFooter(doc, data.cutId)
