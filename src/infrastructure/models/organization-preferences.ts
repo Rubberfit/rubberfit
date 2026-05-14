@@ -37,6 +37,14 @@ export const DEFAULT_ORGANIZATION_PREFERENCES = {
 } as const
 
 export interface OrganizationPreferences {
+  /**
+   * Canonical org id, or empty string when the row comes from the
+   * `buildFallbackOrganizationPreferences()` sentinel (used when the
+   * provision trigger hasn't fired yet or the actor has no current
+   * organization). Consumers MUST NOT use this as a truthy guard
+   * for "do I have org prefs?" — read the picker fields directly,
+   * or check the action's typed envelope at the call site.
+   */
   organizationId: string
   defaultCurrency: SupportedCurrency
   timeZone: SupportedTimeZone

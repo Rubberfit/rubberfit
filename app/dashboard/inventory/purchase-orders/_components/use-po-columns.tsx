@@ -61,8 +61,9 @@ export function usePoColumns({
   // Two-source read (per the 2026-05-14 operator-seeds-prints
   // ruling): the viewer's per-user prefs drive on-screen cell dates,
   // and the workspace's org-level prefs drive the row PDF action
-  // (Download PDF in the dropdown).
-  const preferences = useUserPreferences()
+  // (Download PDF in the dropdown). Symmetric naming so a future
+  // maintainer can't conflate the two.
+  const userPreferences = useUserPreferences()
   const organizationPreferences = useOrganizationPreferences()
   return useMemo<ColumnDef<PurchaseOrderWithDetails>[]>(
     () => [
@@ -96,7 +97,7 @@ export function usePoColumns({
         header: "Order Date",
         cell: (po) => (
           <span className="text-sm text-muted-foreground">
-            {formatUserDate(po.order_date, preferences) || "—"}
+            {formatUserDate(po.order_date, userPreferences) || "—"}
           </span>
         ),
         // Sort uses getTime() against the raw value — keep the
@@ -114,7 +115,7 @@ export function usePoColumns({
           // invalid date (e.g. "2026-02-30") returns "" from the helper
           // and should fall through to the "—" placeholder, not render
           // an empty cell with a stray calendar glyph.
-          const formatted = formatUserDate(po.requested_delivery_date, preferences)
+          const formatted = formatUserDate(po.requested_delivery_date, userPreferences)
           return formatted ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="size-3.5" aria-hidden="true" />
@@ -169,7 +170,7 @@ export function usePoColumns({
         ),
       },
     ],
-    [onView, onEdit, onUpdateStatus, onCancel, preferences, organizationPreferences]
+    [onView, onEdit, onUpdateStatus, onCancel, userPreferences, organizationPreferences]
   )
 }
 
