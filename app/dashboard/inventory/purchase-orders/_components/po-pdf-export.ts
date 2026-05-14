@@ -12,12 +12,13 @@ import { downloadSinglePoPdf } from "./po-pdf"
  * Per the 2026-05-14 operator-seeds-prints ruling, the prefs source
  * is the workspace's (org-level), not the viewer's per-user prefs —
  * the PDF download must speak in the operator's voice regardless of
- * who clicks the action. Optional so callers without preferences
- * context still get a sensible default-formatted PDF.
+ * who clicks the action. Required to compile-force every caller to
+ * wire org prefs explicitly; a missing data-flow path lights up at
+ * compile time instead of silently rendering with helper defaults.
  */
 export function handleDownloadPDF(
   po: PurchaseOrderWithDetails,
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 ): void {
   downloadSinglePoPdf(po, organizationPreferences)
 }

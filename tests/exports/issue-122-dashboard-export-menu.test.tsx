@@ -54,6 +54,7 @@ vi.mock("@/app/components/ui/dropdown-menu", () => {
 
 import { DashboardExportMenu } from "@/app/dashboard/_components/dashboard-export-menu"
 import type { OperationsExportInput } from "@/app/dashboard/_components/dashboard-export-utils"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
@@ -65,6 +66,7 @@ const FIXTURE: OperationsExportInput = {
   inventoryValue: 18742,
   utilization: { series: [], materials: [] },
   recentCuts: [],
+  organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
 }
 
 describe("DashboardExportMenu", () => {

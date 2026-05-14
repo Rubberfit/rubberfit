@@ -177,24 +177,33 @@ export function OrganizationSection({
   const handleSave = () => {
     if (!isAdmin) return
     startTransition(async () => {
-      const result = await updateOrganizationPreferences({
-        locale: draft.locale,
-        defaultCurrency: draft.defaultCurrency,
-        timeZone: draft.timeZone,
-        dateFormat: draft.dateFormat,
-        unitSystem: draft.unitSystem,
-        lowStockThresholdSqft: draft.lowStockThresholdSqft,
-      })
-      if ("error" in result) {
-        if (result.error === "forbidden") toast.error(t("errors.forbidden"))
-        else toast.error(t("errors.unknown"))
-        return
+      // Wrap in try/catch so a thrown action error (e.g. the
+      // SubscriptionRequiredError that `requireActiveSubscription`
+      // raises when a lapsed admin hits the action directly) lands
+      // as a toast instead of an uncaught render-tree crash.
+      try {
+        const result = await updateOrganizationPreferences({
+          locale: draft.locale,
+          defaultCurrency: draft.defaultCurrency,
+          timeZone: draft.timeZone,
+          dateFormat: draft.dateFormat,
+          unitSystem: draft.unitSystem,
+          lowStockThresholdSqft: draft.lowStockThresholdSqft,
+        })
+        if ("error" in result) {
+          if (result.error === "forbidden") toast.error(t("errors.forbidden"))
+          else toast.error(t("errors.unknown"))
+          return
+        }
+        setBaseline(result.data)
+        setSavedAt(Date.now())
+        setOrganizationPreferences(result.data)
+        toast.success(t("actions.saved"))
+        router.refresh()
+      } catch (error) {
+        console.error("[organization-section] save failed:", error)
+        toast.error(t("errors.unknown"))
       }
-      setBaseline(result.data)
-      setSavedAt(Date.now())
-      setOrganizationPreferences(result.data)
-      toast.success(t("actions.saved"))
-      router.refresh()
     })
   }
 

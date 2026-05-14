@@ -15,6 +15,7 @@ import {
 } from "@/app/dashboard/_components/dashboard-pdf"
 import type { OperationsExportInput } from "@/app/dashboard/_components/dashboard-export-utils"
 import { INTERNAL_PAGE, TYPE } from "@/app/lib/pdf"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 function makeInput(overrides: Partial<OperationsExportInput> = {}): OperationsExportInput {
   return {
@@ -41,6 +42,7 @@ function makeInput(overrides: Partial<OperationsExportInput> = {}): OperationsEx
         whenLabel: "2h ago",
       },
     ],
+    organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
     ...overrides,
   }
 }

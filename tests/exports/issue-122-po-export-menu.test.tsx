@@ -56,6 +56,7 @@ vi.mock("@/app/components/ui/dropdown-menu", () => {
 
 import { PurchaseOrdersExportMenu } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-menu"
 import type { PurchaseOrdersExportInput } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 function makeFixture(
@@ -82,6 +83,7 @@ function makeFixture(
     ],
     filters: { status: "all", supplier: "all", search: "" },
     stats: { total: 1, totalValue: 500, draft: 0, pending: 0, ordered: 1, received: 0 },
+    organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
     ...overrides,
   }
 }

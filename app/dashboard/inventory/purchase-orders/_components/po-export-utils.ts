@@ -32,18 +32,28 @@ export interface PurchaseOrdersExportInput {
    * CSV cell dates intentionally stay in the existing ISO format
    * because operators import the CSV into spreadsheets where
    * machine-stable dates matter more than localized display.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
    */
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 }
 
-/** Snapshot the bits of `usePurchaseOrders` the export menu needs. */
+/**
+ * Snapshot the bits of `usePurchaseOrders` the export menu needs.
+ * Returns a partial export input without `organizationPreferences`;
+ * the caller must spread + add prefs from `useOrganizationPreferences()`
+ * to satisfy the required field (compile-time enforcement of the
+ * 2026-05-14 operator-seeds-prints data flow).
+ */
 export function toPurchaseOrdersExportInput(po: {
   filteredPOs: PurchaseOrderWithDetails[]
   statusFilter: string
   supplierFilter: string
   searchQuery: string
   stats: POExportSummary
-}): PurchaseOrdersExportInput {
+}): Omit<PurchaseOrdersExportInput, "organizationPreferences"> {
   return {
     pos: po.filteredPOs,
     filters: {

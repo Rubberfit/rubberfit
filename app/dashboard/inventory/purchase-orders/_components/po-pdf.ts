@@ -77,7 +77,7 @@ function formatStatus(status: string | null | undefined): string {
 
 function formatDate(
   value: string | null | undefined,
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 ): string {
   if (!value) return "—"
   // The helper handles YYYY-MM-DD calendar-date stability + invalid
@@ -161,7 +161,7 @@ function renderPo(
   po: PurchaseOrderWithDetails,
   y: number,
   title: string,
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 ): number {
   // PO number + status chip + supplier identity block.
   doc.setFont(TYPE.h1.family, TYPE.h1.weight)
@@ -369,7 +369,7 @@ function drawAddressBlock(
 
 export function buildSinglePoPdf(
   po: PurchaseOrderWithDetails,
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 ): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })
   const title = "PURCHASE ORDER"
@@ -406,7 +406,7 @@ export function buildSinglePoPdf(
  * production code passes to `stampFooterOnEveryPage` without rendering
  * the full blob.
  */
-export function footerTimestamp(organizationPreferences?: UserDatePreferencesInput): string {
+export function footerTimestamp(organizationPreferences: UserDatePreferencesInput): string {
   const now = new Date()
   return `${formatUserDate(now, organizationPreferences)} ${formatInUserTimeZone(
     now,
@@ -421,7 +421,7 @@ export function footerTimestamp(organizationPreferences?: UserDatePreferencesInp
 
 export function downloadSinglePoPdf(
   po: PurchaseOrderWithDetails,
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 ): void {
   const doc = buildSinglePoPdf(po, organizationPreferences)
   const safe = (po.po_number ?? "po").replace(/[^A-Za-z0-9._-]/g, "_")

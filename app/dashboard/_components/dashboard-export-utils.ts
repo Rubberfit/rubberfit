@@ -31,8 +31,12 @@ export interface OperationsExportInput {
    * `utilization` labels from these same prefs so the body and
    * footer agree. Filenames stay machine-stable (`yyyy-MM-dd_HHmm`)
    * regardless of this field.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
    */
-  organizationPreferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 }
 
 const FILENAME_PREFIX = "operations-overview"

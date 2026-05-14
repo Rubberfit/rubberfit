@@ -18,6 +18,7 @@ import {
 } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
 import { CUSTOMER_PAGE, TYPE } from "@/app/lib/pdf"
 import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 function makePO(overrides: Partial<PurchaseOrderWithDetails>): PurchaseOrderWithDetails {
@@ -58,6 +59,7 @@ const FIXTURE: PurchaseOrdersExportInput = {
   ],
   filters: { status: "all", supplier: "all", search: "" },
   stats: { total: 2, totalValue: 1640, draft: 0, pending: 0, ordered: 1, received: 1 },
+  organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
 }
 
 describe("buildPurchaseOrdersCsv", () => {
