@@ -33,13 +33,21 @@ describe("default parity with DEFAULT_USER_PREFERENCES", () => {
   })
 })
 
+// Repo TS rule (CLAUDE.md): no `as` casts outside system boundaries.
+// Type the matrices explicitly instead of leaning on `as const`.
+const INVALID_DATE_INPUTS: ReadonlyArray<string | number | Date | null | undefined> = [
+  null,
+  undefined,
+  "",
+  "not-a-date",
+  Number.NaN,
+  new Date(Number.NaN),
+]
+
 describe("formatUserDate — invalid input contract", () => {
-  it.each([null, undefined, "", "not-a-date", Number.NaN, new Date(Number.NaN)] as const)(
-    "returns empty string for %p",
-    (value) => {
-      expect(formatUserDate(value)).toBe("")
-    }
-  )
+  it.each(INVALID_DATE_INPUTS)("returns empty string for %p", (value) => {
+    expect(formatUserDate(value)).toBe("")
+  })
 })
 
 describe("formatUserDate — defaults", () => {
@@ -208,12 +216,9 @@ describe("formatInUserTimeZone", () => {
     expect(result).toMatch(/1:00/)
   })
 
-  it.each([null, undefined, "", "not a date", Number.NaN, new Date(Number.NaN)] as const)(
-    "returns empty string for %p",
-    (value) => {
-      expect(formatInUserTimeZone(value)).toBe("")
-    }
-  )
+  it.each(INVALID_DATE_INPUTS)("returns empty string for %p", (value) => {
+    expect(formatInUserTimeZone(value)).toBe("")
+  })
 })
 
 describe("formatUserDateTime — every dateFormat propagates", () => {

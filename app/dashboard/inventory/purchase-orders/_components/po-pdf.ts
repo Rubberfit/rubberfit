@@ -486,8 +486,11 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
     }
   }
 
-  const ts = footerTimestamp(input.preferences)
-  stampFooterOnEveryPage(doc, "customer", () => `Purchase orders · ${ts}`)
+  // Reuse the same `generatedAt` snapshot from the header so the
+  // footer can't drift past it on long exports — without this, both
+  // calls re-evaluate `new Date()` and the header/footer can disagree
+  // by a few seconds for big PO lists.
+  stampFooterOnEveryPage(doc, "customer", () => `Purchase orders · ${generatedAt}`)
   return doc
 }
 

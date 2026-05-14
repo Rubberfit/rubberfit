@@ -7,7 +7,10 @@ import { toast } from "sonner"
 
 import { exportCutHistoryCsv } from "@/app/actions/cut-history"
 import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
-import { formatUserDateTime } from "@/src/application/preferences/user-date-format"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
 import { PART_LABELS } from "@/src/application/cuts/part-labels"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
@@ -263,13 +266,21 @@ export function useCutHistory() {
     let result = showFavoritesOnly ? cuts.filter((c) => c.isFavorite) : cuts
     if (searchTerm.trim()) {
       const lower = searchTerm.toLowerCase()
-      // Mirror the table's render contract — substring searches match
-      // what the operator actually sees, not a stale "MMM d, yyyy"
-      // shape that drifts from the visible row when prefs change.
+      // Mirror the table's render contract exactly — table renders
+      // formatUserDate + formatInUserTimeZone(... HH:mm:ss), so the
+      // search corpus uses the same two helpers (formatUserDateTime
+      // omits seconds + adds a zone abbreviation; either gap can
+      // make a row searchable but invisible, or vice versa).
       result = result.filter((cut) => {
         const partLabel = (PART_LABELS[cut.part_id] ?? "").toLowerCase()
         const sizes = (cut.part_selected_label ?? []).join(" ").toLowerCase()
-        const date = formatUserDateTime(cut.cut_date, preferences).toLowerCase()
+        const datePart = formatUserDate(cut.cut_date, preferences)
+        const timePart = formatInUserTimeZone(cut.cut_date, preferences, {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+        const date = `${datePart} ${timePart}`.toLowerCase()
         return partLabel.includes(lower) || sizes.includes(lower) || date.includes(lower)
       })
     }

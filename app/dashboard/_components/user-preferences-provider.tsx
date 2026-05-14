@@ -54,6 +54,11 @@ export function UserPreferencesProvider({
   // menu + every other surface keeps rendering the cached snapshot
   // until the next full nav. Compare by `updatedAt` so identity
   // changes from re-renders don't cause an unnecessary state churn.
+  // The setState-in-effect ESLint warning is acknowledged: the
+  // identity guards above prevent the cascading-render scenario
+  // the rule is designed to catch (no-op when content matches),
+  // and this is the standard server→client reconciliation pattern.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setPreferencesState((current) =>
       current.updatedAt === initialPreferences.updatedAt &&
