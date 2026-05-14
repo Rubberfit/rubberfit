@@ -57,16 +57,18 @@ export function NavUser({
   const handleLocaleChange = (next: AppLocale) => {
     if (next === currentLocale) return
     startLocaleTransition(async () => {
-      await setLocaleAction({ locale: next })
-      // Persist to the user's own preferences row so General Settings'
-      // Language picker reflects the same value on next render. Every
-      // authenticated user has their own row; no admin gate. Surface
-      // any persistence failure so the cookie/DB don't silently
-      // diverge — the regional-section save path uses the same toast.
+      // DB first, then cookie. If the DB write fails, return early so
+      // the NEXT_LOCALE cookie never diverges from the persisted row.
+      // The cookie is what the avatar checkmark + page chrome read on
+      // the next render, so writing it before a failed DB call would
+      // strand the user on a locale their saved preferences don't
+      // actually reflect.
       const result = await updateUserPreferences({ locale: next })
       if ("error" in result) {
         toast.error(tLocale("syncError"))
+        return
       }
+      await setLocaleAction({ locale: result.data.locale })
       router.refresh()
     })
   }
