@@ -3,6 +3,8 @@
 import { cn } from "@/app/lib/utils"
 import type { StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 type ResultTone = "neutral" | "utilization" | "reusable" | "waste"
 
@@ -55,6 +57,7 @@ export function ResultsBreakdown({
   cutMetrics: SimpleCutMetrics
   stock: StockConfig
 }) {
+  const organizationPreferences = useOrganizationPreferences()
   const hasFabrication = (cutMetrics.partsCompleted ?? 0) > 0
   const totalSqFt = (stock.width * stock.length) / 144
   const used = cutMetrics.materialUsedSqFt ?? 0
@@ -63,6 +66,7 @@ export function ResultsBreakdown({
   const pct = (n: number) => (totalSqFt > 0 ? ((n / totalSqFt) * 100).toFixed(1) : "0.0")
   const utilization = Math.round((cutMetrics.fabScore ?? 0) * 100)
   const usedBarPct = totalSqFt > 0 ? Math.min(100, (used / totalSqFt) * 100).toFixed(1) : "0"
+  const fmt = (value: number) => formatAreaSqft(value, organizationPreferences, { precision: 2 })
 
   return (
     <>
@@ -73,17 +77,13 @@ export function ResultsBreakdown({
           tone="utilization"
         />
         <ResultRow label="Parts placed" value={String(cutMetrics.partsCompleted ?? 0)} />
-        <ResultRow label="Material used" value={`${used.toFixed(2)} sq ft`} />
+        <ResultRow label="Material used" value={fmt(used)} />
         <ResultRow
           label="Reusable offcut"
-          value={`${reusable.toFixed(2)} sq ft (${pct(reusable)}%)`}
+          value={`${fmt(reusable)} (${pct(reusable)}%)`}
           tone="reusable"
         />
-        <ResultRow
-          label="Waste"
-          value={`${waste.toFixed(2)} sq ft (${pct(waste)}%)`}
-          tone="waste"
-        />
+        <ResultRow label="Waste" value={`${fmt(waste)} (${pct(waste)}%)`} tone="waste" />
       </div>
 
       {totalSqFt > 0 && (

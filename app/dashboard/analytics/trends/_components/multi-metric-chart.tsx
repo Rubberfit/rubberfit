@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/app/components/ui/select"
 import { useState } from "react"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft, getAreaUnitLabel } from "@/src/application/preferences/user-unit-display"
 
 interface TrendData {
   date: string
@@ -29,6 +31,8 @@ interface MultiMetricChartProps {
 type MetricType = "cuts" | "materialUsed" | "wastePercentage" | "efficiency" | "cost"
 
 export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
+  const organizationPreferences = useOrganizationPreferences()
+  const areaUnit = getAreaUnitLabel(organizationPreferences)
   const [primaryMetric, setPrimaryMetric] = useState<MetricType>("cuts")
   const [secondaryMetric, setSecondaryMetric] = useState<MetricType>("wastePercentage")
 
@@ -48,7 +52,7 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
       case "cuts":
         return "Cuts"
       case "materialUsed":
-        return "Material Used (sq ft)"
+        return `Material Used (${areaUnit})`
       case "wastePercentage":
         return "Waste (%)"
       case "efficiency":
@@ -132,7 +136,11 @@ export function MultiMetricChart({ data, timeframe }: MultiMetricChartProps) {
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Material Used:</span>{" "}
-                          <span className="font-medium">{data.materialUsed.toFixed(1)} sq ft</span>
+                          <span className="font-medium tabular-nums">
+                            {formatAreaSqft(data.materialUsed, organizationPreferences, {
+                              precision: 1,
+                            })}
+                          </span>
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Waste:</span>{" "}

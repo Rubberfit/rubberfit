@@ -16,7 +16,12 @@ import {
 } from "./nesting-viz-simple-parts"
 import type { DebugOverlayOptions, PreviewItem, SheetPreview } from "./nesting-visualizer-types"
 import type { SimpleModeLayout } from "./nesting-viz-simple-layout"
-import { formatInches } from "./nesting-viz-simple-layout"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatDimensionsInches,
+  formatDimensionsInchesForSpeech,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 import type { LayoutModel, PlacedPart } from "./layout-model"
 
 const IS_DEV = process.env.NODE_ENV === "development"
@@ -185,6 +190,7 @@ export default function SheetSvg({
   onSelectPart,
   ariaSummary,
 }: SheetSvgProps) {
+  const organizationPreferences = useOrganizationPreferences()
   // Stable id so `aria-describedby` references the visually-hidden
   // summary span next to the SVG. React.useId guarantees uniqueness
   // across multiple SheetSvg mounts on the same page (e.g. legacy
@@ -618,7 +624,7 @@ export default function SheetSvg({
           className="fill-muted-foreground"
           fontSize={12 / zoom}
         >
-          {`Typical ${formatInches(previewRollW)}" × ${formatInches(previewRollL)}" stock sheet`}
+          {`Typical ${formatDimensionsInches([previewRollW, previewRollL], organizationPreferences)} stock sheet`}
         </text>
         <clipPath id={sClip}>
           <rect
@@ -778,7 +784,9 @@ export default function SheetSvg({
               const isSelected = partId !== undefined && partId === selectedPartId
               const isFocused = index === focusedIndex
               const tabIndex = rovingIndex !== null && index === rovingIndex ? 0 : -1
-              const ariaLabel = part ? buildPartAriaLabel(part, index, partsCount) : undefined
+              const ariaLabel = part
+                ? buildPartAriaLabel(part, index, partsCount, organizationPreferences)
+                : undefined
               return (
                 <NestingShapeRenderer
                   key={`shape-${index}`}
@@ -853,8 +861,12 @@ export default function SheetSvg({
 // well in NVDA / VoiceOver: "Part A, 12 by 18 inches, placement 3
 // of 24". Inches deliberately spelled out ("by", "inches") since
 // screen readers stumble on the `×` glyph and `"` quote mark.
-function buildPartAriaLabel(part: PlacedPart, index: number, total: number): string {
-  const w = formatInches(part.width)
-  const h = formatInches(part.height)
-  return `Part ${part.label}, ${w} by ${h} inches, placement ${index + 1} of ${total}`
+function buildPartAriaLabel(
+  part: PlacedPart,
+  index: number,
+  total: number,
+  unitPreferences?: UnitDisplayPreferencesInput
+): string {
+  const dims = formatDimensionsInchesForSpeech([part.width, part.height], unitPreferences)
+  return `Part ${part.label}, ${dims}, placement ${index + 1} of ${total}`
 }

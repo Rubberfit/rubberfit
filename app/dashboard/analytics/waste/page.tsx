@@ -19,6 +19,12 @@ import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 
 import { WasteKpiCards } from "./_components/waste-kpi-cards"
 import { WasteRatioTrendChart, type TrendPoint } from "./_components/waste-ratio-trend-chart"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,16 +94,30 @@ function groupCuts(cuts: CutHistory[], groupBy: GroupBy): TrendPoint[] {
   })
 }
 
-function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe) {
+function exportCsv(
+  trend: TrendPoint[],
+  cuts: CutHistory[],
+  timeframe: Timeframe,
+  unitPreferences: UnitDisplayPreferencesInput
+) {
+  const areaUnit = getAreaUnitLabel(unitPreferences)
+  const displayArea = (value: number) => getDisplayAreaValue(value, unitPreferences).toFixed(2)
   const trendRows = [
-    ["Period", "Cuts", "Avg Waste %", "Pure Scrap %", "Total Scrap ft²", "Total Material ft²"],
+    [
+      "Period",
+      "Cuts",
+      "Avg Waste %",
+      "Pure Scrap %",
+      `Total Scrap ${areaUnit}`,
+      `Total Material ${areaUnit}`,
+    ],
     ...trend.map((t) => [
       t.period,
       String(t.cuts),
       t.wasteRatio.toFixed(1),
       t.scrapRatio.toFixed(1),
-      t.totalScrap.toFixed(2),
-      t.totalMaterial.toFixed(2),
+      displayArea(t.totalScrap),
+      displayArea(t.totalMaterial),
     ]),
   ]
 
@@ -108,9 +128,9 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
       "Part Type",
       "Qty",
       "Waste %",
-      "Scrap ft²",
-      "Reusable ft²",
-      "Material ft²",
+      `Scrap ${areaUnit}`,
+      `Reusable ${areaUnit}`,
+      `Material ${areaUnit}`,
       "Fab Score",
     ],
     ...cuts.map((c) => [
@@ -118,9 +138,9 @@ function exportCsv(trend: TrendPoint[], cuts: CutHistory[], timeframe: Timeframe
       String(c.part_id),
       String(c.cut_amount),
       ((1 - c.fab_score) * 100).toFixed(1),
-      c.scrap_sqft.toFixed(2),
-      c.reusable_offset_sqft.toFixed(2),
-      c.material_used_sqft.toFixed(2),
+      displayArea(c.scrap_sqft),
+      displayArea(c.reusable_offset_sqft),
+      displayArea(c.material_used_sqft),
       c.fab_score.toFixed(3),
     ]),
   ]
@@ -157,6 +177,7 @@ function isTimeframe(value: string): value is Timeframe {
 
 export default function WasteAnalysisPage() {
   const { isAdmin, isManager, hasAnyRole, isLoading: roleLoading, userId } = useRole()
+  const organizationPreferences = useOrganizationPreferences()
   const showUserSelect = isAdmin || isManager || hasAnyRole(["supervisor"])
 
   const [cuts, setCuts] = useState<CutHistory[]>([])
@@ -228,7 +249,7 @@ export default function WasteAnalysisPage() {
             variant="outline"
             size="sm"
             disabled={loading || cuts.length === 0}
-            onClick={() => exportCsv(trendData, cuts, timeframe)}
+            onClick={() => exportCsv(trendData, cuts, timeframe, organizationPreferences)}
           >
             <Download className="size-3.5" aria-hidden="true" />
             Export CSV
