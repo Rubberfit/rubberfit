@@ -230,13 +230,14 @@ describe("buildPurchaseOrdersListPdf", () => {
     expect(() => buildPurchaseOrdersListPdf(input)).not.toThrow()
   })
 
-  it("accepts non-default operator preferences without throwing", () => {
-    // PR 2 contract: body dates + footer timestamp render in the
-    // operator's chosen format/locale/timezone. Filenames stay ISO
+  it("accepts non-default workspace preferences without throwing", () => {
+    // PR 2c (operator-seeds-prints): body dates + footer timestamp
+    // render in the WORKSPACE's chosen format/locale/timezone — not
+    // the viewing user's per-user prefs. Filenames stay ISO
     // (validated by the downloader's separate filename test).
     const withPrefs: PurchaseOrdersExportInput = {
       ...FIXTURE,
-      preferences: {
+      organizationPreferences: {
         dateFormat: "dd/MM/yyyy",
         timeZone: "Europe/Paris",
         locale: "es-MX",

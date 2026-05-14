@@ -15,7 +15,7 @@ import {
   StatCard,
   StatusBadge,
 } from "@/app/components/patterns"
-import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
@@ -28,14 +28,18 @@ import { usePurchaseOrders } from "./_components/use-purchase-orders"
 
 export default function PurchaseOrdersPage() {
   const po = usePurchaseOrders()
-  const preferences = useUserPreferences()
+  // PR 2c (operator-seeds-prints): the PDF speaks in the workspace's
+  // voice, not the viewer's. Drawer/table on-screen still renders
+  // per-user date format via use-po-columns + po-view-sections; only
+  // the PDF download + export menu wires org prefs.
+  const organizationPreferences = useOrganizationPreferences()
   const [drawerMode, setDrawerMode] = useState<PoDrawerMode>("view")
-  // Stable wrapper so the row + drawer pass the operator's prefs into
+  // Stable wrapper so the row + drawer pass the workspace's prefs into
   // the PDF builder; the underlying handler is plain and prefers
   // explicit injection over reading context inside a wrapper module.
   const handleDownloadPDFWithPrefs = useCallback(
-    (poItem: PurchaseOrderWithDetails) => handleDownloadPDF(poItem, preferences),
-    [preferences]
+    (poItem: PurchaseOrderWithDetails) => handleDownloadPDF(poItem, organizationPreferences),
+    [organizationPreferences]
   )
 
   const handleViewPO = async (poItem: PurchaseOrderWithDetails) => {
@@ -108,9 +112,16 @@ export default function PurchaseOrdersPage() {
         searchQuery: po.searchQuery,
         stats: po.stats,
       }),
-      preferences,
+      organizationPreferences,
     }),
-    [po.filteredPOs, po.statusFilter, po.supplierFilter, po.searchQuery, po.stats, preferences]
+    [
+      po.filteredPOs,
+      po.statusFilter,
+      po.supplierFilter,
+      po.searchQuery,
+      po.stats,
+      organizationPreferences,
+    ]
   )
 
   return (

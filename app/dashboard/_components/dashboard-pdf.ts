@@ -253,9 +253,9 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
  */
 export function buildOperationsFooterDocMeta(input: OperationsExportInput): string {
   const now = new Date()
-  const ts = `${formatUserDate(now, input.preferences)} ${formatInUserTimeZone(
+  const ts = `${formatUserDate(now, input.organizationPreferences)} ${formatInUserTimeZone(
     now,
-    input.preferences,
+    input.organizationPreferences,
     { hour: "2-digit", minute: "2-digit", hour12: false }
   )}`
   return `Operations · ${input.period} · ${ts}`

@@ -24,12 +24,16 @@ export interface PurchaseOrdersExportInput {
   filters: POExportFilters
   stats: POExportSummary
   /**
-   * Optional — applies to visible PDF text only (body dates, footer
-   * timestamp). CSV cell dates intentionally stay in the existing ISO
-   * format because operators import the CSV into spreadsheets where
+   * Workspace-level locale / dateFormat / timeZone — applied to
+   * visible PDF text only (body dates, footer timestamp) per the
+   * 2026-05-14 operator-seeds-prints ruling. Personal viewer
+   * preferences still drive the on-screen PO drawer/cell display;
+   * the printed artifact always speaks in the operator's voice.
+   * CSV cell dates intentionally stay in the existing ISO format
+   * because operators import the CSV into spreadsheets where
    * machine-stable dates matter more than localized display.
    */
-  preferences?: UserDatePreferencesInput
+  organizationPreferences?: UserDatePreferencesInput
 }
 
 /** Snapshot the bits of `usePurchaseOrders` the export menu needs. */

@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react"
 import { subDays, startOfDay } from "date-fns"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
-import { formatInUserTimeZone } from "@/src/application/preferences/user-date-format"
+import {
+  formatInUserTimeZone,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 import { weekBoundariesInZone } from "@/src/application/preferences/user-week-boundaries"
-import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
@@ -66,6 +69,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   const preferences = useUserPreferences()
+  const organizationPreferences = useOrganizationPreferences()
 
   // Week boundaries + label derive reactively from `preferences`. PR 2b:
   // split out of the data-fetch effect so toggling the operator's zone /
@@ -95,6 +99,38 @@ export default function DashboardPage() {
         return t >= weekStart.getTime() && t <= weekEnd.getTime()
       }).length,
     [data.cutsLast90d, weekStart, weekEnd]
+  )
+
+  // PR 2c (operator-seeds-prints ruling): the PDF speaks in the
+  // operator's voice, not the viewer's. Compute a parallel set of
+  // week boundaries / label / KPI count from the workspace defaults
+  // so the screen stays personal but the exported artifact agrees
+  // with the operator's chosen zone + locale + dateFormat. For
+  // single-operator orgs these almost always equal the screen
+  // values; for multi-operator shop floors they correctly diverge.
+  const {
+    weekStart: orgWeekStart,
+    weekEnd: orgWeekEnd,
+    weekLabel: orgWeekLabel,
+  } = useMemo(() => {
+    const { weekStart: ws, weekEnd: we } = weekBoundariesInZone(new Date(), organizationPreferences)
+    const label = `${formatInUserTimeZone(ws, organizationPreferences, {
+      month: "short",
+      day: "numeric",
+    })} – ${formatInUserTimeZone(we, organizationPreferences, {
+      month: "short",
+      day: "numeric",
+    })}`
+    return { weekStart: ws, weekEnd: we, weekLabel: label }
+  }, [organizationPreferences])
+
+  const orgCutsThisWeek = useMemo(
+    () =>
+      data.cutsLast90d.filter((c) => {
+        const t = new Date(c.created_at).getTime()
+        return t >= orgWeekStart.getTime() && t <= orgWeekEnd.getTime()
+      }).length,
+    [data.cutsLast90d, orgWeekStart, orgWeekEnd]
   )
 
   useEffect(() => {
@@ -186,6 +222,14 @@ export default function DashboardPage() {
     [period, weekLabel, preferences]
   )
 
+  // PDF-bound period label: org-pref locale + zone so the printed
+  // header agrees with the footer and the rest of the body. Screen
+  // header stays on `periodLabel` (user prefs).
+  const orgPeriodLabel = useMemo(
+    () => buildPeriodLabel(period, orgWeekLabel, organizationPreferences),
+    [period, orgWeekLabel, organizationPreferences]
+  )
+
   const eyebrow = useMemo(
     () => (period === "week" ? `Operations / Week · ${weekLabel}` : `Operations / ${periodLabel}`),
     [period, weekLabel, periodLabel]
@@ -203,6 +247,14 @@ export default function DashboardPage() {
     [data.cutsLast90d, utilPeriod, preferences]
   )
 
+  // PDF-bound utilization series — same bucket data, but per-week
+  // axis labels render in the workspace's timeZone + locale so the
+  // exported chart and the footer agree (operator-seeds-prints).
+  const orgUtilization = useMemo(
+    () => buildUtilizationSeriesForPeriod(data.cutsLast90d, utilPeriod, organizationPreferences),
+    [data.cutsLast90d, utilPeriod, organizationPreferences]
+  )
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -218,30 +270,34 @@ export default function DashboardPage() {
       minute: "2-digit",
     })
 
+  // Exported PDF/CSV input — every preference-derived field is the
+  // org-derived version so the printed artifact speaks in the
+  // operator's voice (2026-05-14 ruling). The on-screen render keeps
+  // using the user-pref derivatives above.
   const exportInput = useMemo<OperationsExportInput>(
     () => ({
       period,
-      periodLabel,
+      periodLabel: orgPeriodLabel,
       utilPeriod,
       totalActiveRolls: data.totalActiveRolls,
-      cutsThisWeek,
+      cutsThisWeek: orgCutsThisWeek,
       wastePercentage: data.wastePercentage,
       inventoryValue: data.inventoryValue,
-      utilization,
+      utilization: orgUtilization,
       recentCuts: data.recentCuts,
-      preferences,
+      organizationPreferences,
     }),
     [
       period,
-      periodLabel,
+      orgPeriodLabel,
       utilPeriod,
       data.totalActiveRolls,
-      cutsThisWeek,
+      orgCutsThisWeek,
       data.wastePercentage,
       data.inventoryValue,
-      utilization,
+      orgUtilization,
       data.recentCuts,
-      preferences,
+      organizationPreferences,
     ]
   )
 
@@ -294,7 +350,11 @@ export default function DashboardPage() {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function buildPeriodLabel(period: Period, weekLabel: string, preferences: UserPreferences): string {
+function buildPeriodLabel(
+  period: Period,
+  weekLabel: string,
+  preferences: UserDatePreferencesInput
+): string {
   switch (period) {
     case "week":
       return weekLabel
@@ -418,7 +478,7 @@ function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
 function buildUtilizationSeriesForPeriod(
   cuts: ReadonlyArray<UtilizationCut>,
   period: UtilizationPeriod,
-  preferences: UserPreferences
+  preferences: UserDatePreferencesInput
 ): { series: UtilizationDatum[]; materials: string[] } {
   if (cuts.length === 0) return { series: [], materials: [] }
 

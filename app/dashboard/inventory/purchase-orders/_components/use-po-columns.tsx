@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react"
 
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import {
   type PurchaseOrder,
@@ -57,7 +58,12 @@ export function usePoColumns({
   onUpdateStatus,
   onCancel,
 }: UsePoColumnsArgs): ColumnDef<PurchaseOrderWithDetails>[] {
+  // Two-source read (per the 2026-05-14 operator-seeds-prints
+  // ruling): the viewer's per-user prefs drive on-screen cell dates,
+  // and the workspace's org-level prefs drive the row PDF action
+  // (Download PDF in the dropdown).
   const preferences = useUserPreferences()
+  const organizationPreferences = useOrganizationPreferences()
   return useMemo<ColumnDef<PurchaseOrderWithDetails>[]>(
     () => [
       {
@@ -158,12 +164,12 @@ export function usePoColumns({
             onEdit={onEdit}
             onUpdateStatus={onUpdateStatus}
             onCancel={onCancel}
-            preferences={preferences}
+            organizationPreferences={organizationPreferences}
           />
         ),
       },
     ],
-    [onView, onEdit, onUpdateStatus, onCancel, preferences]
+    [onView, onEdit, onUpdateStatus, onCancel, preferences, organizationPreferences]
   )
 }
 
@@ -173,7 +179,7 @@ interface PoActionsCellProps {
   onEdit: (po: PurchaseOrderWithDetails) => void
   onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
   onCancel: (po: PurchaseOrderWithDetails) => void
-  preferences: ReturnType<typeof useUserPreferences>
+  organizationPreferences: ReturnType<typeof useOrganizationPreferences>
 }
 
 /**
@@ -191,7 +197,7 @@ function PoActionsCellInner({
   onEdit,
   onUpdateStatus,
   onCancel,
-  preferences,
+  organizationPreferences,
 }: PoActionsCellProps) {
   // `void onUpdateStatus(...)` discards the resolved value but
   // does NOT suppress an unexpected rejection — Promise rejects
@@ -238,7 +244,7 @@ function PoActionsCellInner({
   }
 
   function handleDownloadClick() {
-    handleDownloadPDF(po, preferences)
+    handleDownloadPDF(po, organizationPreferences)
   }
 
   function handleCancelClick() {
