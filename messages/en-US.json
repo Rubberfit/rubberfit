@@ -12,7 +12,7 @@
         "reset": "Reset to workspace default",
         "resetTooltip": "Available in a future update."
       },
-      "noWorkspace": "No workspace is attached to this account. Complete onboarding to set preferences."
+      "notProvisioned": "Your preferences aren't ready yet. Reload in a moment, or sign out and back in if this persists."
     },
     "regional": {
       "title": "Regional",

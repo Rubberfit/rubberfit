@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useTransition } from "react"
-import { useTranslations, useLocale } from "next-intl"
+import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
@@ -17,6 +17,10 @@ import {
   isSupportedLocale,
   isSupportedTimeZone,
 } from "@/src/application/preferences/constants"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
@@ -39,7 +43,6 @@ const LOCALE_LABELS: Record<UserPreferences["locale"], string> = {
 
 export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) {
   const t = useTranslations("settings")
-  const locale = useLocale()
   const router = useRouter()
   const [baseline, setBaseline] = useState<UserPreferences>(preferences)
   const [draft, setDraft] = useState<UserPreferences>(preferences)
@@ -80,35 +83,31 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
     currency: draft.defaultCurrency,
   }).format(1250)
 
-  const [timePreview, setTimePreview] = useState(() =>
-    new Intl.DateTimeFormat(draft.locale, {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZoneName: "short",
-      timeZone: draft.timeZone,
-    }).format(new Date())
-  )
+  // Live time preview re-uses the canonical helper so what the
+  // operator sees here matches what every other dashboard surface
+  // will render after they save.
+  const formatTimePreview = () =>
+    formatInUserTimeZone(
+      new Date(),
+      { locale: draft.locale, timeZone: draft.timeZone },
+      { hour: "numeric", minute: "2-digit", timeZoneName: "short" }
+    )
+  const [timePreview, setTimePreview] = useState(formatTimePreview)
 
   useEffect(() => {
-    const format = () =>
-      new Intl.DateTimeFormat(draft.locale, {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZoneName: "short",
-        timeZone: draft.timeZone,
-      }).format(new Date())
-    setTimePreview(format())
-    const id = setInterval(() => setTimePreview(format()), 30000)
+    setTimePreview(formatTimePreview())
+    const id = setInterval(() => setTimePreview(formatTimePreview()), 30000)
     return () => clearInterval(id)
+    // formatTimePreview closes over draft.locale + draft.timeZone via
+    // the ref-equality of `draft`; depending only on the two keys
+    // keeps the interval re-init scoped to actual zone/locale flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.locale, draft.timeZone])
 
-  const datePreview = (): string => {
-    const date = new Date()
-    const d = String(date.getDate()).padStart(2, "0")
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const y = String(date.getFullYear())
-    return draft.dateFormat.replace("MM", m).replace("dd", d).replace("yyyy", y)
-  }
+  const datePreview = formatUserDate(new Date(), {
+    dateFormat: draft.dateFormat,
+    timeZone: draft.timeZone,
+  })
 
   const handleSave = () => {
     const localeChanged = draft.locale !== baseline.locale
@@ -132,7 +131,15 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
       onSaved?.(result.data)
       toast.success(t("actions.saved"))
       if (localeChanged) {
-        await setLocaleAction({ locale: result.data.locale })
+        // Mirror nav-user.tsx: setLocaleAction's discriminated-union
+        // return must be checked, otherwise a failed cookie write
+        // strands NEXT_LOCALE on the previous locale while the DB
+        // already holds the new one.
+        const localeResult = await setLocaleAction({ locale: result.data.locale })
+        if (!localeResult.ok) {
+          toast.error(t("errors.unknown"))
+          return
+        }
       }
       // Always refresh so the sibling section's [preferences] effect
       // sees the latest server state and re-anchors its baseline.
@@ -263,7 +270,7 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
               <span className="text-[var(--color-ink-faint)] uppercase tracking-[0.18em] text-[10px] mr-2">
                 {t("regional.preview")}
               </span>
-              <span className="text-[var(--color-ink)]">{datePreview()}</span>
+              <span className="text-[var(--color-ink)]">{datePreview}</span>
             </div>
           </FormField>
         </FormFieldRow>
@@ -272,7 +279,11 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
         savedHint={
           savedAt > 0
             ? t("actions.lastSaved", {
-                when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
+                when: formatInUserTimeZone(
+                  savedAt,
+                  { locale: draft.locale, timeZone: draft.timeZone },
+                  { timeStyle: "short" }
+                ),
               })
             : undefined
         }

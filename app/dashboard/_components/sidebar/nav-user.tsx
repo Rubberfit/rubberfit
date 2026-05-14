@@ -68,7 +68,15 @@ export function NavUser({
         toast.error(tLocale("syncError"))
         return
       }
-      await setLocaleAction({ locale: result.data.locale })
+      // setLocaleAction can return { ok: false, error: 'invalid' }; if the
+      // cookie write fails after the DB succeeded, NEXT_LOCALE diverges
+      // from the persisted row and the next render serves the wrong
+      // bundle. Surface the error and bail before refresh.
+      const localeResult = await setLocaleAction({ locale: result.data.locale })
+      if (!localeResult.ok) {
+        toast.error(tLocale("syncError"))
+        return
+      }
       router.refresh()
     })
   }

@@ -77,4 +77,21 @@ describe("buildOperationsPdf", () => {
     const baseline = await blobToBytes(buildOperationsPdf(makeInput({ recentCuts: [] })))
     expect(bytes).toBeGreaterThan(baseline)
   })
+
+  it("accepts non-default operator preferences without throwing", async () => {
+    // PR 2 contract: the footer renders in the operator's locale +
+    // dateFormat + timeZone. Production uses canonical UserPreferences;
+    // here we only need the structural subset the helper consumes.
+    const blob = buildOperationsPdf(
+      makeInput({
+        preferences: {
+          dateFormat: "yyyy-MM-dd",
+          timeZone: "Europe/London",
+          locale: "es-MX",
+        },
+      })
+    )
+    expect(blob.type).toBe("application/pdf")
+    expect(await blobToBytes(blob)).toBeGreaterThan(2048)
+  })
 })

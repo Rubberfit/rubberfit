@@ -1,12 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { format, startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
+import { startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
+import { formatInUserTimeZone } from "@/src/application/preferences/user-date-format"
+import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
@@ -65,6 +68,8 @@ export default function DashboardPage() {
   })
   const [loading, setLoading] = useState(true)
 
+  const preferences = useUserPreferences()
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -73,7 +78,15 @@ export default function DashboardPage() {
         const now = new Date()
         const weekStart = startOfWeek(now, { weekStartsOn: 1 })
         const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
-        const weekLabel = `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d")}`
+        // "May 12 – May 18" style. Respect user locale + timezone but
+        // keep the short form (full dateFormat would crowd the chrome).
+        const weekLabel = `${formatInUserTimeZone(weekStart, preferences, {
+          month: "short",
+          day: "numeric",
+        })} – ${formatInUserTimeZone(weekEnd, preferences, {
+          month: "short",
+          day: "numeric",
+        })}`
         // Fetch 90 days once; the utilization chart filters client-side.
         const rangeStart = subDays(startOfDay(now), 89)
 
@@ -155,18 +168,24 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-  }, [period])
+    // The fetch body is `period`-independent — the 90-day pull feeds
+    // every period via client-side filtering — so `period` was already
+    // a noop in the dep array (carried over from before this PR).
+    // `preferences` IS read by the body via the weekLabel format call,
+    // so it stays. The full Promise.all on a prefs save is an
+    // acceptable cost for a label that stays consistent with the rest
+    // of the dashboard; splitting the effect to derive weekLabel
+    // separately is queued for PR 2b.
+  }, [preferences])
 
   const periodLabel = useMemo(
-    () => buildPeriodLabel(period, data.weekLabel),
-    [period, data.weekLabel]
+    () => buildPeriodLabel(period, data.weekLabel, preferences),
+    [period, data.weekLabel, preferences]
   )
 
   const eyebrow = useMemo(
     () =>
-      period === "week"
-        ? `Operations / Week · ${data.weekLabel}`
-        : `Operations / ${periodLabel}`,
+      period === "week" ? `Operations / Week · ${data.weekLabel}` : `Operations / ${periodLabel}`,
     [period, data.weekLabel, periodLabel]
   )
 
@@ -187,7 +206,7 @@ export default function DashboardPage() {
     }).format(value)
 
   const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("en-US", {
+    formatInUserTimeZone(dateString, preferences, {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -205,6 +224,7 @@ export default function DashboardPage() {
       inventoryValue: data.inventoryValue,
       utilization,
       recentCuts: data.recentCuts,
+      preferences,
     }),
     [
       period,
@@ -216,6 +236,7 @@ export default function DashboardPage() {
       data.inventoryValue,
       utilization,
       data.recentCuts,
+      preferences,
     ]
   )
 
@@ -268,12 +289,17 @@ export default function DashboardPage() {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function buildPeriodLabel(period: Period, weekLabel: string): string {
+function buildPeriodLabel(period: Period, weekLabel: string, preferences: UserPreferences): string {
   switch (period) {
     case "week":
       return weekLabel
     case "month":
-      return format(new Date(), "MMMM yyyy")
+      // "May 2026" — month + year only; user locale + timezone shape
+      // both the language and the boundary day.
+      return formatInUserTimeZone(new Date(), preferences, {
+        month: "long",
+        year: "numeric",
+      })
     case "quarter": {
       const now = new Date()
       const q = Math.floor(now.getMonth() / 3) + 1
@@ -420,10 +446,20 @@ function buildUtilizationSeriesForPeriod(
   for (let i = 0; i < bucketCount; i++) {
     const start = bucketStart + i * bucketMs
     const end = start + bucketMs
+    // The bucket end-1 represents the last instant of the bucket
+    // window. Threading the operator's preferences down through
+    // buildUtilizationSeriesForPeriod is intentionally deferred to
+    // PR 2b — for now, axis labels render with the helper's defaults
+    // (America/Chicago), so non-Chicago operators may see a label
+    // that disagrees with their dashboard chrome by one bucket near
+    // midnight. Acceptable until the dashboard useEffect split lands.
     const label =
       bucketMode === "day"
         ? DAY_LABELS[(new Date(start).getDay() + 6) % 7]
-        : format(new Date(end - 1), "MMM d")
+        : formatInUserTimeZone(new Date(end - 1), undefined, {
+            month: "short",
+            day: "numeric",
+          })
     const row: UtilizationDatum = { label }
     for (const material of topMaterials) row[material] = 0
     row["Other"] = 0

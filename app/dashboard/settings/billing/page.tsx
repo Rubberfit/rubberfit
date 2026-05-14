@@ -1,7 +1,9 @@
-import { format } from "date-fns"
 import Link from "next/link"
 
 import { getBillingSummary, type BillingSummaryData } from "@/app/actions/billing-summary"
+import { getUserPreferences } from "@/app/actions/user-preferences"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
+import { buildFallbackUserPreferences } from "@/src/infrastructure/models/user-preferences"
 
 import { StatusPill } from "@/app/components/billing/StatusPill"
 import { ManageSubscriptionButton } from "./_components/manage-subscription-button"
@@ -48,11 +50,14 @@ const TIER_TAGLINES: Record<(typeof RETAIL_TIERS)[number], string> = {
  * Portal session via `createBillingPortalSession`.
  */
 export default async function BillingPage() {
-  const data = await getBillingSummary()
+  const [data, prefsResult] = await Promise.all([getBillingSummary(), getUserPreferences()])
+  const preferences = "data" in prefsResult ? prefsResult.data : buildFallbackUserPreferences()
   const interval: "monthly" | "annual" = data.billingInterval ?? "monthly"
   const isEnterprise = data.tier === "enterprise"
+  // Use the operator's dateFormat so renewal here matches every other
+  // date in the dashboard. Falls back to "—" when no period is on file.
   const renewalDate = data.currentPeriodEnd
-    ? format(new Date(data.currentPeriodEnd), "MMMM d, yyyy")
+    ? formatUserDate(data.currentPeriodEnd, preferences) || "—"
     : "—"
   const intervalLabel = data.billingInterval
     ? data.billingInterval === "annual"

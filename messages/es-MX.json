@@ -12,7 +12,7 @@
         "reset": "Restablecer al predeterminado del espacio",
         "resetTooltip": "Disponible en una actualización futura."
       },
-      "noWorkspace": "No hay un espacio de trabajo asociado a esta cuenta. Completa el alta para configurar las preferencias."
+      "notProvisioned": "Tus preferencias aún no están listas. Recarga la página en un momento o cierra y vuelve a iniciar sesión si el problema continúa."
     },
     "regional": {
       "title": "Regional",

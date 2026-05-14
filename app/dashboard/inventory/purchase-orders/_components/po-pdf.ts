@@ -25,6 +25,11 @@ import {
   TYPE,
 } from "@/app/lib/pdf"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 
 import type { POExportFilters, POExportSummary, PurchaseOrdersExportInput } from "./po-export-utils"
 
@@ -70,14 +75,15 @@ function formatStatus(status: string | null | undefined): string {
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function formatDate(value: string | null | undefined): string {
+function formatDate(
+  value: string | null | undefined,
+  preferences?: UserDatePreferencesInput
+): string {
   if (!value) return "—"
-  // YYYY-MM-DD dates parsed as UTC midnight would shift backward by
-  // one day in US time zones — append local-time guard.
-  const isoLocal = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value
-  const date = new Date(isoLocal)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  // The helper handles YYYY-MM-DD calendar-date stability + invalid
+  // input internally; an empty return falls through to the "—"
+  // placeholder so the layout doesn't get a blank cell.
+  return formatUserDate(value, preferences) || "—"
 }
 
 function formatMoney(value: number | null | undefined): string {
@@ -150,7 +156,13 @@ function ensure(
  * Returns the Y cursor just below the last drawn element. Used by
  * both the single-PO builder and the multi-PO list builder.
  */
-function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: string): number {
+function renderPo(
+  doc: jsPDF,
+  po: PurchaseOrderWithDetails,
+  y: number,
+  title: string,
+  preferences?: UserDatePreferencesInput
+): number {
   // PO number + status chip + supplier identity block.
   doc.setFont(TYPE.h1.family, TYPE.h1.weight)
   doc.setFontSize(TYPE.h1.size)
@@ -183,8 +195,8 @@ function renderPo(doc: jsPDF, po: PurchaseOrderWithDetails, y: number, title: st
   drawAddressBlock(doc, "SHIP TO", PAGE_MARGIN + colW + colGap, y, colW, panelH, [
     po.shipping_address ?? "Default warehouse address",
     "",
-    `Order date: ${formatDate(po.order_date)}`,
-    `Requested: ${formatDate(po.requested_delivery_date)}`,
+    `Order date: ${formatDate(po.order_date, preferences)}`,
+    `Requested: ${formatDate(po.requested_delivery_date, preferences)}`,
   ])
   y += panelH + 24
 
@@ -355,7 +367,10 @@ function drawAddressBlock(
 
 // ── Single-PO builder + downloader ──────────────────────────────────────────
 
-export function buildSinglePoPdf(po: PurchaseOrderWithDetails): jsPDF {
+export function buildSinglePoPdf(
+  po: PurchaseOrderWithDetails,
+  preferences?: UserDatePreferencesInput
+): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })
   const title = "PURCHASE ORDER"
 
@@ -375,15 +390,30 @@ export function buildSinglePoPdf(po: PurchaseOrderWithDetails): jsPDF {
   // Single-PO doc: render once at the content top and let the table /
   // signature block paginate via `pageBreak`. Return value of
   // `renderPo` discarded — single-PO has no follow-on content.
-  renderPo(doc, po, contentStartY("customer"), title)
+  renderPo(doc, po, contentStartY("customer"), title, preferences)
 
-  const ts = format(new Date(), "yyyy-MM-dd HH:mm")
+  // Compact `<date> <HH:mm>` form keeps the footer single-line under
+  // long PO numbers + es-MX locale + long zone abbreviations where a
+  // full `formatUserDateTime` (with zone name) could clip the margin.
+  const ts = footerTimestamp(preferences)
   stampFooterOnEveryPage(doc, "customer", () => `PO ${po.po_number ?? ""} • ${ts}`)
   return doc
 }
 
-export function downloadSinglePoPdf(po: PurchaseOrderWithDetails): void {
-  const doc = buildSinglePoPdf(po)
+function footerTimestamp(preferences?: UserDatePreferencesInput): string {
+  const now = new Date()
+  return `${formatUserDate(now, preferences)} ${formatInUserTimeZone(now, preferences, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })}`
+}
+
+export function downloadSinglePoPdf(
+  po: PurchaseOrderWithDetails,
+  preferences?: UserDatePreferencesInput
+): void {
+  const doc = buildSinglePoPdf(po, preferences)
   const safe = (po.po_number ?? "po").replace(/[^A-Za-z0-9._-]/g, "_")
   doc.save(`PO-${safe}.pdf`)
 }
@@ -410,7 +440,7 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
-  const generatedAt = format(new Date(), "MMM d, yyyy HH:mm")
+  const generatedAt = footerTimestamp(input.preferences)
   doc.text(
     `Filters: ${activeFilterLabel(input.filters).toUpperCase()} · GENERATED ${generatedAt.toUpperCase()}`,
     PAGE_MARGIN,
@@ -452,12 +482,15 @@ export function buildPurchaseOrdersListPdf(input: PurchaseOrdersExportInput): js
         drawCustomerChrome(doc, { title })
         y = contentStartY("customer")
       }
-      y = renderPo(doc, po, y, title)
+      y = renderPo(doc, po, y, title, input.preferences)
     }
   }
 
-  const ts = format(new Date(), "yyyy-MM-dd HH:mm")
-  stampFooterOnEveryPage(doc, "customer", () => `Purchase orders · ${ts}`)
+  // Reuse the same `generatedAt` snapshot from the header so the
+  // footer can't drift past it on long exports — without this, both
+  // calls re-evaluate `new Date()` and the header/footer can disagree
+  // by a few seconds for big PO lists.
+  stampFooterOnEveryPage(doc, "customer", () => `Purchase orders · ${generatedAt}`)
   return doc
 }
 

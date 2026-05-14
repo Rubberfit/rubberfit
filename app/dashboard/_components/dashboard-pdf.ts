@@ -17,6 +17,10 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
 
 import type { OperationsExportInput } from "./dashboard-export-utils"
 
@@ -226,7 +230,18 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
   y += 16
   drawRecentCutsTable(doc, input, y)
 
-  const ts = format(new Date(), "yyyy-MM-dd HH:mm")
+  // Visible footer renders in the operator's chosen format. The file
+  // name (built downstream) intentionally stays in ISO so sorting and
+  // dedup remain machine-stable. The compact `HH:mm` time form (no
+  // zone abbreviation) keeps the footer single-line under es-MX +
+  // long zone names where the full `formatUserDateTime` shape would
+  // wrap or clip the right margin.
+  const now = new Date()
+  const ts = `${formatUserDate(now, input.preferences)} ${formatInUserTimeZone(
+    now,
+    input.preferences,
+    { hour: "2-digit", minute: "2-digit", hour12: false }
+  )}`
   stampFooterOnEveryPage(doc, "internal", () => `Operations · ${input.period} · ${ts}`)
 
   return doc.output("blob")

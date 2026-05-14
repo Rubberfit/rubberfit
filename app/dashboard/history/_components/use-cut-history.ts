@@ -6,6 +6,11 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 
 import { exportCutHistoryCsv } from "@/app/actions/cut-history"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
 import { PART_LABELS } from "@/src/application/cuts/part-labels"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
@@ -40,6 +45,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useCutHistory() {
   const router = useRouter()
   const { isAdmin, isManager, hasAnyRole, isLoading: roleLoading, userId } = useRole()
+  const preferences = useUserPreferences()
 
   const showDropdown = isAdmin || isManager || hasAnyRole(["supervisor"])
   const canDelete = isAdmin || isManager
@@ -260,15 +266,26 @@ export function useCutHistory() {
     let result = showFavoritesOnly ? cuts.filter((c) => c.isFavorite) : cuts
     if (searchTerm.trim()) {
       const lower = searchTerm.toLowerCase()
+      // Mirror the table's render contract exactly — table renders
+      // formatUserDate + formatInUserTimeZone(... HH:mm:ss), so the
+      // search corpus uses the same two helpers (formatUserDateTime
+      // omits seconds + adds a zone abbreviation; either gap can
+      // make a row searchable but invisible, or vice versa).
       result = result.filter((cut) => {
         const partLabel = (PART_LABELS[cut.part_id] ?? "").toLowerCase()
         const sizes = (cut.part_selected_label ?? []).join(" ").toLowerCase()
-        const date = format(new Date(cut.cut_date), "MMM d, yyyy HH:mm").toLowerCase()
+        const datePart = formatUserDate(cut.cut_date, preferences)
+        const timePart = formatInUserTimeZone(cut.cut_date, preferences, {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+        const date = `${datePart} ${timePart}`.toLowerCase()
         return partLabel.includes(lower) || sizes.includes(lower) || date.includes(lower)
       })
     }
     return result
-  }, [cuts, showFavoritesOnly, searchTerm])
+  }, [cuts, showFavoritesOnly, searchTerm, preferences])
 
   // Star + 9 data cols + actions
   const totalColSpan = 1 + 9 + 1

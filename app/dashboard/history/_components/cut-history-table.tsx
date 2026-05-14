@@ -1,8 +1,8 @@
 "use client"
 
-import { format } from "date-fns"
 import { ExternalLink, FileText, Loader2, Star, Trash2 } from "lucide-react"
 
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
 import {
@@ -14,6 +14,10 @@ import {
   TableRow,
 } from "@/app/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/app/components/ui/tooltip"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
 
 import { canViewPdf, type CutHistoryRow, PART_LABELS } from "./use-cut-history"
 
@@ -100,6 +104,7 @@ export function CutHistoryTable({
   onReopen,
   onViewPdf,
 }: CutHistoryTableProps) {
+  const preferences = useUserPreferences()
   return (
     <div className="overflow-x-auto">
       <Table className="text-sm">
@@ -156,9 +161,19 @@ export function CutHistoryTable({
 
                 {/* Date */}
                 <TableCell className="pl-2 whitespace-nowrap">
-                  <div className="font-medium">{format(new Date(cut.cut_date), "MMM d, yyyy")}</div>
+                  {/* Empty-string fallback for shape-valid invalid dates
+                      (helper returns "" rather than throwing) — without
+                      "—" the cell would render blank for a row with a
+                      malformed cut_date. */}
+                  <div className="font-medium">
+                    {formatUserDate(cut.cut_date, preferences) || "—"}
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    {format(new Date(cut.cut_date), "HH:mm:ss")}
+                    {formatInUserTimeZone(cut.cut_date, preferences, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    }) || "—"}
                   </div>
                 </TableCell>
 

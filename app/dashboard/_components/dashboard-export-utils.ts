@@ -1,4 +1,5 @@
 import type { ExportData } from "@/src/application/services/export.service.interface"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 import type { RecentCutRow } from "./dashboard-recent-cuts-card"
 import type { UtilizationDatum } from "./dashboard-utilization-card"
@@ -21,6 +22,12 @@ export interface OperationsExportInput {
   inventoryValue: number
   utilization: { series: UtilizationDatum[]; materials: string[] }
   recentCuts: RecentCutRow[]
+  /**
+   * Optional — operator's locale / dateFormat / timeZone preferences,
+   * applied to visible PDF text (footer timestamp, etc). Filenames stay
+   * machine-stable (`yyyy-MM-dd_HHmm`) regardless of this field.
+   */
+  preferences?: UserDatePreferencesInput
 }
 
 const FILENAME_PREFIX = "operations-overview"

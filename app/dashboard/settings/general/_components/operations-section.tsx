@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useTransition, type ChangeEvent } from "react"
-import { useTranslations, useLocale } from "next-intl"
+import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
@@ -11,6 +11,7 @@ import {
   isSupportedUnitSystem,
   type UnitSystem,
 } from "@/src/application/preferences/constants"
+import { formatInUserTimeZone } from "@/src/application/preferences/user-date-format"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
@@ -43,7 +44,6 @@ function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): stri
 
 export function OperationsSection({ preferences, onSaved }: OperationsSectionProps) {
   const t = useTranslations("settings")
-  const locale = useLocale()
   const router = useRouter()
   const [baseline, setBaseline] = useState<UserPreferences>(preferences)
   const [draft, setDraft] = useState<UserPreferences>(preferences)
@@ -82,14 +82,13 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
     }
   }, [preferences])
 
-  useEffect(() => {
-    if (!isEditingThreshold) {
-      setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
-    }
-  }, [draft.unitSystem])
-
   const handleUnitSystemChange = (value: UnitSystem) => {
+    // Reformat the input + drop the editing flag synchronously so the
+    // input and the lowStockExplainer preview agree on the new unit
+    // even if the user was mid-typing when they flipped the system.
     setDraft((prev) => ({ ...prev, unitSystem: value }))
+    setIsEditingThreshold(false)
+    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, value))
   }
 
   const handleThresholdChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +225,11 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
         savedHint={
           savedAt > 0
             ? t("actions.lastSaved", {
-                when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
+                when: formatInUserTimeZone(
+                  savedAt,
+                  { locale: draft.locale, timeZone: draft.timeZone },
+                  { timeStyle: "short" }
+                ),
               })
             : undefined
         }
