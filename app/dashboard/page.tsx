@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
+import { subDays, startOfDay } from "date-fns"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
@@ -9,6 +9,7 @@ import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
 import { formatInUserTimeZone } from "@/src/application/preferences/user-date-format"
+import { weekBoundariesInZone } from "@/src/application/preferences/user-week-boundaries"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
@@ -27,7 +28,6 @@ type UtilizationPeriod = "7d" | "30d" | "90d"
 interface DashboardData {
   totalActiveRolls: number
   inventoryValue: number
-  cutsThisWeek: number
   wastePercentage: number
   cutsGrowthPercent?: number
   wasteImprovementPercent?: number
@@ -42,7 +42,6 @@ interface DashboardData {
   /** 90 days of cuts (with roll join) — client-side aggregated per period. */
   cutsLast90d: UtilizationCut[]
   recentCuts: RecentCutRow[]
-  weekLabel: string
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
@@ -56,7 +55,6 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData>({
     totalActiveRolls: 0,
     inventoryValue: 0,
-    cutsThisWeek: 0,
     wastePercentage: 0,
     wasteSparkline: [],
     cutsSparkline: [],
@@ -64,11 +62,40 @@ export default function DashboardPage() {
     recentActivity: [],
     cutsLast90d: [],
     recentCuts: [],
-    weekLabel: "",
   })
   const [loading, setLoading] = useState(true)
 
   const preferences = useUserPreferences()
+
+  // Week boundaries + label derive reactively from `preferences`. PR 2b:
+  // split out of the data-fetch effect so toggling the operator's zone /
+  // locale / dateFormat in /settings/general no longer triggers a 9-
+  // service refetch — the data is zone-agnostic, only the label cares.
+  // Both `weekLabel` (chrome) and `cutsThisWeek` (KPI) draw their
+  // boundaries from the same `weekBoundariesInZone` call so the filter
+  // and the displayed range can't disagree.
+  const { weekStart, weekEnd, weekLabel } = useMemo(() => {
+    const { weekStart: ws, weekEnd: we } = weekBoundariesInZone(new Date(), preferences)
+    // "May 12 – May 18" style. Respect user locale + timezone but keep
+    // the short form (full dateFormat would crowd the chrome).
+    const label = `${formatInUserTimeZone(ws, preferences, {
+      month: "short",
+      day: "numeric",
+    })} – ${formatInUserTimeZone(we, preferences, {
+      month: "short",
+      day: "numeric",
+    })}`
+    return { weekStart: ws, weekEnd: we, weekLabel: label }
+  }, [preferences])
+
+  const cutsThisWeek = useMemo(
+    () =>
+      data.cutsLast90d.filter((c) => {
+        const t = new Date(c.created_at).getTime()
+        return t >= weekStart.getTime() && t <= weekEnd.getTime()
+      }).length,
+    [data.cutsLast90d, weekStart, weekEnd]
+  )
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -76,17 +103,6 @@ export default function DashboardPage() {
         setLoading(true)
 
         const now = new Date()
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 })
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 })
-        // "May 12 – May 18" style. Respect user locale + timezone but
-        // keep the short form (full dateFormat would crowd the chrome).
-        const weekLabel = `${formatInUserTimeZone(weekStart, preferences, {
-          month: "short",
-          day: "numeric",
-        })} – ${formatInUserTimeZone(weekEnd, preferences, {
-          month: "short",
-          day: "numeric",
-        })}`
         // Fetch 90 days once; the utilization chart filters client-side.
         const rangeStart = subDays(startOfDay(now), 89)
 
@@ -118,19 +134,12 @@ export default function DashboardPage() {
           cutService.getWasteImprovementPercentage().catch(() => undefined as number | undefined),
         ])
 
-        // "This week" cuts = subset of the 90d pull in [weekStart, weekEnd].
-        const cutsThisWeekData = cutsLast90d.filter((c) => {
-          const t = new Date(c.created_at).getTime()
-          return t >= weekStart.getTime() && t <= weekEnd.getTime()
-        })
-
         const totalActiveRolls = activeRolls.length
         const inventoryValue = activeRolls.reduce(
           (total, roll) =>
             total + ((roll.remaining_length * roll.width) / 144) * (roll.cost_per_sqft || 0),
           0
         )
-        const cutsThisWeek = cutsThisWeekData.length
         const wastePercentage =
           monthWasteData.length > 0
             ? monthWasteData.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
@@ -148,7 +157,6 @@ export default function DashboardPage() {
         setData({
           totalActiveRolls,
           inventoryValue,
-          cutsThisWeek,
           wastePercentage,
           cutsGrowthPercent: cutsGrowth,
           wasteImprovementPercent: wasteImprovement,
@@ -158,7 +166,6 @@ export default function DashboardPage() {
           recentActivity,
           cutsLast90d,
           recentCuts,
-          weekLabel,
         })
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
@@ -168,34 +175,32 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-    // The fetch body is `period`-independent — the 90-day pull feeds
-    // every period via client-side filtering — so `period` was already
-    // a noop in the dep array (carried over from before this PR).
-    // `preferences` IS read by the body via the weekLabel format call,
-    // so it stays. The full Promise.all on a prefs save is an
-    // acceptable cost for a label that stays consistent with the rest
-    // of the dashboard; splitting the effect to derive weekLabel
-    // separately is queued for PR 2b.
-  }, [preferences])
+    // Zone-agnostic data fetch: the 90-day pull feeds every period via
+    // client-side filtering, so `period` was always a noop. `preferences`
+    // used to live here (gating weekLabel) but PR 2b lifted that into a
+    // separate `useMemo` so prefs changes no longer trigger a refetch.
+  }, [])
 
   const periodLabel = useMemo(
-    () => buildPeriodLabel(period, data.weekLabel, preferences),
-    [period, data.weekLabel, preferences]
+    () => buildPeriodLabel(period, weekLabel, preferences),
+    [period, weekLabel, preferences]
   )
 
   const eyebrow = useMemo(
-    () =>
-      period === "week" ? `Operations / Week · ${data.weekLabel}` : `Operations / ${periodLabel}`,
-    [period, data.weekLabel, periodLabel]
+    () => (period === "week" ? `Operations / Week · ${weekLabel}` : `Operations / ${periodLabel}`),
+    [period, weekLabel, periodLabel]
   )
 
   const subtitle = tenantDisplayName
 
   // Client-side aggregation per utilization period — swaps whenever
-  // the operator clicks 7d / 30d / 90d without any refetch.
+  // the operator clicks 7d / 30d / 90d without any refetch. PR 2b:
+  // `preferences` threaded through so the per-week axis labels render
+  // in the operator's timeZone instead of falling back to the helper's
+  // America/Chicago default.
   const utilization = useMemo(
-    () => buildUtilizationSeriesForPeriod(data.cutsLast90d, utilPeriod),
-    [data.cutsLast90d, utilPeriod]
+    () => buildUtilizationSeriesForPeriod(data.cutsLast90d, utilPeriod, preferences),
+    [data.cutsLast90d, utilPeriod, preferences]
   )
 
   const formatCurrency = (value: number) =>
@@ -219,7 +224,7 @@ export default function DashboardPage() {
       periodLabel,
       utilPeriod,
       totalActiveRolls: data.totalActiveRolls,
-      cutsThisWeek: data.cutsThisWeek,
+      cutsThisWeek,
       wastePercentage: data.wastePercentage,
       inventoryValue: data.inventoryValue,
       utilization,
@@ -231,7 +236,7 @@ export default function DashboardPage() {
       periodLabel,
       utilPeriod,
       data.totalActiveRolls,
-      data.cutsThisWeek,
+      cutsThisWeek,
       data.wastePercentage,
       data.inventoryValue,
       utilization,
@@ -257,7 +262,7 @@ export default function DashboardPage() {
       <SummaryCards
         loading={loading}
         totalActiveRolls={data.totalActiveRolls}
-        cutsThisWeek={data.cutsThisWeek}
+        cutsThisWeek={cutsThisWeek}
         wastePercentage={data.wastePercentage}
         inventoryValue={data.inventoryValue}
         cutsGrowthPercent={data.cutsGrowthPercent}
@@ -412,7 +417,8 @@ function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
  */
 function buildUtilizationSeriesForPeriod(
   cuts: ReadonlyArray<UtilizationCut>,
-  period: UtilizationPeriod
+  period: UtilizationPeriod,
+  preferences: UserPreferences
 ): { series: UtilizationDatum[]; materials: string[] } {
   if (cuts.length === 0) return { series: [], materials: [] }
 
@@ -447,16 +453,17 @@ function buildUtilizationSeriesForPeriod(
     const start = bucketStart + i * bucketMs
     const end = start + bucketMs
     // The bucket end-1 represents the last instant of the bucket
-    // window. Threading the operator's preferences down through
-    // buildUtilizationSeriesForPeriod is intentionally deferred to
-    // PR 2b — for now, axis labels render with the helper's defaults
-    // (America/Chicago), so non-Chicago operators may see a label
-    // that disagrees with their dashboard chrome by one bucket near
-    // midnight. Acceptable until the dashboard useEffect split lands.
+    // window. PR 2b: per-week axis labels now render in the operator's
+    // timeZone (via `preferences`). The per-day case keeps the static
+    // DAY_LABELS — those are weekday abbreviations indexed by the local
+    // browser's day-of-week and are zone-agnostic for short-week scans.
+    // Aligning per-day bucket EDGES to zone-local midnight is a
+    // separate, larger change (would need the same calendar-arithmetic
+    // dance as `weekBoundariesInZone`) and not in PR 2b scope.
     const label =
       bucketMode === "day"
         ? DAY_LABELS[(new Date(start).getDay() + 6) % 7]
-        : formatInUserTimeZone(new Date(end - 1), undefined, {
+        : formatInUserTimeZone(new Date(end - 1), preferences, {
             month: "short",
             day: "numeric",
           })

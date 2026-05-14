@@ -400,7 +400,13 @@ export function buildSinglePoPdf(
   return doc
 }
 
-function footerTimestamp(preferences?: UserDatePreferencesInput): string {
+/**
+ * Compact `<date> <HH:mm>` timestamp for the PDF footer / "generated"
+ * line. Exported so layout tests can build the same string the
+ * production code passes to `stampFooterOnEveryPage` without rendering
+ * the full blob.
+ */
+export function footerTimestamp(preferences?: UserDatePreferencesInput): string {
   const now = new Date()
   return `${formatUserDate(now, preferences)} ${formatInUserTimeZone(now, preferences, {
     hour: "2-digit",
