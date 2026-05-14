@@ -46,7 +46,16 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
 
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
+  // Scope the dirty check to ONLY the fields this section owns. A
+  // whole-object compare would treat a sibling section's saved field
+  // (refreshed into baseline but stale in draft, since the guard below
+  // preserves the user's in-flight edits) as "dirty here", leaving the
+  // Save button stuck enabled.
+  const isDirty =
+    draft.locale !== baseline.locale ||
+    draft.defaultCurrency !== baseline.defaultCurrency ||
+    draft.timeZone !== baseline.timeZone ||
+    draft.dateFormat !== baseline.dateFormat
   // Keep a ref in sync so the [preferences] effect can read the current
   // dirty state without taking draft/baseline as deps (which would make
   // the effect fire on every keystroke).

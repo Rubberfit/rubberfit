@@ -54,7 +54,12 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
     formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
   )
 
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
+  // Per-section dirty check — only fields this section owns. Compare
+  // unitSystem + lowStockThresholdSqft only; siblings can save their
+  // own fields without leaving Save stuck enabled here.
+  const isDirty =
+    draft.unitSystem !== baseline.unitSystem ||
+    draft.lowStockThresholdSqft !== baseline.lowStockThresholdSqft
   // Ref lets the [preferences] effect peek at current dirty state without
   // taking draft/baseline as deps (which would make it fire per keystroke).
   const isDirtyRef = useRef(isDirty)
