@@ -12,28 +12,24 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 
 const GENERAL_SETTINGS_PATH = "/dashboard/settings/general"
 
-const isValidTimeZone = (value: string): boolean => {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value })
-    return true
-  } catch (_err) {
-    // Intl.DateTimeFormat throws RangeError on unknown IANA names; the
-    // refinement just needs the boolean signal, not the message.
-    return false
-  }
-}
+// Mirrors the time_zone CHECK constraint in migration
+// 20260514000001_create_organization_preferences.sql so the action's
+// typed `{ error: "invalid" }` envelope catches the case *before* the
+// service hits the DB. Extend both sides together when adding a zone.
+const ALLOWED_TIME_ZONES = [
+  "America/Chicago",
+  "America/New_York",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Phoenix",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+] as const
 
 const UpdatePreferencesSchema = z.object({
   defaultCurrency: z.enum(["USD", "EUR", "GBP", "CAD"]).optional(),
-  timeZone: z
-    .string()
-    .trim()
-    .min(1)
-    .max(64)
-    .refine(isValidTimeZone, {
-      message: "Unknown time zone",
-    })
-    .optional(),
+  timeZone: z.enum(ALLOWED_TIME_ZONES).optional(),
   dateFormat: z.enum(["MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd"]).optional(),
   unitSystem: z.enum(["imperial", "metric"]).optional(),
   lowStockThresholdSqft: z.number().finite().nonnegative().max(1_000_000).optional(),

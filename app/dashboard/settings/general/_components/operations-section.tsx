@@ -153,12 +153,12 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
                 {draft.unitSystem === "metric" ? (
                   <>
                     <div>72&quot; × 144&quot;</div>
-                    <div>100 sqft</div>
+                    <div>72 sqft</div>
                   </>
                 ) : (
                   <>
                     <div>1.83 × 3.66 m</div>
-                    <div>9.29 m²</div>
+                    <div>6.69 m²</div>
                   </>
                 )}
               </div>
@@ -167,12 +167,12 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
                 {draft.unitSystem === "metric" ? (
                   <>
                     <div>1.83 × 3.66 m</div>
-                    <div>9.29 m²</div>
+                    <div>6.69 m²</div>
                   </>
                 ) : (
                   <>
                     <div>72&quot; × 144&quot;</div>
-                    <div>100 sqft</div>
+                    <div>72 sqft</div>
                   </>
                 )}
               </div>

@@ -2,6 +2,7 @@
   "settings": {
     "general": {
       "pageTitle": "General",
+      "breadcrumbSettings": "Ajustes",
       "pageSubtitle": "Valores predeterminados de organización, región y operación aplicados en todo el espacio de trabajo.",
       "scope": {
         "workspaceDefault": "[ PREDETERMINADO DEL ESPACIO ]",

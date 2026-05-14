@@ -2,6 +2,7 @@
   "settings": {
     "general": {
       "pageTitle": "General",
+      "breadcrumbSettings": "Settings",
       "pageSubtitle": "Organization, regional, and operational defaults applied across the workspace.",
       "scope": {
         "workspaceDefault": "[ WORKSPACE DEFAULT ]",

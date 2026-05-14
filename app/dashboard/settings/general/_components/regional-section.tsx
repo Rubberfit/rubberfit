@@ -26,6 +26,18 @@ interface RegionalSectionProps {
 type AppLocale = OrganizationPreferences["locale"]
 type AppCurrency = OrganizationPreferences["defaultCurrency"]
 type AppDateFormat = OrganizationPreferences["dateFormat"]
+type AppTimeZone = OrganizationPreferences["timeZone"]
+
+const TIME_ZONE_VALUES: readonly AppTimeZone[] = [
+  "America/Chicago",
+  "America/New_York",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Phoenix",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+]
 
 function isAppLocale(value: string): value is AppLocale {
   return value === "en-US" || value === "es-MX"
@@ -35,6 +47,9 @@ function isAppCurrency(value: string): value is AppCurrency {
 }
 function isAppDateFormat(value: string): value is AppDateFormat {
   return value === "MM/dd/yyyy" || value === "dd/MM/yyyy" || value === "yyyy-MM-dd"
+}
+function isAppTimeZone(value: string): value is AppTimeZone {
+  return (TIME_ZONE_VALUES as readonly string[]).includes(value)
 }
 
 export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSectionProps) {
@@ -61,29 +76,23 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
 
   const [timePreview, setTimePreview] = useState(() =>
     new Intl.DateTimeFormat(draft.locale, {
-      timeStyle: "short",
+      hour: "numeric",
+      minute: "2-digit",
       timeZoneName: "short",
       timeZone: draft.timeZone,
     }).format(new Date())
   )
 
   useEffect(() => {
-    setTimePreview(
+    const format = () =>
       new Intl.DateTimeFormat(draft.locale, {
-        timeStyle: "short",
+        hour: "numeric",
+        minute: "2-digit",
         timeZoneName: "short",
         timeZone: draft.timeZone,
       }).format(new Date())
-    )
-    const id = setInterval(() => {
-      setTimePreview(
-        new Intl.DateTimeFormat(draft.locale, {
-          timeStyle: "short",
-          timeZoneName: "short",
-          timeZone: draft.timeZone,
-        }).format(new Date())
-      )
-    }, 30000)
+    setTimePreview(format())
+    const id = setInterval(() => setTimePreview(format()), 30000)
     return () => clearInterval(id)
   }, [draft.locale, draft.timeZone])
 
@@ -192,7 +201,12 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
               <select
                 id="timeZone"
                 value={draft.timeZone}
-                onChange={(e) => setDraft((prev) => ({ ...prev, timeZone: e.target.value }))}
+                onChange={(e) => {
+                  if (isAppTimeZone(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, timeZone: next }))
+                  }
+                }}
                 disabled={!isAdmin}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >

@@ -10,6 +10,20 @@ export type SupportedDateFormat = "MM/dd/yyyy" | "dd/MM/yyyy" | "yyyy-MM-dd"
 export type UnitSystem = "imperial" | "metric"
 export type SupportedLocale = "en-US" | "es-MX"
 
+// Mirrors the time_zone CHECK constraint in migration
+// 20260514000001_create_organization_preferences.sql. The DB enforces
+// allowlist membership; this union keeps callers honest at compile time.
+// Extend both sides together when adding a zone.
+export type SupportedTimeZone =
+  | "America/Chicago"
+  | "America/New_York"
+  | "America/Los_Angeles"
+  | "America/Denver"
+  | "America/Phoenix"
+  | "Europe/London"
+  | "Europe/Paris"
+  | "Asia/Tokyo"
+
 export const SUPPORTED_CURRENCIES: readonly SupportedCurrency[] = [
   "USD",
   "EUR",
@@ -39,7 +53,7 @@ export const DEFAULT_ORGANIZATION_PREFERENCES = {
 export interface OrganizationPreferences {
   organizationId: string
   defaultCurrency: SupportedCurrency
-  timeZone: string
+  timeZone: SupportedTimeZone
   dateFormat: SupportedDateFormat
   unitSystem: UnitSystem
   lowStockThresholdSqft: number
@@ -50,7 +64,7 @@ export interface OrganizationPreferences {
 
 export interface UpdateOrganizationPreferencesInput {
   defaultCurrency?: SupportedCurrency
-  timeZone?: string
+  timeZone?: SupportedTimeZone
   dateFormat?: SupportedDateFormat
   unitSystem?: UnitSystem
   lowStockThresholdSqft?: number
@@ -82,7 +96,7 @@ export function mapOrganizationPreferencesRow(
   return {
     organizationId: row.organization_id,
     defaultCurrency: row.default_currency as SupportedCurrency,
-    timeZone: row.time_zone,
+    timeZone: row.time_zone as SupportedTimeZone,
     dateFormat: row.date_format as SupportedDateFormat,
     unitSystem: row.unit_system as UnitSystem,
     lowStockThresholdSqft: threshold,

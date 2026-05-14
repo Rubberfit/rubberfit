@@ -33,7 +33,10 @@ export default async function GeneralSettingsPage() {
     return (
       <PageShell variant="form">
         <PageHeader
-          crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: t("pageTitle") }]}
+          crumbs={[
+          { label: t("breadcrumbSettings"), href: "/dashboard/settings" },
+          { label: t("pageTitle") },
+        ]}
           title={t("pageTitle")}
           subtitle={t("pageSubtitle")}
         />
@@ -51,7 +54,10 @@ export default async function GeneralSettingsPage() {
   return (
     <PageShell variant="form">
       <PageHeader
-        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: t("pageTitle") }]}
+        crumbs={[
+          { label: t("breadcrumbSettings"), href: "/dashboard/settings" },
+          { label: t("pageTitle") },
+        ]}
         title={t("pageTitle")}
         subtitle={t("pageSubtitle")}
       />

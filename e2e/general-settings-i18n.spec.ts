@@ -85,14 +85,19 @@ test.describe("General Settings + i18n — admin happy path", () => {
     await currencySelect.selectOption("EUR")
     await expect(page.getByText(/€1[,.]250[.,]00/)).toBeVisible()
 
-    // Date format flips between the three patterns.
+    // Date format flips between the three patterns. Match a yyyy-MM-dd
+    // shape so the preview-rail value (not the "Preview:" label, which
+    // appears beside both Currency and Date format) is the assertion.
     const dateSelect = page.locator("#dateFormat")
     await dateSelect.selectOption("yyyy-MM-dd")
-    await expect(page.getByText(/Preview:/)).toBeVisible()
+    await expect(page.getByText(/^\d{4}-\d{2}-\d{2}$/)).toBeVisible()
 
-    // Save and reload; values stick.
-    await page.getByRole("button", { name: /^Save$/ }).first().click()
-    await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: 10_000 })
+    // Save and reload; values stick. Locator picks the *enabled* Save —
+    // there are 3 Save buttons (Organization, Regional, Operations) and
+    // the one we want is the Regional section's (which became dirty).
+    const enabledSave = page.getByRole("button", { name: /^Save$/ }).and(page.locator(":not([disabled])"))
+    await enabledSave.first().click()
+    await expect(page.getByText(/Saved/i).first()).toBeVisible({ timeout: 10_000 })
     await page.reload()
     await openGeneralSettings(page)
     await expect(page.locator("#currency")).toHaveValue("EUR")
@@ -106,17 +111,29 @@ test.describe("General Settings + i18n — admin happy path", () => {
 
     const languageSelect = page.locator("#language")
     await languageSelect.selectOption("es-MX")
-    await page.getByRole("button", { name: /^Save$/ }).first().click()
-    await expect(page.getByText(/Guardado/i)).toBeVisible({ timeout: 10_000 })
+    const enabledSave = page
+      .getByRole("button", { name: /^Save$/ })
+      .and(page.locator(":not([disabled])"))
+    await enabledSave.first().click()
+    // Toast fires in the *current* locale (the cookie write happens after
+    // the action resolves), so this initial save toasts in English even
+    // though the saved value is es-MX. The next render uses the new bundle.
+    await expect(page.getByText(/Saved/i).first()).toBeVisible({ timeout: 10_000 })
 
-    // Scope strip flips to Spanish copy.
-    await expect(page.getByText(/PREDETERMINADO DEL ESPACIO/)).toBeVisible()
+    // Scope strip flips to Spanish copy after the cookie + revalidate.
+    await expect(page.getByText(/PREDETERMINADO DEL ESPACIO/)).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText(/Los cambios aplican a todos los miembros/)).toBeVisible()
 
     // Reset back so subsequent suites don't inherit a Spanish UI.
     await page.locator("#language").selectOption("en-US")
-    await page.getByRole("button", { name: /^Save$/ }).first().click()
-    await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: 10_000 })
+    const enabledSaveAgain = page
+      .getByRole("button", { name: /^Save$/ })
+      .and(page.locator(":not([disabled])"))
+    await enabledSaveAgain.first().click()
+    // After this save the cookie flips back to en-US; the toast string
+    // matches both Spanish (Guardado) and English (Saved) depending on
+    // which render lands first — accept either.
+    await expect(page.getByText(/Saved|Guardado/i).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test("operations: unit-system flip swaps the reference card AND the threshold echo", async ({
@@ -131,8 +148,9 @@ test.describe("General Settings + i18n — admin happy path", () => {
     await expect(page.getByText(/below 50 sqft/i)).toBeVisible()
 
     await page.locator("#unitSystem").selectOption("metric")
-    await expect(page.getByText(/m²/)).toBeVisible()
-    // After switch, threshold echo flips to m² and shows the metric value
+    // Reference card shows the metric value (72 sqft ≈ 6.69 m²); the
+    // threshold explainer flips its unit label too (50 sqft ≈ 4.65 m²).
+    await expect(page.getByText(/6\.69 m²/)).toBeVisible()
     await expect(page.getByText(/4\.65 m²/i)).toBeVisible()
   })
 })
