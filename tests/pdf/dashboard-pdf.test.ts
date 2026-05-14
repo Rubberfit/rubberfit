@@ -6,10 +6,15 @@
  * A4 in points, multi-page pagination on big inputs, blob bytes.
  */
 // @vitest-environment node
+import jsPDF from "jspdf"
 import { describe, expect, it } from "vitest"
 
-import { buildOperationsPdf } from "@/app/dashboard/_components/dashboard-pdf"
+import {
+  buildOperationsFooterDocMeta,
+  buildOperationsPdf,
+} from "@/app/dashboard/_components/dashboard-pdf"
 import type { OperationsExportInput } from "@/app/dashboard/_components/dashboard-export-utils"
+import { INTERNAL_PAGE, TYPE } from "@/app/lib/pdf"
 
 function makeInput(overrides: Partial<OperationsExportInput> = {}): OperationsExportInput {
   return {
@@ -93,5 +98,38 @@ describe("buildOperationsPdf", () => {
     )
     expect(blob.type).toBe("application/pdf")
     expect(await blobToBytes(blob)).toBeGreaterThan(2048)
+  })
+
+  it("footer docMeta fits the right-half width budget under worst-case prefs", () => {
+    // PR 2b — CodeRabbit's deferred recommendation. Measures the
+    // right-aligned footer string against the page's content width so
+    // the docMeta can't silently overrun the centered page counter
+    // under es-MX + Europe/London + yyyy-MM-dd (longest combo across
+    // supported prefs). Caption type, single-line, no zone abbrev.
+    //
+    // Budget: contentWidth / 2 - 16pt. The footer has three columns
+    // (left product mark, center page counter, right docMeta). Center
+    // counter is ~50pt at caption-mono; the 16pt subtractive padding
+    // keeps a clear gap from the center even at "Page 9 of 99".
+    const worstCase: OperationsExportInput["preferences"] = {
+      dateFormat: "yyyy-MM-dd",
+      timeZone: "Europe/London",
+      locale: "es-MX",
+    }
+    const periods: Array<OperationsExportInput["period"]> = ["week", "month", "quarter"]
+    const doc = new jsPDF({ unit: "pt", format: "a4" })
+    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+    doc.setFontSize(TYPE.caption.size)
+    const budget = INTERNAL_PAGE.contentWidth / 2 - 16
+    for (const period of periods) {
+      const docMeta = buildOperationsFooterDocMeta(makeInput({ preferences: worstCase, period }))
+      const width = doc.getTextWidth(docMeta)
+      // Embed the period + measured width in the assertion message so a
+      // future regression report identifies which period overflowed.
+      expect(
+        width,
+        `${period} footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
+      ).toBeLessThan(budget)
+    }
   })
 })

@@ -236,15 +236,29 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
   // zone abbreviation) keeps the footer single-line under es-MX +
   // long zone names where the full `formatUserDateTime` shape would
   // wrap or clip the right margin.
+  const docMeta = buildOperationsFooterDocMeta(input)
+  stampFooterOnEveryPage(doc, "internal", () => docMeta)
+
+  return doc.output("blob")
+}
+
+/**
+ * Builds the right-aligned footer `docMeta` string for the dashboard
+ * PDF. Extracted so layout tests can measure `doc.getTextWidth(meta)`
+ * against the page's content-width budget without re-rendering the
+ * whole PDF blob. Reads `new Date()` once per call — production
+ * captures the result into a closure-local constant before passing it
+ * to `stampFooterOnEveryPage`, so the same timestamp is stamped on
+ * every page of a multi-page export.
+ */
+export function buildOperationsFooterDocMeta(input: OperationsExportInput): string {
   const now = new Date()
   const ts = `${formatUserDate(now, input.preferences)} ${formatInUserTimeZone(
     now,
     input.preferences,
     { hour: "2-digit", minute: "2-digit", hour12: false }
   )}`
-  stampFooterOnEveryPage(doc, "internal", () => `Operations · ${input.period} · ${ts}`)
-
-  return doc.output("blob")
+  return `Operations · ${input.period} · ${ts}`
 }
 
 /**

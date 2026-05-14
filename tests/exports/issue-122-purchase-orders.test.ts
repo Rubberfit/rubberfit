@@ -7,13 +7,16 @@
  * with an imperative jsPDF builder).
  */
 // @vitest-environment node
+import jsPDF from "jspdf"
 import { describe, expect, it } from "vitest"
 
+import { footerTimestamp } from "@/app/dashboard/inventory/purchase-orders/_components/po-pdf"
 import {
   buildPurchaseOrdersCsv,
   buildPurchaseOrdersListPdf,
   type PurchaseOrdersExportInput,
 } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
+import { CUSTOMER_PAGE, TYPE } from "@/app/lib/pdf"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 function makePO(overrides: Partial<PurchaseOrderWithDetails>): PurchaseOrderWithDetails {
@@ -240,5 +243,35 @@ describe("buildPurchaseOrdersListPdf", () => {
     }
     const doc = buildPurchaseOrdersListPdf(withPrefs)
     expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("footer docMeta fits the right-half width budget under worst-case prefs", () => {
+    // PR 2b — CodeRabbit's deferred recommendation. The PO list footer
+    // is `Purchase orders · ${generatedAt}`. With the compact
+    // `<date> HH:mm` timestamp and yyyy-MM-dd / dd/MM/yyyy at their
+    // widest, the right-aligned docMeta must still fit half the page
+    // width minus the page-counter centre column gap.
+    const worstCase = {
+      dateFormat: "yyyy-MM-dd" as const,
+      timeZone: "Europe/London" as const,
+      locale: "es-MX" as const,
+    }
+    // Mirror production geometry exactly: po-pdf.ts:374 calls
+    // `new jsPDF({ format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })`.
+    // A "letter" shortcut is equivalent today (612x792pt) but would
+    // silently drift if CUSTOMER_PAGE ever changes.
+    const doc = new jsPDF({
+      unit: "pt",
+      format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height],
+    })
+    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+    doc.setFontSize(TYPE.caption.size)
+    const docMeta = `Purchase orders · ${footerTimestamp(worstCase)}`
+    const width = doc.getTextWidth(docMeta)
+    const budget = CUSTOMER_PAGE.contentWidth / 2 - 16
+    expect(
+      width,
+      `PO list footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
+    ).toBeLessThan(budget)
   })
 })
