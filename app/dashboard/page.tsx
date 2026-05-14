@@ -168,12 +168,15 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-    // Re-derive the week label when the operator changes their
-    // locale/timezone via Settings — the rest of the fetch is idempotent
-    // and prefs changes are rare, so the extra Promise.all on save is
-    // an acceptable cost for a label that stays consistent with the rest
-    // of the dashboard.
-  }, [period, preferences])
+    // The fetch body is `period`-independent — the 90-day pull feeds
+    // every period via client-side filtering — so `period` was already
+    // a noop in the dep array (carried over from before this PR).
+    // `preferences` IS read by the body via the weekLabel format call,
+    // so it stays. The full Promise.all on a prefs save is an
+    // acceptable cost for a label that stays consistent with the rest
+    // of the dashboard; splitting the effect to derive weekLabel
+    // separately is queued for PR 2b.
+  }, [preferences])
 
   const periodLabel = useMemo(
     () => buildPeriodLabel(period, data.weekLabel, preferences),
