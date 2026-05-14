@@ -8,6 +8,11 @@ import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { PageHeader, PageShell, StatCard } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 import { MaterialDistributionChart } from "./_components/material-distribution-chart"
 import { MaterialUsageTable } from "./_components/material-usage-table"
@@ -30,6 +35,7 @@ interface UsageData {
 }
 
 export default function MaterialUsagePage() {
+  const organizationPreferences = useOrganizationPreferences()
   const startDate = useMemo(() => subMonths(new Date(), 6), [])
   const now = useMemo(() => new Date(), [])
 
@@ -163,8 +169,8 @@ export default function MaterialUsagePage() {
             <StatCard
               label="Total material used"
               icon={<Package />}
-              value={totalSqftUsed.toFixed(0)}
-              unit="sqft"
+              value={getDisplayAreaValue(totalSqftUsed, organizationPreferences).toFixed(0)}
+              unit={getAreaUnitLabel(organizationPreferences)}
               footnote="Last 6 months"
             />
             <StatCard

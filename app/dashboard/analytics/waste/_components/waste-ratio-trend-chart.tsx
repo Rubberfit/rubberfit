@@ -11,6 +11,8 @@ import {
   YAxis,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/app/components/ui/card"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 export interface TrendPoint {
   period: string
@@ -28,29 +30,36 @@ interface CustomTooltipProps {
 }
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  const organizationPreferences = useOrganizationPreferences()
   if (!active || !payload?.length) return null
   const d = payload[0].payload
+  const fmt = (value: number) => formatAreaSqft(value, organizationPreferences, { precision: 1 })
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-md text-sm">
       <p className="font-semibold mb-1">{label}</p>
       <div className="space-y-0.5 text-muted-foreground">
         <p>
           Waste ratio:{" "}
-          <span className="font-medium text-foreground">{d.wasteRatio.toFixed(1)}%</span>
+          <span className="font-medium text-foreground tabular-nums">
+            {d.wasteRatio.toFixed(1)}%
+          </span>
         </p>
         <p>
           Pure scrap:{" "}
-          <span className="font-medium text-foreground">{d.scrapRatio.toFixed(1)}%</span>
+          <span className="font-medium text-foreground tabular-nums">
+            {d.scrapRatio.toFixed(1)}%
+          </span>
         </p>
         <p>
           Cuts: <span className="font-medium text-foreground">{d.cuts}</span>
         </p>
         <p>
-          Scrap: <span className="font-medium text-foreground">{d.totalScrap.toFixed(1)} ft²</span>
+          Scrap:{" "}
+          <span className="font-medium text-foreground tabular-nums">{fmt(d.totalScrap)}</span>
         </p>
         <p>
           Material used:{" "}
-          <span className="font-medium text-foreground">{d.totalMaterial.toFixed(1)} ft²</span>
+          <span className="font-medium text-foreground tabular-nums">{fmt(d.totalMaterial)}</span>
         </p>
       </div>
     </div>

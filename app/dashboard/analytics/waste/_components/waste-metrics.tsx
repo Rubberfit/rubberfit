@@ -3,12 +3,15 @@
 import { TrendingDown, DollarSign, AlertCircle, Target } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { type Cut } from "@/src/infrastructure/models/supabase"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface WasteMetricsProps {
   cuts: (Cut & { roll?: { cost_per_sqft?: number } })[]
 }
 
 export function WasteMetrics({ cuts }: WasteMetricsProps) {
+  const organizationPreferences = useOrganizationPreferences()
   const totalWasteSqft = cuts.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0)
   const totalCutsWithWaste = cuts.filter((cut) => cut.waste_percentage !== null).length
 
@@ -53,7 +56,9 @@ export function WasteMetrics({ cuts }: WasteMetricsProps) {
           <Target className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalWasteSqft.toFixed(1)} sq ft</div>
+          <div className="text-2xl font-bold tabular-nums">
+            {formatAreaSqft(totalWasteSqft, organizationPreferences, { precision: 1 })}
+          </div>
           <p className="text-xs text-muted-foreground">Material wasted in period</p>
         </CardContent>
       </Card>

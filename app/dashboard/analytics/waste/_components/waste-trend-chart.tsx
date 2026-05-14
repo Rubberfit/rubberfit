@@ -2,6 +2,8 @@
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface WasteAnalysis {
   period: string
@@ -16,6 +18,7 @@ interface WasteTrendChartProps {
 }
 
 export function WasteTrendChart({ data }: WasteTrendChartProps) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <Card>
       <CardHeader>
@@ -40,7 +43,11 @@ export function WasteTrendChart({ data }: WasteTrendChartProps) {
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Total Waste:</span>{" "}
-                          <span className="font-medium">{data.totalWaste.toFixed(1)} sq ft</span>
+                          <span className="font-medium tabular-nums">
+                            {formatAreaSqft(data.totalWaste, organizationPreferences, {
+                              precision: 1,
+                            })}
+                          </span>
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Waste Value:</span>{" "}
