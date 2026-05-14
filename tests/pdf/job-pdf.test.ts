@@ -210,7 +210,7 @@ describe("buildJobPdf with organizationPreferences (PR 2f)", () => {
         unitSystem: "metric",
         dateFormat: "dd/MM/yyyy",
         timeZone: "Europe/London",
-        locale: "en-GB",
+        locale: "es-MX",
         defaultCurrency: "GBP",
       },
     })
