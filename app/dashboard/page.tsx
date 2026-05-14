@@ -444,8 +444,12 @@ function buildUtilizationSeriesForPeriod(
     const start = bucketStart + i * bucketMs
     const end = start + bucketMs
     // The bucket end-1 represents the last instant of the bucket
-    // window; format it in the user's zone so axis labels align with
-    // their day boundaries.
+    // window. Threading the operator's preferences down through
+    // buildUtilizationSeriesForPeriod is intentionally deferred to
+    // PR 2b — for now, axis labels render with the helper's defaults
+    // (America/Chicago), so non-Chicago operators may see a label
+    // that disagrees with their dashboard chrome by one bucket near
+    // midnight. Acceptable until the dashboard useEffect split lands.
     const label =
       bucketMode === "day"
         ? DAY_LABELS[(new Date(start).getDay() + 6) % 7]
