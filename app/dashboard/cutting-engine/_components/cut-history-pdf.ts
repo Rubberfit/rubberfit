@@ -1,5 +1,4 @@
 import jsPDF from "jspdf"
-import { format } from "date-fns"
 
 import { uploadCutPdfFromBrowser } from "@/src/infrastructure/services/cutPdfBrowserStorage"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
@@ -14,6 +13,10 @@ import {
   formatLengthInches,
   type UnitDisplayPreferencesInput,
 } from "@/src/application/preferences/user-unit-display"
+import {
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,13 +39,16 @@ export interface CutPdfData {
   fabScore: number
   cutDate: string
   /**
-   * Org-level unit preferences. Drives the sqft → m² conversion in
+   * Org-level print preferences. Drives the sqft → m² conversion in
    * the metrics table, KPI strip, offcut location/size/area columns,
    * dimension arrows around the stock-sheet diagram, and the stock
-   * summary line. Optional so legacy callers fall back to imperial;
-   * the production browser + server-recovery paths populate it.
+   * summary line. The date-format / time-zone / locale fields drive
+   * the cut-date stamp under the header divider via
+   * `formatUserDateTime`. Optional so legacy callers fall back to
+   * imperial / `MM/dd/yyyy` / `America/Chicago`; the production
+   * browser + server-recovery paths populate it.
    */
-  organizationPreferences?: UnitDisplayPreferencesInput
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -235,10 +241,12 @@ function addHeader(doc: jsPDF, data: CutPdfData): number {
   doc.setFontSize(8)
   doc.setTextColor(...GRAY_500)
   const dateY = ruleY + 4
-  // CR catch — `cutDate` is stored UTC; without the zone the printed
-  // stamp depended on the operator's browser locale. Render the
-  // local time + a zone abbreviation so the reader can disambiguate.
-  doc.text(format(new Date(data.cutDate), "MMMM dd, yyyy  HH:mm zzz"), MARGIN, dateY)
+  // `cutDate` is stored UTC; the helper renders date + localized
+  // time + short zone in the operator's `dateFormat` / `timeZone` /
+  // `locale`. The earlier `MMMM dd, yyyy  HH:mm zzz` literal hard-
+  // pinned the date format and depended on the runtime locale —
+  // formatUserDateTime closes both.
+  doc.text(formatUserDateTime(data.cutDate, data.organizationPreferences) || "—", MARGIN, dateY)
 
   return dateY + 6
 }
@@ -1313,7 +1321,7 @@ export async function buildAndUploadCutPdf(
   selectedTemplates: PartTemplate[],
   tags: Map<string, string>,
   layouts?: LayoutModel[],
-  organizationPreferences?: UnitDisplayPreferencesInput
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 ): Promise<string | null> {
   // Prefer vector layout diagrams when available — fall back to legacy DOM SVG
   // scraping only when called without layouts (e.g. very old call sites).

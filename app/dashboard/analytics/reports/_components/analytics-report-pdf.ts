@@ -1,4 +1,3 @@
-import { format } from "date-fns"
 import { jsPDF } from "jspdf"
 
 import {
@@ -24,6 +23,11 @@ import {
   getDisplayAreaValue,
   type UnitDisplayPreferencesInput,
 } from "@/src/application/preferences/user-unit-display"
+import {
+  formatUserDate,
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 
 /**
  * Analytics Report PDF — Phase 7 PR 5.
@@ -65,12 +69,15 @@ export interface AnalyticsReportInput {
   /** Recent cuts — caller slices to whatever count they want surfaced. */
   readonly recentCuts: ReadonlyArray<CutWithRoll>
   /**
-   * Org-level unit preferences. Drives the KPI / table / cut-dimension
-   * unit labels + numeric conversion. Optional so legacy callers fall
-   * back to imperial; the production call site populates it from
+   * Org-level print preferences. Unit fields drive the KPI / table /
+   * cut-dimension unit labels + numeric conversion; date fields drive
+   * the period range header, recent-cut date cells, and the footer
+   * "Generated" timestamp via `formatUserDate` / `formatUserDateTime`.
+   * Optional so legacy callers fall back to imperial / `MM/dd/yyyy` /
+   * `America/Chicago`; the production call site populates it from
    * `useOrganizationPreferences()`.
    */
-  readonly organizationPreferences?: UnitDisplayPreferencesInput
+  readonly organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 }
 
 function formatMoney(value: number): string {
@@ -111,7 +118,14 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
   doc.setFont(TYPE.caption.family, TYPE.caption.weight)
   doc.setFontSize(TYPE.caption.size)
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
-  const dateRange = `${format(input.startDate, "MMM d, yyyy")} – ${format(input.endDate, "MMM d, yyyy")}`
+  // Period range now uses the operator's `dateFormat` / `timeZone`.
+  // Earlier `MMM d, yyyy` was outside the picker's three-option set
+  // (`MM/dd/yyyy` | `dd/MM/yyyy` | `yyyy-MM-dd`); aligning with the
+  // picker keeps the chip-adjacent meta consistent with every other
+  // date stamp on the report.
+  const periodStart = formatUserDate(input.startDate, input.organizationPreferences) || "—"
+  const periodEnd = formatUserDate(input.endDate, input.organizationPreferences) || "—"
+  const dateRange = `${periodStart} – ${periodEnd}`
   const dateUpper = dateRange.toUpperCase()
   doc.text(dateUpper, PAGE_MARGIN, y)
   const dateWidth = doc.getTextWidth(dateUpper)
@@ -232,7 +246,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
       const waste = Number.isFinite(wasteNum) ? wasteNum : 0
       return {
         cells: [
-          format(new Date(cut.created_at), "MM/dd/yyyy"),
+          formatUserDate(cut.created_at, input.organizationPreferences) || "—",
           cut.roll?.material_type ?? "Unknown",
           formatDimensionsInches([cut.cut_width, cut.cut_length], unitPreferences),
           String(cut.quantity),
@@ -256,7 +270,11 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
     })
   }
 
-  const ts = format(new Date(), "yyyy-MM-dd HH:mm")
+  // Footer "Generated" timestamp — operator-voice via formatUserDateTime
+  // so the printed artifact matches what the rest of the report shows.
+  // Filename ISO timestamp (in `report-generator.ts`) stays untouched
+  // for spreadsheet stability.
+  const ts = formatUserDateTime(new Date(), input.organizationPreferences) || "—"
   stampFooterOnEveryPage(doc, "customer", () => `${input.reportName} · ${ts}`)
 
   return doc

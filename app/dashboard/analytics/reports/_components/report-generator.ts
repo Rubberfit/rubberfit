@@ -7,6 +7,7 @@ import { rollService } from "@/src/infrastructure/services/rollService"
 import { type AnalyticsMaterialRow, buildAnalyticsReportPdf } from "./analytics-report-pdf"
 import type { ReportTemplate } from "./report-templates"
 import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"): {
   startDate: Date
@@ -81,7 +82,7 @@ export async function generateReport(
   reportId: string,
   reportTemplates: ReportTemplate[],
   reportPeriod: "daily" | "weekly" | "monthly" | "quarterly",
-  organizationPreferences?: UnitDisplayPreferencesInput
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 ): Promise<void> {
   const report = reportTemplates.find((r) => r.id === reportId)
   if (!report) throw new Error("Report template not found")

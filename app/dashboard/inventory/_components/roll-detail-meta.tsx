@@ -3,13 +3,8 @@
 import { MapPin } from "lucide-react"
 
 import type { Roll } from "@/src/infrastructure/models/supabase"
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—"
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString()
-}
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 
 function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—"
@@ -46,6 +41,10 @@ interface RollDetailMetaProps {
  * parent stays under the `max-lines-per-function` budget.
  */
 export function RollDetailMeta({ roll }: RollDetailMetaProps) {
+  // Inventory side-drawer is viewer UI — per the operator-seeds-prints
+  // ruling the "Received" cell follows the viewer's per-user dateFormat,
+  // not the org. PDF / scan / export surfaces stay org-driven elsewhere.
+  const userPreferences = useUserPreferences()
   return (
     <section className="px-6 py-5">
       <div className="mb-2 flex items-center gap-2">
@@ -55,7 +54,10 @@ export function RollDetailMeta({ roll }: RollDetailMetaProps) {
       <dl className="divide-y divide-border-subtle">
         <MetaRow label="Location" value={roll.location ?? "—"} />
         <MetaRow label="Supplier" value={roll.supplier ?? "—"} />
-        <MetaRow label="Received" value={formatDate(roll.date_received)} />
+        <MetaRow
+          label="Received"
+          value={formatUserDate(roll.date_received, userPreferences) || "—"}
+        />
         <MetaRow label="Cost / sqft" value={formatCurrency(roll.cost_per_sqft)} />
         <MetaRow label="Notes" value={roll.notes ?? "—"} />
       </dl>

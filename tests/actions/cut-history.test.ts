@@ -64,6 +64,20 @@ vi.mock("@/src/infrastructure/services/cutHistoryService", () => ({
   getCutHistoryRowsForExport: getCutHistoryRowsForExportMock,
 }))
 
+// PR 2e — the action loads org print prefs to drive date / unit
+// rendering in the CSV. Default mock returns undefined so the test
+// suite's CSV expectations exercise the helper-defaults path
+// (imperial / MM/dd/yyyy / America/Chicago). Typed as
+// `() => Promise<unknown>` so per-test overrides can pass either
+// undefined or a populated OrganizationPreferences shape.
+const orgPrefsServiceMock = vi.hoisted(() => ({
+  getForOrganization: vi.fn<(id: string) => Promise<unknown>>(),
+}))
+const resolveUseCaseMock = vi.hoisted(() => vi.fn(() => orgPrefsServiceMock))
+vi.mock("@/di/resolve", () => ({
+  resolveUseCase: resolveUseCaseMock,
+}))
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }))
@@ -100,7 +114,17 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
     requirePermissionMock.mockReturnValue(undefined)
     requireFeatureMock.mockResolvedValue(undefined)
-    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
+    // PR 2e: action now reads `subscription.organizationId` to look
+    // up org print prefs. Provide a stable id so the lookup runs.
+    requireActiveSubscriptionMock.mockResolvedValue({
+      kind: "allowed",
+      organizationId: "00000000-0000-0000-0000-0000000000aa",
+    })
+    // Default: prefs lookup returns undefined → CSV uses helper
+    // defaults (imperial / MM/dd/yyyy / America/Chicago). Individual
+    // tests override per-call to exercise non-default org prefs.
+    orgPrefsServiceMock.getForOrganization.mockResolvedValue(undefined)
+    resolveUseCaseMock.mockReturnValue(orgPrefsServiceMock)
   })
 
   it("calls auth + permission + active-sub + feature gates", async () => {
@@ -122,8 +146,9 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
 
     expect(result.ok).toBe(true)
     if (result.ok) {
+      // PR 2e: imperial header now interpolates getAreaUnitLabel ("sq ft").
       expect(result.csv).toBe(
-        "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (ft²),Reuse (ft²),Scrap (ft²),Fab Score"
+        "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (sq ft),Reuse (sq ft),Scrap (sq ft),Fab Score"
       )
     }
     expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
@@ -177,8 +202,12 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
 
     expect(lines).toHaveLength(2)
     const row = lines[1]
-    expect(row).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},Rectangle,/)
-    expect(row).toContain(`"60"" × 240"" × 0.5"""`)
+    // PR 2e: date now flows through formatUserDateTime defaulting to
+    // MM/dd/yyyy + localized time + short zone (America/Chicago), and
+    // dimensions through formatDimensionsInches (formatter trims
+    // trailing zeros so 60 / 240 / 0.5 render at native width).
+    expect(row).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} (AM|PM) [A-Z]{2,4},Rectangle,/)
+    expect(row).toContain("60 × 240 × 0.5 in")
     expect(row).toMatch(/,4,4,12\.34,1\.50,0\.25,87%$/)
     expect(getCutHistoryRowsForExportMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1])
   })
@@ -205,7 +234,9 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error("expected ok result")
-    expect(result.csv).toContain(`"60"" × 240"" × 0.5"""`)
+    // PR 2e: dimension cell uses formatDimensionsInches (no embedded
+    // quote marks → no csvCell escape needed; trailing zeros trimmed).
+    expect(result.csv).toContain("60 × 240 × 0.5 in")
     expect(result.csv).toContain("Part 999")
   })
 
@@ -213,9 +244,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     bindServiceReturning(null, "connection refused")
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
-    await expect(exportCutHistoryCsv({ cutIds: [CUT_ID_1] })).rejects.toThrow(
-      /connection refused/
-    )
+    await expect(exportCutHistoryCsv({ cutIds: [CUT_ID_1] })).rejects.toThrow(/connection refused/)
   })
 
   it("threads cutIds through to the service unchanged", async () => {
@@ -223,10 +252,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
     await exportCutHistoryCsv({ cutIds: [CUT_ID_1, CUT_ID_2] })
 
-    expect(getCutHistoryRowsForExportMock).toHaveBeenCalledWith(DB_SENTINEL, [
-      CUT_ID_1,
-      CUT_ID_2,
-    ])
+    expect(getCutHistoryRowsForExportMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1, CUT_ID_2])
   })
 
   it("rejects non-UUID cutIds via Zod", async () => {
@@ -235,5 +261,97 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
 
     await expect(exportCutHistoryCsv({ cutIds: ["not-a-uuid"] })).rejects.toThrow()
     expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
+  })
+
+  // PR 2e — when the org has metric + dd/MM/yyyy + Europe/London prefs
+  // configured, both the header and every cell flips to match. Header
+  // gets `m²`, dimensions get cm with the unit-at-end rule, areas get
+  // their NIST sqft→m² conversion, and the date gets the operator's
+  // dateFormat / timeZone / locale.
+  it("renders the CSV in the operator's units + date format when org prefs are non-default", async () => {
+    orgPrefsServiceMock.getForOrganization.mockResolvedValueOnce({
+      organizationId: "00000000-0000-0000-0000-0000000000aa",
+      defaultCurrency: "GBP",
+      timeZone: "Europe/London",
+      dateFormat: "dd/MM/yyyy",
+      unitSystem: "metric",
+      lowStockThresholdSqft: 50,
+      locale: "en-US",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    })
+    bindServiceReturning([
+      {
+        id: CUT_ID_1,
+        cut_date: "2026-04-22T15:30:00.000Z",
+        part_id: 1,
+        cut_width: 60,
+        cut_length: 240,
+        cut_thickness: 0.5,
+        cut_amount: 4,
+        parts_completed: 4,
+        material_used_sqft: 12.34,
+        reusable_offset_sqft: 1.5,
+        scrap_sqft: 0.25,
+        fab_score: 0.873,
+      },
+    ])
+
+    const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
+    const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error("expected ok result")
+    const [headerLine, dataLine] = result.csv.split("\n")
+
+    // Header: m² substitutes for sq ft via getAreaUnitLabel("metric").
+    expect(headerLine).toBe(
+      "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (m²),Reuse (m²),Scrap (m²),Fab Score"
+    )
+    // Date: dd/MM/yyyy + locale-formatted GMT/BST time. Match shape,
+    // not exact zone label (varies seasonally).
+    expect(dataLine).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} (AM|PM) [A-Z]+\+?\d*,Rectangle,/)
+    // Dimensions in cm with unit-at-end. Helper trims trailing zeros
+    // so 60 in → "152.4 cm", 240 in → "609.6 cm", 0.5 in → "1.27 cm".
+    expect(dataLine).toContain("152.4 × 609.6 × 1.27 cm")
+    // Areas: NIST conversion 0.09290304 m²/sqft. 12.34 → 1.146...,
+    // formatted at fixed 2 decimals.
+    expect(dataLine).toContain(",1.15,0.14,0.02,87%")
+  })
+
+  it("falls back to imperial / MM-dd defaults when org prefs lookup throws", async () => {
+    orgPrefsServiceMock.getForOrganization.mockRejectedValueOnce(new Error("no prefs row"))
+    bindServiceReturning([
+      {
+        id: CUT_ID_1,
+        cut_date: "2026-04-22T15:30:00.000Z",
+        part_id: 1,
+        cut_width: 60,
+        cut_length: 240,
+        cut_thickness: 0.5,
+        cut_amount: 1,
+        parts_completed: 1,
+        material_used_sqft: 1,
+        reusable_offset_sqft: 0,
+        scrap_sqft: 0,
+        fab_score: 0.5,
+      },
+    ])
+
+    const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const result = await exportCutHistoryCsv({ cutIds: [CUT_ID_1] })
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error("expected ok result")
+      // Imperial header retained on lookup failure.
+      expect(result.csv.split("\n")[0]).toContain("Mat Used (sq ft)")
+      // Logged for observability.
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[exportCutHistoryCsv] failed to resolve org print prefs",
+        expect.any(Error)
+      )
+    } finally {
+      consoleSpy.mockRestore()
+    }
   })
 })

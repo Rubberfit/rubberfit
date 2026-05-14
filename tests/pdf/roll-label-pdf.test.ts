@@ -33,6 +33,8 @@ vi.mock("bwip-js/browser", () => ({
 }))
 
 import { buildRollLabelPdf } from "@/app/dashboard/inventory/_components/roll-label-pdf"
+import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 // `Roll["status"]` typed at the binding so the literal narrows
 // without an `as const` cast (CodeRabbit catch — no-cast rule
@@ -154,5 +156,33 @@ describe("buildRollLabelPdf", () => {
     // dimensions strings have the same character count after Kimi's
     // unit-at-end + precision 3 rule. The bytes need not differ.
     // We just confirm the build doesn't throw for either system.
+  })
+
+  // PR 2e — accepts the unit + date intersection without throwing.
+  // The page-header timestamp now flows through formatUserDateTime;
+  // the date contract is covered exhaustively by user-date-format
+  // unit tests, so the smoke here just verifies the option threads
+  // end-to-end (single + multi-roll headers).
+  it("accepts orgPrefs date fields and renders both single and multi-roll headers", () => {
+    const dateAndUnitPrefs = {
+      unitSystem: "metric",
+      dateFormat: "dd/MM/yyyy",
+      timeZone: "Europe/London",
+      locale: "en-US",
+    } satisfies UnitDisplayPreferencesInput & UserDatePreferencesInput
+    const singleDoc = buildRollLabelPdf([makeRoll()], {
+      organizationPreferences: dateAndUnitPrefs,
+    })
+    const multiDoc = buildRollLabelPdf(
+      [
+        makeRoll({ part_number: "RF-A" }),
+        makeRoll({ part_number: "RF-B" }),
+        makeRoll({ part_number: "RF-C" }),
+      ],
+      { organizationPreferences: dateAndUnitPrefs }
+    )
+    expect(singleDoc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+    expect(multiDoc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+    expect(multiDoc.getNumberOfPages()).toBe(1)
   })
 })

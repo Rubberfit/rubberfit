@@ -100,4 +100,28 @@ describe("buildAnalyticsReportPdf", () => {
   it("defaults to imperial when organizationPreferences is omitted", () => {
     expect(() => buildAnalyticsReportPdf(makeInput())).not.toThrow()
   })
+
+  // PR 2e — org-level date prefs now drive the period range, the
+  // recent-cut date cells, and the footer "Generated" stamp. The
+  // contract is exercised end-to-end via formatUserDate /
+  // formatUserDateTime; the rendered text isn't introspected (jsPDF
+  // text streams are opaque under the test runner) but the build
+  // must accept the full intersection without throwing across
+  // every supported dateFormat.
+  it("accepts the unit + date intersection across each dateFormat", () => {
+    const formats = ["MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd"] as const
+    for (const dateFormat of formats) {
+      const doc = buildAnalyticsReportPdf(
+        makeInput({
+          organizationPreferences: {
+            unitSystem: "metric",
+            dateFormat,
+            timeZone: "Europe/London",
+            locale: "en-US",
+          },
+        })
+      )
+      expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+    }
+  })
 })
