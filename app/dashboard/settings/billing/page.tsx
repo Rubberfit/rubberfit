@@ -1,9 +1,9 @@
 import Link from "next/link"
 
 import { getBillingSummary, type BillingSummaryData } from "@/app/actions/billing-summary"
-import { getUserPreferences } from "@/app/actions/user-preferences"
+import { getOrganizationPreferences } from "@/app/actions/organization-preferences"
 import { formatUserDate } from "@/src/application/preferences/user-date-format"
-import { buildFallbackUserPreferences } from "@/src/infrastructure/models/user-preferences"
+import { buildFallbackOrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
 
 import { StatusPill } from "@/app/components/billing/StatusPill"
 import { ManageSubscriptionButton } from "./_components/manage-subscription-button"
@@ -50,12 +50,21 @@ const TIER_TAGLINES: Record<(typeof RETAIL_TIERS)[number], string> = {
  * Portal session via `createBillingPortalSession`.
  */
 export default async function BillingPage() {
-  const [data, prefsResult] = await Promise.all([getBillingSummary(), getUserPreferences()])
-  const preferences = "data" in prefsResult ? prefsResult.data : buildFallbackUserPreferences()
+  // PR 2c (operator-seeds-prints ruling): the renewal date renders
+  // in the workspace's chosen dateFormat — billing dates are a
+  // shared / printed surface and shouldn't shape-shift based on
+  // which user happens to be viewing the page. The not_provisioned /
+  // no_organization branches fall back to canonical defaults so the
+  // page is still renderable when the provision trigger hasn't fired.
+  const [data, prefsResult] = await Promise.all([
+    getBillingSummary(),
+    getOrganizationPreferences(),
+  ])
+  const preferences =
+    "data" in prefsResult ? prefsResult.data : buildFallbackOrganizationPreferences()
   const interval: "monthly" | "annual" = data.billingInterval ?? "monthly"
   const isEnterprise = data.tier === "enterprise"
-  // Use the operator's dateFormat so renewal here matches every other
-  // date in the dashboard. Falls back to "—" when no period is on file.
+  // Falls back to "—" when no period is on file.
   const renewalDate = data.currentPeriodEnd
     ? formatUserDate(data.currentPeriodEnd, preferences) || "—"
     : "—"
