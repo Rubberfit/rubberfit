@@ -7,6 +7,16 @@ import { toast } from "sonner"
 
 import { updateUserPreferences } from "@/app/actions/user-preferences"
 import { setLocale as setLocaleAction } from "@/app/actions/locale"
+import {
+  SUPPORTED_CURRENCIES,
+  SUPPORTED_DATE_FORMATS,
+  SUPPORTED_LOCALES,
+  SUPPORTED_TIME_ZONES,
+  isSupportedCurrency,
+  isSupportedDateFormat,
+  isSupportedLocale,
+  isSupportedTimeZone,
+} from "@/src/application/preferences/constants"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
@@ -22,33 +32,9 @@ interface RegionalSectionProps {
   onSaved?: (next: UserPreferences) => void
 }
 
-type AppLocale = UserPreferences["locale"]
-type AppCurrency = UserPreferences["defaultCurrency"]
-type AppDateFormat = UserPreferences["dateFormat"]
-type AppTimeZone = UserPreferences["timeZone"]
-
-const TIME_ZONE_VALUES: readonly AppTimeZone[] = [
-  "America/Chicago",
-  "America/New_York",
-  "America/Los_Angeles",
-  "America/Denver",
-  "America/Phoenix",
-  "Europe/London",
-  "Europe/Paris",
-  "Asia/Tokyo",
-]
-
-function isAppLocale(value: string): value is AppLocale {
-  return value === "en-US" || value === "es-MX"
-}
-function isAppCurrency(value: string): value is AppCurrency {
-  return value === "USD" || value === "EUR" || value === "GBP" || value === "CAD"
-}
-function isAppDateFormat(value: string): value is AppDateFormat {
-  return value === "MM/dd/yyyy" || value === "dd/MM/yyyy" || value === "yyyy-MM-dd"
-}
-function isAppTimeZone(value: string): value is AppTimeZone {
-  return (TIME_ZONE_VALUES as readonly string[]).includes(value)
+const LOCALE_LABELS: Record<UserPreferences["locale"], string> = {
+  "en-US": "English (US)",
+  "es-MX": "Español (México)",
 }
 
 export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) {
@@ -138,15 +124,18 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
                 id="language"
                 value={draft.locale}
                 onChange={(e) => {
-                  if (isAppLocale(e.target.value)) {
+                  if (isSupportedLocale(e.target.value)) {
                     const next = e.target.value
                     setDraft((prev) => ({ ...prev, locale: next }))
                   }
                 }}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
-                <option value="en-US">English (US)</option>
-                <option value="es-MX">Español (México)</option>
+                {SUPPORTED_LOCALES.map((value) => (
+                  <option key={value} value={value}>
+                    {LOCALE_LABELS[value]}
+                  </option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
                 ▼
@@ -159,17 +148,18 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
                 id="currency"
                 value={draft.defaultCurrency}
                 onChange={(e) => {
-                  if (isAppCurrency(e.target.value)) {
+                  if (isSupportedCurrency(e.target.value)) {
                     const next = e.target.value
                     setDraft((prev) => ({ ...prev, defaultCurrency: next }))
                   }
                 }}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="CAD">CAD</option>
+                {SUPPORTED_CURRENCIES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
                 ▼
@@ -190,21 +180,18 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
                 id="timeZone"
                 value={draft.timeZone}
                 onChange={(e) => {
-                  if (isAppTimeZone(e.target.value)) {
+                  if (isSupportedTimeZone(e.target.value)) {
                     const next = e.target.value
                     setDraft((prev) => ({ ...prev, timeZone: next }))
                   }
                 }}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
-                <option value="America/Chicago">America/Chicago</option>
-                <option value="America/New_York">America/New_York</option>
-                <option value="America/Los_Angeles">America/Los_Angeles</option>
-                <option value="America/Denver">America/Denver</option>
-                <option value="America/Phoenix">America/Phoenix</option>
-                <option value="Europe/London">Europe/London</option>
-                <option value="Europe/Paris">Europe/Paris</option>
-                <option value="Asia/Tokyo">Asia/Tokyo</option>
+                {SUPPORTED_TIME_ZONES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
                 ▼
@@ -223,16 +210,18 @@ export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) 
                 id="dateFormat"
                 value={draft.dateFormat}
                 onChange={(e) => {
-                  if (isAppDateFormat(e.target.value)) {
+                  if (isSupportedDateFormat(e.target.value)) {
                     const next = e.target.value
                     setDraft((prev) => ({ ...prev, dateFormat: next }))
                   }
                 }}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
-                <option value="MM/dd/yyyy">MM/dd/yyyy</option>
-                <option value="dd/MM/yyyy">dd/MM/yyyy</option>
-                <option value="yyyy-MM-dd">yyyy-MM-dd</option>
+                {SUPPORTED_DATE_FORMATS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
                 ▼

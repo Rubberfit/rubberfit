@@ -56,6 +56,12 @@ async function openGeneralSettings(page: Page): Promise<void> {
 }
 
 test.describe("General Settings + i18n — happy path", () => {
+  // Tests share a single provisioned user/org via beforeAll and mutate
+  // persistent settings (currency, locale, unit-system). Force serial
+  // execution so concurrent workers don't trample each other when
+  // playwright.config.ts is run with fullyParallel: true.
+  test.describe.configure({ mode: "serial" })
+
   let provisioned: ProvisionedUser | undefined
 
   test.beforeAll(async () => {
@@ -148,6 +154,26 @@ test.describe("General Settings + i18n — happy path", () => {
     // threshold explainer flips its unit label too (50 sqft ≈ 4.65 m²).
     await expect(page.getByText(/6\.69 m²/)).toBeVisible()
     await expect(page.getByText(/4\.65 m²/i)).toBeVisible()
+
+    // Persist + reload + verify the unit-system flip survives a round
+    // trip. Without this, a broken write path could let the preview
+    // assertions pass while the DB silently rejects the update.
+    const enabledSave = page
+      .getByRole("button", { name: /^Save$/ })
+      .and(page.locator(":not([disabled])"))
+    await enabledSave.first().click()
+    await expect(page.getByText(/Saved|Guardado/i).first()).toBeVisible({ timeout: 10_000 })
+    await page.reload()
+    await openGeneralSettings(page)
+    await expect(page.locator("#unitSystem")).toHaveValue("metric")
+
+    // Reset for subsequent suites.
+    await page.locator("#unitSystem").selectOption("imperial")
+    const resetSave = page
+      .getByRole("button", { name: /^Save$/ })
+      .and(page.locator(":not([disabled])"))
+    await resetSave.first().click()
+    await expect(page.getByText(/Saved|Guardado/i).first()).toBeVisible({ timeout: 10_000 })
   })
 })
 

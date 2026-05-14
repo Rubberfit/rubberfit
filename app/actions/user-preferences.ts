@@ -3,6 +3,13 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
+import {
+  SUPPORTED_CURRENCIES,
+  SUPPORTED_DATE_FORMATS,
+  SUPPORTED_LOCALES,
+  SUPPORTED_TIME_ZONES,
+  SUPPORTED_UNIT_SYSTEMS,
+} from "@/src/application/preferences/constants"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import { userPreferencesService } from "@/src/infrastructure/services/userPreferencesService"
 
@@ -11,27 +18,16 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 
 const GENERAL_SETTINGS_PATH = "/dashboard/settings/general"
 
-// Mirrors the time_zone CHECK constraint in migration
-// 20260514000002_create_user_preferences.sql. Extend both sides
-// together when adding a zone.
-const ALLOWED_TIME_ZONES = [
-  "America/Chicago",
-  "America/New_York",
-  "America/Los_Angeles",
-  "America/Denver",
-  "America/Phoenix",
-  "Europe/London",
-  "Europe/Paris",
-  "Asia/Tokyo",
-] as const
-
+// All enum allow-lists come from the shared constants module so the
+// Zod schema, the UI type guards, and the DB CHECK constraints can't
+// drift independently.
 const UpdatePreferencesSchema = z.object({
-  defaultCurrency: z.enum(["USD", "EUR", "GBP", "CAD"]).optional(),
-  timeZone: z.enum(ALLOWED_TIME_ZONES).optional(),
-  dateFormat: z.enum(["MM/dd/yyyy", "dd/MM/yyyy", "yyyy-MM-dd"]).optional(),
-  unitSystem: z.enum(["imperial", "metric"]).optional(),
+  defaultCurrency: z.enum(SUPPORTED_CURRENCIES).optional(),
+  timeZone: z.enum(SUPPORTED_TIME_ZONES).optional(),
+  dateFormat: z.enum(SUPPORTED_DATE_FORMATS).optional(),
+  unitSystem: z.enum(SUPPORTED_UNIT_SYSTEMS).optional(),
   lowStockThresholdSqft: z.number().finite().nonnegative().max(1_000_000).optional(),
-  locale: z.enum(["en-US", "es-MX"]).optional(),
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 })
 
 export type GetUserPreferencesResult = { data: UserPreferences } | { error: "not_provisioned" }

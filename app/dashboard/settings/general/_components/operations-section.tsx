@@ -5,6 +5,11 @@ import { useTranslations, useLocale } from "next-intl"
 import { toast } from "sonner"
 
 import { updateUserPreferences } from "@/app/actions/user-preferences"
+import {
+  SUPPORTED_UNIT_SYSTEMS,
+  isSupportedUnitSystem,
+  type UnitSystem,
+} from "@/src/application/preferences/constants"
 import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
@@ -20,12 +25,11 @@ interface OperationsSectionProps {
   onSaved?: (next: UserPreferences) => void
 }
 
-type UnitSystem = "imperial" | "metric"
-
 const SQFT_PER_SQM = 10.7639
 
-function isUnitSystem(value: string): value is UnitSystem {
-  return value === "imperial" || value === "metric"
+const UNIT_SYSTEM_LABEL_KEY: Record<UnitSystem, "operations.imperial" | "operations.metric"> = {
+  imperial: "operations.imperial",
+  metric: "operations.metric",
 }
 
 function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): string {
@@ -121,14 +125,17 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
                 id="unitSystem"
                 value={draft.unitSystem}
                 onChange={(e) => {
-                  if (isUnitSystem(e.target.value)) {
+                  if (isSupportedUnitSystem(e.target.value)) {
                     handleUnitSystemChange(e.target.value)
                   }
                 }}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
-                <option value="imperial">{t("operations.imperial")}</option>
-                <option value="metric">{t("operations.metric")}</option>
+                {SUPPORTED_UNIT_SYSTEMS.map((value) => (
+                  <option key={value} value={value}>
+                    {t(UNIT_SYSTEM_LABEL_KEY[value])}
+                  </option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
                 ▼

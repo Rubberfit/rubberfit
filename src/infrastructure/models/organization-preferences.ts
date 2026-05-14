@@ -1,49 +1,35 @@
 /**
- * Domain model for organization_preferences — regional + operational
- * defaults surfaced in /dashboard/settings/general.
+ * Domain model for organization_preferences — created by migration
+ * 20260514000001_create_organization_preferences.sql.
  *
- * Migration: 20260514000001_create_organization_preferences.sql
+ * The table is currently a parking lot for a future workspace-defaults
+ * admin surface; reads + writes today flow through user_preferences
+ * (see src/infrastructure/models/user-preferences.ts). The model is
+ * kept here so we can revive it without a fresh migration.
+ *
+ * Field types come from the single source of truth in
+ * src/application/preferences/constants.ts.
  */
 
-export type SupportedCurrency = "USD" | "EUR" | "GBP" | "CAD"
-export type SupportedDateFormat = "MM/dd/yyyy" | "dd/MM/yyyy" | "yyyy-MM-dd"
-export type UnitSystem = "imperial" | "metric"
-export type SupportedLocale = "en-US" | "es-MX"
+import type {
+  SupportedCurrency,
+  SupportedDateFormat,
+  SupportedLocale,
+  SupportedTimeZone,
+  UnitSystem,
+} from "@/src/application/preferences/constants"
 
-// Mirrors the time_zone CHECK constraint in migration
-// 20260514000001_create_organization_preferences.sql. The DB enforces
-// allowlist membership; this union keeps callers honest at compile time.
-// Extend both sides together when adding a zone.
-export type SupportedTimeZone =
-  | "America/Chicago"
-  | "America/New_York"
-  | "America/Los_Angeles"
-  | "America/Denver"
-  | "America/Phoenix"
-  | "Europe/London"
-  | "Europe/Paris"
-  | "Asia/Tokyo"
-
-export const SUPPORTED_CURRENCIES: readonly SupportedCurrency[] = [
-  "USD",
-  "EUR",
-  "GBP",
-  "CAD",
-] as const
-
-export const SUPPORTED_DATE_FORMATS: readonly SupportedDateFormat[] = [
-  "MM/dd/yyyy",
-  "dd/MM/yyyy",
-  "yyyy-MM-dd",
-] as const
-
-export const SUPPORTED_UNIT_SYSTEMS: readonly UnitSystem[] = ["imperial", "metric"] as const
-
-export const SUPPORTED_LOCALES: readonly SupportedLocale[] = ["en-US", "es-MX"] as const
+export type {
+  SupportedCurrency,
+  SupportedDateFormat,
+  SupportedLocale,
+  SupportedTimeZone,
+  UnitSystem,
+} from "@/src/application/preferences/constants"
 
 export const DEFAULT_ORGANIZATION_PREFERENCES = {
   defaultCurrency: "USD" as SupportedCurrency,
-  timeZone: "America/Chicago",
+  timeZone: "America/Chicago" as SupportedTimeZone,
   dateFormat: "MM/dd/yyyy" as SupportedDateFormat,
   unitSystem: "imperial" as UnitSystem,
   lowStockThresholdSqft: 50,

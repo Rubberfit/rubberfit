@@ -16,7 +16,7 @@ import type {
   SupportedLocale,
   SupportedTimeZone,
   UnitSystem,
-} from "./organization-preferences"
+} from "@/src/application/preferences/constants"
 
 export const DEFAULT_USER_PREFERENCES = {
   defaultCurrency: "USD" as SupportedCurrency,
