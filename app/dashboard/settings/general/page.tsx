@@ -1,38 +1,68 @@
-"use client"
+import { getTranslations } from "next-intl/server"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
+import { getOrganizationPreferences } from "@/app/actions/organization-preferences"
 
 import { OperationsSection } from "./_components/operations-section"
 import { OrganizationSection } from "./_components/organization-section"
 import { RegionalSection } from "./_components/regional-section"
+import { WorkspaceScopeStrip } from "./_components/workspace-scope-strip"
 
 /**
- * General settings — Phase 2 PR 2.
+ * General settings — PR 1 of the settings + i18n rollout.
  *
- * Three sections, each owning its own draft / baseline / saved-at
- * state. Per-section Save / Cancel + Sonner toast confirmation,
- * driven by the new `app/components/ui/forms/` primitives.
+ * Server Component that hydrates the page with the caller's org
+ * preferences row + their admin flag, then defers picker UI to the
+ * section client components. The next-intl client provider wraps the
+ * tree at the root layout, so client components below pick up
+ * `useTranslations` directly.
  *
- * State is in-memory scaffold today (no backend service); per-section
- * save handlers fire `toast.success` and lock in the section's
- * "last saved" marker so the row collapses back to a clean state.
- * Wiring to the real org-settings service is a follow-up task.
+ * Non-admin lane (read-only views + disabled controls) is rendered
+ * for completeness even though personal-override writes ship in a
+ * follow-up PR — the chrome already signals scope, and the
+ * `Reset to workspace default` button is intentionally disabled.
  *
- * See `docs/superpowers/specs/2026-05-06-dashboard-phase2-design.md` §4.
+ * Source-of-truth scoping doc:
+ * .claude/handoff/codex-result-settings-i18n-scope-2026-05-13.md
  */
-export default function GeneralSettingsPage() {
+export default async function GeneralSettingsPage() {
+  const t = await getTranslations("settings.general")
+  const result = await getOrganizationPreferences()
+
+  if ("error" in result) {
+    return (
+      <PageShell variant="form">
+        <PageHeader
+          crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: t("pageTitle") }]}
+          title={t("pageTitle")}
+          subtitle={t("pageSubtitle")}
+        />
+        <div className="mx-auto w-full max-w-2xl pb-20">
+          <p className="font-[family-name:var(--font-sans)] text-[14px] text-[var(--color-ink-soft)]">
+            No workspace is attached to this account. Complete onboarding to set preferences.
+          </p>
+        </div>
+      </PageShell>
+    )
+  }
+
+  const { data: preferences, isAdmin } = result
+
   return (
     <PageShell variant="form">
       <PageHeader
-        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: "General" }]}
-        title="General"
-        subtitle="Organization, regional, and operational defaults applied across the workspace."
+        crumbs={[{ label: "Settings", href: "/dashboard/settings" }, { label: t("pageTitle") }]}
+        title={t("pageTitle")}
+        subtitle={t("pageSubtitle")}
       />
 
-      <div className="mx-auto w-full max-w-2xl space-y-10 pb-20">
-        <OrganizationSection isFirst />
-        <RegionalSection />
-        <OperationsSection />
+      <div className="mx-auto w-full max-w-2xl pb-20">
+        <WorkspaceScopeStrip isAdmin={isAdmin} />
+        <div className="space-y-10">
+          <OrganizationSection isFirst />
+          <RegionalSection preferences={preferences} isAdmin={isAdmin} />
+          <OperationsSection preferences={preferences} isAdmin={isAdmin} />
+        </div>
       </div>
     </PageShell>
   )

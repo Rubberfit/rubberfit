@@ -1,0 +1,52 @@
+{
+  "settings": {
+    "general": {
+      "pageTitle": "General",
+      "pageSubtitle": "Organization, regional, and operational defaults applied across the workspace.",
+      "scope": {
+        "workspaceDefault": "[ WORKSPACE DEFAULT ]",
+        "workspaceDefaultClause": "Edits apply to all members",
+        "personalOverride": "[ PERSONAL OVERRIDE ]",
+        "personalOverrideClause": "Edits apply only to your account",
+        "reset": "Reset to workspace default"
+      }
+    },
+    "regional": {
+      "title": "Regional",
+      "eyebrow": "REGIONAL",
+      "language": "Language",
+      "currency": "Currency",
+      "timeZone": "Time zone",
+      "dateFormat": "Date format",
+      "preview": "Preview:",
+      "current": "Current:",
+      "readonly": "Read-only — workspace defaults set by an admin"
+    },
+    "operations": {
+      "title": "Operations",
+      "eyebrow": "OPERATIONS",
+      "unitSystem": "Unit system",
+      "lowStockThreshold": "Low-stock threshold",
+      "imperial": "Imperial",
+      "metric": "Metric",
+      "referenceDimensions": "Reference dimensions",
+      "lowStockExplainer": "Alert when any material drops below {threshold} {unit}"
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "Saved",
+      "lastSaved": "Last saved {when}"
+    },
+    "errors": {
+      "forbidden": "You don't have permission to change workspace defaults.",
+      "unknown": "Couldn't save. Please try again."
+    },
+    "avatarMenu": {
+      "languageHeader": "LANGUAGE",
+      "english": "English (US)",
+      "spanish": "Español (México)"
+    }
+  }
+}

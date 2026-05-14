@@ -1,0 +1,52 @@
+{
+  "settings": {
+    "general": {
+      "pageTitle": "General",
+      "pageSubtitle": "Valores predeterminados de organización, región y operación aplicados en todo el espacio de trabajo.",
+      "scope": {
+        "workspaceDefault": "[ PREDETERMINADO DEL ESPACIO ]",
+        "workspaceDefaultClause": "Los cambios aplican a todos los miembros",
+        "personalOverride": "[ AJUSTE PERSONAL ]",
+        "personalOverrideClause": "Los cambios solo aplican a tu cuenta",
+        "reset": "Restablecer al predeterminado del espacio"
+      }
+    },
+    "regional": {
+      "title": "Regional",
+      "eyebrow": "REGIONAL",
+      "language": "Idioma",
+      "currency": "Moneda",
+      "timeZone": "Zona horaria",
+      "dateFormat": "Formato de fecha",
+      "preview": "Vista previa:",
+      "current": "Actual:",
+      "readonly": "Solo lectura — el administrador configuró los valores predeterminados del espacio"
+    },
+    "operations": {
+      "title": "Operaciones",
+      "eyebrow": "OPERACIONES",
+      "unitSystem": "Sistema de unidades",
+      "lowStockThreshold": "Umbral de stock bajo",
+      "imperial": "Imperial",
+      "metric": "Métrico",
+      "referenceDimensions": "Dimensiones de referencia",
+      "lowStockExplainer": "Alerta cuando cualquier material baje de {threshold} {unit}"
+    },
+    "actions": {
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "saved": "Guardado",
+      "lastSaved": "Guardado a las {when}"
+    },
+    "errors": {
+      "forbidden": "No tienes permiso para modificar la configuración del espacio de trabajo.",
+      "unknown": "Error al guardar. Intenta de nuevo."
+    },
+    "avatarMenu": {
+      "languageHeader": "IDIOMA",
+      "english": "English (US)",
+      "spanish": "Español (México)"
+    }
+  }
+}
