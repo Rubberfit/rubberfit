@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { RefreshCw } from "lucide-react"
 
@@ -41,39 +42,154 @@ export function POReconciliationTable({ applyRows, rollRows }: POReconciliationT
         title="Pending PO apply"
         description="Receipt rows where the INSERT committed but the PO quantity_received_sqm update never landed. Retry re-applies on the entity."
         rows={applyRows}
-        onRetry={onRetryPendingApply}
+        retryRow={retryPendingApplyRow}
+        bulkConfirmMessage="Retry all pending PO apply receipts? Already-reconciled rows are no-ops."
+        bulkLabel="Retry all pending apply"
       />
       <ReconciliationSection
         title="Pending roll creation"
         description="Applied receipts where the operator requested a roll but rollService.createRoll never succeeded (or its stamp never persisted)."
         rows={rollRows}
-        onRetry={onRetryPendingRollCreation}
+        retryRow={retryPendingRollCreationRow}
+        bulkConfirmMessage="Retry all pending roll-creation receipts? Already-reconciled rows are no-ops."
+        bulkLabel="Retry all pending roll creation"
       />
     </div>
   )
 }
 
+/**
+ * Result shape returned by a single per-row retry call. The section
+ * uses this to surface per-row toasts AND to feed the bulk summary.
+ */
+type RetryOutcome =
+  | { status: "success"; message?: string }
+  | { status: "info"; message?: string }
+  | { status: "failure"; error: Error }
+
 interface ReconciliationSectionProps {
   title: string
   description: string
   rows: ReadonlyArray<ReconciliationRowDto>
-  onRetry: (receiptId: string) => Promise<void>
+  /**
+   * Per-row retry executor. Returns a `RetryOutcome` describing how the
+   * call resolved so the section can render the per-row toast AND
+   * aggregate a bulk summary. Never throws.
+   */
+  retryRow: (receiptId: string) => Promise<RetryOutcome>
+  bulkConfirmMessage: string
+  bulkLabel: string
 }
 
-function ReconciliationSection({ title, description, rows, onRetry }: ReconciliationSectionProps) {
+function ReconciliationSection({
+  title,
+  description,
+  rows,
+  retryRow,
+  bulkConfirmMessage,
+  bulkLabel,
+}: ReconciliationSectionProps) {
+  const router = useRouter()
   const [pendingId, setPendingId] = React.useState<string | null>(null)
+  const [bulkProgress, setBulkProgress] = React.useState<{ done: number; total: number } | null>(
+    null
+  )
+  const isBulkRunning = bulkProgress !== null
+  const isAnyPending = pendingId !== null || isBulkRunning
+  const hasRows = rows.length > 0
 
-  const handleRetry = React.useCallback(
+  /**
+   * Shared retry entrypoint: calls `retryRow`, surfaces a per-row toast
+   * for the outcome, and returns the outcome for callers (the bulk loop)
+   * that want to aggregate results.
+   */
+  const runRetry = React.useCallback(
+    async (receiptId: string): Promise<RetryOutcome> => {
+      const outcome = await retryRow(receiptId)
+      if (outcome.status === "success") {
+        toast.success("Receipt re-applied", { description: outcome.message })
+      } else if (outcome.status === "info") {
+        toast.info("Already reconciled", { description: outcome.message })
+      } else {
+        toast.error("Reconcile failed", { description: outcome.error.message })
+      }
+      return outcome
+    },
+    [retryRow]
+  )
+
+  const handleRowRetry = React.useCallback(
     async (receiptId: string) => {
       setPendingId(receiptId)
       try {
-        await onRetry(receiptId)
+        await runRetry(receiptId)
       } finally {
         setPendingId(null)
       }
     },
-    [onRetry]
+    [runRetry]
   )
+
+  const handleBulkRetry = React.useCallback(async () => {
+    if (rows.length === 0) {
+      return
+    }
+    if (!window.confirm(bulkConfirmMessage)) {
+      return
+    }
+
+    const ids = rows.map((row) => row.receiptId)
+    const total = ids.length
+    setBulkProgress({ done: 0, total })
+
+    const failures: { receiptId: string; error: Error }[] = []
+    let successes = 0
+    let alreadyReconciled = 0
+
+    for (let i = 0; i < ids.length; i += 1) {
+      const receiptId = ids[i]
+      if (receiptId === undefined) {
+        continue
+      }
+      // Sequential so server cache invalidations don't stack up
+      // mid-flight and the operator sees consistent toast ordering.
+      const outcome = await runRetry(receiptId)
+      if (outcome.status === "success") {
+        successes += 1
+      } else if (outcome.status === "info") {
+        alreadyReconciled += 1
+      } else {
+        failures.push({ receiptId, error: outcome.error })
+      }
+      setBulkProgress({ done: i + 1, total })
+    }
+
+    setBulkProgress(null)
+
+    const summaryParts = [
+      `${successes} reconciled`,
+      alreadyReconciled > 0 ? `${alreadyReconciled} already done` : null,
+      failures.length > 0 ? `${failures.length} failed` : null,
+    ].filter((part): part is string => part !== null)
+    const summary = summaryParts.join(", ")
+
+    if (failures.length > 0) {
+      const failureIds = failures.map((f) => f.receiptId)
+      console.error("[po-reconciliation] bulk retry failures", failures)
+      toast.error(summary, {
+        description: `Failed receipt ids: ${failureIds.join(", ")}. Check console for error detail.`,
+      })
+    } else {
+      toast.success(summary, {
+        description: "Refreshing the dashboard to reflect cleared rows.",
+      })
+    }
+
+    // The action's revalidatePath already refreshes the route's cache;
+    // an explicit router.refresh() forces the RSC re-fetch so cleared
+    // rows disappear without a hard reload.
+    router.refresh()
+  }, [rows, bulkConfirmMessage, runRetry, router])
 
   const columns: ColumnDef<ReconciliationRowDto>[] = [
     {
@@ -124,8 +240,8 @@ function ReconciliationSection({ title, description, rows, onRetry }: Reconcilia
         <Button
           variant="outline"
           size="sm"
-          onClick={() => handleRetry(row.receiptId)}
-          disabled={pendingId !== null}
+          onClick={() => handleRowRetry(row.receiptId)}
+          disabled={isAnyPending}
           aria-label={`Retry receipt ${row.receiptId}`}
         >
           <RefreshCw
@@ -140,12 +256,31 @@ function ReconciliationSection({ title, description, rows, onRetry }: Reconcilia
     },
   ]
 
+  const bulkButtonLabel = isBulkRunning
+    ? `Retrying ${bulkProgress.done}/${bulkProgress.total}…`
+    : bulkLabel
+
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
         <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>
         <p className="text-sm text-muted-foreground">{description}</p>
       </header>
+      <div className="flex items-center justify-end">
+        <Button
+          variant="default"
+          size="sm"
+          onClick={handleBulkRetry}
+          disabled={!hasRows || isAnyPending}
+          aria-label={bulkLabel}
+        >
+          <RefreshCw
+            className={isBulkRunning ? "size-3.5 animate-spin" : "size-3.5"}
+            aria-hidden="true"
+          />
+          {bulkButtonLabel}
+        </Button>
+      </div>
       {rows.length === 0 ? (
         <EmptyState
           title="Nothing to reconcile"
@@ -163,43 +298,44 @@ function ReconciliationSection({ title, description, rows, onRetry }: Reconcilia
   )
 }
 
-async function onRetryPendingApply(receiptId: string): Promise<void> {
+async function retryPendingApplyRow(receiptId: string): Promise<RetryOutcome> {
   try {
     const result = await reconcilePendingApply({ receiptId })
     if (result.alreadyApplied) {
-      toast.info("Already reconciled", {
-        description: "The receipt was already applied — nothing to do.",
-      })
-    } else {
-      toast.success("Receipt re-applied", {
-        description: `PO ${result.purchaseOrder.poNumber} is now in '${result.purchaseOrder.status}'.`,
-      })
+      return {
+        status: "info",
+        message: "The receipt was already applied — nothing to do.",
+      }
+    }
+    return {
+      status: "success",
+      message: `PO ${result.purchaseOrder.poNumber} is now in '${result.purchaseOrder.status}'.`,
     }
   } catch (error) {
-    toast.error("Reconcile failed", {
-      description: (error as Error).message,
-    })
+    return { status: "failure", error: error as Error }
   }
 }
 
-async function onRetryPendingRollCreation(receiptId: string): Promise<void> {
+async function retryPendingRollCreationRow(receiptId: string): Promise<RetryOutcome> {
   try {
     const outcome = await reconcilePendingRollCreation({ receiptId })
-    const label = outcome.kind === "created" ? "Roll created" : "Already reconciled"
-    const description =
-      outcome.kind === "created"
-        ? `New roll ${outcome.roll.id.value} added to inventory.`
-        : outcome.kind === "already-exists"
-          ? "A roll already existed; stamp synced."
-          : "Receipt was already stamped — nothing to do."
     if (outcome.kind === "created") {
-      toast.success(label, { description })
-    } else {
-      toast.info(label, { description })
+      return {
+        status: "success",
+        message: `New roll ${outcome.roll.id.value} added to inventory.`,
+      }
+    }
+    if (outcome.kind === "already-exists") {
+      return {
+        status: "info",
+        message: "A roll already existed; stamp synced.",
+      }
+    }
+    return {
+      status: "info",
+      message: "Receipt was already stamped — nothing to do.",
     }
   } catch (error) {
-    toast.error("Reconcile failed", {
-      description: (error as Error).message,
-    })
+    return { status: "failure", error: error as Error }
   }
 }

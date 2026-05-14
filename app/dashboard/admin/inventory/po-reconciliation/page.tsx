@@ -26,8 +26,9 @@ import {
  *     operator wanted a roll but `rollService.createRoll` never
  *     succeeded
  *
- * Per-row "Retry" buttons call the corresponding server actions; the
- * page revalidates on success so the row vanishes from the view.
+ * Per-row "Retry" and per-section "Retry all" buttons call the
+ * corresponding server actions; the page revalidates on success so
+ * cleared rows vanish from the view.
  */
 export default async function POReconciliationPage() {
   ensureDatabaseFactoryRegistered()
@@ -50,7 +51,7 @@ export default async function POReconciliationPage() {
           { label: "PO reconciliation" },
         ]}
         title="PO receipt reconciliation"
-        subtitle="Pending apply: receipts whose PO update never landed. Pending roll creation: applied receipts whose roll never materialized. Retry to replay; idempotent on already-reconciled rows."
+        subtitle="Pending apply: receipts whose PO update never landed. Pending roll creation: applied receipts whose roll never materialized. Retry per-row or bulk; idempotent on already-reconciled rows."
       />
 
       <POReconciliationTable
