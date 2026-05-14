@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   getOrgPreferencesForOwner,
+  getOrgPreferencesForRoll,
   getOrgUnitPreferencesForOwner,
 } from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
 
 const OWNER_ID = "00000000-0000-4000-8000-000000000001"
 const ORG_ID = "00000000-0000-4000-8000-000000000002"
+const ROLL_ID = "00000000-0000-4000-8000-000000000003"
 
 interface FakeQuery {
   select: ReturnType<typeof vi.fn>
@@ -188,6 +190,101 @@ describe("getOrgPreferencesForOwner", () => {
       "[orgPrintPrefsLookup] failed to resolve org print prefs",
       expect.any(Error)
     )
+  })
+})
+
+describe("getOrgPreferencesForRoll", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * Three-call chain: rolls → user_id → organization_members →
+   * organization_id → organization_preferences.
+   */
+  function makeRollFakeAdmin(
+    rollResult: { data: unknown; error: unknown },
+    membersResult: { data: unknown; error: unknown },
+    prefsResult: { data: unknown; error: unknown }
+  ) {
+    const rollQuery = makeQuery(rollResult)
+    const membersQuery = makeQuery(membersResult)
+    const prefsQuery = makeQuery(prefsResult)
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === "rolls") return rollQuery
+        if (table === "organization_members") return membersQuery
+        if (table === "organization_preferences") return prefsQuery
+        throw new Error(`unexpected table: ${table}`)
+      }),
+    }
+    return {
+      admin: client as unknown as SupabaseClient,
+      rollQuery,
+      membersQuery,
+      prefsQuery,
+    }
+  }
+
+  it("queries rolls.user_id then delegates to the owner-based chain", async () => {
+    const { admin, rollQuery } = makeRollFakeAdmin(
+      { data: { user_id: OWNER_ID }, error: null },
+      { data: { organization_id: ORG_ID }, error: null },
+      {
+        data: {
+          unit_system: "metric",
+          date_format: "dd/MM/yyyy",
+          time_zone: "Europe/London",
+          locale: "en-US",
+        },
+        error: null,
+      }
+    )
+
+    await expect(getOrgPreferencesForRoll(admin, ROLL_ID)).resolves.toEqual({
+      unitSystem: "metric",
+      dateFormat: "dd/MM/yyyy",
+      timeZone: "Europe/London",
+      locale: "en-US",
+    })
+    expect(rollQuery.select).toHaveBeenCalledWith("user_id")
+    expect(rollQuery.eq).toHaveBeenCalledWith("id", ROLL_ID)
+  })
+
+  it("returns undefined when the roll lookup errors (caught + logged)", async () => {
+    const { admin } = makeRollFakeAdmin(
+      { data: null, error: { message: "rls denied" } },
+      { data: null, error: null },
+      { data: null, error: null }
+    )
+
+    await expect(getOrgPreferencesForRoll(admin, ROLL_ID)).resolves.toBeUndefined()
+    expect(console.error).toHaveBeenCalledWith("[orgPrintPrefsLookup] rolls query failed", {
+      message: "rls denied",
+    })
+  })
+
+  it("returns undefined when the roll row is missing", async () => {
+    const { admin } = makeRollFakeAdmin(
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null }
+    )
+
+    await expect(getOrgPreferencesForRoll(admin, ROLL_ID)).resolves.toBeUndefined()
+  })
+
+  it("returns undefined when the roll row has no user_id (orphan / projection drift)", async () => {
+    const { admin } = makeRollFakeAdmin(
+      { data: { user_id: null }, error: null },
+      { data: null, error: null },
+      { data: null, error: null }
+    )
+
+    await expect(getOrgPreferencesForRoll(admin, ROLL_ID)).resolves.toBeUndefined()
   })
 })
 

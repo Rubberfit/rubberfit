@@ -6,6 +6,16 @@ import {
   getPublicRollByPartNumberOrId,
   type PublicRoll,
 } from "@/src/infrastructure/services/rollService"
+import {
+  getOrgPreferencesForRoll,
+  type OrgPrintPreferencesInput,
+} from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
+import {
+  formatAreaSqft,
+  formatLengthInches,
+  formatDimensionsInches,
+} from "@/src/application/preferences/user-unit-display"
+import { formatUserDate, formatUserDateTime } from "@/src/application/preferences/user-date-format"
 
 export const dynamic = "force-dynamic"
 
@@ -19,11 +29,16 @@ async function loadRoll(partNumber: string): Promise<PublicRoll | null> {
   return getPublicRollByPartNumberOrId(client, partNumber)
 }
 
-function formatDate(value: string | null): string {
-  if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString()
+/**
+ * Resolve the roll's organization print preferences (best-effort).
+ * Returns undefined on any error so the PDF still renders with
+ * imperial / `MM/dd/yyyy` / `America/Chicago` defaults — the public
+ * scan endpoint must never 500 on a missing prefs row.
+ */
+async function loadPrintPrefs(rollId: string): Promise<OrgPrintPreferencesInput | undefined> {
+  const client = makeAdminClient()
+  if (!client) return undefined
+  return getOrgPreferencesForRoll(client, rollId)
 }
 
 /**
@@ -50,7 +65,8 @@ function drawRollDiagram(
   boxX: number,
   boxY: number,
   boxW: number,
-  boxH: number
+  boxH: number,
+  prefs: OrgPrintPreferencesInput | undefined
 ): void {
   const TOP_GUTTER = 18
   const RIGHT_GUTTER = 32
@@ -90,17 +106,20 @@ function drawRollDiagram(
   doc.setLineWidth(1)
   doc.rect(ox, oy, drawW, drawH, "S")
 
-  // Dimension labels
+  // Dimension labels — width along the top, length along the right.
+  // PR 2e: use formatLengthInches so a metric org gets cm labels here
+  // too, matching the row table below.
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
   doc.setTextColor(75, 85, 99) // gray-600
-  doc.text(`${widthIn}"`, ox + drawW / 2, oy - 6, { align: "center" })
-  doc.text(`${lengthIn}"`, ox + drawW + 6, oy + drawH / 2 + 3)
+  doc.text(formatLengthInches(widthIn, prefs), ox + drawW / 2, oy - 6, { align: "center" })
+  doc.text(formatLengthInches(lengthIn, prefs), ox + drawW + 6, oy + drawH / 2 + 3)
 
   // Remaining % inside the amber zone when it's tall enough to read.
   if (remainingH >= 14) {
     const pct = Math.round((safeRemaining / lengthIn) * 100)
-    const label = isOffcut ? `${safeRemaining}" available` : `${safeRemaining}" (${pct}%)`
+    const remainingLabel = formatLengthInches(safeRemaining, prefs)
+    const label = isOffcut ? `${remainingLabel} available` : `${remainingLabel} (${pct}%)`
     doc.setFont("helvetica", "bold")
     doc.setFontSize(11)
     doc.setTextColor(120, 53, 15) // amber-900
@@ -121,7 +140,7 @@ function drawRollDiagram(
   }
 }
 
-function buildScanPdf(roll: PublicRoll): jsPDF {
+function buildScanPdf(roll: PublicRoll, prefs: OrgPrintPreferencesInput | undefined): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter" })
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 72
@@ -159,17 +178,24 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
   doc.line(40, y, pageWidth - 40, y)
   y += 20
 
+  // PR 2e: dimensions, remaining length, and available area all flow
+  // through the unit helpers so a metric-org operator sees `cm` / `m²`
+  // on a scanned label instead of hardcoded imperial. Date row uses
+  // formatUserDate to honor the operator's `dateFormat`.
+  const remainingLengthLabel = formatLengthInches(roll.remaining_length, prefs)
+  const lengthGuard = Math.max(roll.length, 0.0001)
+  const availableSqft = (roll.remaining_length * roll.width) / 144
   const rows: Array<[string, string]> = [
     ["Part number", roll.part_number ?? roll.id],
-    ["Dimensions", `${roll.width}" × ${roll.length}" × ${roll.thickness}"`],
+    ["Dimensions", formatDimensionsInches([roll.width, roll.length, roll.thickness], prefs)],
     [
       "Remaining length",
-      `${roll.remaining_length}"  (${((roll.remaining_length / Math.max(roll.length, 0.0001)) * 100).toFixed(0)}%)`,
+      `${remainingLengthLabel}  (${((roll.remaining_length / lengthGuard) * 100).toFixed(0)}%)`,
     ],
-    ["Available area", `${((roll.remaining_length * roll.width) / 144).toFixed(2)} sq ft`],
+    ["Available area", formatAreaSqft(availableSqft, prefs)],
     ["Status", roll.status],
     ["Location", roll.location ?? "—"],
-    ["Date received", formatDate(roll.date_received)],
+    ["Date received", formatUserDate(roll.date_received, prefs) || "—"],
     ["Type", roll.is_offcut ? "Reusable offcut" : "Primary roll"],
   ]
 
@@ -190,11 +216,15 @@ function buildScanPdf(roll: PublicRoll): jsPDF {
 
   // Glance-view roll diagram in the right half of the page, aligned
   // with the top of the info rows.
-  drawRollDiagram(doc, roll, 320, rowsStartY - 10, pageWidth - 320 - 40, 260)
+  drawRollDiagram(doc, roll, 320, rowsStartY - 10, pageWidth - 320 - 40, 260, prefs)
 
   doc.setFontSize(TYPE.caption.size)
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
-  doc.text(`Generated ${new Date().toLocaleString()}`, 40, doc.internal.pageSize.getHeight() - 30)
+  doc.text(
+    `Generated ${formatUserDateTime(new Date(), prefs) || "—"}`,
+    40,
+    doc.internal.pageSize.getHeight() - 30
+  )
   doc.text("rubberfit.com", pageWidth - 40, doc.internal.pageSize.getHeight() - 30, {
     align: "right",
   })
@@ -210,7 +240,8 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     return new Response("Not Found", { status: 404 })
   }
 
-  const pdfBytes = buildScanPdf(roll).output("arraybuffer")
+  const prefs = await loadPrintPrefs(roll.id)
+  const pdfBytes = buildScanPdf(roll, prefs).output("arraybuffer")
   const fileName = `${(roll.part_number ?? roll.id).replace(/[^A-Za-z0-9._-]/g, "_")}_info.pdf`
 
   return new Response(pdfBytes, {

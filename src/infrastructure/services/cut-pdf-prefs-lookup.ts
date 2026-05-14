@@ -127,3 +127,40 @@ export async function getOrgUnitPreferencesForOwner(
   if (!prefs || prefs.unitSystem === undefined) return undefined
   return { unitSystem: prefs.unitSystem }
 }
+
+/**
+ * Look up the organization-level print preferences for the
+ * organization that owns a roll. Used by the public roll QR PDF
+ * route (`app/r/[partNumber]/pdf/route.ts`) so a scanned label
+ * speaks the operator's `dateFormat` / `timeZone` / `locale` /
+ * `unitSystem` regardless of who scanned it.
+ *
+ * Resolves the chain: `rolls.user_id` → membership → org prefs.
+ * Going through `rolls.user_id` (instead of widening
+ * `PublicRoll` to include `user_id`) keeps the security-sensitive
+ * public projection narrow — the field never leaks to the route
+ * handler or the rendered PDF.
+ *
+ * Best-effort + same caveats as `getOrgPreferencesForOwner`:
+ *   - Multi-org members: picks the first membership row.
+ *   - Any DB error returns undefined and is logged via console.error.
+ *   - Falls back to helper defaults when undefined is returned.
+ */
+export async function getOrgPreferencesForRoll(
+  admin: SupabaseClient,
+  rollId: string
+): Promise<OrgPrintPreferencesInput | undefined> {
+  try {
+    const rollRow = await admin.from("rolls").select("user_id").eq("id", rollId).maybeSingle()
+    if (rollRow.error) {
+      console.error("[orgPrintPrefsLookup] rolls query failed", rollRow.error)
+      return undefined
+    }
+    const ownerId = rollRow.data?.user_id
+    if (!ownerId || typeof ownerId !== "string") return undefined
+    return await getOrgPreferencesForOwner(admin, ownerId)
+  } catch (error) {
+    console.error("[orgPrintPrefsLookup] failed to resolve org print prefs for roll", error)
+    return undefined
+  }
+}
