@@ -16,7 +16,9 @@ const isValidTimeZone = (value: string): boolean => {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: value })
     return true
-  } catch {
+  } catch (_err) {
+    // Intl.DateTimeFormat throws RangeError on unknown IANA names; the
+    // refinement just needs the boolean signal, not the message.
     return false
   }
 }

@@ -15,15 +15,21 @@ import {
   FormActions,
 } from "@/app/components/ui/forms"
 
-type OperationsSectionProps = {
+interface OperationsSectionProps {
   preferences: OrganizationPreferences
   isAdmin: boolean
   onSaved?: (next: OrganizationPreferences) => void
 }
 
+type UnitSystem = "imperial" | "metric"
+
 const SQFT_PER_SQM = 10.7639
 
-function formatThresholdDisplay(sqftValue: number, unitSystem: "imperial" | "metric"): string {
+function isUnitSystem(value: string): value is UnitSystem {
+  return value === "imperial" || value === "metric"
+}
+
+function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): string {
   if (unitSystem === "metric") {
     return (sqftValue / SQFT_PER_SQM).toFixed(2)
   }
@@ -38,6 +44,10 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
   const [draft, setDraft] = useState<OrganizationPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
+  // Track edit-mode so the live preview echoes the user's keystrokes
+  // without an effect that reformats and overwrites mid-typing (e.g.
+  // "5" → "5.00" in metric mode the moment a digit is entered).
+  const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState(() =>
     formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
   )
@@ -46,29 +56,41 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
     setBaseline(preferences)
     setDraft(preferences)
     setSavedAt(0)
+    setIsEditingThreshold(false)
     setThresholdInput(
       formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
     )
   }, [preferences])
 
+  // When the unit-system flips (a deliberate change, not mid-typing),
+  // re-derive the input value so the operator sees the new system's
+  // formatted version. Mid-edit typing is preserved via isEditingThreshold.
   useEffect(() => {
-    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
-  }, [draft.unitSystem, draft.lowStockThresholdSqft])
+    if (!isEditingThreshold) {
+      setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
+    }
+  }, [draft.unitSystem])
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline)
 
-  const handleUnitSystemChange = (value: "imperial" | "metric") => {
+  const handleUnitSystemChange = (value: UnitSystem) => {
     setDraft((prev) => ({ ...prev, unitSystem: value }))
   }
 
   const handleThresholdChange = (e: ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
+    setIsEditingThreshold(true)
     setThresholdInput(raw)
     const num = parseFloat(raw)
     if (Number.isFinite(num) && num >= 0) {
       const canonical = draft.unitSystem === "metric" ? num * SQFT_PER_SQM : num
       setDraft((prev) => ({ ...prev, lowStockThresholdSqft: canonical }))
     }
+  }
+
+  const handleThresholdBlur = () => {
+    setIsEditingThreshold(false)
+    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
   }
 
   const handleSave = () => {
@@ -89,6 +111,7 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
   const handleCancel = () => {
     setDraft(baseline)
     setSavedAt(0)
+    setIsEditingThreshold(false)
     setThresholdInput(formatThresholdDisplay(baseline.lowStockThresholdSqft, baseline.unitSystem))
   }
 
@@ -110,7 +133,11 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
               <select
                 id="unitSystem"
                 value={draft.unitSystem}
-                onChange={(e) => handleUnitSystemChange(e.target.value as "imperial" | "metric")}
+                onChange={(e) => {
+                  if (isUnitSystem(e.target.value)) {
+                    handleUnitSystemChange(e.target.value)
+                  }
+                }}
                 disabled={!isAdmin}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -163,6 +190,7 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
               inputMode="decimal"
               value={thresholdInput}
               onChange={handleThresholdChange}
+              onBlur={handleThresholdBlur}
               disabled={!isAdmin}
               className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
             />

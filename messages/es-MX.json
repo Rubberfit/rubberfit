@@ -8,8 +8,10 @@
         "workspaceDefaultClause": "Los cambios aplican a todos los miembros",
         "personalOverride": "[ AJUSTE PERSONAL ]",
         "personalOverrideClause": "Los cambios solo aplican a tu cuenta",
-        "reset": "Restablecer al predeterminado del espacio"
-      }
+        "reset": "Restablecer al predeterminado del espacio",
+        "resetTooltip": "Disponible en una actualización futura."
+      },
+      "noWorkspace": "No hay un espacio de trabajo asociado a esta cuenta. Completa el alta para configurar las preferencias."
     },
     "regional": {
       "title": "Regional",

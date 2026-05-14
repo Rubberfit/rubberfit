@@ -8,8 +8,10 @@
         "workspaceDefaultClause": "Edits apply to all members",
         "personalOverride": "[ PERSONAL OVERRIDE ]",
         "personalOverrideClause": "Edits apply only to your account",
-        "reset": "Reset to workspace default"
-      }
+        "reset": "Reset to workspace default",
+        "resetTooltip": "Available in a future update."
+      },
+      "noWorkspace": "No workspace is attached to this account. Complete onboarding to set preferences."
     },
     "regional": {
       "title": "Regional",

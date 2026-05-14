@@ -39,7 +39,7 @@ export default async function GeneralSettingsPage() {
         />
         <div className="mx-auto w-full max-w-2xl pb-20">
           <p className="font-[family-name:var(--font-sans)] text-[14px] text-[var(--color-ink-soft)]">
-            No workspace is attached to this account. Complete onboarding to set preferences.
+            {t("noWorkspace")}
           </p>
         </div>
       </PageShell>

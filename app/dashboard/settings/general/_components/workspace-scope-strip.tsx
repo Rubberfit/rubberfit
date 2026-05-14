@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl"
 
-type WorkspaceScopeStripProps = {
+interface WorkspaceScopeStripProps {
   isAdmin: boolean
 }
 
@@ -22,7 +22,7 @@ export function WorkspaceScopeStrip({ isAdmin }: WorkspaceScopeStripProps) {
         <button
           type="button"
           disabled
-          title="Available in a future update."
+          title={t("resetTooltip")}
           className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--color-ink)] hover:underline underline-offset-4 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         >
           {t("reset")}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition, useCallback } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { useTranslations, useLocale } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -17,10 +17,24 @@ import {
   FormActions,
 } from "@/app/components/ui/forms"
 
-type RegionalSectionProps = {
+interface RegionalSectionProps {
   preferences: OrganizationPreferences
   isAdmin: boolean
   onSaved?: (next: OrganizationPreferences) => void
+}
+
+type AppLocale = OrganizationPreferences["locale"]
+type AppCurrency = OrganizationPreferences["defaultCurrency"]
+type AppDateFormat = OrganizationPreferences["dateFormat"]
+
+function isAppLocale(value: string): value is AppLocale {
+  return value === "en-US" || value === "es-MX"
+}
+function isAppCurrency(value: string): value is AppCurrency {
+  return value === "USD" || value === "EUR" || value === "GBP" || value === "CAD"
+}
+function isAppDateFormat(value: string): value is AppDateFormat {
+  return value === "MM/dd/yyyy" || value === "dd/MM/yyyy" || value === "yyyy-MM-dd"
 }
 
 export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSectionProps) {
@@ -73,13 +87,13 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
     return () => clearInterval(id)
   }, [draft.locale, draft.timeZone])
 
-  const datePreview = useCallback(() => {
+  const datePreview = (): string => {
     const date = new Date()
     const d = String(date.getDate()).padStart(2, "0")
     const m = String(date.getMonth() + 1).padStart(2, "0")
     const y = String(date.getFullYear())
     return draft.dateFormat.replace("MM", m).replace("dd", d).replace("yyyy", y)
-  }, [draft.dateFormat])
+  }
 
   const handleSave = () => {
     const localeChanged = draft.locale !== baseline.locale
@@ -124,9 +138,12 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
               <select
                 id="language"
                 value={draft.locale}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, locale: e.target.value as "en-US" | "es-MX" }))
-                }
+                onChange={(e) => {
+                  if (isAppLocale(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, locale: next }))
+                  }
+                }}
                 disabled={!isAdmin}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -143,12 +160,12 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
               <select
                 id="currency"
                 value={draft.defaultCurrency}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    defaultCurrency: e.target.value as OrganizationPreferences["defaultCurrency"],
-                  }))
-                }
+                onChange={(e) => {
+                  if (isAppCurrency(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, defaultCurrency: next }))
+                  }
+                }}
                 disabled={!isAdmin}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -204,12 +221,12 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
               <select
                 id="dateFormat"
                 value={draft.dateFormat}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    dateFormat: e.target.value as OrganizationPreferences["dateFormat"],
-                  }))
-                }
+                onChange={(e) => {
+                  if (isAppDateFormat(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, dateFormat: next }))
+                  }
+                }}
                 disabled={!isAdmin}
                 className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
