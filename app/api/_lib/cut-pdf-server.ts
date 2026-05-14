@@ -10,7 +10,7 @@ import { PART_OPTIONS } from "@/app/dashboard/cutting-engine/_components/preset-
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/cut-history-layout"
 import { uploadCutPdfBlob } from "@/src/infrastructure/services/cutPdfStorageService"
-import { getOrgUnitPreferencesForOwner } from "@/src/infrastructure/services/cutPdfPrefsLookup"
+import { getOrgUnitPreferencesForOwner } from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
 import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
 
 const PART_TYPE_BY_PART_ID: Record<number, string> = {
@@ -90,9 +90,6 @@ export function buildCutPdfDataFromRow(
     organizationPreferences,
   }
 }
-
-
-
 
 /**
  * End-to-end: render the PDF from the cut row + frozen layouts, then

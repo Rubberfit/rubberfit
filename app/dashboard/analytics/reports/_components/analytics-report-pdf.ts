@@ -86,7 +86,11 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
   const title = input.reportName.toUpperCase()
   const unitPreferences = input.organizationPreferences
   const areaUnitLower = getAreaUnitLabel(unitPreferences)
-  const areaUnitUpper = areaUnitLower.toUpperCase()
+  // Imperial 'sq ft' is a textual abbreviation — UPPERCASE for the KPI
+  // strip per the existing chrome convention. Metric 'm²' is an SI
+  // symbol whose casing is normative ('M²' is invalid); preserve as-is.
+  const areaUnitForKpi =
+    unitPreferences?.unitSystem === "metric" ? areaUnitLower : areaUnitLower.toUpperCase()
 
   doc.setProperties({
     title: input.reportName,
@@ -125,7 +129,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
     {
       label: "Material used",
       value: getDisplayAreaValue(input.summary.totalMaterialUsed, unitPreferences).toFixed(1),
-      unit: areaUnitUpper,
+      unit: areaUnitForKpi,
     },
     {
       label: "Avg waste",

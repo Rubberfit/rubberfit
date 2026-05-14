@@ -103,10 +103,12 @@ describe("buildOperationsCsv", () => {
     const monRow = rows.find((r) => r[0] === "Mon")
     expect(monRow).toBeDefined()
     if (!monRow) return
-    expect(typeof monRow[1]).toBe("number")
-    expect(typeof monRow[2]).toBe("number")
-    expect(monRow[1] as number).toBeCloseTo(1.151998, 5)
-    expect(monRow[2] as number).toBeCloseTo(0.28799942, 5)
+    const [, cell1, cell2] = monRow
+    if (typeof cell1 !== "number" || typeof cell2 !== "number") {
+      throw new Error(`Expected numeric utilization cells, got ${typeof cell1}, ${typeof cell2}`)
+    }
+    expect(cell1).toBeCloseTo(1.151998, 5)
+    expect(cell2).toBeCloseTo(0.28799942, 5)
   })
 
   it("appends the recent cuts table with the four expected columns", () => {

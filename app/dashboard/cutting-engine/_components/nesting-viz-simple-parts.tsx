@@ -461,10 +461,11 @@ export function SimpleModeFooter({
   multiSheet?: MultiSheetResult | null
 }) {
   const organizationPreferences = useOrganizationPreferences()
-  const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
-  const stockArea = isMultiSheet ? multiSheet!.totalStockArea / 144 : stockSqFt
+  const sheetCount = multiSheet?.sheets.length ?? 0
+  const isMultiSheet = sheetCount > 1
+  const stockArea = isMultiSheet && multiSheet ? multiSheet.totalStockArea / 144 : stockSqFt
   const displayStockArea = formatAreaSqft(stockArea, organizationPreferences, { precision: 2 })
-  const sheetSuffix = isMultiSheet ? ` (${multiSheet!.sheets.length} sheets)` : ""
+  const sheetSuffix = isMultiSheet ? ` (${sheetCount} sheets)` : ""
 
   return (
     <div className="border-t border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
