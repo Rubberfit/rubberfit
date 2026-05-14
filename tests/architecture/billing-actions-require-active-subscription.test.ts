@@ -31,20 +31,16 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
   // /dashboard pages, but the action layer must not server-throw if
   // hit directly). No admin gate — every user owns their own row,
   // enforced by RLS at the DB.
-  [
-    "app/actions/user-preferences.ts",
-    new Set(["getUserPreferences", "updateUserPreferences"]),
-  ],
+  ["app/actions/user-preferences.ts", new Set(["getUserPreferences", "updateUserPreferences"])],
   // Settings + i18n PR 2c (2026-05-14 operator-seeds-prints ruling):
-  // organization preferences read/write is recovery-exempt for the
-  // same reason — the billing landing page itself reads org prefs to
-  // render the renewal date; a lapsed-subscription owner has to be
-  // able to load that page in order to fix their billing. Owner/admin
-  // gate is enforced at the action layer (role check) + RLS at the DB.
-  [
-    "app/actions/organization-preferences.ts",
-    new Set(["getOrganizationPreferences", "updateOrganizationPreferences"]),
-  ],
+  // organization preferences READ is recovery-exempt — the billing
+  // landing page itself reads org prefs to render the renewal date,
+  // so a lapsed-subscription owner has to be able to load that page
+  // in order to fix their billing. WRITE stays subscription-gated:
+  // mutating shared workspace defaults isn't needed to recover
+  // billing, and a lapsed admin shouldn't be able to alter shared
+  // print/export output until they restore billing.
+  ["app/actions/organization-preferences.ts", new Set(["getOrganizationPreferences"])],
 ])
 
 interface ActionFunction {

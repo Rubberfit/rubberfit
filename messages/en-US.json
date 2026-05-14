@@ -12,7 +12,9 @@
         "reset": "Reset to workspace default",
         "resetTooltip": "Available in a future update."
       },
-      "notProvisioned": "Your preferences aren't ready yet. Reload in a moment, or sign out and back in if this persists."
+      "notProvisioned": "Your preferences aren't ready yet. Reload in a moment, or sign out and back in if this persists.",
+      "orgNotProvisionedTitle": "Workspace defaults aren't ready yet",
+      "orgNotProvisionedBody": "The workspace preference row hasn't been provisioned for this organization. The editor below is read-only — reload in a moment, or contact support if this persists."
     },
     "organization": {
       "title": "Workspace defaults",

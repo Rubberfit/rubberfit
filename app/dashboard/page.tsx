@@ -47,7 +47,6 @@ interface DashboardData {
   recentCuts: RecentCutRow[]
 }
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 const tenantDisplayName = "REMA Operations"
 
 type UtilizationCut = Cut & { roll?: { material_type: string; location: string } | null }
@@ -366,9 +365,18 @@ function buildPeriodLabel(
         year: "numeric",
       })
     case "quarter": {
-      const now = new Date()
-      const q = Math.floor(now.getMonth() / 3) + 1
-      return `Q${q} ${now.getFullYear()}`
+      // Derive month + year in the operator's timeZone — without this,
+      // a viewer near a quarter/year boundary on a different zone sees
+      // the wrong quarter on the printed PDF.
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: preferences.timeZone,
+        month: "numeric",
+        year: "numeric",
+      }).formatToParts(new Date())
+      const monthPart = parts.find((p) => p.type === "month")?.value ?? "1"
+      const yearPart = parts.find((p) => p.type === "year")?.value ?? "1970"
+      const q = Math.floor((Number(monthPart) - 1) / 3) + 1
+      return `Q${q} ${yearPart}`
     }
   }
 }
@@ -513,16 +521,15 @@ function buildUtilizationSeriesForPeriod(
     const start = bucketStart + i * bucketMs
     const end = start + bucketMs
     // The bucket end-1 represents the last instant of the bucket
-    // window. PR 2b: per-week axis labels now render in the operator's
-    // timeZone (via `preferences`). The per-day case keeps the static
-    // DAY_LABELS — those are weekday abbreviations indexed by the local
-    // browser's day-of-week and are zone-agnostic for short-week scans.
+    // window. Day + week labels both render in `preferences.locale` /
+    // `preferences.timeZone` so the PDF export speaks in the operator's
+    // voice when sourced from org prefs (operator-seeds-prints ruling).
     // Aligning per-day bucket EDGES to zone-local midnight is a
     // separate, larger change (would need the same calendar-arithmetic
-    // dance as `weekBoundariesInZone`) and not in PR 2b scope.
+    // dance as `weekBoundariesInZone`) and tracked as a follow-up.
     const label =
       bucketMode === "day"
-        ? DAY_LABELS[(new Date(start).getDay() + 6) % 7]
+        ? formatInUserTimeZone(new Date(start), preferences, { weekday: "short" })
         : formatInUserTimeZone(new Date(end - 1), preferences, {
             month: "short",
             day: "numeric",

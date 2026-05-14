@@ -5,7 +5,7 @@ import { TOKENS } from "@/di/tokens"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import { buildFallbackOrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
 
-import { PageHeader, PageShell } from "@/app/components/patterns"
+import { InlineNotice, PageHeader, PageShell } from "@/app/components/patterns"
 import { getOrganizationPreferences } from "@/app/actions/organization-preferences"
 import { getUserPreferences } from "@/app/actions/user-preferences"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
@@ -67,18 +67,27 @@ export default async function GeneralSettingsPage() {
 
   const { data: userPreferences } = userPreferencesResult
 
-  // Org prefs may surface `not_provisioned` / `no_organization` — both
-  // fall back to canonical defaults so the section still renders. The
-  // admin pickers will write the first real row on save.
+  // Org prefs may surface `not_provisioned` / `no_organization`. Fall
+  // back to canonical defaults for display, but track the missing-row
+  // case explicitly so the editor can render read-only — the RLS
+  // policy is UPDATE-only (INSERT is trigger-driven), so a save
+  // against a non-existent row would fail. In practice the trigger +
+  // backfill in migration 20260514000001 covers every org; this guard
+  // is for the edge case where that invariant ever breaks.
   const organizationPreferences =
     "data" in organizationPreferencesResult
       ? organizationPreferencesResult.data
       : buildFallbackOrganizationPreferences(organization?.id ?? "")
+  const organizationPreferencesProvisioned = "data" in organizationPreferencesResult
 
   const role = organization
     ? await organizationService.getMemberRole(organization.id, actor.id)
     : null
   const isAdmin = role === "owner" || role === "admin"
+  // Only enable the editor when the row actually exists AND the caller
+  // is an admin. A "phantom" editor for a missing-row case would let
+  // the user click Save into an action that can only ever UPDATE.
+  const canEditOrgDefaults = isAdmin && organizationPreferencesProvisioned
 
   return (
     <PageShell variant="form">
@@ -93,7 +102,16 @@ export default async function GeneralSettingsPage() {
 
       <div className="mx-auto w-full max-w-2xl pb-20">
         <div className="space-y-10">
-          <OrganizationSection preferences={organizationPreferences} isAdmin={isAdmin} isFirst />
+          {isAdmin && !organizationPreferencesProvisioned ? (
+            <InlineNotice intent="warning" title={t("orgNotProvisionedTitle")}>
+              {t("orgNotProvisionedBody")}
+            </InlineNotice>
+          ) : null}
+          <OrganizationSection
+            preferences={organizationPreferences}
+            isAdmin={canEditOrgDefaults}
+            isFirst
+          />
           <RegionalSection preferences={userPreferences} />
           <OperationsSection preferences={userPreferences} />
         </div>

@@ -23,6 +23,11 @@ vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
 }))
 
+const requireActiveSubscriptionMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-subscription", () => ({
+  requireActiveSubscription: requireActiveSubscriptionMock,
+}))
+
 const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/database/register-factory", () => ({
   ensureDatabaseFactoryRegistered: ensureDatabaseFactoryRegisteredMock,
@@ -82,6 +87,11 @@ import {
 describe("app/actions/organization-preferences", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveSubscriptionMock.mockResolvedValue({
+      kind: "allowed",
+      organizationId: ORG_ID,
+      subscription: { status: "active" },
+    })
     getCurrentOrganizationForUserMock.mockResolvedValue(ORG)
     getMemberRoleMock.mockResolvedValue("admin")
     getForOrganizationMock.mockResolvedValue(PREFS)
@@ -173,6 +183,43 @@ describe("app/actions/organization-preferences", () => {
       const result = await updateOrganizationPreferences({ lowStockThresholdSqft: -1 })
       if (!("error" in result)) throw new Error("expected error envelope")
       expect(result.error).toBe("invalid")
+    })
+
+    it("requires an active subscription (write is not recovery-exempt)", async () => {
+      // Mutating shared workspace defaults requires an active sub. The
+      // read path is recovery-exempt (the billing landing page renders
+      // org-formatted dates on every load); the write isn't — a lapsed
+      // admin shouldn't be able to shape-shift shared print/export
+      // output until billing is restored. The subscription gate throws
+      // a SubscriptionRequiredError which the architecture test pins
+      // via call-order in the action body.
+      requireActiveSubscriptionMock.mockRejectedValueOnce(
+        Object.assign(new Error("Active subscription required"), {
+          name: "SubscriptionRequiredError",
+          code: "NO_ACTIVE_SUBSCRIPTION",
+          recovery: "renew_subscription",
+          organizationId: ORG_ID,
+        })
+      )
+      await expect(updateOrganizationPreferences({ locale: "es-MX" })).rejects.toThrow(
+        /Active subscription required/
+      )
+      expect(updateForOrganizationMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("getOrganizationPreferences", () => {
+    it("stays recovery-exempt — no active-subscription gate on the read path", async () => {
+      // Mirror of the user-preferences contract: read is recovery-
+      // exempt because the dashboard layout + billing landing pages
+      // fetch this on every render, and a lapsed-subscription owner
+      // must still see operator-formatted dates to fix billing. The
+      // architecture test in
+      // tests/architecture/billing-actions-require-active-subscription.test.ts
+      // codifies the same rule via static analysis; this case pins
+      // the runtime behavior.
+      await getOrganizationPreferences()
+      expect(requireActiveSubscriptionMock).not.toHaveBeenCalled()
     })
   })
 })

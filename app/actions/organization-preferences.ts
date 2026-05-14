@@ -16,6 +16,7 @@ import type { IOrganizationPreferencesService } from "@/src/application/services
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import type { OrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 
@@ -85,12 +86,19 @@ export async function getOrganizationPreferences(): Promise<GetOrganizationPrefe
  * IN ('owner','admin')); the action-level check is defense in depth
  * and lets us return a clean `{ error: "forbidden" }` envelope
  * instead of a generic RLS-rejection throw.
+ *
+ * Subscription-gated: unlike the read path, mutating shared workspace
+ * defaults requires an active subscription. The settings page itself
+ * is already subscription-gated by the proxy, but a lapsed admin
+ * could hit the action directly; this gate keeps the behavior
+ * consistent with every other shared-resource write in the codebase.
  */
 export async function updateOrganizationPreferences(
   input: z.input<typeof UpdateOrganizationPreferencesSchema>
 ): Promise<UpdateOrganizationPreferencesResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
 
   const parsed = UpdateOrganizationPreferencesSchema.safeParse(input)
   if (!parsed.success) {

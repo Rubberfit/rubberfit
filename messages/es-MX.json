@@ -12,7 +12,9 @@
         "reset": "Restablecer al predeterminado del espacio",
         "resetTooltip": "Disponible en una actualización futura."
       },
-      "notProvisioned": "Tus preferencias aún no están listas. Recarga la página en un momento o cierra y vuelve a iniciar sesión si el problema continúa."
+      "notProvisioned": "Tus preferencias aún no están listas. Recarga la página en un momento o cierra y vuelve a iniciar sesión si el problema continúa.",
+      "orgNotProvisionedTitle": "Los valores predeterminados del espacio aún no están listos",
+      "orgNotProvisionedBody": "La fila de preferencias del espacio aún no se aprovisionó para esta organización. El editor abajo es de solo lectura — recarga en un momento o contacta a soporte si el problema continúa."
     },
     "organization": {
       "title": "Valores predeterminados del espacio",

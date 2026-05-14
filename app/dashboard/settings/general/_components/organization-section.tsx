@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useTransition, type ChangeEvent } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -97,8 +97,15 @@ export function OrganizationSection({
     draft.dateFormat !== baseline.dateFormat ||
     draft.unitSystem !== baseline.unitSystem ||
     draft.lowStockThresholdSqft !== baseline.lowStockThresholdSqft
+  // Sync the dirty ref via effect (not during render) so the
+  // preferences-refresh guard below reads the latest value without
+  // any of the render-purity caveats CodeRabbit's React-rules check
+  // flags. The dep-less effect runs after every commit; the cost is
+  // a single ref write, never a re-render.
   const isDirtyRef = useRef(isDirty)
-  isDirtyRef.current = isDirty
+  useEffect(() => {
+    isDirtyRef.current = isDirty
+  })
 
   useEffect(() => {
     setBaseline(preferences)
@@ -139,20 +146,25 @@ export function OrganizationSection({
     currency: draft.defaultCurrency,
   }).format(1250)
 
-  const formatTimePreview = () =>
-    formatInUserTimeZone(
-      new Date(),
-      { locale: draft.locale, timeZone: draft.timeZone },
-      { hour: "numeric", minute: "2-digit", timeZoneName: "short" }
-    )
-  const [timePreview, setTimePreview] = useState(formatTimePreview)
-
+  // 30s tick forces a re-render so the live preview stays current
+  // without writing setState from inside an effect (CodeRabbit's
+  // suggestion: useMemo + tick beats setState-on-mount + interval).
+  const [timeTick, setTimeTick] = useState(0)
   useEffect(() => {
-    setTimePreview(formatTimePreview())
-    const id = setInterval(() => setTimePreview(formatTimePreview()), 30000)
+    const id = setInterval(() => setTimeTick((t) => t + 1), 30000)
     return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.locale, draft.timeZone])
+  }, [])
+  const timePreview = useMemo(
+    () =>
+      formatInUserTimeZone(
+        new Date(),
+        { locale: draft.locale, timeZone: draft.timeZone },
+        { hour: "numeric", minute: "2-digit", timeZoneName: "short" }
+      ),
+    // `timeTick` re-evaluates `new Date()` every 30s. Locale + zone
+    // changes recompute immediately.
+    [draft.locale, draft.timeZone, timeTick]
+  )
 
   const datePreview = formatUserDate(new Date(), {
     dateFormat: draft.dateFormat,
