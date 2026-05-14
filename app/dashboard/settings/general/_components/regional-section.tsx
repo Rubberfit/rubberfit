@@ -5,9 +5,9 @@ import { useTranslations, useLocale } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { updateOrganizationPreferences } from "@/app/actions/organization-preferences"
+import { updateUserPreferences } from "@/app/actions/user-preferences"
 import { setLocale as setLocaleAction } from "@/app/actions/locale"
-import type { OrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
+import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
   FormSectionHeader,
@@ -18,15 +18,14 @@ import {
 } from "@/app/components/ui/forms"
 
 interface RegionalSectionProps {
-  preferences: OrganizationPreferences
-  isAdmin: boolean
-  onSaved?: (next: OrganizationPreferences) => void
+  preferences: UserPreferences
+  onSaved?: (next: UserPreferences) => void
 }
 
-type AppLocale = OrganizationPreferences["locale"]
-type AppCurrency = OrganizationPreferences["defaultCurrency"]
-type AppDateFormat = OrganizationPreferences["dateFormat"]
-type AppTimeZone = OrganizationPreferences["timeZone"]
+type AppLocale = UserPreferences["locale"]
+type AppCurrency = UserPreferences["defaultCurrency"]
+type AppDateFormat = UserPreferences["dateFormat"]
+type AppTimeZone = UserPreferences["timeZone"]
 
 const TIME_ZONE_VALUES: readonly AppTimeZone[] = [
   "America/Chicago",
@@ -52,12 +51,12 @@ function isAppTimeZone(value: string): value is AppTimeZone {
   return (TIME_ZONE_VALUES as readonly string[]).includes(value)
 }
 
-export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSectionProps) {
+export function RegionalSection({ preferences, onSaved }: RegionalSectionProps) {
   const t = useTranslations("settings")
   const locale = useLocale()
   const router = useRouter()
-  const [baseline, setBaseline] = useState<OrganizationPreferences>(preferences)
-  const [draft, setDraft] = useState<OrganizationPreferences>(preferences)
+  const [baseline, setBaseline] = useState<UserPreferences>(preferences)
+  const [draft, setDraft] = useState<UserPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
 
@@ -107,10 +106,9 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
   const handleSave = () => {
     const localeChanged = draft.locale !== baseline.locale
     startTransition(async () => {
-      const result = await updateOrganizationPreferences(draft)
+      const result = await updateUserPreferences(draft)
       if ("error" in result) {
-        const code = result.error === "forbidden" ? "forbidden" : "unknown"
-        toast.error(t(`errors.${code}`))
+        toast.error(t("errors.unknown"))
         return
       }
       setBaseline(result.data)
@@ -119,9 +117,6 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
       toast.success(t("actions.saved"))
       if (localeChanged) {
         await setLocaleAction({ locale: result.data.locale })
-        // Refresh so the avatar menu's useLocale + NextIntlClientProvider
-        // pick up the new cookie. Without this, the dashboard chrome stays
-        // in the old locale until the next navigation.
         router.refresh()
       }
     })
@@ -135,11 +130,6 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
   return (
     <FormFieldset>
       <FormSectionHeader eyebrow={t("regional.eyebrow")} title={t("regional.title")} />
-      {!isAdmin && (
-        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--color-ink-faint)] mt-2">
-          {t("regional.readonly")}
-        </p>
-      )}
       <FormFieldGroup>
         <FormFieldRow>
           <FormField label={t("regional.language")} htmlFor="language">
@@ -153,8 +143,7 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
                     setDraft((prev) => ({ ...prev, locale: next }))
                   }
                 }}
-                disabled={!isAdmin}
-                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
                 <option value="en-US">English (US)</option>
                 <option value="es-MX">Español (México)</option>
@@ -175,8 +164,7 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
                     setDraft((prev) => ({ ...prev, defaultCurrency: next }))
                   }
                 }}
-                disabled={!isAdmin}
-                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
@@ -207,8 +195,7 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
                     setDraft((prev) => ({ ...prev, timeZone: next }))
                   }
                 }}
-                disabled={!isAdmin}
-                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
                 <option value="America/Chicago">America/Chicago</option>
                 <option value="America/New_York">America/New_York</option>
@@ -241,8 +228,7 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
                     setDraft((prev) => ({ ...prev, dateFormat: next }))
                   }
                 }}
-                disabled={!isAdmin}
-                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
                 <option value="MM/dd/yyyy">MM/dd/yyyy</option>
                 <option value="dd/MM/yyyy">dd/MM/yyyy</option>
@@ -261,20 +247,18 @@ export function RegionalSection({ preferences, isAdmin, onSaved }: RegionalSecti
           </FormField>
         </FormFieldRow>
       </FormFieldGroup>
-      {isAdmin && (
-        <FormActions
-          savedHint={
-            savedAt > 0
-              ? t("actions.lastSaved", {
-                  when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
-                })
-              : undefined
-          }
-          saveDisabled={!isDirty || isPending}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      )}
+      <FormActions
+        savedHint={
+          savedAt > 0
+            ? t("actions.lastSaved", {
+                when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
+              })
+            : undefined
+        }
+        saveDisabled={!isDirty || isPending}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
     </FormFieldset>
   )
 }

@@ -1,15 +1,14 @@
 /**
- * Service-level coverage for OrganizationPreferencesService.
+ * Service-level coverage for UserPreferencesService.
  *
  * Pins:
- *  - getForOrganization round-trips the row through the snake→camel mapper.
- *  - getForOrganization throws when no row exists (trigger should
- *    auto-provision, but the read path must fail visibly if it ever
- *    doesn't).
- *  - updateForOrganization sends only the supplied fields and maps the
- *    response back into the canonical shape.
- *  - updateForOrganization throws when the underlying chain returns no
- *    row (RLS-rejected admin gate).
+ *  - getForUser round-trips the row through snake→camel mapper.
+ *  - getForUser throws when no row exists (the profiles INSERT trigger
+ *    should auto-provision, but failures must be visible).
+ *  - Mapper handles non-round-trip NUMERIC strings without precision loss.
+ *  - Mapper throws on non-finite NUMERIC values.
+ *  - updateForUser maps a partial update + returns the canonical row.
+ *  - updateForUser throws when the chain returns no row (RLS-rejected).
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
@@ -20,12 +19,12 @@ vi.mock("@/src/infrastructure/supabase/get-database-client", () => ({
   getDatabaseClient,
 }))
 
-import { OrganizationPreferencesService } from "@/src/infrastructure/services/organizationPreferencesService"
+import { UserPreferencesService } from "@/src/infrastructure/services/userPreferencesService"
 
-const ORG_ID = "00000000-0000-0000-0000-000000000001"
+const USER_ID = "00000000-0000-0000-0000-000000000001"
 
 const ROW = {
-  organization_id: ORG_ID,
+  user_id: USER_ID,
   default_currency: "USD",
   time_zone: "America/Chicago",
   date_format: "MM/dd/yyyy",
@@ -38,25 +37,25 @@ const ROW = {
 
 const UPDATED_ROW = {
   ...ROW,
-  default_currency: "EUR",
   locale: "es-MX",
+  default_currency: "EUR",
   updated_at: "2026-05-14T01:00:00Z",
 }
 
-describe("OrganizationPreferencesService", () => {
+describe("UserPreferencesService", () => {
   beforeEach(() => {
     getDatabaseClient.mockReset()
   })
 
-  describe("getForOrganization", () => {
+  describe("getForUser", () => {
     it("returns the row mapped into the canonical camelCase shape", async () => {
       getDatabaseClient.mockResolvedValueOnce(
-        makeFakeClient({ tables: { organization_preferences: { select: { data: ROW, error: null } } } })
+        makeFakeClient({ tables: { user_preferences: { select: { data: ROW, error: null } } } })
       )
-      const svc = new OrganizationPreferencesService()
-      const result = await svc.getForOrganization(ORG_ID)
+      const svc = new UserPreferencesService()
+      const result = await svc.getForUser(USER_ID)
 
-      expect(result.organizationId).toBe(ORG_ID)
+      expect(result.userId).toBe(USER_ID)
       expect(result.defaultCurrency).toBe("USD")
       expect(result.timeZone).toBe("America/Chicago")
       expect(result.dateFormat).toBe("MM/dd/yyyy")
@@ -69,14 +68,14 @@ describe("OrganizationPreferencesService", () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
           tables: {
-            organization_preferences: {
+            user_preferences: {
               select: { data: { ...ROW, low_stock_threshold_sqft: "49.73" }, error: null },
             },
           },
         })
       )
-      const svc = new OrganizationPreferencesService()
-      const result = await svc.getForOrganization(ORG_ID)
+      const svc = new UserPreferencesService()
+      const result = await svc.getForUser(USER_ID)
       expect(result.lowStockThresholdSqft).toBeCloseTo(49.73, 5)
     })
 
@@ -84,32 +83,32 @@ describe("OrganizationPreferencesService", () => {
       getDatabaseClient.mockResolvedValueOnce(
         makeFakeClient({
           tables: {
-            organization_preferences: {
+            user_preferences: {
               select: { data: { ...ROW, low_stock_threshold_sqft: "NaN" }, error: null },
             },
           },
         })
       )
-      const svc = new OrganizationPreferencesService()
-      await expect(svc.getForOrganization(ORG_ID)).rejects.toThrow(/not a finite number/)
+      const svc = new UserPreferencesService()
+      await expect(svc.getForUser(USER_ID)).rejects.toThrow(/not a finite number/)
     })
 
-    it("throws when no row exists for the organization", async () => {
+    it("throws when no row exists for the user", async () => {
       getDatabaseClient.mockResolvedValueOnce(
-        makeFakeClient({ tables: { organization_preferences: { select: { data: null, error: null } } } })
+        makeFakeClient({ tables: { user_preferences: { select: { data: null, error: null } } } })
       )
-      const svc = new OrganizationPreferencesService()
-      await expect(svc.getForOrganization(ORG_ID)).rejects.toThrow(/No organization_preferences row/)
+      const svc = new UserPreferencesService()
+      await expect(svc.getForUser(USER_ID)).rejects.toThrow(/No user_preferences row/)
     })
   })
 
-  describe("updateForOrganization", () => {
+  describe("updateForUser", () => {
     it("maps a partial update through and returns the canonical row", async () => {
       getDatabaseClient.mockResolvedValueOnce(
-        makeFakeClient({ tables: { organization_preferences: { update: { data: UPDATED_ROW, error: null } } } })
+        makeFakeClient({ tables: { user_preferences: { update: { data: UPDATED_ROW, error: null } } } })
       )
-      const svc = new OrganizationPreferencesService()
-      const result = await svc.updateForOrganization(ORG_ID, {
+      const svc = new UserPreferencesService()
+      const result = await svc.updateForUser(USER_ID, {
         defaultCurrency: "EUR",
         locale: "es-MX",
       })
@@ -121,11 +120,11 @@ describe("OrganizationPreferencesService", () => {
 
     it("throws when RLS blocks the write and the chain returns no row", async () => {
       getDatabaseClient.mockResolvedValueOnce(
-        makeFakeClient({ tables: { organization_preferences: { update: { data: null, error: null } } } })
+        makeFakeClient({ tables: { user_preferences: { update: { data: null, error: null } } } })
       )
-      const svc = new OrganizationPreferencesService()
+      const svc = new UserPreferencesService()
       await expect(
-        svc.updateForOrganization(ORG_ID, { defaultCurrency: "EUR" })
+        svc.updateForUser(USER_ID, { defaultCurrency: "EUR" })
       ).rejects.toThrow(/returned no row/)
     })
   })

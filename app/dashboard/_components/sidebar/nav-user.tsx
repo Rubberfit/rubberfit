@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 
 import { setLocale as setLocaleAction } from "@/app/actions/locale"
-import { updateOrganizationPreferences } from "@/app/actions/organization-preferences"
+import { updateUserPreferences } from "@/app/actions/user-preferences"
 import { LOCALES, type AppLocale } from "@/app/i18n/routing"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
@@ -57,12 +57,10 @@ export function NavUser({
     if (next === currentLocale) return
     startLocaleTransition(async () => {
       await setLocaleAction({ locale: next })
-      // Best-effort DB sync so the General Settings Language picker
-      // doesn't drift from the active session locale. Admins succeed;
-      // non-admins get { error: "forbidden" } which we swallow — the
-      // cookie write above is the source of truth for the session
-      // until personal-override writes ship.
-      await updateOrganizationPreferences({ locale: next }).catch(() => undefined)
+      // Persist to the user's own preferences row so General Settings'
+      // Language picker reflects the same value on next render. Every
+      // authenticated user has their own row; no admin gate.
+      await updateUserPreferences({ locale: next }).catch(() => undefined)
       router.refresh()
     })
   }

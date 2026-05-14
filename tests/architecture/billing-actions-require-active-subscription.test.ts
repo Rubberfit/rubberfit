@@ -25,14 +25,15 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
   // lapsed subscription is locked out of the dashboard by the proxy gate
   // and must still be able to close their account (compliance + UX).
   ["app/actions/profile.ts", new Set(["requestSelfDelete"])],
-  // Settings + i18n PR 1: org preferences read/write is recovery-exempt
-  // so a lapsed-subscription workspace can still view its saved locale +
-  // currency + unit system (the proxy gate redirects /dashboard pages,
-  // but the action layer must not server-throw if hit directly). Admin
-  // write is still gated via getMemberRole inside the action.
+  // Settings + i18n PR 1: per-user preferences read/write is
+  // recovery-exempt so a lapsed-subscription user can still view + edit
+  // their own locale + display preferences (the proxy gate redirects
+  // /dashboard pages, but the action layer must not server-throw if
+  // hit directly). No admin gate — every user owns their own row,
+  // enforced by RLS at the DB.
   [
-    "app/actions/organization-preferences.ts",
-    new Set(["getOrganizationPreferences", "updateOrganizationPreferences"]),
+    "app/actions/user-preferences.ts",
+    new Set(["getUserPreferences", "updateUserPreferences"]),
   ],
 ])
 

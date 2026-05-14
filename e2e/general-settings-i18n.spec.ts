@@ -1,18 +1,14 @@
 /**
- * General Settings + i18n prototype — admin happy path E2E.
+ * General Settings + i18n prototype — happy path E2E.
  *
  * Pins:
- *   - Workspace scope strip renders the admin lane chrome.
+ *   - Every authenticated user can edit their own preferences (no
+ *     admin gate, no workspace-default chrome).
  *   - All three regional pickers persist round-trip (currency, time
  *     zone, date format) plus the live preview strings update.
  *   - Operations section persists unit system + threshold.
- *   - Locale change in General Settings saves + the avatar menu's
- *     active locale checkmark moves.
- *   - Locale change via the avatar menu re-renders the dashboard in
- *     Spanish (settings.regional.title → "Regional" stays — same
- *     spelling — but the eyebrow / scope strip flip to Spanish copy).
- *   - Non-admin member sees the read-only scope strip + disabled
- *     controls + no Save button.
+ *   - Locale change in General Settings re-renders the dashboard
+ *     chrome in Spanish on the next request.
  *
  * Skipped in CI without `SUPABASE_SERVICE_ROLE_KEY` (the fixture
  * gates on that). Local run: `npm run e2e -- e2e/general-settings-i18n.spec.ts`.
@@ -59,7 +55,7 @@ async function openGeneralSettings(page: Page): Promise<void> {
   await expect(page.getByText("General", { exact: true }).first()).toBeVisible({ timeout: 15_000 })
 }
 
-test.describe("General Settings + i18n — admin happy path", () => {
+test.describe("General Settings + i18n — happy path", () => {
   let provisioned: ProvisionedUser | undefined
 
   test.beforeAll(async () => {
@@ -70,15 +66,10 @@ test.describe("General Settings + i18n — admin happy path", () => {
     await teardown(provisioned)
   })
 
-  test("admin sees the workspace-default scope strip + can save regional changes that persist", async ({
-    page,
-  }) => {
+  test("any user can save regional changes that persist across reload", async ({ page }) => {
     if (!provisioned) throw new Error("setup did not provision")
     await signInAs(page, provisioned.user)
     await openGeneralSettings(page)
-
-    await expect(page.getByText(/WORKSPACE DEFAULT/)).toBeVisible()
-    await expect(page.getByText("Edits apply to all members")).toBeVisible()
 
     // Change currency USD → EUR and watch the preview swap.
     const currencySelect = page.locator("#currency")
@@ -104,7 +95,9 @@ test.describe("General Settings + i18n — admin happy path", () => {
     await expect(page.locator("#dateFormat")).toHaveValue("yyyy-MM-dd")
   })
 
-  test("admin can flip locale and the dashboard chrome re-renders in Spanish", async ({ page }) => {
+  test("any user can flip locale and the dashboard chrome re-renders in Spanish", async ({
+    page,
+  }) => {
     if (!provisioned) throw new Error("setup did not provision")
     await signInAs(page, provisioned.user)
     await openGeneralSettings(page)
@@ -120,9 +113,12 @@ test.describe("General Settings + i18n — admin happy path", () => {
     // though the saved value is es-MX. The next render uses the new bundle.
     await expect(page.getByText(/Saved/i).first()).toBeVisible({ timeout: 10_000 })
 
-    // Scope strip flips to Spanish copy after the cookie + revalidate.
-    await expect(page.getByText(/PREDETERMINADO DEL ESPACIO/)).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Los cambios aplican a todos los miembros/)).toBeVisible()
+    // Page header subtitle re-renders in Spanish after the cookie +
+    // revalidate land. (The eyebrow "REGIONAL" stays — same spelling
+    // in both languages — so we anchor on the section header subtitle.)
+    await expect(
+      page.getByText(/Valores predeterminados de organización/i)
+    ).toBeVisible({ timeout: 10_000 })
 
     // Reset back so subsequent suites don't inherit a Spanish UI.
     await page.locator("#language").selectOption("en-US")

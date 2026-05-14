@@ -4,8 +4,8 @@ import { useState, useEffect, useTransition, type ChangeEvent } from "react"
 import { useTranslations, useLocale } from "next-intl"
 import { toast } from "sonner"
 
-import { updateOrganizationPreferences } from "@/app/actions/organization-preferences"
-import type { OrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
+import { updateUserPreferences } from "@/app/actions/user-preferences"
+import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import {
   FormFieldset,
   FormSectionHeader,
@@ -16,9 +16,8 @@ import {
 } from "@/app/components/ui/forms"
 
 interface OperationsSectionProps {
-  preferences: OrganizationPreferences
-  isAdmin: boolean
-  onSaved?: (next: OrganizationPreferences) => void
+  preferences: UserPreferences
+  onSaved?: (next: UserPreferences) => void
 }
 
 type UnitSystem = "imperial" | "metric"
@@ -37,16 +36,13 @@ function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): stri
   return fixed.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")
 }
 
-export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsSectionProps) {
+export function OperationsSection({ preferences, onSaved }: OperationsSectionProps) {
   const t = useTranslations("settings")
   const locale = useLocale()
-  const [baseline, setBaseline] = useState<OrganizationPreferences>(preferences)
-  const [draft, setDraft] = useState<OrganizationPreferences>(preferences)
+  const [baseline, setBaseline] = useState<UserPreferences>(preferences)
+  const [draft, setDraft] = useState<UserPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
-  // Track edit-mode so the live preview echoes the user's keystrokes
-  // without an effect that reformats and overwrites mid-typing (e.g.
-  // "5" → "5.00" in metric mode the moment a digit is entered).
   const [isEditingThreshold, setIsEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState(() =>
     formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
@@ -62,9 +58,6 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
     )
   }, [preferences])
 
-  // When the unit-system flips (a deliberate change, not mid-typing),
-  // re-derive the input value so the operator sees the new system's
-  // formatted version. Mid-edit typing is preserved via isEditingThreshold.
   useEffect(() => {
     if (!isEditingThreshold) {
       setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
@@ -95,10 +88,9 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
 
   const handleSave = () => {
     startTransition(async () => {
-      const result = await updateOrganizationPreferences(draft)
+      const result = await updateUserPreferences(draft)
       if ("error" in result) {
-        const code = result.error === "forbidden" ? "forbidden" : "unknown"
-        toast.error(t(`errors.${code}`))
+        toast.error(t("errors.unknown"))
         return
       }
       setBaseline(result.data)
@@ -121,11 +113,6 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
   return (
     <FormFieldset>
       <FormSectionHeader eyebrow={t("operations.eyebrow")} title={t("operations.title")} />
-      {!isAdmin && (
-        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--color-ink-faint)] mt-2">
-          {t("regional.readonly")}
-        </p>
-      )}
       <FormFieldGroup>
         <FormFieldRow>
           <FormField label={t("operations.unitSystem")} htmlFor="unitSystem">
@@ -138,8 +125,7 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
                     handleUnitSystemChange(e.target.value)
                   }
                 }}
-                disabled={!isAdmin}
-                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none"
               >
                 <option value="imperial">{t("operations.imperial")}</option>
                 <option value="metric">{t("operations.metric")}</option>
@@ -191,8 +177,7 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
               value={thresholdInput}
               onChange={handleThresholdChange}
               onBlur={handleThresholdBlur}
-              disabled={!isAdmin}
-              className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none"
             />
             <p className="mt-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
               {t("operations.lowStockExplainer", {
@@ -203,20 +188,18 @@ export function OperationsSection({ preferences, isAdmin, onSaved }: OperationsS
           </FormField>
         </FormFieldRow>
       </FormFieldGroup>
-      {isAdmin && (
-        <FormActions
-          savedHint={
-            savedAt > 0
-              ? t("actions.lastSaved", {
-                  when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
-                })
-              : undefined
-          }
-          saveDisabled={!isDirty || isPending}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      )}
+      <FormActions
+        savedHint={
+          savedAt > 0
+            ? t("actions.lastSaved", {
+                when: new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(savedAt),
+              })
+            : undefined
+        }
+        saveDisabled={!isDirty || isPending}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
     </FormFieldset>
   )
 }

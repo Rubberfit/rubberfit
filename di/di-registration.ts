@@ -31,6 +31,7 @@ import type { ICutFavoritesService } from "@/src/application/services/cut-favori
 import type { IRollInventoryService } from "@/src/application/services/roll-inventory.service.interface"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import type { IUserPreferencesService } from "@/src/application/services/user-preferences.service.interface"
 import type { IStripeWebhookService } from "@/src/application/services/stripe-webhook.service.interface"
 
 // Infrastructure service singletons
@@ -64,6 +65,7 @@ import { cutFavoritesService } from "@/src/infrastructure/services/cutFavoritesS
 import { rollInventoryService } from "@/src/infrastructure/services/rollInventoryService"
 import { organizationService } from "@/src/infrastructure/services/organizationService"
 import { organizationPreferencesService } from "@/src/infrastructure/services/organizationPreferencesService"
+import { userPreferencesService } from "@/src/infrastructure/services/userPreferencesService"
 import { stripeWebhookService } from "@/src/infrastructure/services/stripeWebhookService"
 
 // Use case implementations
@@ -198,6 +200,10 @@ container.registerInstance<IOrganizationService>(TOKENS.IOrganizationService, or
 container.registerInstance<IOrganizationPreferencesService>(
   TOKENS.IOrganizationPreferencesService,
   organizationPreferencesService
+)
+container.registerInstance<IUserPreferencesService>(
+  TOKENS.IUserPreferencesService,
+  userPreferencesService
 )
 container.registerInstance<IStripeWebhookService>(
   TOKENS.IStripeWebhookService,
