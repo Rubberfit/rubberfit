@@ -5,6 +5,7 @@ import { Plus, Upload, ChevronDown } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypes as materialTypesSdk } from "@/src/infrastructure/api-client/rf/inventory"
+import { createMaterialType } from "@/app/actions/materials"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { Button } from "@/app/components/ui/button"
@@ -111,7 +112,10 @@ export default function MaterialTypesPage() {
         })
         toast.success("Material type updated successfully")
       } else {
-        await materialTypesSdk.create({
+        // Route create through the server action so a blank threshold
+        // seeds from the org's `lowStockThresholdSqft` instead of
+        // landing as `null` (no alert) by default. 2026-05-14 ruling.
+        await createMaterialType({
           name: formData.name.trim(),
           description: trimmedDescription || undefined,
           min_stock_alert: parsedStock,

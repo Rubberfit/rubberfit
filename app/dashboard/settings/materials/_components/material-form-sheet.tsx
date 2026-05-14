@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/app/components/ui/sheet"
 import { FormField, FormFieldGroup, FormFieldRow } from "@/app/components/ui/forms"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 
 export interface MaterialFormValues {
@@ -21,13 +22,6 @@ export interface MaterialFormValues {
   description: string
   default_cost: number
   min_stock_alert: number
-}
-
-const EMPTY_VALUES: MaterialFormValues = {
-  name: "",
-  description: "",
-  default_cost: 2.5,
-  min_stock_alert: 100,
 }
 
 interface MaterialFormSheetProps {
@@ -89,8 +83,23 @@ interface MaterialFormBodyProps {
   onSubmit: (values: MaterialFormValues, target: MaterialType | "new") => Promise<void> | void
 }
 
-function initialValuesFor(target: MaterialType | "new"): MaterialFormValues {
-  if (target === "new") return EMPTY_VALUES
+function initialValuesFor(
+  target: MaterialType | "new",
+  newMaterialThresholdSeed: number
+): MaterialFormValues {
+  if (target === "new") {
+    // Seed the new-material min_stock_alert from the org's
+    // `lowStockThresholdSqft` so admins see the workspace default
+    // pre-filled. Operator can override before saving; an explicit
+    // server-side seed still applies for callers that omit the field
+    // entirely (CSV import, legacy SDK paths). 2026-05-14 ruling.
+    return {
+      name: "",
+      description: "",
+      default_cost: 2.5,
+      min_stock_alert: newMaterialThresholdSeed,
+    }
+  }
   return {
     name: target.name ?? "",
     description: target.description ?? "",
@@ -100,7 +109,10 @@ function initialValuesFor(target: MaterialType | "new"): MaterialFormValues {
 }
 
 function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialFormBodyProps) {
-  const [values, setValues] = useState<MaterialFormValues>(() => initialValuesFor(target))
+  const orgPreferences = useOrganizationPreferences()
+  const [values, setValues] = useState<MaterialFormValues>(() =>
+    initialValuesFor(target, orgPreferences.lowStockThresholdSqft)
+  )
   const isEdit = target !== "new"
   const isValid = values.name.trim().length > 0
 

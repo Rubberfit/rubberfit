@@ -150,11 +150,14 @@ export default function CSVImportPage() {
         const newTypes = uniqueMaterialTypes.filter((name) => !existingNames.has(name))
 
         for (const name of newTypes) {
+          // Omit `min_stock_alert` so the action seeds it from the
+          // org's `lowStockThresholdSqft`. Passing `0` here would
+          // disable alerts for every CSV-imported material type
+          // regardless of org policy. 2026-05-14 ruling.
           await createMaterialType({
             name,
             description: "",
             default_cost: 0,
-            min_stock_alert: 0,
           })
         }
         if (newTypes.length > 0) {
