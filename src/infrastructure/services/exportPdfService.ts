@@ -150,10 +150,11 @@ export class ExportPdfService implements IExportPdfService {
    * Resolves an unknown waste-report period value (`startDate` /
    * `endDate`) into a display string. Routes string / Date / number
    * values through `formatUserDate` for org-pref-aware rendering;
-   * falls back to a literal string for any other shape so the
-   * generated period sentence never reads `undefined` /
-   * `[object Object]`. Avoids `as` casts at the field-access boundary
-   * by narrowing on `typeof` first.
+   * falls back to a literal string for primitive shapes so the
+   * generated period sentence never reads `undefined`. Object shapes
+   * (anything that would `String()`-stringify to `[object Object]`)
+   * collapse to the em-dash sentinel — nobody wants a serialized
+   * Zod failure printed in a customer report (CodeRabbit catch).
    */
   private formatPeriodValue(
     value: unknown,
@@ -163,6 +164,7 @@ export class ExportPdfService implements IExportPdfService {
     if (value instanceof Date || typeof value === "string" || typeof value === "number") {
       return formatUserDate(value, organizationPreferences) || String(value)
     }
+    if (typeof value === "object") return "—"
     return String(value)
   }
 

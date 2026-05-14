@@ -182,15 +182,23 @@ function buildScanPdf(roll: PublicRoll, prefs: OrgPrintPreferencesInput | undefi
   // through the unit helpers so a metric-org operator sees `cm` / `m²`
   // on a scanned label instead of hardcoded imperial. Date row uses
   // formatUserDate to honor the operator's `dateFormat`.
-  const remainingLengthLabel = formatLengthInches(roll.remaining_length, prefs)
+  // Clamp remaining length to [0, roll.length] so a row with drifted
+  // data (negative remaining, or remaining > length from a bad import)
+  // can't render a negative length, an over-100% percentage, or an
+  // available area that contradicts the diagram — the diagram's own
+  // `safeRemaining` already clamps, and the table must agree
+  // (CodeRabbit catch — drift symmetry across the page).
   const lengthGuard = Math.max(roll.length, 0.0001)
-  const availableSqft = (roll.remaining_length * roll.width) / 144
+  const safeRemainingLength = Math.max(0, Math.min(roll.remaining_length, lengthGuard))
+  const safeWidth = Math.max(roll.width, 0)
+  const remainingLengthLabel = formatLengthInches(safeRemainingLength, prefs)
+  const availableSqft = (safeRemainingLength * safeWidth) / 144
   const rows: Array<[string, string]> = [
     ["Part number", roll.part_number ?? roll.id],
     ["Dimensions", formatDimensionsInches([roll.width, roll.length, roll.thickness], prefs)],
     [
       "Remaining length",
-      `${remainingLengthLabel}  (${((roll.remaining_length / lengthGuard) * 100).toFixed(0)}%)`,
+      `${remainingLengthLabel}  (${((safeRemainingLength / lengthGuard) * 100).toFixed(0)}%)`,
     ],
     ["Available area", formatAreaSqft(availableSqft, prefs)],
     ["Status", roll.status],

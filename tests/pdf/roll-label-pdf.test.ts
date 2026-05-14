@@ -33,6 +33,8 @@ vi.mock("bwip-js/browser", () => ({
 }))
 
 import { buildRollLabelPdf } from "@/app/dashboard/inventory/_components/roll-label-pdf"
+import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 // `Roll["status"]` typed at the binding so the literal narrows
 // without an `as const` cast (CodeRabbit catch — no-cast rule
@@ -163,11 +165,11 @@ describe("buildRollLabelPdf", () => {
   // end-to-end (single + multi-roll headers).
   it("accepts orgPrefs date fields and renders both single and multi-roll headers", () => {
     const dateAndUnitPrefs = {
-      unitSystem: "metric" as const,
-      dateFormat: "dd/MM/yyyy" as const,
-      timeZone: "Europe/London" as const,
-      locale: "en-US" as const,
-    }
+      unitSystem: "metric",
+      dateFormat: "dd/MM/yyyy",
+      timeZone: "Europe/London",
+      locale: "en-US",
+    } satisfies UnitDisplayPreferencesInput & UserDatePreferencesInput
     const singleDoc = buildRollLabelPdf([makeRoll()], {
       organizationPreferences: dateAndUnitPrefs,
     })
