@@ -18,6 +18,7 @@ import { StockSheet } from "@/app/dashboard/cutting-engine/_components/stock-she
 import { RollDetailMeta } from "./roll-detail-meta"
 import { RollDetailOffcuts } from "./roll-detail-offcuts"
 import { RollDetailUsage } from "./roll-detail-usage"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { downloadRollLabelPdf } from "./roll-label-pdf"
 
 interface RollDetailBodyProps {
@@ -57,6 +58,7 @@ function formatCurrency(value: number): string {
  */
 export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDetailBodyProps) {
   const router = useRouter()
+  const organizationPreferences = useOrganizationPreferences()
   const [usage, setUsage] = useState<RollReusableOffcutSummary | null>(null)
   const [offcuts, setOffcuts] = useState<Roll[]>([])
 
@@ -109,7 +111,7 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
   const handlePrintLabel = async () => {
     try {
       await ensureStoredRollBarcode(roll)
-      downloadRollLabelPdf([roll])
+      downloadRollLabelPdf([roll], { organizationPreferences })
       toast.success("Label PDF downloaded")
     } catch (error) {
       const m = error instanceof Error ? error.message : "Unknown error"

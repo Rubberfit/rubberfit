@@ -6,6 +6,7 @@ import type { CutWithRoll } from "@/src/application/services/cut.service.interfa
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { type AnalyticsMaterialRow, buildAnalyticsReportPdf } from "./analytics-report-pdf"
 import type { ReportTemplate } from "./report-templates"
+import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
 
 function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"): {
   startDate: Date
@@ -79,7 +80,8 @@ function buildMaterialBreakdown(
 export async function generateReport(
   reportId: string,
   reportTemplates: ReportTemplate[],
-  reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"
+  reportPeriod: "daily" | "weekly" | "monthly" | "quarterly",
+  organizationPreferences?: UnitDisplayPreferencesInput
 ): Promise<void> {
   const report = reportTemplates.find((r) => r.id === reportId)
   if (!report) throw new Error("Report template not found")
@@ -132,6 +134,7 @@ export async function generateReport(
     // Cap at 20 rows so the recent-cuts table stays readable; future
     // templates can pass full slices if they need more.
     recentCuts: cutList.slice(0, 20),
+    organizationPreferences,
   })
 
   const ts = format(new Date(), "yyyy-MM-dd_HHmm")

@@ -21,6 +21,10 @@ import {
   formatInUserTimeZone,
   formatUserDate,
 } from "@/src/application/preferences/user-date-format"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 import type { OperationsExportInput } from "./dashboard-export-utils"
 
@@ -101,11 +105,13 @@ function drawSummaryCards(doc: jsPDF, input: OperationsExportInput, y: number): 
 
 function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
   y = ensure(doc, y, 80)
+  const orgPrefs = input.organizationPreferences
+  const areaUnit = getAreaUnitLabel(orgPrefs)
   y = drawSectionDivider(doc, {
     x: PAGE_MARGIN,
     y,
     width: CONTENT_W,
-    title: `Utilization (${input.utilPeriod}) — sq ft by material`,
+    title: `Utilization (${input.utilPeriod}) — ${areaUnit} by material`,
   })
   y += 12
 
@@ -135,7 +141,7 @@ function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: numbe
     const cells: string[] = [String(row.label ?? "")]
     for (const m of materials) {
       const cell = row[m]
-      cells.push(typeof cell === "number" ? cell.toFixed(1) : "0.0")
+      cells.push(typeof cell === "number" ? getDisplayAreaValue(cell, orgPrefs).toFixed(1) : "0.0")
     }
     return { cells }
   })

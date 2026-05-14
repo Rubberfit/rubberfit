@@ -18,6 +18,12 @@ import {
   TYPE,
 } from "@/app/lib/pdf"
 import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
+import {
+  formatDimensionsInches,
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 /**
  * Analytics Report PDF — Phase 7 PR 5.
@@ -58,6 +64,13 @@ export interface AnalyticsReportInput {
   readonly materialBreakdown: ReadonlyArray<AnalyticsMaterialRow>
   /** Recent cuts — caller slices to whatever count they want surfaced. */
   readonly recentCuts: ReadonlyArray<CutWithRoll>
+  /**
+   * Org-level unit preferences. Drives the KPI / table / cut-dimension
+   * unit labels + numeric conversion. Optional so legacy callers fall
+   * back to imperial; the production call site populates it from
+   * `useOrganizationPreferences()`.
+   */
+  readonly organizationPreferences?: UnitDisplayPreferencesInput
 }
 
 function formatMoney(value: number): string {
@@ -71,6 +84,9 @@ function formatMoney(value: number): string {
 export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })
   const title = input.reportName.toUpperCase()
+  const unitPreferences = input.organizationPreferences
+  const areaUnitLower = getAreaUnitLabel(unitPreferences)
+  const areaUnitUpper = areaUnitLower.toUpperCase()
 
   doc.setProperties({
     title: input.reportName,
@@ -108,8 +124,8 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
     { label: "Total cuts", value: String(input.summary.totalCuts) },
     {
       label: "Material used",
-      value: input.summary.totalMaterialUsed.toFixed(1),
-      unit: "SQ FT",
+      value: getDisplayAreaValue(input.summary.totalMaterialUsed, unitPreferences).toFixed(1),
+      unit: areaUnitUpper,
     },
     {
       label: "Avg waste",
@@ -152,11 +168,16 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
     const materialColumns: ReadonlyArray<TableColumn> = [
       { header: "Material type", width: 240 },
       { header: "Active rolls", width: 92, align: "right", mono: true },
-      { header: "Total sq ft", width: 92, align: "right", mono: true },
+      { header: `Total ${areaUnitLower}`, width: 92, align: "right", mono: true },
       { header: "Value", width: 92, align: "right", mono: true },
     ]
     const materialRows = input.materialBreakdown.map((m) => ({
-      cells: [m.material, String(m.activeRolls), m.totalSqft.toFixed(1), formatMoney(m.totalValue)],
+      cells: [
+        m.material,
+        String(m.activeRolls),
+        getDisplayAreaValue(m.totalSqft, unitPreferences).toFixed(1),
+        formatMoney(m.totalValue),
+      ],
     }))
     y =
       drawRuledTable(doc, {
@@ -209,7 +230,7 @@ export function buildAnalyticsReportPdf(input: AnalyticsReportInput): jsPDF {
         cells: [
           format(new Date(cut.created_at), "MM/dd/yyyy"),
           cut.roll?.material_type ?? "Unknown",
-          `${cut.cut_width}" × ${cut.cut_length}"`,
+          formatDimensionsInches([cut.cut_width, cut.cut_length], unitPreferences),
           String(cut.quantity),
           `${waste.toFixed(1)}%`,
           cut.job_reference ?? "—",
