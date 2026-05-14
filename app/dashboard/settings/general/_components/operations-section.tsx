@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useTransition, type ChangeEvent } from "react"
+import { useState, useEffect, useRef, useTransition } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -27,19 +27,9 @@ interface OperationsSectionProps {
   onSaved?: (next: UserPreferences) => void
 }
 
-const SQFT_PER_SQM = 10.7639
-
 const UNIT_SYSTEM_LABEL_KEY: Record<UnitSystem, "operations.imperial" | "operations.metric"> = {
   imperial: "operations.imperial",
   metric: "operations.metric",
-}
-
-function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): string {
-  if (unitSystem === "metric") {
-    return (sqftValue / SQFT_PER_SQM).toFixed(2)
-  }
-  const fixed = sqftValue.toFixed(2)
-  return fixed.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")
 }
 
 export function OperationsSection({ preferences, onSaved }: OperationsSectionProps) {
@@ -49,62 +39,25 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
   const [draft, setDraft] = useState<UserPreferences>(preferences)
   const [savedAt, setSavedAt] = useState<number>(0)
   const [isPending, startTransition] = useTransition()
-  const [isEditingThreshold, setIsEditingThreshold] = useState(false)
-  const [thresholdInput, setThresholdInput] = useState(() =>
-    formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
-  )
 
-  // Per-section dirty check — only fields this section owns. Compare
-  // unitSystem + lowStockThresholdSqft only; siblings can save their
-  // own fields without leaving Save stuck enabled here.
-  const isDirty =
-    draft.unitSystem !== baseline.unitSystem ||
-    draft.lowStockThresholdSqft !== baseline.lowStockThresholdSqft
-  // Ref lets the [preferences] effect peek at current dirty state without
-  // taking draft/baseline as deps (which would make it fire per keystroke).
+  // Per-section dirty check — only fields this section owns. The
+  // low-stock threshold moved to the workspace-defaults section in
+  // PR 2c (operator-seeds-prints ruling); only `unitSystem` is a
+  // personal display preference here.
+  const isDirty = draft.unitSystem !== baseline.unitSystem
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
 
   useEffect(() => {
-    // Always anchor baseline to the latest server value so a sibling's
-    // refresh keeps isDirty accurate against fresh data.
     setBaseline(preferences)
-    // Only reset draft + threshold UI when nothing is in flight. Without
-    // this guard, a regional save's router.refresh() would wipe the
-    // operator's mid-typing unit-system or threshold change.
     if (!isDirtyRef.current) {
       setDraft(preferences)
       setSavedAt(0)
-      setIsEditingThreshold(false)
-      setThresholdInput(
-        formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
-      )
     }
   }, [preferences])
 
   const handleUnitSystemChange = (value: UnitSystem) => {
-    // Reformat the input + drop the editing flag synchronously so the
-    // input and the lowStockExplainer preview agree on the new unit
-    // even if the user was mid-typing when they flipped the system.
     setDraft((prev) => ({ ...prev, unitSystem: value }))
-    setIsEditingThreshold(false)
-    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, value))
-  }
-
-  const handleThresholdChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value
-    setIsEditingThreshold(true)
-    setThresholdInput(raw)
-    const num = parseFloat(raw)
-    if (Number.isFinite(num) && num >= 0) {
-      const canonical = draft.unitSystem === "metric" ? num * SQFT_PER_SQM : num
-      setDraft((prev) => ({ ...prev, lowStockThresholdSqft: canonical }))
-    }
-  }
-
-  const handleThresholdBlur = () => {
-    setIsEditingThreshold(false)
-    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
   }
 
   const handleSave = () => {
@@ -114,7 +67,6 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
       // from overwriting what the user just saved over in RegionalSection.
       const result = await updateUserPreferences({
         unitSystem: draft.unitSystem,
-        lowStockThresholdSqft: draft.lowStockThresholdSqft,
       })
       if ("error" in result) {
         toast.error(t("errors.unknown"))
@@ -124,8 +76,6 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
       setSavedAt(Date.now())
       onSaved?.(result.data)
       toast.success(t("actions.saved"))
-      // Refresh so the sibling section re-anchors its baseline to the
-      // server's latest state and isDirty stays accurate.
       router.refresh()
     })
   }
@@ -133,12 +83,7 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
   const handleCancel = () => {
     setDraft(baseline)
     setSavedAt(0)
-    setIsEditingThreshold(false)
-    setThresholdInput(formatThresholdDisplay(baseline.lowStockThresholdSqft, baseline.unitSystem))
   }
-
-  const thresholdPreview = formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem)
-  const thresholdUnit = draft.unitSystem === "metric" ? "m²" : "sqft"
 
   return (
     <FormFieldset>
@@ -199,25 +144,6 @@ export function OperationsSection({ preferences, onSaved }: OperationsSectionPro
             <div className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.22em] text-[var(--color-ink-faint)] mt-2">
               {t("operations.referenceDimensions")}
             </div>
-          </FormField>
-        </FormFieldRow>
-        <FormFieldRow>
-          <FormField label={t("operations.lowStockThreshold")} htmlFor="lowStockThreshold">
-            <input
-              id="lowStockThreshold"
-              type="text"
-              inputMode="decimal"
-              value={thresholdInput}
-              onChange={handleThresholdChange}
-              onBlur={handleThresholdBlur}
-              className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none"
-            />
-            <p className="mt-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
-              {t("operations.lowStockExplainer", {
-                threshold: thresholdPreview,
-                unit: thresholdUnit,
-              })}
-            </p>
           </FormField>
         </FormFieldRow>
       </FormFieldGroup>

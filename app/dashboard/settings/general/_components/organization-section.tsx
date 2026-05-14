@@ -1,86 +1,398 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useState, useEffect, useRef, useTransition, type ChangeEvent } from "react"
+import { useTranslations } from "next-intl"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-import { Input } from "@/app/components/ui/input"
+import { updateOrganizationPreferences } from "@/app/actions/organization-preferences"
+import { useSetOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  SUPPORTED_CURRENCIES,
+  SUPPORTED_DATE_FORMATS,
+  SUPPORTED_LOCALES,
+  SUPPORTED_TIME_ZONES,
+  SUPPORTED_UNIT_SYSTEMS,
+  isSupportedCurrency,
+  isSupportedDateFormat,
+  isSupportedLocale,
+  isSupportedTimeZone,
+  isSupportedUnitSystem,
+  type UnitSystem,
+} from "@/src/application/preferences/constants"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
+import type { OrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
 import {
   FormActions,
   FormField,
   FormFieldGroup,
+  FormFieldRow,
   FormFieldset,
   FormSectionHeader,
 } from "@/app/components/ui/forms"
 
-import { formatSavedHint } from "./format-saved-hint"
-
-interface OrganizationState {
-  companyName: string
-  legalName: string
+interface OrganizationSectionProps {
+  preferences: OrganizationPreferences
+  isAdmin: boolean
+  isFirst?: boolean
 }
 
-const DEFAULTS: OrganizationState = {
-  companyName: "Arc & Anchor",
-  legalName: "",
+const LOCALE_LABELS: Record<OrganizationPreferences["locale"], string> = {
+  "en-US": "English (US)",
+  "es-MX": "Español (México)",
 }
 
-export function OrganizationSection({ isFirst = false }: { isFirst?: boolean }) {
-  const [baseline, setBaseline] = useState<OrganizationState>(DEFAULTS)
-  const [draft, setDraft] = useState<OrganizationState>(DEFAULTS)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
+const SQFT_PER_SQM = 10.7639
 
-  const isValid = draft.companyName.trim().length > 0
+const UNIT_SYSTEM_LABEL_KEY: Record<UnitSystem, "operations.imperial" | "operations.metric"> = {
+  imperial: "operations.imperial",
+  metric: "operations.metric",
+}
+
+function formatThresholdDisplay(sqftValue: number, unitSystem: UnitSystem): string {
+  if (unitSystem === "metric") {
+    return (sqftValue / SQFT_PER_SQM).toFixed(2)
+  }
+  const fixed = sqftValue.toFixed(2)
+  return fixed.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1")
+}
+
+/**
+ * Workspace-defaults editor. Governs shared / printed output —
+ * PDF dates + currency, billing dates, low-stock seeds for new
+ * materials, and (under PR 2d) the cutting-engine canvas units.
+ * Personal-screen rendering is still controlled by the user's own
+ * row in <RegionalSection> + <OperationsSection>.
+ *
+ * Owner/admin only — RLS is the second guard at the DB. Members
+ * shouldn't reach this page today (`/dashboard/settings/general`
+ * is gated to `manageUsers`), but the section accepts `isAdmin` as
+ * a prop so a future read-only member surface is one prop change
+ * away.
+ */
+export function OrganizationSection({
+  preferences,
+  isAdmin,
+  isFirst = false,
+}: OrganizationSectionProps) {
+  const t = useTranslations("settings")
+  const router = useRouter()
+  const setOrganizationPreferences = useSetOrganizationPreferences()
+  const [baseline, setBaseline] = useState<OrganizationPreferences>(preferences)
+  const [draft, setDraft] = useState<OrganizationPreferences>(preferences)
+  const [savedAt, setSavedAt] = useState<number>(0)
+  const [isPending, startTransition] = useTransition()
+  const [, setIsEditingThreshold] = useState(false)
+  const [thresholdInput, setThresholdInput] = useState(() =>
+    formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
+  )
+
   const isDirty =
-    draft.companyName !== baseline.companyName || draft.legalName !== baseline.legalName
+    draft.locale !== baseline.locale ||
+    draft.defaultCurrency !== baseline.defaultCurrency ||
+    draft.timeZone !== baseline.timeZone ||
+    draft.dateFormat !== baseline.dateFormat ||
+    draft.unitSystem !== baseline.unitSystem ||
+    draft.lowStockThresholdSqft !== baseline.lowStockThresholdSqft
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
 
-  const handleSave = useCallback(() => {
-    if (!isValid) return
-    setBaseline(draft)
-    setSavedAt(Date.now())
-    toast.success("Organization settings saved")
-  }, [draft, isValid])
+  useEffect(() => {
+    setBaseline(preferences)
+    if (!isDirtyRef.current) {
+      setDraft(preferences)
+      setSavedAt(0)
+      setIsEditingThreshold(false)
+      setThresholdInput(
+        formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
+      )
+    }
+  }, [preferences])
 
-  const handleCancel = useCallback(() => {
+  const handleUnitSystemChange = (value: UnitSystem) => {
+    setDraft((prev) => ({ ...prev, unitSystem: value }))
+    setIsEditingThreshold(false)
+    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, value))
+  }
+
+  const handleThresholdChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setIsEditingThreshold(true)
+    setThresholdInput(raw)
+    const num = parseFloat(raw)
+    if (Number.isFinite(num) && num >= 0) {
+      const canonical = draft.unitSystem === "metric" ? num * SQFT_PER_SQM : num
+      setDraft((prev) => ({ ...prev, lowStockThresholdSqft: canonical }))
+    }
+  }
+
+  const handleThresholdBlur = () => {
+    setIsEditingThreshold(false)
+    setThresholdInput(formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem))
+  }
+
+  const currencyPreview = new Intl.NumberFormat(draft.locale, {
+    style: "currency",
+    currency: draft.defaultCurrency,
+  }).format(1250)
+
+  const formatTimePreview = () =>
+    formatInUserTimeZone(
+      new Date(),
+      { locale: draft.locale, timeZone: draft.timeZone },
+      { hour: "numeric", minute: "2-digit", timeZoneName: "short" }
+    )
+  const [timePreview, setTimePreview] = useState(formatTimePreview)
+
+  useEffect(() => {
+    setTimePreview(formatTimePreview())
+    const id = setInterval(() => setTimePreview(formatTimePreview()), 30000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.locale, draft.timeZone])
+
+  const datePreview = formatUserDate(new Date(), {
+    dateFormat: draft.dateFormat,
+    timeZone: draft.timeZone,
+  })
+
+  const thresholdPreview = formatThresholdDisplay(draft.lowStockThresholdSqft, draft.unitSystem)
+  const thresholdUnit = draft.unitSystem === "metric" ? "m²" : "sqft"
+
+  const handleSave = () => {
+    if (!isAdmin) return
+    startTransition(async () => {
+      const result = await updateOrganizationPreferences({
+        locale: draft.locale,
+        defaultCurrency: draft.defaultCurrency,
+        timeZone: draft.timeZone,
+        dateFormat: draft.dateFormat,
+        unitSystem: draft.unitSystem,
+        lowStockThresholdSqft: draft.lowStockThresholdSqft,
+      })
+      if ("error" in result) {
+        if (result.error === "forbidden") toast.error(t("errors.forbidden"))
+        else toast.error(t("errors.unknown"))
+        return
+      }
+      setBaseline(result.data)
+      setSavedAt(Date.now())
+      setOrganizationPreferences(result.data)
+      toast.success(t("actions.saved"))
+      router.refresh()
+    })
+  }
+
+  const handleCancel = () => {
     setDraft(baseline)
-  }, [baseline])
+    setSavedAt(0)
+    setIsEditingThreshold(false)
+    setThresholdInput(formatThresholdDisplay(baseline.lowStockThresholdSqft, baseline.unitSystem))
+  }
+
+  const selectClassName =
+    "w-full h-10 px-3 pr-8 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none appearance-none disabled:opacity-60 disabled:cursor-not-allowed"
 
   return (
     <FormFieldset isFirst={isFirst}>
       <FormSectionHeader
-        eyebrow="Organization"
-        title="Tenant details"
-        description="Names that appear on receipts, invoices, and operator-facing surfaces."
+        eyebrow={t("organization.eyebrow")}
+        title={t("organization.title")}
+        description={t("organization.description")}
       />
-      <div className="mt-6 space-y-5">
-        <FormFieldGroup>
-          <FormField label="Company name" htmlFor="company-name" required>
-            <Input
-              id="company-name"
-              value={draft.companyName}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, companyName: event.target.value }))
-              }
-            />
+      <FormFieldGroup>
+        <FormFieldRow>
+          <FormField label={t("regional.language")} htmlFor="org-language">
+            <div className="relative">
+              <select
+                id="org-language"
+                value={draft.locale}
+                disabled={!isAdmin}
+                onChange={(e) => {
+                  if (isSupportedLocale(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, locale: next }))
+                  }
+                }}
+                className={selectClassName}
+              >
+                {SUPPORTED_LOCALES.map((value) => (
+                  <option key={value} value={value}>
+                    {LOCALE_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
+                ▼
+              </span>
+            </div>
           </FormField>
-          <FormField
-            label="Legal name"
-            htmlFor="legal-name"
-            helperText="Optional — used on contracts and tax documents."
-          >
-            <Input
-              id="legal-name"
-              value={draft.legalName}
-              onChange={(event) => setDraft((prev) => ({ ...prev, legalName: event.target.value }))}
-            />
+          <FormField label={t("regional.currency")} htmlFor="org-currency">
+            <div className="relative">
+              <select
+                id="org-currency"
+                value={draft.defaultCurrency}
+                disabled={!isAdmin}
+                onChange={(e) => {
+                  if (isSupportedCurrency(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, defaultCurrency: next }))
+                  }
+                }}
+                className={selectClassName}
+              >
+                {SUPPORTED_CURRENCIES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
+                ▼
+              </span>
+            </div>
+            <div className="flex justify-end mt-2 font-[family-name:var(--font-mono)] text-[12px] tracking-[0.04em] text-[var(--color-ink-soft)]">
+              <span className="text-[var(--color-ink-faint)] uppercase tracking-[0.18em] text-[10px] mr-2">
+                {t("regional.preview")}
+              </span>
+              <span className="text-[var(--color-ink)]">{currencyPreview}</span>
+            </div>
           </FormField>
-        </FormFieldGroup>
+        </FormFieldRow>
+        <FormFieldRow>
+          <FormField label={t("regional.timeZone")} htmlFor="org-timeZone">
+            <div className="relative">
+              <select
+                id="org-timeZone"
+                value={draft.timeZone}
+                disabled={!isAdmin}
+                onChange={(e) => {
+                  if (isSupportedTimeZone(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, timeZone: next }))
+                  }
+                }}
+                className={selectClassName}
+              >
+                {SUPPORTED_TIME_ZONES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
+                ▼
+              </span>
+            </div>
+            <div className="flex justify-end mt-2 font-[family-name:var(--font-mono)] text-[12px] tracking-[0.04em] text-[var(--color-ink-soft)]">
+              <span className="text-[var(--color-ink-faint)] uppercase tracking-[0.18em] text-[10px] mr-2">
+                {t("regional.current")}
+              </span>
+              <span className="text-[var(--color-ink)]">{timePreview}</span>
+            </div>
+          </FormField>
+          <FormField label={t("regional.dateFormat")} htmlFor="org-dateFormat">
+            <div className="relative">
+              <select
+                id="org-dateFormat"
+                value={draft.dateFormat}
+                disabled={!isAdmin}
+                onChange={(e) => {
+                  if (isSupportedDateFormat(e.target.value)) {
+                    const next = e.target.value
+                    setDraft((prev) => ({ ...prev, dateFormat: next }))
+                  }
+                }}
+                className={selectClassName}
+              >
+                {SUPPORTED_DATE_FORMATS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
+                ▼
+              </span>
+            </div>
+            <div className="flex justify-end mt-2 font-[family-name:var(--font-mono)] text-[12px] tracking-[0.04em] text-[var(--color-ink-soft)]">
+              <span className="text-[var(--color-ink-faint)] uppercase tracking-[0.18em] text-[10px] mr-2">
+                {t("regional.preview")}
+              </span>
+              <span className="text-[var(--color-ink)]">{datePreview}</span>
+            </div>
+          </FormField>
+        </FormFieldRow>
+        <FormFieldRow>
+          <FormField label={t("operations.unitSystem")} htmlFor="org-unitSystem">
+            <div className="relative">
+              <select
+                id="org-unitSystem"
+                value={draft.unitSystem}
+                disabled={!isAdmin}
+                onChange={(e) => {
+                  if (isSupportedUnitSystem(e.target.value)) {
+                    handleUnitSystemChange(e.target.value)
+                  }
+                }}
+                className={selectClassName}
+              >
+                {SUPPORTED_UNIT_SYSTEMS.map((value) => (
+                  <option key={value} value={value}>
+                    {t(UNIT_SYSTEM_LABEL_KEY[value])}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-faint)] text-[10px]">
+                ▼
+              </span>
+            </div>
+          </FormField>
+          <FormField label={t("operations.lowStockThreshold")} htmlFor="org-lowStockThreshold">
+            <input
+              id="org-lowStockThreshold"
+              type="text"
+              inputMode="decimal"
+              value={thresholdInput}
+              disabled={!isAdmin}
+              onChange={handleThresholdChange}
+              onBlur={handleThresholdBlur}
+              className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-rule)] text-[var(--color-ink)] font-[family-name:var(--font-sans)] text-[13px] rounded-none disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+            <p className="mt-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
+              {t("operations.lowStockExplainer", {
+                threshold: thresholdPreview,
+                unit: thresholdUnit,
+              })}
+            </p>
+          </FormField>
+        </FormFieldRow>
+      </FormFieldGroup>
+      {isAdmin ? (
         <FormActions
-          savedHint={formatSavedHint(savedAt)}
-          saveDisabled={!isDirty || !isValid}
+          savedHint={
+            savedAt > 0
+              ? t("actions.lastSaved", {
+                  when: formatInUserTimeZone(
+                    savedAt,
+                    { locale: draft.locale, timeZone: draft.timeZone },
+                    { timeStyle: "short" }
+                  ),
+                })
+              : undefined
+          }
+          saveDisabled={!isDirty || isPending}
           onSave={handleSave}
           onCancel={handleCancel}
         />
-      </div>
+      ) : (
+        <p className="mt-4 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
+          {t("regional.readonly")}
+        </p>
+      )}
     </FormFieldset>
   )
 }
