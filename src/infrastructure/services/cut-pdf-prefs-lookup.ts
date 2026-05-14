@@ -1,14 +1,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
-import { isSupportedUnitSystem } from "@/src/application/preferences/constants"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import {
+  isSupportedDateFormat,
+  isSupportedLocale,
+  isSupportedTimeZone,
+  isSupportedUnitSystem,
+} from "@/src/application/preferences/constants"
 
 /**
- * Look up the organization-level `unitSystem` for the user who owns a
- * cut record. Used by the server-side recovery PDF route
- * (`app/api/cuts/history/[id]/pdf/route.ts`) so the regenerated
- * artifact speaks the operator's voice regardless of who triggers
- * regeneration.
+ * Combined unit + date preferences for printed/exported output.
+ *
+ * The shape is the structural intersection of the two display-helper
+ * inputs so a single org-prefs lookup feeds both `formatLengthInches`
+ * + family AND `formatUserDate` + family. PR 2e generalizes the
+ * earlier `UnitDisplayPreferencesInput`-only path to close the date
+ * i18n gap; PR 2c (org-level) + PR 2d (units) remain in force.
+ */
+export type OrgPrintPreferencesInput = UnitDisplayPreferencesInput & UserDatePreferencesInput
+
+/**
+ * Look up the organization-level print preferences (unit system +
+ * date format + time zone + locale) for the user who owns a cut
+ * record. Used by:
+ *   - `app/api/_lib/cut-pdf-server.ts` server-recovery PDF route, so
+ *     a regenerated artifact speaks the operator's voice regardless
+ *     of who triggers regeneration.
+ *   - any future PDF/CSV builder that runs without a session-bound
+ *     `useOrganizationPreferences()` provider in scope.
  *
  * Takes the admin client as an explicit argument (matches
  * `uploadCutPdfBlob`'s pattern) because the recovery path runs with
@@ -16,10 +36,17 @@ import { isSupportedUnitSystem } from "@/src/application/preferences/constants"
  * queued background job whose session doesn't match the cut's owner.
  *
  * Returns `undefined` on any error so the caller falls back to
- * imperial defaults — the regen path stays best-effort, never
- * blocking the PDF render. Errors are logged via `console.error` so
- * production logs surface a silent metric-to-imperial regression
- * (the visible symptom for a metric org is a one-off imperial PDF).
+ * helper defaults (imperial / `MM/dd/yyyy` / `America/Chicago` /
+ * `en-US`) — the regen path stays best-effort, never blocking the
+ * PDF render. Errors are logged via `console.error` so production
+ * logs surface a silent regression.
+ *
+ * Returns a partial safe shape: each picker field is included only
+ * if the DB row carries a value that survives the constants-module
+ * type guard. The `?` optionals in the input types let downstream
+ * formatters fall back per-field, so a row with a valid
+ * `unit_system` but an invalid `time_zone` (e.g. legacy data, manual
+ * SQL edit) still drives unit conversion correctly.
  *
  * Known limitation: when an `ownerId` belongs to multiple
  * organizations, this picks the first membership row. `CutHistory`
@@ -30,10 +57,10 @@ import { isSupportedUnitSystem } from "@/src/application/preferences/constants"
  * because users are effectively single-org today; revisit when
  * multi-org membership ships.
  */
-export async function getOrgUnitPreferencesForOwner(
+export async function getOrgPreferencesForOwner(
   admin: SupabaseClient,
   ownerId: string
-): Promise<UnitDisplayPreferencesInput | undefined> {
+): Promise<OrgPrintPreferencesInput | undefined> {
   try {
     const memberRow = await admin
       .from("organization_members")
@@ -46,29 +73,57 @@ export async function getOrgUnitPreferencesForOwner(
     // network-level breakage. Without these explicit checks, the
     // catch-all below never fires for DB-level errors and the metric
     // org's silent-imperial-regression symptom would be invisible in
-    // production logs (CodeRabbit catch).
+    // production logs.
     if (memberRow.error) {
-      console.error("[cutPdfPrefsLookup] organization_members query failed", memberRow.error)
+      console.error("[orgPrintPrefsLookup] organization_members query failed", memberRow.error)
       return undefined
     }
     const organizationId = memberRow.data?.organization_id
     if (!organizationId) return undefined
     const prefsRow = await admin
       .from("organization_preferences")
-      .select("unit_system")
+      .select("unit_system, date_format, time_zone, locale")
       .eq("organization_id", organizationId)
       .maybeSingle()
     if (prefsRow.error) {
-      console.error("[cutPdfPrefsLookup] organization_preferences query failed", prefsRow.error)
+      console.error("[orgPrintPrefsLookup] organization_preferences query failed", prefsRow.error)
       return undefined
     }
-    const unitSystem = prefsRow.data?.unit_system
-    if (typeof unitSystem === "string" && isSupportedUnitSystem(unitSystem)) {
-      return { unitSystem }
+    const row = prefsRow.data
+    if (!row) return undefined
+
+    const result: OrgPrintPreferencesInput = {}
+    if (typeof row.unit_system === "string" && isSupportedUnitSystem(row.unit_system)) {
+      result.unitSystem = row.unit_system
     }
-    return undefined
+    if (typeof row.date_format === "string" && isSupportedDateFormat(row.date_format)) {
+      result.dateFormat = row.date_format
+    }
+    if (typeof row.time_zone === "string" && isSupportedTimeZone(row.time_zone)) {
+      result.timeZone = row.time_zone
+    }
+    if (typeof row.locale === "string" && isSupportedLocale(row.locale)) {
+      result.locale = row.locale
+    }
+    return result
   } catch (error) {
-    console.error("[cutPdfPrefsLookup] failed to resolve org unitSystem", error)
+    console.error("[orgPrintPrefsLookup] failed to resolve org print prefs", error)
     return undefined
   }
+}
+
+/**
+ * Compatibility wrapper for callers that only need the unit system
+ * (`UnitDisplayPreferencesInput`). Delegates to
+ * `getOrgPreferencesForOwner` so there's a single query path and a
+ * single error/log surface; new callers should prefer the unified
+ * helper directly.
+ */
+export async function getOrgUnitPreferencesForOwner(
+  admin: SupabaseClient,
+  ownerId: string
+): Promise<UnitDisplayPreferencesInput | undefined> {
+  const prefs = await getOrgPreferencesForOwner(admin, ownerId)
+  if (!prefs || prefs.unitSystem === undefined) return undefined
+  return { unitSystem: prefs.unitSystem }
 }
