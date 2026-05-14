@@ -70,12 +70,13 @@ export function PlanCardActionButton({
           return
         }
         window.location.href = result.url
-      } catch (error) {
+      } catch (err) {
         // Server-action invocation itself threw — Next.js scrubs custom
         // error properties across the RPC boundary in production, so
         // surface a generic toast and let the action's console.error
         // tell on-call what actually happened.
-        void error
+        // (Bind as `err` to avoid shadowing the `error` useState above.)
+        void err
         setError("Unable to open billing portal. Please try again.")
       }
     })
@@ -108,7 +109,10 @@ export function PlanCardActionButton({
         {isPending ? "Opening portal…" : actionLabel}
       </button>
       {error ? (
-        <p className="mt-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-signal-deep)]">
+        <p
+          role="alert"
+          className="mt-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-signal-deep)]"
+        >
           {error}
         </p>
       ) : null}

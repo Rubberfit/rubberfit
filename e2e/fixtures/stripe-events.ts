@@ -13,8 +13,15 @@ import { adminClient, type TestUser } from "./auth"
 import type { BillingInterval, PlanTier } from "@/src/infrastructure/models/billing"
 
 const STRIPE_API_VERSION = "2026-04-22.dahlia" as const
-const MAX_ANNUAL_PRICE_ID = "price_max_annual_test"
-const MAX_PRODUCT_ID = "rubberfit_max"
+
+/**
+ * Stable identifiers for the simulated "Portal-rotated" Max annual
+ * price + product. Exported so the spec can assert against the exact
+ * values the fixture wrote into the webhook payload without the two
+ * files drifting apart.
+ */
+export const MAX_ANNUAL_PRICE_ID = "price_max_annual_test"
+export const MAX_PRODUCT_ID = "rubberfit_max"
 
 interface StripeIds {
   stripeCustomerId: string
