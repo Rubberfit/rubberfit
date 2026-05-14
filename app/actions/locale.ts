@@ -34,7 +34,12 @@ export async function setLocale(input: SetLocaleInput): Promise<SetLocaleResult>
     maxAge: COOKIE_MAX_AGE_SECONDS,
     sameSite: "lax",
     path: "/",
-    httpOnly: false,
+    // No httpOnly override → defaults to httpOnly: true. Locale is
+    // resolved server-side in app/i18n/request.ts via next/headers'
+    // cookies(); all client components read it via useLocale() / the
+    // NextIntlClientProvider context, never via document.cookie. Keep
+    // it out of JS reach per least-privilege.
+    httpOnly: true,
   })
   revalidatePath("/dashboard", "layout")
   return { ok: true, locale: input.locale }
