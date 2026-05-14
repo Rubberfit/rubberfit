@@ -170,3 +170,133 @@ Tests are STRAIGHTFORWARD to write — patterns are identical to existing `tests
 5. **Commit + push the follow-up** with a `(step 7c-2, completion)` message naming the two new test files and any format/lint fixes.
 
 The branch is `feature/DDD-implementation`. Latest commit before next session: `f4ab8225`.
+
+---
+
+## Continuation 2 — Supplier service caller cutover (UNCOMMITTED)
+
+Same-day pick-up after 7c-2 closeout (`202df8fe`) and Task #84 receive dialog (`481a129c`). This continuation is a **DDD caller-migration slice, not a fresh entity build** — the supplier DDD pieces were already shipped weeks ago but had zero production callers.
+
+### Branch state at handoff
+
+- **Branch:** `feature/DDD-implementation`
+- **Last commit:** `481a129c` (Task #84 — dedicated PO receive dialog)
+- **Working tree:** 19 modified + 1 new test file, **not yet committed**
+
+### What was discovered
+
+The `supplierService` DDD slice at `src/infrastructure/services/supplierService.ts` was already fully built (entity, interfaces, mapper, repo, DI, tests). But the new service had **zero production callers** — every UI surface still imported `legacySupplierService`, whose write paths reference columns the post-redesign schema has removed (`user_id`, `contact_person`, `phone`, `zip_code`, `default_shipping_cost`). Read paths returned `undefined` for those columns silently.
+
+So this session's work was the missing **caller cutover** — moving production code off the legacy shim onto the new service, which forced a type-shape break from raw `Supplier` rows (snake_case, stale columns) to `SupplierSnapshot` (camelCase, entity `.toJSON()` output).
+
+### What shipped (uncommitted in working tree)
+
+**Service caller swaps (6 entry points):**
+
+| File | Method called | Notes |
+|------|---------------|-------|
+| `src/infrastructure/services/pricingPageService.ts` | `getActiveSuppliers` | Result type now `SupplierSnapshot[]` |
+| `app/dashboard/inventory/reorder/_components/reorder-data-fetcher.ts` | `getActiveSuppliers` | + `paymentTerms` field access fix in `reorder-rule-form-fields.tsx` |
+| `app/dashboard/inventory/purchase-orders/_components/use-purchase-orders.ts` | `getActiveSuppliers` | State type `SupplierSnapshot[]` |
+| `app/dashboard/inventory/purchase-orders/new/page.tsx` | `getActiveSuppliers` | + `shippingCost.cents/100` derivation, `address` VO unpack |
+| `app/dashboard/inventory/purchase-orders/[id]/edit/page.tsx` | `getActiveSuppliers` | Same |
+| `app/dashboard/inventory/_components/roll-form-fields.tsx` | `getSupplierById` | Only reads `.name` — entity getter matches |
+
+**Downstream prop-type propagation (13 files):**
+
+- `pricing/page.tsx`, `pricing/_components/pricing-comparison-table.tsx`, `pricing/_components/pricing-history-chart.tsx`
+- `reorder/page.tsx`, `reorder/_components/reorder-rule-sheet.tsx`, `reorder/_components/reorder-rule-form-fields.tsx`
+- `purchase-orders/_components/po-table.tsx`, `po-view-drawer.tsx`, `po-edit-drawer-body.tsx`, `po-form-shell.tsx`, `po-form-sections.tsx`, `po-form-dialog.tsx`, `po-action-handlers.ts`
+
+**Field-access refactors required by the entity → snapshot shape break:**
+
+| Legacy raw field | New snapshot path |
+|------------------|-------------------|
+| `default_shipping_cost` (USD number) | `shippingCost ? shippingCost.cents / 100 : undefined` (or `?? 50` for the form summary) |
+| `tax_exempt` | `taxExempt` |
+| `payment_terms` | `paymentTerms` |
+| flat `city` / `state` / `zip_code` / `country` | `address?.city` / `state` / `postalCode` / `country` |
+| `address` (string) | rewritten `buildSupplierAddress()` over `PostalAddressSnapshot` |
+
+**Architecture test (NEW):** `tests/architecture/no-legacy-supplier-service.test.ts` — fails the build if `legacySupplierService` is imported outside the allowlist (`legacySupplierService.ts` itself + `api-client/rf/inventory.ts` flag-gated fallback).
+
+### What stays UNCHANGED (intentionally)
+
+- `src/infrastructure/services/legacySupplierService.ts` — retains its supplier-table methods AND its `material_suppliers` methods. The latter half (link/unlink/preferred-supplier-for-material/etc.) is a **separate un-migrated aggregate** still consumed by `reorderCalculations`, `priceHistoryService`, and the flag-gated `api-client/rf/inventory.ts`. Deleting the shim is blocked on the material-suppliers DDD slice.
+- `src/infrastructure/api-client/rf/inventory.ts` — flag-gated Rust-backend fallback. Stays.
+- Tests that mock `legacySupplierService` directly (e.g. `tests/api-v2-inventory-parity.test.ts`) — low priority to migrate.
+- `src/infrastructure/models/supabase.ts:Supplier` — hand-maintained legacy type with stale fields. NOT touched in this slice; consumers that still use it (admin `/materials/suppliers/*` pages) are outside scope.
+
+### Verification at handoff
+
+- `npm run typecheck` — **0 errors**
+- `npm run lint` — 10 pre-existing warnings (unchanged baseline)
+- `npx prettier --check` on touched files — clean (auto-formatted on touched files)
+- `npx vitest run tests/services/supplierService.test.ts` — **15/15 passing**
+- `npx vitest run tests/architecture/no-legacy-supplier-service.test.ts` — **2/2 passing**
+- `npm run test` — **1767 passing / 9 failed / 21 skipped** (same 9 pre-existing failures from prior session — none newly introduced)
+- **Local smoke** — NOT yet performed
+
+### Pre-existing failures (parked, do not fix in this slice)
+
+Same set carried from prior sessions per user direction "Ignore the existing failures":
+
+- `tests/dashboard/po-new-page.test.tsx` (1) — fixture `SAMPLE_SUPPLIER` is a plain raw-row object without `.toJSON()`; would need an entity-shaped fixture to fully pass. Page-level rendering tests still pass.
+- `tests/proxy/matcher.test.ts` (1)
+- 7 others noted in earlier sessions
+
+### Resume notes for next session
+
+1. **Commit + push.** The 19 files + 1 new test file are uncommitted. Suggested message:
+
+       feat(suppliers): cut over UI callers from legacy shim to DDD service
+
+       Six production callers swapped off legacySupplierService onto the
+       DDD supplierService. Downstream prop types propagated through 13
+       consumers; field access updated to camelCase + entity-VO snapshot
+       shape (shippingCost.cents/100, address.postalCode, taxExempt,
+       paymentTerms). New architecture test prevents drift.
+
+       Shim retained — material_suppliers methods still in use elsewhere.
+
+2. **Local smoke (priority — not done at handoff):**
+   - `npm run dev` → navigate to `/dashboard/inventory/purchase-orders` → confirm table renders + supplier filter populates
+   - `/dashboard/inventory/purchase-orders/new` → supplier select populates, preferred sorted first, address auto-fill works on supplier pick
+   - `/dashboard/inventory/purchase-orders/[id]/edit` → supplier dropdown pre-selects current, edit save persists
+   - `/dashboard/inventory/reorder` → supplier picker in rule sheet shows active + paymentTerms hint
+   - `/dashboard/inventory/materials/pricing` → comparison/history tables render with supplier names
+
+3. **Next slice options** (in rough order of value):
+   - **Material-suppliers DDD migration** — separate aggregate with unit conversions (sqft→m²), date-range validity, full audit trail. Unblocks deleting `legacySupplierService.ts` entirely once `reorderCalculations` + `priceHistoryService` + `api-client/rf/inventory.ts` material-supplier methods are rewired.
+   - **Merge `feature/DDD-implementation` → `dev`** — branch is now substantially ahead (~51+ commits plus 2.0.0 base divergence). Significant rebase / merge work. Version bump deferred per user's Option B from earlier session.
+   - **`/dashboard/inventory/materials/suppliers/*` admin pages** — still consume the legacy `Supplier` type from supabase.ts. Their writes go through `api-client/rf/procurement` (Rust backend) or direct mutations — separate concern from this cutover but should eventually migrate.
+   - **Repo hygiene** — 107-file repo-wide prettier baseline, 10 lint warnings on entity files.
+
+### Files modified (full list, for `git diff` context)
+
+```
+app/dashboard/inventory/_components/roll-form-fields.tsx
+app/dashboard/inventory/materials/pricing/_components/pricing-comparison-table.tsx
+app/dashboard/inventory/materials/pricing/_components/pricing-history-chart.tsx
+app/dashboard/inventory/materials/pricing/page.tsx
+app/dashboard/inventory/purchase-orders/[id]/edit/page.tsx
+app/dashboard/inventory/purchase-orders/_components/po-action-handlers.ts
+app/dashboard/inventory/purchase-orders/_components/po-edit-drawer-body.tsx
+app/dashboard/inventory/purchase-orders/_components/po-form-dialog.tsx
+app/dashboard/inventory/purchase-orders/_components/po-form-sections.tsx
+app/dashboard/inventory/purchase-orders/_components/po-form-shell.tsx
+app/dashboard/inventory/purchase-orders/_components/po-table.tsx
+app/dashboard/inventory/purchase-orders/_components/po-view-drawer.tsx
+app/dashboard/inventory/purchase-orders/_components/use-purchase-orders.ts
+app/dashboard/inventory/purchase-orders/new/page.tsx
+app/dashboard/inventory/reorder/_components/reorder-data-fetcher.ts
+app/dashboard/inventory/reorder/_components/reorder-rule-form-fields.tsx
+app/dashboard/inventory/reorder/_components/reorder-rule-sheet.tsx
+app/dashboard/inventory/reorder/page.tsx
+src/infrastructure/services/pricingPageService.ts
+tests/architecture/no-legacy-supplier-service.test.ts  (NEW)
+```
+
+### Plan file reference
+
+The plan that guided this work lives at `C:\Users\Bing\.claude\plans\write-a-plan-to-encapsulated-dream.md` (overwritten from the prior Task #84 plan). New session should read it for the scope rationale + out-of-scope decisions.
