@@ -20,9 +20,9 @@ import { RollDetailOffcuts } from "./roll-detail-offcuts"
 import { RollDetailUsage } from "./roll-detail-usage"
 import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import {
-  formatAreaSqft,
   formatDimensionsInches,
   getAreaUnitLabel,
+  getDisplayAreaValue,
 } from "@/src/application/preferences/user-unit-display"
 import { downloadRollLabelPdf } from "./roll-label-pdf"
 
@@ -200,10 +200,7 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
                 Available
               </p>
               <p className="mt-1 font-semibold text-sm text-foreground tabular-nums">
-                {formatAreaSqft(remainingSqft, organizationPreferences, { precision: 1 }).replace(
-                  ` ${getAreaUnitLabel(organizationPreferences)}`,
-                  ""
-                )}{" "}
+                {getDisplayAreaValue(remainingSqft, organizationPreferences).toFixed(1)}{" "}
                 <span className="font-normal text-[11px] text-muted-foreground">
                   {getAreaUnitLabel(organizationPreferences)}
                 </span>

@@ -1045,7 +1045,7 @@ function addOffcutSummary(
   doc: jsPDF,
   rows: ReadonlyArray<OffcutSummaryRow>,
   y: number,
-  prefs?: UnitDisplayPreferencesInput
+  unitPreferences?: UnitDisplayPreferencesInput
 ): number {
   if (rows.length === 0) return y
   const showRoll = rows.some((r) => r.rollTotal > 1)
@@ -1127,19 +1127,23 @@ function addOffcutSummary(
     }
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")
-    doc.text(`${formatInch(row.region.x, prefs)}, ${formatInch(row.region.y, prefs)}`, x, y)
+    doc.text(
+      `${formatInch(row.region.x, unitPreferences)}, ${formatInch(row.region.y, unitPreferences)}`,
+      x,
+      y
+    )
     x += widths[showRoll ? 2 : 1]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "bold")
     doc.text(
-      `${formatInch(row.region.width, prefs)} × ${formatInch(row.region.height, prefs)}`,
+      `${formatInch(row.region.width, unitPreferences)} × ${formatInch(row.region.height, unitPreferences)}`,
       x,
       y
     )
     x += widths[showRoll ? 3 : 2]
     doc.setTextColor(...GRAY_900)
     doc.setFont("helvetica", "normal")
-    doc.text(formatAreaSqft(row.areaSqFt, prefs, { precision: 2 }), x, y)
+    doc.text(formatAreaSqft(row.areaSqFt, unitPreferences, { precision: 2 }), x, y)
     x += widths[showRoll ? 4 : 3]
     doc.setTextColor(...GRAY_700)
     doc.setFont("helvetica", "normal")

@@ -41,6 +41,16 @@ export async function getOrgUnitPreferencesForOwner(
       .eq("user_id", ownerId)
       .limit(1)
       .maybeSingle()
+    // The Supabase JS client returns { data, error } and does NOT throw
+    // on permission / RLS / timeout / constraint failures — only on
+    // network-level breakage. Without these explicit checks, the
+    // catch-all below never fires for DB-level errors and the metric
+    // org's silent-imperial-regression symptom would be invisible in
+    // production logs (CodeRabbit catch).
+    if (memberRow.error) {
+      console.error("[cutPdfPrefsLookup] organization_members query failed", memberRow.error)
+      return undefined
+    }
     const organizationId = memberRow.data?.organization_id
     if (!organizationId) return undefined
     const prefsRow = await admin
@@ -48,6 +58,10 @@ export async function getOrgUnitPreferencesForOwner(
       .select("unit_system")
       .eq("organization_id", organizationId)
       .maybeSingle()
+    if (prefsRow.error) {
+      console.error("[cutPdfPrefsLookup] organization_preferences query failed", prefsRow.error)
+      return undefined
+    }
     const unitSystem = prefsRow.data?.unit_system
     if (typeof unitSystem === "string" && isSupportedUnitSystem(unitSystem)) {
       return { unitSystem }
