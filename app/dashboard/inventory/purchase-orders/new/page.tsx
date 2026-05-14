@@ -4,8 +4,9 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
-import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
-import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { createPurchaseOrder } from "@/app/actions/purchase-orders"
@@ -23,7 +24,7 @@ function NewPurchaseOrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [formData, setFormData] = useState<POFormData>(getDefaultFormData())
   const [taxDetails, setTaxDetails] = useState<TaxDetails | null>(null)
@@ -66,7 +67,7 @@ function NewPurchaseOrderPageInner() {
         materialTypeRepository.getAll(),
       ])
       if (cancelled) return
-      setSuppliers(suppliersData)
+      setSuppliers(suppliersData.map((s) => s.toJSON()))
       setMaterialTypes(materialsData)
     }
     void load().catch((error) => {
@@ -188,7 +189,9 @@ function NewPurchaseOrderPageInner() {
         shippingAddress: formData.shipping_address,
         billingAddress: formData.billing_address,
         notes: formData.notes,
-        shippingCost: selectedSupplier?.default_shipping_cost,
+        shippingCost: selectedSupplier?.shippingCost
+          ? selectedSupplier.shippingCost.cents / 100
+          : undefined,
         items: mapFormItems(formData.items),
         jobId: sourceJobIdRef.current ?? undefined,
       })

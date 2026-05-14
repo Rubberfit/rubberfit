@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
-import { type MaterialType, type Supplier } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { Button } from "@/app/components/ui/button"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 
@@ -25,7 +26,7 @@ interface PoFormShellProps {
   subtitle: string
   formData: POFormData
   setFormData: (data: POFormData) => void
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   materialTypes: MaterialType[]
   taxDetails: TaxDetails | null
   isSaving: boolean

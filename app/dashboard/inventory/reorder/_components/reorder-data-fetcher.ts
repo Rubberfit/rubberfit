@@ -1,10 +1,7 @@
-import type {
-  MaterialType,
-  ReorderRuleWithDetails,
-  Supplier,
-} from "@/src/infrastructure/models/supabase"
+import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
-import { legacySupplierService as supplierService } from "@/src/infrastructure/services/legacySupplierService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { generateReorderSuggestions } from "@/app/actions/reorder"
@@ -20,7 +17,7 @@ import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorde
 interface FetchDataResult {
   reorderRules: ReorderRuleWithDetails[]
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   suggestions: ReorderSuggestionOutput[]
 }
 
@@ -77,7 +74,7 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
   return {
     reorderRules: rulesWithStock,
     materialTypes: materials,
-    suppliers: suppliersData,
+    suppliers: suppliersData.map((s) => s.toJSON()),
     suggestions,
   }
 }

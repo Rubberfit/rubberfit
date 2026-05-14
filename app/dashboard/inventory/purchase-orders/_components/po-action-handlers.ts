@@ -1,4 +1,5 @@
-import type { PurchaseOrderWithDetails, Supplier } from "@/src/infrastructure/models/supabase"
+import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { createPurchaseOrder, updatePurchaseOrder } from "@/app/actions/purchase-orders"
@@ -49,7 +50,7 @@ export function mapFormItems(items: POFormData["items"]) {
 
 interface CreatePOParams {
   formData: POFormData
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   fetchData: () => Promise<void>
   setSelectedPO: (po: PurchaseOrderWithDetails | null) => void
   setIsViewDialogOpen: (open: boolean) => void
@@ -84,7 +85,9 @@ export async function createPO({
     shippingAddress: formData.shipping_address,
     billingAddress: formData.billing_address,
     notes: formData.notes,
-    shippingCost: selectedSupplier?.default_shipping_cost,
+    shippingCost: selectedSupplier?.shippingCost
+      ? selectedSupplier.shippingCost.cents / 100
+      : undefined,
     items: mapFormItems(formData.items),
     jobId,
   })
@@ -116,7 +119,7 @@ export async function createPO({
 interface UpdatePOParams {
   editFormData: POFormData
   editingPO: PurchaseOrderWithDetails
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   fetchData: () => Promise<void>
   setIsEditDialogOpen: (v: boolean) => void
   setEditingPO: (v: PurchaseOrderWithDetails | null) => void
@@ -142,7 +145,9 @@ export async function updatePO({
     shippingAddress: editFormData.shipping_address,
     billingAddress: editFormData.billing_address,
     notes: editFormData.notes,
-    shippingCost: selectedSupplier?.default_shipping_cost,
+    shippingCost: selectedSupplier?.shippingCost
+      ? selectedSupplier.shippingCost.cents / 100
+      : undefined,
     items: mapFormItems(editFormData.items),
   })
 

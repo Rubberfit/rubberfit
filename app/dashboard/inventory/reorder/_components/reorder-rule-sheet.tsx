@@ -8,9 +8,9 @@ import {
   type CreateReorderRule,
   type MaterialType,
   type ReorderRule,
-  type Supplier,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { Button } from "@/app/components/ui/button"
 import {
@@ -28,7 +28,7 @@ interface ReorderRuleSheetProps {
   onOpenChange: (open: boolean) => void
   rule?: ReorderRule | null
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   onSuccess?: () => void
 }
 

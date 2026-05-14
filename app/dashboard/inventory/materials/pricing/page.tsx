@@ -8,8 +8,8 @@ import { toast } from "sonner"
 import {
   type MaterialSupplierWithDetails,
   type MaterialType,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { fetchPricingPageData } from "@/src/infrastructure/services/pricingPageService"
 import { Button } from "@/app/components/ui/button"
@@ -38,7 +38,7 @@ import type {
 
 export default function PricingPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [materialSuppliers, setMaterialSuppliers] = useState<MaterialSupplierWithDetails[]>([])
   const [priceHistory, setPriceHistory] = useState<PriceHistoryWithJoins[]>([])
   const [loading, setLoading] = useState(true)

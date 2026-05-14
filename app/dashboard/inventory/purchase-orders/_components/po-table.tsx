@@ -6,8 +6,8 @@ import { FileText } from "lucide-react"
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import {
   Select,
   SelectContent,
@@ -27,7 +27,7 @@ const DEFAULT_PAGE_SIZE = 25
 interface POTableProps {
   loading: boolean
   filteredPOs: PurchaseOrderWithDetails[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   statusFilter: string
   setStatusFilter: (v: string) => void
   supplierFilter: string

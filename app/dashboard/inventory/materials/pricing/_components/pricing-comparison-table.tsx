@@ -2,7 +2,8 @@
 
 import { Download, Search, CheckCircle2 } from "lucide-react"
 
-import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import {
@@ -29,7 +30,7 @@ import type { PriceComparisonData } from "./pricing-types"
 interface PricingComparisonTableProps {
   loading: boolean
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   selectedMaterial: string
   setSelectedMaterial: (value: string) => void
   selectedSupplier: string

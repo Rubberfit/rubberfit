@@ -12,13 +12,13 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import { type Supplier } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 
 interface PricingHistoryChartProps {
   selectedMaterial: string
   chartData: Record<string, unknown>[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   filteredPriceHistoryLength: number
 }
 

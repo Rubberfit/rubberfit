@@ -15,7 +15,8 @@ import {
 import { Switch } from "@/app/components/ui/switch"
 import { Alert, AlertDescription } from "@/app/components/ui/alert"
 import { Separator } from "@/app/components/ui/separator"
-import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 
 interface FormData {
   material_type_id: string
@@ -41,7 +42,7 @@ interface MaterialSupplierFieldsProps {
   formData: FormData
   setFormData: (data: FormData) => void
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   isEditing: boolean
 }
 
@@ -104,7 +105,7 @@ export function MaterialSupplierFields({
         </Select>
         {selectedSupplier && (
           <p className="text-sm text-muted-foreground">
-            Payment terms: {selectedSupplier.payment_terms || "N/A"}
+            Payment terms: {selectedSupplier.paymentTerms || "N/A"}
           </p>
         )}
       </div>
@@ -379,7 +380,7 @@ interface ReorderRuleFormFieldsProps {
   eoqData: EOQData
   setEoqData: (data: EOQData) => void
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   isEditing: boolean
   onCalculateEOQ: () => void
   onCalculateReorderPoint: () => void
