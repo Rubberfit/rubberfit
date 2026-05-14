@@ -53,6 +53,7 @@ export const TOKENS = {
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
   ICreateOrganizationFromOnboardingUseCase: Symbol("ICreateOrganizationFromOnboardingUseCase"),
   ICreateCheckoutSessionUseCase: Symbol("ICreateCheckoutSessionUseCase"),
+  ICreateBillingPortalSessionUseCase: Symbol("ICreateBillingPortalSessionUseCase"),
 
   // PR 6 — team invites + seat management
   IAcceptInvitationUseCase: Symbol("IAcceptInvitationUseCase"),

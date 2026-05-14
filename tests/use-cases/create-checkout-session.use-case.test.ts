@@ -289,15 +289,27 @@ function makeStripeClient(
     })
   )
 
+  const createPortalSession = vi.fn(async (_params: Stripe.BillingPortal.SessionCreateParams) => ({
+    url: "https://billing.stripe.com/test",
+  }))
+
   const client: StripeBillingClient = {
     prices: { list: listPrices },
     customers: { create: createCustomer },
     checkout: { sessions: { create: createSession } },
     subscriptions: { update: updateSubscription },
+    billingPortal: { sessions: { create: createPortalSession } },
   }
   const service: IStripeClientService = { getClient: () => client }
 
-  return { service, listPrices, createCustomer, createSession, updateSubscription }
+  return {
+    service,
+    listPrices,
+    createCustomer,
+    createSession,
+    updateSubscription,
+    createPortalSession,
+  }
 }
 
 describe("CreateCheckoutSessionUseCase", () => {

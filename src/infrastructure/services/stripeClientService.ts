@@ -27,6 +27,11 @@ export class StripeClientService implements IStripeClientService {
       subscriptions: {
         update: (id, params) => stripe.subscriptions.update(id, params),
       },
+      billingPortal: {
+        sessions: {
+          create: (params) => stripe.billingPortal.sessions.create(params),
+        },
+      },
     }
   }
 }
