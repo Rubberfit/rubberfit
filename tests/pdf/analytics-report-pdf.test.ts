@@ -80,4 +80,24 @@ describe("buildAnalyticsReportPdf", () => {
       expect(() => buildAnalyticsReportPdf(makeInput({ reportName: name }))).not.toThrow()
     }
   })
+
+  // PR 2d — orgPrefs.unitSystem is now an optional input field. The
+  // contract is: omitted / imperial preserves the legacy render; metric
+  // produces a structurally-identical but content-different PDF.
+  it("renders both imperial and metric without throwing", () => {
+    const imperial = buildAnalyticsReportPdf(
+      makeInput({ organizationPreferences: { unitSystem: "imperial" } })
+    )
+    const metric = buildAnalyticsReportPdf(
+      makeInput({ organizationPreferences: { unitSystem: "metric" } })
+    )
+    expect(imperial.internal.pageSize.getWidth()).toBe(612)
+    expect(metric.internal.pageSize.getWidth()).toBe(612)
+    expect(imperial.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+    expect(metric.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("defaults to imperial when organizationPreferences is omitted", () => {
+    expect(() => buildAnalyticsReportPdf(makeInput())).not.toThrow()
+  })
 })
