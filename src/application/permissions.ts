@@ -15,6 +15,10 @@ export const PERMISSIONS = {
   // Inventory
   viewInventory: ["admin", "manager", "supervisor", "cutter", "member", "viewer"],
   manageRolls: ["admin", "manager"],
+  // 7c-2 admin reconciliation surface — covers both pending_apply and
+  // pending_roll_creation views. Admin-only because a misapplied reconcile
+  // can double-count inventory or stamp the wrong row.
+  reconcileReceipts: ["admin"],
 
   // Cut Planner
   accessCutPlanner: ["admin", "cutter"],
@@ -61,6 +65,9 @@ export const ROUTE_PERMISSIONS = {
   // Inventory sub-routes
   "/dashboard/inventory/reorder": "manageRolls",
   "/dashboard/inventory/purchase-orders": "manageRolls",
+  // 7c-2 admin reconciliation dashboard — consumes the two views that
+  // surface partial-state windows in the receive-PO flow.
+  "/dashboard/admin/inventory/po-reconciliation": "reconcileReceipts",
 
   // Management — materials live under inventory after S4 Task 3
   "/dashboard/inventory/materials": "accessManagement",

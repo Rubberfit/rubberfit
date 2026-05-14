@@ -36,6 +36,10 @@ export class RollService implements IRollService {
     return this.repo.findChildOffcuts(parentRollId)
   }
 
+  findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<Roll | null> {
+    return this.repo.findByPurchaseOrderItemId(purchaseOrderItemId)
+  }
+
   createRoll(props: CreateRollProps): Promise<Roll> {
     const roll = Roll.create(props)
     return this.repo.insert(roll)

@@ -55,6 +55,7 @@ function makeFakeRepo(): IRollsRepository {
     findActive: vi.fn(),
     findByMaterialType: vi.fn(),
     findChildOffcuts: vi.fn(),
+    findByPurchaseOrderItemId: vi.fn().mockResolvedValue(null),
     insert: vi.fn(),
     update: vi.fn(),
     getAllRolls: vi.fn(),

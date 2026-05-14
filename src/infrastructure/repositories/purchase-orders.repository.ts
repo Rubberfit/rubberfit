@@ -8,6 +8,8 @@ import type {
   IPurchaseOrdersRepository,
   InsertReceiptInput,
   InsertReceiptResult,
+  PoItemReceiptWithContext,
+  PoReceiptReconciliationRow,
 } from "@/src/application/repositories/purchase-orders.repository.interface"
 import {
   purchaseOrderItemToInsertRow,
@@ -23,8 +25,119 @@ import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-cl
 const PO_TABLE = "purchase_orders"
 const ITEMS_TABLE = "purchase_order_items"
 const RECEIPTS_TABLE = "po_item_receipts"
+const PENDING_APPLY_VIEW = "po_receipts_pending_apply"
+const PENDING_ROLL_VIEW = "po_receipts_pending_roll_creation"
 const PO_COLUMNS = "*"
 const ITEMS_COLUMNS = "*"
+
+// Snake-case shapes returned from the two reconciliation views. The view
+// definitions (migration 20260513000001) project these columns; pending_apply
+// excludes the roll_* columns (no admin action ever needs them for that
+// surface), pending_roll_creation includes them. Mapper sets roll_* to null
+// when absent.
+interface PendingApplyViewRow {
+  receipt_id: string
+  tenant_id: string
+  purchase_order_item_id: string
+  idempotency_key: string
+  quantity_received_sqm: number
+  received_date: string
+  receipt_created_at: string
+  receipt_created_by: string | null
+  purchase_order_id: string
+  line_number: number
+  material_type_id: string
+  po_number: string
+  supplier_id: string
+  purchase_order_status: PoStatus
+}
+
+interface PendingRollViewRow extends PendingApplyViewRow {
+  roll_width_mm: number | null
+  roll_length_mm: number | null
+  roll_thickness_mm: number | null
+  roll_color: string | null
+  roll_location: string | null
+  roll_cost_per_sqm_cents: number | null
+  roll_notes: string | null
+}
+
+// The raw po_item_receipts row + JOIN'd po_id/line_number from
+// purchase_order_items. Used by findReceiptById (reconcile use-cases need
+// a full snapshot regardless of state, including already-stamped rows that
+// aren't in either view anymore).
+interface ReceiptWithJoinRow {
+  id: string
+  tenant_id: string
+  purchase_order_item_id: string
+  idempotency_key: string
+  quantity_received_sqm: number
+  received_date: string
+  roll_requested: boolean
+  roll_width_mm: number | null
+  roll_length_mm: number | null
+  roll_thickness_mm: number | null
+  roll_color: string | null
+  roll_location: string | null
+  roll_cost_per_sqm_cents: number | null
+  roll_notes: string | null
+  applied_at: string | null
+  roll_created_at: string | null
+  created_at: string
+  created_by: string | null
+  purchase_order_items: {
+    id: string
+    line_number: number
+    material_type_id: string
+    purchase_order_id: string
+    purchase_orders: {
+      id: string
+      po_number: string
+      supplier_id: string
+      status: PoStatus
+    }
+  }
+}
+
+function mapPendingApplyRow(row: PendingApplyViewRow): PoReceiptReconciliationRow {
+  return {
+    receiptId: row.receipt_id,
+    tenantId: row.tenant_id,
+    purchaseOrderItemId: row.purchase_order_item_id,
+    idempotencyKey: row.idempotency_key,
+    quantityReceivedSqm: Number(row.quantity_received_sqm),
+    receivedDate: new Date(row.received_date),
+    receiptCreatedAt: new Date(row.receipt_created_at),
+    receiptCreatedBy: row.receipt_created_by,
+    purchaseOrderId: row.purchase_order_id,
+    lineNumber: row.line_number,
+    materialTypeId: row.material_type_id,
+    poNumber: row.po_number,
+    supplierId: row.supplier_id,
+    purchaseOrderStatus: row.purchase_order_status,
+    // pending_apply view doesn't project roll_*; admin re-applies entity-only.
+    rollWidthMm: null,
+    rollLengthMm: null,
+    rollThicknessMm: null,
+    rollColor: null,
+    rollLocation: null,
+    rollCostPerSqmCents: null,
+    rollNotes: null,
+  }
+}
+
+function mapPendingRollRow(row: PendingRollViewRow): PoReceiptReconciliationRow {
+  return {
+    ...mapPendingApplyRow(row),
+    rollWidthMm: row.roll_width_mm,
+    rollLengthMm: row.roll_length_mm,
+    rollThicknessMm: row.roll_thickness_mm,
+    rollColor: row.roll_color,
+    rollLocation: row.roll_location,
+    rollCostPerSqmCents: row.roll_cost_per_sqm_cents,
+    rollNotes: row.roll_notes,
+  }
+}
 
 /**
  * Tenant-level currency resolution lands with the tenant-settings
@@ -258,6 +371,85 @@ export class PurchaseOrdersRepository implements IPurchaseOrdersRepository {
       .update({ roll_created_at: new Date().toISOString() })
       .eq("id", receiptId)
     if (error) throw error
+  }
+
+  async findReceiptById(receiptId: string): Promise<PoItemReceiptWithContext> {
+    const client = await getDatabaseClient()
+    // Single round-trip with the JOIN-style nested-select Supabase
+    // supports: po_item_receipts → purchase_order_items → purchase_orders.
+    // The use-case needs po_id + line_number + supplier_id + po_number to
+    // call recordReceipt + build createRoll props without a second query.
+    const { data, error } = await client
+      .from(RECEIPTS_TABLE)
+      .select(
+        `
+        id, tenant_id, purchase_order_item_id, idempotency_key,
+        quantity_received_sqm, received_date, roll_requested,
+        roll_width_mm, roll_length_mm, roll_thickness_mm,
+        roll_color, roll_location, roll_cost_per_sqm_cents, roll_notes,
+        applied_at, roll_created_at, created_at, created_by,
+        purchase_order_items!inner (
+          id, line_number, material_type_id, purchase_order_id,
+          purchase_orders!inner (
+            id, po_number, supplier_id, status
+          )
+        )
+      `
+      )
+      .eq("id", receiptId)
+      .single()
+    if (error) throw error
+
+    const row = data as unknown as ReceiptWithJoinRow
+    const item = row.purchase_order_items
+    const po = item.purchase_orders
+
+    return {
+      receiptId: row.id,
+      tenantId: row.tenant_id,
+      purchaseOrderItemId: row.purchase_order_item_id,
+      idempotencyKey: row.idempotency_key,
+      quantityReceivedSqm: Number(row.quantity_received_sqm),
+      receivedDate: new Date(row.received_date),
+      receiptCreatedAt: new Date(row.created_at),
+      receiptCreatedBy: row.created_by,
+      purchaseOrderId: item.purchase_order_id,
+      lineNumber: item.line_number,
+      materialTypeId: item.material_type_id,
+      poNumber: po.po_number,
+      supplierId: po.supplier_id,
+      purchaseOrderStatus: po.status,
+      rollWidthMm: row.roll_width_mm,
+      rollLengthMm: row.roll_length_mm,
+      rollThicknessMm: row.roll_thickness_mm,
+      rollColor: row.roll_color,
+      rollLocation: row.roll_location,
+      rollCostPerSqmCents: row.roll_cost_per_sqm_cents,
+      rollNotes: row.roll_notes,
+      rollRequested: row.roll_requested,
+      appliedAt: row.applied_at ? new Date(row.applied_at) : null,
+      rollCreatedAt: row.roll_created_at ? new Date(row.roll_created_at) : null,
+    }
+  }
+
+  async findPendingApplyReceipts(): Promise<PoReceiptReconciliationRow[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(PENDING_APPLY_VIEW)
+      .select("*")
+      .order("receipt_created_at", { ascending: false })
+    if (error) throw error
+    return ((data ?? []) as PendingApplyViewRow[]).map(mapPendingApplyRow)
+  }
+
+  async findPendingRollCreationReceipts(): Promise<PoReceiptReconciliationRow[]> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(PENDING_ROLL_VIEW)
+      .select("*")
+      .order("receipt_created_at", { ascending: false })
+    if (error) throw error
+    return ((data ?? []) as PendingRollViewRow[]).map(mapPendingRollRow)
   }
 
   private async findManyByQuery(

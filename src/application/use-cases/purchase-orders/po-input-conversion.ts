@@ -4,13 +4,14 @@ import type { CreateRollProps } from "@/src/entities/roll"
 import type { Currency } from "@/src/entities/value-objects/currency"
 import {
   MaterialTypeId,
+  PurchaseOrderItemId,
   type ProfileId,
-  type PurchaseOrderItemId,
   type RollId,
   type SupplierId,
   type TenantId,
 } from "@/src/entities/value-objects/id"
 import { Money } from "@/src/entities/value-objects/money"
+import type { PoItemReceiptWithContext } from "@/src/application/repositories/purchase-orders.repository.interface"
 
 /**
  * Unit conversion helpers + an input-item → entity-item mapper. Used
@@ -269,6 +270,89 @@ export function buildCreateRollProps(args: BuildCreateRollPropsArgs): CreateRoll
     dateReceived,
     cost,
     notes: args.rollData.notes ?? `Received from PO ${args.poNumber}`,
+    createdBy: args.actor,
+  }
+}
+
+// ─── Reconcile-path roll creation (admin retry, 7c-2) ──────────────────────
+
+export interface BuildCreateRollPropsFromReceiptArgs {
+  /** Fresh UUID for the roll; the use-case generates so the helper stays pure. */
+  id: RollId
+  receipt: PoItemReceiptWithContext
+  poItem: PurchaseOrderItem
+  /** From the PO aggregate (PO item entity doesn't carry tenant). */
+  tenantId: TenantId
+  /** From the PO aggregate. */
+  supplierId: SupplierId
+  /** Currency for the roll's cost Money; defaults to `poItem.unitCost.currency`. */
+  currency?: Currency
+  /** The admin performing the reconcile. Captured as the roll's `createdBy`. */
+  actor: ProfileId
+}
+
+/**
+ * Replay-path equivalent of `buildCreateRollProps` for the 7c-2 admin
+ * reconcile flow. Takes a `PoItemReceiptWithContext` (the typed metric
+ * snapshot we persisted at original receipt time) and reconstructs
+ * `CreateRollProps` with the SAME fallback chain the live path applies
+ * via `buildCreateRollProps`:
+ *
+ *   widthMm     = receipt.rollWidthMm    → poItem.widthMm    → DEFAULT_ROLL_WIDTH_MM
+ *   lengthMm    = receipt.rollLengthMm   → derived from receipt.quantityReceivedSqm
+ *                                          (mirrors the live path's sqft→mm conflation
+ *                                          fallback, reversed through SQFT_PER_SQM)
+ *   thicknessMm = receipt.rollThicknessMm → poItem.thicknessMm → DEFAULT_ROLL_THICKNESS_MM
+ *   color       = receipt.rollColor      → poItem.color       → null
+ *   location    = receipt.rollLocation   → "Receiving"
+ *   cost        = Money.fromCents(receipt.rollCostPerSqmCents, currency) → poItem.unitCost
+ *   notes       = receipt.rollNotes      → `Reconciled from PO ${poNumber}` (distinct
+ *                                          from the live `Received from PO …` so audit
+ *                                          can distinguish admin replays)
+ *
+ * `dateReceived` uses the receipt's original `receivedDate` (the operator's
+ * intent), not "now" — keeps inventory provenance honest. `purchaseOrderItemId`
+ * flows back through so the new roll FKs to the same PO item the receipt
+ * already pointed at (and the reconciliation view's NOT EXISTS clause will
+ * stop surfacing this receipt once the roll lands).
+ */
+export function buildCreateRollPropsFromReceipt(
+  args: BuildCreateRollPropsFromReceiptArgs
+): CreateRollProps {
+  const { receipt, poItem } = args
+  const currency = args.currency ?? poItem.unitCost.currency
+
+  const widthMm = receipt.rollWidthMm ?? poItem.widthMm ?? DEFAULT_ROLL_WIDTH_MM
+  // The live path computes length as inchesToMm(quantityReceivedSqft) when the
+  // operator didn't supply length. Reversed for metric input:
+  //   quantityReceivedSqm × SQFT_PER_SQM = sqft  →  × MM_PER_INCH = mm
+  const lengthMm =
+    receipt.rollLengthMm ??
+    Math.round(receipt.quantityReceivedSqm * SQFT_PER_SQM * MM_PER_INCH)
+  const thicknessMm =
+    receipt.rollThicknessMm ?? poItem.thicknessMm ?? DEFAULT_ROLL_THICKNESS_MM
+  const cost =
+    receipt.rollCostPerSqmCents != null
+      ? Money.fromCents(receipt.rollCostPerSqmCents, currency)
+      : poItem.unitCost
+
+  return {
+    id: args.id,
+    tenantId: args.tenantId,
+    materialTypeId: poItem.materialTypeId,
+    supplierId: args.supplierId,
+    sourceType: "received",
+    parentRollId: null,
+    sourceCutHistoryId: null,
+    purchaseOrderItemId: PurchaseOrderItemId.fromPersistence(receipt.purchaseOrderItemId),
+    widthMm,
+    lengthMm,
+    thicknessMm,
+    color: receipt.rollColor ?? poItem.color ?? null,
+    location: receipt.rollLocation ?? "Receiving",
+    dateReceived: receipt.receivedDate,
+    cost,
+    notes: receipt.rollNotes ?? `Reconciled from PO ${receipt.poNumber}`,
     createdBy: args.actor,
   }
 }

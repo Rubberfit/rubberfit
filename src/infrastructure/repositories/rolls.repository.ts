@@ -68,6 +68,20 @@ export class RollsRepository implements IRollsRepository {
     return (data as RollRow[]).map(rowToRoll)
   }
 
+  async findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<RollEntity | null> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .is("deleted_at", null)
+      .eq("purchase_order_item_id", purchaseOrderItemId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+    if (error) throw error
+    const rows = (data ?? []) as RollRow[]
+    return rows.length === 0 ? null : rowToRoll(rows[0]!)
+  }
+
   async insert(roll: RollEntity): Promise<RollEntity> {
     const client = await getDatabaseClient()
     const { data, error } = await client

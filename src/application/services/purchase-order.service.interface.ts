@@ -6,6 +6,10 @@ import type {
 import type { CreatePurchaseOrderItemProps } from "@/src/entities/purchase-order-item"
 import type { ProfileId } from "@/src/entities/value-objects/id"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
+import type {
+  PoItemReceiptWithContext,
+  PoReceiptReconciliationRow,
+} from "@/src/application/repositories/purchase-orders.repository.interface"
 
 /**
  * Per-line receipt delta as it crosses the service boundary. Maps a
@@ -207,6 +211,35 @@ export interface IPurchaseOrderService {
    * against `rolls` gracefully excludes the stale-stamp row.
    */
   markReceiptRollCreated(receiptId: string): Promise<void>
+
+  /**
+   * Step 7c-2: stamps `applied_at = now()` on a `po_item_receipts`
+   * row. Exposed on the service so the admin reconcile use-case can
+   * mark a re-applied receipt without reaching into the repo directly.
+   * Mirrors `markReceiptRollCreated`'s shape.
+   */
+  markReceiptApplied(receiptId: string): Promise<void>
+
+  /**
+   * Step 7c-2: full receipt snapshot for the admin reconcile flow.
+   * Includes the JOIN'd `purchase_order_id` + `line_number` + PO header
+   * fields so the use-case has everything it needs in one call.
+   */
+  findReceiptById(receiptId: string): Promise<PoItemReceiptWithContext>
+
+  /**
+   * Step 7c-2: rows from `po_receipts_pending_apply` — receipts whose
+   * INSERT committed but whose PO entity apply was lost. Backs the
+   * admin reconciliation dashboard.
+   */
+  findPendingApplyReceipts(): Promise<PoReceiptReconciliationRow[]>
+
+  /**
+   * Step 7c-2: rows from `po_receipts_pending_roll_creation` — receipts
+   * with `roll_requested = true` but no matching roll. Backs the admin
+   * reconciliation dashboard.
+   */
+  findPendingRollCreationReceipts(): Promise<PoReceiptReconciliationRow[]>
 
   /** Admin-only soft delete. */
   softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder>

@@ -27,6 +27,15 @@ export interface IRollService {
   getByMaterialType(materialTypeId: string): Promise<Roll[]>
   getChildOffcuts(parentRollId: string): Promise<Roll[]>
 
+  /**
+   * Returns the matching non-deleted roll for a PO item, or `null` if
+   * none exists. Used by 7c-2 admin reconcile's stale-stamp recovery —
+   * when `roll_created_at` is NULL on a receipt but a matching roll
+   * actually exists, the use-case stamps the receipt rather than
+   * creating a duplicate.
+   */
+  findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<Roll | null>
+
   createRoll(props: CreateRollProps): Promise<Roll>
 
   consumeLength(id: string, mm: number, actor: ProfileId): Promise<Roll>

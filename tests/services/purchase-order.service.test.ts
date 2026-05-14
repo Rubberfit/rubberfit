@@ -136,6 +136,12 @@ class FakeRepo implements IPurchaseOrdersRepository {
     return po
   }
 
+  async findReceiptById(_receiptId: string): Promise<never> {
+    throw new Error("FakeRepo.findReceiptById not used by these tests")
+  }
+  async findPendingApplyReceipts() { return [] }
+  async findPendingRollCreationReceipts() { return [] }
+
   async insertReceiptIdempotent(input: InsertReceiptInput): Promise<InsertReceiptResult> {
     this.callLog.push(`insertReceiptIdempotent:${input.purchaseOrderItemId}`)
     const key = `${input.purchaseOrderItemId}::${input.idempotencyKey}`

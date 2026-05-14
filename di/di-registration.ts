@@ -84,6 +84,8 @@ import { UpdatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase
 import { ApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
 import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
 import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
+import { ReconcilePendingApplyUseCase } from "@/src/application/use-cases/purchase-orders/reconcile-pending-apply.use-case"
+import { ReconcilePendingRollCreationUseCase } from "@/src/application/use-cases/purchase-orders/reconcile-pending-roll-creation.use-case"
 import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
@@ -240,6 +242,11 @@ container.registerSingleton(TOKENS.IUpdatePurchaseOrderUseCase, UpdatePurchaseOr
 container.registerSingleton(TOKENS.IApprovePurchaseOrderUseCase, ApprovePurchaseOrderUseCase)
 container.registerSingleton(TOKENS.IRejectPurchaseOrderUseCase, RejectPurchaseOrderUseCase)
 container.registerSingleton(TOKENS.IReceivePurchaseOrderUseCase, ReceivePurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IReconcilePendingApplyUseCase, ReconcilePendingApplyUseCase)
+container.registerSingleton(
+  TOKENS.IReconcilePendingRollCreationUseCase,
+  ReconcilePendingRollCreationUseCase
+)
 container.registerSingleton(
   TOKENS.IGenerateReorderSuggestionsUseCase,
   GenerateReorderSuggestionsUseCase

@@ -230,6 +230,22 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     return this.repo.markReceiptRollCreated(receiptId)
   }
 
+  markReceiptApplied(receiptId: string): Promise<void> {
+    return this.repo.markReceiptApplied(receiptId)
+  }
+
+  findReceiptById(receiptId: string) {
+    return this.repo.findReceiptById(receiptId)
+  }
+
+  findPendingApplyReceipts() {
+    return this.repo.findPendingApplyReceipts()
+  }
+
+  findPendingRollCreationReceipts() {
+    return this.repo.findPendingRollCreationReceipts()
+  }
+
   async softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder> {
     const po = await this.repo.findById(id)
     po.softDelete(actor)

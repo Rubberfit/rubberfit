@@ -153,6 +153,10 @@ function makeFakePoService(): IPurchaseOrderService {
     recordReceipts: vi.fn(),
     recordReceiptsByItemId: vi.fn(),
     markReceiptRollCreated: vi.fn().mockResolvedValue(undefined),
+    markReceiptApplied: vi.fn().mockResolvedValue(undefined),
+    findReceiptById: vi.fn(),
+    findPendingApplyReceipts: vi.fn().mockResolvedValue([]),
+    findPendingRollCreationReceipts: vi.fn().mockResolvedValue([]),
     softDelete: vi.fn(),
   }
 }
@@ -190,6 +194,7 @@ function makeFakeRollService(): IRollService {
     getActive: vi.fn(),
     getByMaterialType: vi.fn(),
     getChildOffcuts: vi.fn(),
+    findByPurchaseOrderItemId: vi.fn().mockResolvedValue(null),
     createRoll: vi.fn(),
     consumeLength: vi.fn(),
     reserve: vi.fn(),

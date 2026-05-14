@@ -37,6 +37,16 @@ export interface IRollsRepository {
   /** Offcut rolls spawned from the given parent roll, newest first. */
   findChildOffcuts(parentRollId: string): Promise<RollEntity[]>
 
+  /**
+   * Returns the (at most one) non-deleted roll whose
+   * `purchase_order_item_id` matches. Used by the 7c-2 admin reconcile
+   * flow's stale-stamp recovery branch: if `roll_created_at` is NULL on
+   * a receipt but a matching roll actually exists, the use-case just
+   * stamps the receipt rather than creating a duplicate. Returns `null`
+   * when no such roll exists.
+   */
+  findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<RollEntity | null>
+
   /** Persists a freshly-built `Roll` entity. Returns the rehydrated entity. */
   insert(roll: RollEntity): Promise<RollEntity>
 

@@ -37,6 +37,36 @@ export interface InsertReceiptResult {
   wasInserted: boolean
 }
 
+export interface PoReceiptReconciliationRow {
+  receiptId: string
+  tenantId: string
+  purchaseOrderItemId: string
+  idempotencyKey: string
+  quantityReceivedSqm: number
+  receivedDate: Date
+  receiptCreatedAt: Date
+  receiptCreatedBy: string | null
+  purchaseOrderId: string
+  lineNumber: number
+  materialTypeId: string
+  poNumber: string
+  supplierId: string
+  purchaseOrderStatus: PoStatus
+  rollWidthMm: number | null
+  rollLengthMm: number | null
+  rollThicknessMm: number | null
+  rollColor: string | null
+  rollLocation: string | null
+  rollCostPerSqmCents: number | null
+  rollNotes: string | null
+}
+
+export interface PoItemReceiptWithContext extends PoReceiptReconciliationRow {
+  rollRequested: boolean
+  appliedAt: Date | null
+  rollCreatedAt: Date | null
+}
+
 /**
  * Purchase-orders persistence boundary. Narrow entity-typed surface —
  * the legacy raw-row CRUD that the existing UI / RF api-client still
@@ -75,6 +105,25 @@ export interface IPurchaseOrdersRepository {
    * The mapper/SQL layer sees the row id; the entity doesn't.
    */
   itemIdToLineNumberMap(poId: string): Promise<Map<string, number>>
+
+  /**
+   * Loads a receipt row plus the PO/item context needed for admin
+   * reconciliation. The use-case gets one coherent snapshot instead of
+   * knowing how receipt rows join through `purchase_order_items`.
+   */
+  findReceiptById(receiptId: string): Promise<PoItemReceiptWithContext>
+
+  /**
+   * Rows from `po_receipts_pending_apply`: receipt rows whose insert
+   * committed but whose PO aggregate apply/stamp did not.
+   */
+  findPendingApplyReceipts(): Promise<PoReceiptReconciliationRow[]>
+
+  /**
+   * Rows from `po_receipts_pending_roll_creation`: applied receipt rows
+   * where an operator requested a roll and no non-deleted roll exists.
+   */
+  findPendingRollCreationReceipts(): Promise<PoReceiptReconciliationRow[]>
 
   /**
    * Persists state-transition mutations. The PO header row is UPDATEd;

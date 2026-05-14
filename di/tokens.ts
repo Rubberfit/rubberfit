@@ -56,6 +56,8 @@ export const TOKENS = {
   IApprovePurchaseOrderUseCase: Symbol("IApprovePurchaseOrderUseCase"),
   IRejectPurchaseOrderUseCase: Symbol("IRejectPurchaseOrderUseCase"),
   IReceivePurchaseOrderUseCase: Symbol("IReceivePurchaseOrderUseCase"),
+  IReconcilePendingApplyUseCase: Symbol("IReconcilePendingApplyUseCase"),
+  IReconcilePendingRollCreationUseCase: Symbol("IReconcilePendingRollCreationUseCase"),
   IGenerateReorderSuggestionsUseCase: Symbol("IGenerateReorderSuggestionsUseCase"),
   ICreateReorderPurchaseOrderUseCase: Symbol("ICreateReorderPurchaseOrderUseCase"),
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
