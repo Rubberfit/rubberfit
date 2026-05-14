@@ -161,13 +161,19 @@ export function CutHistoryTable({
 
                 {/* Date */}
                 <TableCell className="pl-2 whitespace-nowrap">
-                  <div className="font-medium">{formatUserDate(cut.cut_date, preferences)}</div>
+                  {/* Empty-string fallback for shape-valid invalid dates
+                      (helper returns "" rather than throwing) — without
+                      "—" the cell would render blank for a row with a
+                      malformed cut_date. */}
+                  <div className="font-medium">
+                    {formatUserDate(cut.cut_date, preferences) || "—"}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {formatInUserTimeZone(cut.cut_date, preferences, {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
-                    })}
+                    }) || "—"}
                   </div>
                 </TableCell>
 

@@ -60,8 +60,11 @@ function toTableRow(row: BillingHistoryActionRow, preferences: UserPreferences):
           ? "MONTHLY"
           : null,
     seats: row.seatCount,
-    periodStart: row.periodStart ? formatUserDate(row.periodStart, preferences) : null,
-    periodEnd: row.periodEnd ? formatUserDate(row.periodEnd, preferences) : null,
+    // The helper returns "" for null/undefined and shape-valid invalid
+    // dates; coerce empties to null so the table's existing null →
+    // "—" rendering kicks in consistently.
+    periodStart: formatUserDate(row.periodStart, preferences) || null,
+    periodEnd: formatUserDate(row.periodEnd, preferences) || null,
     amountCents: row.amountCents,
     status: row.status,
     invoiceUrl: row.invoiceUrl,

@@ -90,7 +90,7 @@ export function usePoColumns({
         header: "Order Date",
         cell: (po) => (
           <span className="text-sm text-muted-foreground">
-            {po.order_date ? formatUserDate(po.order_date, preferences) : "—"}
+            {formatUserDate(po.order_date, preferences) || "—"}
           </span>
         ),
         // Sort uses getTime() against the raw value — keep the
@@ -103,15 +103,21 @@ export function usePoColumns({
       {
         id: "delivery_date",
         header: "Delivery",
-        cell: (po) =>
-          po.requested_delivery_date ? (
+        cell: (po) => {
+          // Use the formatted output to gate the icon — a shape-valid
+          // invalid date (e.g. "2026-02-30") returns "" from the helper
+          // and should fall through to the "—" placeholder, not render
+          // an empty cell with a stray calendar glyph.
+          const formatted = formatUserDate(po.requested_delivery_date, preferences)
+          return formatted ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="size-3.5" aria-hidden="true" />
-              {formatUserDate(po.requested_delivery_date, preferences)}
+              {formatted}
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
-          ),
+          )
+        },
         sortFn: (po) =>
           po.requested_delivery_date
             ? new Date(po.requested_delivery_date).getTime()

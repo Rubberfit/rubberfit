@@ -52,22 +52,20 @@ export function OrderDetailsCard({ selectedPO }: OrderDetailsCardProps) {
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Order Date</Label>
             <p className="text-sm font-medium">
-              {selectedPO.order_date ? formatUserDate(selectedPO.order_date, preferences) : "--"}
+              {formatUserDate(selectedPO.order_date, preferences) || "--"}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Requested Delivery</Label>
             <p className="text-sm font-medium">
-              {selectedPO.requested_delivery_date
-                ? formatUserDate(selectedPO.requested_delivery_date, preferences)
-                : "--"}
+              {formatUserDate(selectedPO.requested_delivery_date, preferences) || "--"}
             </p>
           </div>
           {selectedPO.actual_delivery_date && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Actual Delivery</Label>
               <p className="text-sm font-medium text-[#16A34A]">
-                {formatUserDate(selectedPO.actual_delivery_date, preferences)}
+                {formatUserDate(selectedPO.actual_delivery_date, preferences) || "--"}
               </p>
             </div>
           )}

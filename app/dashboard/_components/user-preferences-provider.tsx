@@ -61,8 +61,8 @@ export function UserPreferencesProvider({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setPreferencesState((current) =>
-      current.updatedAt === initialPreferences.updatedAt &&
-      current.userId === initialPreferences.userId
+      current.userId === initialPreferences.userId &&
+      current.updatedAt === initialPreferences.updatedAt
         ? current
         : initialPreferences
     )
