@@ -359,11 +359,11 @@ function ManageSubscriptionBlock({
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
             <p>
               <span className="text-[var(--color-signal)]">• </span>
-              <strong>Update payment method</strong> — replace card on file
+              <strong>Change plan</strong> — upgrade or downgrade tiers
             </p>
             <p>
               <span className="text-[var(--color-signal)]">• </span>
-              <strong>Cancel subscription</strong> — stops at period end
+              <strong>Update payment method</strong> — replace card on file
             </p>
             <p>
               <span className="text-[var(--color-signal)]">• </span>
@@ -372,6 +372,10 @@ function ManageSubscriptionBlock({
             <p>
               <span className="text-[var(--color-signal)]">• </span>
               <strong>Update profile + tax ID</strong> — billing address, VAT/EIN
+            </p>
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>Cancel subscription</strong> — stops at period end
             </p>
           </div>
         </>

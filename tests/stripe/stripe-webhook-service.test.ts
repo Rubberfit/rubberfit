@@ -424,6 +424,189 @@ describe("StripeWebhookService.handleEvent", () => {
     expect(payload.latest_invoice_id).toBe("in_test_legacy")
   })
 
+  // ---------------------------------------------------------------------------
+  // Tier/interval precedence — guards against the Portal-upgrade silent-downgrade
+  // bug. `subscription.metadata` is a Checkout-time snapshot that does NOT
+  // get rewritten on Portal-driven plan changes, so the webhook MUST prefer
+  // the live source: `price.metadata.tier` and `price.recurring.interval`.
+  // ---------------------------------------------------------------------------
+
+  it("prefers price.metadata.tier when subscription.metadata.plan_tier is stale (Portal upgrade)", async () => {
+    // Simulates: Checkout created the subscription at Standard, then the
+    // customer upgraded to Pro through the Billing Portal. Stripe rotated
+    // the subscription_item to the Pro price but left the original
+    // subscription.metadata.plan_tier="standard" intact.
+    const event = makeSubscriptionEvent("customer.subscription.updated", {
+      metadata: {
+        organization_id: ORG_ID,
+        plan_tier: "standard",
+        billing_interval: "annual",
+      },
+      items: {
+        object: "list",
+        data: [
+          {
+            id: "si_test_1",
+            quantity: 3,
+            current_period_start: 1_700_000_000,
+            current_period_end: 1_702_592_000,
+            price: {
+              id: "price_test_pro_annual",
+              product: "rubberfit_pro",
+              recurring: { interval: "year" },
+              metadata: { tier: "pro" },
+            },
+          },
+        ],
+      },
+    } as unknown as Partial<Stripe.Subscription>)
+    const outcome = await service.handleEvent(event)
+    expect(outcome.kind).toBe("handled")
+    const payload = fakeOrgService.subscriptionUpserts[0]
+    expect(payload.plan_tier).toBe("pro")
+  })
+
+  it("falls back to subscription.metadata.plan_tier when price.metadata.tier is missing", async () => {
+    // Older catalogs and pre-stripe-setup test fixtures may have priced
+    // products without a `metadata.tier`. The Checkout-time snapshot is
+    // still the right answer in that case.
+    const event = makeSubscriptionEvent("customer.subscription.created", {
+      items: {
+        object: "list",
+        data: [
+          {
+            id: "si_test_1",
+            quantity: 3,
+            current_period_start: 1_700_000_000,
+            current_period_end: 1_702_592_000,
+            price: {
+              id: "price_test_max_annual",
+              product: "rubberfit_max",
+              recurring: { interval: "year" },
+              metadata: {},
+            },
+          },
+        ],
+      },
+      metadata: {
+        organization_id: ORG_ID,
+        plan_tier: "max",
+        billing_interval: "annual",
+      },
+    } as unknown as Partial<Stripe.Subscription>)
+    const outcome = await service.handleEvent(event)
+    expect(outcome.kind).toBe("handled")
+    const payload = fakeOrgService.subscriptionUpserts[0]
+    expect(payload.plan_tier).toBe("max")
+  })
+
+  it("prefers price.recurring.interval when subscription.metadata.billing_interval is stale (Portal interval flip)", async () => {
+    // Simulates: Checkout at monthly, customer switched to annual via Portal.
+    // Stripe's price.recurring.interval is now "year" but the Checkout-time
+    // subscription.metadata.billing_interval still says "monthly".
+    const event = makeSubscriptionEvent("customer.subscription.updated", {
+      metadata: {
+        organization_id: ORG_ID,
+        plan_tier: "pro",
+        billing_interval: "monthly",
+      },
+      items: {
+        object: "list",
+        data: [
+          {
+            id: "si_test_1",
+            quantity: 3,
+            current_period_start: 1_700_000_000,
+            current_period_end: 1_702_592_000,
+            price: {
+              id: "price_test_pro_annual",
+              product: "rubberfit_pro",
+              recurring: { interval: "year" },
+              metadata: { tier: "pro" },
+            },
+          },
+        ],
+      },
+    } as unknown as Partial<Stripe.Subscription>)
+    const outcome = await service.handleEvent(event)
+    expect(outcome.kind).toBe("handled")
+    const payload = fakeOrgService.subscriptionUpserts[0]
+    expect(payload.billing_interval).toBe("annual")
+  })
+
+  it("falls back to subscription.metadata.billing_interval when price.recurring is missing", async () => {
+    // Defensive: misconfigured catalog where a price has metadata.tier
+    // but no `recurring` block (e.g. one-time-payment price wired into
+    // a subscription, or an older API-version replay where `recurring`
+    // is omitted). Tier should still come from price; interval should
+    // fall back to the Checkout-time subscription snapshot.
+    const event = makeSubscriptionEvent("customer.subscription.updated", {
+      metadata: {
+        organization_id: ORG_ID,
+        plan_tier: "standard",
+        billing_interval: "monthly",
+      },
+      items: {
+        object: "list",
+        data: [
+          {
+            id: "si_test_1",
+            quantity: 2,
+            current_period_start: 1_700_000_000,
+            current_period_end: 1_702_592_000,
+            price: {
+              id: "price_test_orphan_recurring",
+              product: "rubberfit_pro",
+              metadata: { tier: "pro" },
+            },
+          },
+        ],
+      },
+    } as unknown as Partial<Stripe.Subscription>)
+    const outcome = await service.handleEvent(event)
+    expect(outcome.kind).toBe("handled")
+    const payload = fakeOrgService.subscriptionUpserts[0]
+    expect(payload.plan_tier).toBe("pro")
+    expect(payload.billing_interval).toBe("monthly")
+  })
+
+  it("defaults plan_tier to standard and warns when both price and subscription metadata are missing", async () => {
+    const warnings: string[] = []
+    const consoleWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "))
+    }
+    try {
+      const event = makeSubscriptionEvent("customer.subscription.created", {
+        items: {
+          object: "list",
+          data: [
+            {
+              id: "si_test_1",
+              quantity: 1,
+              current_period_start: 1_700_000_000,
+              current_period_end: 1_702_592_000,
+              price: {
+                id: "price_test_orphan",
+                product: "rubberfit_unknown",
+                recurring: { interval: "month" },
+                metadata: {},
+              },
+            },
+          ],
+        },
+        metadata: { organization_id: ORG_ID },
+      } as unknown as Partial<Stripe.Subscription>)
+      const outcome = await service.handleEvent(event)
+      expect(outcome.kind).toBe("handled")
+      const payload = fakeOrgService.subscriptionUpserts[0]
+      expect(payload.plan_tier).toBe("standard")
+      expect(warnings.some((line) => line.includes("missing plan_tier metadata"))).toBe(true)
+    } finally {
+      console.warn = consoleWarn
+    }
+  })
+
   it("returns an `error` outcome when subscription event lacks organization_id metadata", async () => {
     const event = makeSubscriptionEvent("customer.subscription.created", {
       metadata: {},
