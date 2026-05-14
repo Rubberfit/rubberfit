@@ -15,7 +15,11 @@ import {
 import { SimpleModeAdhesives } from "./nesting-viz-adhesives"
 import { computeSimpleModeLayout } from "./nesting-viz-simple-layout"
 import { computeFabricationScore } from "./nesting-preview-builders"
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatDimensionsInchesForSpeech,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 import type { SimplePartPreview } from "./nesting-visualizer-types"
 import type { LayoutModel, PlacedPart } from "./layout-model"
 import { CutLegend } from "./cut-legend"
@@ -111,12 +115,17 @@ function findSelectedPart(
   return null
 }
 
-function buildLiveRegionCopy(loc: SelectedPartLocation | null, sheetAreaSharePct: number): string {
+function buildLiveRegionCopy(
+  loc: SelectedPartLocation | null,
+  sheetAreaSharePct: number,
+  unitPreferences?: UnitDisplayPreferencesInput
+): string {
   if (!loc) return ""
   const { part, partIndex, layoutModel } = loc
+  const dims = formatDimensionsInchesForSpeech([part.width, part.height], unitPreferences)
   return (
     `Selected part ${part.label}, ` +
-    `${formatInches(part.width)} by ${formatInches(part.height)} inches, ` +
+    `${dims}, ` +
     `placement ${partIndex + 1} of ${layoutModel.parts.length}, ` +
     `${sheetAreaSharePct.toFixed(1)} percent of sheet area`
   )
@@ -142,6 +151,7 @@ export default function NestingVizSimpleMode({
   packError,
   onRetryPack,
 }: SimpleModeProps) {
+  const organizationPreferences = useOrganizationPreferences()
   const layout = React.useMemo(
     () =>
       computeSimpleModeLayout({
@@ -190,8 +200,8 @@ export default function NestingVizSimpleMode({
   }, [selectedLocation])
 
   const liveCopy = React.useMemo(
-    () => buildLiveRegionCopy(selectedLocation, sheetAreaSharePct),
-    [selectedLocation, sheetAreaSharePct]
+    () => buildLiveRegionCopy(selectedLocation, sheetAreaSharePct, organizationPreferences),
+    [selectedLocation, sheetAreaSharePct, organizationPreferences]
   )
 
   // PR 6 — active sheet for the thumbnail strip + per-sheet detail.

@@ -4,6 +4,8 @@ import {
   removeLocalStorageValue,
   setLocalStorageValue,
 } from "@/app/lib/local-storage.client"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatDimensionsInches } from "@/src/application/preferences/user-unit-display"
 
 import type {
   PartTemplate,
@@ -27,7 +29,6 @@ import {
   getTemplateAreaSqFt,
   getTemplateBoundingBox,
   templateFitsStock,
-  formatInches,
 } from "./preset-utils"
 
 /** Mirrors PartCustomDimensions from the infrastructure layer — kept local to
@@ -213,6 +214,7 @@ export function usePresetState(
   rollLength?: number,
   loadedSelection?: LoadedSelection | null
 ) {
+  const organizationPreferences = useOrganizationPreferences()
   const [selectedPart, setSelectedPart] = useState<SupportedPartType>("rectangle")
   const [checked, setChecked] = useState<Set<string>>(new Set())
   /** When true the next onApply call is skipped (used when no preset match exists). */
@@ -312,8 +314,10 @@ export function usePresetState(
     if (!pendingCustomTemplate || rollWidth == null || rollLength == null) return null
     if (templateFitsStock(pendingCustomTemplate, rollWidth, rollLength)) return null
     const { width, height } = getTemplateBoundingBox(pendingCustomTemplate)
-    return `Bounding box ${formatInches(width)}\u2033 \u00d7 ${formatInches(height)}\u2033 is larger than the ${formatInches(rollWidth)}\u2033 \u00d7 ${formatInches(rollLength)}\u2033 stock — won't fit on the sheet.`
-  }, [pendingCustomTemplate, rollWidth, rollLength])
+    const partDims = formatDimensionsInches([width, height], organizationPreferences)
+    const stockDims = formatDimensionsInches([rollWidth, rollLength], organizationPreferences)
+    return `Bounding box ${partDims} is larger than the ${stockDims} stock — won't fit on the sheet.`
+  }, [pendingCustomTemplate, rollWidth, rollLength, organizationPreferences])
 
   // Per-template stock-fit check for the grid. When stock dims are unknown
   // we treat everything as fitting (back-compat — no callers without dims yet).

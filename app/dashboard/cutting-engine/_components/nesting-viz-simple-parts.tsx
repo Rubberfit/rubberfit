@@ -4,7 +4,8 @@
 import React from "react"
 import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatDimensionsInches } from "@/src/application/preferences/user-unit-display"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
 
 function computeHeaderMetrics(
@@ -544,6 +545,7 @@ export function SimpleModeOffcutLabels({
    */
   zoom?: number
 }) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <>
       {offcutLabelBands.map((band, index) => {
@@ -563,7 +565,7 @@ export function SimpleModeOffcutLabels({
           centerX = surfaceX + (band.x + band.width / 2) * scale
           centerY = surfaceY + (band.y + band.height / 2) * scale
         }
-        const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
+        const dims = formatDimensionsInches([band.width, band.height], organizationPreferences)
         const bandPxW = band.width * scale
         const bandPxH = band.height * scale
         const titleSize = Math.max(0, Math.min(13 / zoom, bandPxW * 0.12, bandPxH * 0.25))
