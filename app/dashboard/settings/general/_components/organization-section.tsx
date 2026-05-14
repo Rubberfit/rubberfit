@@ -109,9 +109,14 @@ export function OrganizationSection({
 
   useEffect(() => {
     setBaseline(preferences)
+    // Re-anchor draft + threshold UI to the latest server state when
+    // the user has no in-flight edits. `savedAt` is intentionally NOT
+    // cleared here — without that exclusion, the "Last saved HH:mm"
+    // hint flashes once after handleSave's router.refresh() lands
+    // and immediately disappears. Explicit reset paths
+    // (handleCancel, the next save) own the savedAt lifecycle.
     if (!isDirtyRef.current) {
       setDraft(preferences)
-      setSavedAt(0)
       setIsEditingThreshold(false)
       setThresholdInput(
         formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
