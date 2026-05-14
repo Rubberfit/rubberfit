@@ -24,11 +24,32 @@ export interface ReceiptDelta {
  * rather than `lineNumber`. The action layer's contract uses row IDs
  * (the form sends `itemId` from a hydrated PO row), but the entity
  * identity is `(poId, lineNumber)`. The service translates internally.
+ *
+ * Step 7c-1 additions:
+ *   • `idempotencyKey` — client-supplied UUID per submission. Anchors
+ *     the `(purchase_order_item_id, idempotency_key)` UNIQUE row in
+ *     `po_item_receipts`. Same key on retry = no-op apply.
+ *   • `rollRequested` — true when the operator submitted rollData.
+ *     Drives whether the use-case calls `rollService.createRoll`.
+ *   • `rollIntent` — metric snapshot of the operator's rollData,
+ *     persisted to the receipts row so the 7c-2 admin reconcile path
+ *     can replay roll creation without a load-bearing jsonb blob.
  */
 export interface ReceiptDeltaByItemId {
   itemId: string
   quantityReceivedSqm: number
   receivedDate?: Date
+  idempotencyKey: string
+  rollRequested: boolean
+  rollIntent?: {
+    widthMm: number | null
+    lengthMm: number | null
+    thicknessMm: number | null
+    color: string | null
+    location: string | null
+    costPerSqmCents: number | null
+    notes: string | null
+  }
 }
 
 /**
@@ -46,6 +67,21 @@ export interface RecordReceiptsByItemIdResult {
   previousStatus: PoStatus
   purchaseOrder: PurchaseOrder
   itemIdToLineNumber: Map<string, number>
+  /**
+   * Item ids whose `(item, idempotencyKey)` tuple already existed in
+   * `po_item_receipts` when the service attempted the INSERT. The
+   * entity-apply was SKIPPED for these — the use-case MUST also skip
+   * roll creation so the original receipt event isn't double-applied
+   * on its downstream side effects.
+   */
+  alreadyAppliedItemIds: string[]
+  /**
+   * `receiptId` keyed by `itemId` for every receipt processed in this
+   * call (both freshly inserted AND already-applied). The use-case
+   * uses this to call `markReceiptRollCreated(receiptId)` after a
+   * successful `createRoll`.
+   */
+  receiptIdByItemId: Map<string, string>
 }
 
 /**
@@ -162,6 +198,15 @@ export interface IPurchaseOrderService {
     receipts: ReceiptDeltaByItemId[],
     actor: ProfileId
   ): Promise<RecordReceiptsByItemIdResult>
+
+  /**
+   * Step 7c-1: stamps `roll_created_at = now()` on a `po_item_receipts`
+   * row. Called by the receive use-case AFTER `rollService.createRoll`
+   * succeeds. If this call fails after createRoll succeeded, the
+   * `po_receipts_pending_roll_creation` view's NOT EXISTS clause
+   * against `rolls` gracefully excludes the stale-stamp row.
+   */
+  markReceiptRollCreated(receiptId: string): Promise<void>
 
   /** Admin-only soft delete. */
   softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder>

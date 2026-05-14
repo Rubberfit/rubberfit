@@ -18,6 +18,7 @@ import type { Roll as LegacyRoll } from "@/src/infrastructure/models/supabase"
 import { ProfileId, PurchaseOrderItemId, RollId } from "@/src/entities/value-objects/id"
 import {
   buildCreateRollProps,
+  buildRollIntent,
   sqftToSqm,
 } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 import { rollEntityToLegacy } from "@/src/infrastructure/services/roll-entity-to-legacy"
@@ -26,6 +27,17 @@ import { TOKENS } from "@/di/tokens"
 export interface ReceivePurchaseOrderInput {
   purchaseOrderId: string
   items: POReceiptItem[]
+  /**
+   * Step 7c-1: client-supplied UUID per submission. Anchors the
+   * idempotency tuple `(purchase_order_item_id, idempotencyKey)` on
+   * every receipt row inserted in this batch. Retry with the same
+   * key on the same items = no-op (no double-apply, no double-roll).
+   *
+   * The action layer requires a UUID via Zod; the use-case threads
+   * it through unchanged. Each item in `items` gets a receipt row
+   * keyed by this same `idempotencyKey` + the item's `itemId`.
+   */
+  idempotencyKey: string
   actor: ActionActor
 }
 
@@ -80,19 +92,39 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
     const actorId = ProfileId.fromPersistence(input.actor.id)
     const receivedAt = new Date()
 
+    // Build per-item deltas WITH the typed roll-intent snapshot. The
+    // service persists each row to `po_item_receipts` keyed by
+    // (itemId, idempotencyKey); a retry of the same submission
+    // collides on the UNIQUE constraint and is reported back via
+    // `alreadyAppliedItemIds`.
     const sqmReceipts: ReceiptDeltaByItemId[] = input.items.map((item) => ({
       itemId: item.itemId,
       quantityReceivedSqm: sqftToSqm(item.quantityReceived),
       receivedDate: receivedAt,
+      idempotencyKey: input.idempotencyKey,
+      rollRequested: item.rollData != null,
+      rollIntent: item.rollData != null ? buildRollIntent(item.rollData) : undefined,
     }))
 
-    const { previousStatus, purchaseOrder, itemIdToLineNumber } =
-      await this.poService.recordReceiptsByItemId(input.purchaseOrderId, sqmReceipts, actorId)
+    const {
+      previousStatus,
+      purchaseOrder,
+      itemIdToLineNumber,
+      alreadyAppliedItemIds,
+      receiptIdByItemId,
+    } = await this.poService.recordReceiptsByItemId(input.purchaseOrderId, sqmReceipts, actorId)
+
+    const alreadyAppliedSet = new Set(alreadyAppliedItemIds)
 
     const rollsCreated: LegacyRoll[] = []
     const failedItemIds: string[] = []
     for (const item of input.items) {
       if (!item.rollData || item.quantityReceived <= 0) continue
+
+      // Idempotency guard: same receipt event was already applied on a
+      // prior submission with this key — the roll for that prior event
+      // was created (or surfaced in the reconciliation view). Skip.
+      if (alreadyAppliedSet.has(item.itemId)) continue
 
       const lineNumber = itemIdToLineNumber.get(item.itemId)
       if (lineNumber === undefined) continue
@@ -114,6 +146,23 @@ export class ReceivePurchaseOrderUseCase implements IReceivePurchaseOrderUseCase
       try {
         const roll = await this.rollService.createRoll(props)
         rollsCreated.push(rollEntityToLegacy(roll))
+        // Stamp roll_created_at on the receipt row so it stops
+        // surfacing in po_receipts_pending_roll_creation. The view's
+        // NOT EXISTS clause against `rolls` gracefully ignores a
+        // stale stamp if this call fails after createRoll succeeded.
+        const receiptId = receiptIdByItemId.get(item.itemId)
+        if (receiptId !== undefined) {
+          try {
+            await this.poService.markReceiptRollCreated(receiptId)
+          } catch (stampError) {
+            // Stamp failure is non-fatal — the roll exists and the
+            // view's NOT EXISTS filter catches it. Log and move on.
+            console.error(
+              `[receive-po] roll_created_at stamp failed for receipt ${receiptId} (roll ${roll.id.value}):`,
+              stampError
+            )
+          }
+        }
       } catch (error) {
         // Best-effort: PO receipt is already persisted. Continue the
         // loop so other items still get their rolls; surface failed

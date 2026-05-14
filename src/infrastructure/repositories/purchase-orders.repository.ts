@@ -4,7 +4,11 @@ import { injectable } from "tsyringe"
 import { PurchaseOrder } from "@/src/entities/purchase-order"
 import { Currency } from "@/src/entities/value-objects/currency"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
-import type { IPurchaseOrdersRepository } from "@/src/application/repositories/purchase-orders.repository.interface"
+import type {
+  IPurchaseOrdersRepository,
+  InsertReceiptInput,
+  InsertReceiptResult,
+} from "@/src/application/repositories/purchase-orders.repository.interface"
 import {
   purchaseOrderItemToInsertRow,
   purchaseOrderItemToUpdateRow,
@@ -18,6 +22,7 @@ import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-cl
 
 const PO_TABLE = "purchase_orders"
 const ITEMS_TABLE = "purchase_order_items"
+const RECEIPTS_TABLE = "po_item_receipts"
 const PO_COLUMNS = "*"
 const ITEMS_COLUMNS = "*"
 
@@ -184,6 +189,75 @@ export class PurchaseOrdersRepository implements IPurchaseOrdersRepository {
     }
 
     return this.findById(poId)
+  }
+
+  async insertReceiptIdempotent(input: InsertReceiptInput): Promise<InsertReceiptResult> {
+    const client = await getDatabaseClient()
+    const intent = input.rollIntent ?? {}
+    const payload = {
+      tenant_id: input.tenantId,
+      purchase_order_item_id: input.purchaseOrderItemId,
+      idempotency_key: input.idempotencyKey,
+      quantity_received_sqm: input.quantityReceivedSqm,
+      received_date: input.receivedDate.toISOString().slice(0, 10),
+      roll_requested: input.rollRequested,
+      roll_width_mm: intent.widthMm ?? null,
+      roll_length_mm: intent.lengthMm ?? null,
+      roll_thickness_mm: intent.thicknessMm ?? null,
+      roll_color: intent.color ?? null,
+      roll_location: intent.location ?? null,
+      roll_cost_per_sqm_cents: intent.costPerSqmCents ?? null,
+      roll_notes: intent.notes ?? null,
+      created_by: input.createdBy,
+    }
+
+    // ON CONFLICT DO NOTHING via supabase-js upsert with ignoreDuplicates;
+    // matching the UNIQUE (purchase_order_item_id, idempotency_key) row
+    // is left untouched and `select()` returns an empty array.
+    const { data: inserted, error: insertError } = await client
+      .from(RECEIPTS_TABLE)
+      .upsert(payload, {
+        ignoreDuplicates: true,
+        onConflict: "purchase_order_item_id,idempotency_key",
+      })
+      .select("id")
+
+    if (insertError) throw insertError
+
+    if (inserted && inserted.length > 0) {
+      return { receiptId: (inserted[0] as { id: string }).id, wasInserted: true }
+    }
+
+    // Conflict path: fetch the existing row's id so the caller has a stable
+    // anchor (e.g., for downstream stamps even if the original caller died
+    // before stamping).
+    const { data: existing, error: existingError } = await client
+      .from(RECEIPTS_TABLE)
+      .select("id")
+      .eq("purchase_order_item_id", input.purchaseOrderItemId)
+      .eq("idempotency_key", input.idempotencyKey)
+      .single()
+    if (existingError) throw existingError
+
+    return { receiptId: (existing as { id: string }).id, wasInserted: false }
+  }
+
+  async markReceiptApplied(receiptId: string): Promise<void> {
+    const client = await getDatabaseClient()
+    const { error } = await client
+      .from(RECEIPTS_TABLE)
+      .update({ applied_at: new Date().toISOString() })
+      .eq("id", receiptId)
+    if (error) throw error
+  }
+
+  async markReceiptRollCreated(receiptId: string): Promise<void> {
+    const client = await getDatabaseClient()
+    const { error } = await client
+      .from(RECEIPTS_TABLE)
+      .update({ roll_created_at: new Date().toISOString() })
+      .eq("id", receiptId)
+    if (error) throw error
   }
 
   private async findManyByQuery(

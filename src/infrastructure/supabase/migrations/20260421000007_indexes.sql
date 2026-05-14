@@ -201,6 +201,20 @@ CREATE INDEX idx_purchase_orders_job_id
 CREATE INDEX idx_purchase_order_items_material_type_id ON purchase_order_items(material_type_id);
 CREATE INDEX idx_purchase_order_items_tenant_id        ON purchase_order_items(tenant_id);
 
+-- po_item_receipts
+-- (purchase_order_item_id, idempotency_key) UNIQUE covers item_id-leading.
+-- Partial indexes on the two pending states feed the reconciliation views;
+-- predicate-matched scans stay tight even as the receipts table grows.
+CREATE INDEX idx_po_item_receipts_tenant_id ON po_item_receipts(tenant_id);
+CREATE INDEX idx_po_item_receipts_pending_apply
+  ON po_item_receipts(tenant_id, created_at)
+  WHERE applied_at IS NULL;
+CREATE INDEX idx_po_item_receipts_pending_roll
+  ON po_item_receipts(tenant_id, created_at)
+  WHERE applied_at IS NOT NULL
+    AND roll_requested = true
+    AND roll_created_at IS NULL;
+
 -- job_parts
 -- (job_id, line_number) UNIQUE covers job_id-leading.
 CREATE INDEX idx_job_parts_tenant_id        ON job_parts(tenant_id);

@@ -144,8 +144,17 @@ const poReceiptItemSchema = z.object({
 // uuid would attribute the receive to someone else (and the
 // quantity-update half of the operation runs before RLS catches the
 // forged id on the roll insert). Daniel review on PR #177.
+//
+// `idempotencyKey` (step 7c-1): client-supplied UUID per submission.
+// Required — the use-case anchors the (itemId, idempotencyKey) UNIQUE
+// row in `po_item_receipts` for every item in the batch, so a retry of
+// the same submission collides on the constraint and the service
+// reports the item as `alreadyApplied`. Same key + same items =
+// no-op. The client regenerates the key on form mount, on any field
+// change, and after a successful response (see po-action-handlers).
 const receivePurchaseOrderSchema = z.object({
   purchaseOrderId: uuid,
+  idempotencyKey: uuid,
   items: z.array(poReceiptItemSchema).min(1, "At least one item is required"),
 })
 

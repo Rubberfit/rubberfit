@@ -30,6 +30,9 @@ const MT_UUID = "40000000-4000-4000-8000-aaaaaaaaaaa4"
 const ITEM1_UUID = "50000000-5000-4000-8000-aaaaaaaaaaa5"
 const ITEM2_UUID = "50000000-5000-4000-8000-aaaaaaaaaaa6"
 const ACTOR_UUID = "60000000-6000-4000-8000-aaaaaaaaaaa7"
+const IDEMPOTENCY_KEY = "90000000-9000-4000-8000-aaaaaaaaaaa9"
+const RECEIPT1_UUID = "a0000000-a000-4000-8000-aaaaaaaaaaab"
+const RECEIPT2_UUID = "a0000000-a000-4000-8000-aaaaaaaaaaac"
 
 const USD = Currency.fromPersistence("USD")
 
@@ -149,7 +152,35 @@ function makeFakePoService(): IPurchaseOrderService {
     cancel: vi.fn(),
     recordReceipts: vi.fn(),
     recordReceiptsByItemId: vi.fn(),
+    markReceiptRollCreated: vi.fn().mockResolvedValue(undefined),
     softDelete: vi.fn(),
+  }
+}
+
+/**
+ * Builds a `recordReceiptsByItemId` result shape. The 7c-1 fields
+ * (`alreadyAppliedItemIds`, `receiptIdByItemId`) default to empty / a
+ * map keyed off the provided itemIdToLineNumber so happy-path tests
+ * don't need to set them explicitly.
+ */
+function makeReceiptResult(args: {
+  previousStatus: "ordered" | "partial_received"
+  purchaseOrder: PurchaseOrder
+  itemIdToLineNumber: Map<string, number>
+  alreadyAppliedItemIds?: string[]
+  receiptIdByItemId?: Map<string, string>
+}) {
+  const defaultReceiptIds = new Map<string, string>()
+  const itemIds = Array.from(args.itemIdToLineNumber.keys())
+  itemIds.forEach((id, idx) => {
+    defaultReceiptIds.set(id, idx === 0 ? RECEIPT1_UUID : RECEIPT2_UUID)
+  })
+  return {
+    previousStatus: args.previousStatus,
+    purchaseOrder: args.purchaseOrder,
+    itemIdToLineNumber: args.itemIdToLineNumber,
+    alreadyAppliedItemIds: args.alreadyAppliedItemIds ?? [],
+    receiptIdByItemId: args.receiptIdByItemId ?? defaultReceiptIds,
   }
 }
 
@@ -237,17 +268,20 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("on full receipt: persists, creates roll(s), sends notification", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
     const result = await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -267,16 +301,19 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("on partial receipt: no notification, no full-receipt date", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 5, quantitySqm: 25 })]
     const partialPo = makePoInStatus("partial_received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: partialPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: partialPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
 
     const result = await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 50, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -292,14 +329,16 @@ describe("ReceivePurchaseOrderUseCase", () => {
       makePoItem(2, { quantityReceivedSqm: 25, quantitySqm: 25 }),
     ]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([
-        [ITEM1_UUID, 1],
-        [ITEM2_UUID, 2],
-      ]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([
+          [ITEM1_UUID, 1],
+          [ITEM2_UUID, 2],
+        ]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
@@ -309,6 +348,7 @@ describe("ReceivePurchaseOrderUseCase", () => {
         { itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }, // has rollData
         { itemId: ITEM2_UUID, quantityReceived: 100 }, // no rollData → no roll
       ],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -320,17 +360,20 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("partial_received → received: notification carries oldStatus='partial_received'", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "partial_received",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "partial_received",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
     await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: {} }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -343,17 +386,20 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("roll creation failure is best-effort: no throw, surfaced in failedItemIds", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockRejectedValue(new Error("rolls insert failed"))
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
     const result = await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -372,14 +418,16 @@ describe("ReceivePurchaseOrderUseCase", () => {
       makePoItem(2, { quantityReceivedSqm: 25, quantitySqm: 25 }),
     ]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([
-        [ITEM1_UUID, 1],
-        [ITEM2_UUID, 2],
-      ]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([
+          [ITEM1_UUID, 1],
+          [ITEM2_UUID, 2],
+        ]),
+      })
+    )
     vi.mocked(rollService.createRoll)
       .mockResolvedValueOnce(makeRoll()) // ITEM1 succeeds
       .mockRejectedValueOnce(new Error("rolls insert failed for ITEM2")) // ITEM2 fails
@@ -391,6 +439,7 @@ describe("ReceivePurchaseOrderUseCase", () => {
         { itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } },
         { itemId: ITEM2_UUID, quantityReceived: 100, rollData: { width: 60 } },
       ],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -402,17 +451,20 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("happy path: failedItemIds is empty", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
     const result = await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -422,17 +474,20 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("threads purchaseOrderItemId into createRoll props for reconciliation FK", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
 
     await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
@@ -443,11 +498,13 @@ describe("ReceivePurchaseOrderUseCase", () => {
   it("notification failure does not abort the receipt", async () => {
     const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
     const receivedPo = makePoInStatus("received", items)
-    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue({
-      previousStatus: "ordered",
-      purchaseOrder: receivedPo,
-      itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
-    })
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
     vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
     vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
     vi.mocked(notificationService.sendPOStatusUpdate).mockRejectedValue(new Error("smtp down"))
@@ -455,10 +512,184 @@ describe("ReceivePurchaseOrderUseCase", () => {
     const result = await useCase.execute({
       purchaseOrderId: PO_UUID,
       items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: {} }],
+      idempotencyKey: IDEMPOTENCY_KEY,
       actor,
     })
 
     expect(result.partialReceipt).toBe(false)
     expect(result.rollsCreated).toHaveLength(1)
+  })
+
+  // ─── Step 7c-1: idempotency tests ──────────────────────────────────────
+
+  it("idempotency: when service reports all items already-applied, no rolls created", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    // Service reports the item as already applied (a prior submission
+    // with the same key got there first).
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+        alreadyAppliedItemIds: [ITEM1_UUID],
+      })
+    )
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    // No roll creation attempted — the prior submission's roll (if any)
+    // is the source of truth; double-creating would orphan inventory.
+    expect(rollService.createRoll).not.toHaveBeenCalled()
+    expect(result.rollsCreated).toHaveLength(0)
+    expect(result.failedItemIds).toEqual([])
+  })
+
+  it("idempotency: partial replay — one item already applied, one fresh", async () => {
+    const items = [
+      makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 }),
+      makePoItem(2, { quantityReceivedSqm: 25, quantitySqm: 25 }),
+    ]
+    const receivedPo = makePoInStatus("received", items)
+    // ITEM1 already applied (prior submission with same key); ITEM2 fresh.
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([
+          [ITEM1_UUID, 1],
+          [ITEM2_UUID, 2],
+        ]),
+        alreadyAppliedItemIds: [ITEM1_UUID],
+      })
+    )
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [
+        { itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } },
+        { itemId: ITEM2_UUID, quantityReceived: 100, rollData: { width: 60 } },
+      ],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    // Only ITEM2 should get a fresh roll. ITEM1 was already applied
+    // upstream, so the use-case skips its roll creation.
+    expect(rollService.createRoll).toHaveBeenCalledTimes(1)
+    const calledProps = vi.mocked(rollService.createRoll).mock.calls[0]![0]
+    expect(calledProps.purchaseOrderItemId?.value).toBe(ITEM2_UUID)
+    expect(result.rollsCreated).toHaveLength(1)
+  })
+
+  it("threads idempotencyKey into the service call", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    const sentReceipts = vi.mocked(poService.recordReceiptsByItemId).mock.calls[0]![1]
+    expect(sentReceipts).toHaveLength(1)
+    expect(sentReceipts[0]!.idempotencyKey).toBe(IDEMPOTENCY_KEY)
+    expect(sentReceipts[0]!.rollRequested).toBe(true)
+    expect(sentReceipts[0]!.rollIntent).toMatchObject({
+      widthMm: Math.round(60 * 25.4), // 60" → 1524mm
+    })
+  })
+
+  it("stamps roll_created_at after a successful createRoll", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    expect(poService.markReceiptRollCreated).toHaveBeenCalledWith(RECEIPT1_UUID)
+  })
+
+  it("does NOT stamp roll_created_at when createRoll fails (row stays in pending view)", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
+    vi.mocked(rollService.createRoll).mockRejectedValue(new Error("rolls insert failed"))
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+
+    await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    expect(poService.markReceiptRollCreated).not.toHaveBeenCalled()
+  })
+
+  it("stamp failure after createRoll succeeds is non-fatal (view's NOT EXISTS handles it)", async () => {
+    const items = [makePoItem(1, { quantityReceivedSqm: 25, quantitySqm: 25 })]
+    const receivedPo = makePoInStatus("received", items)
+    vi.mocked(poService.recordReceiptsByItemId).mockResolvedValue(
+      makeReceiptResult({
+        previousStatus: "ordered",
+        purchaseOrder: receivedPo,
+        itemIdToLineNumber: new Map([[ITEM1_UUID, 1]]),
+      })
+    )
+    vi.mocked(rollService.createRoll).mockResolvedValue(makeRoll())
+    vi.mocked(supplierService.getSupplierById).mockResolvedValue(makeSupplier())
+    vi.mocked(poService.markReceiptRollCreated).mockRejectedValue(new Error("stamp lost"))
+
+    const result = await useCase.execute({
+      purchaseOrderId: PO_UUID,
+      items: [{ itemId: ITEM1_UUID, quantityReceived: 100, rollData: { width: 60 } }],
+      idempotencyKey: IDEMPOTENCY_KEY,
+      actor,
+    })
+
+    // The roll was created; the failedItemIds should NOT include this
+    // item (the actual operation succeeded). View's NOT EXISTS guard
+    // handles the stale stamp.
+    expect(result.rollsCreated).toHaveLength(1)
+    expect(result.failedItemIds).toEqual([])
   })
 })

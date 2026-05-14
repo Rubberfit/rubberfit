@@ -125,6 +125,57 @@ export interface RollDataInput {
   date_received?: string
 }
 
+/**
+ * Metric snapshot of the operator's roll-creation intent. Persisted to
+ * `po_item_receipts` (typed columns, not jsonb — schema-stable for the
+ * 7c-2 admin reconcile replay path). Every field is independently
+ * nullable; NULL means "operator didn't supply; the admin replay
+ * applies the same fallback chain `buildCreateRollProps` would have."
+ *
+ * Currency is intentionally omitted — there's no per-roll currency
+ * override in the live form; the apply-time fallback resolves to
+ * `poItem.unitCost.currency`. If a future field surfaces per-roll
+ * currency choice, add it here AND extend the schema.
+ */
+export interface RollIntent {
+  widthMm: number | null
+  lengthMm: number | null
+  thicknessMm: number | null
+  color: string | null
+  location: string | null
+  costPerSqmCents: number | null
+  notes: string | null
+}
+
+/**
+ * Maps the operator's `rollData` payload (imperial / legacy column
+ * names) to a metric `RollIntent` snapshot for the receipts row.
+ * Each field reflects EXACTLY what the operator provided — no
+ * fallback chain is applied here. The fallback to PO-item defaults
+ * happens at apply time, in `buildCreateRollProps`. Keeping
+ * `RollIntent` free of fallbacks means the admin replay (7c-2) sees
+ * the same "what did the operator type?" view that the live path saw.
+ *
+ * `lengthMm` derives from the operator's `length` only — there is NO
+ * fallback to `quantityReceivedSqft` here. That fallback is a live-
+ * path concern (the apply-time helper reaches for the receipt's
+ * `quantity_received_sqm` for replay length if `lengthMm IS NULL`).
+ */
+export function buildRollIntent(rollData: RollDataInput): RollIntent {
+  return {
+    widthMm: rollData.width != null ? Math.round(inchesToMm(rollData.width)) : null,
+    lengthMm: rollData.length != null ? Math.round(inchesToMm(rollData.length)) : null,
+    thicknessMm: rollData.thickness != null ? inchesToMm(rollData.thickness) : null,
+    color: rollData.color ?? null,
+    location: rollData.location ?? null,
+    costPerSqmCents:
+      rollData.cost_per_sqft != null
+        ? Math.round(rollData.cost_per_sqft * SQFT_PER_SQM * 100)
+        : null,
+    notes: rollData.notes ?? null,
+  }
+}
+
 export interface BuildCreateRollPropsArgs {
   /** Fresh UUID for the roll; caller generates so the helper stays pure. */
   id: RollId

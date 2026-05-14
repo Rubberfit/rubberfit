@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildCreateRollProps,
+  buildRollIntent,
   costPerSqftToCostPerSqmMoney,
   DEFAULT_ROLL_THICKNESS_MM,
   DEFAULT_ROLL_WIDTH_MM,
@@ -231,6 +232,48 @@ describe("PO input conversion helpers", () => {
     it("currency: defaults to poItem.unitCost.currency", () => {
       const props = buildCreateRollProps(buildArgs({ rollData: { cost_per_sqft: 1 } }))
       expect(props.cost?.currency.equals(USD)).toBe(true)
+    })
+  })
+
+  // Step 7c-1: typed roll-intent snapshot for `po_item_receipts`.
+  describe("buildRollIntent", () => {
+    it("converts inches → mm for width / length / thickness", () => {
+      const intent = buildRollIntent({ width: 60, length: 100, thickness: 0.125 })
+      expect(intent.widthMm).toBe(1524) // 60 × 25.4 = 1524
+      expect(intent.lengthMm).toBe(2540) // 100 × 25.4 = 2540
+      expect(intent.thicknessMm).toBeCloseTo(3.175, 5)
+    })
+
+    it("converts cost_per_sqft (dollars) → cost_per_sqm (cents)", () => {
+      // 1 USD/sqft × SQFT_PER_SQM × 100 = ~1076.39 cents/sqm → round to 1076
+      const intent = buildRollIntent({ cost_per_sqft: 1 })
+      expect(intent.costPerSqmCents).toBe(1076)
+    })
+
+    it("passes color / location / notes through unchanged", () => {
+      const intent = buildRollIntent({ color: "black", location: "Bay A", notes: "smells nice" })
+      expect(intent.color).toBe("black")
+      expect(intent.location).toBe("Bay A")
+      expect(intent.notes).toBe("smells nice")
+    })
+
+    it("returns NULL for omitted fields (no PO-item fallback at intent-capture time)", () => {
+      const intent = buildRollIntent({})
+      expect(intent.widthMm).toBeNull()
+      expect(intent.lengthMm).toBeNull()
+      expect(intent.thicknessMm).toBeNull()
+      expect(intent.color).toBeNull()
+      expect(intent.location).toBeNull()
+      expect(intent.costPerSqmCents).toBeNull()
+      expect(intent.notes).toBeNull()
+    })
+
+    it("does NOT derive lengthMm from quantityReceivedSqft — that fallback lives in the apply helper", () => {
+      // buildRollIntent's contract: capture exactly what the operator typed.
+      // The "fallback to quantityReceivedSqft for length" lives in
+      // buildCreateRollProps and applies at apply time, not at intent capture.
+      const intent = buildRollIntent({ width: 60 })
+      expect(intent.lengthMm).toBeNull()
     })
   })
 })

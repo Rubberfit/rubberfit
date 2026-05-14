@@ -151,6 +151,16 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     ])
     const previousStatus = po.status
     const now = new Date()
+    const tenantId = po.tenantId.value
+    const actorId = actor.value
+
+    // Step 1: Idempotent receipt INSERT FIRST. The UNIQUE
+    // (purchase_order_item_id, idempotency_key) constraint dedupes
+    // retries before the entity is mutated. Build the apply-set as we go.
+    const receiptIdByItemId = new Map<string, string>()
+    const alreadyAppliedItemIds: string[] = []
+    const toApply: { receipt: ReceiptDeltaByItemId; lineNumber: number; receiptId: string }[] = []
+
     for (const receipt of receipts) {
       const lineNumber = itemIdToLineNumber.get(receipt.itemId)
       if (lineNumber === undefined) {
@@ -159,6 +169,32 @@ export class PurchaseOrderService implements IPurchaseOrderService {
           `no item with id '${receipt.itemId}' on PO ${id}`
         )
       }
+
+      const inserted = await this.repo.insertReceiptIdempotent({
+        tenantId,
+        purchaseOrderItemId: receipt.itemId,
+        idempotencyKey: receipt.idempotencyKey,
+        quantityReceivedSqm: receipt.quantityReceivedSqm,
+        receivedDate: receipt.receivedDate ?? now,
+        rollRequested: receipt.rollRequested,
+        rollIntent: receipt.rollIntent,
+        createdBy: actorId,
+      })
+
+      receiptIdByItemId.set(receipt.itemId, inserted.receiptId)
+
+      if (!inserted.wasInserted) {
+        // Same key on this item already exists → skip the entity apply.
+        // The use-case will also skip the roll creation for this item.
+        alreadyAppliedItemIds.push(receipt.itemId)
+        continue
+      }
+
+      toApply.push({ receipt, lineNumber, receiptId: inserted.receiptId })
+    }
+
+    // Step 2: Apply the fresh receipts to the entity.
+    for (const { receipt, lineNumber } of toApply) {
       po.recordReceipt(
         lineNumber,
         receipt.quantityReceivedSqm,
@@ -167,8 +203,31 @@ export class PurchaseOrderService implements IPurchaseOrderService {
         now
       )
     }
+
+    // Step 3: Persist the PO aggregate. If this throws, the freshly
+    // inserted receipt rows are left with `applied_at IS NULL` and
+    // surface in `po_receipts_pending_apply` for admin reconciliation.
     const purchaseOrder = await this.repo.update(po)
-    return { previousStatus, purchaseOrder, itemIdToLineNumber }
+
+    // Step 4: Stamp `applied_at` on every freshly inserted receipt
+    // AFTER the PO persistence succeeded. Sequential not parallel —
+    // the stamps are independent but cheap, and parallel would just
+    // burst the DB without atomicity benefit.
+    for (const { receiptId } of toApply) {
+      await this.repo.markReceiptApplied(receiptId)
+    }
+
+    return {
+      previousStatus,
+      purchaseOrder,
+      itemIdToLineNumber,
+      alreadyAppliedItemIds,
+      receiptIdByItemId,
+    }
+  }
+
+  markReceiptRollCreated(receiptId: string): Promise<void> {
+    return this.repo.markReceiptRollCreated(receiptId)
   }
 
   async softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder> {

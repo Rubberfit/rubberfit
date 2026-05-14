@@ -127,6 +127,7 @@ ALTER TABLE job_assignees           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_roll_allocations    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_orders         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE purchase_order_items    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE po_item_receipts        ENABLE ROW LEVEL SECURITY;
 
 -- Notifications (file 5)
 ALTER TABLE notifications           ENABLE ROW LEVEL SECURITY;
@@ -417,6 +418,22 @@ CREATE POLICY purchase_orders_tenant_isolation ON purchase_orders
 
 CREATE POLICY purchase_order_items_tenant_isolation ON purchase_order_items
   FOR ALL
+  USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))
+  WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
+
+-- po_item_receipts: append-only audit. SELECT + INSERT + UPDATE (for the
+-- applied_at / roll_created_at stamps), no DELETE policy — history is
+-- retained, period. Standard tenant-isolation otherwise.
+CREATE POLICY po_item_receipts_select_tenant ON po_item_receipts
+  FOR SELECT
+  USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
+
+CREATE POLICY po_item_receipts_insert_tenant ON po_item_receipts
+  FOR INSERT
+  WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
+
+CREATE POLICY po_item_receipts_update_tenant ON po_item_receipts
+  FOR UPDATE
   USING (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()))
   WITH CHECK (auth_is_platform_admin() OR tenant_id IN (SELECT auth_user_tenant_ids()));
 

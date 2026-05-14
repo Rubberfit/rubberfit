@@ -352,6 +352,76 @@ COMMENT ON COLUMN rolls.purchase_order_item_id IS
   'PO item this roll was created from when source_type = received. NULL for offcuts and for legacy/manual-entry received rolls. Powers the po_receipts_pending_roll_creation reconciliation view.';
 
 
+-- ─── po_item_receipts ──────────────────────────────────────────────────────
+-- Per-receipt history for PO items. One row per operator-intent receipt event;
+-- the (purchase_order_item_id, idempotency_key) UNIQUE constraint makes the
+-- receive-PO use-case idempotent — a retry with the same key on the same item
+-- is rejected by ON CONFLICT, and the service skips both the entity apply
+-- and the upstream roll creation.
+--
+-- Two state markers track the receipt's downstream outcome:
+--   • applied_at        — populated AFTER PurchaseOrder persistence succeeds.
+--                         NULL means the receipt row landed but the PO's
+--                         quantity_received_sqm was never incremented.
+--                         Surfaces in po_receipts_pending_apply.
+--   • roll_created_at   — populated AFTER rollService.createRoll succeeds.
+--                         NULL with roll_requested=true means a roll was
+--                         requested but the inventory row never materialized.
+--                         Surfaces in po_receipts_pending_roll_creation.
+--
+-- Typed roll-intent columns (no jsonb) capture the operator's roll-creation
+-- payload in metric form so the 7c-2 admin retry can replay createRoll
+-- without depending on a schema-fragile json blob. NULL means "operator
+-- didn't supply; use PO item fallback at apply time" — matches the live
+-- path's fallback chain in buildCreateRollProps.
+--
+-- Append-only audit: no DELETE policy in file 9. ON DELETE CASCADE from
+-- purchase_order_items handles cleanup if a PO item is hard-deleted (rare —
+-- soft-delete is the normal path and leaves receipts intact for history).
+
+CREATE TABLE po_item_receipts (
+  id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id                   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  purchase_order_item_id      uuid NOT NULL REFERENCES purchase_order_items(id) ON DELETE CASCADE,
+
+  idempotency_key             text NOT NULL,
+
+  quantity_received_sqm       numeric(12,3) NOT NULL CHECK (quantity_received_sqm > 0),
+  received_date               date NOT NULL,
+
+  -- Operator's roll-creation intent (metric; nullable for fallback chain).
+  roll_requested              boolean NOT NULL DEFAULT false,
+  roll_width_mm               integer       CHECK (roll_width_mm IS NULL OR roll_width_mm > 0),
+  roll_length_mm              integer       CHECK (roll_length_mm IS NULL OR roll_length_mm > 0),
+  roll_thickness_mm           numeric(8,3)  CHECK (roll_thickness_mm IS NULL OR roll_thickness_mm > 0),
+  roll_color                  varchar(50),
+  roll_location               varchar(200),
+  roll_cost_per_sqm_cents     bigint        CHECK (roll_cost_per_sqm_cents IS NULL OR roll_cost_per_sqm_cents >= 0),
+  roll_notes                  text,
+
+  -- State markers (NULL by default; stamped after the corresponding side effect persists).
+  applied_at                  timestamptz,
+  roll_created_at             timestamptz,
+
+  created_at                  timestamptz NOT NULL DEFAULT now(),
+  created_by                  uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
+
+  CONSTRAINT po_item_receipts_idem_key_unique
+    UNIQUE (purchase_order_item_id, idempotency_key)
+);
+
+COMMENT ON TABLE po_item_receipts IS
+  'Per-receipt audit + idempotency anchor for PO receipts. Each row is one operator-intent receipt event. UNIQUE(purchase_order_item_id, idempotency_key) makes recordReceiptsByItemId idempotent. Typed roll-intent columns let the admin reconcile flow (7c-2) replay roll creation without a load-bearing jsonb snapshot. applied_at + roll_created_at state markers feed the two reconciliation views.';
+COMMENT ON COLUMN po_item_receipts.idempotency_key IS
+  'Client-supplied UUID per submission. Composite UNIQUE with purchase_order_item_id — scoped per item so the same key on different items in a batch is fine. No expiration; rows are permanent audit data.';
+COMMENT ON COLUMN po_item_receipts.applied_at IS
+  'NULL → receipt row landed but PO quantity_received_sqm was never incremented (under-applied). Stamped AFTER repo.update(po) returns successfully.';
+COMMENT ON COLUMN po_item_receipts.roll_created_at IS
+  'NULL with roll_requested=true → operator wanted a roll but rollService.createRoll never succeeded (or its stamp never persisted). Stamped AFTER createRoll returns successfully.';
+COMMENT ON COLUMN po_item_receipts.roll_requested IS
+  'True when the operator submitted rollData. Distinguishes "wants a default-shaped roll" (true, all roll_* columns NULL) from "wants no roll" (false). Drives the po_receipts_pending_roll_creation view filter.';
+
+
 -- ─── job_parts ─────────────────────────────────────────────────────────────
 -- Per-job line items (material × dimensions × quantity). Used by the
 -- customer-facing receipt PDF, the job-sheet PDF, and the cutting-engine

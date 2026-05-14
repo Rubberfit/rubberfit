@@ -67,6 +67,9 @@ function makeFakeRepo(): IPurchaseOrdersRepository {
     insert: vi.fn(),
     update: vi.fn(),
     itemIdToLineNumberMap: vi.fn(),
+    insertReceiptIdempotent: vi.fn(),
+    markReceiptApplied: vi.fn().mockResolvedValue(undefined),
+    markReceiptRollCreated: vi.fn().mockResolvedValue(undefined),
   }
 }
 

@@ -51,6 +51,7 @@ const SUPPLIER_ID = "00000000-0000-4000-8000-000000000001"
 const MATERIAL_TYPE_ID = "00000000-0000-4000-8000-000000000002"
 const PO_ID = "00000000-0000-4000-8000-000000000003"
 const PO_ITEM_ID = "00000000-0000-4000-8000-000000000004"
+const IDEMPOTENCY_KEY = "00000000-0000-4000-8000-000000000005"
 
 const VALID_ITEM = {
   materialTypeId: MATERIAL_TYPE_ID,
@@ -208,16 +209,21 @@ describe("app/actions/purchase-orders", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(PO_LIST_PATH)
   })
 
-  it("receivePurchaseOrder threads actor with items", async () => {
+  it("receivePurchaseOrder threads actor with items and idempotencyKey", async () => {
     const execute = vi.fn().mockResolvedValue({ partialReceipt: false, rollsCreated: [] })
     resolveUseCaseMock.mockReturnValue({ execute })
 
     const { receivePurchaseOrder } = await import("@/app/actions/purchase-orders")
     const items = [{ itemId: PO_ITEM_ID, quantityReceived: 5 }]
-    await receivePurchaseOrder({ purchaseOrderId: PO_ID, items })
+    await receivePurchaseOrder({
+      purchaseOrderId: PO_ID,
+      idempotencyKey: IDEMPOTENCY_KEY,
+      items,
+    })
 
     expect(execute).toHaveBeenCalledWith({
       purchaseOrderId: PO_ID,
+      idempotencyKey: IDEMPOTENCY_KEY,
       items,
       actor: ACTOR,
     })
@@ -235,6 +241,7 @@ describe("app/actions/purchase-orders", () => {
     await expect(
       receivePurchaseOrder({
         purchaseOrderId: PO_ID,
+        idempotencyKey: IDEMPOTENCY_KEY,
         items: [{ itemId: PO_ITEM_ID, quantityReceived: 0 }],
       })
     ).rejects.toThrow()
@@ -250,12 +257,46 @@ describe("app/actions/purchase-orders", () => {
     await expect(
       receivePurchaseOrder({
         purchaseOrderId: PO_ID,
+        idempotencyKey: IDEMPOTENCY_KEY,
         items: [{ itemId: PO_ITEM_ID, quantityReceived: -1 }],
       })
     ).rejects.toThrow()
     expect(execute).not.toHaveBeenCalled()
     // Match the zero-quantity test — parse failure shouldn't trigger
     // cache invalidation (coderabbit follow-up on PR #197).
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  // Step 7c-1: idempotencyKey is required and must be a valid UUID.
+  it("receivePurchaseOrder rejects missing idempotencyKey", async () => {
+    const execute = vi.fn()
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { receivePurchaseOrder } = await import("@/app/actions/purchase-orders")
+    await expect(
+      receivePurchaseOrder({
+        purchaseOrderId: PO_ID,
+        // idempotencyKey omitted on purpose
+        items: [{ itemId: PO_ITEM_ID, quantityReceived: 5 }],
+      } as unknown as Parameters<typeof receivePurchaseOrder>[0])
+    ).rejects.toThrow()
+    expect(execute).not.toHaveBeenCalled()
+    expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it("receivePurchaseOrder rejects malformed idempotencyKey", async () => {
+    const execute = vi.fn()
+    resolveUseCaseMock.mockReturnValue({ execute })
+
+    const { receivePurchaseOrder } = await import("@/app/actions/purchase-orders")
+    await expect(
+      receivePurchaseOrder({
+        purchaseOrderId: PO_ID,
+        idempotencyKey: "not-a-uuid",
+        items: [{ itemId: PO_ITEM_ID, quantityReceived: 5 }],
+      })
+    ).rejects.toThrow()
+    expect(execute).not.toHaveBeenCalled()
     expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 })

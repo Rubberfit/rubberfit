@@ -2,6 +2,42 @@ import type { PurchaseOrder } from "@/src/entities/purchase-order"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
 
 /**
+ * One row in `po_item_receipts` as the repo persists it. The service /
+ * use-case layer builds this from action input + entity context; the
+ * repo translates it into INSERT columns. Quantities are in metric
+ * (sqm / mm / cents), matching the schema.
+ */
+export interface InsertReceiptInput {
+  tenantId: string
+  purchaseOrderItemId: string
+  idempotencyKey: string
+  quantityReceivedSqm: number
+  receivedDate: Date
+  rollRequested: boolean
+  rollIntent?: {
+    widthMm?: number | null
+    lengthMm?: number | null
+    thicknessMm?: number | null
+    color?: string | null
+    location?: string | null
+    costPerSqmCents?: number | null
+    notes?: string | null
+  }
+  createdBy: string
+}
+
+/**
+ * Result of `insertReceiptIdempotent`. `wasInserted = false` means the
+ * INSERT collided on `(purchase_order_item_id, idempotency_key)` UNIQUE
+ * and the existing row's id is returned instead — callers SKIP the
+ * entity-apply + roll-creation path on that signal.
+ */
+export interface InsertReceiptResult {
+  receiptId: string
+  wasInserted: boolean
+}
+
+/**
  * Purchase-orders persistence boundary. Narrow entity-typed surface —
  * the legacy raw-row CRUD that the existing UI / RF api-client still
  * needs lives on `ILegacyPurchaseOrderService`.
@@ -48,4 +84,38 @@ export interface IPurchaseOrdersRepository {
    * of truth for the new state.
    */
   update(po: PurchaseOrder): Promise<PurchaseOrder>
+
+  /**
+   * Step 7c-1 idempotency anchor. Inserts a `po_item_receipts` row;
+   * on `(purchase_order_item_id, idempotency_key)` UNIQUE conflict,
+   * returns the existing row's id with `wasInserted = false` so the
+   * service can short-circuit to "already applied" semantics.
+   *
+   * The receipt is recorded BEFORE the PO aggregate is mutated — the
+   * UNIQUE constraint is what protects against double-applying a
+   * delta on retry. Callers MUST handle `wasInserted = false` by
+   * skipping the entity apply.
+   */
+  insertReceiptIdempotent(input: InsertReceiptInput): Promise<InsertReceiptResult>
+
+  /**
+   * Stamps `applied_at = now()` on the receipt row. The caller invokes
+   * this AFTER `repo.update(po)` returns successfully — the stamp is
+   * the signal that the PO aggregate state durably reflects this
+   * receipt's delta. If a crash happens between the PO update and this
+   * stamp, the row appears in `po_receipts_pending_apply` for admin
+   * reconciliation.
+   */
+  markReceiptApplied(receiptId: string): Promise<void>
+
+  /**
+   * Stamps `roll_created_at = now()` on the receipt row. The caller
+   * invokes this AFTER `rollService.createRoll` succeeds — the stamp
+   * is the signal that the operator-requested roll persisted. If a
+   * crash happens between createRoll and this stamp, the row appears
+   * in `po_receipts_pending_roll_creation`, but the view's `NOT EXISTS`
+   * guard against `rolls` excludes rows where a roll actually exists
+   * (stale-stamp gracefully ignored).
+   */
+  markReceiptRollCreated(receiptId: string): Promise<void>
 }
