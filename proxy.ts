@@ -230,11 +230,19 @@ function shouldSkipSubscriptionGate(pathname: string): boolean {
   // the proxy entirely via `isPublicPath`), so it never reaches the
   // gate — no skip entry needed here. The `_platform-admin/*` surface
   // doesn't exist yet; add a skip line when that route lands.
+  //
+  // `/dashboard/settings/general` is exempted so a workspace whose
+  // subscription has lapsed can still view + change its saved locale,
+  // currency, time zone, unit system, and threshold. The recovery
+  // path elsewhere assumes the page is reachable — without this
+  // exemption a `past_due` org owner is hard-redirected to /checkout
+  // and cannot read the prefs they saved before billing failed.
   return (
     pathname === "/logout" ||
     pathname === "/checkout" ||
     pathname.startsWith("/checkout/") ||
-    pathname.startsWith("/api/auth/")
+    pathname.startsWith("/api/auth/") ||
+    pathname === "/dashboard/settings/general"
   )
 }
 

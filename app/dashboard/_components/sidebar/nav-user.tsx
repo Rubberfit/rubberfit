@@ -1,7 +1,21 @@
 "use client"
 
-import { CircleUser, EllipsisVertical, LogOut, MessageSquareDot, ShieldCheck } from "lucide-react"
+import {
+  Check,
+  CircleUser,
+  EllipsisVertical,
+  LogOut,
+  MessageSquareDot,
+  ShieldCheck,
+} from "lucide-react"
+import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
+import { useTransition } from "react"
+import { toast } from "sonner"
+
+import { setLocale as setLocaleAction } from "@/app/actions/locale"
+import { updateUserPreferences } from "@/app/actions/user-preferences"
+import { LOCALES, type AppLocale } from "@/app/i18n/routing"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar"
 import {
@@ -34,8 +48,35 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const { signOut, user: authUser } = useAuth()
   const router = useRouter()
+  const currentLocale = useLocale()
+  const tLocale = useTranslations("settings.avatarMenu")
+  const [, startLocaleTransition] = useTransition()
 
   const isAdminPanelVisible = authUser?.isSuperAdmin === true
+
+  const handleLocaleChange = (next: AppLocale) => {
+    if (next === currentLocale) return
+    startLocaleTransition(async () => {
+      // DB first, then cookie. If the DB write fails, return early so
+      // the NEXT_LOCALE cookie never diverges from the persisted row.
+      // The cookie is what the avatar checkmark + page chrome read on
+      // the next render, so writing it before a failed DB call would
+      // strand the user on a locale their saved preferences don't
+      // actually reflect.
+      const result = await updateUserPreferences({ locale: next })
+      if ("error" in result) {
+        toast.error(tLocale("syncError"))
+        return
+      }
+      await setLocaleAction({ locale: result.data.locale })
+      router.refresh()
+    })
+  }
+
+  const localeLabel: Record<AppLocale, string> = {
+    "en-US": tLocale("english"),
+    "es-MX": tLocale("spanish"),
+  }
 
   const handleSignOut = async () => {
     try {
@@ -123,6 +164,26 @@ export function NavUser({
                 </DropdownMenuGroup>
               </>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-muted-foreground text-[10px] uppercase tracking-[0.22em] font-medium">
+              {tLocale("languageHeader")}
+            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              {LOCALES.map((locale) => (
+                <DropdownMenuItem
+                  key={locale}
+                  onClick={() => handleLocaleChange(locale)}
+                  className="justify-between"
+                >
+                  <span>{localeLabel[locale]}</span>
+                  {currentLocale === locale ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <span className="w-3.5" aria-hidden />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />
