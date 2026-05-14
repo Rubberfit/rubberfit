@@ -189,13 +189,57 @@ export class OrganizationService implements IOrganizationService {
 
   async listMembers(organizationId: string): Promise<OrganizationMemberWithProfile[]> {
     const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
+
+    // Manual two-query join. The Supabase REST `profile:profiles(...)`
+    // syntax requires the schema cache to know about a FK between
+    // `organization_members.user_id` and `profiles.id`. Both columns
+    // reference `auth.users(id)` indirectly, but the cache doesn't
+    // always infer the cross-relationship — it fails with PGRST200 on
+    // any DB where the auto-discovery hasn't fired. Doing the join in
+    // app code is resilient: the only DB contract here is "members
+    // and profiles both share auth.users.id."
+    const { data: members, error: membersError } = await supabase
       .from("organization_members")
-      .select("*, profile:profiles(id, email, full_name, avatar_url)")
+      .select("*")
       .eq("organization_id", organizationId)
       .order("joined_at", { ascending: true })
-    if (error) throw error
-    return (data ?? []) as OrganizationMemberWithProfile[]
+    if (membersError) throw membersError
+
+    const memberRows = (members ?? []) as Array<OrganizationMember & { user_id: string | null }>
+    const userIds = memberRows
+      .map((m) => m.user_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+
+    if (userIds.length === 0) {
+      return memberRows.map((m) => ({ ...m, profile: null })) as OrganizationMemberWithProfile[]
+    }
+
+    // `avatar_url` is in the TS model but no migration adds the
+    // column to the profiles table — selecting it throws 42703 on
+    // preview / older envs. Drop it from the SELECT and default
+    // the field to null. The column-vs-model drift is tracked
+    // separately; until then customer rows render with the initials
+    // fallback (the team UI already handles avatar_url === null).
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name")
+      .in("id", userIds)
+    if (profilesError) throw profilesError
+
+    const profileById = new Map(
+      (
+        (profiles ?? []) as Array<{
+          id: string
+          email: string | null
+          full_name: string | null
+        }>
+      ).map((p) => [p.id, { ...p, avatar_url: null as string | null }])
+    )
+
+    return memberRows.map((m) => ({
+      ...m,
+      profile: m.user_id ? (profileById.get(m.user_id) ?? null) : null,
+    })) as OrganizationMemberWithProfile[]
   }
 
   // ─── Subscriptions ──────────────────────────────────────────
@@ -264,6 +308,22 @@ export class OrganizationService implements IOrganizationService {
     const { data, error } = await supabase
       .from("organization_subscriptions")
       .insert({ ...input, is_current: true })
+      .select("*")
+      .single()
+    if (error) throw error
+    return data as OrganizationSubscription
+  }
+
+  async updateSubscriptionPlanTierAndSeats(input: {
+    subscriptionId: string
+    planTier: "standard" | "pro" | "max"
+    seatCount: number
+  }): Promise<OrganizationSubscription> {
+    const supabase = await getBillingWriteClient()
+    const { data, error } = await supabase
+      .from("organization_subscriptions")
+      .update({ plan_tier: input.planTier, seat_count: input.seatCount })
+      .eq("id", input.subscriptionId)
       .select("*")
       .single()
     if (error) throw error
@@ -459,6 +519,22 @@ export class OrganizationService implements IOrganizationService {
     if (error) throw error
     if (!data) return null
     return (data as { role: OrganizationRole }).role
+  }
+
+  /**
+   * Active-member seat count for the org. Counts `organization_members`
+   * rows with `status='active'`. Pending invites are tracked separately
+   * via `organization_invitations` and bill when accepted.
+   */
+  async countActiveMembers(organizationId: string): Promise<number> {
+    const supabase = await getDatabaseClient()
+    const { count, error } = await supabase
+      .from("organization_members")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+    if (error) throw error
+    return count ?? 0
   }
 }
 

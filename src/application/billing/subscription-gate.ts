@@ -1,3 +1,5 @@
+import type { PlanTier } from "./feature-tiers"
+
 export type BillingStatus =
   | "incomplete"
   | "incomplete_expired"
@@ -16,6 +18,7 @@ export type SubscriptionGateResult =
       organizationId: string
       subscriptionId: string
       status: "trialing" | "active"
+      planTier: PlanTier
       cancelAtPeriodEnd: boolean
       cancelAt: string | null
       currentPeriodEnd: string | null
