@@ -114,7 +114,8 @@ function InventoryPageInner() {
       if (rolls && rolls.length > 0) {
         await exportPdfService.generateInventoryReport(
           rolls as unknown as Record<string, unknown>[],
-          summary as Record<string, unknown>
+          summary as Record<string, unknown>,
+          organizationPreferences
         )
       } else {
         toast.error("No data to export")

@@ -2,6 +2,11 @@ import { format } from "date-fns"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
+import {
+  formatUserDate,
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
 
@@ -141,12 +146,36 @@ export class ExportPdfService implements IExportPdfService {
     return offset + 5
   }
 
+  /**
+   * Resolves an unknown waste-report period value (`startDate` /
+   * `endDate`) into a display string. Routes string / Date / number
+   * values through `formatUserDate` for org-pref-aware rendering;
+   * falls back to a literal string for any other shape so the
+   * generated period sentence never reads `undefined` /
+   * `[object Object]`. Avoids `as` casts at the field-access boundary
+   * by narrowing on `typeof` first.
+   */
+  private formatPeriodValue(
+    value: unknown,
+    organizationPreferences?: UserDatePreferencesInput
+  ): string {
+    if (value === null || value === undefined) return "—"
+    if (value instanceof Date || typeof value === "string" || typeof value === "number") {
+      return formatUserDate(value, organizationPreferences) || String(value)
+    }
+    return String(value)
+  }
+
   private savePDFDocument(doc: jsPDF, filename: string): void {
     doc.save(filename)
     toast.success("PDF report downloaded successfully")
   }
 
-  async generatePDFReport(title: string, content: string): Promise<void> {
+  async generatePDFReport(
+    title: string,
+    content: string,
+    organizationPreferences?: UserDatePreferencesInput
+  ): Promise<void> {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -178,7 +207,11 @@ export class ExportPdfService implements IExportPdfService {
 
       doc.setFontSize(10)
       doc.setTextColor(107, 114, 128)
-      doc.text(`Generated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}`, margin, yPosition)
+      // Visible "Generated:" stamp follows org dateFormat / timeZone
+      // per the operator-seeds-prints ruling. Filename ISO timestamp
+      // below stays as date-fns `format()` for spreadsheet stability.
+      const generatedAt = formatUserDateTime(new Date(), organizationPreferences) || "—"
+      doc.text(`Generated: ${generatedAt}`, margin, yPosition)
       yPosition += 15
 
       const checkNewPage = (requiredSpace: number): boolean => {
@@ -237,9 +270,14 @@ export class ExportPdfService implements IExportPdfService {
     }
   }
 
-  fallbackPDFDownload(title: string, htmlContent: string): void {
+  fallbackPDFDownload(
+    title: string,
+    htmlContent: string,
+    organizationPreferences?: UserDatePreferencesInput
+  ): void {
     try {
-      const textContent = `${title}\n${"=".repeat(50)}\n\nGenerated: ${format(new Date(), "MMMM dd, yyyy HH:mm")}\n\n${htmlContent
+      const generatedAt = formatUserDateTime(new Date(), organizationPreferences) || "—"
+      const textContent = `${title}\n${"=".repeat(50)}\n\nGenerated: ${generatedAt}\n\n${htmlContent
         .replace(/<[^>]*>/g, "")
         .replace(/\s+/g, " ")
         .trim()}\n\n---\nRubberFit - Material Optimization System`
@@ -263,7 +301,8 @@ export class ExportPdfService implements IExportPdfService {
 
   async generateInventoryReport(
     rolls: Record<string, unknown>[],
-    summary: Record<string, unknown>
+    summary: Record<string, unknown>,
+    organizationPreferences?: UserDatePreferencesInput
   ): Promise<void> {
     const content = `
       <h1>Inventory Report</h1>
@@ -321,10 +360,14 @@ export class ExportPdfService implements IExportPdfService {
       </table>
     `
 
-    await this.generatePDFReport("Inventory Report", content)
+    await this.generatePDFReport("Inventory Report", content, organizationPreferences)
   }
 
-  async generateWasteReport(data: Record<string, unknown>, charts?: string): Promise<void> {
+  async generateWasteReport(
+    data: Record<string, unknown>,
+    charts?: string,
+    organizationPreferences?: UserDatePreferencesInput
+  ): Promise<void> {
     const content = `
       <h1>Waste Analysis Report</h1>
 
@@ -351,7 +394,7 @@ export class ExportPdfService implements IExportPdfService {
       </div>
 
       <h2>Analysis Period</h2>
-      <p>From: ${data.startDate} To: ${data.endDate}</p>
+      <p>From: ${this.formatPeriodValue(data.startDate, organizationPreferences)} To: ${this.formatPeriodValue(data.endDate, organizationPreferences)}</p>
 
       <h2>Material Breakdown</h2>
       <table>
@@ -391,7 +434,7 @@ export class ExportPdfService implements IExportPdfService {
       ${charts ? `<div>${charts}</div>` : ""}
     `
 
-    await this.generatePDFReport("Waste Analysis Report", content)
+    await this.generatePDFReport("Waste Analysis Report", content, organizationPreferences)
   }
 }
 
