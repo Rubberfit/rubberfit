@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react"
 import { subDays, startOfDay } from "date-fns"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
 import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
-import { formatInUserTimeZone } from "@/src/application/preferences/user-date-format"
+import {
+  formatInUserTimeZone,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 import { weekBoundariesInZone } from "@/src/application/preferences/user-week-boundaries"
-import type { UserPreferences } from "@/src/infrastructure/models/user-preferences"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { cutService } from "@/src/infrastructure/services/cutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
@@ -44,7 +47,6 @@ interface DashboardData {
   recentCuts: RecentCutRow[]
 }
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 const tenantDisplayName = "REMA Operations"
 
 type UtilizationCut = Cut & { roll?: { material_type: string; location: string } | null }
@@ -66,6 +68,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   const preferences = useUserPreferences()
+  const organizationPreferences = useOrganizationPreferences()
 
   // Week boundaries + label derive reactively from `preferences`. PR 2b:
   // split out of the data-fetch effect so toggling the operator's zone /
@@ -95,6 +98,38 @@ export default function DashboardPage() {
         return t >= weekStart.getTime() && t <= weekEnd.getTime()
       }).length,
     [data.cutsLast90d, weekStart, weekEnd]
+  )
+
+  // PR 2c (operator-seeds-prints ruling): the PDF speaks in the
+  // operator's voice, not the viewer's. Compute a parallel set of
+  // week boundaries / label / KPI count from the workspace defaults
+  // so the screen stays personal but the exported artifact agrees
+  // with the operator's chosen zone + locale + dateFormat. For
+  // single-operator orgs these almost always equal the screen
+  // values; for multi-operator shop floors they correctly diverge.
+  const {
+    weekStart: orgWeekStart,
+    weekEnd: orgWeekEnd,
+    weekLabel: orgWeekLabel,
+  } = useMemo(() => {
+    const { weekStart: ws, weekEnd: we } = weekBoundariesInZone(new Date(), organizationPreferences)
+    const label = `${formatInUserTimeZone(ws, organizationPreferences, {
+      month: "short",
+      day: "numeric",
+    })} – ${formatInUserTimeZone(we, organizationPreferences, {
+      month: "short",
+      day: "numeric",
+    })}`
+    return { weekStart: ws, weekEnd: we, weekLabel: label }
+  }, [organizationPreferences])
+
+  const orgCutsThisWeek = useMemo(
+    () =>
+      data.cutsLast90d.filter((c) => {
+        const t = new Date(c.created_at).getTime()
+        return t >= orgWeekStart.getTime() && t <= orgWeekEnd.getTime()
+      }).length,
+    [data.cutsLast90d, orgWeekStart, orgWeekEnd]
   )
 
   useEffect(() => {
@@ -186,6 +221,14 @@ export default function DashboardPage() {
     [period, weekLabel, preferences]
   )
 
+  // PDF-bound period label: org-pref locale + zone so the printed
+  // header agrees with the footer and the rest of the body. Screen
+  // header stays on `periodLabel` (user prefs).
+  const orgPeriodLabel = useMemo(
+    () => buildPeriodLabel(period, orgWeekLabel, organizationPreferences),
+    [period, orgWeekLabel, organizationPreferences]
+  )
+
   const eyebrow = useMemo(
     () => (period === "week" ? `Operations / Week · ${weekLabel}` : `Operations / ${periodLabel}`),
     [period, weekLabel, periodLabel]
@@ -203,6 +246,14 @@ export default function DashboardPage() {
     [data.cutsLast90d, utilPeriod, preferences]
   )
 
+  // PDF-bound utilization series — same bucket data, but per-week
+  // axis labels render in the workspace's timeZone + locale so the
+  // exported chart and the footer agree (operator-seeds-prints).
+  const orgUtilization = useMemo(
+    () => buildUtilizationSeriesForPeriod(data.cutsLast90d, utilPeriod, organizationPreferences),
+    [data.cutsLast90d, utilPeriod, organizationPreferences]
+  )
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -218,30 +269,34 @@ export default function DashboardPage() {
       minute: "2-digit",
     })
 
+  // Exported PDF/CSV input — every preference-derived field is the
+  // org-derived version so the printed artifact speaks in the
+  // operator's voice (2026-05-14 ruling). The on-screen render keeps
+  // using the user-pref derivatives above.
   const exportInput = useMemo<OperationsExportInput>(
     () => ({
       period,
-      periodLabel,
+      periodLabel: orgPeriodLabel,
       utilPeriod,
       totalActiveRolls: data.totalActiveRolls,
-      cutsThisWeek,
+      cutsThisWeek: orgCutsThisWeek,
       wastePercentage: data.wastePercentage,
       inventoryValue: data.inventoryValue,
-      utilization,
+      utilization: orgUtilization,
       recentCuts: data.recentCuts,
-      preferences,
+      organizationPreferences,
     }),
     [
       period,
-      periodLabel,
+      orgPeriodLabel,
       utilPeriod,
       data.totalActiveRolls,
-      cutsThisWeek,
+      orgCutsThisWeek,
       data.wastePercentage,
       data.inventoryValue,
-      utilization,
+      orgUtilization,
       data.recentCuts,
-      preferences,
+      organizationPreferences,
     ]
   )
 
@@ -294,7 +349,11 @@ export default function DashboardPage() {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function buildPeriodLabel(period: Period, weekLabel: string, preferences: UserPreferences): string {
+function buildPeriodLabel(
+  period: Period,
+  weekLabel: string,
+  preferences: UserDatePreferencesInput
+): string {
   switch (period) {
     case "week":
       return weekLabel
@@ -306,9 +365,18 @@ function buildPeriodLabel(period: Period, weekLabel: string, preferences: UserPr
         year: "numeric",
       })
     case "quarter": {
-      const now = new Date()
-      const q = Math.floor(now.getMonth() / 3) + 1
-      return `Q${q} ${now.getFullYear()}`
+      // Derive month + year in the operator's timeZone — without this,
+      // a viewer near a quarter/year boundary on a different zone sees
+      // the wrong quarter on the printed PDF.
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: preferences.timeZone,
+        month: "numeric",
+        year: "numeric",
+      }).formatToParts(new Date())
+      const monthPart = parts.find((p) => p.type === "month")?.value ?? "1"
+      const yearPart = parts.find((p) => p.type === "year")?.value ?? "1970"
+      const q = Math.floor((Number(monthPart) - 1) / 3) + 1
+      return `Q${q} ${yearPart}`
     }
   }
 }
@@ -418,7 +486,7 @@ function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
 function buildUtilizationSeriesForPeriod(
   cuts: ReadonlyArray<UtilizationCut>,
   period: UtilizationPeriod,
-  preferences: UserPreferences
+  preferences: UserDatePreferencesInput
 ): { series: UtilizationDatum[]; materials: string[] } {
   if (cuts.length === 0) return { series: [], materials: [] }
 
@@ -453,16 +521,15 @@ function buildUtilizationSeriesForPeriod(
     const start = bucketStart + i * bucketMs
     const end = start + bucketMs
     // The bucket end-1 represents the last instant of the bucket
-    // window. PR 2b: per-week axis labels now render in the operator's
-    // timeZone (via `preferences`). The per-day case keeps the static
-    // DAY_LABELS — those are weekday abbreviations indexed by the local
-    // browser's day-of-week and are zone-agnostic for short-week scans.
+    // window. Day + week labels both render in `preferences.locale` /
+    // `preferences.timeZone` so the PDF export speaks in the operator's
+    // voice when sourced from org prefs (operator-seeds-prints ruling).
     // Aligning per-day bucket EDGES to zone-local midnight is a
     // separate, larger change (would need the same calendar-arithmetic
-    // dance as `weekBoundariesInZone`) and not in PR 2b scope.
+    // dance as `weekBoundariesInZone`) and tracked as a follow-up.
     const label =
       bucketMode === "day"
-        ? DAY_LABELS[(new Date(start).getDay() + 6) % 7]
+        ? formatInUserTimeZone(new Date(start), preferences, { weekday: "short" })
         : formatInUserTimeZone(new Date(end - 1), preferences, {
             month: "short",
             day: "numeric",

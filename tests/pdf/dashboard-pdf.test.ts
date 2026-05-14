@@ -15,6 +15,7 @@ import {
 } from "@/app/dashboard/_components/dashboard-pdf"
 import type { OperationsExportInput } from "@/app/dashboard/_components/dashboard-export-utils"
 import { INTERNAL_PAGE, TYPE } from "@/app/lib/pdf"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 function makeInput(overrides: Partial<OperationsExportInput> = {}): OperationsExportInput {
   return {
@@ -41,6 +42,7 @@ function makeInput(overrides: Partial<OperationsExportInput> = {}): OperationsEx
         whenLabel: "2h ago",
       },
     ],
+    organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
     ...overrides,
   }
 }
@@ -83,13 +85,14 @@ describe("buildOperationsPdf", () => {
     expect(bytes).toBeGreaterThan(baseline)
   })
 
-  it("accepts non-default operator preferences without throwing", async () => {
-    // PR 2 contract: the footer renders in the operator's locale +
-    // dateFormat + timeZone. Production uses canonical UserPreferences;
+  it("accepts non-default workspace preferences without throwing", async () => {
+    // PR 2c (operator-seeds-prints): the footer renders in the
+    // workspace's locale + dateFormat + timeZone, not the viewing
+    // user's. Production uses canonical OrganizationPreferences;
     // here we only need the structural subset the helper consumes.
     const blob = buildOperationsPdf(
       makeInput({
-        preferences: {
+        organizationPreferences: {
           dateFormat: "yyyy-MM-dd",
           timeZone: "Europe/London",
           locale: "es-MX",
@@ -98,6 +101,48 @@ describe("buildOperationsPdf", () => {
     )
     expect(blob.type).toBe("application/pdf")
     expect(await blobToBytes(blob)).toBeGreaterThan(2048)
+  })
+
+  it("footer renders org prefs even when sibling user-prefs differ (operator-seeds-prints)", () => {
+    // PR 2c dyad — viewer has en-US/America/Chicago/MM/dd/yyyy on
+    // their personal screen; workspace defaults are
+    // es-MX/Europe/London/yyyy-MM-dd. The exported PDF must speak
+    // the workspace's voice. We assert by the footer docMeta —
+    // sibling helper that does not depend on the in-PDF text
+    // extraction, so the test runs in node without jsdom.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
+      const orgWorldview = buildOperationsFooterDocMeta(
+        makeInput({
+          organizationPreferences: {
+            dateFormat: "yyyy-MM-dd",
+            timeZone: "Europe/London",
+            locale: "es-MX",
+          },
+        })
+      )
+      const viewerWorldview = buildOperationsFooterDocMeta(
+        makeInput({
+          organizationPreferences: {
+            dateFormat: "MM/dd/yyyy",
+            timeZone: "America/Chicago",
+            locale: "en-US",
+          },
+        })
+      )
+      // The dyad must produce visibly different output. If they
+      // collide the org prefs aren't reaching the footer (caller
+      // regression: someone passed user prefs where org prefs go).
+      expect(orgWorldview).not.toBe(viewerWorldview)
+      // Worst-case prefs render the worst-case form of yyyy-MM-dd.
+      expect(orgWorldview).toMatch(/2026-12-31|2027-01-01/)
+      // Viewer worldview renders the MM/dd/yyyy form in Chicago,
+      // so the date components reorder.
+      expect(viewerWorldview).toMatch(/12\/31\/2026/)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("footer docMeta fits the right-half width budget under worst-case prefs", () => {
@@ -120,7 +165,7 @@ describe("buildOperationsPdf", () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
-      const worstCase: OperationsExportInput["preferences"] = {
+      const worstCase: OperationsExportInput["organizationPreferences"] = {
         dateFormat: "yyyy-MM-dd",
         timeZone: "Europe/London",
         locale: "es-MX",
@@ -131,7 +176,9 @@ describe("buildOperationsPdf", () => {
       doc.setFontSize(TYPE.caption.size)
       const budget = INTERNAL_PAGE.contentWidth / 2 - 16
       for (const period of periods) {
-        const docMeta = buildOperationsFooterDocMeta(makeInput({ preferences: worstCase, period }))
+        const docMeta = buildOperationsFooterDocMeta(
+          makeInput({ organizationPreferences: worstCase, period })
+        )
         const width = doc.getTextWidth(docMeta)
         // Embed the period + measured width in the assertion message so a
         // future regression report identifies which period overflowed.

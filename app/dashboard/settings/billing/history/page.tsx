@@ -3,12 +3,12 @@ import {
   type BillingHistoryRow,
 } from "@/app/components/billing/BillingHistoryTable"
 import { listBillingHistory, type BillingHistoryActionRow } from "@/app/actions/billing-history"
-import { getUserPreferences } from "@/app/actions/user-preferences"
+import { getOrganizationPreferences } from "@/app/actions/organization-preferences"
 import { formatUserDate } from "@/src/application/preferences/user-date-format"
 import {
-  buildFallbackUserPreferences,
-  type UserPreferences,
-} from "@/src/infrastructure/models/user-preferences"
+  buildFallbackOrganizationPreferences,
+  type OrganizationPreferences,
+} from "@/src/infrastructure/models/organization-preferences"
 
 export const dynamic = "force-dynamic"
 
@@ -29,13 +29,19 @@ export const dynamic = "force-dynamic"
  * an `invoices` table locally.
  */
 export default async function BillingHistoryPage() {
-  // Fetch the operator's date format alongside the invoice rows so
-  // every date column on the table renders the way they picked it
-  // on /dashboard/settings/general. The not_provisioned branch keeps
-  // the page renderable for users whose trigger row hasn't landed.
-  const [rows, prefsResult] = await Promise.all([listBillingHistory(), getUserPreferences()])
-  const preferences: UserPreferences =
-    "data" in prefsResult ? prefsResult.data : buildFallbackUserPreferences()
+  // Fetch the workspace's date format alongside the invoice rows so
+  // every date column on the audit table renders in the operator's
+  // canonical voice — billing history is a printed/shared artifact
+  // (operator-seeds-prints ruling 2026-05-14), so it shouldn't
+  // shape-shift based on which user happens to view it. The
+  // not_provisioned / no_organization branches keep the page
+  // renderable when the provision trigger hasn't landed.
+  const [rows, prefsResult] = await Promise.all([
+    listBillingHistory(),
+    getOrganizationPreferences(),
+  ])
+  const preferences: OrganizationPreferences =
+    "data" in prefsResult ? prefsResult.data : buildFallbackOrganizationPreferences()
   const tableRows = rows.map((row) => toTableRow(row, preferences))
 
   return (
@@ -45,7 +51,10 @@ export default async function BillingHistoryPage() {
   )
 }
 
-function toTableRow(row: BillingHistoryActionRow, preferences: UserPreferences): BillingHistoryRow {
+function toTableRow(
+  row: BillingHistoryActionRow,
+  preferences: OrganizationPreferences
+): BillingHistoryRow {
   return {
     id: row.id,
     date: formatUserDate(row.createdAt, preferences),

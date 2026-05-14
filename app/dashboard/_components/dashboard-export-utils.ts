@@ -23,11 +23,20 @@ export interface OperationsExportInput {
   utilization: { series: UtilizationDatum[]; materials: string[] }
   recentCuts: RecentCutRow[]
   /**
-   * Optional — operator's locale / dateFormat / timeZone preferences,
-   * applied to visible PDF text (footer timestamp, etc). Filenames stay
-   * machine-stable (`yyyy-MM-dd_HHmm`) regardless of this field.
+   * Workspace-level locale / dateFormat / timeZone — applied to
+   * visible PDF text (footer timestamp, etc) per the 2026-05-14
+   * operator-seeds-prints ruling. Per-viewer overrides drive only
+   * the screen display, never the exported artifact. The caller is
+   * also responsible for deriving `periodLabel` / `cutsThisWeek` /
+   * `utilization` labels from these same prefs so the body and
+   * footer agree. Filenames stay machine-stable (`yyyy-MM-dd_HHmm`)
+   * regardless of this field.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
    */
-  preferences?: UserDatePreferencesInput
+  organizationPreferences: UserDatePreferencesInput
 }
 
 const FILENAME_PREFIX = "operations-overview"

@@ -19,6 +19,7 @@ import {
   type OperationsExportInput,
 } from "@/app/dashboard/_components/dashboard-export-utils"
 import { buildOperationsPdf } from "@/app/dashboard/_components/dashboard-pdf"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 
 const FIXTURE: OperationsExportInput = {
   period: "week",
@@ -51,6 +52,7 @@ const FIXTURE: OperationsExportInput = {
       whenLabel: "yesterday",
     },
   ],
+  organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
 }
 
 describe("buildOperationsCsv", () => {

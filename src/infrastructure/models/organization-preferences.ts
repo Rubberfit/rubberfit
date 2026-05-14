@@ -37,6 +37,14 @@ export const DEFAULT_ORGANIZATION_PREFERENCES = {
 } as const
 
 export interface OrganizationPreferences {
+  /**
+   * Canonical org id, or empty string when the row comes from the
+   * `buildFallbackOrganizationPreferences()` sentinel (used when the
+   * provision trigger hasn't fired yet or the actor has no current
+   * organization). Consumers MUST NOT use this as a truthy guard
+   * for "do I have org prefs?" — read the picker fields directly,
+   * or check the action's typed envelope at the call site.
+   */
   organizationId: string
   defaultCurrency: SupportedCurrency
   timeZone: SupportedTimeZone
@@ -46,6 +54,22 @@ export interface OrganizationPreferences {
   locale: SupportedLocale
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Builds a fully-typed `OrganizationPreferences` for the rare branch
+ * where the auto-provision trigger hasn't created the row yet. Mirrors
+ * `buildFallbackUserPreferences()`. Row metadata is left empty —
+ * consumers of these defaults only read picker fields; audit fields
+ * stay blank rather than being fabricated.
+ */
+export function buildFallbackOrganizationPreferences(organizationId = ""): OrganizationPreferences {
+  return {
+    organizationId,
+    createdAt: "",
+    updatedAt: "",
+    ...DEFAULT_ORGANIZATION_PREFERENCES,
+  }
 }
 
 export interface UpdateOrganizationPreferencesInput {

@@ -18,6 +18,7 @@ import {
 } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
 import { CUSTOMER_PAGE, TYPE } from "@/app/lib/pdf"
 import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 function makePO(overrides: Partial<PurchaseOrderWithDetails>): PurchaseOrderWithDetails {
@@ -58,6 +59,7 @@ const FIXTURE: PurchaseOrdersExportInput = {
   ],
   filters: { status: "all", supplier: "all", search: "" },
   stats: { total: 2, totalValue: 1640, draft: 0, pending: 0, ordered: 1, received: 1 },
+  organizationPreferences: DEFAULT_ORGANIZATION_PREFERENCES,
 }
 
 describe("buildPurchaseOrdersCsv", () => {
@@ -230,13 +232,14 @@ describe("buildPurchaseOrdersListPdf", () => {
     expect(() => buildPurchaseOrdersListPdf(input)).not.toThrow()
   })
 
-  it("accepts non-default operator preferences without throwing", () => {
-    // PR 2 contract: body dates + footer timestamp render in the
-    // operator's chosen format/locale/timezone. Filenames stay ISO
+  it("accepts non-default workspace preferences without throwing", () => {
+    // PR 2c (operator-seeds-prints): body dates + footer timestamp
+    // render in the WORKSPACE's chosen format/locale/timezone — not
+    // the viewing user's per-user prefs. Filenames stay ISO
     // (validated by the downloader's separate filename test).
     const withPrefs: PurchaseOrdersExportInput = {
       ...FIXTURE,
-      preferences: {
+      organizationPreferences: {
         dateFormat: "dd/MM/yyyy",
         timeZone: "Europe/Paris",
         locale: "es-MX",
