@@ -19,6 +19,7 @@ import { purchaseOrders as purchaseOrdersSdk } from "@/src/infrastructure/api-cl
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 import { handleDownloadPDF } from "./_components/po-pdf-export"
+import { PoReceiveDialog } from "./_components/po-receive-dialog"
 import { PoViewDrawer, type PoDrawerMode } from "./_components/po-view-drawer"
 import { POTable } from "./_components/po-table"
 import { PurchaseOrdersExportMenu } from "./_components/po-export-menu"
@@ -28,6 +29,8 @@ import { usePurchaseOrders } from "./_components/use-purchase-orders"
 export default function PurchaseOrdersPage() {
   const po = usePurchaseOrders()
   const [drawerMode, setDrawerMode] = useState<PoDrawerMode>("view")
+  const [receivePO, setReceivePO] = useState<PurchaseOrderWithDetails | null>(null)
+  const [receiveOpen, setReceiveOpen] = useState(false)
 
   const handleViewPO = async (poItem: PurchaseOrderWithDetails) => {
     po.setSelectedPO(poItem)
@@ -57,6 +60,24 @@ export default function PurchaseOrdersPage() {
     po.setIsViewDialogOpen(false)
     setDrawerMode("view")
     po.setSelectedPO(null)
+    await po.fetchData()
+  }
+
+  const handleReceivePO = (poItem: PurchaseOrderWithDetails) => {
+    setReceivePO(poItem)
+    setReceiveOpen(true)
+  }
+
+  const handleReceiveOpenChange = (open: boolean) => {
+    setReceiveOpen(open)
+    if (!open) {
+      // Defer clearing the PO until after the close animation so the
+      // dialog body doesn't blank during fade-out.
+      setReceivePO(null)
+    }
+  }
+
+  const handleReceived = async () => {
     await po.fetchData()
   }
 
@@ -183,6 +204,7 @@ export default function PurchaseOrdersPage() {
           onViewPO={handleViewPO}
           onEditPO={handleEditPO}
           onUpdatePOStatus={po.updatePOStatus}
+          onReceivePO={handleReceivePO}
           onCancelPO={handleCancelPO}
           fetchData={po.fetchData}
         />
@@ -209,6 +231,13 @@ export default function PurchaseOrdersPage() {
         onSaved={handleSavedFromDrawer}
         onUpdateStatus={po.updatePOStatus}
         onDownloadPDF={handleDownloadPDF}
+      />
+
+      <PoReceiveDialog
+        po={receivePO}
+        open={receiveOpen}
+        onOpenChange={handleReceiveOpenChange}
+        onReceived={handleReceived}
       />
 
       <ConfirmationDialog

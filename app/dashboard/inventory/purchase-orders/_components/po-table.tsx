@@ -37,6 +37,7 @@ interface POTableProps {
   onViewPO: (po: PurchaseOrderWithDetails) => void
   onEditPO: (po: PurchaseOrderWithDetails) => void
   onUpdatePOStatus: (poId: string, newStatus: PurchaseOrder["status"]) => Promise<boolean>
+  onReceivePO: (po: PurchaseOrderWithDetails) => void
   onCancelPO: (po: PurchaseOrderWithDetails) => void
   fetchData: () => void
 }
@@ -63,6 +64,7 @@ export function POTable({
   onViewPO,
   onEditPO,
   onUpdatePOStatus,
+  onReceivePO,
   onCancelPO,
 }: POTableProps) {
   const [sort, setSort] = useTableSort({
@@ -90,6 +92,7 @@ export function POTable({
     onView: onViewPO,
     onEdit: onEditPO,
     onUpdateStatus: onUpdatePOStatus,
+    onReceive: onReceivePO,
     onCancel: onCancelPO,
   })
 

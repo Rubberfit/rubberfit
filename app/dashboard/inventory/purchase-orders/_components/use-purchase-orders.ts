@@ -69,7 +69,6 @@ export function usePurchaseOrders() {
 
   // Actions
   const actions = usePOActions({
-    purchaseOrders,
     setPurchaseOrders,
     setSelectedPOTaxDetails,
   })

@@ -41,6 +41,11 @@ interface UsePoColumnsArgs {
   /** Resolves to `true` on success / `false` on rejection. Row
    * dropdown ignores the return; the drawer Submit gates close. */
   onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
+  /** Opens the dedicated PO receive dialog (Task #84). The dropdown's
+   * "Receive goods" item no longer flips status directly — the
+   * dialog owns the per-item quantity + rollData form and calls the
+   * `receivePurchaseOrder` server action on submit. */
+  onReceive: (po: PurchaseOrderWithDetails) => void
   onCancel: (po: PurchaseOrderWithDetails) => void
 }
 
@@ -54,6 +59,7 @@ export function usePoColumns({
   onView,
   onEdit,
   onUpdateStatus,
+  onReceive,
   onCancel,
 }: UsePoColumnsArgs): ColumnDef<PurchaseOrderWithDetails>[] {
   return useMemo<ColumnDef<PurchaseOrderWithDetails>[]>(
@@ -146,12 +152,13 @@ export function usePoColumns({
             onView={onView}
             onEdit={onEdit}
             onUpdateStatus={onUpdateStatus}
+            onReceive={onReceive}
             onCancel={onCancel}
           />
         ),
       },
     ],
-    [onView, onEdit, onUpdateStatus, onCancel]
+    [onView, onEdit, onUpdateStatus, onReceive, onCancel]
   )
 }
 
@@ -160,6 +167,7 @@ interface PoActionsCellProps {
   onView: (po: PurchaseOrderWithDetails) => void
   onEdit: (po: PurchaseOrderWithDetails) => void
   onUpdateStatus: (poId: string, next: PurchaseOrder["status"]) => Promise<boolean>
+  onReceive: (po: PurchaseOrderWithDetails) => void
   onCancel: (po: PurchaseOrderWithDetails) => void
 }
 
@@ -172,7 +180,14 @@ interface PoActionsCellProps {
  * when nothing in this row changed (callbacks are stable refs
  * coming from `useInventoryColumns`-style memoized parents).
  */
-function PoActionsCellInner({ po, onView, onEdit, onUpdateStatus, onCancel }: PoActionsCellProps) {
+function PoActionsCellInner({
+  po,
+  onView,
+  onEdit,
+  onUpdateStatus,
+  onReceive,
+  onCancel,
+}: PoActionsCellProps) {
   // `void onUpdateStatus(...)` discards the resolved value but
   // does NOT suppress an unexpected rejection — Promise rejects
   // without a handler trigger an `unhandledrejection` global
@@ -214,7 +229,10 @@ function PoActionsCellInner({ po, onView, onEdit, onUpdateStatus, onCancel }: Po
   }
 
   function handleReceiveClick() {
-    fireUpdate("received")
+    // Task #84: dropdown no longer flips status directly. Opens the
+    // dedicated receive dialog so the operator can specify per-item
+    // quantity + rollData before submission.
+    onReceive(po)
   }
 
   function handleDownloadClick() {
