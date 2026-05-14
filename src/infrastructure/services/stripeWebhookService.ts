@@ -87,16 +87,23 @@ function extractPlanTier(
   subscription: Stripe.Subscription,
   price: Stripe.Price | undefined
 ): PlanTier {
+  // Price metadata is the live source of truth — it follows the
+  // subscription_item on every plan change (Portal upgrade,
+  // downgrade, or admin-side swap). `subscription.metadata.plan_tier`
+  // is only set at Checkout and is NOT rewritten when the customer
+  // changes plans through the Stripe Billing Portal. Reading the
+  // subscription first silently leaves the DB row at the old tier
+  // after a Portal-driven upgrade while Stripe charges the new rate.
+  const fromPriceMeta = asPlanTier(price?.metadata?.tier)
+  if (fromPriceMeta) return fromPriceMeta
   const fromSub = asPlanTier(subscription.metadata?.plan_tier)
   if (fromSub) return fromSub
-  const fromPriceMeta = asPlanTier((price?.metadata as Record<string, string> | undefined)?.tier)
-  if (fromPriceMeta) return fromPriceMeta
-  // Stripe stores plan tier on subscription.metadata.plan_tier (set at
-  // Checkout) or price.metadata.tier (set by stripe-setup). Reaching this
+  // Stripe stores plan tier on price.metadata.tier (set by stripe-setup)
+  // or subscription.metadata.plan_tier (set at Checkout). Reaching this
   // line means the catalog is mis-provisioned — warn loudly so on-call sees
   // it before a customer notices the silent downgrade.
   console.warn(
-    `[stripe-webhook] subscription=${subscription.id} missing plan_tier metadata on both subscription and price; defaulting to "standard". Re-run npm run stripe:setup to backfill.`
+    `[stripe-webhook] subscription=${subscription.id} missing plan_tier metadata on both price and subscription; defaulting to "standard". Re-run npm run stripe:setup to backfill.`
   )
   return "standard"
 }
@@ -105,11 +112,16 @@ function extractBillingInterval(
   subscription: Stripe.Subscription,
   price: Stripe.Price | undefined
 ): BillingInterval | null {
-  const fromSub = asBillingInterval(subscription.metadata?.billing_interval)
-  if (fromSub) return fromSub
+  // `price.recurring.interval` is Stripe's authoritative interval field
+  // on the active subscription_item, so it reflects the real billing
+  // cadence after any Portal-driven monthly↔annual swap. The
+  // `subscription.metadata.billing_interval` snapshot taken at Checkout
+  // goes stale the moment the customer flips intervals from the Portal.
   const stripeInterval = price?.recurring?.interval
   if (stripeInterval === "year") return "annual"
   if (stripeInterval === "month") return "monthly"
+  const fromSub = asBillingInterval(subscription.metadata?.billing_interval)
+  if (fromSub) return fromSub
   return null
 }
 
