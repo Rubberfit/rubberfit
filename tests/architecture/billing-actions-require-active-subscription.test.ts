@@ -11,6 +11,7 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
     "app/actions/billing.ts",
     new Set([
       "createOrganizationFromOnboarding",
+      "selectSubscriptionPlanTier",
       "createCheckoutSession",
       "createBillingPortalSession",
       "leaveOrganization",
@@ -83,13 +84,18 @@ describe("billing action subscription guard", () => {
         for (let i = 0; i < statements.length; i++) {
           const current = statements[i]
           if (!current) continue
-          if (!statementText(current, action.sourceFile).includes("await requireAuthenticatedUser(")) {
+          if (
+            !statementText(current, action.sourceFile).includes("await requireAuthenticatedUser(")
+          ) {
             continue
           }
           if (isRecoveryAllowlisted(action)) continue
 
           const next = statements[i + 1]
-          if (!next || !statementText(next, action.sourceFile).includes("requireActiveSubscription")) {
+          if (
+            !next ||
+            !statementText(next, action.sourceFile).includes("requireActiveSubscription")
+          ) {
             failures.push(`${action.file}:${action.name}`)
           }
         }

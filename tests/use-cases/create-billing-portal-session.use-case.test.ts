@@ -127,6 +127,9 @@ function makeOrganizationFake(): PortalFake {
     async upsertSubscription() {
       throw new Error("not used")
     },
+    async updateSubscriptionPlanTierAndSeats() {
+      throw new Error("not used")
+    },
     async createInvitation() {
       throw new Error("not used")
     },
