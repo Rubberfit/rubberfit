@@ -5,6 +5,7 @@ import { getBillingSummary, type BillingSummaryData } from "@/app/actions/billin
 
 import { StatusPill } from "@/app/components/billing/StatusPill"
 import { ManageSubscriptionButton } from "./_components/manage-subscription-button"
+import { PlanCardActionButton } from "./_components/plan-card-action-button"
 
 export const dynamic = "force-dynamic"
 
@@ -73,7 +74,12 @@ export default async function BillingPage() {
       {isEnterprise ? (
         <EnterpriseManagementBlock />
       ) : (
-        <ComparePlansGrid currentTier={data.tier} interval={interval} seatCount={data.seatCount} />
+        <ComparePlansGrid
+          currentTier={data.tier}
+          interval={interval}
+          seatCount={data.seatCount}
+          organizationId={data.organizationId}
+        />
       )}
 
       <ManageSubscriptionBlock organizationId={data.organizationId} isEnterprise={isEnterprise} />
@@ -177,10 +183,12 @@ function ComparePlansGrid({
   currentTier,
   interval,
   seatCount,
+  organizationId,
 }: {
   currentTier: "standard" | "pro" | "max" | "enterprise"
   interval: "monthly" | "annual"
   seatCount: number
+  organizationId: string
 }) {
   return (
     <section className="mb-10">
@@ -195,6 +203,7 @@ function ComparePlansGrid({
             currentTier={currentTier}
             interval={interval}
             seatCount={seatCount}
+            organizationId={organizationId}
           />
         ))}
       </div>
@@ -210,11 +219,13 @@ function PlanCard({
   currentTier,
   interval,
   seatCount,
+  organizationId,
 }: {
   tier: (typeof RETAIL_TIERS)[number]
   currentTier: "standard" | "pro" | "max" | "enterprise"
   interval: "monthly" | "annual"
   seatCount: number
+  organizationId: string
 }) {
   const isCurrent = currentTier === tier
   const isEnterprise = currentTier === "enterprise"
@@ -278,25 +289,12 @@ function PlanCard({
       </div>
 
       <div className="mt-auto pt-5">
-        <button
-          type="button"
-          disabled={actionDisabled}
-          aria-disabled={actionDisabled}
-          title={
-            actionDisabled
-              ? actionLabel
-              : "Plan changes are handled through the Stripe Customer Portal — coming soon. Email support@rubberfit.app to switch in the meantime."
-          }
-          className={
-            actionDisabled
-              ? "inline-flex h-11 w-full cursor-not-allowed items-center justify-center border border-[var(--color-rule)] bg-[var(--color-surface)] font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-ink-faint)]"
-              : actionVariant === "primary"
-                ? "inline-flex h-11 w-full items-center justify-center bg-[var(--color-signal)] font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-canvas)] transition-colors hover:bg-[var(--color-signal-deep)] active:translate-y-px"
-                : "inline-flex h-11 w-full items-center justify-center border border-[var(--color-graphite)] bg-transparent font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-graphite)] transition-colors hover:bg-[var(--color-graphite)] hover:text-[var(--color-canvas)]"
-          }
-        >
-          {actionLabel}
-        </button>
+        <PlanCardActionButton
+          organizationId={organizationId}
+          actionLabel={actionLabel}
+          actionDisabled={actionDisabled}
+          actionVariant={actionVariant}
+        />
       </div>
     </div>
   )
