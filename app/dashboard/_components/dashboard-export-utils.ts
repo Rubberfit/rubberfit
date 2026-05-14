@@ -1,6 +1,10 @@
 import type { ExportData } from "@/src/application/services/export.service.interface"
 import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
-import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 import type { RecentCutRow } from "./dashboard-recent-cuts-card"
 import type { UtilizationDatum } from "./dashboard-utilization-card"
@@ -68,6 +72,8 @@ function sanitizeCsvCell(value: string): string {
 }
 
 export function buildOperationsCsv(input: OperationsExportInput): ExportData {
+  const orgPrefs = input.organizationPreferences
+  const areaUnit = getAreaUnitLabel(orgPrefs)
   const summaryRows: ExportData["rows"] = [
     ["Period", input.period],
     ["Period label", sanitizeCsvCell(input.periodLabel)],
@@ -79,14 +85,14 @@ export function buildOperationsCsv(input: OperationsExportInput): ExportData {
 
   const utilizationHeader: ExportData["rows"] = [
     [],
-    [sanitizeCsvCell(`Utilization (${input.utilPeriod}) — sqft by material`)],
+    [sanitizeCsvCell(`Utilization (${input.utilPeriod}) — ${areaUnit} by material`)],
     ["Bucket", ...input.utilization.materials.map(sanitizeCsvCell)],
   ]
   const utilizationRows: ExportData["rows"] = input.utilization.series.map((row) => [
     sanitizeCsvCell(String(row.label ?? "")),
     ...input.utilization.materials.map((material) => {
       const cell = row[material]
-      return typeof cell === "number" ? cell : 0
+      return typeof cell === "number" ? getDisplayAreaValue(cell, orgPrefs) : 0
     }),
   ])
 
