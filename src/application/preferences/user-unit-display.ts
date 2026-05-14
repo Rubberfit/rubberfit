@@ -48,10 +48,11 @@ export interface LengthFormatOptions {
   /** "symbol" → `12.5"` / `31.8 cm`. "word" → `12.5 inches` / `31.8 centimeters`. */
   unitStyle?: "symbol" | "word"
   /**
-   * Snap the inch value to the nearest 1/N before formatting (e.g.
-   * `1 / 16` preserves cut-history-pdf's 1/16" rounding). Applies to
-   * the imperial render only; metric conversion still derives from
-   * the snapped value so PDF and canvas labels agree.
+   * Snap the canonical inch value to the nearest 1/N before formatting
+   * (e.g. `1 / 16` preserves cut-history-pdf's 1/16" rounding). The
+   * snap is always applied; metric conversion derives from the snapped
+   * inch value so PDF + canvas labels agree on the underlying
+   * measurement.
    */
   snapInchesTo?: number
 }
@@ -112,11 +113,16 @@ export function convertAreaSqftToM2(value: number): number {
 
 export function getLengthUnitLabel(
   preferences?: UnitDisplayPreferencesInput,
-  options?: { unitStyle?: "symbol" | "word"; value?: number }
+  options?: { unitStyle?: "symbol" | "word"; value?: number; singular?: boolean }
 ): string {
   const system = preferences?.unitSystem ?? DEFAULT_UNIT_SYSTEM
   const style = options?.unitStyle ?? "symbol"
-  const singular = options?.value !== undefined && Math.abs(options.value) === 1
+  // Singular path: callers may pass an explicit `singular` boolean
+  // (used by formatters that already rendered a numeric string and
+  // know whether it reads "1") or a raw `value` for convenience
+  // standalone use. `singular` wins when both are present.
+  const singular =
+    options?.singular ?? (options?.value !== undefined && Math.abs(options.value) === 1)
   if (system === "metric") {
     if (style === "word") return singular ? "centimeter" : "centimeters"
     return "cm"
@@ -216,7 +222,12 @@ export function formatLengthInchesParts(
   const display = system === "metric" ? convertLengthInchesToCm(snapped) : snapped
   const precision = options?.precision ?? defaultLengthPrecision(system)
   const valueText = formatNumberWithLeadingZero(display, precision)
-  const unit = getLengthUnitLabel(preferences, { unitStyle: style, value: display })
+  // Drive singular off the rendered numeric string, not the raw float —
+  // `0.999` at `precision: 0` shows "1" and must read "1 inch", not
+  // "1 inches". `1.5` keeps the plural label even though Math.abs(value)
+  // is 1.5 because the rendered string is "1.5".
+  const singular = valueText === "1" || valueText === "-1"
+  const unit = getLengthUnitLabel(preferences, { unitStyle: style, singular })
   return { value: valueText, unit, text: joinValueAndUnit(valueText, unit, style) }
 }
 

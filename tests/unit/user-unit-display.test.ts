@@ -167,11 +167,17 @@ describe("formatLengthInches — metric conversion + 2-decimal default", () => {
 })
 
 describe("formatLengthInches — snapInchesTo (cut-history-pdf parity)", () => {
-  it("snaps to the nearest 1/16 inch before rendering", () => {
-    // 12.0626 snaps to 193/16 = 12.0625; 12.0312 snaps to 193/16 again
-    // since 12.0312 is closer to 193/16 (12.0625) than 192/16 (12).
+  it("snaps up to the nearest 1/16 inch (12.0626 → 12.0625)", () => {
     expect(formatLengthInches(12.0626, { unitSystem: "imperial" }, { snapInchesTo: 1 / 16 })).toBe(
       '12.0625"'
+    )
+  })
+  it("snaps down when the input is closer to a smaller step (12.0312 → 12)", () => {
+    // |12.0312 - 12.0| = 0.0312 < |12.0312 - 12.0625| = 0.0313, so the
+    // input snaps DOWN to 192/16 = 12, not up to 193/16. Trailing-zero
+    // strip makes the integer render as "12".
+    expect(formatLengthInches(12.0312, { unitSystem: "imperial" }, { snapInchesTo: 1 / 16 })).toBe(
+      '12"'
     )
   })
   it("snaps the metric render off the snapped inch value", () => {
@@ -194,6 +200,48 @@ describe("formatLengthInches — word style for a11y", () => {
     expect(formatLengthInches(1, { unitSystem: "metric" }, { unitStyle: "word" })).toBe(
       "2.54 centimeters"
     )
+  })
+})
+
+describe("formatLengthInches — singular agrees with rendered numeric string", () => {
+  // Regression guard: an earlier draft drove the singular decision off
+  // the raw float (`Math.abs(value) === 1`), so `0.999` at precision 0
+  // rendered as "1 inches" even though the visible numeric was "1".
+  // The contract is now: the noun follows the visible string.
+  it("renders 0.999 at precision 0 as '1 inch', not '1 inches'", () => {
+    expect(
+      formatLengthInches(0.999, { unitSystem: "imperial" }, { unitStyle: "word", precision: 0 })
+    ).toBe("1 inch")
+  })
+  it("renders 1.001 at precision 0 as '1 inch'", () => {
+    expect(
+      formatLengthInches(1.001, { unitSystem: "imperial" }, { unitStyle: "word", precision: 0 })
+    ).toBe("1 inch")
+  })
+  it("renders 1.4 at precision 0 as '1 inch' (rounded numeric reads '1')", () => {
+    expect(
+      formatLengthInches(1.4, { unitSystem: "imperial" }, { unitStyle: "word", precision: 0 })
+    ).toBe("1 inch")
+  })
+  it("renders 0.3937 in metric as '1 centimeter' (display reads '1' after 2-dec round)", () => {
+    // 0.3937 × 2.54 = 1.000028 → 2-dec toFixed → "1.00" → strip → "1"
+    expect(formatLengthInches(0.3937, { unitSystem: "metric" }, { unitStyle: "word" })).toBe(
+      "1 centimeter"
+    )
+  })
+  it("keeps plural when the rendered string is '1.5' (not '1')", () => {
+    expect(formatLengthInches(1.5, { unitSystem: "imperial" }, { unitStyle: "word" })).toBe(
+      "1.5 inches"
+    )
+  })
+  it("getLengthUnitLabel honors an explicit singular boolean over value", () => {
+    // The boolean wins when both are passed.
+    expect(
+      getLengthUnitLabel(
+        { unitSystem: "imperial" },
+        { unitStyle: "word", value: 2, singular: true }
+      )
+    ).toBe("inch")
   })
 })
 
