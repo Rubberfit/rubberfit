@@ -155,4 +155,32 @@ describe("buildRollLabelPdf", () => {
     // unit-at-end + precision 3 rule. The bytes need not differ.
     // We just confirm the build doesn't throw for either system.
   })
+
+  // PR 2e — accepts the unit + date intersection without throwing.
+  // The page-header timestamp now flows through formatUserDateTime;
+  // the date contract is covered exhaustively by user-date-format
+  // unit tests, so the smoke here just verifies the option threads
+  // end-to-end (single + multi-roll headers).
+  it("accepts orgPrefs date fields and renders both single and multi-roll headers", () => {
+    const dateAndUnitPrefs = {
+      unitSystem: "metric" as const,
+      dateFormat: "dd/MM/yyyy" as const,
+      timeZone: "Europe/London" as const,
+      locale: "en-US" as const,
+    }
+    const singleDoc = buildRollLabelPdf([makeRoll()], {
+      organizationPreferences: dateAndUnitPrefs,
+    })
+    const multiDoc = buildRollLabelPdf(
+      [
+        makeRoll({ part_number: "RF-A" }),
+        makeRoll({ part_number: "RF-B" }),
+        makeRoll({ part_number: "RF-C" }),
+      ],
+      { organizationPreferences: dateAndUnitPrefs }
+    )
+    expect(singleDoc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+    expect(multiDoc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+    expect(multiDoc.getNumberOfPages()).toBe(1)
+  })
 })
