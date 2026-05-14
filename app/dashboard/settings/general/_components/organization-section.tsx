@@ -107,14 +107,18 @@ export function OrganizationSection({
   })
 
   useEffect(() => {
-    setBaseline(preferences)
-    // Re-anchor draft + threshold UI to the latest server state when
-    // the user has no in-flight edits. `savedAt` is intentionally NOT
-    // cleared here — without that exclusion, the "Last saved HH:mm"
-    // hint flashes once after handleSave's router.refresh() lands
-    // and immediately disappears. Explicit reset paths
-    // (handleCancel, the next save) own the savedAt lifecycle.
+    // Re-anchor baseline + draft + threshold UI to the latest server
+    // state only when the user has no in-flight edits. Without the
+    // dirty guard on `setBaseline`, a concurrent admin save during the
+    // user's edit session would shift baseline mid-edit, so Cancel
+    // would jump to the new server value instead of the original
+    // editor baseline. `savedAt` is intentionally NOT cleared here —
+    // without that exclusion, the "Last saved HH:mm" hint flashes
+    // once after handleSave's router.refresh() lands and immediately
+    // disappears. Explicit reset paths (handleCancel, the next save)
+    // own the savedAt lifecycle.
     if (!isDirtyRef.current) {
+      setBaseline(preferences)
       setDraft(preferences)
       setThresholdInput(
         formatThresholdDisplay(preferences.lowStockThresholdSqft, preferences.unitSystem)
