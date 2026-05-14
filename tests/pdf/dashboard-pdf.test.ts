@@ -115,29 +115,33 @@ describe("buildOperationsPdf", () => {
     // Fake clock pins the timestamp so the assertion can't drift
     // across midnight or DST transitions in CI. `buildOperationsFooter
     // DocMeta` reads `new Date()` internally; vi.setSystemTime feeds it
-    // a constant.
+    // a constant. try/finally so a failing expect can't leak fake
+    // timers into the remainder of the suite.
     vi.useFakeTimers()
-    vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
-    const worstCase: OperationsExportInput["preferences"] = {
-      dateFormat: "yyyy-MM-dd",
-      timeZone: "Europe/London",
-      locale: "es-MX",
+    try {
+      vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
+      const worstCase: OperationsExportInput["preferences"] = {
+        dateFormat: "yyyy-MM-dd",
+        timeZone: "Europe/London",
+        locale: "es-MX",
+      }
+      const periods: Array<OperationsExportInput["period"]> = ["week", "month", "quarter"]
+      const doc = new jsPDF({ unit: "pt", format: "a4" })
+      doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+      doc.setFontSize(TYPE.caption.size)
+      const budget = INTERNAL_PAGE.contentWidth / 2 - 16
+      for (const period of periods) {
+        const docMeta = buildOperationsFooterDocMeta(makeInput({ preferences: worstCase, period }))
+        const width = doc.getTextWidth(docMeta)
+        // Embed the period + measured width in the assertion message so a
+        // future regression report identifies which period overflowed.
+        expect(
+          width,
+          `${period} footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
+        ).toBeLessThan(budget)
+      }
+    } finally {
+      vi.useRealTimers()
     }
-    const periods: Array<OperationsExportInput["period"]> = ["week", "month", "quarter"]
-    const doc = new jsPDF({ unit: "pt", format: "a4" })
-    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
-    doc.setFontSize(TYPE.caption.size)
-    const budget = INTERNAL_PAGE.contentWidth / 2 - 16
-    for (const period of periods) {
-      const docMeta = buildOperationsFooterDocMeta(makeInput({ preferences: worstCase, period }))
-      const width = doc.getTextWidth(docMeta)
-      // Embed the period + measured width in the assertion message so a
-      // future regression report identifies which period overflowed.
-      expect(
-        width,
-        `${period} footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
-      ).toBeLessThan(budget)
-    }
-    vi.useRealTimers()
   })
 })

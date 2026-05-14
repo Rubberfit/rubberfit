@@ -17,6 +17,7 @@ import {
   type PurchaseOrdersExportInput,
 } from "@/app/dashboard/inventory/purchase-orders/_components/po-export-utils"
 import { CUSTOMER_PAGE, TYPE } from "@/app/lib/pdf"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 
 function makePO(overrides: Partial<PurchaseOrderWithDetails>): PurchaseOrderWithDetails {
@@ -255,30 +256,35 @@ describe("buildPurchaseOrdersListPdf", () => {
     // Fake clock pins the timestamp so the assertion can't drift across
     // midnight or DST transitions in CI. `footerTimestamp` reads
     // `new Date()` internally; vi.setSystemTime feeds it a constant.
+    // try/finally so a failing expect can't leak fake timers into the
+    // remainder of the suite.
     vi.useFakeTimers()
-    vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
-    const worstCase = {
-      dateFormat: "yyyy-MM-dd" as const,
-      timeZone: "Europe/London" as const,
-      locale: "es-MX" as const,
+    try {
+      vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
+      const worstCase: UserDatePreferencesInput = {
+        dateFormat: "yyyy-MM-dd",
+        timeZone: "Europe/London",
+        locale: "es-MX",
+      }
+      // Mirror production geometry exactly: po-pdf.ts:374 calls
+      // `new jsPDF({ format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })`.
+      // A "letter" shortcut is equivalent today (612x792pt) but would
+      // silently drift if CUSTOMER_PAGE ever changes.
+      const doc = new jsPDF({
+        unit: "pt",
+        format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height],
+      })
+      doc.setFont(TYPE.caption.family, TYPE.caption.weight)
+      doc.setFontSize(TYPE.caption.size)
+      const docMeta = `Purchase orders · ${footerTimestamp(worstCase)}`
+      const width = doc.getTextWidth(docMeta)
+      const budget = CUSTOMER_PAGE.contentWidth / 2 - 16
+      expect(
+        width,
+        `PO list footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
+      ).toBeLessThan(budget)
+    } finally {
+      vi.useRealTimers()
     }
-    // Mirror production geometry exactly: po-pdf.ts:374 calls
-    // `new jsPDF({ format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height] })`.
-    // A "letter" shortcut is equivalent today (612x792pt) but would
-    // silently drift if CUSTOMER_PAGE ever changes.
-    const doc = new jsPDF({
-      unit: "pt",
-      format: [CUSTOMER_PAGE.width, CUSTOMER_PAGE.height],
-    })
-    doc.setFont(TYPE.caption.family, TYPE.caption.weight)
-    doc.setFontSize(TYPE.caption.size)
-    const docMeta = `Purchase orders · ${footerTimestamp(worstCase)}`
-    const width = doc.getTextWidth(docMeta)
-    const budget = CUSTOMER_PAGE.contentWidth / 2 - 16
-    expect(
-      width,
-      `PO list footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
-    ).toBeLessThan(budget)
-    vi.useRealTimers()
   })
 })
