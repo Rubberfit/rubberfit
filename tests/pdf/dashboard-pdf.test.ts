@@ -7,7 +7,7 @@
  */
 // @vitest-environment node
 import jsPDF from "jspdf"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   buildOperationsFooterDocMeta,
@@ -111,6 +111,13 @@ describe("buildOperationsPdf", () => {
     // (left product mark, center page counter, right docMeta). Center
     // counter is ~50pt at caption-mono; the 16pt subtractive padding
     // keeps a clear gap from the center even at "Page 9 of 99".
+    //
+    // Fake clock pins the timestamp so the assertion can't drift
+    // across midnight or DST transitions in CI. `buildOperationsFooter
+    // DocMeta` reads `new Date()` internally; vi.setSystemTime feeds it
+    // a constant.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
     const worstCase: OperationsExportInput["preferences"] = {
       dateFormat: "yyyy-MM-dd",
       timeZone: "Europe/London",
@@ -131,5 +138,6 @@ describe("buildOperationsPdf", () => {
         `${period} footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
       ).toBeLessThan(budget)
     }
+    vi.useRealTimers()
   })
 })

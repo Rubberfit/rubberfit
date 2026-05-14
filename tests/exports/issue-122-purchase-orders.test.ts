@@ -7,8 +7,8 @@
  * with an imperative jsPDF builder).
  */
 // @vitest-environment node
-import jsPDF from "jspdf"
-import { describe, expect, it } from "vitest"
+import { jsPDF } from "jspdf"
+import { describe, expect, it, vi } from "vitest"
 
 import { footerTimestamp } from "@/app/dashboard/inventory/purchase-orders/_components/po-pdf"
 import {
@@ -251,6 +251,12 @@ describe("buildPurchaseOrdersListPdf", () => {
     // `<date> HH:mm` timestamp and yyyy-MM-dd / dd/MM/yyyy at their
     // widest, the right-aligned docMeta must still fit half the page
     // width minus the page-counter centre column gap.
+    //
+    // Fake clock pins the timestamp so the assertion can't drift across
+    // midnight or DST transitions in CI. `footerTimestamp` reads
+    // `new Date()` internally; vi.setSystemTime feeds it a constant.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-12-31T23:59:00.000Z"))
     const worstCase = {
       dateFormat: "yyyy-MM-dd" as const,
       timeZone: "Europe/London" as const,
@@ -273,5 +279,6 @@ describe("buildPurchaseOrdersListPdf", () => {
       width,
       `PO list footer "${docMeta}" measured ${width.toFixed(1)}pt vs budget ${budget.toFixed(1)}pt`
     ).toBeLessThan(budget)
+    vi.useRealTimers()
   })
 })
