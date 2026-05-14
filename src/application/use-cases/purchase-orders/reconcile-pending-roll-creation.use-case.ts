@@ -62,9 +62,7 @@ export interface IReconcilePendingRollCreationUseCase {
  * cases where one item gets multiple rolls.
  */
 @injectable()
-export class ReconcilePendingRollCreationUseCase
-  implements IReconcilePendingRollCreationUseCase
-{
+export class ReconcilePendingRollCreationUseCase implements IReconcilePendingRollCreationUseCase {
   constructor(
     @inject(TOKENS.IPurchaseOrderService)
     private readonly poService: IPurchaseOrderService,
@@ -98,9 +96,7 @@ export class ReconcilePendingRollCreationUseCase
     // and return — the view shouldn't have surfaced this row, but the
     // admin's page may be stale.
     if (receipt.rollCreatedAt !== null) {
-      const existing = await this.rollService.findByPurchaseOrderItemId(
-        receipt.purchaseOrderItemId
-      )
+      const existing = await this.rollService.findByPurchaseOrderItemId(receipt.purchaseOrderItemId)
       if (!existing) {
         // Stamp populated but no matching roll — the roll was soft-deleted
         // out from under us. The view's NOT EXISTS guard would surface

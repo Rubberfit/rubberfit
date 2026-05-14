@@ -327,10 +327,8 @@ export function buildCreateRollPropsFromReceipt(
   // operator didn't supply length. Reversed for metric input:
   //   quantityReceivedSqm × SQFT_PER_SQM = sqft  →  × MM_PER_INCH = mm
   const lengthMm =
-    receipt.rollLengthMm ??
-    Math.round(receipt.quantityReceivedSqm * SQFT_PER_SQM * MM_PER_INCH)
-  const thicknessMm =
-    receipt.rollThicknessMm ?? poItem.thicknessMm ?? DEFAULT_ROLL_THICKNESS_MM
+    receipt.rollLengthMm ?? Math.round(receipt.quantityReceivedSqm * SQFT_PER_SQM * MM_PER_INCH)
+  const thicknessMm = receipt.rollThicknessMm ?? poItem.thicknessMm ?? DEFAULT_ROLL_THICKNESS_MM
   const cost =
     receipt.rollCostPerSqmCents != null
       ? Money.fromCents(receipt.rollCostPerSqmCents, currency)

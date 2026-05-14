@@ -2,7 +2,6 @@ import "reflect-metadata"
 import "@/di/di-registration"
 import { container } from "tsyringe"
 
-
 import { TOKENS } from "@/di/tokens"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { PoReceiptReconciliationRow } from "@/src/application/repositories/purchase-orders.repository.interface"
@@ -50,7 +49,6 @@ export default async function POReconciliationPage() {
           { label: "Inventory" },
           { label: "PO reconciliation" },
         ]}
-        
         title="PO receipt reconciliation"
         subtitle="Pending apply: receipts whose PO update never landed. Pending roll creation: applied receipts whose roll never materialized. Retry to replay; idempotent on already-reconciled rows."
       />

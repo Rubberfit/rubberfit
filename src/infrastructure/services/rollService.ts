@@ -4,11 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
 import type { IRollService } from "@/src/application/services/roll.service.interface"
-import {
-  type BarcodeFormat,
-  type CreateRollProps,
-  Roll,
-} from "@/src/entities/roll"
+import { type BarcodeFormat, type CreateRollProps, Roll } from "@/src/entities/roll"
 import type { ProfileId } from "@/src/entities/value-objects/id"
 import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
 import { TOKENS } from "@/di/tokens"

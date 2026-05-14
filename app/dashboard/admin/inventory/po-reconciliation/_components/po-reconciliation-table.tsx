@@ -113,7 +113,9 @@ function ReconciliationSection({ title, description, rows, onRetry }: Reconcilia
     {
       id: "status",
       header: "PO status",
-      cell: (row) => <span className="text-xs uppercase tracking-wide">{row.purchaseOrderStatus}</span>,
+      cell: (row) => (
+        <span className="text-xs uppercase tracking-wide">{row.purchaseOrderStatus}</span>
+      ),
     },
     {
       id: "actions",
