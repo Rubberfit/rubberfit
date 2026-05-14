@@ -70,7 +70,7 @@ Registered with `container.registerInstance` — each binds the token to the mod
 | `IRollsRepository`             | `rollsRepository`             |
 | `ISuppliersRepository`         | `suppliersRepository`         |
 
-### Use cases (10)
+### Use cases (12)
 
 Registered with `container.registerSingleton` — the container lazily constructs each class on first resolve. This keeps use-case modules import-safe for unit tests: importing `create-purchase-order.use-case.ts` does not instantiate it and does not pull Supabase.
 
@@ -81,6 +81,8 @@ Registered with `container.registerSingleton` — the container lazily construct
 | `IApprovePurchaseOrderUseCase`           | `ApprovePurchaseOrderUseCase`           |
 | `IRejectPurchaseOrderUseCase`            | `RejectPurchaseOrderUseCase`            |
 | `IReceivePurchaseOrderUseCase`           | `ReceivePurchaseOrderUseCase`           |
+| `IReconcilePendingApplyUseCase`          | `ReconcilePendingApplyUseCase`          |
+| `IReconcilePendingRollCreationUseCase`   | `ReconcilePendingRollCreationUseCase`   |
 | `IGenerateReorderSuggestionsUseCase`     | `GenerateReorderSuggestionsUseCase`     |
 | `ICreateReorderPurchaseOrderUseCase`     | `CreateReorderPurchaseOrderUseCase`     |
 | `ICreateBulkReorderPurchaseOrderUseCase` | `CreateBulkReorderPurchaseOrderUseCase` |
