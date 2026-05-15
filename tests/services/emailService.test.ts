@@ -46,6 +46,7 @@ describe("EmailService.sendInvitationEmail", () => {
     organizationName?: string
     inviterName?: string | null
     role?: "admin" | "member"
+    inviteUrl?: string
   }) {
     const { EmailService } = await import("@/src/infrastructure/services/emailService")
     const service = new EmailService()
@@ -54,7 +55,7 @@ describe("EmailService.sendInvitationEmail", () => {
       organizationName: opts.organizationName ?? "Acme Rubber",
       role: opts.role ?? "member",
       inviterName: opts.inviterName ?? "alice@example.com",
-      inviteUrl: "https://rubberfit.app/invite/tok_test",
+      inviteUrl: opts.inviteUrl ?? "https://rubberfit.app/invite/tok_test",
       expiresAtLabel: opts.expiresAtLabel,
     })
   }
@@ -78,6 +79,24 @@ describe("EmailService.sendInvitationEmail", () => {
     const sendArg: { html?: string } = resendSendMock.mock.calls[0]?.[0] ?? {}
     expect(sendArg.html).not.toContain("<script>")
     expect(sendArg.html).toContain("&lt;script&gt;")
+  })
+
+  it("HTML-escapes the inviteUrl inside the href attribute", async () => {
+    // The more critical XSS boundary than the text-content escape
+    // above: a crafted URL with `"` could break the href attribute
+    // boundary and inject markup. Sigilix PR #270 catch.
+    await send({
+      expiresAtLabel: "01/27/2026",
+      inviteUrl:
+        'https://rubberfit.app/invite/tok"><script>alert(1)</script><a href="x',
+    })
+
+    const sendArg: { html?: string } = resendSendMock.mock.calls[0]?.[0] ?? {}
+    expect(sendArg.html).not.toContain("<script>")
+    expect(sendArg.html).toContain("&quot;")
+    // Confirm the attribute boundary survives: the `Accept the
+    // invitation` anchor text is still wrapped in `<a href="..">…</a>`.
+    expect(sendArg.html).toMatch(/<a href="[^"]+">Accept the invitation<\/a>/)
   })
 
   it("does not call any Date / toLocaleDateString path for the expiry", async () => {
