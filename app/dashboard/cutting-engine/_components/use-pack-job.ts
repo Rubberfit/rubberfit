@@ -138,7 +138,9 @@ export function usePackJob({
           // Cones ship spec-only (polygon constructed Rust-side); use
           // the spec params as the cache key so dimension edits
           // re-run the pack.
-          n: p.polygon?.outer?.length ?? 0,
+          n:
+            (p.polygon?.outer?.length ?? 0) +
+            (p.polygon?.holes?.reduce((s, h) => s + h.length, 0) ?? 0),
           k: p.shapeSpec?.kind ?? null,
           ps: p.shapeSpec?.params ?? null,
           t: p.tag ?? null,
