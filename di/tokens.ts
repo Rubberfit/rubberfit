@@ -68,4 +68,7 @@ export const TOKENS = {
   ICreateBulkReorderPurchaseOrderUseCase: Symbol("ICreateBulkReorderPurchaseOrderUseCase"),
   IRecordCutUseCase: Symbol("IRecordCutUseCase"),
   IUpdateMaterialPricingUseCase: Symbol("IUpdateMaterialPricingUseCase"),
+  ICreateInvitationUseCase: Symbol("ICreateInvitationUseCase"),
+  IResendInvitationUseCase: Symbol("IResendInvitationUseCase"),
+  IRevokeInvitationUseCase: Symbol("IRevokeInvitationUseCase"),
 } as const

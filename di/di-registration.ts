@@ -101,6 +101,9 @@ import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/r
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
 import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricing/update-material-pricing.use-case"
+import { CreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
+import { ResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
+import { RevokeInvitationUseCase } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -282,5 +285,8 @@ container.registerSingleton(
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
 container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterialPricingUseCase)
+container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
+container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
+container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
 
 export { container }

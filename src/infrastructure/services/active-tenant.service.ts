@@ -164,6 +164,32 @@ export async function verifyTenantMembership(
 }
 
 /**
+ * Returns `tenants.name` for the given id. Throws on read error;
+ * returns `null` if no row matches (treat as "tenant deleted under us"
+ * — the caller decides whether to surface a friendly message or
+ * propagate as a 500).
+ *
+ * Used by the invitation flow (CreateInvitationUseCase) to populate
+ * the email template's "You've been invited to <tenantName>" line
+ * without giving the use case a direct `.from()` call.
+ */
+export async function loadTenantName(
+  client: SupabaseClient,
+  tenantId: string
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .maybeSingle()
+  if (error) {
+    console.error("loadTenantName failed:", error)
+    throw error
+  }
+  return (data as { name: string } | null)?.name ?? null
+}
+
+/**
  * Persists `profiles.last_active_tenant_id`. Best-effort — logs and
  * swallows on failure so a transient write hiccup doesn't break the
  * login flow. The cookie is the request-level source of truth; the
