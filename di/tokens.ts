@@ -28,6 +28,7 @@ export const TOKENS = {
   IVisionExtractionService: Symbol("IVisionExtractionService"),
 
   // Repositories
+  ICutsRepository: Symbol("ICutsRepository"),
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),
   IPriceHistoryRepository: Symbol("IPriceHistoryRepository"),

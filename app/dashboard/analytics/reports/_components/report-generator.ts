@@ -1,8 +1,10 @@
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 import { toast } from "sonner"
 
-import { cutService } from "@/src/infrastructure/services/cutService"
-import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
+import {
+  legacyCutService as cutService,
+  type CutWithRoll,
+} from "@/src/infrastructure/services/legacyCutService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import type { ReportTemplate } from "./report-templates"

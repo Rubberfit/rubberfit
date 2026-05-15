@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react"
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { legacyCutService as cutService } from "@/src/infrastructure/services/legacyCutService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 
 export interface Activity {

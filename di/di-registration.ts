@@ -34,7 +34,9 @@ import type { IRollInventoryService } from "@/src/application/services/roll-inve
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
 import { csvService } from "@/src/infrastructure/services/csvService"
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { CutService } from "@/src/infrastructure/services/cutService"
+import { cutsRepository } from "@/src/infrastructure/repositories/cuts.repository"
+import type { ICutsRepository } from "@/src/application/repositories/cuts.repository.interface"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
@@ -97,7 +99,8 @@ import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricin
 // what the container provides when resolving dependencies.
 container.registerInstance<IAuthService>(TOKENS.IAuthService, authService)
 container.registerInstance<ICsvService>(TOKENS.ICsvService, csvService)
-container.registerInstance<ICutService>(TOKENS.ICutService, cutService)
+container.registerInstance<ICutsRepository>(TOKENS.ICutsRepository, cutsRepository)
+container.registerSingleton<ICutService>(TOKENS.ICutService, CutService)
 container.registerInstance<IEmailService>(TOKENS.IEmailService, emailService)
 container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPdfService)
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)

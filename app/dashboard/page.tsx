@@ -8,7 +8,7 @@ import { cn } from "@/app/lib/utils"
 
 import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { legacyCutService as cutService } from "@/src/infrastructure/services/legacyCutService"
 import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
 
 import { SummaryCards } from "./_components/dashboard-summary-cards"
