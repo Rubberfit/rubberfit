@@ -69,6 +69,9 @@ export class UserManagementService implements IUserManagementService {
    */
   async getAllUsers(): Promise<UserProfile[]> {
     const supabase = await getDatabaseClient()
+    // memberships has two FKs to profiles (profile_id + invited_by). The
+    // PostgREST embed needs the explicit FK name or the relationship
+    // resolves as ambiguous and the error surfaces as an empty {}.
     const { data, error } = await supabase
       .from("memberships")
       .select(
@@ -78,7 +81,7 @@ export class UserManagementService implements IUserManagementService {
         profile_id,
         roles,
         deleted_at,
-        profiles!inner (
+        profiles!memberships_profile_id_fkey (
           id,
           email,
           full_name,
@@ -92,7 +95,12 @@ export class UserManagementService implements IUserManagementService {
       .order("created_at", { ascending: false })
 
     if (error) {
-      console.error("Error fetching users:", error)
+      console.error("Error fetching users:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      })
       throw error
     }
 
@@ -183,7 +191,7 @@ export class UserManagementService implements IUserManagementService {
         profile_id,
         roles,
         deleted_at,
-        profiles!inner (
+        profiles!memberships_profile_id_fkey (
           id,
           email,
           full_name,
@@ -199,7 +207,12 @@ export class UserManagementService implements IUserManagementService {
       .limit(1)
       .maybeSingle()
     if (error) {
-      console.error("Error reading user after update:", error)
+      console.error("Error reading user after update:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      })
       throw error
     }
     if (!data) {

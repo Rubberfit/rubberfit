@@ -42,7 +42,11 @@ const APP_ROLE_VALUES = ALL_ROLES as readonly [
 
 const inviteMemberSchema = z.object({
   email: z.string().min(1).max(320),
-  roles: z.array(z.enum(APP_ROLE_VALUES)).nonempty(),
+  // .min(1) gives an `AppRole[]` inferred type — `.nonempty()` would
+  // narrow to a tuple `[AppRole, ...AppRole[]]` which leaks into client
+  // call sites. The use case re-checks length and rejects with a
+  // friendly error if zero somehow slips through.
+  roles: z.array(z.enum(APP_ROLE_VALUES)).min(1),
 })
 
 const invitationIdSchema = z.object({

@@ -190,6 +190,91 @@ export async function loadTenantName(
 }
 
 /**
+ * Member of a tenant, with the per-tenant roles + the joined-with
+ * profile info the admin members page needs. Mirrors the shape used
+ * by the admin/members RSC page so the page-level mapper stays
+ * one-to-one.
+ */
+export interface TenantMember {
+  membershipId: string
+  profileId: string
+  email: string | null
+  fullName: string | null
+  roles: string[]
+  createdAt: string
+}
+
+interface MembershipWithProfileRow {
+  id: string
+  profile_id: string
+  roles: string[] | null
+  created_at: string
+  profile:
+    | { id: string; email: string | null; full_name: string | null }
+    | { id: string; email: string | null; full_name: string | null }[]
+    | null
+}
+
+/**
+ * Lists active members of `tenantId`, oldest-membership-first.
+ * Joins memberships → profiles to surface email + full name. RLS
+ * gates cross-tenant reads regardless; the explicit `tenant_id` filter
+ * keeps the query narrow and avoids relying on RLS as the *primary*
+ * scope (defense-in-depth).
+ *
+ * Used by the admin/members page (Phase 6 of ARC-25 invitation
+ * rollout) to render the current member roster alongside the pending
+ * invitations table.
+ */
+export async function loadTenantMembers(
+  client: SupabaseClient,
+  tenantId: string
+): Promise<TenantMember[]> {
+  // memberships has two FKs to profiles (profile_id + invited_by), so the
+  // PostgREST embed needs the FK name to disambiguate. Without it the join
+  // resolves as "ambiguous relationship" and the error surfaces as an empty
+  // {} on the client.
+  const { data, error } = await client
+    .from("memberships")
+    .select(
+      `
+      id,
+      profile_id,
+      roles,
+      created_at,
+      profile:profiles!memberships_profile_id_fkey ( id, email, full_name )
+    `
+    )
+    .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+  if (error) {
+    console.error("loadTenantMembers failed:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+    throw error
+  }
+
+  return ((data ?? []) as unknown as MembershipWithProfileRow[])
+    .map((row) => {
+      const profile = Array.isArray(row.profile) ? row.profile[0] : row.profile
+      if (!profile) return null
+      return {
+        membershipId: row.id,
+        profileId: profile.id,
+        email: profile.email,
+        fullName: profile.full_name,
+        roles: row.roles ?? [],
+        createdAt: row.created_at,
+      }
+    })
+    .filter((m): m is TenantMember => m !== null)
+}
+
+/**
  * Persists `profiles.last_active_tenant_id`. Best-effort — logs and
  * swallows on failure so a transient write hiccup doesn't break the
  * login flow. The cookie is the request-level source of truth; the
