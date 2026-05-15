@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
@@ -36,6 +36,12 @@ export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false)
   const { signUp } = useAuth()
   const router = useRouter()
+  // Forward `?redirectTo=...` (used by the /invite/[token] sign-up CTA)
+  // through to the login page so the user lands back on the invitation
+  // page after authenticating. Plain `?redirectTo` is the same param
+  // login already honors.
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get("redirectTo")
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -56,9 +62,14 @@ export function RegisterForm() {
         toast.success("Registration successful!", {
           description: "Please check your email to verify your account, then proceed to login.",
         })
-        // Redirect to login page after successful registration
+        // Redirect to login page after successful registration. Forward
+        // `redirectTo` so an invitation-flow signup completes on the
+        // /invite/[token] page after sign-in.
+        const loginHref = redirectTo
+          ? `/login?redirectTo=${encodeURIComponent(redirectTo)}`
+          : "/login"
         setTimeout(() => {
-          router.push("/login")
+          router.push(loginHref)
         }, 2000)
       } else {
         toast.error("Registration failed", {

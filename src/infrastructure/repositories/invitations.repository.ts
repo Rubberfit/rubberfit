@@ -1,7 +1,10 @@
 import "reflect-metadata"
 import { injectable } from "tsyringe"
 
-import type { IInvitationsRepository } from "@/src/application/repositories/invitations.repository.interface"
+import type {
+  IInvitationsRepository,
+  InvitationPublicView,
+} from "@/src/application/repositories/invitations.repository.interface"
 import type { Invitation } from "@/src/entities/invitation"
 import {
   invitationToInsertRow,
@@ -100,6 +103,43 @@ export class InvitationsRepository implements IInvitationsRepository {
       throw new Error("accept_invitation RPC returned no row")
     }
     return { membershipId: row.membership_id, tenantId: row.tenant_id }
+  }
+
+  async findPublicViewByToken(
+    token: string
+  ): Promise<InvitationPublicView | null> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .rpc("get_invitation_by_token", { p_token: token })
+      .maybeSingle()
+    if (error) {
+      console.error("findPublicViewByToken failed:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      })
+      throw error
+    }
+    if (!data) return null
+    const row = data as {
+      tenant_id: string
+      tenant_name: string
+      email: string
+      roles: string[]
+      expires_at: string
+      accepted_at: string | null
+      revoked_at: string | null
+    }
+    return {
+      tenantId: row.tenant_id,
+      tenantName: row.tenant_name,
+      email: row.email,
+      roles: row.roles,
+      expiresAt: row.expires_at,
+      acceptedAt: row.accepted_at,
+      revokedAt: row.revoked_at,
+    }
   }
 }
 

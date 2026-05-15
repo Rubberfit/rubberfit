@@ -1,4 +1,7 @@
+import type { InvitationPublicView } from "@/src/application/repositories/invitations.repository.interface"
 import type { CreateInvitationProps, Invitation } from "@/src/entities/invitation"
+
+export type { InvitationPublicView }
 
 /**
  * Entity-typed invitation service. Thin orchestrator over
@@ -34,4 +37,11 @@ export interface IInvitationService {
    * happens in AcceptInvitationUseCase + the server action.
    */
   acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }>
+
+  /**
+   * Public-safe lookup via the get_invitation_by_token RPC. Used by
+   * the /invite/[token] page to render personalized content before
+   * the user accepts.
+   */
+  findPublicViewByToken(token: string): Promise<InvitationPublicView | null>
 }

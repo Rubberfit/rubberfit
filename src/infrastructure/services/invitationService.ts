@@ -2,7 +2,10 @@ import "reflect-metadata"
 import { inject, injectable } from "tsyringe"
 
 import { TOKENS } from "@/di/tokens"
-import type { IInvitationsRepository } from "@/src/application/repositories/invitations.repository.interface"
+import type {
+  IInvitationsRepository,
+  InvitationPublicView,
+} from "@/src/application/repositories/invitations.repository.interface"
 import type { IInvitationService } from "@/src/application/services/invitation.service.interface"
 import { Invitation, type CreateInvitationProps } from "@/src/entities/invitation"
 import { invitationsRepository } from "@/src/infrastructure/repositories/invitations.repository"
@@ -68,6 +71,10 @@ export class InvitationService implements IInvitationService {
     token: string
   ): Promise<{ membershipId: string; tenantId: string }> {
     return this.repo.acceptByToken(token)
+  }
+
+  findPublicViewByToken(token: string): Promise<InvitationPublicView | null> {
+    return this.repo.findPublicViewByToken(token)
   }
 }
 

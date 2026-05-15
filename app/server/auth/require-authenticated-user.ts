@@ -88,3 +88,45 @@ export async function requireAuthenticatedUser(): Promise<ActionActor> {
     activeTenantId,
   }
 }
+
+/**
+ * Soft session check for public pages (e.g. `/invite/[token]`) that
+ * need to behave differently for signed-in vs signed-out visitors but
+ * without throwing on the signed-out path.
+ *
+ * Deliberately does NOT load the profile or memberships — the
+ * canonical caller is the invitation accept page, where the visitor
+ * MAY be a brand-new user with no memberships yet (which would make
+ * `requireAuthenticatedUser` throw "Account deactivated"). We only
+ * need their auth identity (id + email) to gate the email-match check
+ * and the Accept CTA visibility.
+ *
+ * Returns `null` on any branch where the user can't be resolved
+ * (missing env, no session, auth error). Callers treat both "no
+ * session" and "auth error" the same: signed-out.
+ */
+export interface OptionalUser {
+  id: string
+  email: string
+}
+
+export async function getOptionalUser(): Promise<OptionalUser | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+
+  const cookieStore = await cookies()
+  const client = createServerClient(url, key, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll: () => {},
+    },
+  })
+
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser()
+  if (error || !user) return null
+  return { id: user.id, email: user.email ?? "" }
+}

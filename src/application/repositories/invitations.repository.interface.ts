@@ -69,4 +69,23 @@ export interface IInvitationsRepository {
    * set the `rema_active_tenant` cookie before redirecting.
    */
   acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }>
+
+  /**
+   * Public-safe lookup via the `get_invitation_by_token` SECURITY
+   * DEFINER RPC. Returns null when the token doesn't exist (no
+   * leakage). The /invite/[token] landing page calls this to render
+   * personalized content (tenant name, invited email, roles, expiry)
+   * before signed-out visitors are routed to register.
+   */
+  findPublicViewByToken(token: string): Promise<InvitationPublicView | null>
+}
+
+export interface InvitationPublicView {
+  tenantId: string
+  tenantName: string
+  email: string
+  roles: string[]
+  expiresAt: string
+  acceptedAt: string | null
+  revokedAt: string | null
 }

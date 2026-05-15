@@ -23,6 +23,11 @@ export const PUBLIC_PATHS = [
   // Image embedded in transactional emails. Must load without auth so
   // recipients see the brand image in their inbox.
   "/auth-email-logo",
+
+  // ARC-25 invitation accept landing. The page itself routes
+  // signed-out visitors to /register?invite=<token>; the SECURITY
+  // DEFINER RPC behind the read is gated by token possession.
+  "/invite",
 ] as const
 
 /**
