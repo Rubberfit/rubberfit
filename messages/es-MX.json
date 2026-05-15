@@ -1,4 +1,71 @@
 {
+  "nav": {
+    "chrome": {
+      "quickCreate": "Creación rápida",
+      "comingSoon": "Pronto",
+      "notifications": "Notificaciones",
+      "notificationsUnread": "Notificaciones — {count} sin leer"
+    },
+    "groups": {
+      "operations": "Operaciones",
+      "analytics": "Análisis",
+      "management": "Administración",
+      "qa": "Q&A"
+    },
+    "items": {
+      "dashboard": { "title": "Panel" },
+      "inventory": {
+        "title": "Inventario",
+        "subItems": {
+          "currentStock": "Stock actual",
+          "purchaseOrders": "Órdenes de compra"
+        }
+      },
+      "jobs": { "title": "Trabajos" },
+      "cuttingEngine": {
+        "title": "Motor de corte",
+        "subItems": {
+          "autoNest": "Anidado automático",
+          "freeRoam": "Modo libre"
+        }
+      },
+      "cutHistory": { "title": "Historial de cortes" },
+      "analytics": {
+        "title": "Análisis",
+        "subItems": {
+          "waste": "Desperdicio",
+          "periodComparison": "Comparación de períodos",
+          "materialUsage": "Uso de material",
+          "costReports": "Reportes de costos",
+          "trends": "Tendencias"
+        }
+      },
+      "materials": {
+        "title": "Materiales",
+        "subItems": {
+          "materialSettings": "Ajustes de materiales",
+          "materialTypes": "Tipos de material",
+          "suppliers": "Proveedores",
+          "pricing": "Precios"
+        }
+      },
+      "reports": { "title": "Reportes" },
+      "users": { "title": "Usuarios" },
+      "securityAudit": { "title": "Seguridad y auditoría" },
+      "settings": {
+        "title": "Ajustes",
+        "subItems": {
+          "general": "General",
+          "profile": "Perfil y cuenta",
+          "materials": "Materiales",
+          "notifications": "Notificaciones",
+          "team": "Equipo",
+          "billing": "Facturación"
+        }
+      },
+      "security": { "title": "Seguridad" }
+    }
+  },
   "settings": {
     "general": {
       "pageTitle": "General",
