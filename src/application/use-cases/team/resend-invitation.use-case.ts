@@ -88,10 +88,7 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     )
     const organizationName = organization?.name ?? "your team"
     const inviteUrl = `${appUrl()}/invite/${invitation.token}`
-    const expiresAtLabel = await this.formatExpiresAtLabel(
-      invitation.organization_id,
-      newExpiresAt
-    )
+    const expiresAtLabel = await this.formatExpiresAtLabel(invitation.organization_id, newExpiresAt)
 
     // Send the email first; persist the new expiry only if the send
     // succeeded. Otherwise the old invite stays in its original window
