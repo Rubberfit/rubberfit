@@ -7,12 +7,15 @@ const PARTS: Part[] = [
   {
     shapeId: "rect-a",
     quantity: 1,
-    polygon: [
-      { x: 0, y: 0 },
-      { x: 10, y: 0 },
-      { x: 10, y: 5 },
-      { x: 0, y: 5 },
-    ],
+    polygon: {
+      outer: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 5 },
+        { x: 0, y: 5 },
+      ],
+      holes: [],
+    },
     shapeSpec: { kind: "rect", params: { width: 10, height: 5 } },
     allowRotation: true,
   },
@@ -33,12 +36,15 @@ const RESULT: PackResult = {
       x: 2,
       y: 3,
       rotationRad: 0,
-      polygon: [
-        { x: 2, y: 3 },
-        { x: 12, y: 3 },
-        { x: 12, y: 8 },
-        { x: 2, y: 8 },
-      ],
+      polygon: {
+        outer: [
+          { x: 2, y: 3 },
+          { x: 12, y: 3 },
+          { x: 12, y: 8 },
+          { x: 2, y: 8 },
+        ],
+        holes: [],
+      },
       width: 10,
       height: 5,
     },
@@ -76,9 +82,9 @@ describe("buildPlacementView", () => {
     expect(view.items[0].shapeSpec).toEqual(PARTS[0].shapeSpec)
   })
 
-  it("preserves placed polygon verbatim", () => {
+  it("preserves placed polygon outer ring verbatim (PR 0a: view is single-contour today)", () => {
     const view = buildPlacementView(RESULT, PACK_REQUEST)
-    expect(view.items[0].polygon).toEqual(RESULT.placements[0].polygon)
+    expect(view.items[0].polygon).toEqual(RESULT.placements[0].polygon.outer)
   })
 
   it("groups view items by binId", () => {
@@ -143,11 +149,14 @@ describe("buildPlacementView", () => {
         {
           shapeId: "any",
           quantity: 1,
-          polygon: [
-            { x: 0, y: 0 },
-            { x: 1, y: 0 },
-            { x: 1, y: 1 },
-          ],
+          polygon: {
+            outer: [
+              { x: 0, y: 0 },
+              { x: 1, y: 0 },
+              { x: 1, y: 1 },
+            ],
+            holes: [],
+          },
           shapeSpec: { kind, params: {} },
           allowRotation: true,
         },

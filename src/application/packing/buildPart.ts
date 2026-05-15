@@ -12,7 +12,7 @@
 // Rust prefers the polygon (see `materialise_polygon`'s short-circuit
 // for `Part.polygon.is_some()`).
 
-import type { Part, ShapeSpec, Point2D } from "@/src/application/packing/types"
+import type { Part, PolygonWithHoles, ShapeSpec, Point2D } from "@/src/application/packing/types"
 
 export interface BuildPartInput {
   shapeId: string
@@ -46,12 +46,16 @@ export function buildPart(input: BuildPartInput): Part {
   }
 }
 
-function normalizePolygon(points: Point2D[]): Point2D[] {
+function normalizePolygon(points: Point2D[]): PolygonWithHoles {
   if (points.length < 3) throw new Error("polygon: must have at least 3 vertices")
   const minX = Math.min(...points.map((p) => p.x))
   const minY = Math.min(...points.map((p) => p.y))
   const translated = points.map((p) => ({ x: p.x - minX, y: p.y - minY }))
-  return ensureCCW(translated)
+  // buildPart only ingests a flat single-loop polygon today (DXF
+  // imports + hand-drawn shapes). Hole-bearing inputs land here once
+  // PR 0b updates the input shape; for now we wrap to the structured
+  // form with no holes so downstream consumers see the new contract.
+  return { outer: ensureCCW(translated), holes: [] }
 }
 
 function ensureCCW(points: Point2D[]): Point2D[] {

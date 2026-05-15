@@ -20,12 +20,15 @@ describe("RustPackingService", () => {
           {
             shapeId: "r",
             quantity: 1,
-            polygon: [
-              { x: 0, y: 0 },
-              { x: 10, y: 0 },
-              { x: 10, y: 5 },
-              { x: 0, y: 5 },
-            ],
+            polygon: {
+              outer: [
+                { x: 0, y: 0 },
+                { x: 10, y: 0 },
+                { x: 10, y: 5 },
+                { x: 0, y: 5 },
+              ],
+              holes: [],
+            },
             allowRotation: true,
           },
         ],
@@ -67,12 +70,15 @@ describe("RustPackingService", () => {
           {
             shapeId: "r",
             quantity: 1,
-            polygon: [
-              { x: 0, y: 0 },
-              { x: 10, y: 0 },
-              { x: 10, y: 5 },
-              { x: 0, y: 5 },
-            ],
+            polygon: {
+              outer: [
+                { x: 0, y: 0 },
+                { x: 10, y: 0 },
+                { x: 10, y: 5 },
+                { x: 0, y: 5 },
+              ],
+              holes: [],
+            },
             allowRotation: true,
           },
         ],
@@ -91,12 +97,15 @@ describe("RustPackingService", () => {
         {
           shapeId: "r",
           quantity: 1,
-          polygon: [
-            { x: 0, y: 0 },
-            { x: 1, y: 0 },
-            { x: 1, y: 1 },
-            { x: 0, y: 1 },
-          ],
+          polygon: {
+            outer: [
+              { x: 0, y: 0 },
+              { x: 1, y: 0 },
+              { x: 1, y: 1 },
+              { x: 0, y: 1 },
+            ],
+            holes: [],
+          },
           allowRotation: true,
         },
       ],
