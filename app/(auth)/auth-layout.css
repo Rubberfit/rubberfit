@@ -292,11 +292,14 @@
   color: #8a8f97;
 }
 
-/* Footer */
+/* Footer — three-cell title-block: © left | ENG center | REV. right.
+   Mirrors the drafting sheet stamp on the right pane (`REV. 2026.05`)
+   so the software build reads as a literal revision mark. */
 .auth-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
+  gap: 24px;
 }
 
 .auth-footer-mono {
@@ -308,13 +311,50 @@
   color: #8a8f97;
 }
 
+.auth-footer-copy {
+  justify-self: start;
+}
+
+.auth-footer-rev {
+  justify-self: end;
+  cursor: default;
+}
+
 .auth-footer-lang {
   display: inline-flex;
   align-items: center;
+  justify-self: center;
   gap: 6px;
   font-family: "Inter", system-ui, sans-serif;
   font-size: 13px;
   color: #4a525c;
+}
+
+/* Mobile two-row stack: © + REV. share row 1; ENG drops to a centered
+   row 2 so the picker keeps adequate clearance. */
+@media (max-width: 480px) {
+  .auth-footer {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "copy rev"
+      "lang lang";
+    row-gap: 12px;
+  }
+
+  .auth-footer-copy {
+    grid-area: copy;
+    justify-self: start;
+  }
+
+  .auth-footer-rev {
+    grid-area: rev;
+    justify-self: end;
+  }
+
+  .auth-footer-lang {
+    grid-area: lang;
+    justify-self: center;
+  }
 }
 
 /* Inline alert (auth error from query) */

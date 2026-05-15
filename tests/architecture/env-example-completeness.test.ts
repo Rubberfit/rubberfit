@@ -18,6 +18,10 @@
  *   CI           — set by GH Actions / Vercel
  *   VERCEL       — set by Vercel during deploy
  *   NEXT_PUBLIC_VERCEL_URL — auto-injected by Vercel preview deploys
+ *   NEXT_PUBLIC_APP_VERSION — derived from package.json by next.config.mjs's
+ *     `env:` field, so it's build-time-injected (not operator-set). Adding
+ *     it to .env.example would mislead operators into thinking the value
+ *     is configurable when it always comes from the bundled package.json.
  */
 import { describe, it, expect } from "vitest"
 import fs from "node:fs"
@@ -27,7 +31,13 @@ const REPO_ROOT = path.resolve(__dirname, "../..")
 const SCAN_EXTENSIONS = new Set([".ts", ".tsx", ".mjs", ".js"])
 const ENV_EXAMPLE_PATH = path.join(REPO_ROOT, ".env.example")
 
-const RUNTIME_INJECTED = new Set(["NODE_ENV", "CI", "VERCEL", "NEXT_PUBLIC_VERCEL_URL"])
+const RUNTIME_INJECTED = new Set([
+  "NODE_ENV",
+  "CI",
+  "VERCEL",
+  "NEXT_PUBLIC_VERCEL_URL",
+  "NEXT_PUBLIC_APP_VERSION",
+])
 
 // Matches `process.env.FOO`, `process.env["FOO"]`, `process.env['FOO']`,
 // and `process.env[`FOO`]` so bracket-notation accesses can't slip past

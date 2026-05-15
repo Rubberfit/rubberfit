@@ -6,19 +6,19 @@ import { AuthDrawing } from "./_components/auth-drawing"
 
 import "./auth-layout.css"
 
+// Strip any prerelease (`-beta.3`) or build-metadata (`+build.42`) suffix
+// from the package.json version so the mobile footer doesn't overflow on
+// off-tag builds. Industrial revision stamps care only about MAJOR.MINOR.PATCH.
+const rawAppVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? ""
+const revisionLabel = rawAppVersion.replace(/[-+].*$/, "")
+
 export default function Layout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <main className="auth-root">
       <section className="auth-pane-left">
         <header className="auth-brand-row">
           <Link href="/" aria-label="Rubberfit home" className="auth-brand-mark">
-            <img
-              src="/rubberfit-mark.svg"
-              alt=""
-              width={32}
-              height={32}
-              aria-hidden="true"
-            />
+            <img src="/rubberfit-mark.svg" alt="" width={32} height={32} aria-hidden="true" />
           </Link>
           <span className="auth-brand-caption">Rubberfit / Auth</span>
         </header>
@@ -26,7 +26,7 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
         <div className="auth-pane-content">{children}</div>
 
         <footer className="auth-footer">
-          <span className="auth-footer-mono">© 2026 Arc &amp; Anchor</span>
+          <span className="auth-footer-mono auth-footer-copy">© 2026 Arc &amp; Anchor</span>
           <span className="auth-footer-lang" aria-label="Interface language">
             <svg
               width="14"
@@ -44,6 +44,11 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
             </svg>
             ENG
           </span>
+          {revisionLabel && (
+            <span className="auth-footer-mono auth-footer-rev" role="note">
+              REV. {revisionLabel}
+            </span>
+          )}
         </footer>
       </section>
       <aside className="auth-pane-right" aria-hidden="true">
