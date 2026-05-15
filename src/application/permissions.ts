@@ -33,6 +33,10 @@ export const PERMISSIONS = {
   manageSuppliers: ["admin", "manager"],
   managePricing: ["admin"],
   manageUsers: ["admin"],
+  // Tenant-scoped membership administration: invite by email, revoke pending
+  // invitations, resend, and view the current member roster. Distinct from
+  // manageUsers (which gates the cross-cutting security audit + roles matrix).
+  manageMembers: ["admin"],
 
   // Analytics
   accessAnalytics: ["admin", "manager", "supervisor"],
@@ -82,4 +86,5 @@ export const ROUTE_PERMISSIONS = {
 
   // Admin surfaces (Phase 2 PR 5)
   "/dashboard/admin/security": "manageUsers",
+  "/dashboard/admin/members": "manageMembers",
 } as const satisfies Record<string, Permission>
