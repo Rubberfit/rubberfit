@@ -15,6 +15,7 @@
 // session's baseline captured.
 
 use rf_geom::domain::Point2D;
+use rf_geom::PolygonWithHoles;
 use rf_layout::domain::{Bin, BinKind, Part};
 use rf_layout::infrastructure::search::{fixed_bin_sparrow_repack, FixedBinRepackConfig};
 use rf_layout::infrastructure::warm_start::{greedy_bottom_left, PackerStrategy};
@@ -76,12 +77,15 @@ fn production_items() -> Vec<Part> {
             shape_id: (*id).into(),
             quantity: *qty,
             // CSV "Width" â‰¤ bin.width (78"), "Length" runs up the long axis.
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(*width, 0.0),
-                Point2D::new(*width, *length),
-                Point2D::new(0.0, *length),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(*width, 0.0),
+                    Point2D::new(*width, *length),
+                    Point2D::new(0.0, *length),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

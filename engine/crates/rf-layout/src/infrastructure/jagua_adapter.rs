@@ -168,6 +168,7 @@ pub fn to_jagua_instance(
         .map_err(|e| PackError::EngineFailed(format!("jagua import failed: {e}")))
 }
 
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
     let polygon = part.polygon_slice();
     if polygon.len() < 3 {
@@ -272,12 +273,15 @@ mod tests {
         Part {
             shape_id: "rect-a".into(),
             quantity: 1,
-            polygon: Some(vec![
-                rf_geom::domain::Point2D::new(0.0, 0.0),
-                rf_geom::domain::Point2D::new(24.0, 0.0),
-                rf_geom::domain::Point2D::new(24.0, 12.0),
-                rf_geom::domain::Point2D::new(0.0, 12.0),
-            ]),
+            polygon: Some(
+                rf_geom::PolygonWithHoles::from_outer_points(vec![
+                    rf_geom::domain::Point2D::new(0.0, 0.0),
+                    rf_geom::domain::Point2D::new(24.0, 0.0),
+                    rf_geom::domain::Point2D::new(24.0, 12.0),
+                    rf_geom::domain::Point2D::new(0.0, 12.0),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
@@ -322,14 +326,23 @@ mod tests {
 
     #[test]
     fn rejects_degenerate_polygon() {
-        let bins = vec![test_bin()];
-        let mut part = test_rect_part();
-        part.polygon = Some(vec![
-            rf_geom::domain::Point2D::new(0.0, 0.0),
-            rf_geom::domain::Point2D::new(1.0, 0.0),
-        ]); // only 2 vertices
-        let r = to_jagua_instance(&bins, &[part], 0.125);
-        assert!(r.is_err(), "polygon with <3 vertices should be rejected");
+        // Degenerate polygons (<3 vertices) are now rejected at the
+        // `PolygonWithHoles` / `Polygon` constructor boundary — the
+        // `Part.polygon` type alone cannot hold a <3-vertex outer ring.
+        // Verifying via the serde wire-layer (the only ingress where a
+        // degenerate polygon can be supplied) keeps the original
+        // "engine refuses degenerate input" contract intact.
+        use crate::domain::PackRequest;
+        let json = r#"{
+            "bins":[{"binId":"b1","width":48,"height":96,"kind":"fresh"}],
+            "clearance":0.125,
+            "items":[{"shapeId":"deg","quantity":1,"polygon":[{"x":0,"y":0},{"x":1,"y":0}],"allowRotation":true}]
+        }"#;
+        let r: Result<PackRequest, _> = serde_json::from_str(json);
+        assert!(
+            r.is_err(),
+            "polygon with <3 vertices should be rejected at deserialize"
+        );
     }
 
     #[test]
@@ -344,7 +357,19 @@ mod tests {
     fn rejects_nan_coordinate() {
         let bins = vec![test_bin()];
         let mut part = test_rect_part();
-        part.polygon.as_mut().expect("test fixture has polygon")[0].x = f64::NAN;
+        // Rebuild the part polygon with a NaN x-coord on vertex 0. The
+        // `PolygonWithHoles::from_outer_points` constructor accepts NaN
+        // (only vertex count is validated upstream) — the jagua adapter
+        // is the layer that must reject it.
+        part.polygon = Some(
+            rf_geom::PolygonWithHoles::from_outer_points(vec![
+                rf_geom::domain::Point2D::new(f64::NAN, 0.0),
+                rf_geom::domain::Point2D::new(24.0, 0.0),
+                rf_geom::domain::Point2D::new(24.0, 12.0),
+                rf_geom::domain::Point2D::new(0.0, 12.0),
+            ])
+            .expect("rect polygon with NaN vertex"),
+        );
         let r = to_jagua_instance(&bins, &[part], 0.125);
         assert!(r.is_err(), "NaN coordinate should be rejected");
     }

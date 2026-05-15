@@ -128,6 +128,7 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 }
 
 /// Precompute area per shape_id (polygon, not bbox â€” Codex sign-off fix).
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn item_areas(items: &[Part]) -> HashMap<String, f64> {
     items
         .iter()
@@ -181,6 +182,7 @@ fn strip_zero(counts: &mut HashMap<String, u32>) {
 /// FFD unit key for deterministic scan order: `(bbox_area desc,
 /// longest_edge desc, shape_id asc)`. Returned as a tuple of negated
 /// f64 (wrapped via total_cmp-safe ordering) for ascending sort.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn shape_sort_keys(items: &[Part]) -> HashMap<String, (f64, f64)> {
     items
         .iter()
@@ -794,17 +796,21 @@ mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind, Part};
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

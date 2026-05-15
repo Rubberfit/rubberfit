@@ -41,6 +41,7 @@ pub struct FfdAssignment {
     pub overflow: Vec<(String, u32)>,
 }
 
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn ffd_assign(
     bins: &[Bin],
     items: &[Part],
@@ -239,17 +240,21 @@ pub(crate) fn materialize_parts(
 mod tests {
     use super::*;
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

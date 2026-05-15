@@ -307,6 +307,7 @@ enum RepackOutcome {
 /// Build the stable copy-order used by `build_overlap_seed`. Sorted by
 /// `(bbox_area desc, shape_id asc)` and flattened respecting per-part
 /// `quantity`. Deterministic under identical `items` input.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
     let mut shape_meta: Vec<(usize, f64, &str)> = Vec::with_capacity(items.len());
     for (idx, part) in items.iter().enumerate() {
@@ -355,6 +356,7 @@ fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
 /// Returns the overlap seed + a subset_items vector with per-part
 /// quantities decremented to match what was actually placed (Codex R3:
 /// never duplicate Part rows, always decrement).
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_overlap_seed(
     bin: &Bin,
     items: &[Part],
@@ -612,6 +614,7 @@ fn replay_seed_into_layout(
 /// Placements are sorted by `(item_id, tx, ty, rot)` before
 /// renumbering so `instance_index` is deterministic under fixed seed
 /// (jagua's `SlotMap` iteration order is not stable).
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn snapshot_to_seed(
     snap: &LayoutSnapshot,
     instance: &BPInstance,
@@ -709,6 +712,7 @@ fn apply_dtransformation_to_point(dt: &DTransformation, p: Point2D) -> Point2D {
 mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind};
+    use rf_geom::PolygonWithHoles;
 
     const SEED: u64 = 42;
 
@@ -716,12 +720,15 @@ mod tests {
         Part {
             shape_id: id.into(),
             quantity: 1,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(side, 0.0),
-                Point2D::new(side, side),
-                Point2D::new(0.0, side),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(side, 0.0),
+                    Point2D::new(side, side),
+                    Point2D::new(0.0, side),
+                ])
+                .expect("square polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,
@@ -1022,12 +1029,15 @@ mod tests {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(side, 0.0),
-                Point2D::new(side, side),
-                Point2D::new(0.0, side),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(side, 0.0),
+                    Point2D::new(side, side),
+                    Point2D::new(0.0, side),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,

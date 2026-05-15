@@ -147,6 +147,7 @@ pub enum PackerStrategy {
 /// receiver bin from scratch. Keeping `greedy_rectangle_pack` as a thin
 /// wrapper preserves the Task 19d dispatcher contract unchanged â€” FFD
 /// + GLS + existing cross-bin operators never observe the new param.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn greedy_rectangle_pack_with_strategy(
     bin: &Bin,
     items: &[Part],
@@ -395,6 +396,7 @@ pub fn greedy_rectangle_pack_with_strategy(
 /// advancing cursor_y by h_eff = h + 2*clearance per copy. Conservative
 /// over-rejection on interior stacks (see rustdoc on
 /// `greedy_bottom_left`).
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn greedy_vertical_stack(
     bin: &Bin,
     items: &[Part],
@@ -465,6 +467,7 @@ fn greedy_vertical_stack(
 /// them.
 ///
 /// Deterministic: pure arithmetic, row-major scan, no RNG.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn greedy_2d_grid(bin: &Bin, part: &Part, clearance: f64) -> Result<SeedResult, PackError> {
     let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
         PackError::InvalidPolygon {
@@ -526,17 +529,21 @@ fn greedy_2d_grid(bin: &Bin, part: &Part, clearance: f64) -> Result<SeedResult, 
 mod tests {
     use super::*;
     use crate::domain::BinKind;
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
@@ -667,12 +674,15 @@ mod tests {
         let offset_part = Part {
             shape_id: "offset".into(),
             quantity: 1,
-            polygon: Some(vec![
-                Point2D::new(5.0, 3.0),
-                Point2D::new(15.0, 3.0),
-                Point2D::new(15.0, 8.0),
-                Point2D::new(5.0, 8.0),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(5.0, 3.0),
+                    Point2D::new(15.0, 3.0),
+                    Point2D::new(15.0, 8.0),
+                    Point2D::new(5.0, 8.0),
+                ])
+                .expect("offset polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,

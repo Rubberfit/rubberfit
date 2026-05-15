@@ -15,6 +15,7 @@
 // production dependency is the obvious next step.
 
 use rf_geom::domain::Point2D;
+use rf_geom::PolygonWithHoles;
 use rf_layout::application::{
     pack, pack_lbf, pack_lbf_lns, pack_lbf_lns_with_config, pack_lbf_with_config, PackLbfConfig,
     PackLbfLnsConfig,
@@ -79,12 +80,15 @@ fn production_items(allow_rotation: bool) -> Vec<Part> {
         .map(|(qty, id, length, width)| Part {
             shape_id: (*id).into(),
             quantity: *qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(*width, 0.0),
-                Point2D::new(*width, *length),
-                Point2D::new(0.0, *length),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(*width, 0.0),
+                    Point2D::new(*width, *length),
+                    Point2D::new(0.0, *length),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation,
             grain_axis: None,
@@ -473,7 +477,12 @@ fn lbf_on_irregular_trapezoid_fixture() {
     let trapezoid = |id: &str, qty: u32, vertices: &[(f64, f64)]| Part {
         shape_id: id.into(),
         quantity: qty,
-        polygon: Some(vertices.iter().map(|(x, y)| Point2D::new(*x, *y)).collect()),
+        polygon: Some(
+            PolygonWithHoles::from_outer_points(
+                vertices.iter().map(|(x, y)| Point2D::new(*x, *y)).collect(),
+            )
+            .expect("trapezoid polygon"),
+        ),
         shape_spec: None,
         allow_rotation: true,
         grain_axis: None,
@@ -579,7 +588,7 @@ fn lbf_on_irregular_cone_fixture() {
     let items = vec![Part {
         shape_id: "cone-a".into(),
         quantity: 4,
-        polygon: Some(cone_vertices),
+        polygon: Some(PolygonWithHoles::from_outer_points(cone_vertices).expect("cone polygon")),
         shape_spec: None,
         allow_rotation: true,
         grain_axis: None,

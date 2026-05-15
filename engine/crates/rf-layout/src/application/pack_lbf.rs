@@ -403,6 +403,7 @@ fn run_single_lbf_with_warm_start(
 
 /// True when the part is an axis-aligned rectangle the greedy packer
 /// can handle. See `run_greedy_warm_start` for filter rationale.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn is_axis_aligned_rect(p: &crate::domain::Part) -> bool {
     if matches!(p.shape_spec.as_ref().map(|s| s.kind.as_str()), Some("rect")) {
         return true;
@@ -547,6 +548,7 @@ fn run_greedy_warm_start(request: &PackRequest) -> Vec<(usize, BPPlacement)> {
 /// The `instance_index` field is left as a per-bin counter here â€” the
 /// top-level caller renumbers across bins to match the `pack.rs`
 /// convention.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn snapshot_to_placements(
     snap: &LayoutSnapshot,
     instance: &BPInstance,
@@ -692,17 +694,21 @@ fn polygon_area(poly: &[Point2D]) -> f64 {
 mod tests {
     use super::*;
     use crate::domain::{Bin, BinKind, PackMode, Part};
+    use rf_geom::PolygonWithHoles;
 
     fn rect_part(id: &str, qty: u32, w: f64, h: f64) -> Part {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,

@@ -20,6 +20,7 @@
 // out from this dispatch — not from inside the kind-builder.
 
 use rf_geom::domain::Point2D;
+use rf_geom::PolygonWithHoles;
 use std::collections::HashMap;
 
 use crate::application::cone_strategy::{
@@ -27,14 +28,21 @@ use crate::application::cone_strategy::{
 };
 use crate::domain::{PackError, PackRequest, Part, ShapeSpec};
 
-/// Resolve a part's polygon. Returns the literal `Part.polygon` when
-/// present (DXF / raw-geometry escape hatch), otherwise dispatches
-/// from `Part.shape_spec`. Cones use the default cone packing mode;
-/// for non-default modes use `materialise_request_polygons`, which
-/// reads `PackRequest.cone_packing_mode`.
+/// Resolve a part's outer polygon points. Returns the outer ring of
+/// `Part.polygon` when present (DXF / raw-geometry escape hatch),
+/// otherwise dispatches from `Part.shape_spec`. Cones use the default
+/// cone packing mode; for non-default modes use
+/// `materialise_request_polygons`, which reads
+/// `PackRequest.cone_packing_mode`.
+///
+/// Hole information (when present on `Part.polygon`) is preserved on
+/// the part itself and is NOT reflected in the return value — this
+/// function exists for the legacy single-loop materialise pathway used
+/// by spec-driven shape construction. Hole-aware consumers should read
+/// `part.polygon` directly via `outer_slice()` / `holes_iter()`.
 pub fn materialise_polygon(part: &Part) -> Result<Vec<Point2D>, PackError> {
     if let Some(p) = &part.polygon {
-        return Ok(p.clone());
+        return Ok(p.outer().points().to_vec());
     }
     let spec = part.shape_spec.as_ref().ok_or_else(|| {
         PackError::EngineFailed(format!(
@@ -59,13 +67,25 @@ pub fn materialise_request_polygons(request: &mut PackRequest) -> Result<(), Pac
         if part.shape_spec.as_ref().is_some_and(|s| s.kind == "sector") {
             // Safe: the predicate guarantees shape_spec.is_some().
             let spec = part.shape_spec.as_ref().expect("checked above");
-            part.polygon = Some(build_polygon_from_spec(spec, cone_mode)?);
+            let pts = build_polygon_from_spec(spec, cone_mode)?;
+            part.polygon = Some(PolygonWithHoles::from_outer_points(pts).map_err(|e| {
+                PackError::EngineFailed(format!(
+                    "part '{}' sector polygon invalid: {e}",
+                    part.shape_id
+                ))
+            })?);
             continue;
         }
         if part.polygon.is_some() {
             continue;
         }
-        part.polygon = Some(materialise_polygon(part)?);
+        let pts = materialise_polygon(part)?;
+        part.polygon = Some(PolygonWithHoles::from_outer_points(pts).map_err(|e| {
+            PackError::EngineFailed(format!(
+                "part '{}' materialised polygon invalid: {e}",
+                part.shape_id
+            ))
+        })?);
     }
     Ok(())
 }
@@ -502,7 +522,9 @@ mod tests {
         let part = Part {
             shape_id: "lit".into(),
             quantity: 1,
-            polygon: Some(pts.clone()),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(pts.clone()).expect("literal polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,
@@ -591,7 +613,7 @@ mod tests {
         materialise_request_polygons(&mut request).unwrap();
         for (i, p) in request.items.iter().enumerate() {
             assert!(p.polygon.is_some(), "item {} polygon was not populated", i);
-            let n = p.polygon.as_ref().unwrap().len();
+            let n = p.polygon.as_ref().unwrap().outer().points().len();
             assert!(n >= 3, "item {} only got {} verts", i, n);
         }
     }

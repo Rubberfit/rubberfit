@@ -410,6 +410,7 @@ mod tests {
     // and rely on cone-strategy fixtures.
     use crate::application::shape_builder::{materialise_polygon, materialise_request_polygons};
     use crate::domain::PackRequest;
+    use rf_geom::PolygonWithHoles;
 
     fn dims(inner: f64, outer: f64, deg: f64, segs: usize) -> ConeDimensions {
         ConeDimensions {
@@ -751,11 +752,14 @@ mod tests {
         let part = Part {
             shape_id: "rect-1".into(),
             quantity: 1,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(1.0, 0.0),
-                Point2D::new(1.0, 1.0),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(1.0, 0.0),
+                    Point2D::new(1.0, 1.0),
+                ])
+                .expect("triangle polygon"),
+            ),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
@@ -776,7 +780,7 @@ mod tests {
         let part = Part {
             shape_id: "rect-1".into(),
             quantity: 1,
-            polygon: Some(raw.clone()),
+            polygon: Some(PolygonWithHoles::from_outer_points(raw.clone()).expect("rect polygon")),
             shape_spec: None,
             allow_rotation: true,
             grain_axis: None,
@@ -852,7 +856,8 @@ mod tests {
         materialise_request_polygons(&mut request).unwrap();
 
         let expected = build_annular_sector_normalized(dims(3.0, 6.0, 120.0, 24)).unwrap();
-        let got = request.items[0].polygon.as_ref().expect("materialised");
+        let pwh = request.items[0].polygon.as_ref().expect("materialised");
+        let got = pwh.outer().points();
         assert_eq!(got.len(), 50);
         assert!(approx_eq(polygon_area(got), polygon_area(&expected), 1e-9));
     }
@@ -896,7 +901,8 @@ mod tests {
         materialise_request_polygons(&mut request).unwrap();
 
         let expected = build_annular_sector_normalized(dims(3.0, 6.0, 120.0, 24)).unwrap();
-        let got = request.items[0].polygon.as_ref().expect("materialised");
+        let pwh = request.items[0].polygon.as_ref().expect("materialised");
+        let got = pwh.outer().points();
         assert_eq!(got.len(), 50);
         assert!(approx_eq(polygon_area(got), polygon_area(&expected), 1e-9));
     }
@@ -918,7 +924,10 @@ mod tests {
             items: vec![Part {
                 shape_id: "cone-legacy".into(),
                 quantity: 1,
-                polygon: Some(legacy_annular),
+                polygon: Some(
+                    PolygonWithHoles::from_outer_points(legacy_annular)
+                        .expect("legacy annular polygon"),
+                ),
                 shape_spec: Some(ShapeSpec {
                     kind: "sector".into(),
                     params,
@@ -945,7 +954,10 @@ mod tests {
         materialise_request_polygons(&mut request).unwrap();
 
         assert_eq!(
-            request.items[0].polygon.as_ref().map(Vec::len),
+            request.items[0]
+                .polygon
+                .as_ref()
+                .map(|p| p.outer().points().len()),
             Some(27),
             "sector pack polygon should be convex hull when ConvexHull is opted in"
         );
@@ -964,7 +976,9 @@ mod tests {
             items: vec![Part {
                 shape_id: "cone-legacy".into(),
                 quantity: 1,
-                polygon: Some(legacy_hull),
+                polygon: Some(
+                    PolygonWithHoles::from_outer_points(legacy_hull).expect("legacy hull polygon"),
+                ),
                 shape_spec: Some(ShapeSpec {
                     kind: "sector".into(),
                     params,
@@ -991,7 +1005,10 @@ mod tests {
         materialise_request_polygons(&mut request).unwrap();
 
         assert_eq!(
-            request.items[0].polygon.as_ref().map(Vec::len),
+            request.items[0]
+                .polygon
+                .as_ref()
+                .map(|p| p.outer().points().len()),
             Some(50),
             "annular-sector pack mode should use the real concave sector"
         );

@@ -154,6 +154,7 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 /// Compute `(total_placed_count, active_stock_density)` for a given
 /// assignment. `active_stock_density = sum_placed_area / sum_stock_of_
 /// non_empty_bins`.
+#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn compute_progress_stats(assignment: &FfdAssignment, bins: &[Bin], items: &[Part]) -> (u32, f64) {
     // Pre-compute item area by shape_id for fast lookup.
     let mut area_by_shape: std::collections::HashMap<&str, f64> =
@@ -194,6 +195,7 @@ mod tests {
     use crate::domain::{BinKind, Part};
     use crate::infrastructure::warm_start::{SeedPlacement, SeedResult};
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
     use std::sync::Mutex;
     use std::time::Instant;
 
@@ -211,12 +213,15 @@ mod tests {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,
