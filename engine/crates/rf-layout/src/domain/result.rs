@@ -1,5 +1,6 @@
 // engine/crates/rf-layout/src/domain/result.rs
 use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 use serde::{Deserialize, Serialize};
 
 /// Whether an offcut rectangle meets the reusable-stock thresholds
@@ -40,7 +41,7 @@ pub struct Placement {
     pub x: f64,
     pub y: f64,
     pub rotation_rad: f64,
-    pub polygon: Vec<Point2D>,
+    pub polygon: PolygonWithHoles,
     pub width: f64,
     pub height: f64,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -149,6 +150,12 @@ mod tests {
 
     #[test]
     fn placement_serializes_polygon_array() {
+        let outer = Polygon::new(vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 0.0),
+            Point2D::new(1.0, 1.0),
+        ])
+        .unwrap();
         let p = Placement {
             shape_id: "a".into(),
             instance_index: 0,
@@ -156,11 +163,7 @@ mod tests {
             x: 0.0,
             y: 0.0,
             rotation_rad: 0.0,
-            polygon: vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(1.0, 0.0),
-                Point2D::new(1.0, 1.0),
-            ],
+            polygon: PolygonWithHoles::simple(outer),
             width: 1.0,
             height: 1.0,
             difficulty: None,
@@ -170,6 +173,46 @@ mod tests {
         let json = serde_json::to_string(&p).unwrap();
         assert!(json.contains("\"rotationRad\":0.0"));
         assert!(json.contains("\"instanceIndex\":0"));
+        assert!(json.contains("\"outer\":"));
+    }
+
+    #[test]
+    fn placement_roundtrips_polygon_with_holes() {
+        let outer = Polygon::new(vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(10.0, 0.0),
+            Point2D::new(10.0, 10.0),
+            Point2D::new(0.0, 10.0),
+        ])
+        .unwrap();
+        let hole = Polygon::new(vec![
+            Point2D::new(3.0, 3.0),
+            Point2D::new(7.0, 3.0),
+            Point2D::new(7.0, 7.0),
+            Point2D::new(3.0, 7.0),
+        ])
+        .unwrap();
+
+        let p = Placement {
+            shape_id: "ring".into(),
+            instance_index: 0,
+            bin_id: "b1".into(),
+            x: 0.0,
+            y: 0.0,
+            rotation_rad: 0.0,
+            polygon: PolygonWithHoles::new(outer, vec![hole]),
+            width: 10.0,
+            height: 10.0,
+            difficulty: None,
+            tag: None,
+            pack_polygon: None,
+        };
+
+        let json = serde_json::to_string(&p).unwrap();
+        let back: Placement = serde_json::from_str(&json).unwrap();
+        assert_eq!(p, back);
+        assert!(json.contains("\"outer\":"));
+        assert!(json.contains("\"holes\":"));
     }
 
     #[test]

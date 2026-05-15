@@ -3,6 +3,8 @@ use crate::domain::{BinResult, PackError, PackRequest, PackResult, Placement, Se
 use crate::infrastructure::search::assignment::ffd::ffd_assign;
 use crate::infrastructure::search::multi::optimize_multi_with_hooks;
 use crate::infrastructure::search::progress::ProgressEmitter;
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -70,6 +72,11 @@ pub fn pack_with_options(
                     .map(|d| (p.shape_id.clone(), d))
             })
             .collect();
+    let parts_by_shape: HashMap<&str, &crate::domain::Part> = request
+        .items
+        .iter()
+        .map(|p| (p.shape_id.as_str(), p))
+        .collect();
 
     for (bin, seed) in request.bins.iter().zip(refined.per_bin) {
         let mut used_area = 0.0_f64;
@@ -97,31 +104,41 @@ pub fn pack_with_options(
             // f32-round-trip math jagua used for the pack polygon
             // (see `apply_placement_transform` below) so pack and
             // render stay bit-aligned in placed coords.
-            let (polygon, pack_polygon) = match cone_dims_by_shape.get(&p.shape_id) {
+            let shape_id = p.shape_id.clone();
+            let pack_surface = p.polygon.clone();
+            let (polygon, pack_polygon) = match cone_dims_by_shape.get(&shape_id) {
                 Some(_)
                     if cone_packing_mode
                         == crate::application::cone_strategy::ConePackingMode::AnnularSector =>
                 {
-                    (p.polygon, None)
+                    (simple_polygon_with_holes(&shape_id, pack_surface)?, None)
                 }
                 Some(d) => match cone_strategy.render_polygon_local(*d) {
                     Some(local) => {
-                        let render: Vec<rf_geom::domain::Point2D> = local
+                        let render: Vec<Point2D> = local
                             .iter()
                             .map(|q| apply_placement_transform(*q, p.x, p.y, p.rotation_rad))
                             .collect();
-                        let pack = p.polygon.clone();
-                        (render, Some(pack))
+                        (
+                            simple_polygon_with_holes(&shape_id, render)?,
+                            Some(pack_surface),
+                        )
                     }
-                    None => (p.polygon, None),
+                    None => (simple_polygon_with_holes(&shape_id, pack_surface)?, None),
                 },
-                None => (p.polygon, None),
+                None => {
+                    let polygon = match parts_by_shape.get(shape_id.as_str()) {
+                        Some(part) => transform_part_polygon(part, p.x, p.y, p.rotation_rad)?,
+                        None => simple_polygon_with_holes(&shape_id, pack_surface)?,
+                    };
+                    (polygon, None)
+                }
             };
 
-            let area = polygon_area(&polygon);
+            let area = polygon.area();
             used_area += area;
 
-            for v in &polygon {
+            for v in polygon.outer().points() {
                 if v.x > occupied_width {
                     occupied_width = v.x;
                 }
@@ -131,7 +148,7 @@ pub fn pack_with_options(
             }
 
             placements.push(Placement {
-                shape_id: p.shape_id,
+                shape_id,
                 instance_index,
                 bin_id: p.bin_id,
                 x: p.x,
@@ -218,16 +235,6 @@ pub fn pack_with_options(
     })
 }
 
-fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
 /// Bit-identical replica of jagua-rs's `apply_dtransformation_to_point`
 /// (in `pack_lbf.rs`) but parameterised on f64 inputs from a
 /// `SeedPlacement`. SeedPlacement.x/y/rotation_rad came from
@@ -239,19 +246,57 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 /// Used to align cone render polygons with cone pack polygons in
 /// placed (bin-local) coords without depending on jagua's
 /// `DTransformation` type from this orchestration layer.
-fn apply_placement_transform(
-    p: rf_geom::domain::Point2D,
-    tx: f64,
-    ty: f64,
-    rotation_rad: f64,
-) -> rf_geom::domain::Point2D {
+fn apply_placement_transform(p: Point2D, tx: f64, ty: f64, rotation_rad: f64) -> Point2D {
     let theta = rotation_rad as f32;
     let cos = theta.cos();
     let sin = theta.sin();
     let (px, py) = (p.x as f32, p.y as f32);
     let rx = px * cos - py * sin + (tx as f32);
     let ry = px * sin + py * cos + (ty as f32);
-    rf_geom::domain::Point2D::new(rx as f64, ry as f64)
+    Point2D::new(rx as f64, ry as f64)
+}
+
+fn transform_part_polygon(
+    part: &crate::domain::Part,
+    tx: f64,
+    ty: f64,
+    rotation_rad: f64,
+) -> Result<PolygonWithHoles, PackError> {
+    let outer = transform_points(part.outer_slice(), tx, ty, rotation_rad);
+    let outer = Polygon::new(outer).map_err(|source| PackError::InvalidPolygon {
+        shape_id: part.shape_id.clone(),
+        source,
+    })?;
+    let holes = part
+        .holes_iter()
+        .map(|hole| {
+            Polygon::new(transform_points(hole, tx, ty, rotation_rad)).map_err(|source| {
+                PackError::InvalidPolygon {
+                    shape_id: part.shape_id.clone(),
+                    source,
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(PolygonWithHoles::new(outer, holes))
+}
+
+fn transform_points(points: &[Point2D], tx: f64, ty: f64, rotation_rad: f64) -> Vec<Point2D> {
+    points
+        .iter()
+        .map(|p| apply_placement_transform(*p, tx, ty, rotation_rad))
+        .collect()
+}
+
+fn simple_polygon_with_holes(
+    shape_id: &str,
+    points: Vec<Point2D>,
+) -> Result<PolygonWithHoles, PackError> {
+    let outer = Polygon::new(points).map_err(|source| PackError::InvalidPolygon {
+        shape_id: shape_id.to_string(),
+        source,
+    })?;
+    Ok(PolygonWithHoles::simple(outer))
 }
 
 #[cfg(test)]
@@ -521,7 +566,7 @@ mod tests {
         let result = pack(req).unwrap();
         assert!(result.placed_count > 0, "at least some parts must place");
         for p in &result.placements {
-            for v in &p.polygon {
+            for v in p.polygon.outer().points() {
                 assert!(
                     v.x >= -1e-6,
                     "polygon vertex {:?} has x < 0 (shift bug?)",
