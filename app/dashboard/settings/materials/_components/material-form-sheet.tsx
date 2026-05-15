@@ -114,6 +114,11 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
   // late org-prefs update (admin saved in another tab → provider
   // re-syncs via router.refresh()) re-seeds the placeholder without
   // clobbering in-flight user input. Sigilix PR #269 catch.
+  //
+  // Ref lifecycle: the body unmounts on every sheet close
+  // (`{target === null ? null : <MaterialFormBody key={formKey} ...>}`
+  // in the parent), so the ref recreates as `false` on each reopen —
+  // no manual reset needed.
   const minStockAlertTouchedRef = useRef(false)
   const [values, setValues] = useState<MaterialFormValues>(() =>
     initialValuesFor(target, orgPreferences.lowStockThresholdSqft)
@@ -133,6 +138,14 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
   const handleSubmit = async () => {
     if (!isValid) return
     await onSubmit(values, target)
+  }
+
+  const handleMinStockAlertChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    minStockAlertTouchedRef.current = true
+    setValues((prev) => ({
+      ...prev,
+      min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
+    }))
   }
 
   return (
@@ -189,13 +202,7 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
                 min="0"
                 step="10"
                 value={values.min_stock_alert}
-                onChange={(event) => {
-                  minStockAlertTouchedRef.current = true
-                  setValues((prev) => ({
-                    ...prev,
-                    min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
-                  }))
-                }}
+                onChange={handleMinStockAlertChange}
               />
             </FormField>
             <FormField
