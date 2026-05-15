@@ -612,18 +612,233 @@ BEGIN
 END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Block 3 — Second tenant (cross-tenant RLS verification fixture)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Adds "Second Tenant" with two members and a minimal but distinct
+-- operational dataset. Exists so cross-tenant isolation can be
+-- exercised in the integration test at
+-- `tests/integration/rls-cross-tenant.test.ts`:
+--   • A tenant-A user reading rolls / suppliers / POs sees ONLY tenant-A
+--     rows.
+--   • A tenant-B user reading the same tables sees ONLY tenant-B rows.
+--   • Two same-tenant users see the same data.
+--
+-- Tenant-B uses UUID family `*-1111-*` so collisions with Block 2's
+-- `*-0000-*` family are impossible by construction.
+
+DO $$
+DECLARE
+  v_tenant_b_id   uuid;
+  v_admin_b_id    uuid;
+  v_password_hash text := crypt('changeme123', gen_salt('bf'));
+  v_user          record;
+
+  mt_b_neoprene   uuid := 'bbbbbbbb-1111-0000-0000-000000000001';
+  mt_b_epdm       uuid := 'bbbbbbbb-1111-0000-0000-000000000002';
+
+  sup_b_north     uuid := 'cccccccc-1111-0000-0000-000000000001';
+  sup_b_south     uuid := 'cccccccc-1111-0000-0000-000000000002';
+
+  ms_b_neo_north  uuid := 'eeeeeeee-1111-0000-0000-000000000001';
+
+  roll_b_neo_1    uuid := 'dddddddd-1111-0000-0000-000000000001';
+  roll_b_neo_2    uuid := 'dddddddd-1111-0000-0000-000000000002';
+  roll_b_epdm_1   uuid := 'dddddddd-1111-0000-0000-000000000003';
+
+  po_b_1          uuid := 'ffffffff-1111-0000-0000-000000000001';
+BEGIN
+  INSERT INTO public.tenants (name, slug, status)
+  VALUES ('Second Tenant', 'second-tenant', 'active')
+  ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+  RETURNING id INTO v_tenant_b_id;
+
+  INSERT INTO public.tenant_settings (tenant_id)
+  VALUES (v_tenant_b_id)
+  ON CONFLICT (tenant_id) DO NOTHING;
+
+  FOR v_user IN
+    SELECT * FROM (VALUES
+      ('00000000-0000-0000-0000-00000000b001'::uuid, 'admin',  'admin@tenant-b.local'),
+      ('00000000-0000-0000-0000-00000000b002'::uuid, 'member', 'member@tenant-b.local')
+    ) AS t(uid, role, email)
+  LOOP
+    INSERT INTO auth.users (
+      id, instance_id, aud, role, email, encrypted_password,
+      email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at,
+      confirmation_token, recovery_token, email_change, email_change_token_new
+    ) VALUES (
+      v_user.uid,
+      '00000000-0000-0000-0000-000000000000',
+      'authenticated', 'authenticated',
+      v_user.email,
+      v_password_hash,
+      now(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '{}'::jsonb,
+      now(), now(),
+      '', '', '', ''
+    ) ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO auth.identities (
+      provider_id, user_id, identity_data, provider,
+      created_at, updated_at
+    ) VALUES (
+      v_user.uid::text,
+      v_user.uid,
+      jsonb_build_object(
+        'sub', v_user.uid::text,
+        'email', v_user.email,
+        'email_verified', true,
+        'phone_verified', false
+      ),
+      'email',
+      now(), now()
+    ) ON CONFLICT (provider_id, provider) DO NOTHING;
+
+    INSERT INTO public.profiles (id, email, is_platform_admin, last_active_tenant_id)
+    VALUES (v_user.uid, v_user.email, false, v_tenant_b_id)
+    ON CONFLICT (id) DO UPDATE
+      SET last_active_tenant_id = EXCLUDED.last_active_tenant_id;
+
+    INSERT INTO public.memberships (profile_id, tenant_id, roles)
+    VALUES (v_user.uid, v_tenant_b_id, ARRAY[v_user.role])
+    ON CONFLICT (tenant_id, profile_id) DO UPDATE
+      SET roles = EXCLUDED.roles, deleted_at = NULL;
+  END LOOP;
+
+  SELECT id INTO v_admin_b_id FROM auth.users WHERE email = 'admin@tenant-b.local';
+
+  INSERT INTO public.material_types (id, tenant_id, name, description, min_stock_sqm, created_by, updated_by)
+  VALUES
+    (mt_b_neoprene, v_tenant_b_id, 'Neoprene',
+     'Tenant-B neoprene stock.',
+     ROUND(300.0 / 10.7639, 3), v_admin_b_id, v_admin_b_id),
+    (mt_b_epdm, v_tenant_b_id, 'EPDM',
+     'Tenant-B EPDM stock.',
+     ROUND(400.0 / 10.7639, 3), v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.suppliers (
+    id, tenant_id, name, address_line1, city, state, postal_code, country,
+    email, general_phone, website, payment_terms, rating, preferred, active,
+    notes, tax_rate, tax_exempt, shipping_cost_cents, created_by, updated_by
+  ) VALUES
+    (sup_b_north, v_tenant_b_id,
+     'Northern Rubber Co.', '100 North Ave', 'Minneapolis', 'MN', '55401', 'USA',
+     'contact@northern.tenant-b.local', '+1-800-555-0201', NULL,
+     'Net 30', 4.0, true, true,
+     'Tenant-B preferred supplier.',
+     0.0700, false, 5000, v_admin_b_id, v_admin_b_id),
+    (sup_b_south, v_tenant_b_id,
+     'Southern Seal Supply', '200 South Blvd', 'Phoenix', 'AZ', '85001', 'USA',
+     'contact@southern.tenant-b.local', '+1-800-555-0202', NULL,
+     'Net 30', 3.5, false, true,
+     'Tenant-B secondary supplier.',
+     0.0560, false, 4500, v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.material_suppliers (
+    id, tenant_id, material_type_id, supplier_id, supplier_material_code,
+    cost_per_sqm_cents, minimum_order_sqm, lead_time_days,
+    preferred_supplier, active, effective_date, created_by, updated_by
+  ) VALUES
+    (ms_b_neo_north, v_tenant_b_id, mt_b_neoprene, sup_b_north, 'NRC-NEO-100',
+     ROUND(13.50 * 10.7639 * 100), ROUND(300.0 / 10.7639, 3), 8, true, true,
+     CURRENT_DATE - INTERVAL '30 days', v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.rolls (
+    id, tenant_id, material_type_id, supplier_id,
+    width_mm, length_mm, remaining_length_mm, thickness_mm, color, location,
+    date_received, cost_per_sqm_cents, status, notes,
+    created_by, updated_by
+  ) VALUES
+    (roll_b_neo_1,  v_tenant_b_id, mt_b_neoprene, sup_b_north,
+     ROUND(48 * 25.4)::int, ROUND(300 * 25.4)::int, ROUND(240 * 25.4)::int,
+     ROUND(0.125 * 25.4, 3), 'Black', 'B-Rack 1',
+     CURRENT_DATE - INTERVAL '20 days', ROUND(13.50 * 10.7639 * 100), 'active',
+     'Tenant-B roll 1.', v_admin_b_id, v_admin_b_id),
+    (roll_b_neo_2,  v_tenant_b_id, mt_b_neoprene, sup_b_north,
+     ROUND(36 * 25.4)::int, ROUND(180 * 25.4)::int, ROUND(180 * 25.4)::int,
+     ROUND(0.250 * 25.4, 3), 'Black', 'B-Rack 2',
+     CURRENT_DATE - INTERVAL '10 days', ROUND(14.20 * 10.7639 * 100), 'active',
+     'Tenant-B roll 2.', v_admin_b_id, v_admin_b_id),
+    (roll_b_epdm_1, v_tenant_b_id, mt_b_epdm, sup_b_south,
+     ROUND(60 * 25.4)::int, ROUND(240 * 25.4)::int, ROUND(200 * 25.4)::int,
+     ROUND(0.063 * 25.4, 3), 'Black', 'B-Rack 3',
+     CURRENT_DATE - INTERVAL '5 days', ROUND(9.10 * 10.7639 * 100), 'active',
+     'Tenant-B roll 3.', v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.purchase_orders (
+    id, tenant_id, supplier_id, po_number, status,
+    order_date, requested_delivery_date, actual_delivery_date,
+    subtotal_cents, tax_amount_cents, shipping_cost_cents, total_amount_cents,
+    payment_terms, approved_by, approved_at, auto_generated, notes,
+    created_by, updated_by
+  ) VALUES
+    (po_b_1, v_tenant_b_id, sup_b_north, 'PO-TB-0001', 'approved',
+     CURRENT_DATE - INTERVAL '14 days', CURRENT_DATE - INTERVAL '4 days', NULL,
+     145000, 10150, 5000, 160150,
+     'Net 30', v_admin_b_id, NOW() - INTERVAL '13 days', false,
+     'Tenant-B inaugural order.',
+     v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.purchase_order_items (
+    tenant_id, purchase_order_id, material_type_id, line_number, description,
+    width_mm, length_mm, thickness_mm,
+    quantity_sqm, quantity_received_sqm, unit_cost_cents, line_total_cents,
+    received_date, created_by, updated_by
+  ) VALUES
+    (v_tenant_b_id, po_b_1, mt_b_neoprene, 1, 'Neoprene 1/8" Black 48" wide',
+     ROUND(48 * 25.4)::int, ROUND(200 * 25.4)::int, ROUND(0.125 * 25.4, 3),
+     ROUND(100.0 / 10.7639, 3), 0,
+     ROUND(13.50 * 10.7639 * 100), ROUND(1450.00 * 100),
+     NULL, v_admin_b_id, v_admin_b_id)
+  ON CONFLICT (purchase_order_id, line_number) DO NOTHING;
+
+  IF NOT EXISTS (SELECT 1 FROM public.cuts WHERE tenant_id = v_tenant_b_id) THEN
+    ALTER TABLE public.cuts DISABLE TRIGGER trg_cuts_decrement_roll_and_notify;
+
+    INSERT INTO public.cuts (
+      tenant_id, roll_id,
+      cut_width_mm, cut_length_mm, quantity,
+      waste_sqmm, waste_percentage, total_sqmm_used,
+      job_reference, notes, created_at, created_by
+    ) VALUES
+      (v_tenant_b_id, roll_b_neo_1, ROUND(12 * 25.4)::int, ROUND(24 * 25.4)::int, 5,
+       ROUND(0.40 * 92903.04)::bigint, 3.5, ROUND(10.40 * 92903.04)::bigint,
+       'TB-J-0001', 'Tenant-B first cut.', NOW() - INTERVAL '12 days', v_admin_b_id),
+      (v_tenant_b_id, roll_b_epdm_1, ROUND(24 * 25.4)::int, ROUND(36 * 25.4)::int, 2,
+       ROUND(0.30 * 92903.04)::bigint, 2.8, ROUND(12.30 * 92903.04)::bigint,
+       'TB-J-0002', 'Tenant-B second cut.', NOW() - INTERVAL '6 days', v_admin_b_id);
+
+    ALTER TABLE public.cuts ENABLE TRIGGER trg_cuts_decrement_roll_and_notify;
+  END IF;
+
+  RAISE NOTICE 'Operational data seeded for Second Tenant: 2 material types, 2 suppliers, 3 rolls, 2 cuts, 1 material_supplier, 1 PO with 1 item.';
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Final summary
 -- ─────────────────────────────────────────────────────────────────────────────
 DO $$
 BEGIN
   RAISE NOTICE 'Dev seed complete.';
-  RAISE NOTICE 'Tenant: Dev Tenant (slug: dev-tenant)';
-  RAISE NOTICE 'Password (all six users): changeme123';
+  RAISE NOTICE 'Tenants:';
+  RAISE NOTICE '  Dev Tenant     (slug: dev-tenant)';
+  RAISE NOTICE '  Second Tenant  (slug: second-tenant) — cross-tenant RLS fixture';
+  RAISE NOTICE 'Password (all users): changeme123';
   RAISE NOTICE 'Login at http://localhost:3000/login as one of:';
-  RAISE NOTICE '  admin@rema.local       (admin)';
-  RAISE NOTICE '  manager@rema.local     (manager)';
-  RAISE NOTICE '  supervisor@rema.local  (supervisor)';
-  RAISE NOTICE '  cutter@rema.local      (cutter)';
-  RAISE NOTICE '  member@rema.local      (member)';
-  RAISE NOTICE '  viewer@rema.local      (viewer)';
+  RAISE NOTICE '  admin@rema.local       (admin,      Dev Tenant)';
+  RAISE NOTICE '  manager@rema.local     (manager,    Dev Tenant)';
+  RAISE NOTICE '  supervisor@rema.local  (supervisor, Dev Tenant)';
+  RAISE NOTICE '  cutter@rema.local      (cutter,     Dev Tenant)';
+  RAISE NOTICE '  member@rema.local      (member,     Dev Tenant)';
+  RAISE NOTICE '  viewer@rema.local      (viewer,     Dev Tenant)';
+  RAISE NOTICE '  admin@tenant-b.local   (admin,      Second Tenant)';
+  RAISE NOTICE '  member@tenant-b.local  (member,     Second Tenant)';
 END $$;

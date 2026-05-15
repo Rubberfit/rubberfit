@@ -7,7 +7,9 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
-    exclude: ["tests/**/*.skip.ts"],
+    // Integration tests run against a real local Supabase stack and
+    // ship their own config — exclude them from the default unit run.
+    exclude: ["tests/**/*.skip.ts", "tests/integration/**"],
     setupFiles: ["tests/setup.ts"],
   },
   resolve: {
