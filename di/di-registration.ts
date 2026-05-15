@@ -9,6 +9,8 @@ import type { ICutService } from "@/src/application/services/cut.service.interfa
 import type { IEmailService } from "@/src/application/services/email.service.interface"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
 import type { IExportService } from "@/src/application/services/export.service.interface"
+import type { IInvitationService } from "@/src/application/services/invitation.service.interface"
+import type { IInvitationsRepository } from "@/src/application/repositories/invitations.repository.interface"
 import type { IMaterialSupplierService } from "@/src/application/services/material-supplier.service.interface"
 import type { IMaterialSuppliersRepository } from "@/src/application/repositories/material_suppliers.repository.interface"
 import type { IMaterialTypeService } from "@/src/application/services/material-type.service.interface"
@@ -44,6 +46,8 @@ import type { ICutsRepository } from "@/src/application/repositories/cuts.reposi
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { invitationsRepository } from "@/src/infrastructure/repositories/invitations.repository"
+import { InvitationService } from "@/src/infrastructure/services/invitationService"
 import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
 import { MaterialSupplierService } from "@/src/infrastructure/services/materialSupplierService"
@@ -113,6 +117,11 @@ container.registerSingleton<ICutHistoryService>(TOKENS.ICutHistoryService, CutHi
 container.registerInstance<IEmailService>(TOKENS.IEmailService, emailService)
 container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPdfService)
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
+container.registerInstance<IInvitationsRepository>(
+  TOKENS.IInvitationsRepository,
+  invitationsRepository
+)
+container.registerSingleton<IInvitationService>(TOKENS.IInvitationService, InvitationService)
 container.registerInstance<IMaterialSuppliersRepository>(
   TOKENS.IMaterialSuppliersRepository,
   materialSuppliersRepository

@@ -9,6 +9,7 @@ export const TOKENS = {
   IEmailService: Symbol("IEmailService"),
   IExportPdfService: Symbol("IExportPdfService"),
   IExportService: Symbol("IExportService"),
+  IInvitationService: Symbol("IInvitationService"),
   IMaterialTypeService: Symbol("IMaterialTypeService"),
   INotificationService: Symbol("INotificationService"),
   // Re-exported from PACKING_TOKENS (src/application/services/packing.service.interface.ts).
@@ -31,6 +32,7 @@ export const TOKENS = {
   // Repositories
   ICutHistoryRepository: Symbol("ICutHistoryRepository"),
   ICutsRepository: Symbol("ICutsRepository"),
+  IInvitationsRepository: Symbol("IInvitationsRepository"),
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),
   IPriceHistoryRepository: Symbol("IPriceHistoryRepository"),
