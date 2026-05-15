@@ -67,9 +67,7 @@ export class InvitationService implements IInvitationService {
     return this.repo.update(entity)
   }
 
-  acceptByToken(
-    token: string
-  ): Promise<{ membershipId: string; tenantId: string }> {
+  acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }> {
     return this.repo.acceptByToken(token)
   }
 
@@ -78,6 +76,4 @@ export class InvitationService implements IInvitationService {
   }
 }
 
-export const invitationService: IInvitationService = new InvitationService(
-  invitationsRepository
-)
+export const invitationService: IInvitationService = new InvitationService(invitationsRepository)

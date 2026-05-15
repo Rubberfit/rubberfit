@@ -31,9 +31,7 @@ export interface AcceptInvitationFailure {
   error: string
 }
 
-export type AcceptInvitationResult =
-  | AcceptInvitationSuccess
-  | AcceptInvitationFailure
+export type AcceptInvitationResult = AcceptInvitationSuccess | AcceptInvitationFailure
 
 export interface IAcceptInvitationUseCase {
   execute(input: AcceptInvitationInput): Promise<AcceptInvitationResult>
@@ -44,10 +42,7 @@ export interface IAcceptInvitationUseCase {
  * private to this module — the repo throws the raw PostgrestError;
  * the use case maps to a typed reason here.
  */
-const PG_CODE_MAP: Record<
-  string,
-  { reason: AcceptInvitationFailureReason; status: 404 | 409 }
-> = {
+const PG_CODE_MAP: Record<string, { reason: AcceptInvitationFailureReason; status: 404 | 409 }> = {
   P0002: { reason: "not_found", status: 404 },
   P0003: { reason: "already_accepted", status: 409 },
   P0004: { reason: "revoked", status: 409 },
@@ -61,11 +56,7 @@ interface PostgrestLikeError {
 }
 
 function isPostgrestLikeError(err: unknown): err is PostgrestLikeError {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    ("code" in err || "message" in err)
-  )
+  return typeof err === "object" && err !== null && ("code" in err || "message" in err)
 }
 
 /**

@@ -25,9 +25,7 @@ interface PendingInvitationsTableProps {
 
 type ActionKind = "resend" | "revoke"
 
-export function PendingInvitationsTable({
-  rows,
-}: PendingInvitationsTableProps) {
+export function PendingInvitationsTable({ rows }: PendingInvitationsTableProps) {
   const router = useRouter()
   const [pending, setPending] = React.useState<{
     id: string
@@ -123,9 +121,7 @@ export function PendingInvitationsTable({
       id: "sent",
       header: "Last attempt",
       cell: (row) =>
-        row.lastSendAttemptAt
-          ? new Date(row.lastSendAttemptAt).toLocaleString()
-          : "—",
+        row.lastSendAttemptAt ? new Date(row.lastSendAttemptAt).toLocaleString() : "—",
       sortFn: (row) => row.lastSendAttemptAt ?? "",
     },
     {
@@ -177,12 +173,10 @@ export function PendingInvitationsTable({
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
-          Pending invitations
-        </h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Pending invitations</h2>
         <p className="text-sm text-muted-foreground">
-          Sent but not yet accepted. Resend re-dispatches the email; revoke
-          cancels the token immediately.
+          Sent but not yet accepted. Resend re-dispatches the email; revoke cancels the token
+          immediately.
         </p>
       </header>
       {rows.length === 0 ? (
@@ -191,12 +185,7 @@ export function PendingInvitationsTable({
           description="Invite a new member above to populate this list."
         />
       ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => row.id}
-          density="compact"
-        />
+        <DataTable columns={columns} rows={rows} rowKey={(row) => row.id} density="compact" />
       )}
     </section>
   )

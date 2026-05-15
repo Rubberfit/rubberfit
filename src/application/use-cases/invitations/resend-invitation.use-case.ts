@@ -29,9 +29,7 @@ export interface ResendInvitationFailure {
   error: string
 }
 
-export type ResendInvitationResult =
-  | ResendInvitationSuccess
-  | ResendInvitationFailure
+export type ResendInvitationResult = ResendInvitationSuccess | ResendInvitationFailure
 
 export interface IResendInvitationUseCase {
   execute(input: ResendInvitationInput): Promise<ResendInvitationResult>
@@ -53,9 +51,7 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     private readonly email: IEmailService
   ) {}
 
-  async execute(
-    input: ResendInvitationInput
-  ): Promise<ResendInvitationResult> {
+  async execute(input: ResendInvitationInput): Promise<ResendInvitationResult> {
     if (!input.actor.activeTenantId) {
       return { ok: false, status: 400, error: "No active tenant" }
     }
@@ -88,8 +84,7 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     }
 
     const tenantName =
-      (await loadTenantName(input.client, input.actor.activeTenantId)) ??
-      "your workspace"
+      (await loadTenantName(input.client, input.actor.activeTenantId)) ?? "your workspace"
 
     const acceptUrl = `${input.acceptUrlBase.replace(/\/$/, "")}/invite/${invitation.token.value}`
 

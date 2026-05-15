@@ -22,9 +22,7 @@ export interface RevokeInvitationFailure {
   error: string
 }
 
-export type RevokeInvitationResult =
-  | RevokeInvitationSuccess
-  | RevokeInvitationFailure
+export type RevokeInvitationResult = RevokeInvitationSuccess | RevokeInvitationFailure
 
 export interface IRevokeInvitationUseCase {
   execute(input: RevokeInvitationInput): Promise<RevokeInvitationResult>

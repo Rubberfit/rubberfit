@@ -21,11 +21,7 @@ const SELECT_COLUMNS = "*"
 export class InvitationsRepository implements IInvitationsRepository {
   async findById(id: string): Promise<Invitation> {
     const client = await getDatabaseClient()
-    const { data, error } = await client
-      .from(TABLE)
-      .select(SELECT_COLUMNS)
-      .eq("id", id)
-      .single()
+    const { data, error } = await client.from(TABLE).select(SELECT_COLUMNS).eq("id", id).single()
     if (error) throw error
     return rowToInvitation(data as InvitationRow)
   }
@@ -42,10 +38,7 @@ export class InvitationsRepository implements IInvitationsRepository {
     return rowToInvitation(data as InvitationRow)
   }
 
-  async findActiveByEmail(
-    tenantId: string,
-    email: string
-  ): Promise<Invitation | null> {
+  async findActiveByEmail(tenantId: string, email: string): Promise<Invitation | null> {
     const client = await getDatabaseClient()
     const { data, error } = await client
       .from(TABLE)
@@ -90,13 +83,9 @@ export class InvitationsRepository implements IInvitationsRepository {
     return this.findById(entity.id.value)
   }
 
-  async acceptByToken(
-    token: string
-  ): Promise<{ membershipId: string; tenantId: string }> {
+  async acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }> {
     const client = await getDatabaseClient()
-    const { data, error } = await client
-      .rpc("accept_invitation", { p_token: token })
-      .single()
+    const { data, error } = await client.rpc("accept_invitation", { p_token: token }).single()
     if (error) throw error
     const row = data as { membership_id: string; tenant_id: string } | null
     if (!row) {
@@ -105,9 +94,7 @@ export class InvitationsRepository implements IInvitationsRepository {
     return { membershipId: row.membership_id, tenantId: row.tenant_id }
   }
 
-  async findPublicViewByToken(
-    token: string
-  ): Promise<InvitationPublicView | null> {
+  async findPublicViewByToken(token: string): Promise<InvitationPublicView | null> {
     const client = await getDatabaseClient()
     const { data, error } = await client
       .rpc("get_invitation_by_token", { p_token: token })

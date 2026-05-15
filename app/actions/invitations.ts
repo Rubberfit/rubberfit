@@ -81,9 +81,7 @@ export async function inviteMember(
   const parsed = inviteMemberSchema.parse(input)
 
   const client = await getDatabaseClient()
-  const useCase = resolveUseCase<ICreateInvitationUseCase>(
-    TOKENS.ICreateInvitationUseCase
-  )
+  const useCase = resolveUseCase<ICreateInvitationUseCase>(TOKENS.ICreateInvitationUseCase)
 
   const result = await useCase.execute({
     client,
@@ -109,9 +107,7 @@ export async function resendInvitation(
   const parsed = invitationIdSchema.parse(input)
 
   const client = await getDatabaseClient()
-  const useCase = resolveUseCase<IResendInvitationUseCase>(
-    TOKENS.IResendInvitationUseCase
-  )
+  const useCase = resolveUseCase<IResendInvitationUseCase>(TOKENS.IResendInvitationUseCase)
 
   const result = await useCase.execute({
     client,
@@ -145,18 +141,12 @@ export async function acceptInvitation(
   const actor = await requireAuthenticatedUser()
   const parsed = acceptInvitationSchema.parse(input)
 
-  const useCase = resolveUseCase<IAcceptInvitationUseCase>(
-    TOKENS.IAcceptInvitationUseCase
-  )
+  const useCase = resolveUseCase<IAcceptInvitationUseCase>(TOKENS.IAcceptInvitationUseCase)
   const result = await useCase.execute({ actor, token: parsed.token })
 
   if (result.ok) {
     const cookieStore = await cookies()
-    cookieStore.set(
-      ACTIVE_TENANT_COOKIE,
-      result.tenantId,
-      buildActiveTenantCookieOptions()
-    )
+    cookieStore.set(ACTIVE_TENANT_COOKIE, result.tenantId, buildActiveTenantCookieOptions())
     revalidatePath("/", "layout")
   }
   return result
@@ -173,9 +163,7 @@ export async function revokeInvitation(
   requirePermission(actor, "manageMembers")
   const parsed = invitationIdSchema.parse(input)
 
-  const useCase = resolveUseCase<IRevokeInvitationUseCase>(
-    TOKENS.IRevokeInvitationUseCase
-  )
+  const useCase = resolveUseCase<IRevokeInvitationUseCase>(TOKENS.IRevokeInvitationUseCase)
 
   const result = await useCase.execute({
     actor,

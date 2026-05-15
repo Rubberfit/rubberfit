@@ -13,10 +13,7 @@ interface AcceptInvitationCtaProps {
   tenantName: string
 }
 
-export function AcceptInvitationCta({
-  token,
-  tenantName,
-}: AcceptInvitationCtaProps) {
+export function AcceptInvitationCta({ token, tenantName }: AcceptInvitationCtaProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 

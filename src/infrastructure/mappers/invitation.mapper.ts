@@ -1,11 +1,7 @@
 import type { AppRole } from "@/src/application/permissions"
 import { Invitation } from "@/src/entities/invitation"
 import { Email } from "@/src/entities/value-objects/email"
-import {
-  InvitationId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { InvitationId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 import { InvitationToken } from "@/src/entities/value-objects/invitation-token"
 
 /**
@@ -57,10 +53,7 @@ export interface InvitationInsertRow {
  * `markAccepted` + `update` round-trip.
  */
 export type InvitationUpdateRow = Partial<
-  Pick<
-    InvitationRow,
-    "accepted_at" | "revoked_at" | "last_send_attempt_at" | "last_send_error"
-  >
+  Pick<InvitationRow, "accepted_at" | "revoked_at" | "last_send_attempt_at" | "last_send_error">
 >
 
 export function rowToInvitation(row: InvitationRow): Invitation {
@@ -74,9 +67,7 @@ export function rowToInvitation(row: InvitationRow): Invitation {
     invitedBy: row.invited_by ? ProfileId.fromPersistence(row.invited_by) : null,
     acceptedAt: row.accepted_at ? new Date(row.accepted_at) : null,
     revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
-    lastSendAttemptAt: row.last_send_attempt_at
-      ? new Date(row.last_send_attempt_at)
-      : null,
+    lastSendAttemptAt: row.last_send_attempt_at ? new Date(row.last_send_attempt_at) : null,
     lastSendError: row.last_send_error,
     createdAt: new Date(row.created_at),
   })

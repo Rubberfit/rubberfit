@@ -33,9 +33,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
   ensureDatabaseFactoryRegistered()
   const { token } = await params
 
-  const invitationService = container.resolve<IInvitationService>(
-    TOKENS.IInvitationService
-  )
+  const invitationService = container.resolve<IInvitationService>(TOKENS.IInvitationService)
 
   const [user, invitation] = await Promise.all([
     getOptionalUser(),
@@ -47,8 +45,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
       <Shell>
         <Heading>Invitation not found</Heading>
         <Body>
-          We couldn&apos;t find an invitation for this link. The invite may
-          have been deleted, or the URL may be wrong.
+          We couldn&apos;t find an invitation for this link. The invite may have been deleted, or
+          the URL may be wrong.
         </Body>
         <PrimaryLink href="/login">Go to sign in</PrimaryLink>
       </Shell>
@@ -60,9 +58,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
       <Shell>
         <Heading>Already accepted</Heading>
         <Body>
-          This invitation to <strong>{invitation.tenantName}</strong> has
-          already been accepted. Sign in with the invited account to access
-          the workspace.
+          This invitation to <strong>{invitation.tenantName}</strong> has already been accepted.
+          Sign in with the invited account to access the workspace.
         </Body>
         <PrimaryLink href="/login">Sign in</PrimaryLink>
       </Shell>
@@ -74,9 +71,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
       <Shell>
         <Heading>Invitation revoked</Heading>
         <Body>
-          The admin has revoked this invitation to{" "}
-          <strong>{invitation.tenantName}</strong>. Ask them to send a fresh
-          one if you still need access.
+          The admin has revoked this invitation to <strong>{invitation.tenantName}</strong>. Ask
+          them to send a fresh one if you still need access.
         </Body>
       </Shell>
     )
@@ -88,8 +84,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
       <Shell>
         <Heading>Invitation expired</Heading>
         <Body>
-          This invitation expired on {expiresAt.toLocaleDateString()}. Ask
-          the admin at <strong>{invitation.tenantName}</strong> to resend it.
+          This invitation expired on {expiresAt.toLocaleDateString()}. Ask the admin at{" "}
+          <strong>{invitation.tenantName}</strong> to resend it.
         </Body>
       </Shell>
     )
@@ -102,9 +98,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
       <Shell>
         <Heading>You&apos;re invited to {invitation.tenantName}</Heading>
         <Body>
-          The invitation is for <strong>{invitation.email}</strong>. Sign in
-          with that email to accept, or create an account if you don&apos;t
-          have one yet.
+          The invitation is for <strong>{invitation.email}</strong>. Sign in with that email to
+          accept, or create an account if you don&apos;t have one yet.
         </Body>
         <p className="mt-2 text-xs text-muted-foreground">
           Expires {expiresAt.toLocaleDateString()}.
@@ -121,17 +116,16 @@ export default async function InvitePage({ params }: InvitePageProps) {
     )
   }
 
-  const emailMatches =
-    user.email.toLowerCase() === invitation.email.toLowerCase()
+  const emailMatches = user.email.toLowerCase() === invitation.email.toLowerCase()
 
   if (!emailMatches) {
     return (
       <Shell>
         <Heading>Wrong account</Heading>
         <Body>
-          You&apos;re signed in as <strong>{user.email}</strong>, but this
-          invitation is for <strong>{invitation.email}</strong>. Sign out and
-          sign back in with the invited email to accept.
+          You&apos;re signed in as <strong>{user.email}</strong>, but this invitation is for{" "}
+          <strong>{invitation.email}</strong>. Sign out and sign back in with the invited email to
+          accept.
         </Body>
         <PrimaryLink href="/login">Sign in with another account</PrimaryLink>
       </Shell>
@@ -142,8 +136,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
     <Shell>
       <Heading>Accept invitation to {invitation.tenantName}</Heading>
       <Body>
-        You&apos;re joining as{" "}
-        <strong>{invitation.roles.join(", ")}</strong>. Once you accept,
+        You&apos;re joining as <strong>{invitation.roles.join(", ")}</strong>. Once you accept,
         you&apos;ll land in the {invitation.tenantName} dashboard.
       </Body>
       <p className="mt-2 text-xs text-muted-foreground">
@@ -157,9 +150,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="w-full rounded-lg border bg-card p-8 shadow-sm">
-        {children}
-      </div>
+      <div className="w-full rounded-lg border bg-card p-8 shadow-sm">{children}</div>
     </main>
   )
 }
@@ -176,13 +167,7 @@ function Body({ children }: { children: React.ReactNode }) {
   return <p className="mt-3 text-sm text-muted-foreground">{children}</p>
 }
 
-function PrimaryLink({
-  href,
-  children,
-}: {
-  href: string
-  children: React.ReactNode
-}) {
+function PrimaryLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
@@ -193,13 +178,7 @@ function PrimaryLink({
   )
 }
 
-function SecondaryLink({
-  href,
-  children,
-}: {
-  href: string
-  children: React.ReactNode
-}) {
+function SecondaryLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}

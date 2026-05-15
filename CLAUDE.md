@@ -217,6 +217,22 @@ There are **two separate tables**, read from different code paths:
 
 The `notifications` table has a CHECK constraint on `type` (`low_stock | roll_depleted | cut_completed | system_alert`); non-low-stock events are persisted as `system_alert`. When adding new notification triggers, always route through `notificationService.sendX()` methods — they handle preferences, quiet hours, toast, DB persist, and queue in one call. Don't write directly to either table from use-cases or hooks.
 
+### Invitations
+
+Two SECURITY DEFINER RPCs bridge the new-user RLS gap; everything else flows through the standard repo / service / use-case chain.
+
+| Concern            | Location                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Admin actions      | `app/actions/invitations.ts` (`inviteMember`, `resendInvitation`, `revokeInvitation`, `acceptInvitation`)           |
+| Use cases          | `src/application/use-cases/invitations/*.use-case.ts` (4 files)                                                     |
+| Service / repo     | `src/{application,infrastructure}/services/invitation*` + `repositories/`                                           |
+| Public landing     | `app/invite/[token]/page.tsx` (allowlisted in `auth-allowlist.ts`)                                                  |
+| Admin members page | `app/dashboard/admin/members/page.tsx` (gated by `manageMembers`)                                                   |
+| Atomic accept RPC  | `accept_invitation(p_token)` — invitation flip + memberships INSERT in one transaction; SQLSTATEs P0001-P0006       |
+| Public lookup RPC  | `get_invitation_by_token(p_token)` — returns public-safe view for the landing page; granted to anon + authenticated |
+
+Brand-new invitees have no memberships yet, so `requireAuthenticatedUser` would throw "Account deactivated". Use `getOptionalUser()` (sibling export of `require-authenticated-user.ts`) for public pages that need a soft session check without the membership requirement.
+
 ## State Management
 
 State lives at the lowest scope that works:

@@ -25,9 +25,7 @@ export function MembersTable({ rows }: MembersTableProps) {
       cell: (row) => (
         <div className="flex flex-col">
           <span className="font-medium">{row.fullName ?? "—"}</span>
-          <span className="text-xs text-muted-foreground">
-            {row.email ?? "—"}
-          </span>
+          <span className="text-xs text-muted-foreground">{row.email ?? "—"}</span>
         </div>
       ),
       sortFn: (row) => row.fullName ?? row.email ?? "",
@@ -53,12 +51,8 @@ export function MembersTable({ rows }: MembersTableProps) {
   return (
     <section className="flex flex-col gap-3">
       <header className="flex flex-col gap-1">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
-          Current members
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Active memberships in this workspace.
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Current members</h2>
+        <p className="text-sm text-muted-foreground">Active memberships in this workspace.</p>
       </header>
       {rows.length === 0 ? (
         <EmptyState

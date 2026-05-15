@@ -21,8 +21,7 @@ export function InviteMemberForm() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const trimmedEmail = email.trim()
-  const canSubmit =
-    !isSubmitting && trimmedEmail.length > 0 && roles.length > 0
+  const canSubmit = !isSubmitting && trimmedEmail.length > 0 && roles.length > 0
 
   const toggleRole = React.useCallback((role: AppRole, checked: boolean) => {
     setRoles((prev) => {
@@ -68,12 +67,10 @@ export function InviteMemberForm() {
   return (
     <section className="rounded-lg border bg-card p-6 shadow-sm">
       <header className="mb-4 flex flex-col gap-1">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
-          Invite a new member
-        </h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Invite a new member</h2>
         <p className="text-sm text-muted-foreground">
-          They&apos;ll receive an email with a one-time link. The invitation
-          expires after seven days.
+          They&apos;ll receive an email with a one-time link. The invitation expires after seven
+          days.
         </p>
       </header>
 
@@ -94,9 +91,7 @@ export function InviteMemberForm() {
 
         <fieldset className="grid gap-2">
           <legend className="text-sm font-medium">Roles</legend>
-          <p className="text-xs text-muted-foreground">
-            At least one role must be selected.
-          </p>
+          <p className="text-xs text-muted-foreground">At least one role must be selected.</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {ALL_ROLES.map((role) => {
               const checked = roles.includes(role)
@@ -109,9 +104,7 @@ export function InviteMemberForm() {
                   <Checkbox
                     id={`invite-role-${role}`}
                     checked={checked}
-                    onCheckedChange={(value) =>
-                      toggleRole(role, value === true)
-                    }
+                    onCheckedChange={(value) => toggleRole(role, value === true)}
                   />
                   {role}
                 </label>

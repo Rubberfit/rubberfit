@@ -11,11 +11,7 @@ import type { IInvitationService } from "@/src/application/services/invitation.s
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type { InvitationSnapshot } from "@/src/entities/invitation"
 import { Email } from "@/src/entities/value-objects/email"
-import {
-  InvitationId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { InvitationId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 import { InvitationToken } from "@/src/entities/value-objects/invitation-token"
 import { loadTenantName } from "@/src/infrastructure/services/active-tenant.service"
 
@@ -48,9 +44,7 @@ export interface CreateInvitationFailure {
   error: string
 }
 
-export type CreateInvitationResult =
-  | CreateInvitationSuccess
-  | CreateInvitationFailure
+export type CreateInvitationResult = CreateInvitationSuccess | CreateInvitationFailure
 
 export interface ICreateInvitationUseCase {
   execute(input: CreateInvitationInput): Promise<CreateInvitationResult>
@@ -111,12 +105,9 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
     }
 
     const tenantName =
-      (await loadTenantName(input.client, input.actor.activeTenantId)) ??
-      "your workspace"
+      (await loadTenantName(input.client, input.actor.activeTenantId)) ?? "your workspace"
 
-    const expiresAt = new Date(
-      Date.now() + APP_CONFIG.INVITATION_EXPIRY_DAYS * MS_PER_DAY
-    )
+    const expiresAt = new Date(Date.now() + APP_CONFIG.INVITATION_EXPIRY_DAYS * MS_PER_DAY)
     const id = InvitationId.create(randomUUID())
     const token = generateToken()
 

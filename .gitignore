@@ -125,6 +125,3 @@ engine/target/
 
 # Root cargo target dir (Vercel Rust functions — `api/v2/pack.rs` etc.)
 /target/
-
-# Generated docs (source script in scripts/ — re-run to regenerate)
-/invitations-workflow.docx

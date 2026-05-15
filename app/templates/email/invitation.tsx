@@ -88,8 +88,8 @@ const InvitationEmail: React.FC<InvitationEmailProps> = ({
           </Text>
 
           <Text style={noteText}>
-            <strong>Heads up:</strong> this invitation expires on {expiryDisplay}. If
-            you weren&apos;t expecting it, you can safely ignore this email.
+            <strong>Heads up:</strong> this invitation expires on {expiryDisplay}. If you
+            weren&apos;t expecting it, you can safely ignore this email.
           </Text>
 
           <Hr style={divider} />

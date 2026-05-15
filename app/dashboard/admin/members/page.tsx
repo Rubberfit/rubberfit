@@ -53,9 +53,7 @@ export default async function AdminMembersPage() {
   }
 
   const client = await getDatabaseClient()
-  const invitationService = container.resolve<IInvitationService>(
-    TOKENS.IInvitationService
-  )
+  const invitationService = container.resolve<IInvitationService>(TOKENS.IInvitationService)
 
   const [tenantName, members, pending] = await Promise.all([
     loadTenantName(client, actor.activeTenantId),
