@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -110,9 +110,23 @@ function initialValuesFor(
 
 function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialFormBodyProps) {
   const orgPreferences = useOrganizationPreferences()
+  // Track whether the operator has touched the min-stock field so a
+  // late org-prefs update (admin saved in another tab → provider
+  // re-syncs via router.refresh()) re-seeds the placeholder without
+  // clobbering in-flight user input. Sigilix PR #269 catch.
+  const minStockAlertTouchedRef = useRef(false)
   const [values, setValues] = useState<MaterialFormValues>(() =>
     initialValuesFor(target, orgPreferences.lowStockThresholdSqft)
   )
+
+  useEffect(() => {
+    if (target !== "new" || minStockAlertTouchedRef.current) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by target check + touch ref; only re-syncs an untouched seed
+    setValues((prev) => ({
+      ...prev,
+      min_stock_alert: orgPreferences.lowStockThresholdSqft,
+    }))
+  }, [target, orgPreferences.lowStockThresholdSqft])
   const isEdit = target !== "new"
   const isValid = values.name.trim().length > 0
 
@@ -175,12 +189,13 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
                 min="0"
                 step="10"
                 value={values.min_stock_alert}
-                onChange={(event) =>
+                onChange={(event) => {
+                  minStockAlertTouchedRef.current = true
                   setValues((prev) => ({
                     ...prev,
                     min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
                   }))
-                }
+                }}
               />
             </FormField>
             <FormField
