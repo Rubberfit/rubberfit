@@ -32,8 +32,11 @@ button level (`disabled={isSelf}`).
   also require corresponding bulk endpoints in
   `userManagementService` (no bulk-deactivate / bulk-role-change
   exists today). Tracked for the S6 wiring task.
-- **Invite-only flow** — the modal currently doubles as
-  create/edit; the spec describes a slimmer Invite modal (email +
-  role + optional message). The richer existing modal is closer
-  to what admins use day-to-day, so the Phase 2 chrome update
-  doesn't replace it.
+- **Invite-only flow** — the modal here doubles as create/edit and
+  predates the real invitation system. The tenant-scoped
+  invite-by-email flow now lives at
+  [`/dashboard/admin/members`](../admin/members) (gated on
+  `manageMembers`) with the public accept page at
+  `/invite/[token]`. A future cleanup will retire the create
+  half of this modal in favour of the new flow; the edit half
+  stays here.

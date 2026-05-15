@@ -15,7 +15,7 @@ Resolution sites:
 
 ## Token catalog
 
-### Services (29)
+### Services (31)
 
 Two binding styles:
 
@@ -28,10 +28,12 @@ Order in `tokens.ts` is alphabetical within each group.
 | -------------------------------- | ----------------------------------------- |
 | `IAuthService`                   | `authService`                             |
 | `ICsvService`                    | `csvService`                              |
-| `ICutService`                    | `cutService`                              |
+| `ICutHistoryService`             | `CutHistoryService` (class)               |
+| `ICutService`                    | `CutService` (class)                      |
 | `IEmailService`                  | `emailService`                            |
 | `IExportPdfService`              | `exportPdfService`                        |
 | `IExportService`                 | `exportService`                           |
+| `IInvitationService`             | `InvitationService` (class)               |
 | `IMaterialSupplierService`       | `MaterialSupplierService` (class)         |
 | `IMaterialTypeService`           | `MaterialTypeService` (class)             |
 | `INotificationService`           | `notificationService`                     |
@@ -56,12 +58,15 @@ Order in `tokens.ts` is alphabetical within each group.
 | `ICutFavoritesService`           | `cutFavoritesService`                     |
 | `IRollInventoryService`          | `rollInventoryService`                    |
 
-### Repositories (7)
+### Repositories (10)
 
 Registered with `container.registerInstance` — each binds the token to the module-singleton repository exported from `src/infrastructure/repositories/`. Repositories are the entity-typed persistence boundary that DDD-migrated services inject through `@inject`.
 
 | Token                          | Concrete implementation       |
 | ------------------------------ | ----------------------------- |
+| `ICutHistoryRepository`        | `cutHistoryRepository`        |
+| `ICutsRepository`              | `cutsRepository`              |
+| `IInvitationsRepository`       | `invitationsRepository`       |
 | `IMaterialSuppliersRepository` | `materialSuppliersRepository` |
 | `IMaterialTypesRepository`     | `materialTypeRepository`      |
 | `IPriceHistoryRepository`      | `priceHistoryRepository`      |
@@ -70,7 +75,7 @@ Registered with `container.registerInstance` — each binds the token to the mod
 | `IRollsRepository`             | `rollsRepository`             |
 | `ISuppliersRepository`         | `suppliersRepository`         |
 
-### Use cases (12)
+### Use cases (16)
 
 Registered with `container.registerSingleton` — the container lazily constructs each class on first resolve. This keeps use-case modules import-safe for unit tests: importing `create-purchase-order.use-case.ts` does not instantiate it and does not pull Supabase.
 
@@ -88,6 +93,10 @@ Registered with `container.registerSingleton` — the container lazily construct
 | `ICreateBulkReorderPurchaseOrderUseCase` | `CreateBulkReorderPurchaseOrderUseCase` |
 | `IRecordCutUseCase`                      | `RecordCutUseCase`                      |
 | `IUpdateMaterialPricingUseCase`          | `UpdateMaterialPricingUseCase`          |
+| `ICreateInvitationUseCase`               | `CreateInvitationUseCase`               |
+| `IResendInvitationUseCase`               | `ResendInvitationUseCase`               |
+| `IRevokeInvitationUseCase`               | `RevokeInvitationUseCase`               |
+| `IAcceptInvitationUseCase`               | `AcceptInvitationUseCase`               |
 
 ## Special case: `IPackingService`
 

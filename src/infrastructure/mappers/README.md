@@ -10,13 +10,14 @@ SQL; mappers own the row-to-entity translation.
 Add one when you migrate a domain to DDD entities. Each **DDD-migrated**
 aggregate root has exactly one mapper file; pre-DDD aggregates use
 raw-row legacy services and skip this layer until their migration
-lands. Currently 7 aggregates have mappers (`supplier`,
+lands. Currently 10 aggregates have mappers (`supplier`,
 `material-supplier`, `material-type`, `price-history`, `roll`,
-`reorder-rule`, `purchase-order`); the `tenant`, `profile`, `invoice`,
-`project`, `job`, and `cut-history` aggregates exist as entities but
-haven't migrated to mapper-backed services yet. Child VOs that live
-inside an aggregate (e.g., `PurchaseOrderItem`, `JobAssignee`) are
-reconstituted by the parent mapper, not by their own file.
+`reorder-rule`, `purchase-order`, `cut`, `cut-history`, `invitation`);
+the `tenant`, `profile`, `invoice`, `project`, and `job` aggregates
+exist as entities but haven't migrated to mapper-backed services yet.
+Child VOs that live inside an aggregate (e.g., `PurchaseOrderItem`,
+`JobAssignee`, `CutHistorySelection`) are reconstituted by the parent
+mapper, not by their own file.
 
 Do **not** add a mapper for:
 
@@ -89,3 +90,6 @@ the mapper at `tests/infrastructure/mappers/<aggregate>.mapper.test.ts`.
 - `roll.mapper.ts` — physical stock aggregate. `RollRow` is locally defined (the generated `Roll` row type in `supabase.ts` is pre-redesign and stale); covers the mm-native dimensions (`width_mm`, `length_mm`, `thickness_mm`, `remaining_length_mm`), `cost_per_sqm_cents` → Money VO (USD default), `source_type` (`received` / `offcut`), offcut lineage (`source_cut_history_id`, `parent_roll_id`), and the barcode / QR audit columns. `date_received` is a `date` column round-tripped through `toISOString().slice(0, 10)`.
 - `reorder-rule.mapper.ts` — per-material-type reorder threshold. No Money VOs (quantities are sqm decimals, not currency). `active` column maps to entity `isActive` getter. `recordTrigger()` writes back only `last_triggered_at` — the mapper preserves prior `updated_at` / `updated_by` because `recordTrigger` is a system event, distinct from human edits.
 - `purchase-order.mapper.ts` — **first nested-aggregate mapper**. PO header + `PurchaseOrderItem` VO collection rehydrated from joined `purchase_order_items` rows (sorted by `line_number`). Currency injected externally (the DB doesn't persist a currency column — `*_cents` integers only) — defaults USD until per-tenant resolution lands. `rowToPurchaseOrder(headerRow, itemRows, currency)` reconstitutes the full aggregate; `purchaseOrderItemTo{Insert,Update}Row` are repo helpers for `repo.update(po)`'s child-sync pass which matches existing rows by `(purchase_order_id, line_number)` to avoid delete-and-reinsert churn on every status-only update.
+- `cut.mapper.ts` — granular per-piece cut log entries. Tenant-scoped, mm-native dimensions, optional `parent_cut_id` for offcut lineage. No Money VOs.
+- `cut-history.mapper.ts` — job-level cut record (parent + `CutHistorySelection` child collection). `rowToCutHistory(row, selectionRows)` rehydrates the parent + bulk-loaded selections sorted by `selection_index`. `cost_per_sqm_cents` → Money VO (USD default). Append-only apart from `softDelete` — `cutHistoryToUpdateRow` only stamps `updated_at` / `updated_by` / `deleted_at`.
+- `invitation.mapper.ts` — tenant-membership invitation. `email` → `Email` VO; `token` → `InvitationToken` VO; `roles` is a `text[]` of `AppRole`. No `updated_at` column on the table — terminal-state timestamps (`accepted_at`, `revoked_at`, `last_send_attempt_at`) carry the audit story. `invitationToUpdateRow` writes only those four columns + `last_send_error`.

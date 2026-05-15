@@ -14,7 +14,7 @@ const poService = container.resolve<IPurchaseOrderService>(TOKENS.IPurchaseOrder
 
 Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the use-cases [README](../use-cases/README.md).
 
-## Catalog (31)
+## Catalog (32)
 
 ### Packing / Export
 
@@ -57,11 +57,12 @@ Use-cases inject via constructor decorators (`@inject(TOKENS.IFoo)`) — see the
 
 ### Auth / Profile / Users
 
-| Interface                | File                                                                             | Purpose                                            |
-| ------------------------ | -------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `IAuthService`           | [`auth.service.interface.ts`](./auth.service.interface.ts)                       | Sign-in, sign-out, session, OAuth, password reset. |
-| `IProfileService`        | [`profile.service.interface.ts`](./profile.service.interface.ts)                 | Profile read/write.                                |
-| `IUserManagementService` | [`user-management.service.interface.ts`](./user-management.service.interface.ts) | Admin-portal user CRUD + role assignments.         |
+| Interface                | File                                                                             | Purpose                                                                                                                                                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IAuthService`           | [`auth.service.interface.ts`](./auth.service.interface.ts)                       | Sign-in, sign-out, session, OAuth, password reset.                                                                                                                                                                                                                                   |
+| `IProfileService`        | [`profile.service.interface.ts`](./profile.service.interface.ts)                 | Profile read/write.                                                                                                                                                                                                                                                                  |
+| `IUserManagementService` | [`user-management.service.interface.ts`](./user-management.service.interface.ts) | Admin-portal user CRUD + role assignments.                                                                                                                                                                                                                                           |
+| `IInvitationService`     | [`invitation.service.interface.ts`](./invitation.service.interface.ts)           | Tenant-membership invitation lifecycle: create / get-by-token / list-pending / revoke / record-send-attempt / accept-by-token. Atomic accept + public lookup wrap two SECURITY DEFINER RPCs (`accept_invitation`, `get_invitation_by_token`) so brand-new invitees clear RLS via token possession. |
 
 ### Comms
 
