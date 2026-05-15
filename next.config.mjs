@@ -1,35 +1,46 @@
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+import { dirname, resolve } from "node:path"
+
 import createNextIntlPlugin from "next-intl/plugin"
 
 const withNextIntl = createNextIntlPlugin("./app/i18n/request.ts")
+
+// Expose the package.json version as `NEXT_PUBLIC_APP_VERSION` so the auth
+// footer REV. chip (and any future build-stamped surface) can read it from
+// the browser bundle without an extra runtime fetch.
+const packageJson = JSON.parse(
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "./package.json"), "utf8")
+)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
   devIndicators: false,
+  env: {
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
+  },
   compiler: {
     // Strip console noise from production builds, but preserve
     // `console.error` and `console.warn` so server-side incident
     // diagnostics survive into Vercel function logs.
-    removeConsole:
-      process.env.NODE_ENV === "production"
-        ? { exclude: ["error", "warn"] }
-        : false,
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
   // Empty turbopack config to silence the warning
   turbopack: {},
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
       },
       {
-        protocol: 'https',
-        hostname: '*.googleusercontent.com',
+        protocol: "https",
+        hostname: "*.googleusercontent.com",
       },
       {
-        protocol: 'https',
-        hostname: 'avatars.githubusercontent.com',
+        protocol: "https",
+        hostname: "avatars.githubusercontent.com",
       },
     ],
   },
@@ -168,8 +179,8 @@ const nextConfig = {
         destination: "/dashboard/settings/profile",
         permanent: true,
       },
-    ];
+    ]
   },
-};
+}
 
-export default withNextIntl(nextConfig);
+export default withNextIntl(nextConfig)

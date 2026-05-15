@@ -1,4 +1,71 @@
 {
+  "nav": {
+    "chrome": {
+      "quickCreate": "Quick Create",
+      "comingSoon": "Soon",
+      "notifications": "Notifications",
+      "notificationsUnread": "Notifications — {count} unread"
+    },
+    "groups": {
+      "operations": "Operations",
+      "analytics": "Analytics",
+      "management": "Management",
+      "qa": "Q&A"
+    },
+    "items": {
+      "dashboard": { "title": "Dashboard" },
+      "inventory": {
+        "title": "Inventory",
+        "subItems": {
+          "currentStock": "Current Stock",
+          "purchaseOrders": "Purchase Orders"
+        }
+      },
+      "jobs": { "title": "Jobs" },
+      "cuttingEngine": {
+        "title": "Cutting Engine",
+        "subItems": {
+          "autoNest": "Auto nest",
+          "freeRoam": "Free roam"
+        }
+      },
+      "cutHistory": { "title": "Cut History" },
+      "analytics": {
+        "title": "Analytics",
+        "subItems": {
+          "waste": "Waste",
+          "periodComparison": "Period comparison",
+          "materialUsage": "Material usage",
+          "costReports": "Cost reports",
+          "trends": "Trends"
+        }
+      },
+      "materials": {
+        "title": "Materials",
+        "subItems": {
+          "materialSettings": "Material Settings",
+          "materialTypes": "Material Types",
+          "suppliers": "Suppliers",
+          "pricing": "Pricing"
+        }
+      },
+      "reports": { "title": "Reports" },
+      "users": { "title": "Users" },
+      "securityAudit": { "title": "Security & Audit" },
+      "settings": {
+        "title": "Settings",
+        "subItems": {
+          "general": "General",
+          "profile": "Profile & account",
+          "materials": "Materials",
+          "notifications": "Notifications",
+          "team": "Team",
+          "billing": "Billing"
+        }
+      },
+      "security": { "title": "Security" }
+    }
+  },
   "settings": {
     "general": {
       "pageTitle": "General",
