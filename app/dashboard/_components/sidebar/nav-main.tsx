@@ -153,7 +153,6 @@ const NavItemCollapsed = ({
           {item.subItems?.map((subItem) => (
             <DropdownMenuItem key={subItem.url} asChild>
               <SidebarMenuSubButton
-                key={subItem.url}
                 asChild
                 className="focus-visible:ring-0"
                 aria-disabled={subItem.comingSoon}
