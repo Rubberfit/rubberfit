@@ -3,7 +3,9 @@ import { inject, injectable } from "tsyringe"
 
 import { TOKENS } from "@/di/tokens"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 import type { ActionActor } from "@/src/application/types/action-actor"
 
 export type ResendInvitationError =
@@ -43,8 +45,29 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     @inject(TOKENS.IOrganizationService)
     private readonly organizationService: IOrganizationService,
     @inject(TOKENS.IEmailService)
-    private readonly emailService: IEmailService
+    private readonly emailService: IEmailService,
+    @inject(TOKENS.IOrganizationPreferencesService)
+    private readonly organizationPreferencesService: IOrganizationPreferencesService
   ) {}
+
+  /**
+   * Best-effort expiry-label formatter — same shape as the sibling
+   * `CreateInvitationUseCase`. Prefs lookup failure falls back to
+   * default date formatting so a transient DB hiccup never blocks a
+   * legitimate resend.
+   */
+  private async formatExpiresAtLabel(organizationId: string, expiresAt: Date): Promise<string> {
+    try {
+      const prefs = await this.organizationPreferencesService.getForOrganization(organizationId)
+      return formatUserDate(expiresAt, prefs)
+    } catch (error) {
+      console.error(
+        `[resend-invitation] org-prefs lookup failed for organizationId=${organizationId}; falling back to default date formatting:`,
+        error
+      )
+      return formatUserDate(expiresAt)
+    }
+  }
 
   async execute(input: ResendInvitationInput): Promise<ResendInvitationResult> {
     const invitation = await this.organizationService.getInvitationById(input.invitationId)
@@ -65,6 +88,7 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
     )
     const organizationName = organization?.name ?? "your team"
     const inviteUrl = `${appUrl()}/invite/${invitation.token}`
+    const expiresAtLabel = await this.formatExpiresAtLabel(invitation.organization_id, newExpiresAt)
 
     // Send the email first; persist the new expiry only if the send
     // succeeded. Otherwise the old invite stays in its original window
@@ -75,7 +99,7 @@ export class ResendInvitationUseCase implements IResendInvitationUseCase {
       role: invitation.role,
       inviterName: input.actor.email ?? null,
       inviteUrl,
-      expiresAt: newExpiresAt,
+      expiresAtLabel,
     })
 
     if (!send.success) return { error: "invite_email_failed" }
