@@ -114,8 +114,8 @@ export function sanitizePolygonWithHoles(input: PolygonWithHoles): PolygonWithHo
   // uses the same sign convention as Orientation. We compute it in
   // the integer space so floating-point doesn't tip near-zero areas
   // across the sign boundary.
-  let outers: ClipperPath[] = []
-  let holes: ClipperPath[] = []
+  const outers: ClipperPath[] = []
+  const holes: ClipperPath[] = []
   for (const path of repaired) {
     if (path.length < 3) continue
     const area = ClipperLib.Clipper.Area(path)
