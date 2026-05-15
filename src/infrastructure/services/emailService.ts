@@ -296,19 +296,21 @@ export class EmailService implements IEmailService {
     role: "admin" | "member"
     inviterName: string | null
     inviteUrl: string
-    expiresAt: Date
+    expiresAtLabel: string
   }) {
     const inviterFrom = params.inviterName ? `${params.inviterName} ` : ""
-    const expires = params.expiresAt.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
+    // `expiresAtLabel` is formatted by the caller (invitation use-cases)
+    // with the operator's date prefs — see the interface JSDoc. The
+    // value is constrained to a closed `SupportedDateFormat` shape today
+    // (no HTML metacharacters possible), but we still `escapeHtml` it on
+    // insertion so this HTML-rendering boundary stays uniform with the
+    // other escaped params and any future label source can't be the
+    // weak link.
     const html = `
       <p>You've been invited to join <strong>${escapeHtml(params.organizationName)}</strong> on Rubberfit${inviterFrom ? ` by ${escapeHtml(inviterFrom.trim())}` : ""}.</p>
       <p>Your role on the team will be <strong>${escapeHtml(params.role)}</strong>.</p>
       <p><a href="${params.inviteUrl}">Accept the invitation</a></p>
-      <p>This invitation expires on ${escapeHtml(expires)}.</p>
+      <p>This invitation expires on ${escapeHtml(params.expiresAtLabel)}.</p>
     `
     return this.sendEmail({
       to: params.to,

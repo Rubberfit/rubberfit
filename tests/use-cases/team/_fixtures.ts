@@ -1,7 +1,12 @@
 import { vi } from "vitest"
 
 import type { IEmailService } from "@/src/application/services/email.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import {
+  DEFAULT_ORGANIZATION_PREFERENCES,
+  type OrganizationPreferences,
+} from "@/src/infrastructure/models/organization-preferences"
 import type {
   IStripeClientService,
   StripeBillingClient,
@@ -217,6 +222,22 @@ export function makeFakeEmailService(overrides: Partial<IEmailService> = {}): IE
     queueEmail: vi.fn(async () => undefined),
     processEmailQueue: vi.fn(async () => undefined),
     sendBulkEmails: vi.fn(async () => undefined),
+    ...overrides,
+  }
+}
+
+export function makeFakeOrgPreferencesService(
+  overrides: Partial<IOrganizationPreferencesService> = {}
+): IOrganizationPreferencesService {
+  const defaultPrefs: OrganizationPreferences = {
+    ...DEFAULT_ORGANIZATION_PREFERENCES,
+    organizationId: ORG_ID,
+    createdAt: "2026-05-10T00:00:00.000Z",
+    updatedAt: "2026-05-10T00:00:00.000Z",
+  }
+  return {
+    getForOrganization: vi.fn(async () => defaultPrefs),
+    updateForOrganization: vi.fn(async () => defaultPrefs),
     ...overrides,
   }
 }
