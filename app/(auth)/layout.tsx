@@ -49,11 +49,11 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
       <aside className="auth-pane-right" aria-hidden="true">
         <AuthDrawing />
       </aside>
-      {revisionLabel && (
+      {revisionLabel ? (
         <span className="auth-rev-stamp" role="note">
           REV. {revisionLabel}
         </span>
-      )}
+      ) : null}
     </main>
   )
 }

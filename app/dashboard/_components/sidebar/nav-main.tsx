@@ -45,7 +45,7 @@ interface NavMainProps {
   readonly items: readonly NavGroup[]
 }
 
-const IsComingSoon = () => {
+function IsComingSoon() {
   const t = useTranslations("nav")
   return (
     <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs dark:text-muted-foreground">

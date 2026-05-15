@@ -141,8 +141,8 @@ describe("architecture: .env.example documents every server-side env var (ARC-13
       throw new Error(
         `process.env references missing from .env.example:\n${summary}\n\n` +
           `Add an entry to .env.example with a placeholder + comment explaining purpose and sensitivity. ` +
-          `Runtime-injected vars (NODE_ENV, CI, VERCEL, NEXT_PUBLIC_VERCEL_URL) are exempt — extend ` +
-          `RUNTIME_INJECTED in this test if a new platform-injected var lands.`
+          `Runtime-injected vars (currently: ${[...RUNTIME_INJECTED].sort().join(", ")}) are exempt — ` +
+          `extend RUNTIME_INJECTED in this test if a new platform-injected var lands.`
       )
     }
     expect(missing).toEqual([])
