@@ -147,7 +147,6 @@ pub enum PackerStrategy {
 /// receiver bin from scratch. Keeping `greedy_rectangle_pack` as a thin
 /// wrapper preserves the Task 19d dispatcher contract unchanged â€” FFD
 /// + GLS + existing cross-bin operators never observe the new param.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn greedy_rectangle_pack_with_strategy(
     bin: &Bin,
     items: &[Part],
@@ -186,7 +185,7 @@ pub fn greedy_rectangle_pack_with_strategy(
     let mut rejected_overflow: u32 = 0;
 
     for part in items {
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
@@ -225,7 +224,7 @@ pub fn greedy_rectangle_pack_with_strategy(
                 h_scaled: (h * SCALE).round() as u32,
                 quantity: part.quantity,
                 polygon_canonical: part
-                    .polygon_slice()
+                    .outer_slice()
                     .iter()
                     .map(|p| Point2D::new(p.x - bbox.0.x, p.y - bbox.0.y))
                     .collect(),
@@ -396,7 +395,6 @@ pub fn greedy_rectangle_pack_with_strategy(
 /// advancing cursor_y by h_eff = h + 2*clearance per copy. Conservative
 /// over-rejection on interior stacks (see rustdoc on
 /// `greedy_bottom_left`).
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn greedy_vertical_stack(
     bin: &Bin,
     items: &[Part],
@@ -406,7 +404,7 @@ fn greedy_vertical_stack(
     let mut cursor_y = 0.0f64;
     let mut overflow: u32 = 0;
     for part in items {
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
@@ -436,7 +434,7 @@ fn greedy_vertical_stack(
                 y: y_visible,
                 rotation_rad: 0.0,
                 polygon: part
-                    .polygon_slice()
+                    .outer_slice()
                     .iter()
                     .map(|p| Point2D::new(p.x - bbox.0.x + clearance, y_visible + (p.y - bbox.0.y)))
                     .collect(),
@@ -467,9 +465,8 @@ fn greedy_vertical_stack(
 /// them.
 ///
 /// Deterministic: pure arithmetic, row-major scan, no RNG.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn greedy_2d_grid(bin: &Bin, part: &Part, clearance: f64) -> Result<SeedResult, PackError> {
-    let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+    let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
         PackError::InvalidPolygon {
             shape_id: part.shape_id.clone(),
             source,
@@ -510,7 +507,7 @@ fn greedy_2d_grid(bin: &Bin, part: &Part, clearance: f64) -> Result<SeedResult, 
             y: y_visible,
             rotation_rad: 0.0,
             polygon: part
-                .polygon_slice()
+                .outer_slice()
                 .iter()
                 .map(|p| Point2D::new(p.x - bbox.0.x + x_visible, y_visible + (p.y - bbox.0.y)))
                 .collect(),

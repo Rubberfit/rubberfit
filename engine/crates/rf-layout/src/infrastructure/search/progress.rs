@@ -154,13 +154,12 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 /// Compute `(total_placed_count, active_stock_density)` for a given
 /// assignment. `active_stock_density = sum_placed_area / sum_stock_of_
 /// non_empty_bins`.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn compute_progress_stats(assignment: &FfdAssignment, bins: &[Bin], items: &[Part]) -> (u32, f64) {
     // Pre-compute item area by shape_id for fast lookup.
     let mut area_by_shape: std::collections::HashMap<&str, f64> =
         std::collections::HashMap::with_capacity(items.len());
     for p in items {
-        area_by_shape.insert(p.shape_id.as_str(), polygon_area(p.polygon_slice()));
+        area_by_shape.insert(p.shape_id.as_str(), polygon_area(p.outer_slice()));
     }
 
     let mut total_placed: u32 = 0;

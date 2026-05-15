@@ -128,11 +128,10 @@ fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
 }
 
 /// Precompute area per shape_id (polygon, not bbox â€” Codex sign-off fix).
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn item_areas(items: &[Part]) -> HashMap<String, f64> {
     items
         .iter()
-        .map(|p| (p.shape_id.clone(), polygon_area(p.polygon_slice())))
+        .map(|p| (p.shape_id.clone(), polygon_area(p.outer_slice())))
         .collect()
 }
 
@@ -182,12 +181,11 @@ fn strip_zero(counts: &mut HashMap<String, u32>) {
 /// FFD unit key for deterministic scan order: `(bbox_area desc,
 /// longest_edge desc, shape_id asc)`. Returned as a tuple of negated
 /// f64 (wrapped via total_cmp-safe ordering) for ascending sort.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn shape_sort_keys(items: &[Part]) -> HashMap<String, (f64, f64)> {
     items
         .iter()
         .map(|p| {
-            let bbox = rf_geom::application::bbox_of(p.polygon_slice()).unwrap_or((
+            let bbox = rf_geom::application::bbox_of(p.outer_slice()).unwrap_or((
                 rf_geom::domain::Point2D::new(0.0, 0.0),
                 rf_geom::domain::Point2D::new(0.0, 0.0),
             ));

@@ -212,6 +212,10 @@ pub const FAST_MS: u64 = 2_000;
 pub const BALANCED_MS: u64 = 10_000;
 pub const THOROUGH_MS: u64 = 30_000;
 
+const POLYGON_NOT_MATERIALISED: &str =
+    "Part.polygon was None — orchestrator must call materialise_request_polygons \
+     before passing parts to search/jagua code";
+
 impl Part {
     /// Borrow the outer boundary of the materialized polygon. Panics
     /// if `polygon` is `None` — pack pipelines call
@@ -220,10 +224,7 @@ impl Part {
     pub fn outer_slice(&self) -> &[Point2D] {
         self.polygon
             .as_ref()
-            .expect(
-                "Part.polygon was None — orchestrator must call materialise_request_polygons \
-                 before passing parts to search/jagua code",
-            )
+            .expect(POLYGON_NOT_MATERIALISED)
             .outer()
             .points()
     }
@@ -234,21 +235,10 @@ impl Part {
     pub fn holes_iter(&self) -> impl Iterator<Item = &[Point2D]> {
         self.polygon
             .as_ref()
-            .expect(
-                "Part.polygon was None — orchestrator must call materialise_request_polygons \
-                 before passing parts to search/jagua code",
-            )
+            .expect(POLYGON_NOT_MATERIALISED)
             .holes()
             .iter()
             .map(|h| h.points())
-    }
-
-    /// Back-compat alias for `outer_slice`. Existing callsites can
-    /// migrate incrementally; new code should use `outer_slice` or
-    /// `holes_iter`. Removed in Task 3 once all callers are migrated.
-    #[deprecated(since = "0.0.0-pr-0a", note = "use outer_slice() or holes_iter()")]
-    pub fn polygon_slice(&self) -> &[Point2D] {
-        self.outer_slice()
     }
 }
 

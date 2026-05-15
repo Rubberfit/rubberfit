@@ -763,7 +763,6 @@ struct GrowthStats {
     attempts_made: usize,
 }
 
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn rebuild_pack_result(
     request: &PackRequest,
     lbf_result: &PackResult,
@@ -805,7 +804,7 @@ fn rebuild_pack_result(
 
         let part = &request.items[pi.item_id];
         let pack_polygon: Vec<Point2D> = part
-            .polygon_slice()
+            .outer_slice()
             .iter()
             .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
             .collect();

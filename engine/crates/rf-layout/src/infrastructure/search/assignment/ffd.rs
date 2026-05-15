@@ -41,7 +41,6 @@ pub struct FfdAssignment {
     pub overflow: Vec<(String, u32)>,
 }
 
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn ffd_assign(
     bins: &[Bin],
     items: &[Part],
@@ -58,7 +57,7 @@ pub fn ffd_assign(
     // the sort key once per shape (bbox area + longest edge).
     let mut shape_bbox: HashMap<&str, (f64, f64)> = HashMap::with_capacity(items.len());
     for part in items {
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,

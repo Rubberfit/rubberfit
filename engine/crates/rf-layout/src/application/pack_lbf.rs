@@ -403,7 +403,6 @@ fn run_single_lbf_with_warm_start(
 
 /// True when the part is an axis-aligned rectangle the greedy packer
 /// can handle. See `run_greedy_warm_start` for filter rationale.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 pub fn is_axis_aligned_rect(p: &crate::domain::Part) -> bool {
     if matches!(p.shape_spec.as_ref().map(|s| s.kind.as_str()), Some("rect")) {
         return true;
@@ -412,7 +411,7 @@ pub fn is_axis_aligned_rect(p: &crate::domain::Part) -> bool {
         return false;
     }
     // No shape_spec: detect 4-vertex axis-aligned rectangle by polygon.
-    let poly = p.polygon_slice();
+    let poly = p.outer_slice();
     if poly.len() != 4 {
         return false;
     }
@@ -548,7 +547,6 @@ fn run_greedy_warm_start(request: &PackRequest) -> Vec<(usize, BPPlacement)> {
 /// The `instance_index` field is left as a per-bin counter here â€” the
 /// top-level caller renumbers across bins to match the `pack.rs`
 /// convention.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn snapshot_to_placements(
     snap: &LayoutSnapshot,
     instance: &BPInstance,
@@ -589,7 +587,7 @@ fn snapshot_to_placements(
 
         let part = &items[pi.item_id];
         let pack_polygon: Vec<Point2D> = part
-            .polygon_slice()
+            .outer_slice()
             .iter()
             .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
             .collect();

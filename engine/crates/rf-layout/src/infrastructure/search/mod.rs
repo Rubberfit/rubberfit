@@ -307,11 +307,10 @@ enum RepackOutcome {
 /// Build the stable copy-order used by `build_overlap_seed`. Sorted by
 /// `(bbox_area desc, shape_id asc)` and flattened respecting per-part
 /// `quantity`. Deterministic under identical `items` input.
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
     let mut shape_meta: Vec<(usize, f64, &str)> = Vec::with_capacity(items.len());
     for (idx, part) in items.iter().enumerate() {
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
@@ -356,7 +355,6 @@ fn build_copy_order(items: &[Part]) -> Result<Vec<(usize, u32)>, PackError> {
 /// Returns the overlap seed + a subset_items vector with per-part
 /// quantities decremented to match what was actually placed (Codex R3:
 /// never duplicate Part rows, always decrement).
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_overlap_seed(
     bin: &Bin,
     items: &[Part],
@@ -430,7 +428,7 @@ fn build_overlap_seed(
         }
 
         let part = &items[shape_idx];
-        let bbox = rf_geom::application::bbox_of(part.polygon_slice()).map_err(|source| {
+        let bbox = rf_geom::application::bbox_of(part.outer_slice()).map_err(|source| {
             PackError::InvalidPolygon {
                 shape_id: part.shape_id.clone(),
                 source,
@@ -454,7 +452,7 @@ fn build_overlap_seed(
             y,
             rotation_rad: 0.0,
             polygon: part
-                .polygon_slice()
+                .outer_slice()
                 .iter()
                 .map(|p| Point2D::new(p.x - bbox.0.x + x, p.y - bbox.0.y + y))
                 .collect(),
@@ -614,7 +612,6 @@ fn replay_seed_into_layout(
 /// Placements are sorted by `(item_id, tx, ty, rot)` before
 /// renumbering so `instance_index` is deterministic under fixed seed
 /// (jagua's `SlotMap` iteration order is not stable).
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn snapshot_to_seed(
     snap: &LayoutSnapshot,
     instance: &BPInstance,
@@ -649,7 +646,7 @@ fn snapshot_to_seed(
 
         let part = &items[pi.item_id];
         let polygon: Vec<Point2D> = part
-            .polygon_slice()
+            .outer_slice()
             .iter()
             .map(|p| apply_dtransformation_to_point(&abs_transf, *p))
             .collect();

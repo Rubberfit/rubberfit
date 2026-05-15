@@ -168,9 +168,8 @@ pub fn to_jagua_instance(
         .map_err(|e| PackError::EngineFailed(format!("jagua import failed: {e}")))
 }
 
-#[allow(deprecated)] // Task 3 migrates polygon_slice() callers to outer_slice().
 fn build_ext_item(id: u64, part: &Part) -> Result<BpExtItem, PackError> {
-    let polygon = part.polygon_slice();
+    let polygon = part.outer_slice();
     if polygon.len() < 3 {
         return Err(PackError::EngineFailed(format!(
             "part '{}' polygon has fewer than 3 vertices",
