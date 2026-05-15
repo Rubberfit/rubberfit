@@ -63,6 +63,12 @@ export class InvitationService implements IInvitationService {
     entity.recordSendFailure(error)
     return this.repo.update(entity)
   }
+
+  acceptByToken(
+    token: string
+  ): Promise<{ membershipId: string; tenantId: string }> {
+    return this.repo.acceptByToken(token)
+  }
 }
 
 export const invitationService: IInvitationService = new InvitationService(

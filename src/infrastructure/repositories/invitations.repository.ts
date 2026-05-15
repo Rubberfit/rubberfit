@@ -86,6 +86,21 @@ export class InvitationsRepository implements IInvitationsRepository {
     if (error) throw error
     return this.findById(entity.id.value)
   }
+
+  async acceptByToken(
+    token: string
+  ): Promise<{ membershipId: string; tenantId: string }> {
+    const client = await getDatabaseClient()
+    const { data, error } = await client
+      .rpc("accept_invitation", { p_token: token })
+      .single()
+    if (error) throw error
+    const row = data as { membership_id: string; tenant_id: string } | null
+    if (!row) {
+      throw new Error("accept_invitation RPC returned no row")
+    }
+    return { membershipId: row.membership_id, tenantId: row.tenant_id }
+  }
 }
 
 export const invitationsRepository = new InvitationsRepository()

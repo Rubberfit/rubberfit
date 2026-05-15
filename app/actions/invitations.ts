@@ -1,11 +1,16 @@
 "use server"
 
+import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import { ALL_ROLES } from "@/src/application/permissions"
+import type {
+  AcceptInvitationResult,
+  IAcceptInvitationUseCase,
+} from "@/src/application/use-cases/invitations/accept-invitation.use-case"
 import type {
   CreateInvitationResult,
   ICreateInvitationUseCase,
@@ -20,6 +25,10 @@ import type {
 } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
+import {
+  ACTIVE_TENANT_COOKIE,
+  buildActiveTenantCookieOptions,
+} from "@/app/server/auth/active-tenant"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -108,6 +117,44 @@ export async function resendInvitation(
   })
 
   if (result.ok) revalidatePath(MEMBERS_PAGE_PATH)
+  return result
+}
+
+/**
+ * Token-bearer accepts an invitation. No `manageMembers` gate here —
+ * the token itself is the authorization (you can only know it if the
+ * inviter shared it with you, and the RPC enforces email match against
+ * the signed-in user). On success, sets the `rema_active_tenant`
+ * cookie to the newly-joined tenant and busts the root layout so RSC
+ * surfaces refetch with the new membership.
+ */
+const acceptInvitationSchema = z.object({
+  token: z.string().min(1),
+})
+
+export type AcceptInvitationActionInput = z.input<typeof acceptInvitationSchema>
+
+export async function acceptInvitation(
+  input: AcceptInvitationActionInput
+): Promise<AcceptInvitationResult> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  const parsed = acceptInvitationSchema.parse(input)
+
+  const useCase = resolveUseCase<IAcceptInvitationUseCase>(
+    TOKENS.IAcceptInvitationUseCase
+  )
+  const result = await useCase.execute({ actor, token: parsed.token })
+
+  if (result.ok) {
+    const cookieStore = await cookies()
+    cookieStore.set(
+      ACTIVE_TENANT_COOKIE,
+      result.tenantId,
+      buildActiveTenantCookieOptions()
+    )
+    revalidatePath("/", "layout")
+  }
   return result
 }
 

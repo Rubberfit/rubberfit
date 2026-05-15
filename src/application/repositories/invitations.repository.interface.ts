@@ -55,4 +55,18 @@ export interface IInvitationsRepository {
    * insert.
    */
   update(entity: Invitation): Promise<Invitation>
+
+  /**
+   * Atomic accept via the `accept_invitation` Postgres RPC. Stamps
+   * `accepted_at` and inserts (or resurrects) the memberships row in
+   * one transaction. Throws PostgrestError with custom SQLSTATEs
+   * P0001-P0006 for the validation failures (auth required, not found,
+   * already accepted, revoked, expired, email mismatch); the use case
+   * discriminates on `error.code`.
+   *
+   * Returns the freshly-created/updated membership id and the tenant
+   * the user just joined — the action layer needs the tenant id to
+   * set the `rema_active_tenant` cookie before redirecting.
+   */
+  acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }>
 }

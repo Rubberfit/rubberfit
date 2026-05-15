@@ -104,6 +104,7 @@ import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricin
 import { CreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
 import { ResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
 import { RevokeInvitationUseCase } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
+import { AcceptInvitationUseCase } from "@/src/application/use-cases/invitations/accept-invitation.use-case"
 
 // Register all service singletons with the container.
 // Using registerInstance so the same singleton used by app/ consumers is also
@@ -288,5 +289,6 @@ container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterial
 container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
 container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
 container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
+container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)
 
 export { container }

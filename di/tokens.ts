@@ -71,4 +71,5 @@ export const TOKENS = {
   ICreateInvitationUseCase: Symbol("ICreateInvitationUseCase"),
   IResendInvitationUseCase: Symbol("IResendInvitationUseCase"),
   IRevokeInvitationUseCase: Symbol("IRevokeInvitationUseCase"),
+  IAcceptInvitationUseCase: Symbol("IAcceptInvitationUseCase"),
 } as const

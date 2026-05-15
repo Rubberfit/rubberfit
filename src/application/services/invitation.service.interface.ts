@@ -27,4 +27,11 @@ export interface IInvitationService {
   revoke(id: string): Promise<Invitation>
   recordSendSuccess(id: string): Promise<Invitation>
   recordSendFailure(id: string, error: string): Promise<Invitation>
+
+  /**
+   * Atomic accept — see IInvitationsRepository.acceptByToken. The
+   * service is a passthrough; orchestration (cookie set, redirect)
+   * happens in AcceptInvitationUseCase + the server action.
+   */
+  acceptByToken(token: string): Promise<{ membershipId: string; tenantId: string }>
 }
