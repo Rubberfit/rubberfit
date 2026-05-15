@@ -30,7 +30,7 @@ export interface IReorderService {
   getActiveReorderRules(): Promise<ReorderRuleWithDetails[]>
   getReorderRuleById(id: string): Promise<ReorderRuleWithDetails>
   getReorderRuleByMaterial(materialTypeId: string): Promise<ReorderRuleWithDetails | null>
-  createReorderRule(rule: CreateReorderRule): Promise<ReorderRuleWithDetails>
+  createReorderRule(rule: CreateReorderRule, userId?: string): Promise<ReorderRuleWithDetails>
   updateReorderRule(
     id: string,
     updates: UpdateReorderRule,

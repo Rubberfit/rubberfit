@@ -7,7 +7,11 @@ import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-
 import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
+import { resolveUseCase } from "@/di/resolve"
+import { TOKENS } from "@/di/tokens"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { DEFAULT_ORGANIZATION_PREFERENCES } from "@/src/infrastructure/models/organization-preferences"
 import { rollService } from "@/src/infrastructure/services/rollService"
 import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import type { MaterialType } from "@/src/infrastructure/models/supabase"
@@ -95,21 +99,53 @@ export async function createMaterialType(
 ): Promise<MaterialType> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  await requireActiveSubscription(actor)
+  const subscription = await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const parsed = createMaterialTypeSchema.parse(input)
+
+  // `??` (not `||`) so an explicit `0` (operator "disable alerts"
+  // override) short-circuits before the seed lookup runs.
+  const minStockAlert =
+    parsed.min_stock_alert ??
+    (await loadLowStockThresholdSeed(subscription.organizationId, actor.id))
 
   const result = await materialTypeService.create(
     {
       name: parsed.name,
       description: parsed.description ?? "",
       default_cost: parsed.default_cost ?? 0,
-      min_stock_alert: parsed.min_stock_alert ?? 0,
+      min_stock_alert: minStockAlert,
     },
     actor.id
   )
   revalidateAllMaterialPaths()
   return result
+}
+
+/**
+ * Best-effort: failure to read org prefs falls back to the model
+ * default so create succeeds rather than 500ing on an unrelated
+ * RLS/network blip. The operator can always edit the threshold
+ * after creation. Log carries `organizationId` + `actorId` so the
+ * mis-seed is debuggable when it does happen.
+ */
+async function loadLowStockThresholdSeed(
+  organizationId: string,
+  actorId: string
+): Promise<number> {
+  try {
+    const prefsService = resolveUseCase<IOrganizationPreferencesService>(
+      TOKENS.IOrganizationPreferencesService
+    )
+    const prefs = await prefsService.getForOrganization(organizationId)
+    return prefs.lowStockThresholdSqft
+  } catch (error) {
+    console.error(
+      `[materials] org-prefs threshold seed lookup failed (organizationId=${organizationId} actorId=${actorId}):`,
+      error
+    )
+    return DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft
+  }
 }
 
 export async function updateMaterialType(

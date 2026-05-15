@@ -34,6 +34,8 @@ import type {
 } from "@/src/infrastructure/models/supabase"
 import { cn } from "@/app/lib/utils"
 
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+
 import { JobAllocationsPanel } from "./job-allocations-panel"
 import { JobCutsPanel } from "./job-cuts-panel"
 import { JobPartsPanel } from "./job-parts-panel"
@@ -80,6 +82,7 @@ export function JobDetailDrawer({
   onDeleted,
 }: JobDetailDrawerProps) {
   const router = useRouter()
+  const organizationPreferences = useOrganizationPreferences()
   const [job, setJob] = useState<JobFullDetail | null>(null)
   const [sufficiency, setSufficiency] = useState<JobMaterialSufficiency[]>([])
   const [linkedPOs, setLinkedPOs] = useState<PurchaseOrder[]>([])
@@ -123,7 +126,9 @@ export function JobDetailDrawer({
   const handleExportPdf = () => {
     if (!job) return
     try {
-      downloadJobPdf(job)
+      // Customer-facing PDF — operator prefs govern dates/units/currency
+      // per the 2026-05-14 operator-seeds-prints ruling.
+      downloadJobPdf(job, { organizationPreferences })
       toast.success("PDF downloaded")
     } catch (err) {
       const m = err instanceof Error ? err.message : "Unknown error"

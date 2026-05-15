@@ -116,10 +116,16 @@ export class ReorderService implements IReorderService {
     }
   }
 
-  async createReorderRule(rule: CreateReorderRule): Promise<ReorderRuleWithDetails> {
+  async createReorderRule(
+    rule: CreateReorderRule,
+    userId?: string
+  ): Promise<ReorderRuleWithDetails> {
     try {
       const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
+      // Server-action callers pass `userId = actor.id`; browser-side
+      // legacy callers fall back to the deprecated `getCurrentUserId()`.
+      // Mirrors the pattern already established by `updateReorderRule`.
+      const user_id = userId ?? (await getCurrentUserId())
       const { data, error } = await supabase
         .from("reorder_rules")
         .insert([{ ...rule, user_id }])

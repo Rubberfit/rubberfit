@@ -167,6 +167,110 @@ describe("buildJobPdfBlob", () => {
     const blob = buildJobPdfBlob(makeJob())
     expect(blob.size).toBeGreaterThan(2048)
   })
+
+  it("accepts organizationPreferences and produces a valid PDF", () => {
+    const blob = buildJobPdfBlob(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "metric",
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "America/Los_Angeles",
+        locale: "es-MX",
+        defaultCurrency: "EUR",
+      },
+    })
+    expect(blob.size).toBeGreaterThan(2048)
+  })
+})
+
+describe("buildJobPdf with organizationPreferences (PR 2f)", () => {
+  it("renders a valid PDF with provider defaults (back-compat: no prefs passed)", () => {
+    const doc = buildJobPdf(makeJob())
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("renders a valid PDF when explicit default prefs are passed", () => {
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "imperial",
+        dateFormat: "MM/dd/yyyy",
+        timeZone: "America/Chicago",
+        locale: "en-US",
+        defaultCurrency: "USD",
+      },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("renders the metric / non-USD operator worldview without throwing", () => {
+    // Customer PDFs follow the operator per the 2026-05-14 ruling.
+    // The combination exercises every prefs-aware path: dates,
+    // dimensions, areas, currency, footer timestamp.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: {
+        unitSystem: "metric",
+        dateFormat: "dd/MM/yyyy",
+        timeZone: "Europe/London",
+        locale: "es-MX",
+        defaultCurrency: "GBP",
+      },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("handles a parts-empty job with non-default prefs", () => {
+    const doc = buildJobPdf(makeJob({ parts: [] }), {
+      organizationPreferences: { unitSystem: "metric", defaultCurrency: "EUR" },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(1024)
+  })
+
+  it("renders allocations with metric units when prefs.unitSystem = metric", () => {
+    // Allocations table renders `${length}  (${area})`. With metric
+    // prefs the length string must contain "cm" and the area "m²",
+    // both via the shared helpers. Smoke: PDF builds + bytes exist.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: { unitSystem: "metric" },
+    })
+    expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
+  })
+
+  it("produces different byte output between default and metric/EUR preferences", () => {
+    // Smoke-only assertions can't catch regressions like the
+    // `formatJobArea` multi-word-unit split bug (CR/Sigilix PR #269)
+    // because both buggy + correct paths still emit a non-empty PDF.
+    // Decoding to a Latin1 string lets Vitest's primitive-string
+    // compare fail on any real divergence (typed-array `toEqual`
+    // semantics differ across runtimes).
+    const decode = (doc: ReturnType<typeof buildJobPdf>) =>
+      new TextDecoder("latin1").decode(new Uint8Array(doc.output("arraybuffer")))
+    const defaultBytes = decode(buildJobPdf(makeJob()))
+    const metricBytes = decode(
+      buildJobPdf(makeJob(), {
+        organizationPreferences: {
+          unitSystem: "metric",
+          dateFormat: "dd/MM/yyyy",
+          defaultCurrency: "EUR",
+          locale: "es-MX",
+        },
+      })
+    )
+    expect(metricBytes).not.toBe(defaultBytes)
+  })
+
+  it("imperial area cells render as bare numbers without leaking the 'sq' fragment", () => {
+    // Direct guard for the formatJobArea multi-word-unit bug
+    // (CR/Sigilix PR #269): "12.3 sq ft" must not collapse to "12.3 sq"
+    // in the parts table. Decode the PDF byte stream to text and
+    // assert the bug's exact emission pattern (`<digits> sq <not-ft>`
+    // or `(<digits> sq)`) is absent. The uppercase " SQ FT " KPI
+    // label uses different bytes and is unaffected.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: { unitSystem: "imperial" },
+    })
+    const raw = new TextDecoder("latin1").decode(new Uint8Array(doc.output("arraybuffer")))
+    expect(raw).not.toMatch(/\(\d+(?:\.\d+)?\s+sq\s*\)/)
+    expect(raw).not.toMatch(/\b\d+(?:\.\d+)?\s+sq\b(?!\s*ft)/)
+  })
 })
 
 describe("jobPdfFileName", () => {
