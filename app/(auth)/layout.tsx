@@ -26,7 +26,7 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
         <div className="auth-pane-content">{children}</div>
 
         <footer className="auth-footer">
-          <span className="auth-footer-mono auth-footer-copy">© 2026 Arc &amp; Anchor</span>
+          <span className="auth-footer-mono">© 2026 Arc &amp; Anchor</span>
           <span className="auth-footer-lang" aria-label="Interface language">
             <svg
               width="14"
@@ -44,16 +44,16 @@ export default function Layout({ children }: Readonly<{ children: ReactNode }>) 
             </svg>
             ENG
           </span>
-          {revisionLabel && (
-            <span className="auth-footer-mono auth-footer-rev" role="note">
-              REV. {revisionLabel}
-            </span>
-          )}
         </footer>
       </section>
       <aside className="auth-pane-right" aria-hidden="true">
         <AuthDrawing />
       </aside>
+      {revisionLabel && (
+        <span className="auth-rev-stamp" role="note">
+          REV. {revisionLabel}
+        </span>
+      )}
     </main>
   )
 }
