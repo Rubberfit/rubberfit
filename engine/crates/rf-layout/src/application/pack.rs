@@ -127,10 +127,19 @@ pub fn pack_with_options(
                     None => (simple_polygon_with_holes(&shape_id, pack_surface)?, None),
                 },
                 None => {
-                    let polygon = match parts_by_shape.get(shape_id.as_str()) {
-                        Some(part) => transform_part_polygon(part, p.x, p.y, p.rotation_rad)?,
-                        None => simple_polygon_with_holes(&shape_id, pack_surface)?,
-                    };
+                    // Fail fast: jagua only emits placements for shape_ids
+                    // we passed in. A missing entry here would silently
+                    // drop holes (the prior fallback wrapped pack_surface
+                    // as a simple polygon), corrupting gasket-class
+                    // placements. Surface the invariant violation
+                    // instead. CodeRabbit PR 0a phase-end finding.
+                    let part = parts_by_shape.get(shape_id.as_str()).ok_or_else(|| {
+                        PackError::EngineFailed(format!(
+                            "Placement.shape_id '{shape_id}' has no matching Part in request — \
+                             orchestrator invariant violated"
+                        ))
+                    })?;
+                    let polygon = transform_part_polygon(part, p.x, p.y, p.rotation_rad)?;
                     (polygon, None)
                 }
             };

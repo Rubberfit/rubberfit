@@ -43,7 +43,7 @@ Net deliverable: one new operator-facing surface (Gasket cutting tab) plus three
 
 New peer route under the Cutting engine surface:
 
-```
+```text
 app/dashboard/cutting-engine/
 ├── page.tsx                  (Auto nest, existing)
 ├── free-roam/page.tsx        (Free roam, existing)
@@ -90,20 +90,24 @@ Same three-column workspace pattern as Free roam (left: parts queue, center: Kon
 Four shape types in the registry. All four produce a `partType: "polygon"` with optional holes, feeding the existing pipeline unchanged.
 
 ### 5.1 Ring gasket
+
 **Inputs:** outer diameter (OD), inner diameter (ID).
 **Geometry:** annulus — one outer closed loop (OD circle), one inner closed loop (ID hole).
 **Tessellation:** outer + inner circles → polylines via Maker.js's chord-length / max-facet controls, not a fixed angle step. **Default chord deviation = 0.005″** (≈ 32–64 vertices for typical gasket sizes), benchmarked in PR C against pack-time regression. Codex flagged the original "1°/0.25°" plan as vertex-heavy (would emit 360–1440 vertices per circle and 720–2880 for a full-face gasket — bad for jagua-rs solve time). Configurable per-org if needed; not exposed to operators by default.
 
 ### 5.2 Full-face gasket
+
 **Inputs:** OD, bore ID, bolt-circle diameter (BCD), bolt count (n), bolt-hole diameter.
 **Geometry:** one outer loop (OD circle) plus 1 + n inner loops (bore + n bolt holes evenly spaced on BCD, starting offset configurable).
 **Convention:** ASME B16.21 bolt patterns supported as presets ("ANSI 150 #4", etc.) — implemented in PR D, not v1. v1 is fully parametric.
 
 ### 5.3 Obround / oval gasket
+
 **Inputs:** overall length (L), overall width (W).
 **Geometry:** rectangle with semicircular caps on the short sides. Tessellated to a single closed polyline (no holes).
 
 ### 5.4 Imported gasket (DXF or SVG)
+
 **Inputs:** uploaded file, unit selection (mm/inch, auto-detected when possible), part-of-interest selection (multi-part files).
 **Geometry:** outer boundary + holes as parsed by the CAD layer.
 
@@ -322,7 +326,7 @@ Each PR follows the per-task workflow: Codex + Kimi (where UI is touched) sign-o
 
 | Risk | Mitigation |
 |------|-----------|
-| ~~PR 0 contract churn ripples through five+ subsystems~~ **MITIGATED** — split into 0a/0b/0c per Codex v2 recommendation. Each PR independently reviewable, smaller blast radius. 0a's backward-compat shim accepts old single-loop arrays so 0a can land safely before 0b ships. |
+| ~~PR 0 contract churn ripples through five+ subsystems~~ **MITIGATED** | Split into 0a/0b/0c per Codex v2 recommendation. Each PR independently reviewable, smaller blast radius. 0a's backward-compat shim accepts old single-loop arrays so 0a can land safely before 0b ships. |
 | jagua-rs `ExtShape::Polygon` (holes) correctness on dense bolt-circle gaskets (8+ holes inside one part) | PR 0 includes a Rust integration test for full-face with 8 bolt holes; `verify-algo` agent fuzz-tests area / containment invariants. If jagua-rs has limits, surface them in PR 0 and re-scope. |
 | makerjs tessellation resolution vs. nester performance — too many vertices per gasket hurts pack time | Default chord-deviation = 0.005″ (~32–64 verts per circle); benchmark in PR C with the pack-time parity suite. Codex specifically flagged the v1 spec's 1° default as vertex-heavy. |
 | Self-intersection / degenerate edge repair on real-world DXF files | clipper-lib polygon-prep step + reject with operator-facing toast if unfixable (mirrors ARC-93 AC). |

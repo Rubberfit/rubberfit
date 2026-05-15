@@ -89,6 +89,31 @@ describe("PolygonWithHoles wire contract", () => {
     expect(result.success).toBe(false)
   })
 
+  it("rejects a hole with fewer than 3 vertices", () => {
+    // Outer-ring min(3) is already covered above; this locks the
+    // same constraint on each individual hole ring.
+    const result = packRequestSchema.safeParse({
+      ...baseFixture,
+      items: [
+        {
+          shapeId: "ring-bad-hole",
+          quantity: 1,
+          polygon: {
+            outer: [
+              { x: 0, y: 0 },
+              { x: 10, y: 0 },
+              { x: 10, y: 10 },
+              { x: 0, y: 10 },
+            ],
+            holes: [[{ x: 3, y: 3 }, { x: 7, y: 3 }]],
+          },
+          allowRotation: true,
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+  })
+
   it("treats a missing holes field as no holes", () => {
     const result = packRequestSchema.safeParse({
       ...baseFixture,

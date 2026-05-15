@@ -332,6 +332,57 @@ mod tests {
     }
 
     #[test]
+    fn density_uses_net_polygon_area_for_holed_parts() {
+        // Regression for the CodeRabbit PR 0a finding: a holed part
+        // (e.g. ring gasket) must contribute its NET area (outer −
+        // holes) to best_active_stock_density, not the outer ring's
+        // shoelace area. Otherwise a 10×10 ring with a 6×6 hole would
+        // count as a 100-area placement and inflate density above 1.0
+        // on a 10×10 bin.
+        let bins = vec![test_bin("A", 10.0, 10.0)];
+
+        // Ring part: 10×10 outer, 6×6 centered hole. Net area = 100 - 36 = 64.
+        let outer = rf_geom::Polygon::new(vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(10.0, 0.0),
+            Point2D::new(10.0, 10.0),
+            Point2D::new(0.0, 10.0),
+        ])
+        .unwrap();
+        let hole = rf_geom::Polygon::new(vec![
+            Point2D::new(2.0, 2.0),
+            Point2D::new(8.0, 2.0),
+            Point2D::new(8.0, 8.0),
+            Point2D::new(2.0, 8.0),
+        ])
+        .unwrap();
+        // Use shape_id "r" so it matches the seed_with_one_placement helper.
+        let ring = Part {
+            shape_id: "r".into(),
+            quantity: 1,
+            polygon: Some(PolygonWithHoles::new(outer, vec![hole])),
+            shape_spec: None,
+            allow_rotation: false,
+            grain_axis: None,
+            difficulty: None,
+            tag: None,
+        };
+
+        let assn = FfdAssignment {
+            per_bin: vec![seed_with_one_placement(10.0, 10.0)],
+            overflow: vec![],
+        };
+        let (placed, density) = compute_progress_stats(&assn, &bins, &[ring]);
+        assert_eq!(placed, 1);
+        // Net area 64 / stock 100 = 0.64 (NOT 1.0 from outer-only).
+        assert!(
+            (density - 0.64).abs() < 1e-9,
+            "density must use net polygon area (outer − holes), got {density}"
+        );
+        assert!(density <= 1.0, "density must stay ≤ 1.0 for holed parts");
+    }
+
+    #[test]
     fn active_stock_density_excludes_empty_bins() {
         let bins = vec![
             test_bin("A", 10.0, 10.0),   // will have placement

@@ -87,6 +87,35 @@ describe("buildPlacementView", () => {
     expect(view.items[0].polygon).toEqual(RESULT.placements[0].polygon.outer)
   })
 
+  it("drops holes at the view boundary (PR 0a: PR 0b lifts view to PolygonWithHoles)", () => {
+    // Regression guard for the deliberate boundary adapter behavior:
+    // a holed Placement renders into the legacy view as outer-only.
+    // When PR 0b lifts `PlacementViewItem.polygon` to PolygonWithHoles,
+    // this test should be updated/removed and the assertion flipped.
+    const holedResult: PackResult = {
+      ...RESULT,
+      placements: [
+        {
+          ...RESULT.placements[0],
+          polygon: {
+            outer: RESULT.placements[0].polygon.outer,
+            holes: [
+              [
+                { x: 4, y: 4 },
+                { x: 10, y: 4 },
+                { x: 10, y: 7 },
+                { x: 4, y: 7 },
+              ],
+            ],
+          },
+        },
+      ],
+    }
+    const view = buildPlacementView(holedResult, PACK_REQUEST)
+    expect(view.items[0].polygon).toEqual(holedResult.placements[0].polygon.outer)
+    expect(view.items[0].polygon).not.toContainEqual({ x: 4, y: 4 })
+  })
+
   it("groups view items by binId", () => {
     const view = buildPlacementView(RESULT, PACK_REQUEST)
     expect(view.bins["b1"]).toBeDefined()
