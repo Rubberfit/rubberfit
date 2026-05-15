@@ -99,12 +99,22 @@ export function ReorderRuleSheet({
   // double-click can fire two submits before the disabled state
   // lands. Same pattern as PoEditDrawerBody (PR #194 round-3).
   const isSavingRef = useRef(false)
+  // Track open transitions so the effect below only re-seeds when
+  // the sheet opens. Without this guard, an async org-prefs hydration
+  // mid-edit would clobber the user's in-progress form input. CR
+  // PR #269 catch — keep `lowStockThresholdSqft` in deps so the seed
+  // picks up the latest value on the NEXT open without a stale read.
+  const wasOpenRef = useRef(false)
   const [formData, setFormData] = useState<ReorderFormData>(() =>
     buildDefaultFormData(organizationPreferences.lowStockThresholdSqft)
   )
   const [eoqData, setEoqData] = useState(DEFAULT_EOQ_DATA)
 
   useEffect(() => {
+    const isOpening = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!isOpening) return
+
     if (rule) {
       setFormData({
         material_type_id: rule.material_type_id,
@@ -125,7 +135,7 @@ export function ReorderRuleSheet({
     } else {
       setFormData(buildDefaultFormData(organizationPreferences.lowStockThresholdSqft))
     }
-  }, [rule, organizationPreferences.lowStockThresholdSqft])
+  }, [open, rule, organizationPreferences.lowStockThresholdSqft])
 
   const calculateEOQ = () => {
     const { annualDemand, orderingCost, holdingCost } = eoqData
