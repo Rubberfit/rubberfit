@@ -6,7 +6,7 @@ import {
   CutNotFoundError,
   deleteCutByIdAuthorized,
   getCutByIdAuthorized,
-} from "@/src/infrastructure/services/cutHistoryService"
+} from "@/src/infrastructure/services/legacyCutHistoryService"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

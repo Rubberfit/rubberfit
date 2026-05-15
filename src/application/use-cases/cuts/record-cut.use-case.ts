@@ -7,7 +7,7 @@ import type { IRollInventoryService } from "@/src/application/services/roll-inve
 import {
   insertCutHistory,
   type CutHistoryInsert,
-} from "@/src/infrastructure/services/cutHistoryService"
+} from "@/src/infrastructure/services/legacyCutHistoryService"
 import { resolveOffcutPieces } from "@/src/infrastructure/services/rollInventoryService"
 import { maybeAutoCompleteJob } from "@/src/infrastructure/repositories/jobs.repository"
 import type {

@@ -4,6 +4,7 @@ export const TOKENS = {
   // Services
   IAuthService: Symbol("IAuthService"),
   ICsvService: Symbol("ICsvService"),
+  ICutHistoryService: Symbol("ICutHistoryService"),
   ICutService: Symbol("ICutService"),
   IEmailService: Symbol("IEmailService"),
   IExportPdfService: Symbol("IExportPdfService"),
@@ -28,6 +29,7 @@ export const TOKENS = {
   IVisionExtractionService: Symbol("IVisionExtractionService"),
 
   // Repositories
+  ICutHistoryRepository: Symbol("ICutHistoryRepository"),
   ICutsRepository: Symbol("ICutsRepository"),
   IMaterialSuppliersRepository: Symbol("IMaterialSuppliersRepository"),
   IMaterialTypesRepository: Symbol("IMaterialTypesRepository"),

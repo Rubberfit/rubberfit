@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import { listCutHistoryPaginated } from "@/src/infrastructure/services/cutHistoryService"
+import { listCutHistoryPaginated } from "@/src/infrastructure/services/legacyCutHistoryService"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 const MAX_LIMIT = 100

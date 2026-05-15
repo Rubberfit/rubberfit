@@ -34,6 +34,10 @@ import type { IRollInventoryService } from "@/src/application/services/roll-inve
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
 import { csvService } from "@/src/infrastructure/services/csvService"
+import { CutHistoryService } from "@/src/infrastructure/services/cutHistoryService"
+import { cutHistoryRepository } from "@/src/infrastructure/repositories/cut-history.repository"
+import type { ICutHistoryRepository } from "@/src/application/repositories/cut-history.repository.interface"
+import type { ICutHistoryService } from "@/src/application/services/cut-history.service.interface"
 import { CutService } from "@/src/infrastructure/services/cutService"
 import { cutsRepository } from "@/src/infrastructure/repositories/cuts.repository"
 import type { ICutsRepository } from "@/src/application/repositories/cuts.repository.interface"
@@ -101,6 +105,11 @@ container.registerInstance<IAuthService>(TOKENS.IAuthService, authService)
 container.registerInstance<ICsvService>(TOKENS.ICsvService, csvService)
 container.registerInstance<ICutsRepository>(TOKENS.ICutsRepository, cutsRepository)
 container.registerSingleton<ICutService>(TOKENS.ICutService, CutService)
+container.registerInstance<ICutHistoryRepository>(
+  TOKENS.ICutHistoryRepository,
+  cutHistoryRepository
+)
+container.registerSingleton<ICutHistoryService>(TOKENS.ICutHistoryService, CutHistoryService)
 container.registerInstance<IEmailService>(TOKENS.IEmailService, emailService)
 container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPdfService)
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)

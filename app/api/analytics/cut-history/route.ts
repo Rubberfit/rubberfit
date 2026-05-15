@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import { getCutAnalytics } from "@/src/infrastructure/services/cutHistoryService"
+import { getCutAnalytics } from "@/src/infrastructure/services/legacyCutHistoryService"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 export async function GET(request: NextRequest) {
