@@ -111,7 +111,11 @@ export function ReorderRuleSheet({
         supplier_id: rule.supplier_id || "",
         reorder_point: rule.reorder_point,
         reorder_quantity: rule.reorder_quantity,
-        max_stock_level: rule.max_stock_level || FALLBACK_MAX_STOCK,
+        // `??` not `||`: a stored `max_stock_level = 0` is technically
+        // a CHECK-constraint violation upstream, but if the row ever
+        // surfaces (legacy data, manual SQL) we shouldn't silently
+        // promote it to 1000 — repo rule: use nullish coalesce.
+        max_stock_level: rule.max_stock_level ?? FALLBACK_MAX_STOCK,
         lead_time_days: rule.lead_time_days,
         safety_stock_days: rule.safety_stock_days,
         auto_reorder: rule.auto_reorder,

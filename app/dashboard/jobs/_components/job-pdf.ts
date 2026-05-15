@@ -104,14 +104,16 @@ function formatStatus(status: JobStatus): string {
 }
 
 function formatJobArea(value: number, prefs: OrgPrintPreferencesInput | undefined): string {
-  // Use the shared helper for unit-aware rendering. The helper
-  // emits "value unit" (e.g. "12.3 sq ft" / "1.14 m²"); we want
-  // value-only in the table cell since the column header carries
-  // the unit. Split on the trailing space and keep only the value.
+  // The helper emits "value unit" — "12.3 sq ft" (imperial, multi-word)
+  // / "1.14 m²" (metric, single token). We want value-only in the
+  // table cell since the column header carries the unit. Extract the
+  // leading numeric portion with a regex so multi-word imperial labels
+  // ("sq ft") don't bleed into the cell value via a naive last-space
+  // split (which would yield "12.3 sq"). Sigilix/CR PR #269 catch.
   const text = formatAreaSqft(value, prefs)
   if (!text) return ""
-  const lastSpace = text.lastIndexOf(" ")
-  return lastSpace === -1 ? text : text.slice(0, lastSpace)
+  const match = text.match(/^[\d,.\s]*[\d.]/)
+  return match ? match[0].trim() : text
 }
 
 function truncate(doc: jsPDF, text: string, maxWidth: number): string {

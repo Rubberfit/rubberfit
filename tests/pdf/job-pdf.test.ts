@@ -233,6 +233,44 @@ describe("buildJobPdf with organizationPreferences (PR 2f)", () => {
     })
     expect(doc.output("arraybuffer").byteLength).toBeGreaterThan(2048)
   })
+
+  it("produces different byte output between default and metric/EUR preferences", () => {
+    // Smoke-only assertions can't catch regressions like the
+    // `formatJobArea` multi-word-unit split bug (CR/Sigilix PR #269)
+    // because both buggy + correct paths still emit a non-empty PDF.
+    // Decoding to a Latin1 string lets Vitest's primitive-string
+    // compare fail on any real divergence (typed-array `toEqual`
+    // semantics differ across runtimes).
+    const decode = (doc: ReturnType<typeof buildJobPdf>) =>
+      new TextDecoder("latin1").decode(new Uint8Array(doc.output("arraybuffer")))
+    const defaultBytes = decode(buildJobPdf(makeJob()))
+    const metricBytes = decode(
+      buildJobPdf(makeJob(), {
+        organizationPreferences: {
+          unitSystem: "metric",
+          dateFormat: "dd/MM/yyyy",
+          defaultCurrency: "EUR",
+          locale: "es-MX",
+        },
+      })
+    )
+    expect(metricBytes).not.toBe(defaultBytes)
+  })
+
+  it("imperial area cells render as bare numbers without leaking the 'sq' fragment", () => {
+    // Direct guard for the formatJobArea multi-word-unit bug
+    // (CR/Sigilix PR #269): "12.3 sq ft" must not collapse to "12.3 sq"
+    // in the parts table. Decode the PDF byte stream to text and
+    // assert the bug's exact emission pattern (`<digits> sq <not-ft>`
+    // or `(<digits> sq)`) is absent. The uppercase " SQ FT " KPI
+    // label uses different bytes and is unaffected.
+    const doc = buildJobPdf(makeJob(), {
+      organizationPreferences: { unitSystem: "imperial" },
+    })
+    const raw = new TextDecoder("latin1").decode(new Uint8Array(doc.output("arraybuffer")))
+    expect(raw).not.toMatch(/\(\d+(?:\.\d+)?\s+sq\s*\)/)
+    expect(raw).not.toMatch(/\b\d+(?:\.\d+)?\s+sq\b(?!\s*ft)/)
+  })
 })
 
 describe("jobPdfFileName", () => {
