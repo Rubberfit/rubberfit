@@ -1,5 +1,7 @@
+import { createElement } from "react"
 import { Resend } from "resend"
-// import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
+import { render } from "@react-email/render"
+import InvitationEmail from "@/app/templates/email/invitation"
 import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
@@ -269,6 +271,46 @@ export class EmailService implements IEmailService {
       subject: `Welcome to ${COMPANY_NAME} RubberFit`,
       html,
       tags: [{ name: "notification_type", value: "welcome" }],
+    })
+  }
+
+  /**
+   * Send a tenant-membership invitation email.
+   *
+   * Synchronous (no queue) per ARC-25 plan v3 decision #6: admins
+   * click Invite and the email goes out immediately. On failure the
+   * caller (CreateInvitationUseCase / ResendInvitationUseCase) records
+   * the error onto the invitation row via
+   * IInvitationService.recordSendFailure so the admin sees it in the
+   * pending-invitations table.
+   */
+  async sendInvitation(params: {
+    to: string
+    tenantName: string
+    inviterName: string
+    acceptUrl: string
+    expiresAt: Date
+    roles: string[]
+  }) {
+    const html = await render(
+      createElement(InvitationEmail, {
+        tenantName: params.tenantName,
+        inviterName: params.inviterName,
+        acceptUrl: params.acceptUrl,
+        expiresAt: params.expiresAt,
+        roles: params.roles,
+        companyName: COMPANY_NAME,
+      })
+    )
+
+    return this.sendEmail({
+      to: params.to,
+      subject: `You've been invited to ${params.tenantName}`,
+      html,
+      tags: [
+        { name: "notification_type", value: "invitation" },
+        { name: "tenant", value: params.tenantName },
+      ],
     })
   }
 

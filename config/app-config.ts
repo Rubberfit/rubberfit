@@ -23,4 +23,10 @@ export const APP_CONFIG = {
    */
   PO_RECEIPT_PENDING_ALERT_THRESHOLD_HOURS: 1,
   PO_RECEIPT_PENDING_ALERT_DEDUP_WINDOW_HOURS: 6,
+  /**
+   * Default lifetime of an invitation token. The DB column is NOT NULL
+   * with no DEFAULT — server actions compute `expires_at = now + N days`
+   * at insert time. Per ARC-25 plan v3 decision #6 (synchronous send).
+   */
+  INVITATION_EXPIRY_DAYS: 7,
 }
