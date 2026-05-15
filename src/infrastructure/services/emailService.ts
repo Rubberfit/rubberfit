@@ -306,10 +306,16 @@ export class EmailService implements IEmailService {
     // insertion so this HTML-rendering boundary stays uniform with the
     // other escaped params and any future label source can't be the
     // weak link.
+    //
+    // `inviteUrl` flows into an `href` attribute — a crafted value with
+    // an unescaped `"` would break the attribute boundary. Escape it
+    // even though the URL is built server-side from `appUrl()` + a hex
+    // token today; CR PR #270 catch.
+    const safeInviteUrl = escapeHtml(params.inviteUrl)
     const html = `
       <p>You've been invited to join <strong>${escapeHtml(params.organizationName)}</strong> on Rubberfit${inviterFrom ? ` by ${escapeHtml(inviterFrom.trim())}` : ""}.</p>
       <p>Your role on the team will be <strong>${escapeHtml(params.role)}</strong>.</p>
-      <p><a href="${params.inviteUrl}">Accept the invitation</a></p>
+      <p><a href="${safeInviteUrl}">Accept the invitation</a></p>
       <p>This invitation expires on ${escapeHtml(params.expiresAtLabel)}.</p>
     `
     return this.sendEmail({
