@@ -17,6 +17,20 @@ export interface Point2D {
   y: number
 }
 
+/**
+ * Polygon with optional inner holes. Mirrors
+ * `rf_geom::PolygonWithHoles`. Holes are voids — jagua-rs handles them
+ * natively; the packer treats the part as occupying (outer - holes).
+ *
+ * Wire backward compat: requests can also send `polygon` as a flat
+ * `Point2D[]` array; the zod schema lifts that to `{ outer, holes: [] }`
+ * automatically. New TS code should write the structured form directly.
+ */
+export interface PolygonWithHoles {
+  outer: Point2D[]
+  holes: Point2D[][]
+}
+
 export type BinKind = "fresh" | "remnant"
 
 export type UnitSystem = "inch" | "mm"
@@ -41,13 +55,14 @@ export interface Part {
   shapeId: string
   quantity: number
   /**
-   * Pre-built polygon vertices in part-local coords. Reserved for
-   * raw-geometry callers (DXF imports, hand-drawn shapes). Auto-nest
-   * spec-able shapes (rect, circle, trapezoid, ngon, sector) ship
-   * `shapeSpec` only and rely on Rust to materialise the polygon at
-   * pack time. See `engine/crates/rf-layout/src/application/shape_builder.rs`.
+   * Pre-built polygon vertices in part-local coords (outer ring +
+   * optional inner holes). Reserved for raw-geometry callers (DXF
+   * imports, hand-drawn shapes). Auto-nest spec-able shapes (rect,
+   * circle, trapezoid, ngon, sector) ship `shapeSpec` only and rely
+   * on Rust to materialise the polygon at pack time. See
+   * `engine/crates/rf-layout/src/application/shape_builder.rs`.
    */
-  polygon?: Point2D[]
+  polygon?: PolygonWithHoles
   shapeSpec?: ShapeSpec | null
   allowRotation: boolean
   grainAxis?: GrainAxis | null
@@ -156,7 +171,7 @@ export interface Placement {
   x: number
   y: number
   rotationRad: number
-  polygon: Point2D[]
+  polygon: PolygonWithHoles
   width: number
   height: number
   difficulty?: number | null
@@ -275,10 +290,29 @@ const shapeSpecSchema = z.object({
   params: z.record(z.string(), z.unknown()),
 })
 
+const polygonWithHolesSchema = z.object({
+  outer: z.array(point2DSchema).min(3, { message: "outer must have at least 3 vertices" }),
+  holes: z.array(z.array(point2DSchema).min(3)).default([]),
+})
+
+// Backward-compat: accept either a flat Point2D[] (legacy) or the
+// structured PolygonWithHoles form. The flat form lifts to
+// { outer, holes: [] }. The two shapes are disjoint (object vs.
+// array) so the union disambiguates unambiguously regardless of
+// which branch z.union tries first.
+const polygonInputSchema = z
+  .union([polygonWithHolesSchema, z.array(point2DSchema).min(3)])
+  .transform((input): PolygonWithHoles => {
+    if (Array.isArray(input)) {
+      return { outer: input, holes: [] }
+    }
+    return input
+  })
+
 const partSchema = z.object({
   shapeId: z.string().min(1),
   quantity: z.number().int().nonnegative(),
-  polygon: z.array(point2DSchema).optional(),
+  polygon: polygonInputSchema.optional(),
   shapeSpec: shapeSpecSchema.nullable().optional(),
   allowRotation: z.boolean(),
   grainAxis: z.enum(["width", "length", "none"]).nullable().optional(),

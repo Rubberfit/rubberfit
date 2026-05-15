@@ -60,13 +60,7 @@ fn single_cone_emits_nonzero_waste_area() {
     let bin = &result.per_bin[0];
 
     let stock_area = 96.0 * 48.0;
-    let placement_area = result.placements[0]
-        .polygon
-        .windows(2)
-        .map(|w| w[0].x * w[1].y - w[1].x * w[0].y)
-        .sum::<f64>()
-        .abs()
-        / 2.0;
+    let placement_area = result.placements[0].polygon.area();
 
     assert!(
         bin.waste_area > 0.0,

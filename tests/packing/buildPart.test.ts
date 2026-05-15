@@ -113,7 +113,8 @@ describe("buildPart — custom / DXF passthrough", () => {
       ],
       allowRotation: true,
     })
-    expect(part.polygon).toHaveLength(4)
+    expect(part.polygon?.outer).toHaveLength(4)
+    expect(part.polygon?.holes).toEqual([])
     expect(part.shapeSpec).toBeUndefined()
   })
 
@@ -130,8 +131,9 @@ describe("buildPart — custom / DXF passthrough", () => {
       allowRotation: true,
     })
     expect(part.polygon).toBeDefined()
-    const xs = part.polygon!.map((p) => p.x)
-    const ys = part.polygon!.map((p) => p.y)
+    if (!part.polygon) return
+    const xs = part.polygon.outer.map((p) => p.x)
+    const ys = part.polygon.outer.map((p) => p.y)
     expect(Math.min(...xs)).toBe(0)
     expect(Math.min(...ys)).toBe(0)
   })
@@ -172,7 +174,7 @@ describe("buildPart — custom / DXF passthrough", () => {
       shapeSpec: { kind: "rect", params: { width: 10, height: 5 } },
       allowRotation: true,
     })
-    expect(part.polygon).toHaveLength(3)
+    expect(part.polygon?.outer).toHaveLength(3)
     expect(part.shapeSpec).toEqual({ kind: "rect", params: { width: 10, height: 5 } })
   })
 })

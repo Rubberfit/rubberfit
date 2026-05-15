@@ -88,7 +88,7 @@ fn convex_hull_mode_emits_hull_pack_overlay_for_cones() {
         result
             .placements
             .iter()
-            .all(|p| p.polygon.len() == 2 * (expected_segments + 1)),
+            .all(|p| p.polygon.outer().points().len() == 2 * (expected_segments + 1)),
         "render polygon should be the annular sector"
     );
     assert!(
@@ -118,7 +118,7 @@ fn annular_sector_packing_mode_packs_real_cone_polygon_without_overlay() {
         result
             .placements
             .iter()
-            .all(|p| p.polygon.len() == expected_vertices),
+            .all(|p| p.polygon.outer().points().len() == expected_vertices),
         "pack/render polygon should be the real annular sector"
     );
     assert!(
@@ -142,7 +142,7 @@ fn surface(p: &Placement) -> &[Point2D] {
     p.pack_polygon
         .as_deref()
         .filter(|poly| poly.len() >= 3)
-        .unwrap_or(&p.polygon)
+        .unwrap_or_else(|| p.polygon.outer().points())
 }
 
 fn convex_polygons_overlap(a: &[Point2D], b: &[Point2D]) -> bool {

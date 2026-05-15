@@ -169,7 +169,12 @@ function placementToPlacedPart(
     innerRadius: template?.innerRadius,
     outerRadius: template?.outerRadius,
     arcDegrees: template?.arcDegrees,
-    polygon: p.polygon,
+    // PR 0a: Placement.polygon is PolygonWithHoles. LayoutModel's
+    // PlacedPart.polygon is still single-contour Point2D[] — the
+    // hole-aware lift through the renderer + PDF exporter lands in
+    // PR 0c. Pass the outer ring here so existing renderers stay
+    // unchanged; holes (if any) are dropped at this boundary today.
+    polygon: p.polygon.outer,
     packPolygon: p.packPolygon,
   }
 }

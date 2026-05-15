@@ -140,17 +140,6 @@ impl ProgressEmitter {
     }
 }
 
-/// Shoelace polygon area (absolute). Matches `pack.rs`'s private helper.
-fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
 /// Compute `(total_placed_count, active_stock_density)` for a given
 /// assignment. `active_stock_density = sum_placed_area / sum_stock_of_
 /// non_empty_bins`.
@@ -159,7 +148,9 @@ fn compute_progress_stats(assignment: &FfdAssignment, bins: &[Bin], items: &[Par
     let mut area_by_shape: std::collections::HashMap<&str, f64> =
         std::collections::HashMap::with_capacity(items.len());
     for p in items {
-        area_by_shape.insert(p.shape_id.as_str(), polygon_area(p.polygon_slice()));
+        // Net area (outer − holes) so holed parts don't inflate
+        // best_active_stock_density above 1.0 (CodeRabbit PR 0a finding).
+        area_by_shape.insert(p.shape_id.as_str(), p.net_polygon_area());
     }
 
     let mut total_placed: u32 = 0;
@@ -194,6 +185,7 @@ mod tests {
     use crate::domain::{BinKind, Part};
     use crate::infrastructure::warm_start::{SeedPlacement, SeedResult};
     use rf_geom::domain::Point2D;
+    use rf_geom::PolygonWithHoles;
     use std::sync::Mutex;
     use std::time::Instant;
 
@@ -211,12 +203,15 @@ mod tests {
         Part {
             shape_id: id.into(),
             quantity: qty,
-            polygon: Some(vec![
-                Point2D::new(0.0, 0.0),
-                Point2D::new(w, 0.0),
-                Point2D::new(w, h),
-                Point2D::new(0.0, h),
-            ]),
+            polygon: Some(
+                PolygonWithHoles::from_outer_points(vec![
+                    Point2D::new(0.0, 0.0),
+                    Point2D::new(w, 0.0),
+                    Point2D::new(w, h),
+                    Point2D::new(0.0, h),
+                ])
+                .expect("rect polygon"),
+            ),
             shape_spec: None,
             allow_rotation: false,
             grain_axis: None,
@@ -334,6 +329,57 @@ mod tests {
         assert!(json.contains("\"bestPlacedCount\":3"));
         assert!(json.contains("\"bestActiveStockDensity\":0.42"));
         assert!(json.contains("\"phase\":\"explore\""));
+    }
+
+    #[test]
+    fn density_uses_net_polygon_area_for_holed_parts() {
+        // Regression for the CodeRabbit PR 0a finding: a holed part
+        // (e.g. ring gasket) must contribute its NET area (outer −
+        // holes) to best_active_stock_density, not the outer ring's
+        // shoelace area. Otherwise a 10×10 ring with a 6×6 hole would
+        // count as a 100-area placement and inflate density above 1.0
+        // on a 10×10 bin.
+        let bins = vec![test_bin("A", 10.0, 10.0)];
+
+        // Ring part: 10×10 outer, 6×6 centered hole. Net area = 100 - 36 = 64.
+        let outer = rf_geom::Polygon::new(vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(10.0, 0.0),
+            Point2D::new(10.0, 10.0),
+            Point2D::new(0.0, 10.0),
+        ])
+        .unwrap();
+        let hole = rf_geom::Polygon::new(vec![
+            Point2D::new(2.0, 2.0),
+            Point2D::new(8.0, 2.0),
+            Point2D::new(8.0, 8.0),
+            Point2D::new(2.0, 8.0),
+        ])
+        .unwrap();
+        // Use shape_id "r" so it matches the seed_with_one_placement helper.
+        let ring = Part {
+            shape_id: "r".into(),
+            quantity: 1,
+            polygon: Some(PolygonWithHoles::new(outer, vec![hole])),
+            shape_spec: None,
+            allow_rotation: false,
+            grain_axis: None,
+            difficulty: None,
+            tag: None,
+        };
+
+        let assn = FfdAssignment {
+            per_bin: vec![seed_with_one_placement(10.0, 10.0)],
+            overflow: vec![],
+        };
+        let (placed, density) = compute_progress_stats(&assn, &bins, &[ring]);
+        assert_eq!(placed, 1);
+        // Net area 64 / stock 100 = 0.64 (NOT 1.0 from outer-only).
+        assert!(
+            (density - 0.64).abs() < 1e-9,
+            "density must use net polygon area (outer − holes), got {density}"
+        );
+        assert!(density <= 1.0, "density must stay ≤ 1.0 for holed parts");
     }
 
     #[test]

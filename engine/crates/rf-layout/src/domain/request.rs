@@ -1,6 +1,7 @@
 // engine/crates/rf-layout/src/domain/request.rs
-use rf_geom::domain::Point2D;
-use serde::{Deserialize, Serialize};
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -51,15 +52,20 @@ pub struct Part {
     pub shape_id: String,
     #[serde(alias = "demand")]
     pub quantity: u32,
-    /// Pre-built polygon vertices in part-local coords (CCW, normalized
-    /// so minX = minY = 0). Optional — when absent, the pack pipeline
-    /// materialises the polygon from `shape_spec` via
-    /// `application::shape_builder::materialise_polygon`. Auto-nest
-    /// spec-able shapes (rect, circle, trapezoid, ngon, sector) are
-    /// constructed Rust-side from `shape_spec`; this field is now
-    /// reserved for DXF imports / raw-geometry callers.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub polygon: Option<Vec<Point2D>>,
+    /// Polygon-with-holes in part-local coords (CCW outer, holes per
+    /// PR 0b sanitation). Optional — when absent, the pack pipeline
+    /// materializes the polygon from `shape_spec`.
+    ///
+    /// Backward-compat: requests built before PR 0a send `polygon: [...]`
+    /// (flat point array). `deserialize_polygon_with_holes_compat`
+    /// accepts both shapes and lifts the flat form to
+    /// `PolygonWithHoles::simple(...)`.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_polygon_with_holes_compat"
+    )]
+    pub polygon: Option<PolygonWithHoles>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub shape_spec: Option<ShapeSpec>,
     pub allow_rotation: bool,
@@ -76,6 +82,33 @@ pub struct Part {
     /// sole ownership of the labelling scheme.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub tag: Option<String>,
+}
+
+/// Deserialize `Part.polygon` accepting either the legacy single-loop
+/// flat array `[{x,y},...]` or the new structured form
+/// `{ outer: [...], holes: [[...],...] }`. Returns `None` for `null`
+/// or a missing field.
+fn deserialize_polygon_with_holes_compat<'de, D>(
+    deserializer: D,
+) -> Result<Option<PolygonWithHoles>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Either {
+        Structured(PolygonWithHoles),
+        Flat(Vec<Point2D>),
+    }
+    let opt: Option<Either> = Option::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(Either::Structured(p)) => Ok(Some(p)),
+        Some(Either::Flat(points)) => {
+            let polygon = Polygon::new(points).map_err(serde::de::Error::custom)?;
+            Ok(Some(PolygonWithHoles::simple(polygon)))
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -179,16 +212,48 @@ pub const FAST_MS: u64 = 2_000;
 pub const BALANCED_MS: u64 = 10_000;
 pub const THOROUGH_MS: u64 = 30_000;
 
+const POLYGON_NOT_MATERIALISED: &str =
+    "Part.polygon was None — orchestrator must call materialise_request_polygons \
+     before passing parts to search/jagua code";
+
 impl Part {
-    /// Borrow the materialised polygon. Panics if the polygon is
-    /// `None`. Pack pipelines call
+    /// Borrow the outer boundary of the materialized polygon. Panics
+    /// if `polygon` is `None` — pack pipelines call
     /// `application::shape_builder::materialise_request_polygons` at
-    /// entry, after which every part is guaranteed to have a polygon
-    /// — so downstream search/jagua code is free to assume it.
-    pub fn polygon_slice(&self) -> &[Point2D] {
-        self.polygon.as_deref().expect(
-            "Part.polygon was None — orchestrator must call materialise_request_polygons before passing parts to search/jagua code",
-        )
+    /// entry, after which every part is guaranteed to have a polygon.
+    pub fn outer_slice(&self) -> &[Point2D] {
+        self.polygon
+            .as_ref()
+            .expect(POLYGON_NOT_MATERIALISED)
+            .outer()
+            .points()
+    }
+
+    /// Iterate hole boundaries. Empty for parts with no holes (rings,
+    /// gaskets, full-face with bolts have holes; rectangles and discs
+    /// do not).
+    pub fn holes_iter(&self) -> impl Iterator<Item = &[Point2D]> {
+        self.polygon
+            .as_ref()
+            .expect(POLYGON_NOT_MATERIALISED)
+            .holes()
+            .iter()
+            .map(|h| h.points())
+    }
+
+    /// Net polygon area: outer boundary minus the sum of hole areas.
+    /// This is the physical area the part occupies on the stock and is
+    /// the correct value for pack-density heuristics, item-area
+    /// precomputation, and any other "how much material does this part
+    /// consume" question. Using the outer boundary alone (via
+    /// `outer_slice` + a shoelace) overstates gasket-class parts because
+    /// it ignores the voids. Panics if `polygon` is `None` for the same
+    /// reason `outer_slice` does.
+    pub fn net_polygon_area(&self) -> f64 {
+        self.polygon
+            .as_ref()
+            .expect(POLYGON_NOT_MATERIALISED)
+            .area()
     }
 }
 
@@ -224,9 +289,45 @@ mod tests {
         assert_eq!(req.bins[0].bin_id, "b1");
         assert_eq!(req.items.len(), 1);
         assert_eq!(req.items[0].shape_id, "rect-a");
-        assert_eq!(req.items[0].polygon.as_ref().map(|p| p.len()), Some(4));
+        let pwh = req.items[0].polygon.as_ref().unwrap();
+        assert_eq!(pwh.outer().points().len(), 4);
         assert_eq!(req.mode, Some(PackMode::Fast));
         assert_eq!(req.units, UnitSystem::Inch); // default
+    }
+
+    #[test]
+    fn accepts_legacy_single_loop_polygon_array() {
+        // Backward-compat: requests built before PR 0a ship `polygon: [...]`
+        // (flat array of points). These must continue to parse and lift to
+        // `PolygonWithHoles { outer: <array>, holes: [] }`.
+        let req: PackRequest = serde_json::from_str(FIXTURE).unwrap();
+        let part = &req.items[0];
+        let pwh = part.polygon.as_ref().expect("legacy fixture has polygon");
+        assert!(pwh.is_simple(), "no holes in legacy fixture");
+        assert_eq!(pwh.outer().points().len(), 4);
+    }
+
+    #[test]
+    fn accepts_new_polygon_with_holes_shape() {
+        let json = r#"{
+            "bins":[{"binId":"b1","width":48,"height":96,"kind":"fresh"}],
+            "clearance":0.125,
+            "items":[{
+                "shapeId":"ring",
+                "quantity":1,
+                "polygon":{
+                    "outer":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":10},{"x":0,"y":10}],
+                    "holes":[[{"x":3,"y":3},{"x":7,"y":3},{"x":7,"y":7},{"x":3,"y":7}]]
+                },
+                "allowRotation":true
+            }]
+        }"#;
+        let req: PackRequest = serde_json::from_str(json).unwrap();
+        let part = &req.items[0];
+        let pwh = part.polygon.as_ref().expect("new shape has polygon");
+        assert!(!pwh.is_simple());
+        assert_eq!(pwh.holes().len(), 1);
+        assert_eq!(pwh.holes()[0].points().len(), 4);
     }
 
     #[test]

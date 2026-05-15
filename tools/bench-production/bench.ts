@@ -106,12 +106,15 @@ function buildPackRequest(rows: CsvRow[], opts: CliOpts): PackRequest {
   const items: Part[] = rows.map((r) => ({
     shapeId: r.shapeId,
     quantity: r.quantity,
-    polygon: [
-      { x: 0, y: 0 },
-      { x: r.width, y: 0 },
-      { x: r.width, y: r.length },
-      { x: 0, y: r.length },
-    ],
+    polygon: {
+      outer: [
+        { x: 0, y: 0 },
+        { x: r.width, y: 0 },
+        { x: r.width, y: r.length },
+        { x: 0, y: r.length },
+      ],
+      holes: [],
+    },
     allowRotation: opts.rotation,
   }))
   const bins = Array.from({ length: opts.nBins }, (_, idx) => ({
@@ -231,14 +234,18 @@ function analyseResult(
   for (const bin of bins) {
     const binResult = result.perBin.find((b) => b.binId === bin.binId)
     const placements = result.placements.filter((p) => p.binId === bin.binId)
-    const placedPolygons = placements.map((p: Placement) => p.polygon)
+    // PR 0a: Placement.polygon is PolygonWithHoles. The bench's
+    // free-rect extractor is single-contour-only; pass the outer
+    // ring. Hole-aware free-space accounting lands later in the
+    // PR 0 sequence.
+    const placedPolygons = placements.map((p: Placement) => p.polygon.outer)
     const stockArea = bin.width * bin.height
     const usedArea = binResult?.usedArea ?? 0
     const wasteArea = binResult?.wasteArea ?? stockArea
 
     let occupiedHeight = 0
     for (const p of placements) {
-      for (const pt of p.polygon) {
+      for (const pt of p.polygon.outer) {
         if (pt.y > occupiedHeight) occupiedHeight = pt.y
       }
     }

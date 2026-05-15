@@ -23,7 +23,8 @@
 // for the full research + ranked options that led here.
 
 use crate::domain::Placement;
-use rf_geom::domain::Point2D;
+use rf_geom::domain::{Point2D, Polygon};
+use rf_geom::PolygonWithHoles;
 
 const COLLISION_EPS: f64 = 1e-7;
 
@@ -32,18 +33,8 @@ const COLLISION_EPS: f64 = 1e-7;
 /// necessarily the polygon's bottom-left corner under rotation), so
 /// AABB-overlap checks MUST be computed from the polygon itself.
 fn placement_bbox(p: &Placement) -> (f64, f64, f64, f64) {
-    if p.polygon.is_empty() {
-        return (p.x, p.y, p.x + p.width, p.y + p.height);
-    }
-    p.polygon.iter().fold(
-        (
-            f64::INFINITY,
-            f64::INFINITY,
-            f64::NEG_INFINITY,
-            f64::NEG_INFINITY,
-        ),
-        |(mnx, mny, mxx, mxy), v| (mnx.min(v.x), mny.min(v.y), mxx.max(v.x), mxy.max(v.y)),
-    )
+    let (min, max) = p.polygon.bbox();
+    (min.x, min.y, max.x, max.y)
 }
 
 // Pack-surface overlap helpers used to keep post-pack movement collision-safe.
@@ -51,7 +42,7 @@ fn collision_surface(p: &Placement) -> &[Point2D] {
     p.pack_polygon
         .as_deref()
         .filter(|poly| poly.len() >= 3)
-        .unwrap_or(&p.polygon)
+        .unwrap_or_else(|| p.polygon.outer().points())
 }
 
 pub(crate) fn placements_have_pack_surface_overlap(placements: &[Placement]) -> bool {
@@ -591,10 +582,7 @@ pub fn polish_placements(
 fn translate_placement(p: &mut Placement, dx: f64, dy: f64) {
     p.x += dx;
     p.y += dy;
-    for v in &mut p.polygon {
-        v.x += dx;
-        v.y += dy;
-    }
+    p.polygon = translate_polygon_with_holes(&p.polygon, dx, dy);
     if let Some(pack_polygon) = &mut p.pack_polygon {
         for v in pack_polygon {
             v.x += dx;
@@ -603,12 +591,38 @@ fn translate_placement(p: &mut Placement, dx: f64, dy: f64) {
     }
 }
 
+fn translate_polygon(poly: &Polygon, dx: f64, dy: f64) -> Polygon {
+    Polygon::new(
+        poly.points()
+            .iter()
+            .map(|v| Point2D::new(v.x + dx, v.y + dy))
+            .collect(),
+    )
+    .expect("translated polygon should preserve vertex count")
+}
+
+fn translate_polygon_with_holes(poly: &PolygonWithHoles, dx: f64, dy: f64) -> PolygonWithHoles {
+    let outer = translate_polygon(poly.outer(), dx, dy);
+    let holes = poly
+        .holes()
+        .iter()
+        .map(|hole| translate_polygon(hole, dx, dy))
+        .collect();
+    PolygonWithHoles::new(outer, holes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rf_geom::domain::Point2D;
 
     fn rect(shape_id: &str, x: f64, y: f64, w: f64, h: f64) -> Placement {
+        let polygon = PolygonWithHoles::from_outer_points(vec![
+            Point2D::new(x, y),
+            Point2D::new(x + w, y),
+            Point2D::new(x + w, y + h),
+            Point2D::new(x, y + h),
+        ])
+        .unwrap();
         Placement {
             shape_id: shape_id.into(),
             instance_index: 0,
@@ -616,12 +630,7 @@ mod tests {
             x,
             y,
             rotation_rad: 0.0,
-            polygon: vec![
-                Point2D::new(x, y),
-                Point2D::new(x + w, y),
-                Point2D::new(x + w, y + h),
-                Point2D::new(x, y + h),
-            ],
+            polygon,
             width: w,
             height: h,
             difficulty: None,
@@ -632,6 +641,7 @@ mod tests {
 
     fn polygon_placement(shape_id: &str, points: Vec<Point2D>) -> Placement {
         let (min_x, min_y, max_x, max_y) = points_bbox(&points);
+        let polygon = PolygonWithHoles::from_outer_points(points.clone()).unwrap();
         Placement {
             shape_id: shape_id.into(),
             instance_index: 0,
@@ -639,7 +649,7 @@ mod tests {
             x: min_x,
             y: min_y,
             rotation_rad: 0.0,
-            polygon: points.clone(),
+            polygon,
             width: (max_x - min_x).max(0.0),
             height: (max_y - min_y).max(0.0),
             difficulty: None,
