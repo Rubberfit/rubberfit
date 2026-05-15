@@ -1,0 +1,130 @@
+{
+  "nav": {
+    "chrome": {
+      "quickCreate": "Quick Create",
+      "comingSoon": "Soon",
+      "notifications": "Notifications",
+      "notificationsUnread": "Notifications — {count} unread"
+    },
+    "groups": {
+      "operations": "Operations",
+      "analytics": "Analytics",
+      "management": "Management",
+      "qa": "Q&A"
+    },
+    "items": {
+      "dashboard": { "title": "Dashboard" },
+      "inventory": {
+        "title": "Inventory",
+        "subItems": {
+          "currentStock": "Current Stock",
+          "purchaseOrders": "Purchase Orders"
+        }
+      },
+      "jobs": { "title": "Jobs" },
+      "cuttingEngine": {
+        "title": "Cutting Engine",
+        "subItems": {
+          "autoNest": "Auto nest",
+          "freeRoam": "Free roam"
+        }
+      },
+      "cutHistory": { "title": "Cut History" },
+      "analytics": {
+        "title": "Analytics",
+        "subItems": {
+          "waste": "Waste",
+          "periodComparison": "Period comparison",
+          "materialUsage": "Material usage",
+          "costReports": "Cost reports",
+          "trends": "Trends"
+        }
+      },
+      "materials": {
+        "title": "Materials",
+        "subItems": {
+          "materialSettings": "Material Settings",
+          "materialTypes": "Material Types",
+          "suppliers": "Suppliers",
+          "pricing": "Pricing"
+        }
+      },
+      "reports": { "title": "Reports" },
+      "users": { "title": "Users" },
+      "securityAudit": { "title": "Security & Audit" },
+      "settings": {
+        "title": "Settings",
+        "subItems": {
+          "general": "General",
+          "profile": "Profile & account",
+          "materials": "Materials",
+          "notifications": "Notifications",
+          "team": "Team",
+          "billing": "Billing"
+        }
+      },
+      "security": { "title": "Security" }
+    }
+  },
+  "settings": {
+    "general": {
+      "pageTitle": "General",
+      "breadcrumbSettings": "Settings",
+      "pageSubtitle": "Organization, regional, and operational defaults applied across the workspace.",
+      "scope": {
+        "workspaceDefault": "[ WORKSPACE DEFAULT ]",
+        "workspaceDefaultClause": "Edits apply to all members",
+        "personalOverride": "[ PERSONAL OVERRIDE ]",
+        "personalOverrideClause": "Edits apply only to your account",
+        "reset": "Reset to workspace default",
+        "resetTooltip": "Available in a future update."
+      },
+      "notProvisioned": "Your preferences aren't ready yet. Reload in a moment, or sign out and back in if this persists.",
+      "orgNotProvisionedTitle": "Workspace defaults aren't ready yet",
+      "orgNotProvisionedBody": "The workspace preference row hasn't been provisioned for this organization. The editor below is read-only — reload in a moment, or contact support if this persists."
+    },
+    "organization": {
+      "title": "Workspace defaults",
+      "eyebrow": "WORKSPACE",
+      "description": "Drives PDFs, billing dates, emails, and the seeds for new shared records. Members can override the regional and unit choices on their own screens below, but exports and notifications always render in these settings."
+    },
+    "regional": {
+      "title": "Your regional display",
+      "eyebrow": "PERSONAL · REGIONAL",
+      "language": "Language",
+      "currency": "Currency",
+      "timeZone": "Time zone",
+      "dateFormat": "Date format",
+      "preview": "Preview:",
+      "current": "Current:",
+      "readonly": "Read-only — workspace defaults set by an admin"
+    },
+    "operations": {
+      "title": "Your unit display",
+      "eyebrow": "PERSONAL · OPERATIONS",
+      "unitSystem": "Unit system",
+      "lowStockThreshold": "Low-stock threshold",
+      "imperial": "Imperial",
+      "metric": "Metric",
+      "referenceDimensions": "Reference dimensions",
+      "lowStockExplainer": "Alert when any material drops below {threshold} {unit}"
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "saved": "Saved",
+      "lastSaved": "Last saved {when}"
+    },
+    "errors": {
+      "forbidden": "You don't have permission to change workspace defaults.",
+      "unknown": "Couldn't save. Please try again."
+    },
+    "avatarMenu": {
+      "languageHeader": "LANGUAGE",
+      "english": "English (US)",
+      "spanish": "Español (México)",
+      "syncError": "Couldn't save your language preference. Please try again."
+    }
+  }
+}

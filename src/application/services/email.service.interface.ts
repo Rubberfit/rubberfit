@@ -64,7 +64,14 @@ export interface IEmailService {
     role: "admin" | "member"
     inviterName: string | null
     inviteUrl: string
-    expiresAt: Date
+    /**
+     * Pre-formatted expiry label (e.g. "May 22, 2026" / "22/05/2026").
+     * The caller (invitation use-cases) formats this with the
+     * operator's date prefs via `formatUserDate` per the 2026-05-14
+     * operator-seeds-prints ruling so the email service stays a pure
+     * transport — no DB reads, no locale logic.
+     */
+    expiresAtLabel: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }>
   queueEmail(
     notification: Omit<

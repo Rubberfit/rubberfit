@@ -4,7 +4,9 @@ import { inject, injectable } from "tsyringe"
 
 import { TOKENS } from "@/di/tokens"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 import type { ActionActor } from "@/src/application/types/action-actor"
 
 export type CreateInvitationError =
@@ -56,8 +58,30 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
     @inject(TOKENS.IOrganizationService)
     private readonly organizationService: IOrganizationService,
     @inject(TOKENS.IEmailService)
-    private readonly emailService: IEmailService
+    private readonly emailService: IEmailService,
+    @inject(TOKENS.IOrganizationPreferencesService)
+    private readonly organizationPreferencesService: IOrganizationPreferencesService
   ) {}
+
+  /**
+   * Best-effort: returns the operator-formatted expiry label, or the
+   * helper's default formatting when org prefs can't be loaded. A
+   * prefs lookup failure must NOT block invitation send — the seat
+   * would otherwise be revoked downstream and the user would see a
+   * confusing "invite_email_failed" for an unrelated DB hiccup.
+   */
+  private async formatExpiresAtLabel(organizationId: string, expiresAt: Date): Promise<string> {
+    try {
+      const prefs = await this.organizationPreferencesService.getForOrganization(organizationId)
+      return formatUserDate(expiresAt, prefs)
+    } catch (error) {
+      console.error(
+        `[create-invitation] org-prefs lookup failed for organizationId=${organizationId}; falling back to default date formatting:`,
+        error
+      )
+      return formatUserDate(expiresAt)
+    }
+  }
 
   async execute(input: CreateInvitationInput): Promise<CreateInvitationResult> {
     const email = input.email.trim().toLowerCase()
@@ -110,6 +134,7 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
       const organization = await this.organizationService.getOrganizationById(input.organizationId)
       const organizationName = organization?.name ?? "your team"
       const inviterName = input.actor.email ?? null
+      const expiresAtLabel = await this.formatExpiresAtLabel(input.organizationId, expiresAt)
 
       const send = await this.emailService.sendInvitationEmail({
         to: email,
@@ -117,7 +142,7 @@ export class CreateInvitationUseCase implements ICreateInvitationUseCase {
         role: input.role,
         inviterName,
         inviteUrl,
-        expiresAt,
+        expiresAtLabel,
       })
       sendSucceeded = send.success
     } catch (sendErr) {

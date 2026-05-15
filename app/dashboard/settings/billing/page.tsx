@@ -1,10 +1,13 @@
-import { format } from "date-fns"
 import Link from "next/link"
 
 import { getBillingSummary, type BillingSummaryData } from "@/app/actions/billing-summary"
+import { getOrganizationPreferences } from "@/app/actions/organization-preferences"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
+import { buildFallbackOrganizationPreferences } from "@/src/infrastructure/models/organization-preferences"
 
 import { StatusPill } from "@/app/components/billing/StatusPill"
 import { ManageSubscriptionButton } from "./_components/manage-subscription-button"
+import { PlanCardActionButton } from "./_components/plan-card-action-button"
 
 export const dynamic = "force-dynamic"
 
@@ -47,11 +50,23 @@ const TIER_TAGLINES: Record<(typeof RETAIL_TIERS)[number], string> = {
  * Portal session via `createBillingPortalSession`.
  */
 export default async function BillingPage() {
-  const data = await getBillingSummary()
+  // PR 2c (operator-seeds-prints ruling): the renewal date renders
+  // in the workspace's chosen dateFormat — billing dates are a
+  // shared / printed surface and shouldn't shape-shift based on
+  // which user happens to be viewing the page. The not_provisioned /
+  // no_organization branches fall back to canonical defaults so the
+  // page is still renderable when the provision trigger hasn't fired.
+  const [data, prefsResult] = await Promise.all([
+    getBillingSummary(),
+    getOrganizationPreferences(),
+  ])
+  const preferences =
+    "data" in prefsResult ? prefsResult.data : buildFallbackOrganizationPreferences()
   const interval: "monthly" | "annual" = data.billingInterval ?? "monthly"
   const isEnterprise = data.tier === "enterprise"
+  // Falls back to "—" when no period is on file.
   const renewalDate = data.currentPeriodEnd
-    ? format(new Date(data.currentPeriodEnd), "MMMM d, yyyy")
+    ? formatUserDate(data.currentPeriodEnd, preferences) || "—"
     : "—"
   const intervalLabel = data.billingInterval
     ? data.billingInterval === "annual"
@@ -73,7 +88,12 @@ export default async function BillingPage() {
       {isEnterprise ? (
         <EnterpriseManagementBlock />
       ) : (
-        <ComparePlansGrid currentTier={data.tier} interval={interval} seatCount={data.seatCount} />
+        <ComparePlansGrid
+          currentTier={data.tier}
+          interval={interval}
+          seatCount={data.seatCount}
+          organizationId={data.organizationId}
+        />
       )}
 
       <ManageSubscriptionBlock organizationId={data.organizationId} isEnterprise={isEnterprise} />
@@ -177,10 +197,12 @@ function ComparePlansGrid({
   currentTier,
   interval,
   seatCount,
+  organizationId,
 }: {
   currentTier: "standard" | "pro" | "max" | "enterprise"
   interval: "monthly" | "annual"
   seatCount: number
+  organizationId: string
 }) {
   return (
     <section className="mb-10">
@@ -195,6 +217,7 @@ function ComparePlansGrid({
             currentTier={currentTier}
             interval={interval}
             seatCount={seatCount}
+            organizationId={organizationId}
           />
         ))}
       </div>
@@ -210,11 +233,13 @@ function PlanCard({
   currentTier,
   interval,
   seatCount,
+  organizationId,
 }: {
   tier: (typeof RETAIL_TIERS)[number]
   currentTier: "standard" | "pro" | "max" | "enterprise"
   interval: "monthly" | "annual"
   seatCount: number
+  organizationId: string
 }) {
   const isCurrent = currentTier === tier
   const isEnterprise = currentTier === "enterprise"
@@ -278,25 +303,12 @@ function PlanCard({
       </div>
 
       <div className="mt-auto pt-5">
-        <button
-          type="button"
-          disabled={actionDisabled}
-          aria-disabled={actionDisabled}
-          title={
-            actionDisabled
-              ? actionLabel
-              : "Plan changes are handled through the Stripe Customer Portal — coming soon. Email support@rubberfit.app to switch in the meantime."
-          }
-          className={
-            actionDisabled
-              ? "inline-flex h-11 w-full cursor-not-allowed items-center justify-center border border-[var(--color-rule)] bg-[var(--color-surface)] font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-ink-faint)]"
-              : actionVariant === "primary"
-                ? "inline-flex h-11 w-full items-center justify-center bg-[var(--color-signal)] font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-canvas)] transition-colors hover:bg-[var(--color-signal-deep)] active:translate-y-px"
-                : "inline-flex h-11 w-full items-center justify-center border border-[var(--color-graphite)] bg-transparent font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--color-graphite)] transition-colors hover:bg-[var(--color-graphite)] hover:text-[var(--color-canvas)]"
-          }
-        >
-          {actionLabel}
-        </button>
+        <PlanCardActionButton
+          organizationId={organizationId}
+          actionLabel={actionLabel}
+          isActionDisabled={actionDisabled}
+          actionVariant={actionVariant}
+        />
       </div>
     </div>
   )
@@ -359,11 +371,11 @@ function ManageSubscriptionBlock({
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 font-[family-name:var(--font-sans)] text-[13px] text-[var(--color-ink-soft)]">
             <p>
               <span className="text-[var(--color-signal)]">• </span>
-              <strong>Update payment method</strong> — replace card on file
+              <strong>Change plan</strong> — upgrade or downgrade tiers
             </p>
             <p>
               <span className="text-[var(--color-signal)]">• </span>
-              <strong>Cancel subscription</strong> — stops at period end
+              <strong>Update payment method</strong> — replace card on file
             </p>
             <p>
               <span className="text-[var(--color-signal)]">• </span>
@@ -372,6 +384,10 @@ function ManageSubscriptionBlock({
             <p>
               <span className="text-[var(--color-signal)]">• </span>
               <strong>Update profile + tax ID</strong> — billing address, VAT/EIN
+            </p>
+            <p>
+              <span className="text-[var(--color-signal)]">• </span>
+              <strong>Cancel subscription</strong> — stops at period end
             </p>
           </div>
         </>

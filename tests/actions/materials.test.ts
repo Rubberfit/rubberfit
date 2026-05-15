@@ -15,6 +15,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ActionActor } from "@/src/application/types/action-actor"
+import {
+  DEFAULT_ORGANIZATION_PREFERENCES,
+  type OrganizationPreferences,
+} from "@/src/infrastructure/models/organization-preferences"
 
 const requireAuthenticatedUserMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-authenticated-user", () => ({
@@ -68,6 +72,17 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }))
 
+// PR 2f: createMaterialType seeds `min_stock_alert` from the org's
+// `lowStockThresholdSqft` when callers omit the field. Mock the
+// org-prefs service so the seed path is deterministic.
+const orgPrefsServiceMock = vi.hoisted(() => ({
+  getForOrganization: vi.fn<(id: string) => Promise<OrganizationPreferences>>(),
+}))
+const resolveUseCaseMock = vi.hoisted(() => vi.fn(() => orgPrefsServiceMock))
+vi.mock("@/di/resolve", () => ({
+  resolveUseCase: resolveUseCaseMock,
+}))
+
 const ACTOR: ActionActor = {
   id: "00000000-0000-0000-0000-000000000001",
   email: "manager@example.com",
@@ -76,11 +91,15 @@ const ACTOR: ActionActor = {
 }
 
 const MATERIAL_ID = "00000000-0000-0000-0000-000000000aaa"
+const ORG_ID = "00000000-0000-0000-0000-0000000000aa"
 
 describe("app/actions/materials", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
-    requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
+    requireActiveSubscriptionMock.mockResolvedValue({
+      kind: "allowed",
+      organizationId: ORG_ID,
+    })
     requirePermissionMock.mockReturnValue(undefined)
     createSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })
     updateSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })
@@ -88,6 +107,16 @@ describe("app/actions/materials", () => {
     getByIdsSvcMock.mockResolvedValue([{ id: MATERIAL_ID, name: "Butyl" }])
     existsByMaterialTypeMock.mockResolvedValue(false)
     existsItemsByMaterialTypeMock.mockResolvedValue(false)
+    // Non-default seed (275) so assertions distinguish the seeded
+    // path from any legacy `?? 0` fallback.
+    orgPrefsServiceMock.getForOrganization.mockResolvedValue({
+      ...DEFAULT_ORGANIZATION_PREFERENCES,
+      organizationId: ORG_ID,
+      lowStockThresholdSqft: 275,
+      createdAt: "",
+      updatedAt: "",
+    })
+    resolveUseCaseMock.mockReturnValue(orgPrefsServiceMock)
   })
 
   afterEach(() => {
@@ -142,6 +171,47 @@ describe("app/actions/materials", () => {
 
     await expect(createMaterialType({ name: "Butyl" })).rejects.toThrow("forbidden")
     expect(createSvcMock).not.toHaveBeenCalled()
+  })
+
+  it("createMaterialType seeds min_stock_alert from org prefs when omitted", async () => {
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl" })
+
+    expect(orgPrefsServiceMock.getForOrganization).toHaveBeenCalledWith(ORG_ID)
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ min_stock_alert: 275 }),
+      ACTOR.id
+    )
+  })
+
+  it("createMaterialType preserves an explicit min_stock_alert: 0 (disable-alerts override)", async () => {
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl", min_stock_alert: 0 })
+
+    // Explicit 0 is meaningful — the operator wants no alert. The
+    // seed lookup must NOT run, otherwise `?? orgSeed` would replace
+    // a legitimate override.
+    expect(orgPrefsServiceMock.getForOrganization).not.toHaveBeenCalled()
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({ min_stock_alert: 0 }),
+      ACTOR.id
+    )
+  })
+
+  it("createMaterialType falls back to the model default when org-prefs lookup fails", async () => {
+    orgPrefsServiceMock.getForOrganization.mockRejectedValue(new Error("rls denied"))
+    const { createMaterialType } = await import("@/app/actions/materials")
+
+    await createMaterialType({ name: "Butyl" })
+
+    expect(createSvcMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        min_stock_alert: DEFAULT_ORGANIZATION_PREFERENCES.lowStockThresholdSqft,
+      }),
+      ACTOR.id
+    )
   })
 
   // ── updateMaterialType ─────────────────────────────────────────

@@ -2,6 +2,7 @@ import { format } from "date-fns"
 
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import type { ExportData } from "@/src/application/services/export.service.interface"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
 
 export interface POExportFilters {
   status: string
@@ -22,16 +23,37 @@ export interface PurchaseOrdersExportInput {
   pos: PurchaseOrderWithDetails[]
   filters: POExportFilters
   stats: POExportSummary
+  /**
+   * Workspace-level locale / dateFormat / timeZone — applied to
+   * visible PDF text only (body dates, footer timestamp) per the
+   * 2026-05-14 operator-seeds-prints ruling. Personal viewer
+   * preferences still drive the on-screen PO drawer/cell display;
+   * the printed artifact always speaks in the operator's voice.
+   * CSV cell dates intentionally stay in the existing ISO format
+   * because operators import the CSV into spreadsheets where
+   * machine-stable dates matter more than localized display.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
+   */
+  organizationPreferences: UserDatePreferencesInput
 }
 
-/** Snapshot the bits of `usePurchaseOrders` the export menu needs. */
+/**
+ * Snapshot the bits of `usePurchaseOrders` the export menu needs.
+ * Returns a partial export input without `organizationPreferences`;
+ * the caller must spread + add prefs from `useOrganizationPreferences()`
+ * to satisfy the required field (compile-time enforcement of the
+ * 2026-05-14 operator-seeds-prints data flow).
+ */
 export function toPurchaseOrdersExportInput(po: {
   filteredPOs: PurchaseOrderWithDetails[]
   statusFilter: string
   supplierFilter: string
   searchQuery: string
   stats: POExportSummary
-}): PurchaseOrdersExportInput {
+}): Omit<PurchaseOrdersExportInput, "organizationPreferences"> {
   return {
     pos: po.filteredPOs,
     filters: {

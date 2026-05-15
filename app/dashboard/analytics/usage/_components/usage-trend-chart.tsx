@@ -2,6 +2,8 @@
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface UsageData {
   period: string
@@ -14,6 +16,7 @@ interface UsageTrendChartProps {
 }
 
 export function UsageTrendChart({ data }: UsageTrendChartProps) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <Card>
       <CardHeader>
@@ -34,7 +37,11 @@ export function UsageTrendChart({ data }: UsageTrendChartProps) {
                       <div className="space-y-1">
                         <p className="text-sm">
                           <span className="text-muted-foreground">Material Used:</span>{" "}
-                          <span className="font-medium">{data.totalUsage.toFixed(1)} sq ft</span>
+                          <span className="font-medium tabular-nums">
+                            {formatAreaSqft(data.totalUsage, organizationPreferences, {
+                              precision: 1,
+                            })}
+                          </span>
                         </p>
                         <p className="text-sm">
                           <span className="text-muted-foreground">Cuts:</span>{" "}

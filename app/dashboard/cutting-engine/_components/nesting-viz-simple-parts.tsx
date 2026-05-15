@@ -4,7 +4,11 @@
 import React from "react"
 import { Loader2 } from "lucide-react"
 import type { SimplePartPreview, OffcutBand, MultiSheetResult } from "./nesting-visualizer-types"
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+} from "@/src/application/preferences/user-unit-display"
 // SimpleModeLayout type used by the re-exported SimpleModeDimensionLabels
 
 function computeHeaderMetrics(
@@ -361,8 +365,11 @@ export function SimpleModeMetrics({
   fabScore: { score: number }
   multiSheet?: MultiSheetResult | null
 }) {
+  const organizationPreferences = useOrganizationPreferences()
   const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
   const displayScore = isMultiSheet ? multiSheet!.avgFabScore : fabScore.score
+  const fmtArea = (value: number) =>
+    formatAreaSqft(value, organizationPreferences, { precision: 2 })
   // Fab score is only meaningful when material has been fabricated.
   // An empty sheet would otherwise render "40/100" from the seam-count
   // (0 seams = perfect) and reusable-ratio (all-waste-is-reusable)
@@ -390,28 +397,24 @@ export function SimpleModeMetrics({
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Material Used
         </div>
-        <div className="mt-1 text-2xl font-semibold text-foreground">
-          {isMultiSheet ? (multiSheet!.totalUsedArea / 144).toFixed(2) : usedSqFt.toFixed(2)} sq ft
+        <div className="mt-1 text-2xl font-semibold text-foreground tabular-nums">
+          {fmtArea(isMultiSheet ? multiSheet!.totalUsedArea / 144 : usedSqFt)}
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           {reusableMetricLabel}
         </div>
-        <div className="mt-1 text-2xl font-semibold text-amber-600">
-          {isMultiSheet
-            ? (multiSheet!.totalReusableArea / 144).toFixed(2)
-            : reusableOffcutSqFt.toFixed(2)}{" "}
-          sq ft
+        <div className="mt-1 text-2xl font-semibold text-amber-600 tabular-nums">
+          {fmtArea(isMultiSheet ? multiSheet!.totalReusableArea / 144 : reusableOffcutSqFt)}
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Scrap / Waste
         </div>
-        <div className="mt-1 text-2xl font-semibold text-red-600">
-          {isMultiSheet ? (multiSheet!.totalScrapArea / 144).toFixed(2) : scrapSqFt.toFixed(2)} sq
-          ft
+        <div className="mt-1 text-2xl font-semibold text-red-600 tabular-nums">
+          {fmtArea(isMultiSheet ? multiSheet!.totalScrapArea / 144 : scrapSqFt)}
         </div>
       </div>
       <div className="rounded-lg border bg-muted/20 p-3">
@@ -457,17 +460,18 @@ export function SimpleModeFooter({
   missingCutPieceCount: number
   multiSheet?: MultiSheetResult | null
 }) {
-  const isMultiSheet = (multiSheet?.sheets.length ?? 0) > 1
-  const displayStockSqFt = isMultiSheet
-    ? (multiSheet!.totalStockArea / 144).toFixed(2)
-    : stockSqFt.toFixed(2)
-  const sheetSuffix = isMultiSheet ? ` (${multiSheet!.sheets.length} sheets)` : ""
+  const organizationPreferences = useOrganizationPreferences()
+  const sheetCount = multiSheet?.sheets.length ?? 0
+  const isMultiSheet = sheetCount > 1
+  const stockArea = isMultiSheet && multiSheet ? multiSheet.totalStockArea / 144 : stockSqFt
+  const displayStockArea = formatAreaSqft(stockArea, organizationPreferences, { precision: 2 })
+  const sheetSuffix = isMultiSheet ? ` (${sheetCount} sheets)` : ""
 
   return (
     <div className="border-t border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
       {metricsAreEstimatedFromStock
-        ? `Optimized from placed stock area: ${displayStockSqFt} sq ft`
-        : `Preview stock area: ${displayStockSqFt} sq ft`}
+        ? `Optimized from placed stock area: ${displayStockArea}`
+        : `Preview stock area: ${displayStockArea}`}
       {sheetSuffix}
       {multiSheet && multiSheet.remainingOverflow > 0 && (
         <span className="ml-2 font-medium text-amber-600">
@@ -544,6 +548,7 @@ export function SimpleModeOffcutLabels({
    */
   zoom?: number
 }) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <>
       {offcutLabelBands.map((band, index) => {
@@ -563,7 +568,7 @@ export function SimpleModeOffcutLabels({
           centerX = surfaceX + (band.x + band.width / 2) * scale
           centerY = surfaceY + (band.y + band.height / 2) * scale
         }
-        const dims = `${formatInches(band.width)}" \u00D7 ${formatInches(band.height)}"`
+        const dims = formatDimensionsInches([band.width, band.height], organizationPreferences)
         const bandPxW = band.width * scale
         const bandPxH = band.height * scale
         const titleSize = Math.max(0, Math.min(13 / zoom, bandPxW * 0.12, bandPxH * 0.25))

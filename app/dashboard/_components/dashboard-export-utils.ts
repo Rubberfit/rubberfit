@@ -1,4 +1,10 @@
 import type { ExportData } from "@/src/application/services/export.service.interface"
+import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 import type { RecentCutRow } from "./dashboard-recent-cuts-card"
 import type { UtilizationDatum } from "./dashboard-utilization-card"
@@ -21,6 +27,21 @@ export interface OperationsExportInput {
   inventoryValue: number
   utilization: { series: UtilizationDatum[]; materials: string[] }
   recentCuts: RecentCutRow[]
+  /**
+   * Workspace-level locale / dateFormat / timeZone / unitSystem —
+   * applied to visible PDF text (footer timestamp, sq ft → m², etc)
+   * per the 2026-05-14 operator-seeds-prints ruling. Per-viewer
+   * overrides drive only the screen display, never the exported
+   * artifact. The caller is also responsible for deriving
+   * `periodLabel` / `cutsThisWeek` / `utilization` labels from these
+   * same prefs so the body and footer agree. Filenames stay
+   * machine-stable (`yyyy-MM-dd_HHmm`) regardless of this field.
+   *
+   * Required so the PDF + CSV builders can't silently fall through
+   * to default formatting when a caller forgets to wire org prefs —
+   * the compiler now flags any missing data-flow path.
+   */
+  organizationPreferences: UserDatePreferencesInput & UnitDisplayPreferencesInput
 }
 
 const FILENAME_PREFIX = "operations-overview"
@@ -51,6 +72,8 @@ function sanitizeCsvCell(value: string): string {
 }
 
 export function buildOperationsCsv(input: OperationsExportInput): ExportData {
+  const orgPrefs = input.organizationPreferences
+  const areaUnit = getAreaUnitLabel(orgPrefs)
   const summaryRows: ExportData["rows"] = [
     ["Period", input.period],
     ["Period label", sanitizeCsvCell(input.periodLabel)],
@@ -62,14 +85,14 @@ export function buildOperationsCsv(input: OperationsExportInput): ExportData {
 
   const utilizationHeader: ExportData["rows"] = [
     [],
-    [sanitizeCsvCell(`Utilization (${input.utilPeriod}) — sqft by material`)],
+    [sanitizeCsvCell(`Utilization (${input.utilPeriod}) — ${areaUnit} by material`)],
     ["Bucket", ...input.utilization.materials.map(sanitizeCsvCell)],
   ]
   const utilizationRows: ExportData["rows"] = input.utilization.series.map((row) => [
     sanitizeCsvCell(String(row.label ?? "")),
     ...input.utilization.materials.map((material) => {
       const cell = row[material]
-      return typeof cell === "number" ? cell : 0
+      return typeof cell === "number" ? getDisplayAreaValue(cell, orgPrefs) : 0
     }),
   ])
 

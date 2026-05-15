@@ -5,6 +5,11 @@ import { Layers, Scissors, TrendingDown, Zap } from "lucide-react"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader } from "@/app/components/ui/card"
 import { StatCard, type StatCardProps } from "@/app/components/patterns"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 interface WasteKpiCardsProps {
   cuts: CutHistory[]
@@ -40,6 +45,10 @@ function trend(cuts: CutHistory[], getValue: (c: CutHistory) => number): number 
 }
 
 export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
+  const organizationPreferences = useOrganizationPreferences()
+  const areaUnit = getAreaUnitLabel(organizationPreferences)
+  const displayArea = (value: number) =>
+    getDisplayAreaValue(value, organizationPreferences).toFixed(1)
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -100,24 +109,24 @@ export function WasteKpiCards({ cuts, isLoading }: WasteKpiCardsProps) {
       <StatCard
         label="Total scrap"
         icon={<TrendingDown />}
-        value={totalScrap.toFixed(1)}
-        unit="sqft"
+        value={displayArea(totalScrap)}
+        unit={areaUnit}
         footnote={`${cuts.length} cuts recorded`}
         trend={scrapTrendProp}
       />
       <StatCard
         label="Reusable offcut"
         icon={<Layers />}
-        value={totalReusable.toFixed(1)}
-        unit="sqft"
+        value={displayArea(totalReusable)}
+        unit={areaUnit}
         footnote="Saved from scrap"
         sparkIntent="success"
       />
       <StatCard
         label="Material used"
         icon={<Zap />}
-        value={totalMaterial.toFixed(1)}
-        unit="sqft"
+        value={displayArea(totalMaterial)}
+        unit={areaUnit}
         footnote="Across all cuts"
       />
     </div>

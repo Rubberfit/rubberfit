@@ -54,6 +54,7 @@ import {
   estimateTotalPartAreaSqIn,
 } from "./_components/auto-fill-bin-allocator"
 import type { Bin, Part } from "@/src/application/packing/types"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 
 // Constants
 
@@ -113,6 +114,7 @@ function LayoutLabel() {
 
 // eslint-disable-next-line max-lines-per-function
 function CutPlannerPageInner() {
+  const organizationPreferences = useOrganizationPreferences()
   const [presetParts, setPresetParts] = useState<PartTemplate[]>([])
   const [uploadedParts, setUploadedParts] = useState<PartTemplate[]>([])
   const [cutDirection, setCutDirection] = useState<SimpleCutDirection>("vertical_split")
@@ -630,7 +632,8 @@ function CutPlannerPageInner() {
           selectedTemplate,
           selectedTemplates,
           pdfTagMap,
-          layouts
+          layouts,
+          organizationPreferences
         )
         pdfUploaded = url != null
       } catch (err) {
@@ -729,6 +732,7 @@ function CutPlannerPageInner() {
     layouts,
     sourceRollId,
     sourceJob?.id,
+    organizationPreferences,
   ])
 
   // Render

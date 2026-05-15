@@ -14,6 +14,14 @@ import {
   TYPE,
 } from "@/app/lib/pdf"
 import type { Roll } from "@/src/infrastructure/models/supabase"
+import {
+  formatDimensionsInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
+import {
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 
 /**
  * Scannable stock-label PDF for one or more rolls. Each label is
@@ -107,7 +115,14 @@ function renderBarcodePng(text: string, bcid: "code128" | "qrcode"): string {
   return canvas.toDataURL("image/png")
 }
 
-function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string) {
+function drawLabel(
+  doc: jsPDF,
+  roll: Roll,
+  x: number,
+  y: number,
+  origin: string,
+  organizationPreferences?: UnitDisplayPreferencesInput
+) {
   // Brand-blue top rule (Kimi spec #5 — the only brand mark on the
   // label). Pulled from the shared `drawLabelTopRule` helper so every
   // label in the catalog produces the same 2pt stripe.
@@ -175,7 +190,16 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   doc.setFont(TYPE.body.family, TYPE.body.weight)
   doc.setFontSize(TYPE.body.size)
   doc.setTextColor(INK[0], INK[1], INK[2])
-  const dims = `${roll.width}" × ${roll.length}" × ${roll.thickness}"`
+  // Kimi delta: in metric mode the per-axis quote marks would read
+  // "121.92 cm × 304.8 cm × 0.32 cm" — shave to a single trailing
+  // unit via formatDimensionsInches so the label stays narrow enough
+  // for the fixed 4"x2" stock. Roll thickness uses precision 3 so
+  // 0.125\" still surfaces as 0.32 cm rather than 0.3 cm.
+  const dims = formatDimensionsInches(
+    [roll.width, roll.length, roll.thickness],
+    organizationPreferences,
+    { precision: 3 }
+  )
   doc.text(dims, textX, contentTop + 68)
 
   // Code 128 band — bottom-right, for handheld laser scanners.
@@ -208,7 +232,11 @@ function drawLabel(doc: jsPDF, roll: Roll, x: number, y: number, origin: string)
   }
 }
 
-function addHeader(doc: jsPDF, pageIndex: number) {
+function addHeader(
+  doc: jsPDF,
+  pageIndex: number,
+  organizationPreferences?: UserDatePreferencesInput
+) {
   if (pageIndex > 0) doc.addPage()
   // Multi-label print runs get a single page-header line above the
   // grid (operator orientation only — labels themselves wear no
@@ -221,9 +249,20 @@ function addHeader(doc: jsPDF, pageIndex: number) {
   doc.setFont(TYPE.mono.family, TYPE.mono.weight)
   doc.setFontSize(TYPE.mono.size)
   doc.setTextColor(SLATE[0], SLATE[1], SLATE[2])
-  doc.text(new Date().toLocaleString(), PAGE_W_PT - PAGE_MARGIN, PAGE_MARGIN - 6, {
-    align: "right",
-  })
+  // The earlier `new Date().toLocaleString()` literal depended on the
+  // print runtime's locale + zone — fine in a US-only browser, drift
+  // for a metric-org operator on a shared print station. The helper
+  // renders date + localized time + short zone in the operator's
+  // `dateFormat` / `timeZone` / `locale`, falling back to defaults
+  // when the prefs are absent (legacy callers).
+  doc.text(
+    formatUserDateTime(new Date(), organizationPreferences) || "—",
+    PAGE_W_PT - PAGE_MARGIN,
+    PAGE_MARGIN - 6,
+    {
+      align: "right",
+    }
+  )
 }
 
 export interface BuildRollLabelPdfOptions {
@@ -232,21 +271,34 @@ export interface BuildRollLabelPdfOptions {
   columns?: number
   /** Override origin (e.g. for SSR previews). Defaults to window.location.origin. */
   origin?: string
+  /**
+   * Org-level print preferences. The unit system drives the
+   * dimension string on each label; the date format / time zone /
+   * locale drive the page-header timestamp. Defaults to imperial /
+   * `MM/dd/yyyy` / `America/Chicago` when omitted so legacy callers
+   * keep their existing render.
+   */
+  organizationPreferences?: UnitDisplayPreferencesInput & UserDatePreferencesInput
 }
 
 export function buildRollLabelPdf(rolls: Roll[], opts: BuildRollLabelPdfOptions = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter" })
   doc.setProperties({ title: "Rubberfit roll labels" })
   const origin = opts.origin ?? resolveOrigin()
+  // The same intersection drives the header timestamp (date prefs)
+  // and the per-label dimensions (unit prefs); naming kept as
+  // `unitPreferences` for the existing drawLabel call site.
+  const unitPreferences = opts.organizationPreferences
+  const datePreferences = opts.organizationPreferences
 
   if (rolls.length === 0) return doc
 
   // Single-roll shortcut — big centered label on page 1.
   if (rolls.length === 1) {
-    addHeader(doc, 0)
+    addHeader(doc, 0, datePreferences)
     const x = (PAGE_W_PT - LABEL_W_PT) / 2
     const y = (PAGE_H_PT - LABEL_H_PT) / 2 - 40
-    drawLabel(doc, rolls[0], x, y, origin)
+    drawLabel(doc, rolls[0], x, y, origin, unitPreferences)
     return doc
   }
 
@@ -261,7 +313,7 @@ export function buildRollLabelPdf(rolls: Roll[], opts: BuildRollLabelPdfOptions 
   let pageIndex = 0
   rolls.forEach((roll, i) => {
     if (i % perPage === 0) {
-      addHeader(doc, pageIndex)
+      addHeader(doc, pageIndex, datePreferences)
       pageIndex += 1
     }
     const slot = i % perPage
@@ -269,7 +321,7 @@ export function buildRollLabelPdf(rolls: Roll[], opts: BuildRollLabelPdfOptions 
     const col = slot % cols
     const x = gridStartX + col * (LABEL_W_PT + LABEL_GAP_X)
     const y = gridStartY + row * rowHeight
-    drawLabel(doc, roll, x, y, origin)
+    drawLabel(doc, roll, x, y, origin, unitPreferences)
   })
 
   return doc

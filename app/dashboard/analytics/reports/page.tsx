@@ -18,6 +18,7 @@ import { generateReport } from "./_components/report-generator"
 import { getPeriodDateRange, getPeriodLabel } from "./_components/report-helpers"
 import { ReportList } from "./_components/report-list"
 import { DEFAULT_REPORT_TEMPLATES, STANDARD_REPORT_COLORS } from "./_components/report-templates"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 
 type ReportPeriod = "daily" | "weekly" | "monthly" | "quarterly"
 
@@ -38,6 +39,7 @@ function isReportPeriod(value: string): value is ReportPeriod {
 }
 
 export default function ReportsPage() {
+  const organizationPreferences = useOrganizationPreferences()
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod>("monthly")
   const [reportType, setReportType] = useState<string>("all")
   const [generating, setGenerating] = useState<string | null>(null)
@@ -48,7 +50,7 @@ export default function ReportsPage() {
   const handleGenerateReport = async (reportId: string) => {
     setGenerating(reportId)
     try {
-      await generateReport(reportId, reportTemplates, reportPeriod)
+      await generateReport(reportId, reportTemplates, reportPeriod, organizationPreferences)
     } catch (error) {
       console.error("Error generating report:", error)
       toast.error(

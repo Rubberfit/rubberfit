@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/app/components/ui/sheet"
 import { FormField, FormFieldGroup, FormFieldRow } from "@/app/components/ui/forms"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 
 export interface MaterialFormValues {
@@ -21,13 +22,6 @@ export interface MaterialFormValues {
   description: string
   default_cost: number
   min_stock_alert: number
-}
-
-const EMPTY_VALUES: MaterialFormValues = {
-  name: "",
-  description: "",
-  default_cost: 2.5,
-  min_stock_alert: 100,
 }
 
 interface MaterialFormSheetProps {
@@ -89,8 +83,23 @@ interface MaterialFormBodyProps {
   onSubmit: (values: MaterialFormValues, target: MaterialType | "new") => Promise<void> | void
 }
 
-function initialValuesFor(target: MaterialType | "new"): MaterialFormValues {
-  if (target === "new") return EMPTY_VALUES
+function initialValuesFor(
+  target: MaterialType | "new",
+  newMaterialThresholdSeed: number
+): MaterialFormValues {
+  if (target === "new") {
+    // Seed the new-material min_stock_alert from the org's
+    // `lowStockThresholdSqft` so admins see the workspace default
+    // pre-filled. Operator can override before saving; an explicit
+    // server-side seed still applies for callers that omit the field
+    // entirely (CSV import, legacy SDK paths). 2026-05-14 ruling.
+    return {
+      name: "",
+      description: "",
+      default_cost: 2.5,
+      min_stock_alert: newMaterialThresholdSeed,
+    }
+  }
   return {
     name: target.name ?? "",
     description: target.description ?? "",
@@ -100,13 +109,43 @@ function initialValuesFor(target: MaterialType | "new"): MaterialFormValues {
 }
 
 function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialFormBodyProps) {
-  const [values, setValues] = useState<MaterialFormValues>(() => initialValuesFor(target))
+  const orgPreferences = useOrganizationPreferences()
+  // Track whether the operator has touched the min-stock field so a
+  // late org-prefs update (admin saved in another tab → provider
+  // re-syncs via router.refresh()) re-seeds the placeholder without
+  // clobbering in-flight user input. Sigilix PR #269 catch.
+  //
+  // Ref lifecycle: the body unmounts on every sheet close
+  // (`{target === null ? null : <MaterialFormBody key={formKey} ...>}`
+  // in the parent), so the ref recreates as `false` on each reopen —
+  // no manual reset needed.
+  const minStockAlertTouchedRef = useRef(false)
+  const [values, setValues] = useState<MaterialFormValues>(() =>
+    initialValuesFor(target, orgPreferences.lowStockThresholdSqft)
+  )
+
+  useEffect(() => {
+    if (target !== "new" || minStockAlertTouchedRef.current) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by target check + touch ref; only re-syncs an untouched seed
+    setValues((prev) => ({
+      ...prev,
+      min_stock_alert: orgPreferences.lowStockThresholdSqft,
+    }))
+  }, [target, orgPreferences.lowStockThresholdSqft])
   const isEdit = target !== "new"
   const isValid = values.name.trim().length > 0
 
   const handleSubmit = async () => {
     if (!isValid) return
     await onSubmit(values, target)
+  }
+
+  const handleMinStockAlertChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    minStockAlertTouchedRef.current = true
+    setValues((prev) => ({
+      ...prev,
+      min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
+    }))
   }
 
   return (
@@ -163,12 +202,7 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
                 min="0"
                 step="10"
                 value={values.min_stock_alert}
-                onChange={(event) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
-                  }))
-                }
+                onChange={handleMinStockAlertChange}
               />
             </FormField>
             <FormField

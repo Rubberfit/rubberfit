@@ -53,6 +53,12 @@
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
   - `lib/pdf/` — Phase 7 shared PDF design system (tokens, chrome, primitives, pagination). Pure jsPDF — no DOM access. Composed by every per-PDF builder under `app/dashboard/**/_components/*-pdf.ts` and the `app/r/**` + `app/api/cuts/**` routes. Purity guarded by `tests/pdf/chrome-purity.test.ts`.
 
+- e2e/
+  - Playwright browser tests and service-role fixtures
+  - `stripe-portal-tier-change.spec.ts` — signed Stripe webhook loop proving Portal-driven price rotation updates DB tier/interval and billing UI state
+  - fixtures/
+    - `stripe-events.ts` — Stripe-backed org setup, signed webhook payload builders, and stripe event cleanup helpers
+
 - .claude/
   - handoff/ — task briefs and second-opinion assignments
   - research/ — investigation notes and reports

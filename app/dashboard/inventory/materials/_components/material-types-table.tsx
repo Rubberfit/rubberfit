@@ -14,6 +14,8 @@ import {
   TableRow,
 } from "@/app/components/ui/table"
 import { Badge } from "@/app/components/ui/badge"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 
 interface MaterialTypesTableProps {
   materialTypes: MaterialType[]
@@ -28,6 +30,9 @@ export function MaterialTypesTable({
   onEdit,
   onDelete,
 }: MaterialTypesTableProps) {
+  // Inventory table is viewer UI — "Created" column follows the
+  // viewer's per-user dateFormat per the operator-seeds-prints rule.
+  const userPreferences = useUserPreferences()
   return (
     <Card>
       <CardHeader>
@@ -91,7 +96,7 @@ export function MaterialTypesTable({
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(materialType.created_at).toLocaleDateString()}
+                      {formatUserDate(materialType.created_at, userPreferences) || "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

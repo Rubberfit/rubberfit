@@ -6,6 +6,8 @@ import type { Supplier } from "@/src/infrastructure/models/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import { Separator } from "@/app/components/ui/separator"
+import { useUserPreferences } from "@/app/dashboard/_components/user-preferences-provider"
+import { formatUserDate } from "@/src/application/preferences/user-date-format"
 
 interface SupplierOverviewTabProps {
   supplier: Supplier
@@ -32,6 +34,11 @@ function renderRatingStars(rating: number | null | undefined) {
 }
 
 export function SupplierOverviewTab({ supplier }: SupplierOverviewTabProps) {
+  // Supplier detail tab is viewer UI — Created / Last Updated cells
+  // follow the viewer's per-user dateFormat per the operator-seeds-
+  // prints rule (printed PO docs / supplier exports stay org-driven
+  // elsewhere).
+  const userPreferences = useUserPreferences()
   return (
     <div className="space-y-6">
       {/* Contact Information */}
@@ -214,11 +221,15 @@ export function SupplierOverviewTab({ supplier }: SupplierOverviewTabProps) {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Created</p>
-              <p className="font-medium">{new Date(supplier.created_at).toLocaleDateString()}</p>
+              <p className="font-medium">
+                {formatUserDate(supplier.created_at, userPreferences) || "—"}
+              </p>
             </div>
             <div>
               <p className="text-muted-foreground">Last Updated</p>
-              <p className="font-medium">{new Date(supplier.updated_at).toLocaleDateString()}</p>
+              <p className="font-medium">
+                {formatUserDate(supplier.updated_at, userPreferences) || "—"}
+              </p>
             </div>
           </div>
         </CardContent>

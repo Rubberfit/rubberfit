@@ -56,6 +56,30 @@ vi.mock("@/src/infrastructure/services/rollService", async () => {
   }
 })
 
+// PR 2e: the route also resolves org-level print prefs to render the
+// scan PDF in the operator's units / date format. Default mock returns
+// undefined so the existing legacy-render assertions still hold;
+// individual tests can override per-call via `mockResolvedValueOnce`
+// to exercise non-default prefs without leaking state across tests.
+// Typed as `(...) => Promise<OrgPrintPreferencesInput | undefined>`
+// so the per-call override accepts the populated shape too.
+import type { OrgPrintPreferencesInput } from "@/src/infrastructure/services/cut-pdf-prefs-lookup"
+
+const orgPrefsMock = vi.hoisted(() => ({
+  getOrgPreferencesForRoll:
+    vi.fn<(client: unknown, rollId: string) => Promise<OrgPrintPreferencesInput | undefined>>(),
+}))
+
+vi.mock("@/src/infrastructure/services/cut-pdf-prefs-lookup", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/src/infrastructure/services/cut-pdf-prefs-lookup")
+  >("@/src/infrastructure/services/cut-pdf-prefs-lookup")
+  return {
+    ...actual,
+    getOrgPreferencesForRoll: orgPrefsMock.getOrgPreferencesForRoll,
+  }
+})
+
 interface TestRouteContext {
   readonly params: Promise<{ readonly partNumber: string }>
 }
@@ -104,5 +128,38 @@ describe("GET /r/[partNumber]/pdf", () => {
     // (CodeRabbit catch).
     expect(res.status).toBe(200)
     expect(res.headers.get("content-disposition")).toBe('inline; filename="RF_TEST_123_info.pdf"')
+  })
+
+  // PR 2e — the route fetches org print prefs after loading the roll
+  // and threads them into the PDF builder. When the prefs lookup
+  // returns a non-default shape the PDF must still render (units +
+  // dates flow through; legacy contract preserved on size/headers).
+  it("renders an inline PDF with org-level print prefs honored", async () => {
+    orgPrefsMock.getOrgPreferencesForRoll.mockResolvedValueOnce({
+      unitSystem: "metric",
+      dateFormat: "dd/MM/yyyy",
+      timeZone: "Europe/London",
+      locale: "en-US",
+    })
+    const GET = await loadGetHandler()
+    const res = await GET(new Request("https://x"), makeContext("RF-METRIC-1"))
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toBe("application/pdf")
+    const buffer = await res.arrayBuffer()
+    expect(buffer.byteLength).toBeGreaterThan(1024)
+    // The lookup was called with the roll's id (resolved from the
+    // mocked roll's `id` field), not the part number.
+    expect(orgPrefsMock.getOrgPreferencesForRoll).toHaveBeenCalledWith(
+      expect.anything(),
+      "00000000-0000-0000-0000-000000000001"
+    )
+  })
+
+  it("still renders when the org prefs lookup returns undefined (legacy fallback)", async () => {
+    orgPrefsMock.getOrgPreferencesForRoll.mockResolvedValueOnce(undefined)
+    const GET = await loadGetHandler()
+    const res = await GET(new Request("https://x"), makeContext("RF-LEGACY-1"))
+    expect(res.status).toBe(200)
+    expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(1024)
   })
 })

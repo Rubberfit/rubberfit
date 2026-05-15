@@ -5,13 +5,14 @@ import { ChevronLeft, X } from "lucide-react"
 import { toast } from "sonner"
 
 import {
-  type CreateReorderRule,
   type MaterialType,
   type ReorderRule,
   type Supplier,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
+import { createReorderRule } from "@/app/actions/reorder"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { Button } from "@/app/components/ui/button"
 import {
   Sheet,
@@ -32,17 +33,39 @@ interface ReorderRuleSheetProps {
   onSuccess?: () => void
 }
 
-const DEFAULT_FORM_DATA = {
-  material_type_id: "",
-  supplier_id: "",
-  reorder_point: 100,
-  reorder_quantity: 500,
-  max_stock_level: 1000,
-  lead_time_days: 7,
-  safety_stock_days: 3,
-  auto_reorder: false,
-  active: true,
-  notes: "",
+const DEFAULT_REORDER_QUANTITY = 500
+const FALLBACK_MAX_STOCK = 1000
+
+interface ReorderFormData {
+  material_type_id: string
+  supplier_id: string
+  reorder_point: number
+  reorder_quantity: number
+  max_stock_level: number
+  lead_time_days: number
+  safety_stock_days: number
+  auto_reorder: boolean
+  active: boolean
+  notes: string
+}
+
+function buildDefaultFormData(lowStockThresholdSqft: number): ReorderFormData {
+  // Seed `reorder_point` from the org's `lowStockThresholdSqft` so a
+  // newly-created rule mirrors the workspace default. Keep
+  // `max_stock_level` above the seeded threshold for high org
+  // values (otherwise the action's post-seed guard would reject).
+  return {
+    material_type_id: "",
+    supplier_id: "",
+    reorder_point: lowStockThresholdSqft,
+    reorder_quantity: DEFAULT_REORDER_QUANTITY,
+    max_stock_level: Math.max(FALLBACK_MAX_STOCK, lowStockThresholdSqft + DEFAULT_REORDER_QUANTITY),
+    lead_time_days: 7,
+    safety_stock_days: 3,
+    auto_reorder: false,
+    active: true,
+    notes: "",
+  }
 }
 
 const DEFAULT_EOQ_DATA = {
@@ -70,22 +93,40 @@ export function ReorderRuleSheet({
   suppliers,
   onSuccess,
 }: ReorderRuleSheetProps) {
+  const organizationPreferences = useOrganizationPreferences()
   const [loading, setLoading] = useState(false)
   // useRef-based re-entry guard — `loading` setter is async, so a
   // double-click can fire two submits before the disabled state
   // lands. Same pattern as PoEditDrawerBody (PR #194 round-3).
   const isSavingRef = useRef(false)
-  const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
+  // Track open transitions so the effect below only re-seeds when
+  // the sheet opens. Without this guard, an async org-prefs hydration
+  // mid-edit would clobber the user's in-progress form input. CR
+  // PR #269 catch — keep `lowStockThresholdSqft` in deps so the seed
+  // picks up the latest value on the NEXT open without a stale read.
+  const wasOpenRef = useRef(false)
+  const [formData, setFormData] = useState<ReorderFormData>(() =>
+    buildDefaultFormData(organizationPreferences.lowStockThresholdSqft)
+  )
   const [eoqData, setEoqData] = useState(DEFAULT_EOQ_DATA)
 
   useEffect(() => {
+    const isOpening = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!isOpening) return
+
     if (rule) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by isOpening; fires once per sheet open
       setFormData({
         material_type_id: rule.material_type_id,
         supplier_id: rule.supplier_id || "",
         reorder_point: rule.reorder_point,
         reorder_quantity: rule.reorder_quantity,
-        max_stock_level: rule.max_stock_level || 1000,
+        // `??` not `||`: a stored `max_stock_level = 0` is technically
+        // a CHECK-constraint violation upstream, but if the row ever
+        // surfaces (legacy data, manual SQL) we shouldn't silently
+        // promote it to 1000 — repo rule: use nullish coalesce.
+        max_stock_level: rule.max_stock_level ?? FALLBACK_MAX_STOCK,
         lead_time_days: rule.lead_time_days,
         safety_stock_days: rule.safety_stock_days,
         auto_reorder: rule.auto_reorder,
@@ -93,9 +134,10 @@ export function ReorderRuleSheet({
         notes: rule.notes || "",
       })
     } else {
-      setFormData(DEFAULT_FORM_DATA)
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by isOpening; fires once per sheet open
+      setFormData(buildDefaultFormData(organizationPreferences.lowStockThresholdSqft))
     }
-  }, [rule])
+  }, [open, rule, organizationPreferences.lowStockThresholdSqft])
 
   const calculateEOQ = () => {
     const { annualDemand, orderingCost, holdingCost } = eoqData
@@ -164,15 +206,22 @@ export function ReorderRuleSheet({
 
         toast.success("Reorder rule updated successfully")
       } else {
-        const createData = {
-          ...formData,
+        // Route creates through the server action so the
+        // `reorder_point` seed + post-seed `max_stock_level` guard
+        // run server-side. Update + delete remain on the legacy SDK
+        // path until a focused CRUD-migration PR ships.
+        await createReorderRule({
+          material_type_id: formData.material_type_id,
           supplier_id: formData.supplier_id || undefined,
-        } as CreateReorderRule
-
-        const response = await reorderRulesSdk.create(
-          createData as unknown as Parameters<typeof reorderRulesSdk.create>[0]
-        )
-        if (!response) throw new Error("Failed to create reorder rule")
+          reorder_point: formData.reorder_point,
+          reorder_quantity: formData.reorder_quantity,
+          max_stock_level: formData.max_stock_level,
+          lead_time_days: formData.lead_time_days,
+          safety_stock_days: formData.safety_stock_days,
+          auto_reorder: formData.auto_reorder,
+          active: formData.active,
+          notes: formData.notes || undefined,
+        })
 
         toast.success("Reorder rule created successfully")
       }

@@ -4,6 +4,8 @@ import type { ReactNode } from "react"
 
 import type { Metadata } from "next"
 import { Inter, Manrope, JetBrains_Mono } from "next/font/google"
+import { NextIntlClientProvider } from "next-intl"
+import { getLocale, getMessages } from "next-intl/server"
 
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -40,12 +42,14 @@ export const metadata: Metadata = {
   description: APP_CONFIG.meta.description,
 }
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const { theme_mode, content_layout, navbar_style, sidebar_variant, sidebar_collapsible } =
     PREFERENCE_DEFAULTS
+  const locale = await getLocale()
+  const messages = await getMessages()
   return (
     <html
-      lang="en"
+      lang={locale}
       data-theme-mode={theme_mode}
       data-content-layout={content_layout}
       data-navbar-style={navbar_style}
@@ -60,16 +64,18 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body
         className={`${INTER.variable} ${MANROPE.variable} ${JETBRAINS_MONO.variable} min-h-screen antialiased`}
       >
-        <AuthProvider>
-          <PreferencesStoreProvider
-            themeMode={theme_mode}
-            contentLayout={content_layout}
-            navbarStyle={navbar_style}
-          >
-            {children}
-            <Toaster />
-          </PreferencesStoreProvider>
-        </AuthProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <AuthProvider>
+            <PreferencesStoreProvider
+              themeMode={theme_mode}
+              contentLayout={content_layout}
+              navbarStyle={navbar_style}
+            >
+              {children}
+              <Toaster />
+            </PreferencesStoreProvider>
+          </AuthProvider>
+        </NextIntlClientProvider>
         <SpeedInsights />
       </body>
     </html>

@@ -1,0 +1,130 @@
+{
+  "nav": {
+    "chrome": {
+      "quickCreate": "Creación rápida",
+      "comingSoon": "Pronto",
+      "notifications": "Notificaciones",
+      "notificationsUnread": "Notificaciones — {count} sin leer"
+    },
+    "groups": {
+      "operations": "Operaciones",
+      "analytics": "Análisis",
+      "management": "Administración",
+      "qa": "Q&A"
+    },
+    "items": {
+      "dashboard": { "title": "Panel" },
+      "inventory": {
+        "title": "Inventario",
+        "subItems": {
+          "currentStock": "Stock actual",
+          "purchaseOrders": "Órdenes de compra"
+        }
+      },
+      "jobs": { "title": "Trabajos" },
+      "cuttingEngine": {
+        "title": "Motor de corte",
+        "subItems": {
+          "autoNest": "Anidado automático",
+          "freeRoam": "Modo libre"
+        }
+      },
+      "cutHistory": { "title": "Historial de cortes" },
+      "analytics": {
+        "title": "Análisis",
+        "subItems": {
+          "waste": "Desperdicio",
+          "periodComparison": "Comparación de períodos",
+          "materialUsage": "Uso de material",
+          "costReports": "Reportes de costos",
+          "trends": "Tendencias"
+        }
+      },
+      "materials": {
+        "title": "Materiales",
+        "subItems": {
+          "materialSettings": "Ajustes de materiales",
+          "materialTypes": "Tipos de material",
+          "suppliers": "Proveedores",
+          "pricing": "Precios"
+        }
+      },
+      "reports": { "title": "Reportes" },
+      "users": { "title": "Usuarios" },
+      "securityAudit": { "title": "Seguridad y auditoría" },
+      "settings": {
+        "title": "Ajustes",
+        "subItems": {
+          "general": "General",
+          "profile": "Perfil y cuenta",
+          "materials": "Materiales",
+          "notifications": "Notificaciones",
+          "team": "Equipo",
+          "billing": "Facturación"
+        }
+      },
+      "security": { "title": "Seguridad" }
+    }
+  },
+  "settings": {
+    "general": {
+      "pageTitle": "General",
+      "breadcrumbSettings": "Ajustes",
+      "pageSubtitle": "Valores predeterminados de organización, región y operación aplicados en todo el espacio de trabajo.",
+      "scope": {
+        "workspaceDefault": "[ PREDETERMINADO DEL ESPACIO ]",
+        "workspaceDefaultClause": "Los cambios aplican a todos los miembros",
+        "personalOverride": "[ AJUSTE PERSONAL ]",
+        "personalOverrideClause": "Los cambios solo aplican a tu cuenta",
+        "reset": "Restablecer al predeterminado del espacio",
+        "resetTooltip": "Disponible en una actualización futura."
+      },
+      "notProvisioned": "Tus preferencias aún no están listas. Recarga la página en un momento o cierra y vuelve a iniciar sesión si el problema continúa.",
+      "orgNotProvisionedTitle": "Los valores predeterminados del espacio aún no están listos",
+      "orgNotProvisionedBody": "La fila de preferencias del espacio aún no se aprovisionó para esta organización. El editor abajo es de solo lectura — recarga en un momento o contacta a soporte si el problema continúa."
+    },
+    "organization": {
+      "title": "Valores predeterminados del espacio",
+      "eyebrow": "ESPACIO",
+      "description": "Rigen PDFs, fechas de facturación, correos y los valores iniciales de nuevos registros compartidos. Los miembros pueden anular las opciones regionales y de unidades en su propia pantalla más abajo, pero las exportaciones y notificaciones siempre se generan con estos valores."
+    },
+    "regional": {
+      "title": "Tu visualización regional",
+      "eyebrow": "PERSONAL · REGIONAL",
+      "language": "Idioma",
+      "currency": "Moneda",
+      "timeZone": "Zona horaria",
+      "dateFormat": "Formato de fecha",
+      "preview": "Vista previa:",
+      "current": "Actual:",
+      "readonly": "Solo lectura — el administrador configuró los valores predeterminados del espacio"
+    },
+    "operations": {
+      "title": "Tu visualización de unidades",
+      "eyebrow": "PERSONAL · OPERACIONES",
+      "unitSystem": "Sistema de unidades",
+      "lowStockThreshold": "Umbral de stock bajo",
+      "imperial": "Imperial",
+      "metric": "Métrico",
+      "referenceDimensions": "Dimensiones de referencia",
+      "lowStockExplainer": "Alerta cuando cualquier material baje de {threshold} {unit}"
+    },
+    "actions": {
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "cancel": "Cancelar",
+      "saved": "Guardado",
+      "lastSaved": "Guardado a las {when}"
+    },
+    "errors": {
+      "forbidden": "No tienes permiso para modificar la configuración del espacio de trabajo.",
+      "unknown": "Error al guardar. Intenta de nuevo."
+    },
+    "avatarMenu": {
+      "languageHeader": "IDIOMA",
+      "english": "English (US)",
+      "spanish": "Español (México)",
+      "syncError": "No se pudo guardar tu preferencia de idioma. Intenta de nuevo."
+    }
+  }
+}

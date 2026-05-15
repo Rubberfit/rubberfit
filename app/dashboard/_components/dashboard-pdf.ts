@@ -17,6 +17,14 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
+import {
+  formatInUserTimeZone,
+  formatUserDate,
+} from "@/src/application/preferences/user-date-format"
+import {
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+} from "@/src/application/preferences/user-unit-display"
 
 import type { OperationsExportInput } from "./dashboard-export-utils"
 
@@ -97,11 +105,13 @@ function drawSummaryCards(doc: jsPDF, input: OperationsExportInput, y: number): 
 
 function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: number): number {
   y = ensure(doc, y, 80)
+  const orgPrefs = input.organizationPreferences
+  const areaUnit = getAreaUnitLabel(orgPrefs)
   y = drawSectionDivider(doc, {
     x: PAGE_MARGIN,
     y,
     width: CONTENT_W,
-    title: `Utilization (${input.utilPeriod}) — sq ft by material`,
+    title: `Utilization (${input.utilPeriod}) — ${areaUnit} by material`,
   })
   y += 12
 
@@ -131,7 +141,7 @@ function drawUtilizationTable(doc: jsPDF, input: OperationsExportInput, y: numbe
     const cells: string[] = [String(row.label ?? "")]
     for (const m of materials) {
       const cell = row[m]
-      cells.push(typeof cell === "number" ? cell.toFixed(1) : "0.0")
+      cells.push(typeof cell === "number" ? getDisplayAreaValue(cell, orgPrefs).toFixed(1) : "0.0")
     }
     return { cells }
   })
@@ -226,10 +236,35 @@ export function buildOperationsPdf(input: OperationsExportInput): Blob {
   y += 16
   drawRecentCutsTable(doc, input, y)
 
-  const ts = format(new Date(), "yyyy-MM-dd HH:mm")
-  stampFooterOnEveryPage(doc, "internal", () => `Operations · ${input.period} · ${ts}`)
+  // Visible footer renders in the operator's chosen format. The file
+  // name (built downstream) intentionally stays in ISO so sorting and
+  // dedup remain machine-stable. The compact `HH:mm` time form (no
+  // zone abbreviation) keeps the footer single-line under es-MX +
+  // long zone names where the full `formatUserDateTime` shape would
+  // wrap or clip the right margin.
+  const docMeta = buildOperationsFooterDocMeta(input)
+  stampFooterOnEveryPage(doc, "internal", () => docMeta)
 
   return doc.output("blob")
+}
+
+/**
+ * Builds the right-aligned footer `docMeta` string for the dashboard
+ * PDF. Extracted so layout tests can measure `doc.getTextWidth(meta)`
+ * against the page's content-width budget without re-rendering the
+ * whole PDF blob. Reads `new Date()` once per call — production
+ * captures the result into a closure-local constant before passing it
+ * to `stampFooterOnEveryPage`, so the same timestamp is stamped on
+ * every page of a multi-page export.
+ */
+export function buildOperationsFooterDocMeta(input: OperationsExportInput): string {
+  const now = new Date()
+  const ts = `${formatUserDate(now, input.organizationPreferences)} ${formatInUserTimeZone(
+    now,
+    input.organizationPreferences,
+    { hour: "2-digit", minute: "2-digit", hour12: false }
+  )}`
+  return `Operations · ${input.period} · ${ts}`
 }
 
 /**

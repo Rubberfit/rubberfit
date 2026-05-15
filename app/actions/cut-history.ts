@@ -1,6 +1,5 @@
 "use server"
 
-import { format } from "date-fns"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -11,6 +10,17 @@ import type {
   IRecordCutUseCase,
   RecordCutResult,
 } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import type { IOrganizationPreferencesService } from "@/src/application/services/organization-preferences.service.interface"
+import {
+  formatDimensionsInches,
+  getAreaUnitLabel,
+  getDisplayAreaValue,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
+import {
+  formatUserDateTime,
+  type UserDatePreferencesInput,
+} from "@/src/application/preferences/user-date-format"
 import { getCutHistoryRowsForExport } from "@/src/infrastructure/services/cutHistoryService"
 import {
   getCutPdfPublicUrl,
@@ -154,11 +164,7 @@ export async function saveCut(input: SaveCutActionInput): Promise<RecordCutResul
   void pdfUploaded
   let result: RecordCutResult
   try {
-    result = await useCase.execute(
-      dbClient,
-      { ...rest, id: cutId, pdf_url: pdfUrl },
-      actor.id
-    )
+    result = await useCase.execute(dbClient, { ...rest, id: cutId, pdf_url: pdfUrl }, actor.id)
   } catch (err) {
     // `useCase.execute` returns RecordCutFailure on validation /
     // insert errors rather than throwing, but defend against
@@ -186,17 +192,25 @@ const exportCutHistoryCsvSchema = z.object({
 
 export type ExportCutHistoryCsvInput = z.input<typeof exportCutHistoryCsvSchema>
 
-const CSV_HEADERS = [
-  "Cut Date",
-  "Part Type",
-  "Stock (W×L×T)",
-  "Qty",
-  "Parts Done",
-  "Mat Used (ft²)",
-  "Reuse (ft²)",
-  "Scrap (ft²)",
-  "Fab Score",
-] as const
+/**
+ * CSV column headers. Area columns interpolate the org's area unit
+ * label (`sq ft` for imperial, `m²` for metric) at build time so the
+ * spreadsheet header sentence matches the cell values below it.
+ */
+function buildCsvHeaders(prefs: UnitDisplayPreferencesInput | undefined): readonly string[] {
+  const areaUnit = getAreaUnitLabel(prefs)
+  return [
+    "Cut Date",
+    "Part Type",
+    "Stock (W×L×T)",
+    "Qty",
+    "Parts Done",
+    `Mat Used (${areaUnit})`,
+    `Reuse (${areaUnit})`,
+    `Scrap (${areaUnit})`,
+    "Fab Score",
+  ] as const
+}
 
 /**
  * Per-row CSV cell escape. Wraps values containing comma, quote, or
@@ -244,7 +258,7 @@ export async function exportCutHistoryCsv(
 ): Promise<ExportCutHistoryCsvResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  await requireActiveSubscription(actor)
+  const subscription = await requireActiveSubscription(actor)
   requirePermission(actor, "viewCutHistory")
   try {
     await requireFeature(actor, "cut_history_exports")
@@ -261,7 +275,15 @@ export async function exportCutHistoryCsv(
   }
   const parsed = exportCutHistoryCsvSchema.parse(input)
 
-  const header = CSV_HEADERS.map(csvCell).join(",")
+  // Org-level print prefs drive the CSV per the operator-seeds-prints
+  // ruling — the exported artifact speaks the operator's voice
+  // (date format, time zone, locale, unit system) regardless of the
+  // viewer's per-user prefs. Best-effort: any prefs lookup error logs
+  // and falls back to imperial / MM/dd/yyyy / America/Chicago so the
+  // export never blocks on a missing prefs row.
+  const organizationPreferences = await loadOrgPrintPrefs(subscription.organizationId)
+  const headerCells = buildCsvHeaders(organizationPreferences)
+  const header = headerCells.map(csvCell).join(",")
   if (parsed.cutIds.length === 0) {
     return { ok: true, csv: header }
   }
@@ -271,18 +293,44 @@ export async function exportCutHistoryCsv(
 
   const rows = data.map((cut) => {
     const cells = [
-      format(new Date(cut.cut_date), "yyyy-MM-dd HH:mm:ss"),
+      formatUserDateTime(cut.cut_date, organizationPreferences) || "",
       labelForPartId(cut.part_id),
-      `${cut.cut_width}" × ${cut.cut_length}" × ${cut.cut_thickness}"`,
+      formatDimensionsInches(
+        [cut.cut_width, cut.cut_length, cut.cut_thickness],
+        organizationPreferences,
+        { precision: 3 }
+      ),
       String(cut.cut_amount),
       String(cut.parts_completed),
-      cut.material_used_sqft.toFixed(2),
-      cut.reusable_offset_sqft.toFixed(2),
-      cut.scrap_sqft.toFixed(2),
+      getDisplayAreaValue(cut.material_used_sqft, organizationPreferences).toFixed(2),
+      getDisplayAreaValue(cut.reusable_offset_sqft, organizationPreferences).toFixed(2),
+      getDisplayAreaValue(cut.scrap_sqft, organizationPreferences).toFixed(2),
       `${Math.round(cut.fab_score * 100)}%`,
     ]
     return cells.map(csvCell).join(",")
   })
 
   return { ok: true, csv: [header, ...rows].join("\n") }
+}
+
+/**
+ * Best-effort fetch of the org-level print preferences for the
+ * subscription's organization. Server-action context: the prefs
+ * service is registered in DI; resolving + reading goes through the
+ * cookie-bound database client (RLS-respecting). Any error is logged
+ * and undefined is returned so the CSV export still produces a
+ * spreadsheet-shaped artifact with helper defaults.
+ */
+async function loadOrgPrintPrefs(
+  organizationId: string
+): Promise<(UnitDisplayPreferencesInput & UserDatePreferencesInput) | undefined> {
+  try {
+    const prefsService = resolveUseCase<IOrganizationPreferencesService>(
+      TOKENS.IOrganizationPreferencesService
+    )
+    return await prefsService.getForOrganization(organizationId)
+  } catch (error) {
+    console.error("[exportCutHistoryCsv] failed to resolve org print prefs", error)
+    return undefined
+  }
 }

@@ -10,6 +10,8 @@ import {
   getCutModeTitle,
   getPartLabel,
 } from "./cut-planner-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 export function CutConfigCard({
   selectedTemplate,
@@ -50,10 +52,7 @@ export function CutConfigCard({
               setCutDirection={setCutDirection}
             />
           )}
-          <RequestedMaterialCard
-            isRect={isRect}
-            requestedSqFt={requestedSqFt}
-          />
+          <RequestedMaterialCard isRect={isRect} requestedSqFt={requestedSqFt} />
         </div>
       </CardContent>
     </Card>
@@ -124,10 +123,7 @@ function SelectedPartsCard({ selectedTemplates }: { selectedTemplates: PartTempl
                   {group.templates.map((template) => {
                     const qty = Math.max(1, template.quantity ?? 1)
                     return (
-                      <li
-                        key={template.id}
-                        className="flex items-center gap-2 py-0.5 pl-5 text-xs"
-                      >
+                      <li key={template.id} className="flex items-center gap-2 py-0.5 pl-5 text-xs">
                         <span className="flex-1 truncate font-mono">{template.label}</span>
                         {qty > 1 && (
                           <span className="text-muted-foreground tabular-nums">{`× ${qty}`}</span>
@@ -209,13 +205,16 @@ function RequestedMaterialCard({
   isRect: boolean
   requestedSqFt: number
 }) {
+  const organizationPreferences = useOrganizationPreferences()
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:bg-card">
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide dark:text-slate-400">
         <Scissors className="h-3.5 w-3.5" />
         Requested Material
       </div>
-      <div className="mt-2 text-base font-semibold">{requestedSqFt.toFixed(2)} sq ft</div>
+      <div className="mt-2 text-base font-semibold tabular-nums">
+        {formatAreaSqft(requestedSqFt, organizationPreferences, { precision: 2 })}
+      </div>
       <div className="mt-1 text-xs">
         {isRect
           ? "Based on the selected part shape and quantity."

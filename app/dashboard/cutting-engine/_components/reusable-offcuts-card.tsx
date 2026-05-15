@@ -6,16 +6,15 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import type { LayoutModel } from "./layout-model"
 import { buildTaggedReusableOffcuts } from "./reusable-offcut-tags"
-import { formatInches } from "./nesting-layout-utils"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import {
+  formatAreaSqft,
+  formatDimensionsInches,
+  type UnitDisplayPreferencesInput,
+} from "@/src/application/preferences/user-unit-display"
 
 const AMBER_BG = "#fef3c7"
 const AMBER_LINE = "rgba(245, 158, 11, 0.55)"
@@ -23,6 +22,7 @@ const AMBER_OUTLINE = "rgba(245, 158, 11, 0.85)"
 const TILE_MAX_PX = 140
 
 export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
+  const organizationPreferences = useOrganizationPreferences()
   const tagged = useMemo(() => buildTaggedReusableOffcuts(layouts), [layouts])
   const [legendOpen, setLegendOpen] = useState(true)
   if (tagged.length === 0) return null
@@ -62,11 +62,16 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
                   <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[10px] font-bold leading-none text-amber-700">
                     {t.tag}
                   </span>
-                  <span className="truncate text-foreground">
-                    {`${formatInches(t.region.width)}" × ${formatInches(t.region.height)}"`}
+                  <span className="truncate text-foreground tabular-nums">
+                    {formatDimensionsInches(
+                      [t.region.width, t.region.height],
+                      organizationPreferences
+                    )}
                   </span>
                   <span>·</span>
-                  <span className="shrink-0">{t.areaSqFt.toFixed(2)} ft²</span>
+                  <span className="shrink-0 tabular-nums">
+                    {formatAreaSqft(t.areaSqFt, organizationPreferences, { precision: 2 })}
+                  </span>
                   <span>·</span>
                   <span className="shrink-0">from Sheet {t.sourceSheetNumber}</span>
                 </div>
@@ -83,6 +88,7 @@ export function ReusableOffcutsCard({ layouts }: { layouts: LayoutModel[] }) {
               heightIn={t.region.height}
               areaSqFt={t.areaSqFt}
               sourceSheetNumber={t.sourceSheetNumber}
+              unitPreferences={organizationPreferences}
             />
           ))}
         </div>
@@ -111,12 +117,14 @@ function OffcutTile({
   heightIn,
   areaSqFt,
   sourceSheetNumber,
+  unitPreferences,
 }: {
   tag: string
   widthIn: number
   heightIn: number
   areaSqFt: number
   sourceSheetNumber: number
+  unitPreferences?: UnitDisplayPreferencesInput
 }) {
   const scale = TILE_MAX_PX / Math.max(widthIn, heightIn, 0.0001)
   const w = Math.max(8, widthIn * scale)
@@ -165,11 +173,11 @@ function OffcutTile({
           </text>
         </svg>
       </div>
-      <span className="text-xs font-medium text-foreground">
-        {`${formatInches(widthIn)}" × ${formatInches(heightIn)}"`}
+      <span className="text-xs font-medium text-foreground tabular-nums">
+        {formatDimensionsInches([widthIn, heightIn], unitPreferences)}
       </span>
-      <span className="text-[11px] text-muted-foreground">
-        {areaSqFt.toFixed(2)} ft² · Sheet {sourceSheetNumber}
+      <span className="text-[11px] text-muted-foreground tabular-nums">
+        {formatAreaSqft(areaSqFt, unitPreferences, { precision: 2 })} · Sheet {sourceSheetNumber}
       </span>
     </div>
   )

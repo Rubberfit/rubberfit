@@ -12,6 +12,8 @@ import {
   EntityRow,
 } from "@/app/components/patterns"
 import { useRole } from "@/src/infrastructure/services/useRole"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
+import { formatAreaSqft } from "@/src/application/preferences/user-unit-display"
 
 interface DashboardAsideProps {
   loading: boolean
@@ -49,6 +51,7 @@ export function DashboardSidebar({
 }: DashboardAsideProps) {
   const router = useRouter()
   const { can } = useRole()
+  const organizationPreferences = useOrganizationPreferences()
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -92,13 +95,15 @@ export function DashboardSidebar({
                   <EntityRow
                     density="compact"
                     title={material.materialType}
-                    subtitle={`Threshold ${material.threshold.toFixed(0)} sqft`}
+                    subtitle={`Threshold ${formatAreaSqft(material.threshold, organizationPreferences, { precision: 0 })}`}
                     metadata={
                       // Signal-orange hairline — "reorder soon", not red
                       // "we're stopped". Kimi §6: red is for true
                       // failures; orange is the attention/threshold colour.
                       <span className="font-mono tabular text-sm text-primary inline-flex items-center rounded-sm border border-primary/30 px-1.5 py-0.5">
-                        {material.currentStock.toFixed(1)} sqft
+                        {formatAreaSqft(material.currentStock, organizationPreferences, {
+                          precision: 1,
+                        })}
                       </span>
                     }
                     trailing={
@@ -138,11 +143,7 @@ export function DashboardSidebar({
             </h2>
           </div>
           {can("viewCutHistory") && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => router.push("/dashboard/history")}
-            >
+            <Button size="sm" variant="ghost" onClick={() => router.push("/dashboard/history")}>
               View history
               <ArrowRight className="size-3" />
             </Button>

@@ -10,6 +10,7 @@
   min-height: 100dvh;
   background-color: #f6f5f2;
   color: #14171b;
+  position: relative;
 }
 
 .auth-pane-left {
@@ -292,7 +293,9 @@
   color: #8a8f97;
 }
 
-/* Footer */
+/* Footer — © metadata on the left, language picker on the right.
+   The REV. revision stamp lives outside the left pane (see
+   `.auth-rev-stamp`) so it can sit in the drawing-pane corner. */
 .auth-footer {
   display: flex;
   align-items: center;
@@ -315,6 +318,31 @@
   font-family: "Inter", system-ui, sans-serif;
   font-size: 13px;
   color: #4a525c;
+}
+
+/* Revision stamp — anchored to the far-right corner of the full auth
+   surface so it visually balances the drafting-sheet's `REV. 2026.05`
+   block in the right pane. Hidden on mobile (where the right pane
+   collapses) to avoid crowding the language picker. */
+.auth-rev-stamp {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .auth-rev-stamp {
+    display: block;
+    position: absolute;
+    bottom: clamp(2rem, 5vw, 3.5rem);
+    right: clamp(2rem, 5vw, 3.5rem);
+    font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #8a8f97;
+    cursor: default;
+    pointer-events: none;
+  }
 }
 
 /* Inline alert (auth error from query) */
@@ -396,7 +424,8 @@
 
 .dark .auth-eyebrow,
 .dark .auth-brand-caption,
-.dark .auth-footer-mono {
+.dark .auth-footer-mono,
+.dark .auth-rev-stamp {
   color: rgba(246, 245, 242, 0.5);
 }
 
