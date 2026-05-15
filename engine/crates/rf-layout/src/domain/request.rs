@@ -240,6 +240,21 @@ impl Part {
             .iter()
             .map(|h| h.points())
     }
+
+    /// Net polygon area: outer boundary minus the sum of hole areas.
+    /// This is the physical area the part occupies on the stock and is
+    /// the correct value for pack-density heuristics, item-area
+    /// precomputation, and any other "how much material does this part
+    /// consume" question. Using the outer boundary alone (via
+    /// `outer_slice` + a shoelace) overstates gasket-class parts because
+    /// it ignores the voids. Panics if `polygon` is `None` for the same
+    /// reason `outer_slice` does.
+    pub fn net_polygon_area(&self) -> f64 {
+        self.polygon
+            .as_ref()
+            .expect(POLYGON_NOT_MATERIALISED)
+            .area()
+    }
 }
 
 impl PackRequest {

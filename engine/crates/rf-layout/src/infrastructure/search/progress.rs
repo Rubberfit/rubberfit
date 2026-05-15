@@ -140,17 +140,6 @@ impl ProgressEmitter {
     }
 }
 
-/// Shoelace polygon area (absolute). Matches `pack.rs`'s private helper.
-fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
 /// Compute `(total_placed_count, active_stock_density)` for a given
 /// assignment. `active_stock_density = sum_placed_area / sum_stock_of_
 /// non_empty_bins`.
@@ -159,7 +148,9 @@ fn compute_progress_stats(assignment: &FfdAssignment, bins: &[Bin], items: &[Par
     let mut area_by_shape: std::collections::HashMap<&str, f64> =
         std::collections::HashMap::with_capacity(items.len());
     for p in items {
-        area_by_shape.insert(p.shape_id.as_str(), polygon_area(p.outer_slice()));
+        // Net area (outer − holes) so holed parts don't inflate
+        // best_active_stock_density above 1.0 (CodeRabbit PR 0a finding).
+        area_by_shape.insert(p.shape_id.as_str(), p.net_polygon_area());
     }
 
     let mut total_placed: u32 = 0;

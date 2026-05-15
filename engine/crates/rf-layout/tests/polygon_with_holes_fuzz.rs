@@ -190,10 +190,13 @@ fn polygon_with_holes_fuzz_100_iterations() {
         let pwh = PolygonWithHoles::new(outer.clone(), holes.clone());
 
         // ── Invariant 1: area conservation ───────────────────────────
+        // Tolerance: 1e-6 matches the post-pack rigid-motion check;
+        // trigonometric polygon-vertex generation + multi-polygon
+        // shoelace accumulation can exceed 1e-9 (CodeRabbit PR 0a finding).
         let expected_area: f64 = outer.area() - holes.iter().map(|h| h.area()).sum::<f64>();
         let got_area = pwh.area();
         assert!(
-            (got_area - expected_area).abs() < 1e-9,
+            (got_area - expected_area).abs() < 1e-6,
             "iter {iter}: area mismatch (got {got_area}, expected {expected_area}, |Δ|={})",
             (got_area - expected_area).abs(),
         );

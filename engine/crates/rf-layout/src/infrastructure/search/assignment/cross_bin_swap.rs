@@ -113,25 +113,16 @@ fn state_from_assignment(a: &FfdAssignment) -> (AssignmentState, OverflowState) 
 }
 
 // ---------------------------------------------------------------------------
-// Geometry + scoring helpers.
+// Scoring helpers.
 // ---------------------------------------------------------------------------
 
-/// Shoelace polygon area (absolute).
-fn polygon_area(poly: &[rf_geom::domain::Point2D]) -> f64 {
-    let mut s = 0.0;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        s += a.x * b.y - b.x * a.y;
-    }
-    s.abs() / 2.0
-}
-
-/// Precompute area per shape_id (polygon, not bbox â€” Codex sign-off fix).
+/// Precompute area per shape_id (polygon, not bbox — Codex sign-off fix).
+/// Uses net polygon area (outer − holes) so gasket-class parts don't
+/// overstate `used` in `score_state` (CodeRabbit PR 0a phase-end finding).
 fn item_areas(items: &[Part]) -> HashMap<String, f64> {
     items
         .iter()
-        .map(|p| (p.shape_id.clone(), polygon_area(p.outer_slice())))
+        .map(|p| (p.shape_id.clone(), p.net_polygon_area()))
         .collect()
 }
 
