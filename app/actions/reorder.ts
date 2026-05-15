@@ -258,11 +258,20 @@ export async function createReorderRule(
     parsed.reorder_point ??
     (await loadLowStockThresholdSeed(subscription.organizationId, actor.id))
 
-  // The Zod `.refine()` runs against the input; once seeding fills
+  // The Zod `.refine()` runs against input only; once seeding fills
   // in `reorder_point`, re-validate the invariant so a high org-level
-  // seed cannot land alongside a low caller-supplied `max_stock_level`.
+  // seed can't land alongside a low caller-supplied `max_stock_level`.
+  // Throw a `ZodError` on `max_stock_level` (matching the input-time
+  // refine's shape) so client forms can map both rejection paths to
+  // the same field-level error display. Sigilix PR #269 catch.
   if (parsed.max_stock_level !== undefined && parsed.max_stock_level < reorderPoint) {
-    throw new Error("Max stock level must be greater than or equal to the reorder point")
+    throw new z.ZodError([
+      {
+        code: z.ZodIssueCode.custom,
+        path: ["max_stock_level"],
+        message: "Max stock level must be greater than or equal to the reorder point",
+      },
+    ])
   }
 
   const result = await reorderService.createReorderRule(

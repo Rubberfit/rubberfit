@@ -116,6 +116,7 @@ export function ReorderRuleSheet({
     if (!isOpening) return
 
     if (rule) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by isOpening; fires once per sheet open
       setFormData({
         material_type_id: rule.material_type_id,
         supplier_id: rule.supplier_id || "",
@@ -133,6 +134,7 @@ export function ReorderRuleSheet({
         notes: rule.notes || "",
       })
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by isOpening; fires once per sheet open
       setFormData(buildDefaultFormData(organizationPreferences.lowStockThresholdSqft))
     }
   }, [open, rule, organizationPreferences.lowStockThresholdSqft])

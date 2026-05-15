@@ -490,13 +490,27 @@ describe("app/actions/reorder", () => {
   it("createReorderRule rejects max_stock_level lower than the seeded reorder_point", async () => {
     // Caller omits reorder_point (seed = 275) but caps max_stock_level
     // at 100. The Zod refinement can't see the seeded value, so the
-    // action's post-seed guard must catch the violation.
+    // action's post-seed guard must catch the violation — and must
+    // throw a ZodError on the `max_stock_level` path so client forms
+    // map both rejection paths uniformly. Sigilix PR #269 catch.
     setupUseCaseResolver({ includeOrgPrefs: true })
+    const { z } = await import("zod")
     const { createReorderRule } = await import("@/app/actions/reorder")
 
-    await expect(
-      createReorderRule({ ...BASE_RULE_INPUT, max_stock_level: 100 })
-    ).rejects.toThrow(/max stock level/i)
+    const err = await createReorderRule({
+      ...BASE_RULE_INPUT,
+      max_stock_level: 100,
+    }).catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(z.ZodError)
+    if (err instanceof z.ZodError) {
+      expect(err.issues).toEqual([
+        expect.objectContaining({
+          path: ["max_stock_level"],
+          message: expect.stringMatching(/max stock level/i),
+        }),
+      ])
+    }
     expect(reorderServiceMock.createReorderRule).not.toHaveBeenCalled()
   })
 })
