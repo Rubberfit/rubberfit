@@ -19,6 +19,7 @@ import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { PlacedPart } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import type { StockConfig } from "@/app/dashboard/cutting-engine/_components/stock-preview-configurator"
+import { assertNotNull } from "../_helpers/assert-not-null"
 
 const STOCK: StockConfig = {
   width: 48,
@@ -74,11 +75,13 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
     const layout = buildFreeRoamLayout([PLACEMENT], [SQUARE_RING_TEMPLATE], STOCK, TAG_MAP)
     const placed = layout.parts[0]
     expect(placed.holes).toHaveLength(1)
-    expect(placed.holes![0]).toHaveLength(4)
+    assertNotNull(placed.holes)
+    const hole = placed.holes[0]
+    expect(hole).toHaveLength(4)
     // Placement origin is (5,7); template hole vertex (3,3) sits at
     // sheet-space (5 + 3, 7 + 3) = (8, 10) under zero rotation.
-    expect(placed.holes![0][0]).toEqual({ x: 8, y: 10 })
-    expect(placed.holes![0][2]).toEqual({ x: 12, y: 14 })
+    expect(hole[0]).toEqual({ x: 8, y: 10 })
+    expect(hole[2]).toEqual({ x: 12, y: 14 })
   })
 
   it("leaves `holes` undefined when the template has no holes", () => {
@@ -98,8 +101,9 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
     // Square center after rotation about (5, 5) by 90°: each hole
     // vertex (3,3) goes to (7, 3); ring symmetric so we expect a
     // structurally rotated rectangle of the same four points.
-    const xs = placed.holes![0].map((p) => Math.round(p.x * 1e6) / 1e6)
-    const ys = placed.holes![0].map((p) => Math.round(p.y * 1e6) / 1e6)
+    assertNotNull(placed.holes)
+    const xs = placed.holes[0].map((p) => Math.round(p.x * 1e6) / 1e6)
+    const ys = placed.holes[0].map((p) => Math.round(p.y * 1e6) / 1e6)
     expect(new Set(xs)).toEqual(new Set([3, 7]))
     expect(new Set(ys)).toEqual(new Set([3, 7]))
   })

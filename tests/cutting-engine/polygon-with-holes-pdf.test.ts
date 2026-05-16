@@ -93,28 +93,26 @@ function makeCut(): CutHistory {
     kerf: 0.125,
     part_custom_width: null,
     part_custom_height: null,
-    part_custom_diameter: null,
-    part_custom_top_width: null,
-    part_custom_bottom_width: null,
-    part_custom_height_trapezoid: null,
-    part_custom_inner_radius: null,
-    part_custom_outer_radius: null,
-    part_custom_arc_degrees: null,
-    parts_completed: 1,
-    parts_overflow: 0,
-    cut_pieces: 1,
-    cut_diameter: null,
-    material_used_sqft: 0.9,
-    scrap_sqft: 0,
-    reusable_offset_sqft: 0,
-    fab_score: 0.04,
-    cut_date: "2026-05-15",
-    stock_label: "demo",
+    part_selected_size: null,
+    part_selected_size_text: null,
     part_selected_label: ["ring 12 OD / 4 hole"],
-    layout_json: null,
+    part_custom_dimensions: null,
+    cut_amount: 1,
+    parts_completed: 1,
+    material_used_sqft: 0.9,
+    reusable_offset_sqft: 0,
+    scrap_sqft: 0,
+    fab_score: 0.04,
+    cut_pieces: 1,
+    stock_label: "demo",
+    cost_per_sqft: null,
     pdf_url: null,
-    created_at: "2026-05-15",
-  } as unknown as CutHistory
+    source: "auto",
+    layout_json: null,
+    cut_date: "2026-05-15",
+    created_at: "2026-05-15T00:00:00Z",
+    updated_at: "2026-05-15T00:00:00Z",
+  } satisfies CutHistory
 }
 
 async function blobToText(blob: Blob): Promise<string> {
@@ -131,12 +129,12 @@ describe("PR 0b — cut-history PDF compound path for parts with holes", () => {
     const data = buildCutPdfDataFromRow(makeCut(), layouts)
     const blob = await generateCutPdf({ svgElements: [], layouts, data })
     const text = await blobToText(blob)
-    // PDF stream: `f*` appears as its own operator on a line, preceded
-    // by the path-building operators (`m`, `l`, `h`) and followed by
-    // whitespace. Match the operator with non-word boundaries on
-    // either side. `\b` doesn't sit between two non-word chars, so we
-    // use a leading word-boundary + a trailing non-word lookahead.
-    expect(text).toMatch(/\bf\*(?=\s)/)
+    // PDF stream: `f*` appears as its own operator token, preceded by
+    // start-of-string or whitespace and followed by end or whitespace.
+    // `\b` doesn't sit between two non-word chars (`f` is word, `*` is
+    // non-word), so explicit start/whitespace lookaround is the
+    // reliable form for an operator-token match.
+    expect(text).toMatch(/(^|\s)f\*(?=\s|$)/)
   })
 
   it("emits a clipEvenOdd (`W*`) operator for the hatch clipping pass on parts with holes", async () => {
@@ -153,8 +151,10 @@ describe("PR 0b — cut-history PDF compound path for parts with holes", () => {
     const blob = await generateCutPdf({ svgElements: [], layouts, data })
     const text = await blobToText(blob)
     // Plain-polygon path uses jsPDF's `style: "F"` → emits `f` (no star).
-    // Confirm `f*` is absent on the no-hole render.
-    expect(text).not.toMatch(/\bf\*\b/)
+    // Confirm `f*` token is absent on the no-hole render. Same
+    // start/whitespace lookaround as the positive matcher above —
+    // bare `\b` boundary on either side of `*` is unreliable.
+    expect(text).not.toMatch(/(^|\s)f\*(?=\s|$)/)
   })
 
   it("produces a valid PDF blob (non-empty, application/pdf)", async () => {

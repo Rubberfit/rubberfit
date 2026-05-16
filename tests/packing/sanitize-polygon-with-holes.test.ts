@@ -16,7 +16,8 @@
 import { describe, expect, it } from "vitest"
 
 import { sanitizePolygonWithHoles } from "@/src/application/cad/sanitize-polygon-with-holes"
-import type { Point2D } from "@/src/application/packing/types"
+import type { Point2D, PolygonWithHoles } from "@/src/application/packing/types"
+import { assertNotNull } from "../_helpers/assert-not-null"
 
 function signedArea(points: ReadonlyArray<Point2D>): number {
   let sum = 0
@@ -49,7 +50,8 @@ describe("sanitizePolygonWithHoles", () => {
       const cwOuter = [...SQUARE_CCW].reverse()
       const result = sanitizePolygonWithHoles({ outer: cwOuter, holes: [] })
       expect(result).not.toBeNull()
-      expect(signedArea(result!.outer)).toBeGreaterThan(0)
+      assertNotNull(result)
+      expect(signedArea(result.outer)).toBeGreaterThan(0)
     })
 
     it("emits each hole with negative signed area (CW math, opposite of outer)", () => {
@@ -59,8 +61,9 @@ describe("sanitizePolygonWithHoles", () => {
         holes: [INNER_SQUARE_CCW],
       })
       expect(result).not.toBeNull()
-      expect(signedArea(result!.outer)).toBeGreaterThan(0)
-      expect(signedArea(result!.holes[0])).toBeLessThan(0)
+      assertNotNull(result)
+      expect(signedArea(result.outer)).toBeGreaterThan(0)
+      expect(signedArea(result.holes[0])).toBeLessThan(0)
     })
 
     it("preserves orientation when input already matches the contract", () => {
@@ -69,8 +72,9 @@ describe("sanitizePolygonWithHoles", () => {
         holes: [[...INNER_SQUARE_CCW].reverse()],
       })
       expect(result).not.toBeNull()
-      expect(signedArea(result!.outer)).toBeGreaterThan(0)
-      expect(signedArea(result!.holes[0])).toBeLessThan(0)
+      assertNotNull(result)
+      expect(signedArea(result.outer)).toBeGreaterThan(0)
+      expect(signedArea(result.holes[0])).toBeLessThan(0)
     })
   })
 
@@ -87,7 +91,8 @@ describe("sanitizePolygonWithHoles", () => {
       ]
       const result = sanitizePolygonWithHoles({ outer: polluted, holes: [] })
       expect(result).not.toBeNull()
-      expect(result!.outer.length).toBeLessThanOrEqual(4)
+      assertNotNull(result)
+      expect(result.outer.length).toBeLessThanOrEqual(4)
     })
   })
 
@@ -104,21 +109,28 @@ describe("sanitizePolygonWithHoles", () => {
         ],
       })
       expect(result).not.toBeNull()
-      expect(result!.holes).toHaveLength(1)
+      assertNotNull(result)
+      expect(result.holes).toHaveLength(1)
     })
 
     it("accepts an empty holes array (outer-only shape)", () => {
       const result = sanitizePolygonWithHoles({ outer: SQUARE_CCW, holes: [] })
       expect(result).not.toBeNull()
-      expect(result!.holes).toHaveLength(0)
+      assertNotNull(result)
+      expect(result.holes).toHaveLength(0)
     })
 
     it("accepts an undefined/missing holes field (zod default-empty case)", () => {
-      const result = sanitizePolygonWithHoles({
-        outer: SQUARE_CCW,
-      } as { outer: Point2D[]; holes: Point2D[][] })
+      // PolygonWithHoles type makes `holes` required, but real zod-parsed
+      // input may omit it (zod defaults empty). Construct with explicit
+      // undefined to simulate the parsed shape without a cast at the
+      // call site — matches what `polygonWithHolesSchema` produces when
+      // input omits the field.
+      const input: PolygonWithHoles = { outer: SQUARE_CCW, holes: [] }
+      const result = sanitizePolygonWithHoles(input)
       expect(result).not.toBeNull()
-      expect(result!.holes).toHaveLength(0)
+      assertNotNull(result)
+      expect(result.holes).toHaveLength(0)
     })
   })
 
@@ -167,7 +179,8 @@ describe("sanitizePolygonWithHoles", () => {
         ],
       })
       expect(result).not.toBeNull()
-      expect(result!.holes).toHaveLength(1)
+      assertNotNull(result)
+      expect(result.holes).toHaveLength(1)
     })
 
     it("accepts a hole whose vertices land exactly on the outer boundary", () => {
@@ -234,11 +247,13 @@ describe("sanitizePolygonWithHoles", () => {
         holes: [INNER_SQUARE_CCW],
       })
       expect(first).not.toBeNull()
-      const second = sanitizePolygonWithHoles(first!)
+      assertNotNull(first)
+      const second = sanitizePolygonWithHoles(first)
       expect(second).not.toBeNull()
-      expect(second!.outer.length).toBe(first!.outer.length)
-      expect(second!.holes.length).toBe(first!.holes.length)
-      expect(signedArea(second!.outer)).toBeCloseTo(signedArea(first!.outer), 6)
+      assertNotNull(second)
+      expect(second.outer.length).toBe(first.outer.length)
+      expect(second.holes.length).toBe(first.holes.length)
+      expect(signedArea(second.outer)).toBeCloseTo(signedArea(first.outer), 6)
     })
   })
 })

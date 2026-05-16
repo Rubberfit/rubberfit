@@ -18,6 +18,7 @@ import {
 import { packResultToLayoutModel } from "@/app/dashboard/cutting-engine/_components/pack-result-to-layout-model"
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { PackRequest, PackResult } from "@/src/application/packing/types"
+import { assertNotNull } from "../_helpers/assert-not-null"
 
 const RING_TEMPLATE: PartTemplate = {
   id: "ring-12-8",
@@ -187,8 +188,11 @@ describe("PR 0b — PlacedPart carries sibling holes alongside polygon", () => {
     it("loads a layout with holes on a placed part", () => {
       const coerced = coerceLayoutModel(VALID_LAYOUT)
       expect(coerced).not.toBeNull()
-      expect(coerced!.parts[0].holes).toHaveLength(1)
-      expect(coerced!.parts[0].holes![0]).toHaveLength(4)
+      assertNotNull(coerced)
+      const holes = coerced.parts[0].holes
+      assertNotNull(holes)
+      expect(holes).toHaveLength(1)
+      expect(holes[0]).toHaveLength(4)
     })
 
     it("treats missing `holes` as no holes (backward compat with v1 rows)", () => {
@@ -197,7 +201,8 @@ describe("PR 0b — PlacedPart carries sibling holes alongside polygon", () => {
         parts: [{ ...VALID_LAYOUT.parts[0], holes: undefined }],
       }
       const coerced = coerceLayoutModel(v1Row)
-      expect(coerced!.parts[0].holes).toBeUndefined()
+      assertNotNull(coerced)
+      expect(coerced.parts[0].holes).toBeUndefined()
     })
 
     it("drops degenerate hole rings (< 3 vertices) instead of rejecting the whole part", () => {
@@ -225,7 +230,8 @@ describe("PR 0b — PlacedPart carries sibling holes alongside polygon", () => {
       }
       const coerced = coerceLayoutModel(partial)
       expect(coerced).not.toBeNull()
-      expect(coerced!.parts[0].holes).toHaveLength(1)
+      assertNotNull(coerced)
+      expect(coerced.parts[0].holes).toHaveLength(1)
     })
   })
 

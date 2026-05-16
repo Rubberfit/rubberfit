@@ -20,6 +20,7 @@ import { render } from "@testing-library/react"
 
 import type { PlacedPart } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import type { KonvaThemeTokens } from "@/app/dashboard/cutting-engine/_components/konva-theme"
+import { assertNotNull } from "../_helpers/assert-not-null"
 
 const capturedShapeProps: Array<{
   sceneFunc?: (context: unknown, shape: unknown) => void
@@ -155,7 +156,8 @@ describe("PR 0b — Konva renderer dispatches to compound Shape for hole-bearing
         isSelected={false}
       />
     )
-    const sceneFunc = capturedShapeProps[0].sceneFunc!
+    const { sceneFunc } = capturedShapeProps[0]
+    assertNotNull(sceneFunc)
 
     // Mock canvas context. Konva.Context exposes `_context` as the
     // underlying CanvasRenderingContext2D — our compound-path renderer
@@ -209,7 +211,8 @@ describe("PR 0b — Konva renderer dispatches to compound Shape for hole-bearing
         isSelected={false}
       />
     )
-    const hitFunc = capturedShapeProps[0].hitFunc!
+    const { hitFunc } = capturedShapeProps[0]
+    assertNotNull(hitFunc)
 
     const fills: Array<unknown[]> = []
     const rawContext = {
