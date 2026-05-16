@@ -68,9 +68,9 @@ export interface PoItemReceiptWithContext extends PoReceiptReconciliationRow {
 }
 
 /**
- * Purchase-orders persistence boundary. Narrow entity-typed surface —
- * the legacy raw-row CRUD that the existing UI / RF api-client still
- * needs lives on `ILegacyPurchaseOrderService`.
+ * Purchase-orders persistence boundary. Narrow entity-typed surface.
+ * The pre-DDD `legacyPurchaseOrderService` shim that previously hosted
+ * raw-row CRUD was deleted 2026-05-15.
  *
  * Reads always include the full, non-deleted `purchase_order_items`
  * children (sorted by `line_number`) so the returned aggregate is whole.

@@ -94,9 +94,8 @@ export interface RecordReceiptsByItemIdResult {
  * money invariants live in the entity; this service only wires actor
  * identity, loads the aggregate, calls the entity method, and persists.
  *
- * Wide raw-row CRUD + the 22-method pre-DDD surface stay on
- * `ILegacyPurchaseOrderService` until each consumer migrates onto this
- * one.
+ * The pre-DDD `legacyPurchaseOrderService` shim that previously
+ * hosted raw-row CRUD was deleted 2026-05-15.
  */
 export interface IPurchaseOrderService {
   // ─── Reads ──────────────────────────────────────────────────────────────

@@ -1,16 +1,9 @@
 import {
   supabase,
-  type PurchaseOrder,
   type PurchaseOrderWithDetails,
 } from "@/src/infrastructure/models/supabase"
-import type {
-  ILegacyPurchaseOrderService,
-  POReceiptItem,
-  POReceiptResult,
-} from "@/src/application/services/legacy-purchase-order.service.interface"
 import "reflect-metadata"
-import { injectable, inject } from "tsyringe"
-import { TOKENS } from "@/di/tokens"
+import { injectable } from "tsyringe"
 import type {
   IPurchaseOrderAnalyticsService,
   POAnalyticsStats,
@@ -18,51 +11,6 @@ import type {
 
 @injectable()
 export class PurchaseOrderAnalyticsService implements IPurchaseOrderAnalyticsService {
-  // Late-bound to avoid a constructor-level circular dependency with
-  // PurchaseOrderService: the service holds a reference to analytics (for
-  // stats/history/pending-deliveries), and analytics holds a reference back
-  // to the service so `receivePurchaseOrder` can delegate to the canonical
-  // implementation. The DI container resolves via `registerInstance`, so the
-  // `@inject` metadata here is used when analytics is constructed via the
-  // container; the module-level singleton below performs the back-assignment
-  // manually after both singletons exist.
-  private _purchaseOrderService: ILegacyPurchaseOrderService | undefined
-
-  constructor(
-    @inject(TOKENS.ILegacyPurchaseOrderService)
-    purchaseOrderService?: ILegacyPurchaseOrderService
-  ) {
-    this._purchaseOrderService = purchaseOrderService
-  }
-
-  setPurchaseOrderService(service: ILegacyPurchaseOrderService): void {
-    this._purchaseOrderService = service
-  }
-
-  private get purchaseOrderService(): ILegacyPurchaseOrderService {
-    if (!this._purchaseOrderService) {
-      throw new Error("PurchaseOrderAnalyticsService: purchaseOrderService has not been wired yet")
-    }
-    return this._purchaseOrderService
-  }
-
-  // Delegates to the canonical implementation on ILegacyPurchaseOrderService.
-  // The `updateStatus` callback is kept for interface compatibility but is
-  // unused — the service uses its own `updatePurchaseOrderStatus` internally.
-  async receivePurchaseOrder(
-    id: string,
-    items: POReceiptItem[],
-    receivedBy: string | undefined,
-    _updateStatus: (
-      id: string,
-      status: PurchaseOrder["status"],
-      changedBy?: string,
-      reason?: string
-    ) => Promise<unknown>
-  ): Promise<POReceiptResult> {
-    return this.purchaseOrderService.receivePurchaseOrder(id, items, receivedBy)
-  }
-
   async getPurchaseOrderStats(): Promise<POAnalyticsStats> {
     try {
       const { data, error } = await supabase.from("purchase_orders").select("status, total_amount")

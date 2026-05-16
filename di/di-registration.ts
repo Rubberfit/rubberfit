@@ -63,8 +63,6 @@ import { profileService } from "@/src/infrastructure/services/profileService"
 import { PurchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
 import { purchaseOrdersRepository } from "@/src/infrastructure/repositories/purchase-orders.repository"
 import type { IPurchaseOrdersRepository } from "@/src/application/repositories/purchase-orders.repository.interface"
-import { legacyPurchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
-import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
 import { ReorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderRulesRepository } from "@/src/infrastructure/repositories/reorder-rules.repository"
@@ -209,10 +207,6 @@ container.registerInstance<IPurchaseOrdersRepository>(
 container.registerSingleton<IPurchaseOrderService>(
   TOKENS.IPurchaseOrderService,
   PurchaseOrderService
-)
-container.registerInstance<ILegacyPurchaseOrderService>(
-  TOKENS.ILegacyPurchaseOrderService,
-  legacyPurchaseOrderService
 )
 container.registerInstance<IPurchaseOrderAnalyticsService>(
   TOKENS.IPurchaseOrderAnalyticsService,

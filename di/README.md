@@ -41,7 +41,6 @@ Order in `tokens.ts` is alphabetical within each group.
 | `IPriceHistoryService`           | `PriceHistoryService` (class)             |
 | `IProfileService`                | `profileService`                          |
 | `IPurchaseOrderService`          | `PurchaseOrderService` (class)            |
-| `ILegacyPurchaseOrderService`    | `legacyPurchaseOrderService`              |
 | `IPurchaseOrderAnalyticsService` | `purchaseOrderAnalytics`                  |
 | `IReorderService`                | `ReorderService` (class)                  |
 | `IReorderCalculationsService`    | `reorderCalculations`                     |

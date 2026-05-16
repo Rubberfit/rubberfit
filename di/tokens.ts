@@ -42,7 +42,7 @@ export const TOKENS = {
   ISuppliersRepository: Symbol("ISuppliersRepository"),
 
   // Legacy service shims (transitional, deprecated)
-  ILegacyPurchaseOrderService: Symbol("ILegacyPurchaseOrderService"),
+  // (legacy PO + reorder shims retired 2026-05-15)
 
   // Admin portal services
   IUserManagementService: Symbol("IUserManagementService"),
