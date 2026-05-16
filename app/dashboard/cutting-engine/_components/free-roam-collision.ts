@@ -131,7 +131,20 @@ function holeToSheet(
  * test rejects those placements on a few specific rotations; the
  * inclusive test fits the operator-intent ("yes, this just fits").
  */
-const POINT_IN_POLYGON_EPS = 1e-9
+/**
+ * Linear boundary tolerance, in sheet inches. Effective ~1e-4 inches
+ * (~0.0025 mm) — tight enough to be below any operator-perceptible
+ * geometry and below cutter positioning resolution, loose enough to
+ * absorb the float drift that hits when a candidate's tessellated
+ * vertex lands numerically on a hole's tessellated edge. CodeRabbit
+ * critical finding: prior code mixed squared-distance comparisons
+ * with a 1e-9 linear constant, giving an effective tolerance of
+ * sqrt(1e-9) ≈ 3.16e-5 inches — accidentally close to the right
+ * answer but not what the code claimed. Split into explicit linear
+ * + squared constants so the units match the comparisons.
+ */
+const POINT_IN_POLYGON_EPS = 1e-4
+const POINT_IN_POLYGON_EPS_SQ = POINT_IN_POLYGON_EPS * POINT_IN_POLYGON_EPS
 
 function isPointInPolygon(point: Point2D, polygon: ReadonlyArray<Point2D>): boolean {
   // First: distance to boundary check. If we're within EPS of any
@@ -140,7 +153,7 @@ function isPointInPolygon(point: Point2D, polygon: ReadonlyArray<Point2D>): bool
   for (let i = 0; i < polygon.length; i++) {
     const a = polygon[i]
     const b = polygon[(i + 1) % polygon.length]
-    if (distanceToSegmentSquared(point, a, b) < POINT_IN_POLYGON_EPS) return true
+    if (distanceToSegmentSquared(point, a, b) < POINT_IN_POLYGON_EPS_SQ) return true
   }
   // Standard even-odd ray-casting.
   let inside = false
@@ -159,7 +172,7 @@ function distanceToSegmentSquared(p: Point2D, a: Point2D, b: Point2D): number {
   const dx = b.x - a.x
   const dy = b.y - a.y
   const lenSq = dx * dx + dy * dy
-  if (lenSq < POINT_IN_POLYGON_EPS) {
+  if (lenSq < POINT_IN_POLYGON_EPS_SQ) {
     // Degenerate segment (a≈b): distance is just to the point.
     const ex = p.x - a.x
     const ey = p.y - a.y

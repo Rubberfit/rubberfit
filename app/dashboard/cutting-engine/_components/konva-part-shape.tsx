@@ -442,9 +442,23 @@ function CompoundPolygonShape({
   }
 
   const sceneFunc = (context: KonvaContext, _shape: KonvaShapeNode) => {
-    // Compound fill + stroke under even-odd. `_context` is the raw
-    // CanvasRenderingContext2D — Konva's wrapper forwards but doesn't
-    // accept a fill-rule argument on `fill()`, so we go direct.
+    // Compound fill + stroke under even-odd. Konva's `Context` wrapper
+    // intentionally does NOT accept a fill-rule argument on `fill()`
+    // (see Konva issues #422, #1117) — the documented escape hatch
+    // for custom rendering inside a `sceneFunc` is to reach for
+    // `context._context`, the underlying `CanvasRenderingContext2D`.
+    // This is the same pattern Konva's own examples use for hatched
+    // fills, gradient lookups, and any other Canvas2D API outside
+    // Konva's wrapper surface.
+    //
+    // The reach is documented as part of Konva's public sceneFunc
+    // contract; treating it as private state would force a heavier
+    // workaround (offscreen canvas + Image fill via pattern) for a
+    // single Canvas2D call. CodeRabbit flagged this as "hijacking
+    // internals"; the alternative is materially worse for a small
+    // feature. Pinned by the dispatch test in
+    // tests/cutting-engine/polygon-with-holes-konva.test.tsx so a
+    // future Konva upgrade that renames `_context` surfaces here.
     const raw = context._context
     buildCompoundPath(context)
     raw.fillStyle = fill
