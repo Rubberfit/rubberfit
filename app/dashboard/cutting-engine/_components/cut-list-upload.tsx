@@ -20,12 +20,8 @@ import DxfReviewDialog from "./dxf-review-dialog"
 import { readDxfFile } from "./dxf/read-dxf-file"
 import { connectLoops, pickDefaultLayer } from "@/src/application/cad/connect-loops"
 import { detectUnits } from "@/src/application/cad/detect-units"
-import type {
-  DxfImportedPart,
-  Point2D,
-  RejectedEntity,
-  UnitSystem,
-} from "@/src/application/cad/dxf-types"
+import { groupLoopsIntoParts, type DxfPartCandidate } from "@/src/application/cad/group-parts"
+import type { DxfImportedPart, RejectedEntity, UnitSystem } from "@/src/application/cad/dxf-types"
 import { DxfParseError } from "@/src/application/cad/parse-dxf"
 
 const MAX_IMAGE_DIMENSION = 4096
@@ -77,7 +73,7 @@ function compressImage(file: File): Promise<File> {
 }
 
 interface DxfReviewState {
-  loop: Point2D[]
+  parts: DxfPartCandidate[]
   detectedUnits: UnitSystem | undefined
   rejected: RejectedEntity[]
   ignoredLayers: string[]
@@ -269,7 +265,7 @@ export default function CutListUpload({
         <DxfReviewDialog
           key={dxfReview.sourceFile}
           open={status === "review-dxf"}
-          loop={dxfReview.loop}
+          parts={dxfReview.parts}
           detectedUnits={dxfReview.detectedUnits}
           rejected={dxfReview.rejected}
           ignoredLayers={dxfReview.ignoredLayers}
@@ -297,8 +293,10 @@ function collectIgnoredLayers(
 
 /**
  * Returns a `DxfReviewState` ready for the dialog, or `null` after
- * surfacing the appropriate operator-facing toast (DWG, no-loop,
- * multi-loop, bulge, curves). Caller transitions UploadStatus.
+ * surfacing the appropriate operator-facing toast (DWG, no-loop).
+ * Caller transitions UploadStatus. Multi-part DXFs and curve-bearing
+ * entities are now supported and are passed through to the dialog
+ * (PR A: curves + holes + multi-loop).
  */
 async function processDxfFile(file: File): Promise<DxfReviewState | null> {
   if (/\.dwg$/i.test(file.name)) {
@@ -308,19 +306,15 @@ async function processDxfFile(file: File): Promise<DxfReviewState | null> {
   const doc = await readDxfFile(file)
   const layer = pickDefaultLayer(doc)
   const { loops, rejected } = connectLoops(doc, layer)
+  const parts = groupLoopsIntoParts(loops)
 
-  if (loops.length === 0) {
+  if (parts.length === 0) {
     surfaceNoLoopToast(rejected)
     return null
   }
 
-  if (loops.length > 1) {
-    toast.error(`DXF contains ${loops.length} closed parts - multi-part import coming in PR2.`)
-    return null
-  }
-
   return {
-    loop: loops[0],
+    parts,
     detectedUnits: detectUnits(doc),
     rejected,
     ignoredLayers: collectIgnoredLayers(doc.entities, layer),

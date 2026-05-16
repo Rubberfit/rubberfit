@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useMemo, useState } from "react"
-import { AlertTriangle } from "lucide-react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -11,16 +11,27 @@ import {
   DialogDescription,
 } from "@/app/components/ui/dialog"
 import { Button } from "@/app/components/ui/button"
-import type {
-  DxfImportedPart,
-  Point2D,
-  RejectedEntity,
-  UnitSystem,
-} from "@/src/application/cad/dxf-types"
+import type { DxfImportedPart, RejectedEntity, UnitSystem } from "@/src/application/cad/dxf-types"
+import type { DxfPartCandidate } from "@/src/application/cad/group-parts"
+import { sanitizePolygonWithHoles } from "@/src/application/cad/sanitize-polygon-with-holes"
+import {
+  baseName,
+  buildWarnings,
+  type Bbox,
+  CenterPreview,
+  DimensionsLine,
+  HoleCountChip,
+  LargePreview,
+  PartListRail,
+  PartNumberField,
+  QuantityField,
+  UnitPicker,
+  WarningsBanner,
+} from "./dxf-review-dialog-parts"
 
 interface DxfReviewDialogProps {
   open: boolean
-  loop: Point2D[]
+  parts: DxfPartCandidate[]
   detectedUnits: UnitSystem | undefined
   rejected: RejectedEntity[]
   ignoredLayers: string[]
@@ -29,145 +40,149 @@ interface DxfReviewDialogProps {
   onCancel: () => void
 }
 
-const PREVIEW_SIZE = 320
-const PREVIEW_PADDING = 12
+/* ------------------------------------------------------------------ */
+/*  Mode renderers                                                     */
+/* ------------------------------------------------------------------ */
 
-export default function DxfReviewDialog({
+function EmptyDxfDialog({
   open,
-  loop,
-  detectedUnits,
-  rejected,
-  ignoredLayers,
   sourceFile,
-  onConfirm,
   onCancel,
-}: DxfReviewDialogProps) {
-  // Initial state derives from the current DXF file. Parent re-mounts
-  // the dialog with `key={sourceFile}` on each new file, so the state
-  // here is fresh per import without the setState-in-effect anti-pattern.
-  const [units, setUnits] = useState<UnitSystem | undefined>(detectedUnits)
-  const [quantity, setQuantity] = useState<number>(1)
-  const [partNumber, setPartNumber] = useState<string>("")
-
-  const bbox = useMemo(() => computeBbox(loop), [loop])
-  const preview = useMemo(() => buildPreview(loop, bbox), [loop, bbox])
-  const dimensionLabel = useMemo(() => formatDims(bbox, units), [bbox, units])
-  const warningMessages = useMemo(
-    () => buildWarnings(rejected, ignoredLayers),
-    [rejected, ignoredLayers]
-  )
-
-  const canConfirm = units !== undefined && quantity >= 1 && loop.length >= 3
-  const defaultedPartNumber = partNumber.trim() || baseName(sourceFile)
-
+}: {
+  open: boolean
+  sourceFile: string
+  onCancel: () => void
+}) {
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review DXF Part</DialogTitle>
-          <DialogDescription>
-            {sourceFile} - {loop.length} vertices
-          </DialogDescription>
+          <DialogTitle>Review DXF Import</DialogTitle>
+          <DialogDescription>{baseName(sourceFile)}</DialogDescription>
+        </DialogHeader>
+        <div className="py-12 text-center">
+          <p className="text-muted-foreground">No valid parts found in this DXF file.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button disabled>Add Part</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface ConfirmControlsProps {
+  units: UnitSystem | undefined
+  detectedUnits: UnitSystem | undefined
+  onUnitsChange: (next: UnitSystem) => void
+  bbox: Bbox | undefined
+  quantity: number
+  onQuantityChange: (next: number) => void
+  partNumber: string
+  partNumberPlaceholder: string
+  onPartNumberChange: (next: string) => void
+  idPrefix: string
+}
+
+function ConfirmControls({
+  units,
+  detectedUnits,
+  onUnitsChange,
+  bbox,
+  quantity,
+  onQuantityChange,
+  partNumber,
+  partNumberPlaceholder,
+  onPartNumberChange,
+  idPrefix,
+}: ConfirmControlsProps) {
+  return (
+    <>
+      <UnitPicker units={units} detectedUnits={detectedUnits} onChange={onUnitsChange} />
+      <DimensionsLine bbox={bbox} units={units} />
+      <QuantityField id={`${idPrefix}-qty`} value={quantity} onChange={onQuantityChange} />
+      <PartNumberField
+        id={`${idPrefix}-pn`}
+        value={partNumber}
+        placeholder={partNumberPlaceholder}
+        onChange={onPartNumberChange}
+      />
+    </>
+  )
+}
+
+interface SinglePartDialogProps {
+  open: boolean
+  part: DxfPartCandidate
+  detectedUnits: UnitSystem | undefined
+  warnings: string[]
+  sourceFile: string
+  units: UnitSystem | undefined
+  setUnits: (next: UnitSystem) => void
+  quantity: number
+  setQuantity: (next: number) => void
+  partNumber: string
+  setPartNumber: (next: string) => void
+  defaultedPartNumber: string
+  canConfirm: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function SinglePartDialog(props: SinglePartDialogProps) {
+  const {
+    open,
+    part,
+    detectedUnits,
+    warnings,
+    sourceFile,
+    units,
+    setUnits,
+    quantity,
+    setQuantity,
+    partNumber,
+    setPartNumber,
+    defaultedPartNumber,
+    canConfirm,
+    onConfirm,
+    onCancel,
+  } = props
+  const holeCount = part.polygon.holes.length
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Review DXF Import</DialogTitle>
+          <DialogDescription>{baseName(sourceFile)}</DialogDescription>
         </DialogHeader>
 
-        {warningMessages.length > 0 && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <div className="space-y-1">
-              {warningMessages.map((msg, i) => (
-                <p key={i}>{msg}</p>
-              ))}
-            </div>
-          </div>
-        )}
+        <WarningsBanner warnings={warnings} />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[auto_1fr]">
-          <div className="rounded-lg border border-border bg-muted/30 p-2">
-            <svg
-              width={PREVIEW_SIZE}
-              height={PREVIEW_SIZE}
-              viewBox={`0 0 ${PREVIEW_SIZE} ${PREVIEW_SIZE}`}
-              role="img"
-              aria-label="DXF outline preview"
-            >
-              <g transform={`translate(${PREVIEW_PADDING}, ${PREVIEW_PADDING})`}>
-                <g transform={`translate(0, ${PREVIEW_SIZE - 2 * PREVIEW_PADDING}) scale(1, -1)`}>
-                  <polygon
-                    points={preview.points
-                      .map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-                      .join(" ")}
-                    fill="rgba(59,130,246,0.18)"
-                    stroke="#1d4ed8"
-                    strokeWidth={1.5}
-                  />
-                </g>
-              </g>
-            </svg>
-          </div>
-
-          <div className="flex flex-col gap-3 text-sm">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground">Units</label>
-              <div className="mt-1 inline-flex rounded border border-border">
-                <UnitButton active={units === "mm"} onClick={() => setUnits("mm")} label="mm" />
-                <UnitButton
-                  active={units === "inch"}
-                  onClick={() => setUnits("inch")}
-                  label="inch"
-                />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-2">
+            {holeCount > 0 && (
+              <div className="flex items-center gap-2">
+                <HoleCountChip count={holeCount} />
               </div>
-              {detectedUnits === undefined && units === undefined && (
-                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                  $INSUNITS not set in this DXF — pick a unit before confirming.
-                </p>
-              )}
-              {detectedUnits !== undefined && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Detected from $INSUNITS: {detectedUnits}.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground">
-                Bounding box
-              </label>
-              <p className="mt-1 font-mono">{dimensionLabel}</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground" htmlFor="dxf-qty">
-                Quantity
-              </label>
-              <input
-                id="dxf-qty"
-                type="number"
-                min={1}
-                step={1}
-                className="mt-1 w-24 rounded border border-border bg-transparent px-2 py-1 text-sm"
-                value={quantity}
-                onChange={(e) => {
-                  const next = Number(e.target.value)
-                  if (Number.isFinite(next) && next >= 1) {
-                    setQuantity(Math.round(next))
-                  }
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground" htmlFor="dxf-pn">
-                Part number
-              </label>
-              <input
-                id="dxf-pn"
-                type="text"
-                className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-sm"
-                value={partNumber}
-                placeholder={baseName(sourceFile)}
-                onChange={(e) => setPartNumber(e.target.value)}
-              />
-            </div>
+            )}
+            <LargePreview polygon={part.polygon} bbox={part.bbox} svgSize={320} />
+          </div>
+          <div className="space-y-4">
+            <ConfirmControls
+              units={units}
+              detectedUnits={detectedUnits}
+              onUnitsChange={setUnits}
+              bbox={part.bbox}
+              quantity={quantity}
+              onQuantityChange={setQuantity}
+              partNumber={partNumber}
+              partNumberPlaceholder={defaultedPartNumber}
+              onPartNumberChange={setPartNumber}
+              idPrefix="dxf"
+            />
           </div>
         </div>
 
@@ -175,19 +190,7 @@ export default function DxfReviewDialog({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            disabled={!canConfirm}
-            onClick={() => {
-              if (!canConfirm || units === undefined) return
-              onConfirm({
-                partNumber: defaultedPartNumber,
-                polygon: { outer: loop, holes: [] },
-                quantity,
-                units,
-                sourceFile,
-              })
-            }}
-          >
+          <Button onClick={onConfirm} disabled={!canConfirm}>
             Add Part
           </Button>
         </DialogFooter>
@@ -196,117 +199,191 @@ export default function DxfReviewDialog({
   )
 }
 
-function UnitButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-}) {
+interface MultiPartDialogProps {
+  open: boolean
+  parts: DxfPartCandidate[]
+  detectedUnits: UnitSystem | undefined
+  warnings: string[]
+  sourceFile: string
+  selectedIdx: number
+  setSelectedIdx: (idx: number) => void
+  units: UnitSystem | undefined
+  setUnits: (next: UnitSystem) => void
+  quantity: number
+  setQuantity: (next: number) => void
+  partNumber: string
+  setPartNumber: (next: string) => void
+  defaultedPartNumber: string
+  canConfirm: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function MultiPartDialog(props: MultiPartDialogProps) {
+  const {
+    open,
+    parts,
+    detectedUnits,
+    warnings,
+    sourceFile,
+    selectedIdx,
+    setSelectedIdx,
+    units,
+    setUnits,
+    quantity,
+    setQuantity,
+    partNumber,
+    setPartNumber,
+    defaultedPartNumber,
+    canConfirm,
+    onConfirm,
+    onCancel,
+  } = props
+  const selectedPart = parts[selectedIdx]
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "px-3 py-1 text-sm transition-colors first:rounded-l last:rounded-r " +
-        (active ? "bg-blue-600 text-white" : "bg-transparent text-muted-foreground hover:bg-muted")
-      }
-    >
-      {label}
-    </button>
+    <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Review DXF Import — {parts.length} parts found</DialogTitle>
+          <DialogDescription>{baseName(sourceFile)}</DialogDescription>
+        </DialogHeader>
+
+        <WarningsBanner warnings={warnings} />
+
+        <div className="grid grid-cols-[180px_1fr_220px] gap-4 min-h-[400px]">
+          <PartListRail
+            parts={parts}
+            selectedIdx={selectedIdx}
+            setSelectedIdx={setSelectedIdx}
+            units={units}
+          />
+          <CenterPreview
+            selectedPart={selectedPart}
+            selectedIdx={selectedIdx}
+            total={parts.length}
+          />
+          <div className="space-y-4 pt-6">
+            <ConfirmControls
+              units={units}
+              detectedUnits={detectedUnits}
+              onUnitsChange={setUnits}
+              bbox={selectedPart?.bbox}
+              quantity={quantity}
+              onQuantityChange={setQuantity}
+              partNumber={partNumber}
+              partNumberPlaceholder={defaultedPartNumber}
+              onPartNumberChange={setPartNumber}
+              idPrefix="dxf-multi"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={!canConfirm}>
+            Add Part {selectedPart ? `(${selectedIdx + 1})` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function computeBbox(loop: Point2D[]): { minX: number; minY: number; maxX: number; maxY: number } {
-  if (loop.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 }
-  let minX = loop[0].x
-  let maxX = loop[0].x
-  let minY = loop[0].y
-  let maxY = loop[0].y
-  for (const p of loop) {
-    if (p.x < minX) minX = p.x
-    if (p.x > maxX) maxX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.y > maxY) maxY = p.y
-  }
-  return { minX, minY, maxX, maxY }
-}
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
 
-function buildPreview(
-  loop: Point2D[],
-  bbox: { minX: number; minY: number; maxX: number; maxY: number }
-): { points: Point2D[] } {
-  const inner = PREVIEW_SIZE - 2 * PREVIEW_PADDING
-  const w = bbox.maxX - bbox.minX
-  const h = bbox.maxY - bbox.minY
-  if (w <= 0 || h <= 0) return { points: [] }
-  const scale = Math.min(inner / w, inner / h)
-  const offsetX = (inner - w * scale) / 2
-  const offsetY = (inner - h * scale) / 2
-  return {
-    points: loop.map((p) => ({
-      x: (p.x - bbox.minX) * scale + offsetX,
-      y: (p.y - bbox.minY) * scale + offsetY,
-    })),
-  }
-}
+export default function DxfReviewDialog({
+  open,
+  parts,
+  detectedUnits,
+  rejected,
+  ignoredLayers,
+  sourceFile,
+  onConfirm,
+  onCancel,
+}: DxfReviewDialogProps) {
+  const [selectedIdx, setSelectedIdx] = useState(0)
+  // The undefined state is meaningful — it disables confirm and
+  // prompts the operator to pick a unit when the DXF didn't declare
+  // $INSUNITS. Don't default to "mm" with `??`.
+  const [units, setUnits] = useState<UnitSystem | undefined>(detectedUnits)
+  const [quantity, setQuantity] = useState(1)
+  const [partNumber, setPartNumber] = useState("")
 
-function formatDims(
-  bbox: { minX: number; minY: number; maxX: number; maxY: number },
-  units: UnitSystem | undefined
-): string {
-  const w = bbox.maxX - bbox.minX
-  const h = bbox.maxY - bbox.minY
-  if (units === undefined) return `${w.toFixed(2)} × ${h.toFixed(2)}`
-  const suffix = units === "mm" ? "mm" : '"'
-  return `${w.toFixed(2)}${suffix} × ${h.toFixed(2)}${suffix}`
-}
+  const selectedPart = parts[selectedIdx]
+  const warnings = useMemo(() => buildWarnings(rejected, ignoredLayers), [rejected, ignoredLayers])
 
-function buildWarnings(rejected: RejectedEntity[], ignoredLayers: string[]): string[] {
-  const messages: string[] = []
-  const counts = new Map<string, number>()
-  for (const r of rejected) {
-    const key = `${r.originalType}:${r.reason}`
-    counts.set(key, (counts.get(key) ?? 0) + 1)
-  }
-  for (const [key, count] of counts) {
-    const [type, reason] = key.split(":")
-    messages.push(reasonCopy(type, reason, count))
-  }
-  if (ignoredLayers.length > 0) {
-    messages.push(`Ignored layers (PR1 imports a single layer): ${ignoredLayers.join(", ")}.`)
-  }
-  return messages
-}
+  const defaultedPartNumber = partNumber.trim() || baseName(sourceFile)
+  const canConfirm = parts.length > 0 && selectedPart != null && quantity > 0 && units !== undefined
 
-function reasonCopy(type: string, reason: string, count: number): string {
-  const plural = count === 1 ? "entity" : "entities"
-  switch (reason) {
-    case "polyline-curve-fit":
-    case "polyline-spline-fit":
-      return `${count} ${type} ${plural} ignored - curve-fit polylines are not supported.`
-    case "polyline-3d":
-    case "polyline-3d-mesh":
-    case "polyline-polyface-mesh":
-      return `${count} ${type} ${plural} ignored - 3D / mesh polylines are not supported.`
-    case "polyline-not-closed":
-    case "lwpolyline-not-closed":
-      return `${count} open ${type} ${plural} ignored - closed loops only.`
-    case "spline-rational-not-supported":
-      return `${count} rational ${type} ${plural} ignored - flatten weighted splines in CAD before importing.`
-    case "spline-malformed":
-      return `${count} malformed ${type} ${plural} ignored - check the knot vector and control points.`
-    case "entity-type-unsupported":
-      return `${count} ${type} ${plural} ignored.`
-    default:
-      return `${count} ${type} ${plural} ignored (${reason}).`
+  function handleConfirm() {
+    if (!canConfirm || !selectedPart || units === undefined) return
+    // Sanitize: repair self-intersections, dedup vertices, enforce
+    // CCW-outer / CW-hole. Returns null on unrepairable input.
+    const sanitized = sanitizePolygonWithHoles(selectedPart.polygon)
+    if (!sanitized) {
+      toast.error(
+        "Geometry could not be sanitized — the part may have disjoint outer rings or self-intersections that can't be repaired automatically."
+      )
+      return
+    }
+    onConfirm({
+      partNumber: defaultedPartNumber,
+      polygon: sanitized,
+      quantity,
+      units,
+      sourceFile,
+    })
   }
-}
 
-function baseName(file: string): string {
-  const trimmed = file.replace(/\\/g, "/")
-  const last = trimmed.substring(trimmed.lastIndexOf("/") + 1)
-  return last.replace(/\.[^.]+$/, "")
+  if (parts.length === 0) {
+    return <EmptyDxfDialog open={open} sourceFile={sourceFile} onCancel={onCancel} />
+  }
+
+  if (parts.length === 1) {
+    return (
+      <SinglePartDialog
+        open={open}
+        part={parts[0]}
+        detectedUnits={detectedUnits}
+        warnings={warnings}
+        sourceFile={sourceFile}
+        units={units}
+        setUnits={setUnits}
+        quantity={quantity}
+        setQuantity={setQuantity}
+        partNumber={partNumber}
+        setPartNumber={setPartNumber}
+        defaultedPartNumber={defaultedPartNumber}
+        canConfirm={canConfirm}
+        onConfirm={handleConfirm}
+        onCancel={onCancel}
+      />
+    )
+  }
+
+  return (
+    <MultiPartDialog
+      open={open}
+      parts={parts}
+      detectedUnits={detectedUnits}
+      warnings={warnings}
+      sourceFile={sourceFile}
+      selectedIdx={selectedIdx}
+      setSelectedIdx={setSelectedIdx}
+      units={units}
+      setUnits={setUnits}
+      quantity={quantity}
+      setQuantity={setQuantity}
+      partNumber={partNumber}
+      setPartNumber={setPartNumber}
+      defaultedPartNumber={defaultedPartNumber}
+      canConfirm={canConfirm}
+      onConfirm={handleConfirm}
+      onCancel={onCancel}
+    />
+  )
 }
