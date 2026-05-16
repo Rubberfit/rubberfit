@@ -21,20 +21,29 @@ User selects a part type (preset or custom), enters dimensions, sets quantity, a
 User Input (part type, dimensions, quantity)
       |
       v
-SimplePartSpec[] ──> simplePartToNestingParts() ──> NestingPart[]
-      |                                                    |
-      v                                                    v
-generateSimplePartPreview()              NFPSolver.solve() (GA optimization)
-      |                                                    |
-      v                                                    v
-SimplePartPreview                    nestingResultToPreviewItems()
-      |                                                    |
-      v                                                    v
-NestingVisualizer <────── computeSimpleModeLayout() ───────┘
+SimplePartSpec[] ──> template-to-part.ts ──> PackRequest
       |
       v
-SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
+[Pack button pressed] ──> usePackJob ──> IPackingService.pack()
+      |
+      v
+Rust pack-cli (FFD + 2D grid + sparrow GLS + cross-bin swap)
+      |
+      v
+PackResult ──> pack-result-to-layout-model.ts ──> LayoutModel[]
+      |
+      v
+NestingVisualizer (simple mode) / KonvaSheetRenderer (free roam)
+      |
+      v
+SVG Canvas (stock sheet + placed shapes + classified scrap + offcut bands)
 ```
+
+The TS-side packers (NFP greedy, MaxRects, shelf, guillotine, width-pair,
+FAB scoring, GA rotation search) were retired with the Rust migration —
+the only packing pipeline now is Rust. Files in this directory whose
+names suggest TS-side packing are either preview-renderer helpers or
+post-pack layout-shaping utilities.
 
 ## Files
 
@@ -56,22 +65,20 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `cut-loader.tsx`                | Deep-link loader — `?loadCut=<id>` fetches a cut history row and restores stock + parts in the engine                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `roll-loader.tsx`               | Deep-link loader — `?loadRoll=<id>` fetches an inventory roll and pre-fills stock dimensions (no parts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
-### Math & Algorithms
+### Math & Algorithms (post-Rust layout helpers)
 
-| File                                 | Purpose                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                                |
-| `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing (with findBestShelf), guillotine cutting, centered column |
-| `nesting-global-packer.ts`           | MaxRects bin class + 5 heuristics — ported from open-source repos (see attribution below)        |
-| `nesting-global-packer-entry.ts`     | Multi-sheet entry point — exhaustive rotation search, sheet builder, greedy/batch/pair dispatch  |
-| `nesting-width-pair-packer.ts`       | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects           |
-| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters                         |
-| `nesting-offcut-utils.ts`            | Offcut band classification, intra-blank waste, placement bounds helpers                          |
-| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison           |
-| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                          |
-| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                                 |
-| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout           |
-| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                                       |
+These are now post-pack layout shapers and visualizer helpers, not packers. The actual packing happens in the Rust `rf-layout` crate via `pack-cli` (or the Vercel in-process Rust function).
+
+| File                            | Purpose                                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nesting-layout-utils.ts`       | Core layout math — grid calculation, scaling, formatting helpers for the visualizer.                                                          |
+| `nesting-packing-utils.ts`      | Post-pack helpers (shelf-style row grouping, centered-column layout) used by the visualizer to organise preview output before drawing.        |
+| `nesting-offcut-utils.ts`       | Offcut band classification, intra-blank waste, placement bounds helpers.                                                                      |
+| `nesting-preview-builders.ts`   | High-level preview builders — waste analysis, fabrication scoring, strategy comparison.                                                       |
+| `pack-result-to-layout-model.ts` | Normaliser: Rust `PackResult` → `LayoutModel[]` consumed by the visualizer and Konva renderer.                                                |
+| `auto-fill-bin-allocator.ts`    | Multi-sheet auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total part area, capped at `MAX_SHEETS = 50`) feeding the bin list into `pack`. |
+| `bin-allocation-strategy.ts`    | Auto-boost: silently re-packs against more bins on overflow until everything fits or the cap is reached.                                      |
+| `template-to-part.ts`           | Converts `SimplePartSpec[]` (preset / custom UI) into the canonical `PackRequest` `Part[]`.                                                   |
 
 ### SVG Rendering
 
@@ -92,12 +99,13 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### State & Hooks
 
-| File                      | Purpose                                                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `use-nfp-optimizer.ts`    | NFP optimization hook — manages solver lifecycle, results, cancellation                 |
-| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities     |
-| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types            |
-| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion |
+| File                      | Purpose                                                                                                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `use-pack-job.ts`         | Owns the single `IPackingService.pack()` round-trip when the operator presses **Pack**. Gated by `usePackGate` (`idle` → `packing` → `done`); no live load on input change.             |
+| `_hooks/use-pack-gate.ts` | Three-state gate machine that keeps the Pack button explicit — no per-keystroke packing, minimum 450 ms loader window so the operation is perceivable.                                  |
+| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities.                                                                                                    |
+| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types.                                                                                                           |
+| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion.                                                                                                |
 
 ### Free-roam (Manual CAD Placement)
 
@@ -1130,7 +1138,18 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
 }
 ```
 
-### 10. Global Multi-Sheet Bin Packing (`nesting-global-packer.ts`)
+### 10. Global Multi-Sheet Bin Packing — _historical_
+
+> **Historical archive.** The TS-side MaxRects + width-pair packer
+> described below was retired in the Rust migration. `pack-cli`
+> (`engine/crates/rf-layout/`) is the only active packer; the files
+> referenced here (`nesting-global-packer.ts`,
+> `nesting-width-pair-packer.ts`, etc.) no longer exist. The S2.5
+> design — FFD + 2D grid warm-start + sparrow GLS + cross-bin swap —
+> is documented in `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`
+> and the `engine/crates/rf-layout/` source. Kept here for context on
+> what the previous in-browser pipeline did and the open-source
+> packers it built on.
 
 When multiple distinct part types are packed together (e.g., a 45-part cut list with different sizes), the global packer replaces the sequential per-sheet overflow approach with a globally-optimal assignment. This produces fewer sheets for the same set of items.
 

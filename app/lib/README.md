@@ -255,6 +255,4 @@ export function removeLocalStorageValue(key: string) {
 
 ## Subdirectories
 
-- **fonts/** -- Font registry mapping font keys to Next.js font instances
 - **preferences/** -- User preference system: config definitions, persistence layer (cookie/localStorage), theme types and DOM application, layout utilities
-- **nesting/** -- NFP nesting engine for the cut planner (see `nesting/README.md`)
