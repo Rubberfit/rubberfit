@@ -31,6 +31,61 @@ const nextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  // Webpack-only client-bundle stubs.
+  //
+  // Background: switching production builds to `next build --webpack`
+  // (necessary to dodge Next 16's Turbopack proxy NFT trace
+  // regression that left @swc/helpers/esm/* out of the lambda)
+  // surfaced a real client/server boundary leak that Turbopack was
+  // silently tolerating. `use-pack-job.ts` is a `"use client"` hook
+  // that imports `@/di/resolve` to look up `IPackingService`; the
+  // resolve helper transitively pulls in `di-registration.ts`,
+  // which registers every server-side use-case in the app —
+  // including `create-invitation.use-case.ts` which imports
+  // `node:crypto`.
+  //
+  // Webpack 5 doesn't auto-stub `node:*` scheme imports on the
+  // browser target (Turbopack does, which is why the leak went
+  // unnoticed). The proper fix is to refactor use-pack-job to NOT
+  // import the full DI tree client-side, but that's an
+  // architectural change outside this hotfix's scope. Stubbing the
+  // Node built-ins to `false` on the client bundle makes the
+  // import resolve to an empty module — which is safe because the
+  // code path that would call node:crypto only runs server-side
+  // (use-cases resolve via TSyringe to server-only impls inside
+  // server actions and route handlers; the client `IPackingService`
+  // impl uses fetch instead).
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve = config.resolve ?? {}
+      config.resolve.fallback = {
+        ...(config.resolve.fallback ?? {}),
+        crypto: false,
+        fs: false,
+        path: false,
+        child_process: false,
+        os: false,
+        net: false,
+        tls: false,
+        stream: false,
+      }
+      // Also strip the explicit `node:` scheme variants — webpack 5
+      // treats `node:crypto` and `crypto` as different module ids,
+      // so the fallback above doesn't cover the scheme form alone.
+      config.resolve.alias = {
+        ...(config.resolve.alias ?? {}),
+        "node:crypto": false,
+        "node:fs": false,
+        "node:path": false,
+        "node:child_process": false,
+        "node:os": false,
+        "node:net": false,
+        "node:tls": false,
+        "node:stream": false,
+      }
+    }
+    return config
+  },
   images: {
     remotePatterns: [
       {
