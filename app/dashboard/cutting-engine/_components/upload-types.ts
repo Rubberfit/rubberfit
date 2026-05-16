@@ -18,8 +18,14 @@ export function isSpreadsheetFile(file: File): boolean {
   return SPREADSHEET_MIMES.has(file.type) || /\.(xlsx?|csv)$/i.test(file.name)
 }
 
+// Matches BOTH `.dxf` (supported) and `.dwg` (recognized-but-rejected).
+// The actual DWG rejection (with the helpful "Save As DXF" toast) lives
+// in `processDxfFile` in `cut-list-upload.tsx`. Keeping CAD file
+// recognition centralized here means a dropped `.dwg` reaches that
+// branch instead of falling through to the generic "Unsupported file
+// type" copy.
 export function isCadFile(file: File): boolean {
-  return DXF_MIMES.has(file.type) || /\.dxf$/i.test(file.name)
+  return DXF_MIMES.has(file.type) || /\.(dxf|dwg)$/i.test(file.name)
 }
 
 export const ACCEPTED_FILE_TYPES = [

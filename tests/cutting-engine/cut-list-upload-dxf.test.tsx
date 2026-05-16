@@ -170,6 +170,23 @@ describe("CutListUpload — DXF branch", () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it("dropping a .dwg file shows the Save-As-DXF toast (not generic 'unsupported')", async () => {
+    const { container } = render(
+      <CutListUpload onPartsConfirmed={vi.fn()} onDxfPartConfirmed={vi.fn()} />
+    )
+    // DWG is binary-only — readDxfFile would throw, but processDxfFile's
+    // first-line `.dwg$` check fires before that, so an empty payload
+    // with the right extension is fine for this regression.
+    const file = new File([""], "drawing.dwg", { type: "application/octet-stream" })
+    dropFile(container, file)
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled()
+    })
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Save As DXF/i))
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringMatching(/Unsupported file type/i))
+  })
+
   it("opens the dialog with 1 part and 4 holes for bracket-with-bolt-holes.dxf; confirm forwards a 4-hole PolygonWithHoles", async () => {
     const onDxfPartConfirmed = vi.fn()
     const { container } = render(

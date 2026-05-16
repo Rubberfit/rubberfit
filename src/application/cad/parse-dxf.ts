@@ -52,6 +52,11 @@ import type {
 
 const RAD_TO_DEG = 180 / Math.PI
 
+interface SplineControlPoint {
+  x: number
+  y: number
+}
+
 export class DxfParseError extends Error {
   constructor(message: string) {
     super(message)
@@ -135,16 +140,17 @@ function narrowLwPolyline(
     return unsupported(layer, "LWPOLYLINE", "lwpolyline-not-closed")
   }
   const rawVerts = entity.vertices ?? []
+  const vertices: LwPolylineVertex[] = []
   for (const v of rawVerts) {
     if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) {
       return unsupported(layer, "LWPOLYLINE", "entity-type-unsupported")
     }
+    // Non-finite bulge (NaN/Infinity) would poison `tessellateBulge`
+    // downstream; coerce to 0 (straight-line segment) as a safe
+    // degradation rather than rejecting the whole entity.
+    const bulge = Number.isFinite(v.bulge) ? (v.bulge as number) : 0
+    vertices.push({ x: v.x, y: v.y, bulge })
   }
-  const vertices: LwPolylineVertex[] = rawVerts.map((v) => ({
-    x: v.x,
-    y: v.y,
-    bulge: v.bulge ?? 0,
-  }))
   return { kind: "lwpolyline", layer, closed: true, vertices }
 }
 
@@ -171,16 +177,17 @@ function narrowPolyline(
     return unsupported(layer, "POLYLINE", "polyline-not-closed")
   }
   const rawVerts = entity.vertices ?? []
+  const vertices: PolylineVertex[] = []
   for (const v of rawVerts) {
     if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) {
       return unsupported(layer, "POLYLINE", "entity-type-unsupported")
     }
+    // Non-finite bulge (NaN/Infinity) would poison `tessellateBulge`
+    // downstream; coerce to 0 (straight-line segment) as a safe
+    // degradation rather than rejecting the whole entity.
+    const bulge = Number.isFinite(v.bulge) ? (v.bulge as number) : 0
+    vertices.push({ x: v.x, y: v.y, bulge })
   }
-  const vertices: PolylineVertex[] = rawVerts.map((v) => ({
-    x: v.x,
-    y: v.y,
-    bulge: v.bulge ?? 0,
-  }))
   return { kind: "polyline", layer, closed: true, vertices }
 }
 
@@ -285,7 +292,7 @@ function narrowEllipse(entity: IEllipseEntity, layer: string): EllipseEntity | U
 
 function narrowSpline(entity: ISplineEntity, layer: string): SplineEntity | UnsupportedEntity {
   const rawControls = entity.controlPoints ?? []
-  const controlPoints: { x: number; y: number }[] = []
+  const controlPoints: SplineControlPoint[] = []
   for (const p of rawControls) {
     if (
       !p ||
