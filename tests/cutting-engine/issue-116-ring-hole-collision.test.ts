@@ -49,8 +49,10 @@ function ringTemplate(id: string, outerDiameter: number, innerDiameter: number):
     innerRadius: innerDiameter / 2,
     outerRadius: outerDiameter / 2,
     renderShape: "ring",
-    polygon: circleToPolygon(outerDiameter, 48),
-    holes: [centeredCircle(innerDiameter, outerDiameter, 48)],
+    polygon: {
+      outer: circleToPolygon(outerDiameter, 48),
+      holes: [centeredCircle(innerDiameter, outerDiameter, 48)],
+    },
   }
 }
 

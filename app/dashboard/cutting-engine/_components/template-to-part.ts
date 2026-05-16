@@ -107,7 +107,7 @@ function polygonTemplateToPart(
   tag: string | undefined
 ): Part | null {
   const polygon = template.polygon
-  if (!polygon || polygon.length < 3) return null
+  if (!polygon || polygon.outer.length < 3) return null
   return buildPart({
     shapeId: template.id,
     quantity,

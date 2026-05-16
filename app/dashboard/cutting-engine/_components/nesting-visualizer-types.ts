@@ -1,5 +1,6 @@
 // Types and interfaces for NestingVisualizer
 import type { LayoutModel } from "./layout-model"
+import type { PolygonWithHoles } from "@/src/application/packing/types"
 
 export type ShapeType = "rect" | "circle" | "cone"
 export type GrainDir = "none" | "width" | "length"
@@ -14,8 +15,7 @@ export type SimpleCutDirection =
   | "wrap_panels"
   | "wrap_bands"
 
-export interface SimplePartSpec {
-  partType: SimplePartType
+interface SimplePartSpecBase {
   quantity: number
   cutDirection?: SimpleCutDirection
   cutRatios?: number[]
@@ -40,6 +40,17 @@ export interface SimplePartSpec {
    */
   _originalSpecIndex?: number
 }
+
+interface SimplePolygonSpec extends SimplePartSpecBase {
+  partType: "polygon"
+  polygon: PolygonWithHoles
+}
+
+interface SimpleNonPolygonSpec extends SimplePartSpecBase {
+  partType: Exclude<SimplePartType, "polygon">
+}
+
+export type SimplePartSpec = SimplePolygonSpec | SimpleNonPolygonSpec
 
 export interface Strategy {
   id: string

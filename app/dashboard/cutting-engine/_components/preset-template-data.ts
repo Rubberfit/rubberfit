@@ -1,6 +1,6 @@
 import type { SimplePartType } from "./NestingVisualizer"
 import type { RenderShape } from "./layout-model"
-import type { Point2D } from "@/nesting/types"
+import type { PolygonWithHoles } from "@/src/application/packing/types"
 import {
   CYLINDER_TEMPLATES,
   CONE_TEMPLATES,
@@ -41,23 +41,17 @@ export interface PartTemplate {
    */
   renderShape?: RenderShape
   /**
-   * Optional local-coords polygon (bbox anchored at 0, 0). Shape
-   * library templates (triangle, n-gon, star, ring, ellipse, etc.)
-   * populate this so Free-roam's collision / waste / render paths
-   * don't need a partType case for every new shape. DXF imports
-   * (`partType === "polygon"`) populate it too — that path is the
-   * one Auto-nest path that takes raw vertices.
+   * Optional local-coords polygon with holes (bbox anchored at 0, 0).
+   * Shape library templates (triangle, n-gon, star, ring, ellipse,
+   * etc.) populate `polygon.outer` so Free-roam's collision / waste /
+   * render paths don't need a partType case for every new shape. Hole-
+   * bearing primitives (ring gaskets, full-face gaskets with bolt
+   * circles, multi-loop CAD imports) also populate `polygon.holes` so
+   * collision / render / PDF paths can treat the holes as voids. DXF
+   * imports (`partType === "polygon"`) populate this too — that path
+   * is the one Auto-nest path that takes raw vertices.
    */
-  polygon?: Point2D[]
-  /**
-   * Optional local-coords inner hole loops (each a closed ring,
-   * vertices in bbox-anchored coords just like `polygon`). Populated
-   * by hole-bearing shape primitives (ring gaskets, full-face
-   * gaskets with bolt circles, multi-loop CAD imports) so Free-roam's
-   * collision / render / PDF paths can treat the holes as voids.
-   * Absent or empty → no holes (today's single-loop shapes).
-   */
-  holes?: Point2D[][]
+  polygon?: PolygonWithHoles
   /**
    * Original source filename for DXF-imported polygon templates. Used
    * by the parts-queue panel for display copy ("bracket.dxf"). Other

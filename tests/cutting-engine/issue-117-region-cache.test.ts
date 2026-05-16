@@ -60,7 +60,7 @@ function ringTemplate(id: string, outerD: number, innerD: number): PartTemplate 
     innerRadius: innerD / 2,
     outerRadius: outerD / 2,
     renderShape: "ring",
-    polygon: circleToPolygon(outerD, 48),
+    polygon: { outer: circleToPolygon(outerD, 48), holes: [] },
   }
 }
 

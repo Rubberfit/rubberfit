@@ -7,9 +7,9 @@
 // cases. Unsupported entities collapse into `UnsupportedEntity` with
 // a reason code so the Review dialog can surface specific copy.
 
-import type { Point2D, UnitSystem } from "@/src/application/packing/types"
+import type { Point2D, PolygonWithHoles, UnitSystem } from "@/src/application/packing/types"
 
-export type { Point2D, UnitSystem }
+export type { Point2D, PolygonWithHoles, UnitSystem }
 
 export interface LineEntity {
   kind: "line"
@@ -73,7 +73,7 @@ export interface DxfDocument {
 
 export interface DxfImportedPart {
   partNumber: string
-  polygon: Point2D[]
+  polygon: PolygonWithHoles
   quantity: number
   units: UnitSystem
   sourceFile: string

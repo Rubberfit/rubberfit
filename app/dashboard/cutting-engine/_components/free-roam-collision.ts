@@ -33,8 +33,8 @@ export function buildPlacementPolygon(placement: ManualPlacement, template: Part
   // Shape-registry templates carry a local-coords polygon. Translate
   // + rotate each vertex into sheet space. This path covers triangles,
   // stars, n-gons, ellipses, rings, and any custom shape.
-  if (template.polygon && template.polygon.length >= 3) {
-    const pts = template.polygon.map((p) => rot(p.x - width / 2, p.y - height / 2))
+  if (template.polygon && template.polygon.outer.length >= 3) {
+    const pts = template.polygon.outer.map((p) => rot(p.x - width / 2, p.y - height / 2))
     return new Polygon(new Vector(0, 0), pts)
   }
 
@@ -290,9 +290,10 @@ function isFullyInsideAnyHole(
   hostPlacement: ManualPlacement,
   hostTemplate: PartTemplate
 ): boolean {
-  if (hostTemplate.holes && hostTemplate.holes.length > 0) {
+  const hostHoles = hostTemplate.polygon?.holes
+  if (hostHoles && hostHoles.length > 0) {
     const innerPoints = satPolyToPoints(innerPoly)
-    for (const hole of hostTemplate.holes) {
+    for (const hole of hostHoles) {
       if (hole.length < 3) continue
       const sheetHole = holeToSheet(hole, hostPlacement, hostTemplate)
       if (isInnerFullyInsideHole(innerPoints, sheetHole)) return true

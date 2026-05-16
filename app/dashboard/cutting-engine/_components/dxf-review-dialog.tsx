@@ -181,7 +181,7 @@ export default function DxfReviewDialog({
               if (!canConfirm || units === undefined) return
               onConfirm({
                 partNumber: defaultedPartNumber,
-                polygon: loop,
+                polygon: { outer: loop, holes: [] },
                 quantity,
                 units,
                 sourceFile,

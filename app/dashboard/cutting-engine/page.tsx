@@ -104,6 +104,17 @@ function buildFrozenLayoutInputSignature(
       outerRadius: finiteOrNull(template.outerRadius),
       arcDegrees: finiteOrNull(template.arcDegrees),
       partNumber: template.partNumber ?? null,
+      polygon: template.polygon
+        ? {
+            outer: template.polygon.outer.map((p) => ({
+              x: finiteOrNull(p.x),
+              y: finiteOrNull(p.y),
+            })),
+            holes: template.polygon.holes.map((hole) =>
+              hole.map((p) => ({ x: finiteOrNull(p.x), y: finiteOrNull(p.y) }))
+            ),
+          }
+        : null,
     })),
   })
 }
@@ -377,7 +388,12 @@ function CutPlannerPageInner() {
     // (preset-utils area, bin estimator, packing) operates in inches
     // — see preset-utils.ts:getTemplateAreaSqFt's polygon case.
     const scale = part.units === "mm" ? 1 / 25.4 : 1
-    const inchPolygon = part.polygon.map((p) => ({ x: p.x * scale, y: p.y * scale }))
+    const inchPolygon: PartTemplate["polygon"] = {
+      outer: part.polygon.outer.map((p) => ({ x: p.x * scale, y: p.y * scale })),
+      holes: part.polygon.holes.map((hole) =>
+        hole.map((p) => ({ x: p.x * scale, y: p.y * scale }))
+      ),
+    }
     const template: PartTemplate = {
       id: `dxf-${Date.now()}`,
       partType: "polygon",

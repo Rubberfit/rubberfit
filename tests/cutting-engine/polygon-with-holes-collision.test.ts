@@ -62,19 +62,21 @@ function fullFaceTemplate(id: string): PartTemplate {
     width: bbox,
     length: bbox,
     renderShape: "polygon",
-    polygon: [
-      { x: 0, y: 0 },
-      { x: bbox, y: 0 },
-      { x: bbox, y: bbox },
-      { x: 0, y: bbox },
-    ],
-    holes: [
-      circle(center, center, 4), // bore (ID 8)
-      circle(center - bcdHalf, center - bcdHalf, 1), // bolt holes (Ø 2)
-      circle(center + bcdHalf, center - bcdHalf, 1),
-      circle(center - bcdHalf, center + bcdHalf, 1),
-      circle(center + bcdHalf, center + bcdHalf, 1),
-    ],
+    polygon: {
+      outer: [
+        { x: 0, y: 0 },
+        { x: bbox, y: 0 },
+        { x: bbox, y: bbox },
+        { x: 0, y: bbox },
+      ],
+      holes: [
+        circle(center, center, 4), // bore (ID 8)
+        circle(center - bcdHalf, center - bcdHalf, 1), // bolt holes (Ø 2)
+        circle(center + bcdHalf, center - bcdHalf, 1),
+        circle(center - bcdHalf, center + bcdHalf, 1),
+        circle(center + bcdHalf, center + bcdHalf, 1),
+      ],
+    },
   }
 }
 
@@ -133,20 +135,22 @@ describe("PR 0b — generalized hole-as-void collision", () => {
       width: 10,
       length: 10,
       renderShape: "polygon",
-      polygon: [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-        { x: 10, y: 10 },
-        { x: 0, y: 10 },
-      ],
-      holes: [
-        [
-          { x: 1, y: 1 },
-          { x: 9, y: 1 },
-          { x: 9, y: 9 },
-          { x: 1, y: 9 },
+      polygon: {
+        outer: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+          { x: 0, y: 10 },
         ],
-      ],
+        holes: [
+          [
+            { x: 1, y: 1 },
+            { x: 9, y: 1 },
+            { x: 9, y: 9 },
+            { x: 1, y: 9 },
+          ],
+        ],
+      },
     }
     const tiny: PartTemplate = rectTemplate("tiny", 4, 4)
     const parts = [hostHole, tiny]
@@ -220,24 +224,26 @@ describe("PR 0b — generalized hole-as-void collision", () => {
       width: 10,
       length: 10,
       renderShape: "polygon",
-      polygon: [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-        { x: 10, y: 10 },
-        { x: 0, y: 10 },
-      ],
-      holes: [
-        [
-          { x: 1, y: 1 },
-          { x: 4, y: 1 },
-          { x: 4, y: 8 },
-          { x: 6, y: 8 },
-          { x: 6, y: 1 },
-          { x: 9, y: 1 },
-          { x: 9, y: 9 },
-          { x: 1, y: 9 },
+      polygon: {
+        outer: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+          { x: 0, y: 10 },
         ],
-      ],
+        holes: [
+          [
+            { x: 1, y: 1 },
+            { x: 4, y: 1 },
+            { x: 4, y: 8 },
+            { x: 6, y: 8 },
+            { x: 6, y: 1 },
+            { x: 9, y: 1 },
+            { x: 9, y: 9 },
+            { x: 1, y: 9 },
+          ],
+        ],
+      },
     }
     // A 6×0.5 strip running horizontally across at y=5 has vertices at
     // (2, 4.75), (8, 4.75), (8, 5.25), (2, 5.25). All four vertices

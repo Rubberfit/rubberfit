@@ -10,11 +10,14 @@ describe("templateToPart for partType=polygon", () => {
     summary: "DXF: tri.dxf",
     quantity: 2,
     category: "custom",
-    polygon: [
-      { x: 0, y: 0 },
-      { x: 4, y: 0 },
-      { x: 2, y: 3 },
-    ],
+    polygon: {
+      outer: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 2, y: 3 },
+      ],
+      holes: [],
+    },
     isCustom: true,
   }
 
@@ -24,7 +27,9 @@ describe("templateToPart for partType=polygon", () => {
     if (!part) return
     expect(part.shapeSpec).toBeUndefined()
     expect(part.polygon).toBeDefined()
-    expect(part.polygon!.length).toBeGreaterThanOrEqual(3)
+    const polygon = part.polygon
+    if (!polygon) throw new Error("polygon undefined")
+    expect(polygon.outer.length).toBeGreaterThanOrEqual(3)
     expect(part.tag).toBe("T")
     expect(part.quantity).toBe(2)
     expect(part.allowRotation).toBe(true)
@@ -34,10 +39,11 @@ describe("templateToPart for partType=polygon", () => {
     const part = templateToPart(triangle, undefined)
     expect(part).not.toBeNull()
     if (!part || !part.polygon) return
+    const outer = part.polygon.outer
     let signed = 0
-    for (let i = 0; i < part.polygon.length; i++) {
-      const a = part.polygon[i]
-      const b = part.polygon[(i + 1) % part.polygon.length]
+    for (let i = 0; i < outer.length; i++) {
+      const a = outer[i]
+      const b = outer[(i + 1) % outer.length]
       signed += a.x * b.y - b.x * a.y
     }
     // CCW in standard math coords ⇒ positive shoelace.
@@ -47,10 +53,13 @@ describe("templateToPart for partType=polygon", () => {
   it("returns null for fewer than 3 vertices", () => {
     const degenerate: PartTemplate = {
       ...triangle,
-      polygon: [
-        { x: 0, y: 0 },
-        { x: 1, y: 1 },
-      ],
+      polygon: {
+        outer: [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
+        holes: [],
+      },
     }
     expect(templateToPart(degenerate, undefined)).toBeNull()
   })

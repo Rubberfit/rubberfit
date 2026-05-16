@@ -31,8 +31,8 @@ function templatePolygonToSheet(
   width: number,
   height: number
 ): Array<{ x: number; y: number }> | undefined {
-  if (!template.polygon || template.polygon.length < 3) return undefined
-  return localPointsToSheet(template.polygon, placement, width, height)
+  if (!template.polygon || template.polygon.outer.length < 3) return undefined
+  return localPointsToSheet(template.polygon.outer, placement, width, height)
 }
 
 /**
@@ -46,9 +46,10 @@ function templateHolesToSheet(
   width: number,
   height: number
 ): Array<Array<{ x: number; y: number }>> | undefined {
-  if (!template.holes || template.holes.length === 0) return undefined
+  const templateHoles = template.polygon?.holes
+  if (!templateHoles || templateHoles.length === 0) return undefined
   const holes: Array<Array<{ x: number; y: number }>> = []
-  for (const ring of template.holes) {
+  for (const ring of templateHoles) {
     if (ring.length < 3) continue
     holes.push(localPointsToSheet(ring, placement, width, height))
   }
@@ -118,7 +119,7 @@ function canReusePart(
     // hole edits violate React's immutable-update convention and fall
     // outside the same identity contract polygon-vertex edits already
     // sit under (see method docstring).
-    (prev.holes?.length ?? 0) === (template.holes?.length ?? 0)
+    (prev.holes?.length ?? 0) === (template.polygon?.holes?.length ?? 0)
   )
 }
 

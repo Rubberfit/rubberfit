@@ -1,6 +1,6 @@
 import { SimpleCutDirection, SimplePartType } from "./nesting-visualizer-types"
 import { PartTemplate } from "./preset-template-data"
-import { polygonArea } from "@/nesting/convex-hull"
+import { polygonNetArea } from "./polygon-bounds"
 
 function getPartLabel(partType: PartTemplate["partType"]) {
   switch (partType) {
@@ -107,8 +107,10 @@ function partTemplateAreaSqIn(template: PartTemplate): number {
     }
     case "polygon": {
       // Polygon vertices are pre-converted to inches at confirm-time;
-      // the shoelace area is already in square inches.
-      return polygonArea(template.polygon ?? []) * qty
+      // the net (outer − holes) shoelace area is already in square inches.
+      const polygon = template.polygon
+      if (!polygon) return 0
+      return polygonNetArea(polygon) * qty
     }
     case "rectangle":
     default:
@@ -146,6 +148,12 @@ function getRequestedSqFt(templates: PartTemplate[]) {
         const bottomWidth = template.bottomWidth ?? 0
         const height = template.height ?? 0
         return total + (((topWidth + bottomWidth) / 2) * height * qty) / 144
+      }
+      case "polygon": {
+        const polygon = template.polygon
+        if (!polygon) return total
+        // Vertices are already in inches; convert net sq-in → sqft.
+        return total + (polygonNetArea(polygon) * qty) / 144
       }
       case "rectangle":
       default:

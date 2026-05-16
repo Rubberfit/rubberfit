@@ -3,6 +3,8 @@
 import { Circle, Plus, Square, Triangle, Minus } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import type { PartTemplate } from "./PresetDimensionSelector"
+import type { PolygonWithHoles } from "@/src/application/packing/types"
+import { getPolygonBounds } from "./polygon-bounds"
 
 export type PartsFilter = "all" | "unplaced" | "rect" | "curved"
 
@@ -36,7 +38,9 @@ const FILTERS: Array<{ key: PartsFilter; label: string }> = [
 ]
 
 function shapeIcon(part: PartTemplate) {
-  if (part.partType === "polygon") return <PolygonThumbnail polygon={part.polygon ?? []} />
+  if (part.partType === "polygon" && part.polygon) {
+    return <PolygonThumbnail polygon={part.polygon} />
+  }
   switch (part.partType) {
     case "cylinder":
       return <Circle className="h-4 w-4 shrink-0" />
@@ -49,30 +53,45 @@ function shapeIcon(part: PartTemplate) {
   }
 }
 
-function PolygonThumbnail({ polygon }: { polygon: { x: number; y: number }[] }) {
-  if (polygon.length < 3) return <Square className="h-4 w-4 shrink-0" />
-  let minX = polygon[0].x
-  let maxX = polygon[0].x
-  let minY = polygon[0].y
-  let maxY = polygon[0].y
-  for (const p of polygon) {
-    if (p.x < minX) minX = p.x
-    if (p.x > maxX) maxX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.y > maxY) maxY = p.y
-  }
-  const width = maxX - minX || 1
-  const height = maxY - minY || 1
+function PolygonThumbnail({ polygon }: { polygon: PolygonWithHoles }) {
+  if (polygon.outer.length < 3) return <Square className="h-4 w-4 shrink-0" />
+  const bounds = getPolygonBounds(polygon)
+  const width = bounds.width || 1
+  const height = bounds.height || 1
   const scale = 14 / Math.max(width, height)
   const padX = (16 - width * scale) / 2
   const padY = (16 - height * scale) / 2
-  const points = polygon
-    .map((p) => `${(p.x - minX) * scale + padX},${(p.y - minY) * scale + padY}`)
-    .join(" ")
+  const projectPoints = (loop: { x: number; y: number }[]) =>
+    loop
+      .map(
+        (p) =>
+          `${(p.x - bounds.minX) * scale + padX},${(p.y - bounds.minY) * scale + padY}`
+      )
+      .join(" ")
+  const outerPoints = projectPoints(polygon.outer)
   return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 16 16" aria-hidden="true">
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      fillRule="evenodd"
+    >
       <g transform="translate(0, 16) scale(1, -1)">
-        <polygon points={points} fill="rgba(59,130,246,0.25)" stroke="#1d4ed8" strokeWidth={1} />
+        <polygon
+          points={outerPoints}
+          fill="rgba(59,130,246,0.25)"
+          stroke="#1d4ed8"
+          strokeWidth={1}
+        />
+        {polygon.holes.map((hole, index) => (
+          <polygon
+            key={index}
+            points={projectPoints(hole)}
+            fill="rgba(59,130,246,0.25)"
+            stroke="#1d4ed8"
+            strokeWidth={1}
+          />
+        ))}
       </g>
     </svg>
   )
@@ -80,20 +99,13 @@ function PolygonThumbnail({ polygon }: { polygon: { x: number; y: number }[] }) 
 
 function partDims(part: PartTemplate): string {
   if (part.partType === "polygon") {
-    const polygon = part.polygon ?? []
-    if (polygon.length < 3) return part.sourceFile ?? part.label
-    let minX = polygon[0].x
-    let maxX = polygon[0].x
-    let minY = polygon[0].y
-    let maxY = polygon[0].y
-    for (const p of polygon) {
-      if (p.x < minX) minX = p.x
-      if (p.x > maxX) maxX = p.x
-      if (p.y < minY) minY = p.y
-      if (p.y > maxY) maxY = p.y
+    const polygon = part.polygon
+    if (!polygon || polygon.outer.length < 3) {
+      return part.sourceFile ?? part.label
     }
-    const w = (maxX - minX).toFixed(2)
-    const h = (maxY - minY).toFixed(2)
+    const bounds = getPolygonBounds(polygon)
+    const w = bounds.width.toFixed(2)
+    const h = bounds.height.toFixed(2)
     const file = part.sourceFile ? `${part.sourceFile} - ` : ""
     return `${file}${w}" × ${h}"`
   }

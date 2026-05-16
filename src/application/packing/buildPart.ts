@@ -21,7 +21,15 @@ export interface BuildPartInput {
   allowRotation: boolean
   grainAxis?: "width" | "length" | "none"
   difficulty?: number
-  polygon?: Point2D[]
+  /**
+   * Raw-geometry polygon. Either a flat `Point2D[]` (single closed
+   * outer loop, no holes — DXF single-loop imports + hand-drawn
+   * shapes) or a `PolygonWithHoles` (`{ outer, holes }` — hole-bearing
+   * primitives + multi-loop CAD imports). Both forms get translated
+   * to bbox-origin and oriented (outer CCW, holes CW) before being
+   * handed to Rust.
+   */
+  polygon?: Point2D[] | PolygonWithHoles
   /**
    * Opaque label echoed onto every produced `Placement.tag`. AutoNest
    * uses the part number ("G2") or a generated letter ("A", "B", …).
@@ -46,15 +54,20 @@ export function buildPart(input: BuildPartInput): Part {
   }
 }
 
-function normalizePolygon(points: Point2D[]): PolygonWithHoles {
-  if (points.length < 3) throw new Error("polygon: must have at least 3 vertices")
-  const minX = Math.min(...points.map((p) => p.x))
-  const minY = Math.min(...points.map((p) => p.y))
-  const translated = points.map((p) => ({ x: p.x - minX, y: p.y - minY }))
+function normalizePolygon(input: Point2D[] | PolygonWithHoles): PolygonWithHoles {
+  const outerInput = Array.isArray(input) ? input : input.outer
+  if (outerInput.length < 3) {
+    throw new Error("polygon: must have at least 3 vertices")
+  }
+  const minX = Math.min(...outerInput.map((p) => p.x))
+  const minY = Math.min(...outerInput.map((p) => p.y))
+  const translated = outerInput.map((p) => ({ x: p.x - minX, y: p.y - minY }))
   // buildPart only ingests a flat single-loop polygon today (DXF
-  // imports + hand-drawn shapes). Hole-bearing inputs land here once
-  // PR 0b updates the input shape; for now we wrap to the structured
-  // form with no holes so downstream consumers see the new contract.
+  // single-loop imports + hand-drawn shapes). Hole-bearing template
+  // inputs come through structurally but holes are reserved for the
+  // multi-loop PR — for now we wrap to the structured form with no
+  // holes so downstream consumers see the new contract without the
+  // Rust packer changing behaviour.
   return { outer: ensureCCW(translated), holes: [] }
 }
 

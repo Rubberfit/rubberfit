@@ -47,25 +47,27 @@ const SQUARE_RING_TEMPLATE: PartTemplate = {
   width: 10,
   length: 10,
   renderShape: "polygon",
-  polygon: [
-    { x: 0, y: 0 },
-    { x: 10, y: 0 },
-    { x: 10, y: 10 },
-    { x: 0, y: 10 },
-  ],
-  holes: [
-    [
-      { x: 3, y: 3 },
-      { x: 7, y: 3 },
-      { x: 7, y: 7 },
-      { x: 3, y: 7 },
+  polygon: {
+    outer: [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
     ],
-  ],
+    holes: [
+      [
+        { x: 3, y: 3 },
+        { x: 7, y: 3 },
+        { x: 7, y: 7 },
+        { x: 3, y: 7 },
+      ],
+    ],
+  },
 }
 
 const PLAIN_SQUARE_TEMPLATE: PartTemplate = {
   ...SQUARE_RING_TEMPLATE,
-  holes: undefined,
+  polygon: { outer: SQUARE_RING_TEMPLATE.polygon?.outer ?? [], holes: [] },
 }
 
 const TAG_MAP = new Map([["ring", "A"]])

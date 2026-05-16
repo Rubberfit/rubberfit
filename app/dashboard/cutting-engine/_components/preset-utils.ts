@@ -1,7 +1,7 @@
 import type { SimplePartType } from "./NestingVisualizer"
 import type { CustomPartDrafts, PartTemplate, SupportedPartType } from "./preset-template-data"
 import { Shapes, Triangle } from "lucide-react"
-import { polygonArea } from "@/nesting/convex-hull"
+import { getPolygonBounds, polygonNetArea } from "./polygon-bounds"
 
 import { formatInches } from "./nesting-layout-utils"
 export { formatInches }
@@ -182,30 +182,17 @@ export function getTemplateBoundingBox(template: PartTemplate): { width: number;
       const height = template.height ?? 0
       return { width: Math.max(topWidth, bottomWidth), height }
     }
-    case "polygon":
-      return polygonBoundingBox(template.polygon ?? [])
+    case "polygon": {
+      if (!template.polygon || template.polygon.outer.length === 0) {
+        return { width: 0, height: 0 }
+      }
+      const bounds = getPolygonBounds(template.polygon)
+      return { width: bounds.width, height: bounds.height }
+    }
     case "rectangle":
     default:
       return { width: template.width ?? 0, height: template.length ?? 0 }
   }
-}
-
-function polygonBoundingBox(polygon: ReadonlyArray<{ x: number; y: number }>): {
-  width: number
-  height: number
-} {
-  if (polygon.length === 0) return { width: 0, height: 0 }
-  let minX = polygon[0].x
-  let maxX = polygon[0].x
-  let minY = polygon[0].y
-  let maxY = polygon[0].y
-  for (const p of polygon) {
-    if (p.x < minX) minX = p.x
-    if (p.x > maxX) maxX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.y > maxY) maxY = p.y
-  }
-  return { width: maxX - minX, height: maxY - minY }
 }
 
 /**
@@ -253,9 +240,10 @@ export function getTemplateAreaSqFt(template: PartTemplate) {
     }
     case "polygon": {
       // Polygon vertices are pre-converted to inches at confirm-time
-      // (see `handleDxfPartConfirmed`), so the shoelace area is in
-      // square inches and divides cleanly to sq ft.
-      return (polygonArea(template.polygon ?? []) * template.quantity) / 144
+      // (see `handleDxfPartConfirmed`), so the net (outer − holes)
+      // shoelace area is in square inches and divides cleanly to sq ft.
+      if (!template.polygon) return 0
+      return (polygonNetArea(template.polygon) * template.quantity) / 144
     }
     case "rectangle":
     default:
