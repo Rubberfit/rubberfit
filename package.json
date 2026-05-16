@@ -113,6 +113,6 @@
     "openapi-typescript": {
       "typescript": "$typescript"
     },
-    "@swc/helpers": "0.5.21"
+    "@swc/helpers": "0.5.15"
   }
 }
