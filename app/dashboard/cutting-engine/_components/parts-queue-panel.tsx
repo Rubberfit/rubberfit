@@ -3,8 +3,11 @@
 import { Circle, Plus, Square, Triangle, Minus } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import type { PartTemplate } from "./PresetDimensionSelector"
-import type { PolygonWithHoles } from "@/src/application/packing/types"
-import { getPolygonBounds } from "./polygon-bounds"
+import type { PolygonWithHoles, Point2D } from "@/src/application/packing/types"
+import { getPolygonBounds, type PolygonBounds } from "./polygon-bounds"
+
+const THUMB_SIZE = 16
+const THUMB_INNER = 14
 
 export type PartsFilter = "all" | "unplaced" | "rect" | "curved"
 
@@ -53,46 +56,49 @@ function shapeIcon(part: PartTemplate) {
   }
 }
 
+function buildPathD(
+  polygon: PolygonWithHoles,
+  bounds: PolygonBounds,
+  scale: number,
+  padX: number,
+  padY: number
+): string {
+  const loopToD = (loop: Point2D[]) =>
+    loop
+      .map((p, i) => {
+        const x = (p.x - bounds.minX) * scale + padX
+        // DXF Y-up vs SVG Y-down: flip Y so the thumbnail reads upright.
+        const y = THUMB_SIZE - ((p.y - bounds.minY) * scale + padY)
+        return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
+      })
+      .join(" ") + " Z"
+  return [polygon.outer, ...polygon.holes].map(loopToD).join(" ")
+}
+
 function PolygonThumbnail({ polygon }: { polygon: PolygonWithHoles }) {
   if (polygon.outer.length < 3) return <Square className="h-4 w-4 shrink-0" />
   const bounds = getPolygonBounds(polygon)
   const width = bounds.width || 1
   const height = bounds.height || 1
-  const scale = 14 / Math.max(width, height)
-  const padX = (16 - width * scale) / 2
-  const padY = (16 - height * scale) / 2
-  const projectPoints = (loop: { x: number; y: number }[]) =>
-    loop
-      .map(
-        (p) =>
-          `${(p.x - bounds.minX) * scale + padX},${(p.y - bounds.minY) * scale + padY}`
-      )
-      .join(" ")
-  const outerPoints = projectPoints(polygon.outer)
+  const scale = THUMB_INNER / Math.max(width, height)
+  const padX = (THUMB_SIZE - width * scale) / 2
+  const padY = (THUMB_SIZE - height * scale) / 2
+  // Render outer + holes as a single <path> with multiple M..L..Z
+  // subpaths so `fillRule="evenodd"` actually cuts the holes out
+  // (siblings would composite, not subtract).
   return (
     <svg
       className="h-4 w-4 shrink-0"
       viewBox="0 0 16 16"
       aria-hidden="true"
-      fillRule="evenodd"
     >
-      <g transform="translate(0, 16) scale(1, -1)">
-        <polygon
-          points={outerPoints}
-          fill="rgba(59,130,246,0.25)"
-          stroke="#1d4ed8"
-          strokeWidth={1}
-        />
-        {polygon.holes.map((hole, index) => (
-          <polygon
-            key={index}
-            points={projectPoints(hole)}
-            fill="rgba(59,130,246,0.25)"
-            stroke="#1d4ed8"
-            strokeWidth={1}
-          />
-        ))}
-      </g>
+      <path
+        d={buildPathD(polygon, bounds, scale, padX, padY)}
+        fill="rgba(59,130,246,0.25)"
+        stroke="#1d4ed8"
+        strokeWidth={1}
+        fillRule="evenodd"
+      />
     </svg>
   )
 }

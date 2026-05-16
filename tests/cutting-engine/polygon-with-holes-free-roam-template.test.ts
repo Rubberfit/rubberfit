@@ -131,8 +131,15 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
     )
     expect(memoHit.parts[0]).toBe(firstPart)
 
-    // Remove the hole from the template — memo MUST bust.
-    const editedTemplate = { ...SQUARE_RING_TEMPLATE, holes: undefined }
+    // Remove the hole from the template — memo MUST bust. Holes live
+    // at `polygon.holes` post-migration, NOT at the top level, so the
+    // edit has to mutate the polygon object itself.
+    const outer = SQUARE_RING_TEMPLATE.polygon?.outer
+    if (!outer) throw new Error("test fixture must have outer ring")
+    const editedTemplate: PartTemplate = {
+      ...SQUARE_RING_TEMPLATE,
+      polygon: { outer, holes: [] },
+    }
     const memoBust = buildFreeRoamLayout([PLACEMENT], [editedTemplate], STOCK, TAG_MAP, prevMap)
     expect(memoBust.parts[0]).not.toBe(firstPart)
     expect(memoBust.parts[0].holes).toBeUndefined()

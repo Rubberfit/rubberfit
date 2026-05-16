@@ -55,8 +55,9 @@ export function pickDefaultLayer(doc: DxfDocument): string {
 export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsResult {
   const loops: Point2D[][] = []
   const rejected: RejectedEntity[] = []
+  const layerEntities = doc.entities.filter((e) => e.layer === layerName)
 
-  for (const entity of doc.entities) {
+  for (const entity of layerEntities) {
     if (entity.kind === "unsupported") {
       rejected.push({
         layer: entity.layer,
@@ -66,11 +67,9 @@ export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsR
     }
   }
 
-  const layerEntities = doc.entities.filter((e) => e.layer === layerName)
-
   for (const entity of layerEntities) {
     if (entity.kind === "lwpolyline") {
-      const polyResult = closedPolyToLoop(entity, "LWPOLYLINE")
+      const polyResult = closedPolyToLoop(entity)
       if (polyResult.loop) {
         loops.push(polyResult.loop)
       } else if (polyResult.reason) {
@@ -81,7 +80,7 @@ export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsR
         })
       }
     } else if (entity.kind === "polyline") {
-      const polyResult = closedPolyToLoop(entity, "POLYLINE")
+      const polyResult = closedPolyToLoop(entity)
       if (polyResult.loop) {
         loops.push(polyResult.loop)
       } else if (polyResult.reason) {
@@ -101,10 +100,7 @@ interface PolyResult {
   reason?: UnsupportedReason
 }
 
-function closedPolyToLoop(
-  entity: LwPolylineEntity | PolylineEntity,
-  _kind: "LWPOLYLINE" | "POLYLINE"
-): PolyResult {
+function closedPolyToLoop(entity: LwPolylineEntity | PolylineEntity): PolyResult {
   if (!entity.closed) return {}
   const hasBulge = entity.vertices.some((v) => v.bulge !== 0)
   if (hasBulge) return { reason: "polyline-contains-bulge" }
