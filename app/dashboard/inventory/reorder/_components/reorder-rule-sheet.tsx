@@ -6,10 +6,10 @@ import { toast } from "sonner"
 
 import {
   type CreateReorderRule,
-  type MaterialType,
   type ReorderRule,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { Button } from "@/app/components/ui/button"

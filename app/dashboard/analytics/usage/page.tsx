@@ -1,12 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Activity, BarChart3, Package, TrendingUp } from "lucide-react"
 import { format, subMonths } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { PageHeader, PageShell, StatCard } from "@/app/components/patterns"
 
 import { MaterialDistributionChart } from "./_components/material-distribution-chart"
@@ -38,26 +36,6 @@ export default function MaterialUsagePage() {
     to: now,
   })
 
-  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
-  useEffect(() => {
-    materialTypeService
-      .getAll()
-      .then(setMaterialTypes)
-      .catch((_err) => {
-        console.error("Failed to load material types:", _err)
-      })
-  }, [])
-
-  const costByMaterial = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const mt of materialTypes) {
-      if (mt.default_cost != null && !map.has(mt.name)) {
-        map.set(mt.name, mt.default_cost)
-      }
-    }
-    return map
-  }, [materialTypes])
-
   const { materialUsage, usageTrend, recentActivity } = useMemo(() => {
     // Recent activity (last 20 cuts, most recent first)
     const recent = [...cutsData].reverse().slice(0, 20)
@@ -80,7 +58,7 @@ export default function MaterialUsagePage() {
         acc[material].totalCuts += 1
         acc[material].totalFabScore += cut.fab_score
 
-        const costPerSqft = costByMaterial.get(material) ?? cut.cost_per_sqft ?? 0
+        const costPerSqft = cut.cost_per_sqft ?? 0
         acc[material].totalValue += cut.material_used_sqft * costPerSqft
 
         return acc
@@ -129,7 +107,7 @@ export default function MaterialUsagePage() {
     }
 
     return { materialUsage: materialUsageData, usageTrend: trendData, recentActivity: recent }
-  }, [cutsData, costByMaterial])
+  }, [cutsData])
 
   const totalSqftUsed = materialUsage.reduce((sum, m) => sum + m.totalSqftUsed, 0)
   const totalValue = materialUsage.reduce((sum, m) => sum + m.totalValue, 0)

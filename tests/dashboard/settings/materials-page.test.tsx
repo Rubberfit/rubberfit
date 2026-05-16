@@ -1,7 +1,8 @@
 /**
  * Phase 2 PR 3 — smoke test for the rebuilt Materials settings
- * page. Reads still flow through `materialTypeService.getAll()`;
- * writes (create/update/delete) flow through the
+ * page. Reads now flow through the entity-typed
+ * `materialTypeService.getAll()` (returns MaterialType entities);
+ * writes (create / update / delete) flow through the
  * `manageMaterialTypes`-gated server actions in
  * `app/actions/materials.ts`. The actions own the FK pre-flight
  * (rolls + purchase orders) — the page just discriminates on the
@@ -11,28 +12,27 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 
-const fixtureMaterials: MaterialType[] = [
+// Plain-object stand-ins for MaterialType entities. The settings page
+// + table read getter properties (`id`, `name`, `description`,
+// `minStockSqm`); the entity's `id` is a value-object exposing
+// `.value` for the underlying UUID, so the fixture mirrors that
+// shape with a `{ value }` wrapper.
+const fixtureMaterials = [
   {
-    id: "mat-1",
+    id: { value: "mat-1" },
     name: "Neoprene",
     description: "General-purpose synthetic rubber.",
-    default_cost: 2.5,
-    min_stock_alert: 100,
-    created_at: "2025-01-01T00:00:00Z",
-    updated_at: "2025-01-01T00:00:00Z",
-  } as MaterialType,
+    minStockSqm: 10,
+  },
   {
-    id: "mat-2",
+    id: { value: "mat-2" },
     name: "EPDM",
     description: "Weather-resistant.",
-    default_cost: 3.1,
-    min_stock_alert: 80,
-    created_at: "2025-01-02T00:00:00Z",
-    updated_at: "2025-01-02T00:00:00Z",
-  } as MaterialType,
-]
+    minStockSqm: 8,
+  },
+] as unknown as MaterialType[]
 
 const materialTypeService = vi.hoisted(() => ({
   getAll: vi.fn(),
@@ -47,8 +47,8 @@ const toast = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 
-vi.mock("@/src/infrastructure/services/legacyMaterialTypeService", () => ({
-  legacyMaterialTypeService: materialTypeService,
+vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
+  materialTypeService,
 }))
 vi.mock("@/app/actions/materials", () => materialActions)
 vi.mock("sonner", () => ({ toast }))

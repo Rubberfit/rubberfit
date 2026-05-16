@@ -6,10 +6,11 @@ import { format, startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"
 
-import { type Roll, type Cut, type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type Roll, type Cut } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { legacyCutService as cutService } from "@/src/infrastructure/services/legacyCutService"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 
 import { SummaryCards } from "./_components/dashboard-summary-cards"
 import { DashboardSidebar } from "./_components/dashboard-activity-aside"
@@ -317,7 +318,7 @@ function buildLowStock(
   if (materialTypes.length === 0 || activeRolls.length === 0) return []
   const out: Array<{ materialType: string; currentStock: number; threshold: number }> = []
   for (const materialType of materialTypes) {
-    const threshold = materialType.min_stock_alert || 0
+    const threshold = materialType.minStockSqm || 0
     const materialRolls = activeRolls.filter((roll) => roll.material_type === materialType.name)
     const currentStock = materialRolls.reduce(
       (total, roll) => total + (roll.remaining_length * roll.width) / 144,

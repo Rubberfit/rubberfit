@@ -5,18 +5,22 @@ import { z } from "zod"
 
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
+import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
 import { requirePermission } from "@/app/server/auth/require-permission"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import {
+  type MaterialType,
+  type MaterialTypeSnapshot,
+} from "@/src/entities/material-type"
+import { MaterialTypeId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 /**
  * Material-type management actions.
  *
  * Pre-action call sites scattered across:
  *   - `/dashboard/settings/materials` (manageMaterialTypes route)
- *   - `/dashboard/inventory/materials/pricing` (managePricing route)
  *   - `/dashboard/inventory/import` (CSV imports)
  *   - the dedicated material import dialog
  *
@@ -27,20 +31,15 @@ import type { MaterialType } from "@/src/infrastructure/models/supabase"
  * authorization on every operation.
  *
  * Permission policy: all three actions are gated by
- * `manageMaterialTypes` (admin/manager). Today, the route guard on
- * `/dashboard/inventory/materials/pricing` is `managePricing`
- * (admin only), which is meaningfully MORE restrictive — but the
- * settings/materials page (manager-accessible) ALREADY allows cost
- * edits today, so this migration preserves current behavior.
- * Tightening the permission to require `managePricing` for
- * `default_cost` writes specifically is tracked as a follow-up.
+ * `manageMaterialTypes` (admin/manager).
  *
  * Trade-off note on `deleteMaterialType`: the page handler does FK
  * pre-flight checks (rolls + PO items) before calling the service so
  * users get a specific "in use by rolls" message instead of a
- * generic FK error. The action preserves that UX by running the
- * same pre-flight checks server-side. Returns a typed result with
- * a stable reason code for the UI to discriminate on.
+ * generic FK error. Delete is now a soft-delete (sets `deleted_at`)
+ * via the entity-typed service; the FK pre-flight checks remain so
+ * operators can't accidentally hide a material that's actively in
+ * use.
  */
 
 const MATERIALS_SETTINGS_PATH = "/dashboard/settings/materials"
@@ -61,16 +60,14 @@ const nonNegativeNumber = z.number().min(0, "Must be 0 or greater")
 const createMaterialTypeSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   description: z.string().trim().max(500).optional(),
-  default_cost: nonNegativeNumber.optional(),
-  min_stock_alert: nonNegativeNumber.optional(),
+  min_stock_sqm: nonNegativeNumber.optional(),
 })
 
 const updateMaterialTypeSchema = z.object({
   id: materialIdSchema,
   name: z.string().trim().min(1, "Name is required").max(100).optional(),
   description: z.string().trim().max(500).optional(),
-  default_cost: nonNegativeNumber.optional(),
-  min_stock_alert: nonNegativeNumber.optional(),
+  min_stock_sqm: nonNegativeNumber.optional(),
 })
 
 const deleteMaterialTypeSchema = z.object({
@@ -89,53 +86,58 @@ export type DeleteMaterialTypeResult =
       message: string
     }
 
+function entityToSnapshot(entity: MaterialType): MaterialTypeSnapshot {
+  return entity.toJSON()
+}
+
 export async function createMaterialType(
   input: CreateMaterialTypeActionInput
-): Promise<MaterialType> {
+): Promise<MaterialTypeSnapshot> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageMaterialTypes")
+  requireActiveTenant(actor)
   const parsed = createMaterialTypeSchema.parse(input)
 
-  const result = await materialTypeService.create(
-    {
-      name: parsed.name,
-      description: parsed.description ?? "",
-      default_cost: parsed.default_cost ?? 0,
-      min_stock_alert: parsed.min_stock_alert ?? 0,
-    },
-    actor.id
-  )
+  const result = await materialTypeService.createMaterialType({
+    id: MaterialTypeId.fromPersistence(crypto.randomUUID()),
+    tenantId: TenantId.fromPersistence(actor.activeTenantId),
+    name: parsed.name,
+    description: parsed.description ?? null,
+    minStockSqm: parsed.min_stock_sqm ?? null,
+    createdBy: ProfileId.fromPersistence(actor.id),
+  })
   revalidateAllMaterialPaths()
-  return result
+  return entityToSnapshot(result)
 }
 
 export async function updateMaterialType(
   input: UpdateMaterialTypeActionInput
-): Promise<MaterialType> {
+): Promise<MaterialTypeSnapshot> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageMaterialTypes")
   const parsed = updateMaterialTypeSchema.parse(input)
 
-  // Narrow the field surface: only the four editable columns flow
-  // through. The legacy `materialTypeService.update` accepts
-  // `Partial<MaterialType>`, including `id`, `user_id`, `created_at`,
-  // `updated_at` — none of which should be client-controllable.
-  const updates: {
-    name?: string
-    description?: string
-    default_cost?: number
-    min_stock_alert?: number
-  } = {}
-  if (parsed.name !== undefined) updates.name = parsed.name
-  if (parsed.description !== undefined) updates.description = parsed.description
-  if (parsed.default_cost !== undefined) updates.default_cost = parsed.default_cost
-  if (parsed.min_stock_alert !== undefined) updates.min_stock_alert = parsed.min_stock_alert
+  // Load current values so omitted fields preserve their state. The
+  // entity-typed `updateMaterialType` does a whole-record edit
+  // (name + description + minStockSqm), so we project unchanged
+  // fields from the existing entity rather than asking the service
+  // to merge.
+  const existing = await materialTypeService.getById(parsed.id)
 
-  const result = await materialTypeService.update(parsed.id, updates)
+  const result = await materialTypeService.updateMaterialType(
+    parsed.id,
+    {
+      name: parsed.name ?? existing.name,
+      description: parsed.description !== undefined ? parsed.description : existing.description,
+      minStockSqm:
+        parsed.min_stock_sqm !== undefined ? parsed.min_stock_sqm : existing.minStockSqm,
+    },
+    ProfileId.fromPersistence(actor.id)
+  )
   revalidateAllMaterialPaths()
-  return result
+  return entityToSnapshot(result)
 }
 
 export async function deleteMaterialType(
@@ -160,9 +162,10 @@ export async function deleteMaterialType(
     }
   }
 
-  // Pre-flight FK checks. The DB also has FK constraints, so this is
-  // belt-and-suspenders, but the explicit reason code lets the UI
-  // surface a more actionable message than a generic "in use" error.
+  // Pre-flight FK checks. Soft-delete now (entity-typed service sets
+  // `deleted_at`), so existing rolls / PO items remain valid — but
+  // operators still want a clear "in use" warning before the catalog
+  // entry disappears from the UI.
   const hasRolls = await rollService.existsByMaterialType(material.name)
   if (hasRolls) {
     return {
@@ -182,26 +185,18 @@ export async function deleteMaterialType(
   }
 
   try {
-    await materialTypeService.delete(parsed.id)
+    await materialTypeService.softDeleteMaterialType(
+      parsed.id,
+      ProfileId.fromPersistence(actor.id)
+    )
     revalidateAllMaterialPaths()
     return { ok: true }
   } catch (error) {
-    // Log raw error server-side; client gets a stable message.
-    console.error("[materials] delete failed:", error)
-    // Specifically catch FK constraint errors that slipped past the
-    // pre-flight (race window: a roll referencing this material was
-    // inserted between the check and the delete).
-    const isFkError =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: string }).code === "23503"
+    console.error("[materials] soft-delete failed:", error)
     return {
       ok: false,
       reason: "delete_failed",
-      message: isFkError
-        ? "This material is referenced by other records and cannot be deleted"
-        : "Could not delete material type",
+      message: "Could not delete material type",
     }
   }
 }

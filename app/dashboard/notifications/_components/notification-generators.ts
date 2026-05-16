@@ -1,5 +1,5 @@
 import { notificationCrudService } from "@/src/infrastructure/services/notificationCrudService"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
 
 export async function generateLowStockNotifications() {
@@ -57,7 +57,7 @@ export async function generateLowStockNotifications() {
   if (materialTypes) {
     for (const materialType of materialTypes) {
       const currentStock = stockLevels.get(materialType.name) || 0
-      const threshold = materialType.min_stock_alert || 0
+      const threshold = materialType.minStockSqm || 0
 
       if (currentStock < threshold && threshold > 0) {
         materialsWithLowStock.add(materialType.name)

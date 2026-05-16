@@ -2,10 +2,8 @@
 
 import { Plus } from "lucide-react"
 
-import {
-  type MaterialType,
-  type ReorderRuleWithDetails,
-} from "@/src/infrastructure/models/supabase"
+import { type ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import { Button } from "@/app/components/ui/button"
 import {
   Select,
@@ -59,7 +57,7 @@ export function RulesSection({
             <SelectContent>
               <SelectItem value="all">All materials</SelectItem>
               {materialTypes.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
+                <SelectItem key={m.id.value} value={m.id.value}>
                   {m.name}
                 </SelectItem>
               ))}

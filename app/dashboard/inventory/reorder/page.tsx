@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import {
-  type MaterialType,
-  type ReorderRuleWithDetails,
-} from "@/src/infrastructure/models/supabase"
+import { type ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"

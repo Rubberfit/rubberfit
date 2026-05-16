@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { addRoll } from "@/app/actions/inventory"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -47,7 +47,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
   useEffect(() => {
     const loadMaterialTypes = async () => {
       try {
-        const data = await materialTypeService.getNames()
+        const data = await materialTypeService.getAll()
         setMaterialTypes(data.map((m) => m.name))
       } catch (error) {
         console.error("Error loading material types:", error)

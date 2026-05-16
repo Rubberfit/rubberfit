@@ -10,7 +10,7 @@ import {
   type ColumnDef,
 } from "@/app/components/patterns/data-table"
 import { EmptyState } from "@/app/components/patterns/empty-state"
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/entities/material-type"
 
 interface MaterialTableProps {
   materials: ReadonlyArray<MaterialType>
@@ -19,11 +19,6 @@ interface MaterialTableProps {
   onDelete: (material: MaterialType) => void
   onAddNew: () => void
 }
-
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-})
 
 const stockFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
@@ -57,30 +52,17 @@ export function MaterialTable({
       className: "min-w-0 max-w-[40%]",
     },
     {
-      id: "min_stock_alert",
-      header: "Min stock (sqft)",
+      id: "min_stock_sqm",
+      header: "Min stock (sqm)",
       cell: (row) => (
         <span className="font-mono tabular-nums">
-          {stockFormatter.format(row.min_stock_alert ?? 0)}
+          {stockFormatter.format(row.minStockSqm ?? 0)}
         </span>
       ),
-      sortFn: (row) => row.min_stock_alert ?? 0,
+      sortFn: (row) => row.minStockSqm ?? 0,
       defaultSort: "desc",
       align: "right",
       className: "w-[180px]",
-    },
-    {
-      id: "default_cost",
-      header: "Default cost",
-      cell: (row) => (
-        <span className="font-mono tabular-nums">
-          {currencyFormatter.format(row.default_cost ?? 0)}
-        </span>
-      ),
-      sortFn: (row) => row.default_cost ?? 0,
-      defaultSort: "desc",
-      align: "right",
-      className: "w-[140px]",
     },
     {
       id: "actions",
@@ -121,7 +103,7 @@ export function MaterialTable({
     <DataTable
       columns={columns}
       rows={materials}
-      rowKey={(row) => row.id}
+      rowKey={(row) => row.id.value}
       density="comfortable"
       isLoading={isLoading}
       sort={sort}

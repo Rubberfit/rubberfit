@@ -6,12 +6,13 @@ import type { MaterialType } from "@/src/infrastructure/models/supabase"
  * the DDD migration:
  *
  * - Entity-typed methods (`findAll`, `findById`, `findByIds`, `insert`,
- *   `update`) are the canonical surface used by the new
+ *   `updateEntity`) are the canonical surface used by the
  *   `MaterialTypeService`. They return `MaterialType` entity instances.
  * - Raw-row methods (`getAll`, `getByIds`, `getNames`, `getTopByCost`,
  *   `create`, `update`, `delete`) keep the legacy snake_case shape for
- *   the ~30 consumers not yet migrated. They are exposed through
- *   `legacyMaterialTypeService` and marked `@deprecated`.
+ *   the few remaining consumers not yet migrated (pricing-page service,
+ *   parity test mocks). The `legacyMaterialTypeService` re-export shim
+ *   was deleted 2026-05-15.
  */
 export interface IMaterialTypeRepository {
   // ─── Entity-typed (new DDD surface) ───────────────────────────────────

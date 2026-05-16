@@ -1,11 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns"
 
 import { useCutHistoryAnalytics } from "@/app/hooks/use-cut-history-analytics"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { Download } from "lucide-react"
 import { Button } from "@/app/components/ui/button"
@@ -55,28 +53,6 @@ export default function CostReportsPage() {
     to: now,
   })
 
-  // Fetch current material prices so reports always reflect the latest cost
-  const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
-  useEffect(() => {
-    materialTypeService
-      .getAll()
-      .then(setMaterialTypes)
-      .catch((_err) => {
-        console.error("Failed to load material types:", _err)
-      })
-  }, [])
-
-  // Build a lookup: material name → current default_cost
-  const costByMaterial = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const mt of materialTypes) {
-      if (mt.default_cost != null && !map.has(mt.name)) {
-        map.set(mt.name, mt.default_cost)
-      }
-    }
-    return map
-  }, [materialTypes])
-
   const { monthlyCosts, materialCosts } = useMemo(() => {
     const monthlyData: MonthlyCosts[] = []
     for (let i = monthsBack - 1; i >= 0; i--) {
@@ -93,7 +69,7 @@ export default function CostReportsPage() {
       let wasteCost = 0
       let totalCost = 0
       for (const cut of monthCuts) {
-        const costPerSqft = costByMaterial.get(cut.stock_label ?? "") ?? cut.cost_per_sqft ?? 0
+        const costPerSqft = cut.cost_per_sqft ?? 0
         const stockSqft = cut.material_used_sqft + cut.reusable_offset_sqft + cut.scrap_sqft
         totalCost += stockSqft * costPerSqft
         cutCost += cut.material_used_sqft * costPerSqft
@@ -114,7 +90,7 @@ export default function CostReportsPage() {
     const materialStats = cutsData.reduce(
       (acc, cut) => {
         const material = cut.stock_label || "Unknown"
-        const costPerSqft = costByMaterial.get(material) ?? cut.cost_per_sqft ?? 0
+        const costPerSqft = cut.cost_per_sqft ?? 0
         const stockSqft = cut.material_used_sqft + cut.reusable_offset_sqft + cut.scrap_sqft
 
         if (!acc[material]) {
@@ -162,7 +138,7 @@ export default function CostReportsPage() {
       .sort((a, b) => b.totalCost - a.totalCost)
 
     return { monthlyCosts: monthlyData, materialCosts: materialCostData }
-  }, [cutsData, monthsBack, costByMaterial])
+  }, [cutsData, monthsBack])
 
   const totalCost = monthlyCosts.reduce((sum, month) => sum + month.totalCost, 0)
   const totalCutCost = monthlyCosts.reduce((sum, month) => sum + month.cutCost, 0)

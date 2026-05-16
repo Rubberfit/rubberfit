@@ -1,8 +1,9 @@
-import type { MaterialType, ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
-import { legacyMaterialTypeService as materialTypeService } from "@/src/infrastructure/services/legacyMaterialTypeService"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { generateReorderSuggestions } from "@/app/actions/reorder"
 // `ReorderSuggestionOutput` lives on the use-case (the canonical

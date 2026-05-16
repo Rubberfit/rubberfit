@@ -13,21 +13,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/app/components/ui/sheet"
-import { FormField, FormFieldGroup, FormFieldRow } from "@/app/components/ui/forms"
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { FormField, FormFieldGroup } from "@/app/components/ui/forms"
+import { type MaterialType } from "@/src/entities/material-type"
 
 export interface MaterialFormValues {
   name: string
   description: string
-  default_cost: number
-  min_stock_alert: number
+  min_stock_sqm: number
 }
 
 const EMPTY_VALUES: MaterialFormValues = {
   name: "",
   description: "",
-  default_cost: 2.5,
-  min_stock_alert: 100,
+  min_stock_sqm: 10,
 }
 
 interface MaterialFormSheetProps {
@@ -94,8 +92,7 @@ function initialValuesFor(target: MaterialType | "new"): MaterialFormValues {
   return {
     name: target.name ?? "",
     description: target.description ?? "",
-    default_cost: target.default_cost ?? 0,
-    min_stock_alert: target.min_stock_alert ?? 0,
+    min_stock_sqm: target.minStockSqm ?? 0,
   }
 }
 
@@ -120,8 +117,8 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
         </SheetTitle>
         <SheetDescription className="text-sm text-muted-foreground">
           {isEdit
-            ? "Update the stock alert level and default cost for this material type."
-            : "Create a new material type. Stock alerts and default cost are applied to new rolls."}
+            ? "Update the stock alert level for this material type."
+            : "Create a new material type. Stock alerts trigger when inventory drops below the threshold."}
         </SheetDescription>
       </SheetHeader>
 
@@ -150,48 +147,26 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
               placeholder="e.g., General-purpose synthetic rubber."
             />
           </FormField>
-          <FormFieldRow>
-            <FormField
-              label="Min stock alert"
-              htmlFor="material-stock"
-              helperText="Alert fires when stock drops below this level (sq ft)."
-            >
-              <Input
-                id="material-stock"
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="10"
-                value={values.min_stock_alert}
-                onChange={(event) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
-                  }))
-                }
-              />
-            </FormField>
-            <FormField
-              label="Default cost"
-              htmlFor="material-cost"
-              helperText="Per sq ft, applied when adding new rolls."
-            >
-              <Input
-                id="material-cost"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={values.default_cost}
-                onChange={(event) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    default_cost: Math.max(0, Number.parseFloat(event.target.value) || 0),
-                  }))
-                }
-              />
-            </FormField>
-          </FormFieldRow>
+          <FormField
+            label="Min stock alert"
+            htmlFor="material-stock"
+            helperText="Alert fires when stock drops below this level (sqm)."
+          >
+            <Input
+              id="material-stock"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="1"
+              value={values.min_stock_sqm}
+              onChange={(event) =>
+                setValues((prev) => ({
+                  ...prev,
+                  min_stock_sqm: Math.max(0, Number.parseFloat(event.target.value) || 0),
+                }))
+              }
+            />
+          </FormField>
         </FormFieldGroup>
       </div>
 

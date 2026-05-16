@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Download } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -154,10 +154,6 @@ export default function PricingPage() {
     })
   }, [priceComparisonData, searchQuery, selectedMaterial])
 
-  const handleCostUpdated = useCallback((id: string, updatedMaterial: MaterialType) => {
-    setMaterialTypes((prev) => prev.map((m) => (m.id === id ? updatedMaterial : m)))
-  }, [])
-
   const handleExportHistory = () => {
     if (filteredPriceHistory.length === 0) {
       toast.error("No price history data to export")
@@ -230,7 +226,6 @@ export default function PricingPage() {
             loading={loading}
             materialTypes={materialTypes}
             materialSuppliers={materialSuppliers}
-            onCostUpdated={handleCostUpdated}
           />
         </TabsContent>
 

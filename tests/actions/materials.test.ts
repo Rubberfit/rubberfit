@@ -3,14 +3,16 @@
  *
  * What we're enforcing:
  *   - manageMaterialTypes permission required (V4.2).
+ *   - active tenant required (server-action context cannot fall back
+ *     to a browser-side current-user lookup).
  *   - Field surface narrowing on update: only {name, description,
- *     default_cost, min_stock_alert} flow through; client cannot smuggle
- *     id / user_id / created_at / updated_at.
- *   - delete returns typed result with stable reason codes; FK guards
- *     short-circuit BEFORE the delete attempt for clear UX.
- *   - actor.id is threaded into create (the underlying repository's
- *     getCurrentUserId fallback is browser-only and would 42501 in
- *     server-action context).
+ *     minStockSqm} flow through; client cannot smuggle id / user_id
+ *     / created_at / updated_at.
+ *   - delete is now soft-delete via the entity-typed service; FK
+ *     guards still short-circuit BEFORE the soft-delete call so the
+ *     UI can surface a specific "in use" reason code.
+ *   - actor.id is threaded into create as `createdBy` (entity-typed
+ *     service requires the audit field at insert).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -19,6 +21,11 @@ import type { ActionActor } from "@/src/application/types/action-actor"
 const requireAuthenticatedUserMock = vi.hoisted(() => vi.fn())
 vi.mock("@/app/server/auth/require-authenticated-user", () => ({
   requireAuthenticatedUser: requireAuthenticatedUserMock,
+}))
+
+const requireActiveTenantMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/auth/require-active-tenant", () => ({
+  requireActiveTenant: requireActiveTenantMock,
 }))
 
 const requirePermissionMock = vi.hoisted(() => vi.fn())
@@ -33,13 +40,15 @@ vi.mock("@/app/server/database/register-factory", () => ({
 
 const createSvcMock = vi.hoisted(() => vi.fn())
 const updateSvcMock = vi.hoisted(() => vi.fn())
-const deleteSvcMock = vi.hoisted(() => vi.fn())
+const softDeleteSvcMock = vi.hoisted(() => vi.fn())
+const getByIdSvcMock = vi.hoisted(() => vi.fn())
 const getByIdsSvcMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/legacyMaterialTypeService", () => ({
-  legacyMaterialTypeService: {
-    create: createSvcMock,
-    update: updateSvcMock,
-    delete: deleteSvcMock,
+vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
+  materialTypeService: {
+    createMaterialType: createSvcMock,
+    updateMaterialType: updateSvcMock,
+    softDeleteMaterialType: softDeleteSvcMock,
+    getById: getByIdSvcMock,
     getByIds: getByIdsSvcMock,
   },
 }))
@@ -63,24 +72,50 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }))
 
+const TENANT_ID = "00000000-0000-0000-0000-0000000000bb"
+
 const ACTOR: ActionActor = {
   id: "00000000-0000-0000-0000-000000000001",
   email: "manager@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
-  activeTenantId: null,
+  activeTenantId: TENANT_ID,
 }
 
 const MATERIAL_ID = "00000000-0000-0000-0000-000000000aaa"
 
+// Stand-in for a MaterialType entity. The action only calls .toJSON()
+// on the returned value (to shape the action return), and the entity
+// getter `.name` is used by the FK pre-flight check, so a plain
+// object satisfies both shapes.
+const FAKE_ENTITY = {
+  name: "Butyl",
+  description: null,
+  minStockSqm: null,
+  toJSON: () => ({
+    id: MATERIAL_ID,
+    tenantId: TENANT_ID,
+    name: "Butyl",
+    description: null,
+    minStockSqm: null,
+    createdAt: "2026-05-15T00:00:00.000Z",
+    createdBy: ACTOR.id,
+    updatedAt: "2026-05-15T00:00:00.000Z",
+    updatedBy: null,
+    deletedAt: null,
+  }),
+}
+
 describe("app/actions/materials", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
+    requireActiveTenantMock.mockReturnValue(TENANT_ID)
     requirePermissionMock.mockReturnValue(undefined)
-    createSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })
-    updateSvcMock.mockResolvedValue({ id: MATERIAL_ID, name: "Butyl" })
-    deleteSvcMock.mockResolvedValue(undefined)
-    getByIdsSvcMock.mockResolvedValue([{ id: MATERIAL_ID, name: "Butyl" }])
+    createSvcMock.mockResolvedValue(FAKE_ENTITY)
+    updateSvcMock.mockResolvedValue(FAKE_ENTITY)
+    softDeleteSvcMock.mockResolvedValue(FAKE_ENTITY)
+    getByIdSvcMock.mockResolvedValue(FAKE_ENTITY)
+    getByIdsSvcMock.mockResolvedValue([FAKE_ENTITY])
     existsByMaterialTypeMock.mockResolvedValue(false)
     existsItemsByMaterialTypeMock.mockResolvedValue(false)
   })
@@ -91,26 +126,26 @@ describe("app/actions/materials", () => {
 
   // ── createMaterialType ─────────────────────────────────────────
 
-  it("createMaterialType threads actor.id and revalidates material paths", async () => {
+  it("createMaterialType threads actor.id + tenant and revalidates material paths", async () => {
     const { createMaterialType } = await import("@/app/actions/materials")
 
     await createMaterialType({
       name: "Butyl",
       description: "Rubber sheet material",
-      default_cost: 2.5,
-      min_stock_alert: 100,
+      min_stock_sqm: 50,
     })
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageMaterialTypes")
-    expect(createSvcMock).toHaveBeenCalledWith(
-      {
-        name: "Butyl",
-        description: "Rubber sheet material",
-        default_cost: 2.5,
-        min_stock_alert: 100,
-      },
-      ACTOR.id
-    )
+    expect(requireActiveTenantMock).toHaveBeenCalledWith(ACTOR)
+    expect(createSvcMock).toHaveBeenCalledTimes(1)
+    const props = createSvcMock.mock.calls[0][0]
+    expect(props.name).toBe("Butyl")
+    expect(props.description).toBe("Rubber sheet material")
+    expect(props.minStockSqm).toBe(50)
+    // tenantId + createdBy come through as value-objects whose `.value`
+    // string round-trips the original UUID.
+    expect(props.tenantId.value).toBe(TENANT_ID)
+    expect(props.createdBy.value).toBe(ACTOR.id)
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/settings/materials")
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/inventory")
   })
@@ -122,10 +157,10 @@ describe("app/actions/materials", () => {
     expect(createSvcMock).not.toHaveBeenCalled()
   })
 
-  it("createMaterialType rejects negative default_cost", async () => {
+  it("createMaterialType rejects negative min_stock_sqm", async () => {
     const { createMaterialType } = await import("@/app/actions/materials")
 
-    await expect(createMaterialType({ name: "Butyl", default_cost: -1 })).rejects.toThrow()
+    await expect(createMaterialType({ name: "Butyl", min_stock_sqm: -1 })).rejects.toThrow()
     expect(createSvcMock).not.toHaveBeenCalled()
   })
 
@@ -157,7 +192,12 @@ describe("app/actions/materials", () => {
 
     const [idArg, updates] = updateSvcMock.mock.calls[0]
     expect(idArg).toBe(MATERIAL_ID)
-    expect(updates).toEqual({ name: "Renamed" })
+    // The action loads existing values for omitted fields, then sends
+    // a whole-record update. Smuggled fields are dropped at the Zod
+    // boundary — the entity-typed service only accepts
+    // {name, description, minStockSqm}.
+    expect(Object.keys(updates).sort()).toEqual(["description", "minStockSqm", "name"])
+    expect(updates.name).toBe("Renamed")
     expect(updates).not.toHaveProperty("user_id")
     expect(updates).not.toHaveProperty("created_at")
     expect(updates).not.toHaveProperty("updated_at")
@@ -170,18 +210,20 @@ describe("app/actions/materials", () => {
     expect(updateSvcMock).not.toHaveBeenCalled()
   })
 
-  it("updateMaterialType allows partial updates (just default_cost)", async () => {
+  it("updateMaterialType allows partial updates (just min_stock_sqm)", async () => {
     const { updateMaterialType } = await import("@/app/actions/materials")
 
-    await updateMaterialType({ id: MATERIAL_ID, default_cost: 3.75 })
+    await updateMaterialType({ id: MATERIAL_ID, min_stock_sqm: 75 })
 
     const updates = updateSvcMock.mock.calls[0][1]
-    expect(updates).toEqual({ default_cost: 3.75 })
+    expect(updates.minStockSqm).toBe(75)
+    // Other fields preserved from the existing entity.
+    expect(updates.name).toBe("Butyl")
   })
 
   // ── deleteMaterialType ─────────────────────────────────────────
 
-  it("deleteMaterialType happy path — guards pass, service called, revalidate", async () => {
+  it("deleteMaterialType happy path — guards pass, soft-delete called, revalidate", async () => {
     const { deleteMaterialType } = await import("@/app/actions/materials")
 
     const result = await deleteMaterialType({ id: MATERIAL_ID })
@@ -189,7 +231,10 @@ describe("app/actions/materials", () => {
     expect(getByIdsSvcMock).toHaveBeenCalledWith([MATERIAL_ID])
     expect(existsByMaterialTypeMock).toHaveBeenCalledWith("Butyl")
     expect(existsItemsByMaterialTypeMock).toHaveBeenCalledWith(MATERIAL_ID)
-    expect(deleteSvcMock).toHaveBeenCalledWith(MATERIAL_ID)
+    expect(softDeleteSvcMock).toHaveBeenCalledTimes(1)
+    const [idArg, actorArg] = softDeleteSvcMock.mock.calls[0]
+    expect(idArg).toBe(MATERIAL_ID)
+    expect(actorArg.value).toBe(ACTOR.id)
     expect(result).toEqual({ ok: true })
   })
 
@@ -203,7 +248,7 @@ describe("app/actions/materials", () => {
     if (!result.ok) {
       expect(result.reason).toBe("not_found")
     }
-    expect(deleteSvcMock).not.toHaveBeenCalled()
+    expect(softDeleteSvcMock).not.toHaveBeenCalled()
   })
 
   it("deleteMaterialType returns in_use_by_rolls when rolls exist", async () => {
@@ -216,9 +261,9 @@ describe("app/actions/materials", () => {
     if (!result.ok) {
       expect(result.reason).toBe("in_use_by_rolls")
     }
-    // Short-circuits before the PO check or the delete itself
+    // Short-circuits before the PO check or the soft-delete itself
     expect(existsItemsByMaterialTypeMock).not.toHaveBeenCalled()
-    expect(deleteSvcMock).not.toHaveBeenCalled()
+    expect(softDeleteSvcMock).not.toHaveBeenCalled()
   })
 
   it("deleteMaterialType returns in_use_by_purchase_orders when PO items exist", async () => {
@@ -231,11 +276,11 @@ describe("app/actions/materials", () => {
     if (!result.ok) {
       expect(result.reason).toBe("in_use_by_purchase_orders")
     }
-    expect(deleteSvcMock).not.toHaveBeenCalled()
+    expect(softDeleteSvcMock).not.toHaveBeenCalled()
   })
 
-  it("deleteMaterialType handles FK race (delete fails after pre-flight passed)", async () => {
-    deleteSvcMock.mockRejectedValue({ code: "23503", message: "violates foreign key constraint" })
+  it("deleteMaterialType returns delete_failed when soft-delete throws", async () => {
+    softDeleteSvcMock.mockRejectedValue(new Error("db unavailable"))
     const { deleteMaterialType } = await import("@/app/actions/materials")
 
     const result = await deleteMaterialType({ id: MATERIAL_ID })
@@ -243,7 +288,6 @@ describe("app/actions/materials", () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.reason).toBe("delete_failed")
-      expect(result.message).toMatch(/referenced by other records/i)
     }
   })
 
@@ -255,6 +299,6 @@ describe("app/actions/materials", () => {
 
     await expect(deleteMaterialType({ id: MATERIAL_ID })).rejects.toThrow("forbidden")
     expect(getByIdsSvcMock).not.toHaveBeenCalled()
-    expect(deleteSvcMock).not.toHaveBeenCalled()
+    expect(softDeleteSvcMock).not.toHaveBeenCalled()
   })
 })
