@@ -23,7 +23,7 @@ import {
 } from "@/src/infrastructure/models/supabase"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { legacyPriceHistoryService as priceHistoryService } from "./legacyPriceHistoryService"
+import { priceHistoryService } from "./priceHistoryService"
 
 export interface ILegacySupplierService {
   getAllSuppliers(): Promise<Supplier[]>
@@ -171,12 +171,12 @@ class LegacySupplierService implements ILegacySupplierService {
     if (error) throw error
     if (data && data.cost_per_sqft) {
       try {
-        await priceHistoryService.trackPriceChange(
-          data.id,
-          undefined,
-          data.cost_per_sqft,
-          "Initial price when supplier was linked"
-        )
+        await priceHistoryService.appendPriceChange({
+          materialSupplierId: data.id,
+          oldCostCents: null,
+          newCostCents: data.cost_per_sqft,
+          changeReason: "Initial price when supplier was linked",
+        })
       } catch (e) {
         console.error("Failed to track initial price:", e)
       }

@@ -101,33 +101,3 @@ export interface IPriceHistoryService {
   ): Promise<PriceHistoryWithJoins[]>
 }
 
-// ─── Legacy raw-row + analytics service (pre-DDD consumers) ───────────────
-
-/**
- * Holds the legacy `trackPriceChange` snake_case writer plus the
- * analytics methods (`comparePrices`, `calculatePriceTrends`,
- * `getBestPrice`, `calculateValueScore`, `bulkTrackPriceChanges`) that
- * read removed columns (`cost_per_sqft`) and aren't really
- * price-history operations. They stay on a shim until the pricing
- * dashboard is rewritten on top of the entity-typed surface.
- */
-export interface ILegacyPriceHistoryService {
-  /** @deprecated Use `priceHistoryService.appendPriceChange` (entity-typed). */
-  trackPriceChange(
-    materialSupplierId: string,
-    oldPrice: number | undefined,
-    newPrice: number,
-    changeReason?: string,
-    changedBy?: string
-  ): Promise<PriceHistory>
-  /** @deprecated References removed `cost_per_sqft` columns. */
-  comparePrices(materialTypeId: string): Promise<PriceComparison>
-  /** @deprecated References removed `cost_per_sqft` columns. */
-  calculatePriceTrends(materialTypeId: string, daysBack?: number): Promise<PriceTrend[]>
-  /** @deprecated References removed `cost_per_sqft` columns. */
-  getBestPrice(materialTypeId: string): Promise<BestPriceOption | null>
-  /** @deprecated References removed `cost_per_sqft` columns. */
-  bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]>
-  /** @deprecated References removed `cost_per_sqft` columns. */
-  calculateValueScore(supplier: MaterialSupplierWithDetails): number
-}

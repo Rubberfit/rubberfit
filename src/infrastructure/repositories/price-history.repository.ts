@@ -9,7 +9,6 @@ import {
   rowToPriceHistory,
   type PriceHistoryRow,
 } from "@/src/infrastructure/mappers/price-history.mapper"
-import { supabase } from "@/src/infrastructure/models/supabase"
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
 const TABLE = "price_history"
@@ -52,7 +51,8 @@ export class PriceHistoryRepository implements IPriceHistoryRepository {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - daysBack)
 
-    const { data: materialSuppliers, error: msError } = await supabase
+    const client = await getDatabaseClient()
+    const { data: materialSuppliers, error: msError } = await client
       .from("material_suppliers")
       .select("id, supplier_id")
       .eq("material_type_id", materialTypeId)
@@ -61,7 +61,7 @@ export class PriceHistoryRepository implements IPriceHistoryRepository {
 
     const materialSupplierIds = materialSuppliers.map((ms: { id: string }) => ms.id)
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from(TABLE)
       .select(
         `
@@ -80,7 +80,8 @@ export class PriceHistoryRepository implements IPriceHistoryRepository {
   }
 
   async findByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]> {
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from(TABLE)
       .select(
         `
@@ -105,7 +106,8 @@ export class PriceHistoryRepository implements IPriceHistoryRepository {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - daysBack)
 
-    const { data, error } = await supabase
+    const client = await getDatabaseClient()
+    const { data, error } = await client
       .from(TABLE)
       .select(
         `
