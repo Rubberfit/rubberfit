@@ -1,7 +1,10 @@
 import type { PurchaseOrder } from "@/src/entities/purchase-order"
+import type { PurchaseOrderItem } from "@/src/entities/purchase-order-item"
 import type { PoStatus } from "@/src/entities/value-objects/po-status"
+import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 import type {
   PurchaseOrder as LegacyPurchaseOrder,
+  PurchaseOrderItem as LegacyPurchaseOrderItem,
   PurchaseOrderWithDetails,
   Supplier as LegacySupplier,
 } from "@/src/infrastructure/models/supabase"
@@ -85,5 +88,71 @@ export function purchaseOrderEntityToLegacy(
   return {
     ...row,
     supplier: legacySupplier,
+  }
+}
+
+const MM_PER_INCH = 25.4
+
+/**
+ * Item-level entity → legacy projection. Required by callers that
+ * read the joined `items[]` array on a fetched PO (the edit form
+ * prefill, the PO detail view). Mirrors the inverse conversions of
+ * `mapItemsToEntityProps` in `po-input-conversion.ts`:
+ *
+ *   sqm     → sqft   via × SQFT_PER_SQM
+ *   mm      → inches via ÷ MM_PER_INCH
+ *   Money   → dollars float (per-sqm cents back to per-sqft dollars)
+ */
+function purchaseOrderItemEntityToLegacy(
+  poId: string,
+  item: PurchaseOrderItem,
+  createdAt: string,
+  updatedAt: string
+): LegacyPurchaseOrderItem {
+  // `id` on the legacy row is the persistence row id, which the entity
+  // doesn't expose (entity identity is (poId, lineNumber)). Synthesize
+  // a stable key by concatenating — UI consumers use this only for
+  // React keys; the line_number is the authoritative identity.
+  const syntheticId = `${poId}::line-${item.lineNumber}`
+  const quantitySqft = item.quantitySqm * SQFT_PER_SQM
+  return {
+    id: syntheticId,
+    user_id: "",
+    purchase_order_id: poId,
+    material_type_id: item.materialTypeId.value,
+    line_number: item.lineNumber,
+    description: item.description ?? "",
+    width: item.widthMm != null ? item.widthMm / MM_PER_INCH : undefined,
+    length: item.lengthMm != null ? item.lengthMm / MM_PER_INCH : undefined,
+    thickness: item.thicknessMm != null ? item.thicknessMm / MM_PER_INCH : undefined,
+    color: item.color ?? undefined,
+    quantity_sqft: quantitySqft,
+    unit_cost: item.unitCost.cents / 100 / SQFT_PER_SQM,
+    line_total: item.lineTotal.cents / 100,
+    quantity_received: item.quantityReceivedSqm * SQFT_PER_SQM,
+    received_date: item.receivedDate?.toISOString() ?? undefined,
+    notes: item.notes ?? undefined,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  }
+}
+
+/**
+ * Like `purchaseOrderEntityToLegacy` but also projects the items
+ * collection. Use this for read paths that hydrate a full PO for
+ * editing or detail view.
+ */
+export function purchaseOrderEntityToLegacyWithItems(
+  po: PurchaseOrder,
+  supplier?: { id: string; name: string } | null
+): PurchaseOrderWithDetails {
+  const base = purchaseOrderEntityToLegacy(po, supplier)
+  const createdAt = po.createdAt.toISOString()
+  const updatedAt = po.updatedAt.toISOString()
+  return {
+    ...base,
+    items: po.items.map((item) =>
+      purchaseOrderItemEntityToLegacy(po.id.value, item, createdAt, updatedAt)
+    ),
   }
 }

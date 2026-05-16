@@ -6,7 +6,7 @@ import { Plus, Upload, ChevronDown } from "lucide-react"
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypes as materialTypesSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import { existsActiveItemsByMaterialTypeAction } from "@/app/actions/purchase-orders"
 import { Button } from "@/app/components/ui/button"
 import {
   DropdownMenu,
@@ -147,7 +147,7 @@ export default function MaterialTypesPage() {
         return
       }
 
-      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialToDelete.id)
+      const hasPOItems = await existsActiveItemsByMaterialTypeAction(materialToDelete.id)
       if (hasPOItems) {
         toast.error("Cannot delete material type", {
           description: "This material is referenced by existing purchase orders",

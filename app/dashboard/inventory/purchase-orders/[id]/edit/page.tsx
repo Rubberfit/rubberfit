@@ -7,11 +7,10 @@ import { toast } from "sonner"
 
 import type { MaterialType, PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import { getPurchaseOrderByIdAction, updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import { updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
 
 import { PoFormShell } from "../../_components/po-form-shell"
@@ -64,7 +63,7 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
       setLoadError(null)
       try {
         const [poData, suppliersData, materialsData] = await Promise.all([
-          purchaseOrderService.getPurchaseOrderById(id),
+          getPurchaseOrderByIdAction(id),
           supplierService.getActiveSuppliers(),
           materialTypeRepository.getAll(),
         ])

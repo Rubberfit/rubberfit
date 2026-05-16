@@ -1,8 +1,11 @@
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import { createPurchaseOrder, updatePurchaseOrder } from "@/app/actions/purchase-orders"
+import {
+  createPurchaseOrder,
+  getPurchaseOrderByIdAction,
+  updatePurchaseOrder,
+} from "@/app/actions/purchase-orders"
 import { toast } from "sonner"
 
 import { type POFormData, getDefaultFormData } from "./po-form-dialog"
@@ -106,7 +109,7 @@ export async function createPO({
   setFormData(getDefaultFormData())
   await fetchData()
 
-  const fullPO = await purchaseOrderService.getPurchaseOrderById(purchaseOrder.id)
+  const fullPO = await getPurchaseOrderByIdAction(purchaseOrder.id)
   if (fullPO) {
     setSelectedPO(fullPO)
     await fetchTaxDetailsForPO(fullPO)

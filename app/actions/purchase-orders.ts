@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-import { resolveUseCase } from "@/di/resolve"
+import { resolveService, resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type {
   CreatePurchaseOrderResult,
@@ -18,6 +18,10 @@ import type { IRejectPurchaseOrderUseCase } from "@/src/application/use-cases/pu
 import type { IReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
 import type { POReceiptResult } from "@/src/application/services/purchase-order-receipt.types"
 import type { PurchaseOrder } from "@/src/infrastructure/models/supabase"
+import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import { purchaseOrderEntityToLegacyWithItems } from "@/src/infrastructure/services/po-entity-to-legacy"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
@@ -249,4 +253,67 @@ export async function receivePurchaseOrder(
   const result = await useCase.execute({ ...parsed, actor })
   revalidatePath(PO_LIST_PATH)
   return result
+}
+
+/**
+ * Read-only — fetches a single PO via the entity-typed service and
+ * projects it back to the legacy `PurchaseOrderWithDetails` shape
+ * (snake_case + items array) the admin pages still consume. Replaces
+ * the legacy `getPurchaseOrderById` shim call.
+ *
+ * Supplier name is not joined here — the pages already separately
+ * fetch a `SupplierSnapshot[]` and look up by `supplier_id`.
+ */
+export async function getPurchaseOrderByIdAction(
+  id: string
+): Promise<PurchaseOrderWithDetails> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  requirePermission(actor, "manageRolls")
+  const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
+  const po = await svc.getById(id)
+  const supplier = await supplierService.getSupplierById(po.supplierId.value).catch(() => null)
+  return purchaseOrderEntityToLegacyWithItems(
+    po,
+    supplier ? { id: supplier.id.value, name: supplier.name } : null
+  )
+}
+
+/**
+ * Read-only — fetches all non-deleted POs via the entity-typed
+ * service and returns the legacy `PurchaseOrderWithDetails[]` shape.
+ * Bulk-fetches active suppliers once for the joined `supplier?.name`
+ * each PO row carries (the list page filter searches on it).
+ * Replaces the legacy `getAllPurchaseOrders` shim call.
+ */
+/**
+ * FK pre-flight: does any non-deleted, non-cancelled PO item reference
+ * `materialTypeId`? Used by the material-types catalog page's delete
+ * dialog, which is a client component (can't resolve the entity-typed
+ * service via DI directly).
+ */
+export async function existsActiveItemsByMaterialTypeAction(
+  materialTypeId: string
+): Promise<boolean> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  requirePermission(actor, "manageMaterialTypes")
+  const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
+  return svc.existsActiveItemsByMaterialType(materialTypeId)
+}
+
+export async function listPurchaseOrdersAction(): Promise<PurchaseOrderWithDetails[]> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  requirePermission(actor, "manageRolls")
+  const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
+  const [pos, suppliers] = await Promise.all([svc.getActive(), supplierService.getActiveSuppliers()])
+  const supplierById = new Map(suppliers.map((s) => [s.id.value, s]))
+  return pos.map((po) => {
+    const sup = supplierById.get(po.supplierId.value)
+    return purchaseOrderEntityToLegacyWithItems(
+      po,
+      sup ? { id: sup.id.value, name: sup.name } : null
+    )
+  })
 }

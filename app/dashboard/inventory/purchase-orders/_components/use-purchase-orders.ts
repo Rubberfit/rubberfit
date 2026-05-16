@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import type { PurchaseOrderWithDetails, MaterialType } from "@/src/infrastructure/models/supabase"
 import type { SupplierSnapshot } from "@/src/entities/supplier"
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import { listPurchaseOrdersAction } from "@/app/actions/purchase-orders"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 
@@ -45,7 +45,7 @@ export function usePurchaseOrders() {
       setLoading(true)
 
       const [posData, suppliersData, materialsData] = await Promise.all([
-        purchaseOrderService.getAllPurchaseOrders(),
+        listPurchaseOrdersAction(),
         supplierService.getActiveSuppliers(),
         materialTypeRepository.getAll(),
       ])
