@@ -8,7 +8,7 @@ import { cn } from "@/app/lib/utils"
 
 import { type Roll, type CutHistory } from "@/src/infrastructure/models/supabase"
 import type { MaterialType } from "@/src/entities/material-type"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { fetchCutsInRange } from "@/app/actions/cuts"
 

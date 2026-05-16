@@ -5,7 +5,7 @@ import { Plus, Upload, ChevronDown } from "lucide-react"
 
 import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypes as materialTypesSdk } from "@/src/infrastructure/api-client/rf/inventory"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import { existsActiveItemsByMaterialTypeAction } from "@/app/actions/purchase-orders"
 import { Button } from "@/app/components/ui/button"
 import {

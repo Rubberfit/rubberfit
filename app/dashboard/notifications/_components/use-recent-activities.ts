@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react"
 
 import { fetchRecentCuts } from "@/app/actions/cuts"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import type { Roll } from "@/src/infrastructure/models/supabase"
 
 export interface Activity {

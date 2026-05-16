@@ -2,7 +2,7 @@ import { format, subDays, subWeeks, subMonths } from "date-fns"
 import { toast } from "sonner"
 
 import { fetchCutsInRange } from "@/app/actions/cuts"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import type { CutHistory, Roll } from "@/src/infrastructure/models/supabase"
 import type { ReportTemplate } from "./report-templates"

@@ -54,8 +54,8 @@ vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
 }))
 
 const existsByMaterialTypeMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/legacyRollService", () => ({
-  legacyRollService: {
+vi.mock("@/src/infrastructure/services/rollService", () => ({
+  rollService: {
     existsByMaterialType: existsByMaterialTypeMock,
   },
 }))

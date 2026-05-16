@@ -35,10 +35,10 @@ const downloadPdf = vi.hoisted(() => vi.fn())
 
 vi.mock("next/navigation", () => ({ useRouter }))
 vi.mock("sonner", () => ({ toast }))
-vi.mock("@/src/infrastructure/services/legacyRollService", () => ({
-  legacyRollService: {
+vi.mock("@/src/infrastructure/services/rollService", () => ({
+  rollService: {
     getReusableOffcutSummary: getReusable,
-    getChildOffcuts: getChildren,
+    getChildOffcutsRaw: getChildren,
   },
 }))
 vi.mock("@/src/infrastructure/services/rollBarcodeAssetService", () => ({

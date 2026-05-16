@@ -8,14 +8,11 @@ import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticate
 import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import { resolveService } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
-import {
-  type MaterialType,
-  type MaterialTypeSnapshot,
-} from "@/src/entities/material-type"
+import { type MaterialType, type MaterialTypeSnapshot } from "@/src/entities/material-type"
 import { MaterialTypeId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 /**
@@ -133,8 +130,7 @@ export async function updateMaterialType(
     {
       name: parsed.name ?? existing.name,
       description: parsed.description !== undefined ? parsed.description : existing.description,
-      minStockSqm:
-        parsed.min_stock_sqm !== undefined ? parsed.min_stock_sqm : existing.minStockSqm,
+      minStockSqm: parsed.min_stock_sqm !== undefined ? parsed.min_stock_sqm : existing.minStockSqm,
     },
     ProfileId.fromPersistence(actor.id)
   )
@@ -188,10 +184,7 @@ export async function deleteMaterialType(
   }
 
   try {
-    await materialTypeService.softDeleteMaterialType(
-      parsed.id,
-      ProfileId.fromPersistence(actor.id)
-    )
+    await materialTypeService.softDeleteMaterialType(parsed.id, ProfileId.fromPersistence(actor.id))
     revalidateAllMaterialPaths()
     return { ok: true }
   } catch (error) {

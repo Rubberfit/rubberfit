@@ -11,7 +11,7 @@ import { SheetDescription, SheetHeader, SheetTitle } from "@/app/components/ui/s
 import { cn } from "@/app/lib/utils"
 
 import type { Roll, RollReusableOffcutSummary } from "@/src/infrastructure/models/supabase"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import { ensureStoredRollBarcode } from "@/src/infrastructure/services/rollBarcodeAssetService"
 import { StockSheet } from "@/app/dashboard/cutting-engine/_components/stock-sheet"
 
@@ -64,7 +64,7 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
     try {
       const [summary, children] = await Promise.all([
         rollService.getReusableOffcutSummary(rollId),
-        rollService.getChildOffcuts(rollId),
+        rollService.getChildOffcutsRaw(rollId),
       ])
       if (signal.isCancelled) return
       setUsage(summary)

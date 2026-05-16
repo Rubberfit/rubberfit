@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { DatePickerWithRange } from "@/app/components/ui/date-range-picker"
 import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
 import { fetchCutsInRange } from "@/app/actions/cuts"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 /**

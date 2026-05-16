@@ -6,7 +6,7 @@ import { z } from "zod"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
-import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
+import { rollService } from "@/src/infrastructure/services/rollService"
 import type { Roll } from "@/src/infrastructure/models/supabase"
 
 /**
