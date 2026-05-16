@@ -105,7 +105,7 @@ describe("parseSvg fixture: transform-heavy.svg", () => {
       const expectedRadius = Math.SQRT2 * 5
       for (const p of rectEntity.loop) {
         const dx = p.x - 40
-        const dy = p.y - -40
+        const dy = p.y + 40
         const r = Math.hypot(dx, dy)
         expect(r).toBeCloseTo(expectedRadius, 6)
       }
