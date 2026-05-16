@@ -1,5 +1,3 @@
-import type { ReorderSuggestion } from "@/src/application/services/legacy-reorder.service.interface"
-
 export interface OptimalOrderQuantity {
   quantity: number
   reasoning: string
@@ -13,11 +11,6 @@ export interface IReorderCalculationsService {
     materialTypeId: string,
     supplierId?: string
   ): Promise<OptimalOrderQuantity>
-  createAutomaticPurchaseOrder(
-    suggestion: ReorderSuggestion,
-    getReorderRuleById: (id: string) => Promise<{ lead_time_days: number }>,
-    generatePONumber: () => Promise<string>
-  ): Promise<unknown>
   estimateReorderCost(
     materialTypeId: string,
     quantity: number,

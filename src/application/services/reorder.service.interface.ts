@@ -32,8 +32,9 @@ export interface CreateReorderRuleInput {
  * Narrow entity-typed orchestrator over `IReorderRulesRepository` +
  * `ReorderRule` entity transitions. Read-only DTO surfaces
  * (`generateReorderSuggestions`, `calculateCurrentStock`,
- * `generatePONumber`) live on `ILegacyReorderService` until their
- * consumer pages are themselves migrated.
+ * `generatePONumber`) live on `IGenerateReorderSuggestionsUseCase`
+ * and `IReorderCalculationsService` — the `legacyReorderService`
+ * shim that previously hosted them was deleted 2026-05-15.
  */
 export interface IReorderService {
   // ─── Reads ──────────────────────────────────────────────────────────────

@@ -69,8 +69,6 @@ import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOr
 import { ReorderService } from "@/src/infrastructure/services/reorderService"
 import { reorderRulesRepository } from "@/src/infrastructure/repositories/reorder-rules.repository"
 import type { IReorderRulesRepository } from "@/src/application/repositories/reorder-rules.repository.interface"
-import { legacyReorderService } from "@/src/infrastructure/services/legacyReorderService"
-import type { ILegacyReorderService } from "@/src/application/services/legacy-reorder.service.interface"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
 import { RollService } from "@/src/infrastructure/services/rollService"
 import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
@@ -225,10 +223,6 @@ container.registerInstance<IReorderRulesRepository>(
   reorderRulesRepository
 )
 container.registerSingleton<IReorderService>(TOKENS.IReorderService, ReorderService)
-container.registerInstance<ILegacyReorderService>(
-  TOKENS.ILegacyReorderService,
-  legacyReorderService
-)
 container.registerInstance<IReorderCalculationsService>(
   TOKENS.IReorderCalculationsService,
   reorderCalculations

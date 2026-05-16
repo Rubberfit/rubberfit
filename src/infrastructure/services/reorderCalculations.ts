@@ -1,11 +1,6 @@
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import type {
-  MaterialSupplierWithDetails,
-  PurchaseOrder,
-} from "@/src/infrastructure/models/supabase"
-import type { ReorderSuggestion } from "@/src/application/services/legacy-reorder.service.interface"
+import type { MaterialSupplierWithDetails } from "@/src/infrastructure/models/supabase"
 import type {
   IReorderCalculationsService,
   OptimalOrderQuantity,
@@ -138,106 +133,6 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
         reasoning: "Using default quantity due to insufficient data",
         bulkDiscountApplied: false,
       }
-    }
-  }
-
-  async createAutomaticPurchaseOrder(
-    suggestion: ReorderSuggestion,
-    getReorderRuleById: (id: string) => Promise<{ lead_time_days: number }>,
-    generatePONumber: () => Promise<string>
-  ): Promise<unknown> {
-    try {
-      if (!suggestion.supplierId) {
-        throw new Error("Cannot create purchase order without supplier")
-      }
-
-      const poNumber = await generatePONumber()
-
-      const orderDate = new Date().toISOString()
-      const requestedDeliveryDate = new Date()
-
-      let leadTimeDays = 7
-      if (suggestion.reorderRuleId) {
-        const rule = await getReorderRuleById(suggestion.reorderRuleId)
-        leadTimeDays = rule.lead_time_days
-      }
-
-      requestedDeliveryDate.setDate(requestedDeliveryDate.getDate() + leadTimeDays)
-
-      const supabase = await getDatabaseClient()
-      const { data: material, error: matError } = await supabase
-        .from("material_types")
-        .select("*")
-        .eq("id", suggestion.materialTypeId)
-        .single()
-
-      if (matError) throw matError
-
-      const unitCost = suggestion.estimatedCost / suggestion.suggestedQuantity
-      const subtotal = suggestion.estimatedCost
-      const taxCalc = await this.taxService.calculatePurchaseOrderTax(
-        suggestion.supplierId,
-        subtotal
-      )
-      const taxAmount = taxCalc.taxAmount
-      const totalAmount = subtotal + taxAmount
-
-      const user_id = await getCurrentUserId()
-      const { data: po, error: poError } = await supabase
-        .from("purchase_orders")
-        .insert([
-          {
-            user_id,
-            po_number: poNumber,
-            supplier_id: suggestion.supplierId,
-            status: "draft",
-            order_date: orderDate,
-            requested_delivery_date: requestedDeliveryDate.toISOString(),
-            subtotal,
-            tax_amount: taxAmount,
-            shipping_cost: 0,
-            total_amount: totalAmount,
-            auto_generated: true,
-            reorder_rule_id: suggestion.reorderRuleId,
-            notes: `Auto-generated PO: ${suggestion.reason}`,
-          },
-        ])
-        .select()
-        .single()
-
-      if (poError) throw poError
-
-      const { data: _poItem, error: itemError } = await supabase
-        .from("purchase_order_items")
-        .insert([
-          {
-            user_id,
-            purchase_order_id: po.id,
-            material_type_id: suggestion.materialTypeId,
-            line_number: 1,
-            description: material.name,
-            quantity_sqft: suggestion.suggestedQuantity,
-            unit_cost: unitCost,
-            line_total: subtotal,
-            quantity_received: 0,
-          },
-        ])
-        .select()
-        .single()
-
-      if (itemError) throw itemError
-
-      if (suggestion.reorderRuleId) {
-        await supabase
-          .from("reorder_rules")
-          .update({ last_triggered_at: new Date().toISOString() })
-          .eq("id", suggestion.reorderRuleId)
-      }
-
-      return po as PurchaseOrder
-    } catch (error) {
-      console.error("Error creating automatic purchase order:", error)
-      throw error
     }
   }
 

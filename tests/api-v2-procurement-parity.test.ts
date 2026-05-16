@@ -24,45 +24,32 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
-const { legacyPosHandles, legacyReorderHandles, legacyCsvHandles, legacyTaxHandles } = vi.hoisted(
-  () => ({
-    legacyPosHandles: {
-      getAllPurchaseOrders: vi.fn(),
-      getPurchaseOrdersByStatus: vi.fn(),
-      getPurchaseOrderById: vi.fn(),
-      createPurchaseOrder: vi.fn(),
-      updatePurchaseOrder: vi.fn(),
-      updatePurchaseOrderStatus: vi.fn(),
-      deletePurchaseOrder: vi.fn(),
-      receivePurchaseOrder: vi.fn(),
-      addItemToPurchaseOrder: vi.fn(),
-      updatePurchaseOrderItem: vi.fn(),
-      deletePurchaseOrderItem: vi.fn(),
-    },
-    legacyReorderHandles: {
-      getAllReorderRules: vi.fn(),
-      getReorderRuleById: vi.fn(),
-      createReorderRule: vi.fn(),
-      updateReorderRule: vi.fn(),
-      deleteReorderRule: vi.fn(),
-      generateReorderSuggestions: vi.fn(),
-    },
-    legacyCsvHandles: {
-      parseCSV: vi.fn(),
-      transformToRolls: vi.fn(),
-      uploadRolls: vi.fn(),
-    },
-    legacyTaxHandles: {
-      calculatePurchaseOrderTax: vi.fn(),
-    },
-  })
-)
+const { legacyPosHandles, legacyCsvHandles, legacyTaxHandles } = vi.hoisted(() => ({
+  legacyPosHandles: {
+    getAllPurchaseOrders: vi.fn(),
+    getPurchaseOrdersByStatus: vi.fn(),
+    getPurchaseOrderById: vi.fn(),
+    createPurchaseOrder: vi.fn(),
+    updatePurchaseOrder: vi.fn(),
+    updatePurchaseOrderStatus: vi.fn(),
+    deletePurchaseOrder: vi.fn(),
+    receivePurchaseOrder: vi.fn(),
+    addItemToPurchaseOrder: vi.fn(),
+    updatePurchaseOrderItem: vi.fn(),
+    deletePurchaseOrderItem: vi.fn(),
+  },
+  legacyCsvHandles: {
+    parseCSV: vi.fn(),
+    transformToRolls: vi.fn(),
+    uploadRolls: vi.fn(),
+  },
+  legacyTaxHandles: {
+    calculatePurchaseOrderTax: vi.fn(),
+  },
+}))
 
 vi.mock("@/src/infrastructure/services/legacyPurchaseOrderService", () => ({
   legacyPurchaseOrderService: legacyPosHandles,
-}))
-vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
-  legacyReorderService: legacyReorderHandles,
 }))
 vi.mock("@/src/infrastructure/services/csvService", () => ({
   csvService: legacyCsvHandles,
@@ -99,7 +86,6 @@ describe("procurement SDK — v1/v2 parity", () => {
 
   beforeEach(() => {
     Object.values(legacyPosHandles).forEach((f) => f.mockReset())
-    Object.values(legacyReorderHandles).forEach((f) => f.mockReset())
     Object.values(legacyCsvHandles).forEach((f) => f.mockReset())
     Object.values(legacyTaxHandles).forEach((f) => f.mockReset())
     delete process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT
@@ -270,13 +256,12 @@ describe("procurement SDK — v1/v2 parity", () => {
   // ---- reorderRules + suggestions -------------------------------
 
   describe("reorderRules", () => {
-    it("list() hits legacy service (flag OFF)", async () => {
-      legacyReorderHandles.getAllReorderRules.mockResolvedValue([
-        { id: "rr-1", material_type_id: "mt-1" },
-      ])
-      const rows = await reorderRules.list()
-      expect(legacyReorderHandles.getAllReorderRules).toHaveBeenCalled()
-      expect(rows[0].material_type_id).toBe("mt-1")
+    it("list() throws from flag-OFF fallback (legacyReorderService retired)", async () => {
+      // Post-DDD migration: every reorder-rules SDK method
+      // requires NEXT_PUBLIC_USE_RUST_PROCUREMENT=true. The legacy
+      // CRUD was already runtime-broken against the post-redesign
+      // schema, so the flag-OFF path now throws an explicit error.
+      await expect(reorderRules.list()).rejects.toThrow(/flag-OFF path not wired/)
     })
 
     it("suggestions() passes include_pending through query (flag ON)", async () => {

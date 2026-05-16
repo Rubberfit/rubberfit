@@ -43,7 +43,6 @@ export const TOKENS = {
 
   // Legacy service shims (transitional, deprecated)
   ILegacyPurchaseOrderService: Symbol("ILegacyPurchaseOrderService"),
-  ILegacyReorderService: Symbol("ILegacyReorderService"),
 
   // Admin portal services
   IUserManagementService: Symbol("IUserManagementService"),

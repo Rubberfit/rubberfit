@@ -44,7 +44,6 @@ Order in `tokens.ts` is alphabetical within each group.
 | `ILegacyPurchaseOrderService`    | `legacyPurchaseOrderService`              |
 | `IPurchaseOrderAnalyticsService` | `purchaseOrderAnalytics`                  |
 | `IReorderService`                | `ReorderService` (class)                  |
-| `ILegacyReorderService`          | `legacyReorderService`                    |
 | `IReorderCalculationsService`    | `reorderCalculations`                     |
 | `IRollService`                   | `RollService` (class)                     |
 | `ISupplierService`               | `SupplierService` (class)                 |

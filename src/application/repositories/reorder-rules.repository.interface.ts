@@ -1,9 +1,10 @@
 import type { ReorderRule } from "@/src/entities/reorder-rule"
 
 /**
- * Reorder-rules persistence boundary. Narrow entity-typed surface only —
- * the legacy raw-row methods that the existing reorder UI / RF api-client
- * still need live on `ILegacyReorderService`, not here.
+ * Reorder-rules persistence boundary. Narrow entity-typed surface only.
+ * The `legacyReorderService` shim that previously hosted raw-row CRUD
+ * was deleted 2026-05-15; all callers route through this repo or the
+ * entity-typed `IReorderService` on top of it.
  */
 export interface IReorderRulesRepository {
   /** Returns the entity for `id`, or throws if not found. */
