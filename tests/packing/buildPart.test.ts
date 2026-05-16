@@ -178,3 +178,120 @@ describe("buildPart — custom / DXF passthrough", () => {
     expect(part.shapeSpec).toEqual({ kind: "rect", params: { width: 10, height: 5 } })
   })
 })
+
+describe("buildPart hole preservation", () => {
+  it("preserves a PolygonWithHoles input through to the Part output", () => {
+    const outer = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    const hole = [
+      { x: 3, y: 3 },
+      { x: 7, y: 3 },
+      { x: 7, y: 7 },
+      { x: 3, y: 7 },
+    ]
+    const part = buildPart({
+      shapeId: "test-bracket",
+      quantity: 1,
+      polygon: { outer, holes: [hole] },
+      allowRotation: true,
+    })
+    expect(part.polygon).toBeDefined()
+    expect(part.polygon?.outer.length).toBe(4)
+    expect(part.polygon?.holes.length).toBe(1)
+    expect(part.polygon?.holes[0].length).toBe(4)
+  })
+
+  it("enforces CCW outer / CW hole orientation", () => {
+    const ccwOuter = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    // CCW hole — should be reversed to CW on output
+    const ccwHole = [
+      { x: 3, y: 3 },
+      { x: 7, y: 3 },
+      { x: 7, y: 7 },
+      { x: 3, y: 7 },
+    ]
+    const part = buildPart({
+      shapeId: "test",
+      quantity: 1,
+      polygon: { outer: ccwOuter, holes: [ccwHole] },
+      allowRotation: true,
+    })
+    // Signed area: positive = CCW, negative = CW
+    function signedArea(loop: { x: number; y: number }[]): number {
+      let a = 0
+      for (let i = 0; i < loop.length; i++) {
+        const p1 = loop[i]
+        const p2 = loop[(i + 1) % loop.length]
+        a += p1.x * p2.y - p2.x * p1.y
+      }
+      return a / 2
+    }
+    expect(signedArea(part.polygon?.outer ?? [])).toBeGreaterThan(0) // CCW
+    expect(signedArea(part.polygon?.holes[0] ?? [])).toBeLessThan(0) // CW
+  })
+
+  it("translates outer and holes by the same bbox shift", () => {
+    // Outer NOT at origin
+    const outer = [
+      { x: 5, y: 10 },
+      { x: 15, y: 10 },
+      { x: 15, y: 20 },
+      { x: 5, y: 20 },
+    ]
+    const hole = [
+      { x: 8, y: 13 },
+      { x: 12, y: 13 },
+      { x: 12, y: 17 },
+      { x: 8, y: 17 },
+    ]
+    const part = buildPart({
+      shapeId: "test",
+      quantity: 1,
+      polygon: { outer, holes: [hole] },
+      allowRotation: true,
+    })
+    // After translation: outer min should be at (0, 0); hole maintains relative position.
+    const outerMinX = Math.min(...(part.polygon?.outer ?? []).map((p) => p.x))
+    const outerMinY = Math.min(...(part.polygon?.outer ?? []).map((p) => p.y))
+    expect(outerMinX).toBe(0)
+    expect(outerMinY).toBe(0)
+    // Hole should be at (3, 3) → (7, 7) relative bbox
+    const holeMinX = Math.min(...(part.polygon?.holes[0] ?? []).map((p) => p.x))
+    const holeMinY = Math.min(...(part.polygon?.holes[0] ?? []).map((p) => p.y))
+    expect(holeMinX).toBe(3)
+    expect(holeMinY).toBe(3)
+  })
+
+  it("drops degenerate holes (<3 vertices) silently", () => {
+    const outer = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    const part = buildPart({
+      shapeId: "test",
+      quantity: 1,
+      polygon: {
+        outer,
+        holes: [
+          [
+            { x: 1, y: 1 },
+            { x: 2, y: 2 },
+          ],
+        ],
+      }, // 2-vertex degenerate
+      allowRotation: true,
+    })
+    expect(part.polygon?.holes.length).toBe(0)
+  })
+})
