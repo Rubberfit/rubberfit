@@ -15,6 +15,7 @@ import { PART_LABELS } from "@/src/application/cuts/part-labels"
 import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import { type CutHistory } from "@/src/infrastructure/models/supabase"
 import { isLayoutModelArray } from "@/app/dashboard/cutting-engine/_components/layout-model"
+import { isSupportedLayoutJsonVersion } from "@/src/infrastructure/models/cut-history-layout"
 import { useRegenerateCutPdf } from "@/app/hooks/use-regenerate-cut-pdf"
 import { useRole } from "@/src/infrastructure/services/useRole"
 
@@ -374,12 +375,15 @@ export function useCutHistory() {
 /**
  * `true` when the cut row has either a stored `pdf_url` (button opens
  * directly) or a frozen auto-nest layout we can regenerate from on
- * demand. `false` only for legacy rows that can never produce a PDF —
- * those render the button disabled with a tooltip.
+ * demand. `false` for legacy rows that can never produce a PDF, AND
+ * for rows whose envelope `version` is outside the supported set —
+ * those mirror the server-side fence in `extractAutoLayouts` so the
+ * button isn't enabled for cuts the API will reject with 422.
  */
 export function canViewPdf(cut: CutHistory): boolean {
   if (cut.pdf_url) return true
   const layout = cut.layout_json
   if (!layout || layout.kind !== "auto") return false
+  if (!isSupportedLayoutJsonVersion(layout.version)) return false
   return isLayoutModelArray(layout.layouts)
 }

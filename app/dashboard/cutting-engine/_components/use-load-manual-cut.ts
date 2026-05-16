@@ -63,9 +63,13 @@ export function useLoadManualCut({
       }
       // Version fence — refuse to hydrate envelopes whose schema this
       // build doesn't recognise. Better to surface a clear message than
-      // to silently load a partially-understood payload.
+      // to silently load a partially-understood payload. Pre-`version`
+      // legacy rows (where the field is absent entirely) pass through
+      // as implicit v1 — only rows with a known-unsupported version
+      // (e.g. a future schema, or a corrupt non-numeric value) trip
+      // this branch.
       if (!isSupportedLayoutJsonVersion(snapshot.version)) {
-        toast.error("Saved layout is from a newer app version", {
+        toast.error("Saved layout has an unrecognised version", {
           description: `Cut #${cut.id} can't be opened by this build. Update the app or save a fresh cut.`,
         })
         return

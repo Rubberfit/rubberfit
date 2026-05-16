@@ -19,7 +19,11 @@
 import { describe, expect, it } from "vitest"
 
 import { extractAutoLayouts } from "@/app/api/_lib/cut-pdf-server"
-import { extractFrozenLayouts } from "@/app/dashboard/cutting-engine/_components/cut-load-utils"
+import {
+  extractFrozenLayouts,
+  extractPerTemplatePartTypes,
+} from "@/app/dashboard/cutting-engine/_components/cut-load-utils"
+import { canViewPdf } from "@/app/dashboard/history/_components/use-cut-history"
 import {
   coerceLayoutModelArray,
   isLayoutModel,
@@ -145,16 +149,23 @@ describe("PR 0c — layout_json version compat", () => {
       expect(isSupportedLayoutJsonVersion(2)).toBe(true)
     })
 
+    it("accepts undefined (pre-`version` legacy rows are implicit v1)", () => {
+      // The `version` field was introduced 2026-04-24 (#112); any
+      // `cut_history.layout_json` row written before that commit has
+      // `version: undefined`. Treating absent version as implicit v1
+      // preserves the read contract those rows had before PR 0c.
+      expect(isSupportedLayoutJsonVersion(undefined)).toBe(true)
+    })
+
     it("rejects unknown numeric versions", () => {
       expect(isSupportedLayoutJsonVersion(0)).toBe(false)
       expect(isSupportedLayoutJsonVersion(3)).toBe(false)
       expect(isSupportedLayoutJsonVersion(-1)).toBe(false)
     })
 
-    it("rejects non-numeric versions", () => {
+    it("rejects non-numeric, non-undefined values", () => {
       expect(isSupportedLayoutJsonVersion("1")).toBe(false)
       expect(isSupportedLayoutJsonVersion(null)).toBe(false)
-      expect(isSupportedLayoutJsonVersion(undefined)).toBe(false)
       expect(isSupportedLayoutJsonVersion(Number.NaN)).toBe(false)
       expect(isSupportedLayoutJsonVersion({})).toBe(false)
     })
@@ -203,7 +214,7 @@ describe("PR 0c — layout_json version compat", () => {
       expect(result).toBeNull()
     })
 
-    it("rejects missing / non-numeric version", () => {
+    it("rejects non-numeric version (corrupt write)", () => {
       const layouts = [makeLayout()]
       const malformed = {
         version: "1",
@@ -212,6 +223,20 @@ describe("PR 0c — layout_json version compat", () => {
         layouts,
       } as unknown as Parameters<typeof extractAutoLayouts>[0]
       expect(extractAutoLayouts(malformed)).toBeNull()
+    })
+
+    it("accepts pre-`version` legacy rows (envelope has no version field)", () => {
+      const layouts = [makeLayout()]
+      // Row written before the `version` field existed — `version` is
+      // genuinely absent from the JSONB blob. Cast through `unknown`
+      // because the TS type requires it, but real production rows from
+      // before 2026-04-24 look exactly like this.
+      const legacy = {
+        kind: "auto",
+        perTemplateQuantities: [1],
+        layouts,
+      } as unknown as Parameters<typeof extractAutoLayouts>[0]
+      expect(extractAutoLayouts(legacy)).toEqual(layouts)
     })
   })
 
@@ -256,28 +281,136 @@ describe("PR 0c — layout_json version compat", () => {
     })
   })
 
-  describe("Round-trip", () => {
-    it("v1 row (no holes) loads, renders unchanged, and re-saves as v2", () => {
-      // Simulate a v1 row read from the DB.
-      const v1Row = {
-        version: 1 as const,
+  describe("version fence applied to every layout_json consumer", () => {
+    // Codex review caught a consistency gap on the initial pass: only
+    // `extractFrozenLayouts` was version-fenced, but `perTemplatePartTypes`,
+    // `perTemplateQuantities`, and `canViewPdf` all read from the same
+    // envelope without checking the version. These tests pin that ALL
+    // four consumers now reject unsupported versions consistently —
+    // otherwise a v3+ row could feed `perTemplatePartTypes` into the
+    // load path while frozen layouts are blocked, or `canViewPdf` could
+    // enable a button that the server-side endpoint always 422s on.
+
+    it("extractPerTemplatePartTypes rejects unsupported versions", () => {
+      const cut = makeCut({
+        layout_json: {
+          version: 7 as unknown as 1 | 2,
+          kind: "auto",
+          perTemplateQuantities: [1, 2],
+          perTemplatePartTypes: ["rectangle", "cylinder"],
+          layouts: [makeLayout()],
+        },
+      })
+      expect(extractPerTemplatePartTypes(cut)).toBeNull()
+    })
+
+    it("extractPerTemplatePartTypes accepts v1+v2 envelopes with valid data", () => {
+      const baseLayout = {
         kind: "auto" as const,
-        perTemplateQuantities: [1],
+        perTemplateQuantities: [1, 2],
+        perTemplatePartTypes: ["rectangle" as const, "cylinder" as const],
         layouts: [makeLayout()],
       }
-      const loaded = extractAutoLayouts(v1Row)
+      expect(
+        extractPerTemplatePartTypes(makeCut({ layout_json: { ...baseLayout, version: 1 } }))
+      ).toEqual(["rectangle", "cylinder"])
+      expect(
+        extractPerTemplatePartTypes(makeCut({ layout_json: { ...baseLayout, version: 2 } }))
+      ).toEqual(["rectangle", "cylinder"])
+    })
+
+    it("canViewPdf rejects rows whose envelope version is unsupported", () => {
+      // Mirrors the server-side fence in `extractAutoLayouts` — the
+      // PDF endpoint would 422 these rows, so the UI button must stay
+      // disabled.
+      const cut = makeCut({
+        pdf_url: null,
+        layout_json: {
+          version: 42 as unknown as 1 | 2,
+          kind: "auto",
+          perTemplateQuantities: [1],
+          layouts: [makeLayout()],
+        },
+      })
+      expect(canViewPdf(cut)).toBe(false)
+    })
+
+    it("canViewPdf accepts v1+v2 envelopes when layouts are valid", () => {
+      const layouts = [makeLayout()]
+      expect(
+        canViewPdf(
+          makeCut({
+            layout_json: {
+              version: 1,
+              kind: "auto",
+              perTemplateQuantities: [1],
+              layouts,
+            },
+          })
+        )
+      ).toBe(true)
+      expect(
+        canViewPdf(
+          makeCut({
+            layout_json: {
+              version: 2,
+              kind: "auto",
+              perTemplateQuantities: [1],
+              layouts,
+            },
+          })
+        )
+      ).toBe(true)
+    })
+
+    it("canViewPdf still returns true on a stored pdf_url even for unsupported versions", () => {
+      // pdf_url short-circuits the layout check because the file was
+      // already rendered + uploaded by a build that understood the
+      // schema at write time — that build is responsible for the file's
+      // correctness, not this one.
+      const cut = makeCut({
+        pdf_url: "https://cdn/cuts/abc.pdf",
+        layout_json: {
+          version: 99 as unknown as 1 | 2,
+          kind: "auto",
+          perTemplateQuantities: [1],
+          layouts: [makeLayout()],
+        },
+      })
+      expect(canViewPdf(cut)).toBe(true)
+    })
+  })
+
+  describe("Round-trip", () => {
+    it("v1 row (no holes) loads, renders unchanged, and re-saves as v2", () => {
+      // Simulate a v1 row read from the DB. The JSON round-trip is
+      // important — JSONB serialises `undefined` away, drops methods,
+      // and reconstructs plain objects, so the in-memory shape after a
+      // real read is structurally identical to (but not the same as)
+      // the in-memory object we wrote.
+      const v1OnDisk = JSON.parse(
+        JSON.stringify({
+          version: 1,
+          kind: "auto",
+          perTemplateQuantities: [1],
+          layouts: [makeLayout()],
+        })
+      ) as Parameters<typeof extractAutoLayouts>[0]
+      const loaded = extractAutoLayouts(v1OnDisk)
       assertNotNull(loaded)
-      expect(loaded).toEqual(v1Row.layouts)
+      expect(loaded).toEqual([makeLayout()])
 
       // The save path always stamps the current version — re-saving an
       // unchanged loaded layout produces a v2 envelope.
-      const reSaved = {
-        version: CURRENT_LAYOUT_JSON_VERSION,
-        kind: "auto" as const,
-        perTemplateQuantities: [1],
-        layouts: loaded,
-      }
-      expect(reSaved.version).toBe(2)
+      const reSaved = JSON.parse(
+        JSON.stringify({
+          version: CURRENT_LAYOUT_JSON_VERSION,
+          kind: "auto",
+          perTemplateQuantities: [1],
+          layouts: loaded,
+        })
+      ) as Parameters<typeof extractAutoLayouts>[0]
+      expect(reSaved?.version).toBe(2)
       // And the re-saved envelope still loads cleanly.
       expect(extractAutoLayouts(reSaved)).toEqual(loaded)
     })
@@ -411,10 +544,14 @@ describe("PR 0c — layout_json version compat", () => {
           expect(isLayoutModelArray(result)).toBe(true)
         }
       }
-      // Sanity — across 100 random shapes, we expect a healthy mix.
-      // Allow either side to be 0 since the RNG is deterministic, but
-      // the total must be 100.
+      // Across 100 random shapes the seed must exercise BOTH branches —
+      // a degenerate seed that produced 100 nulls or 100 valids would
+      // hide regressions on the path it never hit. The seed was chosen
+      // so neither bucket is empty; if the implementation drifts and
+      // this fires, re-seed (not relax the assertion).
       expect(validCount + nullCount).toBe(100)
+      expect(validCount).toBeGreaterThan(0)
+      expect(nullCount).toBeGreaterThan(0)
     })
 
     it("a hand-crafted valid v2 envelope round-trips through the fuzz path", () => {

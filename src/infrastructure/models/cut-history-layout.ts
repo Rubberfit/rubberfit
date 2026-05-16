@@ -47,11 +47,29 @@ export const CURRENT_LAYOUT_JSON_VERSION = 2 as const
  * narrow it only after a data migration retires older rows. Rows whose
  * version is outside this set should be treated as unreadable (rendered
  * as a "saved layout unavailable" placeholder rather than crashing).
+ *
+ * Typed as `ReadonlySet<1 | 2>` (not `<number>`) so that widening the set
+ * without widening the literal version unions is a compile error — the
+ * `isSupportedLayoutJsonVersion` predicate's return type stays honest.
  */
-const SUPPORTED_LAYOUT_JSON_VERSIONS: ReadonlySet<number> = new Set([1, 2])
+const SUPPORTED_LAYOUT_JSON_VERSIONS: ReadonlySet<1 | 2> = new Set([1, 2])
 
-export function isSupportedLayoutJsonVersion(value: unknown): value is 1 | 2 {
-  return typeof value === "number" && SUPPORTED_LAYOUT_JSON_VERSIONS.has(value)
+/**
+ * Accept v1 + v2 envelopes AND envelopes where `version` is absent
+ * entirely. The `version` field was introduced 2026-04-24 (#112); any
+ * `cut_history.layout_json` row written before that commit has
+ * `version: undefined` and must still load — refusing legacy rows
+ * would silently break the history page's PDF-regen path for anyone
+ * with a pre-April cut. Treating absent version as implicit v1
+ * preserves that contract.
+ */
+export function isSupportedLayoutJsonVersion(value: unknown): value is 1 | 2 | undefined {
+  if (value === undefined) return true
+  return (
+    typeof value === "number" &&
+    (value === 1 || value === 2) &&
+    SUPPORTED_LAYOUT_JSON_VERSIONS.has(value)
+  )
 }
 
 export interface CutHistoryLayoutJsonManual {
