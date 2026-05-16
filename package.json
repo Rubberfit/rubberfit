@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-swc-helpers-exports.mjs",
     "dev": "next dev",
     "predev": "npm run build:engine",
     "prebuild": "npm run build:engine",
