@@ -12,14 +12,15 @@
  * `tax`. The UI cutover in Tasks 11a/b/c swaps call sites one
  * surface at a time; the flag controls the backend per call.
  *
- * **`reorderRules` is now flag-ON-only.** The legacy fallback was
- * retired alongside `legacyReorderService`. Each flag-OFF branch
- * throws an explicit error directing operators to flip
- * `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true` (matches the existing
- * pattern from `createPo` / `createIndividualPos` / `createBulkPo`).
- * The retirement was safe because the legacy CRUD already
- * referenced columns the schema redesign dropped (`user_id`),
- * so flag-OFF reorder writes were runtime-broken anyway.
+ * **`reorderRules` and `purchaseOrders` namespaces are now flag-ON-only.**
+ * The legacy fallbacks were retired alongside `legacyReorderService`
+ * and `legacyPurchaseOrderService`. Each flag-OFF branch throws an
+ * explicit error directing operators to flip
+ * `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true`. The retirement was safe
+ * because the legacy CRUD already referenced columns the schema
+ * redesign dropped (`user_id`), so flag-OFF writes were runtime-broken
+ * anyway. `importRolls` and `tax` namespaces still carry working
+ * legacy fallbacks (csvService + taxService remain entity-clean).
  *
  * Scope: Task 9 ships the flag-ON plumbing as the source of truth.
  * Legacy fallbacks exist to keep the UI functional during the
@@ -32,7 +33,6 @@
  */
 
 import { csvService as legacyCsv } from "@/src/infrastructure/services/csvService"
-import { legacyPurchaseOrderService as legacyPos } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 import { taxService as legacyTax } from "@/src/infrastructure/services/taxService"
 
 import { rfClient } from "../client"
@@ -101,6 +101,16 @@ function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T
 // Purchase orders
 // ---------------------------------------------------------------
 
+// `legacyPurchaseOrderService` was retired alongside this surface —
+// every flag-OFF branch below throws so operators are explicitly
+// directed to flip `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true`. Mirrors
+// the `reorderFlagOffError` pattern.
+function purchaseOrderFlagOffError(operation: string): Error {
+  return new Error(
+    `purchase order ${operation} flag-OFF path not wired (legacyPurchaseOrderService retired); flip NEXT_PUBLIC_USE_RUST_PROCUREMENT=true for this surface`
+  )
+}
+
 export const purchaseOrders = {
   async list(params?: {
     status?: string
@@ -111,17 +121,7 @@ export const purchaseOrders = {
     offset?: number
   }): Promise<PurchaseOrderDto[]> {
     if (!isRustBackendEnabled()) {
-      // Legacy returns PurchaseOrderWithDetails; structure differs
-      // enough that call sites branch on flag state. Return the
-      // legacy shape via a cast — the UI already consumes it, and
-      // the cutover in Task 11 will swap to DTO reads one file at
-      // a time.
-      const rows = params?.status
-        ? await legacyPos.getPurchaseOrdersByStatus(
-            params.status as "draft" | "pending" | "approved" | "ordered" | "received" | "cancelled"
-          )
-        : await legacyPos.getAllPurchaseOrders()
-      return rows as unknown as PurchaseOrderDto[]
+      throw purchaseOrderFlagOffError("list")
     }
     const res = await rfClient.GET("/api/v2/po", {
       params: { query: params },
@@ -130,8 +130,7 @@ export const purchaseOrders = {
   },
   async get(id: string): Promise<PurchaseOrderDto | null> {
     if (!isRustBackendEnabled()) {
-      const row = await legacyPos.getPurchaseOrderById(id)
-      return row as unknown as PurchaseOrderDto
+      throw purchaseOrderFlagOffError("get")
     }
     const res = await rfClient.GET("/api/v2/po/{id}", {
       params: { path: { id } },
@@ -141,21 +140,14 @@ export const purchaseOrders = {
   },
   async create(body: CreatePurchaseOrderBody): Promise<PurchaseOrderDto> {
     if (!isRustBackendEnabled()) {
-      const row = await legacyPos.createPurchaseOrder(
-        body as unknown as Parameters<typeof legacyPos.createPurchaseOrder>[0]
-      )
-      return row as unknown as PurchaseOrderDto
+      throw purchaseOrderFlagOffError("create")
     }
     const res = await rfClient.POST("/api/v2/po", { body })
     return unwrap(res)
   },
   async update(id: string, body: UpdatePurchaseOrderBody): Promise<PurchaseOrderDto> {
     if (!isRustBackendEnabled()) {
-      const row = await legacyPos.updatePurchaseOrder(
-        id,
-        body as unknown as Parameters<typeof legacyPos.updatePurchaseOrder>[1]
-      )
-      return row as unknown as PurchaseOrderDto
+      throw purchaseOrderFlagOffError("update")
     }
     const res = await rfClient.PUT("/api/v2/po/{id}", {
       params: { path: { id } },
@@ -165,21 +157,7 @@ export const purchaseOrders = {
   },
   async updateStatus(id: string, body: UpdatePurchaseOrderStatusBody): Promise<PurchaseOrderDto> {
     if (!isRustBackendEnabled()) {
-      // Legacy `updatePurchaseOrderStatus(id, status, approvedBy?, notes?)`
-      // enforces its own isValidStatusTransition ladder, allowing
-      // `ordered → received` but rejecting other → received. That
-      // mismatches the Rust-side terminal-via-receive-only
-      // invariant (rejects EVERY → received through this path),
-      // so flag-OFF can succeed where flag-ON throws
-      // RECEIVED_REQUIRES_RECEIVE_FLOW. Acceptable trade-off for
-      // the cutover window — flag-ON is the new truth.
-      const row = await legacyPos.updatePurchaseOrderStatus(
-        id,
-        // Legacy takes a narrow union type; cast at the boundary
-        // so flag-OFF preserves the existing behavior verbatim.
-        body.status as "draft" | "pending" | "approved" | "ordered" | "received" | "cancelled"
-      )
-      return row as unknown as PurchaseOrderDto
+      throw purchaseOrderFlagOffError("updateStatus")
     }
     const res = await rfClient.PUT("/api/v2/po/{id}/status", {
       params: { path: { id } },
@@ -189,8 +167,7 @@ export const purchaseOrders = {
   },
   async delete(id: string): Promise<void> {
     if (!isRustBackendEnabled()) {
-      await legacyPos.deletePurchaseOrder(id)
-      return
+      throw purchaseOrderFlagOffError("delete")
     }
     const res = await rfClient.DELETE("/api/v2/po/{id}", {
       params: { path: { id } },
@@ -199,27 +176,7 @@ export const purchaseOrders = {
   },
   async receive(id: string, body: ReceivePurchaseOrderBody): Promise<ReceiveReceiptDto> {
     if (!isRustBackendEnabled()) {
-      // Legacy `receivePurchaseOrder(id, items, receivedBy?)` has a
-      // different item shape (itemId / quantityReceived / rollData
-      // camelCase). Convert at the boundary.
-      const legacyItems = body.items.map((i) => ({
-        itemId: i.item_id,
-        quantityReceived: i.quantity_received,
-        rollData: i.roll_data
-          ? {
-              width: i.roll_data.width,
-              length: i.roll_data.length,
-              thickness: i.roll_data.thickness,
-              color: i.roll_data.color,
-              location: i.roll_data.location,
-            }
-          : undefined,
-      }))
-      const receipt = await legacyPos.receivePurchaseOrder(
-        id,
-        legacyItems as unknown as Parameters<typeof legacyPos.receivePurchaseOrder>[1]
-      )
-      return receipt as unknown as ReceiveReceiptDto
+      throw purchaseOrderFlagOffError("receive")
     }
     const res = await rfClient.POST("/api/v2/po/{id}/receive", {
       params: { path: { id } },
@@ -230,12 +187,7 @@ export const purchaseOrders = {
   items: {
     async list(po_id: string): Promise<PurchaseOrderItemDto[]> {
       if (!isRustBackendEnabled()) {
-        // Legacy doesn't expose a standalone items-list call; the
-        // detail route embeds items. Pull the PO + extract.
-        const row = (await legacyPos.getPurchaseOrderById(po_id)) as unknown as {
-          items?: unknown[]
-        }
-        return (row.items ?? []) as unknown as PurchaseOrderItemDto[]
+        throw purchaseOrderFlagOffError("items.list")
       }
       const res = await rfClient.GET("/api/v2/po/{po_id}/items", {
         params: { path: { po_id } },
@@ -244,13 +196,7 @@ export const purchaseOrders = {
     },
     async add(po_id: string, body: CreatePurchaseOrderItemBody): Promise<PurchaseOrderItemDto> {
       if (!isRustBackendEnabled()) {
-        // Legacy takes a single object that carries
-        // purchase_order_id — merge the path segment + body.
-        const row = await legacyPos.addItemToPurchaseOrder({
-          ...body,
-          purchase_order_id: po_id,
-        } as unknown as Parameters<typeof legacyPos.addItemToPurchaseOrder>[0])
-        return row as unknown as PurchaseOrderItemDto
+        throw purchaseOrderFlagOffError("items.add")
       }
       const res = await rfClient.POST("/api/v2/po/{po_id}/items", {
         params: { path: { po_id } },
@@ -264,11 +210,7 @@ export const purchaseOrders = {
       body: UpdatePurchaseOrderItemBody
     ): Promise<PurchaseOrderItemDto> {
       if (!isRustBackendEnabled()) {
-        const row = await legacyPos.updatePurchaseOrderItem(
-          item_id,
-          body as unknown as Parameters<typeof legacyPos.updatePurchaseOrderItem>[1]
-        )
-        return row as unknown as PurchaseOrderItemDto
+        throw purchaseOrderFlagOffError("items.update")
       }
       const res = await rfClient.PUT("/api/v2/po/{po_id}/items/{item_id}", {
         params: { path: { po_id, item_id } },
@@ -278,8 +220,7 @@ export const purchaseOrders = {
     },
     async delete(po_id: string, item_id: string): Promise<void> {
       if (!isRustBackendEnabled()) {
-        await legacyPos.deletePurchaseOrderItem(item_id)
-        return
+        throw purchaseOrderFlagOffError("items.delete")
       }
       const res = await rfClient.DELETE("/api/v2/po/{po_id}/items/{item_id}", {
         params: { path: { po_id, item_id } },
