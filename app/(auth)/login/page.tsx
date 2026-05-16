@@ -14,15 +14,10 @@ export const metadata: Metadata = {
 }
 
 interface LoginPageProps {
-  searchParams?:
-    | Promise<{
-        error?: string | string[]
-        redirectTo?: string | string[]
-      }>
-    | {
-        error?: string | string[]
-        redirectTo?: string | string[]
-      }
+  searchParams?: Promise<{
+    error?: string | string[]
+    redirectTo?: string | string[]
+  }>
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

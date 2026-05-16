@@ -7,13 +7,9 @@ import { APP_CONFIG } from "@/config/app-config"
 import { ResetPasswordForm } from "../_components/reset-password-form"
 
 interface ResetPasswordPageProps {
-  searchParams?:
-    | Promise<{
-        mode?: string | string[]
-      }>
-    | {
-        mode?: string | string[]
-      }
+  searchParams?: Promise<{
+    mode?: string | string[]
+  }>
 }
 
 export default async function ResetPasswordPage({ searchParams }: ResetPasswordPageProps) {

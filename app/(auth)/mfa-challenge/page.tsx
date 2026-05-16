@@ -11,9 +11,7 @@ import { MfaChallengeForm } from "../_components/mfa-challenge-form"
  */
 
 interface PageProps {
-  searchParams?:
-    | Promise<{ redirectTo?: string | string[] }>
-    | { redirectTo?: string | string[] }
+  searchParams?: Promise<{ redirectTo?: string | string[] }>
 }
 
 export default async function MfaChallengePage({ searchParams }: PageProps) {
