@@ -6,6 +6,10 @@ import type { IRollsRepository } from "@/src/application/repositories/rolls.repo
 import type { IRollService } from "@/src/application/services/roll.service.interface"
 import { type BarcodeFormat, type CreateRollProps, Roll } from "@/src/entities/roll"
 import type { ProfileId } from "@/src/entities/value-objects/id"
+import type {
+  Roll as RollRow,
+  RollReusableOffcutSummary,
+} from "@/src/infrastructure/models/supabase"
 import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
 import { TOKENS } from "@/di/tokens"
 
@@ -93,14 +97,66 @@ export class RollService implements IRollService {
     roll.softDelete(actor)
     return this.repo.update(roll)
   }
+
+  // ─── Transitional raw-row pass-throughs ─────────────────────────────────
+  //
+  // Thin delegates to the deprecated `IRollsRepository` raw-row surface.
+  // Each method retires when the consuming UI page is rewritten against
+  // entity reads.
+
+  getAllRolls(): Promise<RollRow[]> {
+    return this.repo.getAllRolls()
+  }
+
+  getActiveRolls(): Promise<RollRow[]> {
+    return this.repo.getActiveRolls()
+  }
+
+  getRecentRolls(limit: number): Promise<RollRow[]> {
+    return this.repo.getRecentRolls(limit)
+  }
+
+  getRecentlyUpdatedRolls(limit: number): Promise<RollRow[]> {
+    return this.repo.getRecentlyUpdatedRolls(limit)
+  }
+
+  getInventoryValue(): Promise<number> {
+    return this.repo.getInventoryValue()
+  }
+
+  getLowStockCount(): Promise<number> {
+    return this.repo.getLowStockCount()
+  }
+
+  existsByMaterialType(materialTypeName: string): Promise<boolean> {
+    return this.repo.existsByMaterialType(materialTypeName)
+  }
+
+  getRollMaterialTypeMap(): Promise<Map<string, string>> {
+    return this.repo.getRollMaterialTypeMap()
+  }
+
+  getReusableOffcutSummary(rollId: string): Promise<RollReusableOffcutSummary | null> {
+    return this.repo.getReusableOffcutSummary(rollId)
+  }
+
+  addRoll(
+    roll: Omit<RollRow, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
+  ): Promise<RollRow> {
+    return this.repo.addRoll(roll, userId)
+  }
+
+  getChildOffcutsRaw(parentRollId: string): Promise<RollRow[]> {
+    return this.repo.getChildOffcuts(parentRollId)
+  }
 }
 
 /**
  * Module-level singleton bound to the concrete `rollsRepository`. New
- * consumers (use-cases, server actions) resolve through DI; legacy
- * `app/` consumers that imported the old `rollService` re-export are
- * routed through `legacyRollService` instead — they keep their raw-row
- * shape until the relevant UI surface is rewritten.
+ * consumers (use-cases, server actions) resolve through DI; UI surfaces
+ * that haven't been rewritten against entity reads call the
+ * transitional raw-row methods at the bottom of `IRollService`.
  */
 export const rollService: IRollService = new RollService(rollsRepository)
 

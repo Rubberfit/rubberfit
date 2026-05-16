@@ -1,6 +1,10 @@
 import type { CreateRollProps, Roll } from "@/src/entities/roll"
 import type { BarcodeFormat } from "@/src/entities/roll"
 import type { ProfileId } from "@/src/entities/value-objects/id"
+import type {
+  Roll as RollRow,
+  RollReusableOffcutSummary,
+} from "@/src/infrastructure/models/supabase"
 
 /**
  * Roll inventory service. Wraps the `rolls` aggregate with strict
@@ -9,7 +13,7 @@ import type { ProfileId } from "@/src/entities/value-objects/id"
  * - `consumeLength` is the only path that decrements `remainingLengthMm`.
  *   The entity auto-flips status → `depleted` at zero. Cross-aggregate
  *   side effects (recording `cut_history`, allocating reusable offcuts)
- *   are use-case concerns — see the upcoming cut-recording use-cases.
+ *   are use-case concerns — see the cut-recording use-cases.
  * - `reserve` / `release` set the whole roll aside; not callable on
  *   depleted rolls.
  * - `relocate` / `updateNotes` cover metadata.
@@ -17,9 +21,13 @@ import type { ProfileId } from "@/src/entities/value-objects/id"
  *   generation.
  * - `softDelete` is admin-only and independent of status.
  *
- * Reads return entity instances. Cross-cutting queries that need joined
- * material-type / supplier shapes (dashboard cards, inventory lists)
- * stay on `legacyRollService` until the relevant UI page is rewritten.
+ * Entity-typed reads return `Roll` instances. The transitional raw-row
+ * read methods at the bottom of this interface return the legacy
+ * `RollRow` shape from `@/src/infrastructure/models/supabase` — the
+ * inventory / cutting / dashboard UI consumers still read raw columns
+ * (`material_type` text, `cost_per_sqft`, `remaining_length`, ...), so
+ * the wire shape must stay raw until per-page rewrites land. Mirrors
+ * the `ICutHistoryService` `*Raw` pattern.
  */
 export interface IRollService {
   getById(id: string): Promise<Roll>
@@ -51,4 +59,53 @@ export interface IRollService {
   ): Promise<Roll>
   recordQrGenerated(id: string, actor: ProfileId): Promise<Roll>
   softDelete(id: string, actor: ProfileId): Promise<Roll>
+
+  // ─── Transitional raw-row reads + write ─────────────────────────────────
+  //
+  // Pass-throughs to the deprecated `IRollsRepository` raw-row surface.
+  // They retire with each UI surface's own migration to entity-typed
+  // reads. Consumers are: dashboard summary cards, inventory drawer,
+  // sidebar low-stock badge, waste-comparison material join, PDF
+  // report generator, materials/types FK pre-flight, and the quick-
+  // create server action.
+
+  /** Newest-first list of every roll regardless of status. */
+  getAllRolls(): Promise<RollRow[]>
+
+  /** Active rolls ordered by material type — dashboard + low-stock generator. */
+  getActiveRolls(): Promise<RollRow[]>
+
+  /** Newest-by-created N rolls — dashboard activity card. */
+  getRecentRolls(limit: number): Promise<RollRow[]>
+
+  /** Newest-by-updated N rolls — activity timeline. */
+  getRecentlyUpdatedRolls(limit: number): Promise<RollRow[]>
+
+  /** Sum of (width * remaining_length / 144) * cost_per_sqft over active rolls. */
+  getInventoryValue(): Promise<number>
+
+  /** Number of material types whose total active stock is under the min-stock threshold. */
+  getLowStockCount(): Promise<number>
+
+  /** FK pre-flight before deleting a material type. */
+  existsByMaterialType(materialTypeName: string): Promise<boolean>
+
+  /** rollId → material_type text map, for cuts→rolls joins on the analytics pages. */
+  getRollMaterialTypeMap(): Promise<Map<string, string>>
+
+  /** cut_history-derived usage aggregate for the inventory drawer. */
+  getReusableOffcutSummary(rollId: string): Promise<RollReusableOffcutSummary | null>
+
+  /** Raw-row insert used by the inventory quick-create server action. */
+  addRoll(
+    roll: Omit<RollRow, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
+  ): Promise<RollRow>
+
+  /**
+   * Raw-row offcut listing for the inventory drawer. The entity-typed
+   * `getChildOffcuts` (above) returns hydrated `Roll` instances; this
+   * variant returns the legacy row shape the drawer UI still consumes.
+   */
+  getChildOffcutsRaw(parentRollId: string): Promise<RollRow[]>
 }

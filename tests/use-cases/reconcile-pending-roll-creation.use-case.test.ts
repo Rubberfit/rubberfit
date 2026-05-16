@@ -168,6 +168,18 @@ function makeFakeRollService(): IRollService {
     recordBarcode: vi.fn(),
     recordQrGenerated: vi.fn(),
     softDelete: vi.fn(),
+    // Transitional raw-row pass-throughs — unused by this use-case.
+    getAllRolls: vi.fn().mockResolvedValue([]),
+    getActiveRolls: vi.fn().mockResolvedValue([]),
+    getRecentRolls: vi.fn().mockResolvedValue([]),
+    getRecentlyUpdatedRolls: vi.fn().mockResolvedValue([]),
+    getInventoryValue: vi.fn().mockResolvedValue(0),
+    getLowStockCount: vi.fn().mockResolvedValue(0),
+    existsByMaterialType: vi.fn().mockResolvedValue(false),
+    getRollMaterialTypeMap: vi.fn().mockResolvedValue(new Map<string, string>()),
+    getReusableOffcutSummary: vi.fn().mockResolvedValue(null),
+    addRoll: vi.fn(),
+    getChildOffcutsRaw: vi.fn().mockResolvedValue([]),
   }
 }
 
