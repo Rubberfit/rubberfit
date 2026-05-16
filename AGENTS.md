@@ -66,6 +66,7 @@
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
 - nesting/ — 2D nesting engine
 - di/ — TSyringe DI registration
+  - `client-packing-registration.ts` — browser-only `IPackingService` binding for cutting-engine pack calls
 
 ## Data Flow
 

@@ -3,7 +3,7 @@
 // Replaces `useNfpOptimizer` (and the synchronous TS NFP greedy
 // preview that fed the renderer alongside it). Builds a single
 // `PackRequest` from the AutoNest inputs, sends it to the Rust
-// pipeline via the TSyringe-resolved `IPackingService` (browser →
+// pipeline via the client-registered `IPackingService` (browser →
 // `ApiPackingService` → fetch `/api/v2/pack` → server-side
 // `RustPackingService` → `pack-cli`), and exposes the result as a
 // `LayoutModel[]` ready for the visualizer.
@@ -11,14 +11,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import "reflect-metadata"
-import "@/di/resolve"
-import { container } from "tsyringe"
 
-import {
-  PACKING_TOKENS,
-  type IPackingService,
-} from "@/src/application/services/packing.service.interface"
+import { resolveClientPackingService } from "@/di/client-packing-registration"
 import { buildPackRequest } from "@/src/application/packing/buildPackRequest"
 import type {
   Bin,
@@ -212,7 +206,7 @@ export function usePackJob({
       if (useWarmStart !== undefined) request.useWarmStart = useWarmStart
 
       try {
-        const svc = container.resolve<IPackingService>(PACKING_TOKENS.IPackingService)
+        const svc = resolveClientPackingService()
         const result = await svc.pack(request)
         if (runIdRef.current !== runId) return
         const next = packResultToLayoutModel(result, request, templates, {
