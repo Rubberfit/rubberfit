@@ -5,12 +5,13 @@ import { dirname, resolve } from "node:path"
 import createNextIntlPlugin from "next-intl/plugin"
 
 const withNextIntl = createNextIntlPlugin("./app/i18n/request.ts")
+const projectRoot = dirname(fileURLToPath(import.meta.url))
 
 // Expose the package.json version as `NEXT_PUBLIC_APP_VERSION` so the auth
 // footer REV. chip (and any future build-stamped surface) can read it from
 // the browser bundle without an extra runtime fetch.
 const packageJson = JSON.parse(
-  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "./package.json"), "utf8")
+  readFileSync(resolve(projectRoot, "./package.json"), "utf8")
 )
 
 /** @type {import('next').NextConfig} */
@@ -20,45 +21,16 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
-  // Force `@swc/helpers/esm/**` into every lambda's file trace.
-  //
-  // Background: an npm `overrides` entry pins @swc/helpers to 0.5.21
-  // (commit a5483042f) to satisfy next-intl's @swc/core peer-dep
-  // requirement. Starting at 0.5.17 the package's `exports` map uses
-  // a non-standard `module-sync` condition to point ESM consumers at
-  // its `esm/` subdirectory. Vercel's `@vercel/nft` tracer does not
-  // follow that condition, so the `esm/*.js` helper files never get
-  // copied into the lambda bundle — every preview deployment then
-  // 500s with
-  //   Cannot find module '/var/task/node_modules/@swc/helpers/esm/_interop_require_default.js'
-  // on any request that hits a default-import of a CJS module
-  // through middleware or a Node-runtime route handler.
-  //
-  // The forced trace include below is the complementary lambda-bundle
-  // fix for the same package — without it, the override gets honoured
-  // at install time but the helpers stop short of the deployment.
-  // Verified locally that the path glob resolves real files. Remove
-  // this block when @swc/helpers ships a tracer-friendly exports
-  // map, or when next-intl's @swc/core peer requirement relaxes.
-  outputFileTracingIncludes: {
-    "**/*": ["./node_modules/@swc/helpers/esm/**/*.js"],
-  },
-  // Mark @swc/helpers as a server-side external so Next.js does NOT
-  // bundle it. The lambda runtime then resolves it from node_modules
-  // at /var/task/node_modules — and because the package is a top-
-  // level dependency (see package.json), Vercel ships the entire
-  // directory tree (esm/ + cjs/ + everything) verbatim instead of
-  // running it through the bundler's exports-map-respecting tracer
-  // that strips the esm/ subdir.
-  serverExternalPackages: ["@swc/helpers"],
+  outputFileTracingRoot: projectRoot,
   compiler: {
     // Strip console noise from production builds, but preserve
     // `console.error` and `console.warn` so server-side incident
     // diagnostics survive into Vercel function logs.
     removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
-  // Empty turbopack config to silence the warning
-  turbopack: {},
+  turbopack: {
+    root: projectRoot,
+  },
   images: {
     remotePatterns: [
       {
