@@ -395,7 +395,7 @@ function CutPlannerPageInner() {
       ),
     }
     const template: PartTemplate = {
-      id: `dxf-${Date.now()}`,
+      id: `dxf-${crypto.randomUUID()}`,
       partType: "polygon",
       label: part.partNumber,
       summary: `DXF: ${part.sourceFile}`,

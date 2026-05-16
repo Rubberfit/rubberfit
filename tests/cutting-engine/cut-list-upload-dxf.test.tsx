@@ -50,7 +50,7 @@ function loadFixture(name: string): File {
 }
 
 function dropFile(container: HTMLElement, file: File) {
-  const dropzone = container.querySelector("div.rounded-lg.border-2") as HTMLDivElement
+  const dropzone = container.querySelector<HTMLDivElement>('[data-testid="upload-dropzone"]')
   if (!dropzone) throw new Error("dropzone not found")
   fireEvent.drop(dropzone, {
     dataTransfer: { files: [file] },

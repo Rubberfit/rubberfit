@@ -34,8 +34,6 @@ import type {
   UnsupportedReason,
 } from "./dxf-types"
 
-const CURVE_TYPES = new Set(["ARC", "CIRCLE", "SPLINE", "ELLIPSE"])
-
 export class DxfParseError extends Error {
   constructor(message: string) {
     super(message)
@@ -82,9 +80,6 @@ function narrowEntity(entity: IEntity): DxfEntity {
     case "ELLIPSE":
       return unsupported(layer, originalType, "curves-deferred-to-pr2")
     default:
-      if (CURVE_TYPES.has(originalType)) {
-        return unsupported(layer, originalType, "curves-deferred-to-pr2")
-      }
       return unsupported(layer, originalType, "entity-type-unsupported")
   }
 }

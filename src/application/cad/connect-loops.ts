@@ -38,18 +38,22 @@ export interface ConnectLoopsResult {
  * picker.
  */
 export function pickDefaultLayer(doc: DxfDocument): string {
-  const counts = new Map<string, number>()
+  const closedLoopCounts = new Map<string, number>()
+  const lineCounts = new Map<string, number>()
   for (const entity of doc.entities) {
-    if (entity.kind === "lwpolyline" || entity.kind === "polyline" || entity.kind === "line") {
-      counts.set(entity.layer, (counts.get(entity.layer) ?? 0) + 1)
+    if ((entity.kind === "lwpolyline" || entity.kind === "polyline") && entity.closed) {
+      closedLoopCounts.set(entity.layer, (closedLoopCounts.get(entity.layer) ?? 0) + 1)
+    } else if (entity.kind === "line") {
+      lineCounts.set(entity.layer, (lineCounts.get(entity.layer) ?? 0) + 1)
     }
   }
-  if (counts.size === 0) return "0"
-  let best: { layer: string; count: number } = { layer: "0", count: -1 }
-  for (const [layer, count] of counts) {
-    if (count > best.count) best = { layer, count }
+  if (closedLoopCounts.size > 0) {
+    return [...closedLoopCounts].sort((a, b) => b[1] - a[1])[0][0]
   }
-  return best.layer
+  if (lineCounts.size > 0) {
+    return [...lineCounts].sort((a, b) => b[1] - a[1])[0][0]
+  }
+  return "0"
 }
 
 export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsResult {

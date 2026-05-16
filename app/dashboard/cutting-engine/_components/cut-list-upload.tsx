@@ -203,6 +203,7 @@ export default function CutListUpload({
   return (
     <>
       <div
+        data-testid="upload-dropzone"
         onDragOver={(e) => {
           e.preventDefault()
           setDragOver(true)
