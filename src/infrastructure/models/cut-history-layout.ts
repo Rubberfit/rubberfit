@@ -40,7 +40,7 @@ export type CutHistoryLayoutJson = CutHistoryLayoutJsonManual | CutHistoryLayout
  * envelopes whose `PlacedPart.polygon` lane may carry sibling `holes`
  * loops (gasket rings, full-face bolt circles, CAD-imported geometry).
  */
-export const CURRENT_LAYOUT_JSON_VERSION = 2 as const
+export const CURRENT_LAYOUT_JSON_VERSION: 2 = 2
 
 /**
  * Set of versions readers accept. Widen this when the schema changes;
