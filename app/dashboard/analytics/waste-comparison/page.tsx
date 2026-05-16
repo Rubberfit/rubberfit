@@ -7,9 +7,19 @@ import { toast } from "sonner"
 
 import { DatePickerWithRange } from "@/app/components/ui/date-range-picker"
 import { PageHeader, PageShell, ViewToolbar } from "@/app/components/patterns"
-import { legacyCutService as cutService } from "@/src/infrastructure/services/legacyCutService"
+import { fetchCutsInRange } from "@/app/actions/cuts"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import type { Cut } from "@/src/infrastructure/models/supabase"
+import type { CutHistory } from "@/src/infrastructure/models/supabase"
+
+/**
+ * Avg waste % for a single CutHistory row: scrap / (scrap + material
+ * used). Returns 0 when both columns are 0 so we don't surface NaN
+ * into the chart.
+ */
+function wastePercent(cut: CutHistory): number {
+  const total = cut.scrap_sqft + cut.material_used_sqft
+  return total > 0 ? (cut.scrap_sqft / total) * 100 : 0
+}
 
 import { ComparisonSummaryCards } from "./_components/comparison-summary-cards"
 import { WasteCharts } from "./_components/waste-charts"
@@ -52,7 +62,7 @@ export default function WasteComparisonPage() {
     // sheet fix (PR #203).
     let cancelled = false
 
-    const calculateMetrics = (cuts: Cut[], period: string): WasteMetrics => {
+    const calculateMetrics = (cuts: CutHistory[], period: string): WasteMetrics => {
       if (cuts.length === 0) {
         return {
           period,
@@ -63,9 +73,9 @@ export default function WasteComparisonPage() {
         }
       }
 
-      const totalWasteSqft = cuts.reduce((sum, cut) => sum + (cut.waste_sqft || 0), 0)
-      const totalMaterialUsed = cuts.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0)
-      const avgWaste = cuts.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / cuts.length
+      const totalWasteSqft = cuts.reduce((sum, cut) => sum + cut.scrap_sqft, 0)
+      const totalMaterialUsed = cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0)
+      const avgWaste = cuts.reduce((sum, cut) => sum + wastePercent(cut), 0) / cuts.length
 
       return {
         period,
@@ -78,19 +88,19 @@ export default function WasteComparisonPage() {
 
     const fetchTrendDataInner = async (from: Date, to: Date) => {
       try {
-        const cuts = await cutService.getCutsByDateRange(from, to)
+        const cuts = await fetchCutsInRange(from, to)
 
         // Group by day
         const dailyData: { [key: string]: { total: number; count: number; waste: number } } = {}
 
         cuts?.forEach((cut) => {
-          const day = format(new Date(cut.created_at), "yyyy-MM-dd")
+          const day = format(new Date(cut.cut_date ?? cut.created_at), "yyyy-MM-dd")
           if (!dailyData[day]) {
             dailyData[day] = { total: 0, count: 0, waste: 0 }
           }
-          dailyData[day].total += cut.waste_percentage || 0
+          dailyData[day].total += wastePercent(cut)
           dailyData[day].count += 1
-          dailyData[day].waste += cut.waste_sqft || 0
+          dailyData[day].waste += cut.scrap_sqft
         })
 
         const trend = Object.entries(dailyData).map(([date, data]) => ({
@@ -123,10 +133,10 @@ export default function WasteComparisonPage() {
         })
 
         // Fetch current period cuts
-        const currentCuts = await cutService.getCutsByDateRange(from, to)
+        const currentCuts = await fetchCutsInRange(from, to)
 
         // Fetch previous period cuts
-        const previousCuts = await cutService.getCutsByDateRange(previousFrom, previousTo)
+        const previousCuts = await fetchCutsInRange(previousFrom, previousTo)
 
         // Group by material type
         const materialData: { [key: string]: { current: number[]; previous: number[] } } = {}
@@ -136,7 +146,7 @@ export default function WasteComparisonPage() {
           if (!materialData[material]) {
             materialData[material] = { current: [], previous: [] }
           }
-          materialData[material].current.push(cut.waste_percentage || 0)
+          materialData[material].current.push(wastePercent(cut))
         })
 
         previousCuts?.forEach((cut) => {
@@ -144,7 +154,7 @@ export default function WasteComparisonPage() {
           if (!materialData[material]) {
             materialData[material] = { current: [], previous: [] }
           }
-          materialData[material].previous.push(cut.waste_percentage || 0)
+          materialData[material].previous.push(wastePercent(cut))
         })
 
         const comparison = Object.entries(materialData).map(([material, data]) => ({
@@ -176,10 +186,10 @@ export default function WasteComparisonPage() {
         const previousTo = subDays(to, daysDiff)
 
         // Fetch current period cuts
-        const currentCuts = await cutService.getCutsByDateRange(from, to)
+        const currentCuts = await fetchCutsInRange(from, to)
 
         // Fetch previous period cuts
-        const previousCuts = await cutService.getCutsByDateRange(previousFrom, previousTo)
+        const previousCuts = await fetchCutsInRange(previousFrom, previousTo)
 
         // Calculate metrics for both periods
         const currentMetrics = calculateMetrics(currentCuts || [], "Current Period")

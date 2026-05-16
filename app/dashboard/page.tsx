@@ -6,11 +6,11 @@ import { format, startOfWeek, endOfWeek, subDays, startOfDay } from "date-fns"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"
 
-import { type Roll, type Cut } from "@/src/infrastructure/models/supabase"
+import { type Roll, type CutHistory } from "@/src/infrastructure/models/supabase"
 import type { MaterialType } from "@/src/entities/material-type"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import { legacyCutService as cutService } from "@/src/infrastructure/services/legacyCutService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { fetchCutsInRange } from "@/app/actions/cuts"
 
 import { SummaryCards } from "./_components/dashboard-summary-cards"
 import { DashboardSidebar } from "./_components/dashboard-activity-aside"
@@ -46,7 +46,33 @@ interface DashboardData {
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
 const tenantDisplayName = "REMA Operations"
 
-type UtilizationCut = Cut & { roll?: { material_type: string; location: string } | null }
+type UtilizationCut = CutHistory & { roll?: { material_type: string; location: string } | null }
+
+/**
+ * % scrap of total material on a single CutHistory row. Returns 0 when
+ * both scrap and material-used columns are 0 (pre-redesign or no-data
+ * rows) rather than NaN.
+ */
+function wastePercent(cut: CutHistory): number {
+  const used = cut.material_used_sqft
+  const scrap = cut.scrap_sqft
+  const total = scrap + used
+  if (total <= 0) return 0
+  return (scrap / total) * 100
+}
+
+function annotateWithRoll(
+  cuts: CutHistory[],
+  rollById: ReadonlyMap<string, Roll>
+): UtilizationCut[] {
+  return cuts.map((c) => {
+    const roll = c.roll_id ? rollById.get(c.roll_id) : undefined
+    return {
+      ...c,
+      roll: roll ? { material_type: roll.material_type, location: roll.location ?? "" } : null,
+    }
+  })
+}
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("week")
@@ -78,38 +104,47 @@ export default function DashboardPage() {
         // Fetch 90 days once; the utilization chart filters client-side.
         const rangeStart = subDays(startOfDay(now), 89)
 
-        const [
-          activeRolls,
-          cutsLast90d,
-          monthWasteData,
-          materialTypes,
-          recentCutsData,
-          recentRollsData,
-          wasteTrendData,
-          cutsGrowth,
-          wasteImprovement,
-        ] = await Promise.all([
+        // Single 90-day cut-history pull covers every dashboard metric —
+        // utilization window, this-week count, month/last-month waste %,
+        // 8-week trend, recent cuts. The previous shim ran 6+ separate
+        // queries; consolidating to one round-trip is both correctness
+        // (consistent time slice across cards) and perf.
+        const [activeRolls, cutsRaw, materialTypes, recentRollsData] = await Promise.all([
           rollService.getActiveRolls().catch(() => [] as Roll[]),
-          // Join cuts to rolls so material_type + width are available
-          // for utilization aggregation across any selected window.
-          cutService
-            .getCutsByDateRangeWithRolls(rangeStart, now)
-            .catch(() => [] as UtilizationCut[]),
-          cutService.getMonthlyWastePercentages().catch(() => [] as { waste_percentage: number }[]),
+          fetchCutsInRange(rangeStart, now).catch(() => [] as CutHistory[]),
           materialTypeService.getAll().catch(() => [] as MaterialType[]),
-          cutService.getRecentCutsWithRolls(5).catch(() => []),
           rollService.getRecentRolls(5).catch(() => [] as Roll[]),
-          cutService
-            .getWasteTrendByWeek(8)
-            .catch(() => [] as { period: string; wastePercentage: number }[]),
-          cutService.getCutsGrowthPercentage().catch(() => undefined as number | undefined),
-          cutService.getWasteImprovementPercentage().catch(() => undefined as number | undefined),
         ])
 
-        // "This week" cuts = subset of the 90d pull in [weekStart, weekEnd].
+        const rollById = new Map<string, Roll>()
+        for (const r of activeRolls) rollById.set(r.id, r)
+        for (const r of recentRollsData) if (!rollById.has(r.id)) rollById.set(r.id, r)
+
+        const cutsLast90d = annotateWithRoll(cutsRaw, rollById)
+
+        // Time-window slices ------------------------------------------------
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime()
+        const lastMonthEnd = monthStart
+        const weekStartMs = weekStart.getTime()
+        const weekEndMs = weekEnd.getTime()
+        const lastWeekStartMs = weekStartMs - 7 * 24 * 60 * 60 * 1000
+        const lastWeekEndMs = weekStartMs
+
+        const cutTimeMs = (c: CutHistory): number => new Date(c.cut_date ?? c.created_at).getTime()
+
         const cutsThisWeekData = cutsLast90d.filter((c) => {
-          const t = new Date(c.created_at).getTime()
-          return t >= weekStart.getTime() && t <= weekEnd.getTime()
+          const t = cutTimeMs(c)
+          return t >= weekStartMs && t <= weekEndMs
+        })
+        const cutsLastWeekData = cutsLast90d.filter((c) => {
+          const t = cutTimeMs(c)
+          return t >= lastWeekStartMs && t < lastWeekEndMs
+        })
+        const cutsThisMonthData = cutsLast90d.filter((c) => cutTimeMs(c) >= monthStart)
+        const cutsLastMonthData = cutsLast90d.filter((c) => {
+          const t = cutTimeMs(c)
+          return t >= lastMonthStart && t < lastMonthEnd
         })
 
         const totalActiveRolls = activeRolls.length
@@ -119,27 +154,46 @@ export default function DashboardPage() {
           0
         )
         const cutsThisWeek = cutsThisWeekData.length
+
+        // Average waste % month-to-date.
         const wastePercentage =
-          monthWasteData.length > 0
-            ? monthWasteData.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) /
-              monthWasteData.length
+          cutsThisMonthData.length > 0
+            ? cutsThisMonthData.reduce((sum, c) => sum + wastePercent(c), 0) /
+              cutsThisMonthData.length
             : 0
 
-        const lowStockMaterials = buildLowStock(materialTypes, activeRolls)
-        const recentActivity = buildActivityFeed(recentCutsData, recentRollsData)
+        // Growth % = (this-week vs last-week count) / last-week count.
+        const cutsGrowth =
+          cutsLastWeekData.length > 0
+            ? ((cutsThisWeek - cutsLastWeekData.length) / cutsLastWeekData.length) * 100
+            : undefined
 
-        const wasteSparkline = wasteTrendData.map((w) => w.wastePercentage)
+        // Improvement % = (last-month avg waste - this-month avg waste)
+        // / last-month avg waste. Positive == improvement.
+        const lastMonthAvgWaste =
+          cutsLastMonthData.length > 0
+            ? cutsLastMonthData.reduce((s, c) => s + wastePercent(c), 0) / cutsLastMonthData.length
+            : 0
+        const wasteImprovement =
+          lastMonthAvgWaste > 0
+            ? ((lastMonthAvgWaste - wastePercentage) / lastMonthAvgWaste) * 100
+            : undefined
+
+        const lowStockMaterials = buildLowStock(materialTypes, activeRolls)
+        const recentActivity = buildActivityFeed(cutsLast90d.slice(0, 5), recentRollsData)
+
+        const wasteSparkline = buildWasteTrendByWeek(cutsLast90d, 8)
         const cutsSparkline = buildCutsPerDaySeries(cutsLast90d)
 
-        const recentCuts = buildRecentCutsRows(recentCutsData)
+        const recentCuts = buildRecentCutsRows(cutsLast90d.slice(0, 5))
 
         setData({
           totalActiveRolls,
           inventoryValue,
           cutsThisWeek,
           wastePercentage,
-          cutsGrowthPercent: cutsGrowth,
-          wasteImprovementPercent: wasteImprovement,
+          cutsGrowthPercent: cutsGrowth ?? undefined,
+          wasteImprovementPercent: wasteImprovement ?? undefined,
           wasteSparkline,
           cutsSparkline,
           lowStockMaterials,
@@ -332,16 +386,16 @@ function buildLowStock(
 }
 
 function buildActivityFeed(
-  recentCuts: Array<Cut & { roll?: { material_type: string; location: string } }>,
+  recentCuts: UtilizationCut[],
   recentRolls: Roll[]
 ): DashboardData["recentActivity"] {
   const activity: DashboardData["recentActivity"] = []
   for (const cut of recentCuts) {
-    const rollInfo = cut.roll as { material_type: string; location: string } | undefined
+    const material = cut.roll?.material_type ?? "Unknown"
     activity.push({
       type: "cut",
-      description: `Cut ${cut.cut_width}" × ${cut.cut_length}" × ${cut.quantity} from ${rollInfo?.material_type || "Unknown"}`,
-      timestamp: cut.created_at,
+      description: `Cut ${cut.cut_width}" × ${cut.cut_length}" × ${cut.cut_amount} from ${material}`,
+      timestamp: cut.cut_date ?? cut.created_at,
     })
   }
   for (const roll of recentRolls) {
@@ -355,7 +409,7 @@ function buildActivityFeed(
   return activity.slice(0, 8)
 }
 
-function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
+function buildCutsPerDaySeries(cutsLast90d: CutHistory[]): number[] {
   // Rolling last-7-day buckets (oldest → newest). Using calendar-week
   // buckets meant cuts only ever landed in today's slot this early on
   // Monday, producing a spike-then-flat sparkline. A rolling window
@@ -364,12 +418,36 @@ function buildCutsPerDaySeries(cutsLast90d: Cut[]): number[] {
   const buckets = new Array(7).fill(0) as number[]
   const DAY_MS = 86_400_000
   for (const cut of cutsLast90d) {
-    const daysAgo = Math.floor((now - new Date(cut.created_at).getTime()) / DAY_MS)
+    const ts = new Date(cut.cut_date ?? cut.created_at).getTime()
+    const daysAgo = Math.floor((now - ts) / DAY_MS)
     if (daysAgo >= 0 && daysAgo < 7) {
       buckets[6 - daysAgo] += 1
     }
   }
   return buckets
+}
+
+/**
+ * Avg waste % per ISO week bucket (oldest → newest) over the last N
+ * weeks. Replaces the legacy server-side `getWasteTrendByWeek` —
+ * computing client-side from the 90-day pull avoids a second round-trip.
+ * Buckets with zero cuts emit 0 to keep the sparkline rectangular.
+ */
+function buildWasteTrendByWeek(cuts: CutHistory[], weeks: number): number[] {
+  const now = Date.now()
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+  const sums = new Array(weeks).fill(0) as number[]
+  const counts = new Array(weeks).fill(0) as number[]
+  for (const cut of cuts) {
+    const ts = new Date(cut.cut_date ?? cut.created_at).getTime()
+    const weeksAgo = Math.floor((now - ts) / WEEK_MS)
+    if (weeksAgo >= 0 && weeksAgo < weeks) {
+      const idx = weeks - 1 - weeksAgo
+      sums[idx] += wastePercent(cut)
+      counts[idx] += 1
+    }
+  }
+  return sums.map((s, i) => (counts[i] > 0 ? s / counts[i] : 0))
 }
 
 /**
@@ -395,12 +473,13 @@ function buildUtilizationSeriesForPeriod(
   const inWindow = cuts.filter((c) => new Date(c.created_at).getTime() >= windowStart)
   if (inWindow.length === 0) return { series: [], materials: [] }
 
-  // Count total sqft per material to pick top-5.
+  // Count total sqft per material to pick top-5. Use the entity's
+  // material_used_sqft column directly — it carries the kerf-accurate
+  // value computed at record time, unlike the legacy w×l×qty formula.
   const totalByMaterial = new Map<string, number>()
   for (const cut of inWindow) {
     const material = cut.roll?.material_type ?? "Unknown"
-    const used = (cut.cut_width * cut.cut_length * cut.quantity) / 144
-    totalByMaterial.set(material, (totalByMaterial.get(material) ?? 0) + used)
+    totalByMaterial.set(material, (totalByMaterial.get(material) ?? 0) + cut.material_used_sqft)
   }
   const topMaterials = [...totalByMaterial.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -427,12 +506,11 @@ function buildUtilizationSeriesForPeriod(
     for (const material of topMaterials) row[material] = 0
     row["Other"] = 0
     for (const cut of inWindow) {
-      const t = new Date(cut.created_at).getTime()
+      const t = new Date(cut.cut_date ?? cut.created_at).getTime()
       if (t < start || t >= end) continue
       const material = cut.roll?.material_type ?? "Unknown"
-      const used = (cut.cut_width * cut.cut_length * cut.quantity) / 144
       const key = materialSet.has(material) ? material : "Other"
-      row[key] = Math.round(((row[key] as number) + used) * 10) / 10
+      row[key] = Math.round(((row[key] as number) + cut.material_used_sqft) * 10) / 10
     }
     buckets.push(row)
   }
@@ -446,18 +524,15 @@ function buildUtilizationSeriesForPeriod(
   return { series: buckets, materials }
 }
 
-function buildRecentCutsRows(
-  cuts: Array<Cut & { roll?: { material_type: string; location: string } }>
-): RecentCutRow[] {
+function buildRecentCutsRows(cuts: UtilizationCut[]): RecentCutRow[] {
   return cuts.map((cut, index) => {
-    const waste = cut.waste_percentage ?? 0
+    const waste = wastePercent(cut)
     const utilization = Math.max(0, 100 - waste)
-    // `cut_by` is the schema column (free-text operator name).
-    // Fall back to job_reference when unset.
-    const operator =
-      (cut as { cut_by?: string | null }).cut_by ||
-      (cut as { job_reference?: string | null }).job_reference ||
-      "—"
+    // CutHistory carries no operator-name column (legacy `cut_by` and
+    // `job_reference` did, but those don't exist on the redesigned
+    // schema). Show an em-dash until the operator-name column is
+    // restored or a job lookup is wired in.
+    const operator = "—"
     return {
       id: String(cut.id ?? `cut-${index}`),
       jobCode: `CUT-${String(cut.id ?? index)
@@ -465,7 +540,7 @@ function buildRecentCutsRows(
         .toUpperCase()}`,
       operator,
       utilizationPct: Number(utilization.toFixed(1)),
-      whenLabel: formatRelative(cut.created_at),
+      whenLabel: formatRelative(cut.cut_date ?? cut.created_at),
     }
   })
 }
