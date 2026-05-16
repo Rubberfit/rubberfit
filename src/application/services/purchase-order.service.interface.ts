@@ -243,4 +243,18 @@ export interface IPurchaseOrderService {
 
   /** Admin-only soft delete. */
   softDelete(id: string, actor: ProfileId): Promise<PurchaseOrder>
+
+  /**
+   * Race-safe per-year PO number allocation. Wraps the
+   * `generate_po_number()` SQL function — atomic at the DB sequence.
+   * Use this when constructing a fresh PO via `createPO`.
+   */
+  generatePoNumber(): Promise<string>
+
+  /**
+   * Cheap FK pre-flight: does any non-deleted, non-cancelled PO item
+   * reference this material type? Backs the material-type delete guard
+   * in `app/actions/materials.ts`.
+   */
+  existsActiveItemsByMaterialType(materialTypeId: string): Promise<boolean>
 }

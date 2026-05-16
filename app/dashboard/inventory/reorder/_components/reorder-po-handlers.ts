@@ -189,10 +189,12 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
     })
 
     // Surface skipped items as warnings, grouped by reason so we don't
-    // spam one toast per material when many fail the same way.
+    // spam one toast per material when many fail the same way. The
+    // legacy `item_addition_failed` bucket was retired alongside the
+    // legacy PO shim — atomic PO+items creation means a per-item
+    // insert failure now surfaces as a whole-supplier `po_creation_failed`.
     const noSupplier = skipped.filter((s) => s.reason === "no_supplier")
     const poFailed = skipped.filter((s) => s.reason === "po_creation_failed")
-    const itemFailed = skipped.filter((s) => s.reason === "item_addition_failed")
     const taxFailed = skipped.filter((s) => s.reason === "tax_calculation_failed")
 
     if (noSupplier.length > 0) {
@@ -206,12 +208,6 @@ export async function handleCreateBulkPO(callbacks: HandleCreateBulkPOCallbacks)
         {
           description: poFailed[0].message,
         }
-      )
-    }
-    if (itemFailed.length > 0) {
-      toast.error(
-        `Could not add ${itemFailed.length} item${itemFailed.length > 1 ? "s" : ""} to a purchase order`,
-        { description: itemFailed[0].message }
       )
     }
     if (taxFailed.length > 0) {

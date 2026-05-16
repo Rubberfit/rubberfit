@@ -13,7 +13,7 @@ import type { INotificationService } from "@/src/application/services/notificati
 import type {
   POReceiptResult,
   POReceiptItem,
-} from "@/src/application/services/legacy-purchase-order.service.interface"
+} from "@/src/application/services/purchase-order-receipt.types"
 import type { Roll as LegacyRoll } from "@/src/infrastructure/models/supabase"
 import { ProfileId, PurchaseOrderItemId, RollId } from "@/src/entities/value-objects/id"
 import {

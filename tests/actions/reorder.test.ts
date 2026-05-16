@@ -56,6 +56,9 @@ const reorderServiceMock = vi.hoisted(() => ({
 const calcServiceMock = vi.hoisted(() => ({
   calculateCurrentStock: vi.fn(),
 }))
+const poServiceMock = vi.hoisted(() => ({
+  getByStatuses: vi.fn(),
+}))
 
 const materialTypeServiceMock = vi.hoisted(() => ({
   getByIds: vi.fn(),
@@ -71,12 +74,10 @@ vi.mock("@/src/infrastructure/services/supplierService", () => ({
   supplierService: supplierServiceMock,
 }))
 
-const purchaseOrderServiceMock = vi.hoisted(() => ({
-  getPurchaseOrdersByStatuses: vi.fn(),
-}))
-vi.mock("@/src/infrastructure/services/legacyPurchaseOrderService", () => ({
-  legacyPurchaseOrderService: purchaseOrderServiceMock,
-}))
+// Pending POs are now sourced via the entity-typed IPurchaseOrderService
+// (resolved via DI) instead of the legacy shim. The mock returns empty
+// entity arrays by default; tests that need pending-PO presence override
+// the resolver fake's `getByStatuses` directly.
 
 const revalidatePathMock = vi.hoisted(() => vi.fn())
 vi.mock("next/cache", () => ({
@@ -187,6 +188,7 @@ function setupServiceResolver() {
   resolveServiceMock.mockImplementation((token: symbol) => {
     if (token === TOKENS.IReorderService) return reorderServiceMock
     if (token === TOKENS.IReorderCalculationsService) return calcServiceMock
+    if (token === TOKENS.IPurchaseOrderService) return poServiceMock
     throw new Error(`Unexpected resolveService token: ${String(token)}`)
   })
 }
@@ -200,7 +202,7 @@ describe("app/actions/reorder", () => {
     calcServiceMock.calculateCurrentStock.mockResolvedValue(10)
     materialTypeServiceMock.getByIds.mockResolvedValue([buildMaterial()])
     supplierServiceMock.getActiveSuppliers.mockResolvedValue([buildSupplier()])
-    purchaseOrderServiceMock.getPurchaseOrdersByStatuses.mockResolvedValue([])
+    poServiceMock.getByStatuses.mockResolvedValue([])
   })
 
   afterEach(() => {

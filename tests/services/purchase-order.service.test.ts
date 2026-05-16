@@ -183,6 +183,14 @@ class FakeRepo implements IPurchaseOrdersRepository {
       }
     }
   }
+
+  async generatePoNumber(): Promise<string> {
+    return "PO-26-0001"
+  }
+
+  async existsActiveItemsByMaterialType(): Promise<boolean> {
+    return false
+  }
 }
 
 describe("PurchaseOrderService.recordReceiptsByItemId — idempotency (7c-1)", () => {

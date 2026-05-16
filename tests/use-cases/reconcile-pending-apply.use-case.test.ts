@@ -128,6 +128,8 @@ function makeFakePoService(): IPurchaseOrderService {
     findPendingApplyReceipts: vi.fn().mockResolvedValue([]),
     findPendingRollCreationReceipts: vi.fn().mockResolvedValue([]),
     softDelete: vi.fn(),
+    generatePoNumber: vi.fn().mockResolvedValue("PO-26-0001"),
+    existsActiveItemsByMaterialType: vi.fn().mockResolvedValue(false),
   }
 }
 

@@ -9,7 +9,9 @@ import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { legacyRollService as rollService } from "@/src/infrastructure/services/legacyRollService"
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import { resolveService } from "@/di/resolve"
+import { TOKENS } from "@/di/tokens"
+import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import {
   type MaterialType,
   type MaterialTypeSnapshot,
@@ -175,7 +177,8 @@ export async function deleteMaterialType(
     }
   }
 
-  const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(parsed.id)
+  const purchaseOrderService = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
+  const hasPOItems = await purchaseOrderService.existsActiveItemsByMaterialType(parsed.id)
   if (hasPOItems) {
     return {
       ok: false,

@@ -26,7 +26,9 @@ import type { IReorderCalculationsService } from "@/src/application/services/reo
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 
-import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
+import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
+import type { PurchaseOrder as PurchaseOrderEntity } from "@/src/entities/purchase-order"
+import { SQFT_PER_SQM } from "@/src/application/use-cases/purchase-orders/po-input-conversion"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
@@ -175,6 +177,31 @@ async function assembleRulesWithDetails(
   )
 }
 
+/**
+ * Fetches in-flight POs (any non-terminal status) via the entity-typed
+ * service and projects them into the `GenerateReorderSuggestionsUseCase`
+ * input shape — snake_case keys + imperial sqft, matching the use-case's
+ * legacy-shape contract.
+ */
+async function fetchPendingPOsForSuggestions(): Promise<
+  Array<{ items?: Array<{ material_type_id: string; quantity_sqft: number }> }>
+> {
+  const poService = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
+  const pendingEntities: PurchaseOrderEntity[] = await poService.getByStatuses([
+    "draft",
+    "pending_approval",
+    "approved",
+    "ordered",
+    "partial_received",
+  ])
+  return pendingEntities.map((po) => ({
+    items: po.items.map((i) => ({
+      material_type_id: i.materialTypeId.value,
+      quantity_sqft: i.quantitySqm * SQFT_PER_SQM,
+    })),
+  }))
+}
+
 async function buildAuthoritativeReorderData(
   materialTypeIds: string[]
 ): Promise<AuthoritativeReorderData> {
@@ -192,12 +219,7 @@ async function buildAuthoritativeReorderData(
 
   const rulesWithStock = await assembleRulesWithDetails(filteredRules)
 
-  const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
-    "draft",
-    "pending",
-    "approved",
-    "ordered",
-  ])
+  const pendingPOs = await fetchPendingPOsForSuggestions()
 
   const generateUseCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
     TOKENS.IGenerateReorderSuggestionsUseCase
@@ -298,12 +320,7 @@ export async function generateReorderSuggestions(): Promise<ReorderSuggestionOut
 
   const rulesWithStock = await assembleRulesWithDetails(allRules)
 
-  const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
-    "draft",
-    "pending",
-    "approved",
-    "ordered",
-  ])
+  const pendingPOs = await fetchPendingPOsForSuggestions()
 
   const generateUseCase = resolveUseCase<IGenerateReorderSuggestionsUseCase>(
     TOKENS.IGenerateReorderSuggestionsUseCase

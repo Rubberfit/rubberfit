@@ -60,11 +60,13 @@ vi.mock("@/src/infrastructure/services/legacyRollService", () => ({
   },
 }))
 
-const existsItemsByMaterialTypeMock = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/legacyPurchaseOrderService", () => ({
-  legacyPurchaseOrderService: {
-    existsItemsByMaterialType: existsItemsByMaterialTypeMock,
-  },
+// Entity-typed IPurchaseOrderService is resolved via DI; mock the
+// resolver to return a fake with the FK-probe method.
+const existsActiveItemsByMaterialTypeMock = vi.hoisted(() => vi.fn())
+const resolveServiceMock = vi.hoisted(() => vi.fn())
+vi.mock("@/di/resolve", () => ({
+  resolveService: resolveServiceMock,
+  resolveUseCase: vi.fn(),
 }))
 
 const revalidatePathMock = vi.hoisted(() => vi.fn())
@@ -117,7 +119,10 @@ describe("app/actions/materials", () => {
     getByIdSvcMock.mockResolvedValue(FAKE_ENTITY)
     getByIdsSvcMock.mockResolvedValue([FAKE_ENTITY])
     existsByMaterialTypeMock.mockResolvedValue(false)
-    existsItemsByMaterialTypeMock.mockResolvedValue(false)
+    existsActiveItemsByMaterialTypeMock.mockResolvedValue(false)
+    resolveServiceMock.mockImplementation(() => ({
+      existsActiveItemsByMaterialType: existsActiveItemsByMaterialTypeMock,
+    }))
   })
 
   afterEach(() => {
@@ -230,7 +235,7 @@ describe("app/actions/materials", () => {
 
     expect(getByIdsSvcMock).toHaveBeenCalledWith([MATERIAL_ID])
     expect(existsByMaterialTypeMock).toHaveBeenCalledWith("Butyl")
-    expect(existsItemsByMaterialTypeMock).toHaveBeenCalledWith(MATERIAL_ID)
+    expect(existsActiveItemsByMaterialTypeMock).toHaveBeenCalledWith(MATERIAL_ID)
     expect(softDeleteSvcMock).toHaveBeenCalledTimes(1)
     const [idArg, actorArg] = softDeleteSvcMock.mock.calls[0]
     expect(idArg).toBe(MATERIAL_ID)
@@ -262,12 +267,12 @@ describe("app/actions/materials", () => {
       expect(result.reason).toBe("in_use_by_rolls")
     }
     // Short-circuits before the PO check or the soft-delete itself
-    expect(existsItemsByMaterialTypeMock).not.toHaveBeenCalled()
+    expect(existsActiveItemsByMaterialTypeMock).not.toHaveBeenCalled()
     expect(softDeleteSvcMock).not.toHaveBeenCalled()
   })
 
   it("deleteMaterialType returns in_use_by_purchase_orders when PO items exist", async () => {
-    existsItemsByMaterialTypeMock.mockResolvedValue(true)
+    existsActiveItemsByMaterialTypeMock.mockResolvedValue(true)
     const { deleteMaterialType } = await import("@/app/actions/materials")
 
     const result = await deleteMaterialType({ id: MATERIAL_ID })

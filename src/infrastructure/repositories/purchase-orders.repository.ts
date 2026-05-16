@@ -483,6 +483,30 @@ export class PurchaseOrdersRepository implements IPurchaseOrdersRepository {
       rowToPurchaseOrder(header, itemsByPoId.get(header.id) ?? [], DEFAULT_CURRENCY)
     )
   }
+
+  async generatePoNumber(): Promise<string> {
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase.rpc("generate_po_number")
+    if (error) throw error
+    if (typeof data !== "string" || data.length === 0) {
+      throw new Error(`generate_po_number returned unexpected value: ${JSON.stringify(data)}`)
+    }
+    return data
+  }
+
+  async existsActiveItemsByMaterialType(materialTypeId: string): Promise<boolean> {
+    const supabase = await getDatabaseClient()
+    const { data, error } = await supabase
+      .from(ITEMS_TABLE)
+      .select("id, purchase_order:purchase_orders!inner(status, deleted_at)")
+      .eq("material_type_id", materialTypeId)
+      .is("deleted_at", null)
+      .is("purchase_order.deleted_at", null)
+      .neq("purchase_order.status", "cancelled")
+      .limit(1)
+    if (error) throw error
+    return (data?.length ?? 0) > 0
+  }
 }
 
 export const purchaseOrdersRepository: IPurchaseOrdersRepository = new PurchaseOrdersRepository()

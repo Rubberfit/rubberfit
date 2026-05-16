@@ -167,4 +167,18 @@ export interface IPurchaseOrdersRepository {
    * (stale-stamp gracefully ignored).
    */
   markReceiptRollCreated(receiptId: string): Promise<void>
+
+  /**
+   * Race-safe per-year PO number allocation via the `generate_po_number()`
+   * SQL function. Atomic at the DB sequence; safe under concurrent
+   * reorder-suggestion creates and Fly autoscale.
+   */
+  generatePoNumber(): Promise<string>
+
+  /**
+   * Cheap existence probe — true if any non-deleted `purchase_order_items`
+   * row references `materialTypeId` on a non-cancelled PO. Powers the
+   * material-type delete FK pre-flight in `app/actions/materials.ts`.
+   */
+  existsActiveItemsByMaterialType(materialTypeId: string): Promise<boolean>
 }

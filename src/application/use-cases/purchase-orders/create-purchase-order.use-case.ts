@@ -2,7 +2,6 @@ import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 
 import { requireActiveTenant } from "@/app/server/auth/require-active-tenant"
-import type { ILegacyPurchaseOrderService } from "@/src/application/services/legacy-purchase-order.service.interface"
 import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
@@ -84,8 +83,6 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
   constructor(
     @inject(TOKENS.IPurchaseOrderService)
     private readonly poService: IPurchaseOrderService,
-    @inject(TOKENS.ILegacyPurchaseOrderService)
-    private readonly legacyPoService: ILegacyPurchaseOrderService,
     @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
   ) {}
 
@@ -97,10 +94,8 @@ export class CreatePurchaseOrderUseCase implements ICreatePurchaseOrderUseCase {
     const shippingDollars = input.shippingCost ?? 50
     const currency = CreatePurchaseOrderUseCase.DEFAULT_CURRENCY
 
-    // PO number generation still flows through the legacy shim, but
-    // step 5 replaced its body with the race-safe `generate_po_number()`
-    // RPC. Extracting `IPoNumberingService` is its own follow-up.
-    const poNumber = await this.legacyPoService.generatePONumber()
+    // Race-safe per-year sequence via `generate_po_number()` SQL function.
+    const poNumber = await this.poService.generatePoNumber()
 
     const po = await this.poService.createPO({
       id: PurchaseOrderId.fromPersistence(crypto.randomUUID()),

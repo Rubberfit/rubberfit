@@ -251,4 +251,12 @@ export class PurchaseOrderService implements IPurchaseOrderService {
     po.softDelete(actor)
     return this.repo.update(po)
   }
+
+  generatePoNumber(): Promise<string> {
+    return this.repo.generatePoNumber()
+  }
+
+  existsActiveItemsByMaterialType(materialTypeId: string): Promise<boolean> {
+    return this.repo.existsActiveItemsByMaterialType(materialTypeId)
+  }
 }

@@ -73,6 +73,8 @@ function makeFakeRepo(): IPurchaseOrdersRepository {
     findReceiptById: vi.fn(),
     findPendingApplyReceipts: vi.fn().mockResolvedValue([]),
     findPendingRollCreationReceipts: vi.fn().mockResolvedValue([]),
+    generatePoNumber: vi.fn().mockResolvedValue("PO-26-0001"),
+    existsActiveItemsByMaterialType: vi.fn().mockResolvedValue(false),
   }
 }
 
