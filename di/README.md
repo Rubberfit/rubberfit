@@ -15,12 +15,12 @@ Resolution sites:
 
 ## Token catalog
 
-### Services (31)
+### Services (29)
 
 Two binding styles:
 
-- **Module singleton via `registerInstance`** — the default. Binds the token to a long-lived singleton instance exported from `src/infrastructure/services/`. Used by every service that hasn't been DDD-migrated yet.
-- **Class via `registerSingleton`** — used by the 7 DDD-migrated services (`Supplier`, `MaterialSupplier`, `MaterialType`, `PriceHistory`, `Roll`, `Reorder`, `PurchaseOrder`). The container lazily constructs the class on first resolve and threads the repository in through `@inject`. Class rows are marked with the constructor name (e.g. `RollService`) in the table; singleton rows use the lowercase instance name (e.g. `rollService`).
+- **Module singleton via `registerInstance`** — binds the token to a long-lived singleton instance exported from `src/infrastructure/services/`. Used by services that pre-date the DDD migration (and still work fine).
+- **Class via `registerSingleton`** — used by the 10 DDD-migrated services (`Cut`, `CutHistory`, `Invitation`, `MaterialSupplier`, `MaterialType`, `PriceHistory`, `PurchaseOrder`, `Reorder`, `Roll`, `Supplier`). The container lazily constructs the class on first resolve and threads the repository in through `@inject`. Class rows are marked with the constructor name (e.g. `RollService`) in the table; singleton rows use the lowercase instance name (e.g. `notificationService`).
 
 Order in `tokens.ts` is alphabetical within each group.
 
@@ -73,7 +73,7 @@ Registered with `container.registerInstance` — each binds the token to the mod
 | `IRollsRepository`             | `rollsRepository`             |
 | `ISuppliersRepository`         | `suppliersRepository`         |
 
-### Use cases (16)
+### Use cases (20)
 
 Registered with `container.registerSingleton` — the container lazily constructs each class on first resolve. This keeps use-case modules import-safe for unit tests: importing `create-purchase-order.use-case.ts` does not instantiate it and does not pull Supabase.
 
@@ -90,6 +90,10 @@ Registered with `container.registerSingleton` — the container lazily construct
 | `ICreateReorderPurchaseOrderUseCase`     | `CreateReorderPurchaseOrderUseCase`     |
 | `ICreateBulkReorderPurchaseOrderUseCase` | `CreateBulkReorderPurchaseOrderUseCase` |
 | `IRecordCutUseCase`                      | `RecordCutUseCase`                      |
+| `IListCutHistoryUseCase`                 | `ListCutHistoryUseCase`                 |
+| `IGetCutByIdUseCase`                     | `GetCutByIdUseCase`                     |
+| `IGetCutAnalyticsUseCase`                | `GetCutAnalyticsUseCase`                |
+| `IDeleteCutUseCase`                      | `DeleteCutUseCase`                      |
 | `IUpdateMaterialPricingUseCase`          | `UpdateMaterialPricingUseCase`          |
 | `ICreateInvitationUseCase`               | `CreateInvitationUseCase`               |
 | `IResendInvitationUseCase`               | `ResendInvitationUseCase`               |

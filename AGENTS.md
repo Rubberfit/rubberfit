@@ -22,7 +22,7 @@ The most common failure mode is reinventing a utility that already exists. Scan 
 | You need…                            | Use this — don't reinvent                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | A monetary value                     | `Money` + `Currency` VOs in [`src/entities/value-objects/`](./src/entities/value-objects/)                                     |
-| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 21 branded ID types already declared |
+| An entity identifier                 | `Id<Brand>` in [`src/entities/value-objects/id.ts`](./src/entities/value-objects/id.ts) — 22 branded ID types already declared |
 | String length / trim validation      | `trimRequired` / `trimOptional` in [`src/entities/shared/string-helpers.ts`](./src/entities/shared/string-helpers.ts)          |
 | Null-safe VO equality                | `nullableEqual` in [`src/entities/shared/equality.ts`](./src/entities/shared/equality.ts)                                      |
 | A status enum with transition guards | Pattern in [`po-status.ts`](./src/entities/value-objects/po-status.ts) — copy the shape, don't hardcode strings                |
@@ -56,8 +56,7 @@ Per-domain catalogs — each one lists what exists, with file paths and one-line
   - infrastructure/
     - services/ and repositories/ — Supabase-backed implementations
       - `rollBarcodeAssetService.ts` — stores generated roll barcode PNGs in Supabase Storage and stamps barcode metadata onto `rolls`
-    - supabase/ — generated types + SQL migrations
-      - `migrations/20260421000002_roll_barcodes_and_scan_pdf.sql` — roll barcode asset columns + `roll-barcodes` storage bucket
+    - supabase/ — SQL migrations, runtime-aware client resolver, RLS-respecting `getDatabaseClient()`; see [`src/infrastructure/supabase/README.md`](./src/infrastructure/supabase/README.md). Roll barcode columns live in `schema_inventory.sql`; the `roll-barcodes` storage bucket is in `storage_buckets.sql`.
   - interface-adapters/
     - Reserved for controllers. Stays empty — server actions in `app/actions/<domain>.ts` fill the controller role.
 
@@ -70,7 +69,8 @@ Per-domain catalogs — each one lists what exists, with file paths and one-line
   - `dashboard/cutting-engine/_components/cut-load-utils.ts` — pure helpers that hydrate a `cut_history` row back into the cutting engine (per-template partType, dimensions, quantities). Extracted for unit-testability; consumed by `page.tsx` `handleLoadCut`.
 
 - proxy.ts — Next.js request proxy for dashboard auth and permission gating
-- nesting/ — 2D nesting engine
+- engine/ — Rust nesting workspace (`rf-geom`, `rf-layout`, `pack-cli`, `rf-api`); the canonical packer for every AutoNest pack
+- nesting/ — Legacy TS NFP utilities, no longer a packing fallback; retained only for cutting-engine UI shape previews (removal tracked as Task #16)
 - di/ — TSyringe DI registration
 
 ## Data Flow

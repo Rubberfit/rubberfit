@@ -55,7 +55,7 @@ engine/                     # Rust nesting engine (Cargo workspace)
 ├── crates/rf-geom/       # Geometry primitives (MIT, future open-source crate)
 ├── crates/rf-layout/     # Packing engine (MIT, future open-source crate; depends on jagua-rs)
 └── crates/pack-cli/        # stdin/stdout JSON delivery binary (private)
-nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cutting-engine UI for NFP-based shape previews (removal tracked as Task #16, post-Tauri cleanup)
+nesting/                    # Legacy TS 2D NFP utilities — no longer a packing fallback, but still used by cutting-engine UI for NFP-based shape previews (removal tracked as Task #16)
 di/                         # TSyringe dependency injection registration
 config/                     # App-wide constants (APP_CONFIG)
 tests/                      # Vitest TS tests (packing, parity, service boundaries)
@@ -263,7 +263,7 @@ five shared hooks, revisit. Until then, two tiers is enough.
 - **No `as` casts** except at system boundaries (API responses, Supabase results, parsed JSON)
 - **No implicit `any`** in function parameters — always annotate
 - Prefer `interface` for object shapes, `type` for unions/intersections/mapped types
-- Supabase types are auto-generated — never edit them manually
+- Supabase row types live hand-curated in `src/infrastructure/models/supabase.ts`; update them in the same PR as the migration that changes the shape (future cleanup: switch to `supabase gen types typescript`)
 
 ```typescript
 // Null handling
@@ -332,17 +332,17 @@ Bump `package.json` semver every few significant changes — don't let it drift 
 
 Numbers do NOT roll over at 9 — `1.1.9` → `1.1.10` → `1.1.11` is correct semver. There's no cap. A long-stable line might legitimately reach `1.4.27` before a minor or major bump is warranted.
 
-**Cadence example (this is the live one starting now):**
+**Cadence example (illustrative — actual `package.json` is the source of truth):**
 
 | Step       | Trigger                                                                     | Version                    |
 | ---------- | --------------------------------------------------------------------------- | -------------------------- |
-| 1          | Phase 3 + 4 dashboard refactor wraps (today)                                | `1.1.0` ← we're here       |
+| 1          | Phase 3 + 4 dashboard refactor wraps                                         | `1.1.0`                    |
 | 2          | A few PRs of polish + small features land on dev                            | `1.1.1`                    |
 | 3          | A few more bug-fix PRs                                                      | `1.1.2`                    |
 | ...        | (no rule on how many — judgement)                                           | `1.1.3` ... `1.1.X`        |
-| N          | Phase 5 (Konva canvas redesign) wraps — new feature surface                 | `1.2.0` (patch resets)     |
-| ...        | Polish + bug fixes on top of Phase 5                                        | `1.2.1`, `1.2.2`, ...      |
-| Eventually | Phase 6 (perf) + Phase 7 (PDF) both ship — release-worthy product milestone | `2.0.0` + dev → main merge |
+| N          | DDD migration wraps (8 legacy shims retired, entity layer canonical)         | `1.2.0` ← dev is here      |
+| ...        | Polish + bug fixes on top of the DDD work                                    | `1.2.1`, `1.2.2`, ...      |
+| Eventually | Konva canvas redesign + perf + PDF ship — release-worthy product milestone   | `2.0.0` + dev → main merge |
 
 **Major bumps trigger a dev → main merge.** Most bumps stay on `dev` (the integration branch where work accumulates) — `1.23.4` accumulating on dev is the normal pattern. But when Claude judges that the accumulated work hits a real product-release milestone — substantial enough to deserve a major version like `2.0` or `3.1` instead of yet another minor — that's the signal to also merge `dev` → `main` and ship to production. Patch/minor bumps don't carry that obligation.
 

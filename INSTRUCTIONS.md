@@ -33,10 +33,11 @@
 
 ```typescript
 // Co-located: types live next to the code that uses them
-// src/app/(main)/dashboard/cut-planner/_components/nesting-visualizer-types.ts
+// app/dashboard/cutting-engine/_components/nesting-visualizer-types.ts
 
 // Global shared types only in src/types/
-// Supabase types are auto-generated — NEVER edit manually
+// Supabase row types live hand-curated in src/infrastructure/models/supabase.ts
+// — keep them in sync with the migration that changes the table shape
 ```
 
 - Prefer `interface` for object shapes (extendable). Use `type` for unions, intersections, and mapped types.
@@ -276,25 +277,35 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
 ## Service Layer Pattern
 
-```typescript
-import { supabase } from "@/lib/supabase"
-import type { Roll, CreateRoll } from "@/types/database"
+Services live under `src/infrastructure/services/`, implement an interface
+from `src/application/services/`, and are TSyringe-registered as
+singletons. They are the only code allowed to call Supabase, and they
+must resolve the client via the runtime-aware helper rather than
+importing the browser singleton directly.
 
-export const rollService = {
+```typescript
+import { inject, injectable } from "tsyringe"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
+import type { IRollService } from "@/src/application/services/roll.service.interface"
+import { Roll } from "@/src/entities/roll"
+import { TOKENS } from "@/di/tokens"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+
+@injectable()
+export class RollService implements IRollService {
+  constructor(
+    @inject(TOKENS.IRollsRepository) private readonly rolls: IRollsRepository,
+  ) {}
+
   async getAll(): Promise<Roll[]> {
+    const supabase = await getDatabaseClient()
     const { data, error } = await supabase
       .from("rolls")
       .select("*")
       .order("created_at", { ascending: false })
     if (error) throw error
-    return data
-  },
-
-  async create(roll: CreateRoll): Promise<Roll> {
-    const { data, error } = await supabase.from("rolls").insert(roll).select().single()
-    if (error) throw error
-    return data
-  },
+    return data.map(Roll.fromPersistence)
+  }
 }
 ```
 
@@ -302,9 +313,11 @@ export const rollService = {
 
 - Services are the **only** code that talks to Supabase.
 - Services throw on error — callers (stores/components) catch.
-- Return typed data, never raw `{ data, error }` response objects.
-- One service per domain entity. Methods are plain async functions on an object literal.
-- No state in services — they are stateless query/mutation wrappers.
+- Return entities (or DTOs) — never raw `{ data, error }` response objects.
+- One service per aggregate root. Cross-aggregate orchestration belongs in a use-case, not a service method.
+- TSyringe-registered with `@injectable()` + `@inject(TOKEN)`. No module-level singleton exports; no `new FooService()` outside DI.
+- Stateless — never put request-scoped data on the instance (singletons are reused across serverless requests on the same worker).
+- Repositories handle raw row CRUD; services compose repository calls + domain logic.
 
 ---
 
@@ -368,13 +381,18 @@ const results = await Promise.allSettled(ids.map((id) => rollService.delete(id))
 ### Cancellation
 
 ```typescript
-// AbortController for cancellable operations (especially NFP solver)
+// AbortController for cancellable fetches (e.g., search-as-you-type)
 useEffect(() => {
   const controller = new AbortController()
-  runOptimizer({ signal: controller.signal })
+  fetch("/api/something", { signal: controller.signal })
   return () => controller.abort()
 }, [deps])
 ```
+
+Note: the AutoNest pack pipeline is no longer cancellable from the
+browser — `Pack` is a single request/response round-trip to the Rust
+engine. The previous streaming + AbortSignal protocol was retired with
+the canonical Rust pipeline.
 
 ---
 
@@ -427,9 +445,10 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 // 3. Internal aliases (@/)
-import { Button } from "@/components/ui/button"
-import { rollService } from "@/services/rollService"
-import { useInventoryStore } from "@/stores/inventoryStore"
+import { Button } from "@/app/components/ui/button"
+import { resolveUseCase } from "@/di/resolve"
+import { TOKENS } from "@/di/tokens"
+import { useInventoryStore } from "@/app/stores/inventoryStore"
 
 // 4. Relative (sibling files)
 import { computeLayout } from "./nesting-viz-simple-layout"
