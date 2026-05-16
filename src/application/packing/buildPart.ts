@@ -60,6 +60,22 @@ function normalizePolygon(input: Point2D[] | PolygonWithHoles): PolygonWithHoles
   if (outerInput.length < 3) {
     throw new Error("polygon: must have at least 3 vertices")
   }
+  // Reject non-finite coords up front so NaN/Infinity can't poison the
+  // bbox-min loop below (Math.min vs NaN propagates NaN through every
+  // downstream translation + Rust round-trip). Matches the LINE /
+  // LWPOLYLINE / POLYLINE narrowing checks in parse-dxf.ts.
+  for (const p of outerInput) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error("polygon: outer ring contains non-finite coordinates")
+    }
+  }
+  for (const hole of holesInput) {
+    for (const p of hole) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error("polygon: hole contains non-finite coordinates")
+      }
+    }
+  }
   // Single-pass min so a million-vertex DXF doesn't blow the JS call
   // stack via `Math.min(...arr)` (argument-list limits are engine-
   // specific but typically ~10k on V8). Same result as the original

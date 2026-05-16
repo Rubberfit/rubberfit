@@ -275,6 +275,49 @@ describe("buildPart hole preservation", () => {
     expect(holeMinY).toBe(3)
   })
 
+  it("rejects polygon with NaN outer coordinates", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "bad",
+        quantity: 1,
+        polygon: {
+          outer: [
+            { x: 0, y: 0 },
+            { x: NaN, y: 0 },
+            { x: 10, y: 10 },
+          ],
+          holes: [],
+        },
+        allowRotation: true,
+      })
+    ).toThrow(/non-finite/i)
+  })
+
+  it("rejects polygon with Infinity hole coordinates", () => {
+    expect(() =>
+      buildPart({
+        shapeId: "bad",
+        quantity: 1,
+        polygon: {
+          outer: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 10, y: 10 },
+            { x: 0, y: 10 },
+          ],
+          holes: [
+            [
+              { x: 1, y: 1 },
+              { x: Infinity, y: 1 },
+              { x: 5, y: 5 },
+            ],
+          ],
+        },
+        allowRotation: true,
+      })
+    ).toThrow(/non-finite/i)
+  })
+
   it("drops degenerate holes (<3 vertices) silently", () => {
     const outer = [
       { x: 0, y: 0 },

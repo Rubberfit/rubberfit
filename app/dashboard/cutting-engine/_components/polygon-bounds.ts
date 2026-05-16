@@ -38,11 +38,12 @@ export function getPolygonBounds(polygon: PolygonWithHoles): PolygonBounds {
 
 export function polygonNetArea(polygon: PolygonWithHoles): number {
   const outerArea = Math.abs(signedArea(polygon.outer))
-  const holesArea = polygon.holes.reduce(
-    (sum, hole) => sum + Math.abs(signedArea(hole)),
-    0
-  )
-  return outerArea - holesArea
+  const holesArea = polygon.holes.reduce((sum, hole) => sum + Math.abs(signedArea(hole)), 0)
+  // Clamp at the source: malformed inputs where holes claim more area
+  // than the outer ring would otherwise return a negative number and
+  // poison downstream sqft math (requested-area totals, utilization
+  // ratios). Better to return 0 than propagate the sign error.
+  return Math.max(0, outerArea - holesArea)
 }
 
 function signedArea(loop: Point2D[]): number {

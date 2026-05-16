@@ -134,7 +134,13 @@ function narrowLwPolyline(
   if (!entity.shape) {
     return unsupported(layer, "LWPOLYLINE", "lwpolyline-not-closed")
   }
-  const vertices: LwPolylineVertex[] = (entity.vertices ?? []).map((v) => ({
+  const rawVerts = entity.vertices ?? []
+  for (const v of rawVerts) {
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) {
+      return unsupported(layer, "LWPOLYLINE", "entity-type-unsupported")
+    }
+  }
+  const vertices: LwPolylineVertex[] = rawVerts.map((v) => ({
     x: v.x,
     y: v.y,
     bulge: v.bulge ?? 0,
@@ -164,7 +170,13 @@ function narrowPolyline(
   if (!entity.shape) {
     return unsupported(layer, "POLYLINE", "polyline-not-closed")
   }
-  const vertices: PolylineVertex[] = (entity.vertices ?? []).map((v) => ({
+  const rawVerts = entity.vertices ?? []
+  for (const v of rawVerts) {
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) {
+      return unsupported(layer, "POLYLINE", "entity-type-unsupported")
+    }
+  }
+  const vertices: PolylineVertex[] = rawVerts.map((v) => ({
     x: v.x,
     y: v.y,
     bulge: v.bulge ?? 0,

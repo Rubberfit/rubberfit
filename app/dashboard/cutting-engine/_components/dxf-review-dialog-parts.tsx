@@ -19,7 +19,12 @@
 import React, { useMemo } from "react"
 import { AlertTriangle } from "lucide-react"
 import { cn } from "@/app/lib/utils"
-import type { Point2D, PolygonWithHoles, UnitSystem } from "@/src/application/cad/dxf-types"
+import type {
+  Point2D,
+  PolygonWithHoles,
+  RejectedEntity,
+  UnitSystem,
+} from "@/src/application/cad/dxf-types"
 import type { DxfPartCandidate } from "@/src/application/cad/group-parts"
 
 export type Bbox = DxfPartCandidate["bbox"]
@@ -422,8 +427,6 @@ export function CenterPreview({
 /* ------------------------------------------------------------------ */
 /*  Warning copy builder                                               */
 /* ------------------------------------------------------------------ */
-
-import type { RejectedEntity } from "@/src/application/cad/dxf-types"
 
 export function buildWarnings(rejected: RejectedEntity[], ignoredLayers: string[]): string[] {
   const messages: string[] = []

@@ -77,7 +77,9 @@ describe("parseDxf", () => {
     if (spline?.kind !== "spline") throw new Error("expected spline")
     expect(spline.degree).toBeGreaterThan(0)
     expect(spline.controlPoints.length).toBeGreaterThanOrEqual(spline.degree + 1)
-    expect(spline.knots.length).toBeGreaterThanOrEqual(spline.controlPoints.length + spline.degree + 1)
+    expect(spline.knots.length).toBeGreaterThanOrEqual(
+      spline.controlPoints.length + spline.degree + 1
+    )
     expect(spline.closed).toBe(true)
   })
 
@@ -131,6 +133,28 @@ describe("parseDxf", () => {
   // returns "spline-rational-not-supported"); integration coverage in Task 5
   // exercises that path.
   it.todo("rejects rational SPLINE (non-unit weights) with reason spline-rational-not-supported")
+
+  it("rejects LWPOLYLINE with non-finite vertex coords", () => {
+    // parseFloat("NaN") === NaN, parseFloat("Infinity") === Infinity —
+    // the narrowing's Number.isFinite check should reject both.
+    const text = lwPolylineWithCoord("NaN")
+    const doc = parseDxf(text)
+    const entity = doc.entities[0]
+    expect(entity.kind).toBe("unsupported")
+    if (entity.kind !== "unsupported") return
+    expect(entity.originalType).toBe("LWPOLYLINE")
+    expect(entity.reason).toBe("entity-type-unsupported")
+  })
+
+  it("rejects POLYLINE with non-finite vertex coords", () => {
+    const text = polylineWithCoord("Infinity")
+    const doc = parseDxf(text)
+    const entity = doc.entities[0]
+    expect(entity.kind).toBe("unsupported")
+    if (entity.kind !== "unsupported") return
+    expect(entity.originalType).toBe("POLYLINE")
+    expect(entity.reason).toBe("entity-type-unsupported")
+  })
 
   it("narrows POLYLINE flag variants (curve-fit, spline-fit, 3D, 3D-mesh, polyface) into UnsupportedEntity", () => {
     const flagCases: Array<{ flag: number; reason: string }> = [
@@ -259,6 +283,104 @@ function overlongKnotSpline(): string {
     "3.0",
     " 20",
     "0.0",
+    "  0",
+    "ENDSEC",
+    "  0",
+    "EOF",
+    "",
+  ].join("\n")
+}
+
+function lwPolylineWithCoord(badValue: string): string {
+  // Closed LWPOLYLINE (group 70 bit 1) with three vertices; the second
+  // vertex's Y coordinate is replaced with the supplied non-finite token.
+  return [
+    "  0",
+    "SECTION",
+    "  2",
+    "ENTITIES",
+    "  0",
+    "LWPOLYLINE",
+    "  8",
+    "0",
+    " 90",
+    "3",
+    " 70",
+    "1",
+    " 10",
+    "0.0",
+    " 20",
+    "0.0",
+    " 10",
+    "1.0",
+    " 20",
+    badValue,
+    " 10",
+    "1.0",
+    " 20",
+    "1.0",
+    "  0",
+    "ENDSEC",
+    "  0",
+    "EOF",
+    "",
+  ].join("\n")
+}
+
+function polylineWithCoord(badValue: string): string {
+  // Closed POLYLINE (group 70 bit 1) with three vertices; the second
+  // vertex's X coordinate is replaced with the supplied non-finite token.
+  return [
+    "  0",
+    "SECTION",
+    "  2",
+    "ENTITIES",
+    "  0",
+    "POLYLINE",
+    "  8",
+    "0",
+    " 66",
+    "1",
+    " 10",
+    "0.0",
+    " 20",
+    "0.0",
+    " 30",
+    "0.0",
+    " 70",
+    "1",
+    "  0",
+    "VERTEX",
+    "  8",
+    "0",
+    " 10",
+    "0.0",
+    " 20",
+    "0.0",
+    " 30",
+    "0.0",
+    "  0",
+    "VERTEX",
+    "  8",
+    "0",
+    " 10",
+    badValue,
+    " 20",
+    "0.0",
+    " 30",
+    "0.0",
+    "  0",
+    "VERTEX",
+    "  8",
+    "0",
+    " 10",
+    "1.0",
+    " 20",
+    "1.0",
+    " 30",
+    "0.0",
+    "  0",
+    "SEQEND",
     "  0",
     "ENDSEC",
     "  0",
