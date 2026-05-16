@@ -45,6 +45,15 @@ export interface PartTemplate {
    * Auto-nest pipeline.
    */
   polygon?: Point2D[]
+  /**
+   * Optional local-coords inner hole loops (each a closed ring,
+   * vertices in bbox-anchored coords just like `polygon`). Populated
+   * by hole-bearing shape primitives (ring gaskets, full-face
+   * gaskets with bolt circles, multi-loop CAD imports) so Free-roam's
+   * collision / render / PDF paths can treat the holes as voids.
+   * Absent or empty → no holes (today's single-loop shapes).
+   */
+  holes?: Point2D[][]
 }
 
 /**

@@ -656,16 +656,43 @@ function drawHatchedPart(
     doc.setLineWidth(0.25)
     doc.ellipse(cx, cy, r, r, "S")
   } else if (part.polygon && part.polygon.length >= 3) {
-    doc.setFillColor(...style.fill)
-    drawPolygon(doc, part.polygon, ox, oy, scale, "F")
-    doc.saveGraphicsState()
-    polygonAsClipPath(doc, part.polygon, ox, oy, scale)
-    const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
-    drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
-    doc.restoreGraphicsState()
-    doc.setDrawColor(...style.stroke)
-    doc.setLineWidth(0.25)
-    drawPolygon(doc, part.polygon, ox, oy, scale, "S")
+    const holes = (part.holes ?? []).filter((h) => h.length >= 3)
+    if (holes.length > 0) {
+      // Compound-path render with the even-odd fill rule so holes
+      // become true voids (no hatch / fill bleed through them). PDF
+      // operators: build outer + each hole as subpaths of a single
+      // path, then terminate with f*/W* for even-odd semantics.
+      doc.setFillColor(...style.fill)
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.fillEvenOdd()
+
+      doc.saveGraphicsState()
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.clipEvenOdd()
+      doc.discardPath()
+      const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
+      drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+      doc.restoreGraphicsState()
+
+      doc.setDrawColor(...style.stroke)
+      doc.setLineWidth(0.25)
+      // Stroke the compound path once — outer ring + every hole
+      // boundary in a single PDF stroke operator. CNC operators see
+      // the full cut profile (outer + interior cuts) on the PDF.
+      buildCompoundPolygonPath(doc, part.polygon, holes, ox, oy, scale)
+      doc.stroke()
+    } else {
+      doc.setFillColor(...style.fill)
+      drawPolygon(doc, part.polygon, ox, oy, scale, "F")
+      doc.saveGraphicsState()
+      polygonAsClipPath(doc, part.polygon, ox, oy, scale)
+      const bbox = polygonBoundingBox(part.polygon, ox, oy, scale)
+      drawHatchInBounds(doc, bbox.x, bbox.y, bbox.w, bbox.h, style.hatch, style.hatchSpacingMm)
+      doc.restoreGraphicsState()
+      doc.setDrawColor(...style.stroke)
+      doc.setLineWidth(0.25)
+      drawPolygon(doc, part.polygon, ox, oy, scale, "S")
+    }
   } else {
     drawHatchedRect(doc, px, py, pw, ph, style, { stroke: true })
   }
@@ -713,16 +740,56 @@ function polygonAsClipPath(
   scale: number
 ): void {
   if (polygon.length < 3) return
+  addPolygonSubpath(doc, polygon, ox, oy, scale)
+  doc.clip().discardPath()
+}
+
+/**
+ * Trace a polygon as an open PDF subpath (no fill/stroke/clip
+ * terminator). Multiple calls compose into a single compound path —
+ * `doc.lines(..., null, true)` emits PDF moveto/lineto/closepath but
+ * defers the path operator until the caller invokes `fill`, `stroke`,
+ * `clip`, etc. Used by `buildCompoundPolygonPath` to assemble outer +
+ * holes for even-odd fill/clip on parts with cutouts.
+ */
+function addPolygonSubpath(
+  doc: jsPDF,
+  polygon: ReadonlyArray<{ x: number; y: number }>,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
   const first = polygon[0]
   const segments = polygon.slice(1).map((pt, i) => {
     const prev = polygon[i]
     return [(pt.x - prev.x) * scale, (pt.y - prev.y) * scale] as [number, number]
   })
-  // Trace the polygon as a path with `style=null` so jsPDF doesn't auto-stroke
-  // it before the clip (the default `undefined` style emits an `S` operator
-  // which produces visible strokes around every clipped region).
+  // `null` style: jsPDF emits moveto/lineto/closepath and stops — no
+  // auto-stroke, no auto-fill, no end-path. Path stays open for the
+  // caller's terminator (fill / stroke / clip).
   doc.lines(segments, ox + first.x * scale, oy + first.y * scale, [1, 1], null, true)
-  doc.clip().discardPath()
+}
+
+/**
+ * Build a compound PDF path: outer ring + N inner hole loops as
+ * separate subpaths under one path object. Caller terminates with
+ * `fillEvenOdd()` / `clipEvenOdd().discardPath()` / `stroke()` to get
+ * the even-odd semantics that produce true transparent cutouts.
+ * Hole rings with < 3 vertices are skipped.
+ */
+function buildCompoundPolygonPath(
+  doc: jsPDF,
+  outer: ReadonlyArray<{ x: number; y: number }>,
+  holes: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+  ox: number,
+  oy: number,
+  scale: number
+): void {
+  if (outer.length < 3) return
+  addPolygonSubpath(doc, outer, ox, oy, scale)
+  for (const hole of holes) {
+    if (hole.length >= 3) addPolygonSubpath(doc, hole, ox, oy, scale)
+  }
 }
 
 /**
@@ -917,6 +984,9 @@ function rotateLayoutForLandscape(layout: LayoutModel): LayoutModel {
     parts: layout.parts.map((p) => ({
       ...remapRect(p),
       polygon: remapPolygon(p.polygon),
+      holes: p.holes?.map((h) => remapPolygon(h)).filter(
+        (h): h is Array<{ x: number; y: number }> => h !== undefined
+      ),
       packPolygon: remapPolygon(p.packPolygon),
     })),
     offcuts: layout.offcuts.map((r) => ({ ...remapRect(r), polygon: remapPolygon(r.polygon) })),

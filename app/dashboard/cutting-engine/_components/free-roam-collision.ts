@@ -1,5 +1,6 @@
 import { Polygon, Vector, testPolygonPolygon } from "sat"
 import type { PartTemplate } from "./PresetDimensionSelector"
+import type { Point2D } from "@/nesting/types"
 
 /** Single placement on the Free-roam canvas. Position is in sheet inches. */
 export interface ManualPlacement {
@@ -94,31 +95,233 @@ function rotatedAabb(
 }
 
 /**
- * True when every vertex of `innerPoly` lies inside the inner-hole disc
- * of a ring placement (radius `ringTemplate.innerRadius` centered on
- * the ring's bbox center). Used to exempt parts that fit entirely inside
- * a ring's hole from the standard collision rejection — the SAT polygon
- * for a ring traces the outer boundary only (registry comment in
- * `shape-registry.ts`), so a small disc dropped in the middle would
- * otherwise read as overlapping the ring's body.
- *
- * Returns false for non-ring templates (no `innerRadius`) so the caller
- * can short-circuit cheaply.
+ * Transform a template-local hole loop into sheet space at the
+ * placement's position + rotation. Mirrors the math in
+ * `buildPlacementPolygon` so a hole loop renders, collides, and is
+ * tested-against from the same coordinate frame.
  */
-function isFullyInsideRingHole(
-  innerPoly: Polygon,
-  ringPlacement: ManualPlacement,
-  ringTemplate: PartTemplate
+function holeToSheet(
+  hole: ReadonlyArray<Point2D>,
+  placement: ManualPlacement,
+  template: PartTemplate
+): Point2D[] {
+  const width = template.width ?? template.diameter ?? 12
+  const height = template.length ?? template.height ?? template.diameter ?? 12
+  const cx = placement.x + width / 2
+  const cy = placement.y + height / 2
+  const cos = Math.cos(placement.rotationRad)
+  const sin = Math.sin(placement.rotationRad)
+  return hole.map((p) => {
+    const dx = p.x - width / 2
+    const dy = p.y - height / 2
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos }
+  })
+}
+
+/**
+ * Inclusive ray-casting point-in-polygon test with an epsilon boundary
+ * band. Polygon vertices are the closed loop's vertices in any
+ * winding; we don't care about orientation here — only whether the
+ * point lies inside (boundary counts as inside, per code-reviewer H1).
+ *
+ * Why inclusive vs strict: tessellated 48-gon holes have vertices
+ * along the inscribed circle, and a candidate disc that just barely
+ * fits (e.g. 1.99" bolt in a 2" hole) can have vertices land within
+ * float epsilon of one of those tessellated edges. A strict-inside
+ * test rejects those placements on a few specific rotations; the
+ * inclusive test fits the operator-intent ("yes, this just fits").
+ */
+/**
+ * Linear boundary tolerance, in sheet inches. Effective ~1e-4 inches
+ * (~0.0025 mm) — tight enough to be below any operator-perceptible
+ * geometry and below cutter positioning resolution, loose enough to
+ * absorb the float drift that hits when a candidate's tessellated
+ * vertex lands numerically on a hole's tessellated edge. CodeRabbit
+ * critical finding: prior code mixed squared-distance comparisons
+ * with a 1e-9 linear constant, giving an effective tolerance of
+ * sqrt(1e-9) ≈ 3.16e-5 inches — accidentally close to the right
+ * answer but not what the code claimed. Split into explicit linear
+ * + squared constants so the units match the comparisons.
+ */
+const POINT_IN_POLYGON_EPS = 1e-4
+const POINT_IN_POLYGON_EPS_SQ = POINT_IN_POLYGON_EPS * POINT_IN_POLYGON_EPS
+
+function isPointInPolygon(point: Point2D, polygon: ReadonlyArray<Point2D>): boolean {
+  // First: distance to boundary check. If we're within EPS of any
+  // edge, treat as inside — avoids ray-cast misclassifying a vertex
+  // that sits numerically ON the boundary.
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]
+    const b = polygon[(i + 1) % polygon.length]
+    if (distanceToSegmentSquared(point, a, b) < POINT_IN_POLYGON_EPS_SQ) return true
+  }
+  // Standard even-odd ray-casting.
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i]
+    const b = polygon[j]
+    const intersect =
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
+function distanceToSegmentSquared(p: Point2D, a: Point2D, b: Point2D): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  if (lenSq < POINT_IN_POLYGON_EPS_SQ) {
+    // Degenerate segment (a≈b): distance is just to the point.
+    const ex = p.x - a.x
+    const ey = p.y - a.y
+    return ex * ex + ey * ey
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+  const fx = a.x + t * dx - p.x
+  const fy = a.y + t * dy - p.y
+  return fx * fx + fy * fy
+}
+
+/**
+ * Strict (open) segment-segment intersection: true iff the two
+ * segments cross at an interior point. Endpoints touching are NOT a
+ * crossing — a candidate vertex landing exactly on a hole boundary
+ * is the boundary case the strict point-in-polygon test above already
+ * excludes.
+ *
+ * Standard cross-product orientation test (CLRS 33.1) with parallel
+ * segments treated as non-crossing (they may overlap geometrically
+ * but for "fully inside" they share the boundary, not cross it).
+ *
+ * Robustness: nearly-collinear segments produce cross-product values
+ * very close to zero with float-noise-driven signs (Sigilix review).
+ * Strict `> 0` / `< 0` would intermittently flag those as crossings
+ * and falsely reject valid placements. `DIRECTION_EPS` collapses any
+ * |cross product| below the threshold to "collinear" so the test
+ * stays stable across small geometry perturbations. The cross
+ * product has units of inch²; 1e-10 in² ≈ (1e-5 in)², well below
+ * any operator-perceptible geometry.
+ */
+const DIRECTION_EPS = 1e-10
+
+function segmentsCross(p1: Point2D, p2: Point2D, p3: Point2D, p4: Point2D): boolean {
+  const d1 = direction(p3, p4, p1)
+  const d2 = direction(p3, p4, p2)
+  const d3 = direction(p1, p2, p3)
+  const d4 = direction(p1, p2, p4)
+  return (
+    ((d1 > DIRECTION_EPS && d2 < -DIRECTION_EPS) ||
+      (d1 < -DIRECTION_EPS && d2 > DIRECTION_EPS)) &&
+    ((d3 > DIRECTION_EPS && d4 < -DIRECTION_EPS) ||
+      (d3 < -DIRECTION_EPS && d4 > DIRECTION_EPS))
+  )
+}
+
+function direction(a: Point2D, b: Point2D, c: Point2D): number {
+  return (c.x - a.x) * (b.y - a.y) - (b.x - a.x) * (c.y - a.y)
+}
+
+/**
+ * True iff every vertex of `inner` lies strictly inside `hole` AND no
+ * edge of `inner` crosses any edge of `hole`. This is the strict
+ * "fully contained" predicate the gasket-hole exception requires.
+ *
+ * Vertex-in-polygon alone would false-pass on concave holes: a U-shaped
+ * hole whose vertices all sit inside the bbox could still have inner
+ * edges that cross the U's arms. Edge-intersection rules that out
+ * (Codex v2 sign-off: "I'd add edge-boundary intersection now, not
+ * vertex-only").
+ *
+ * Inner is expected to be the SAT-collision polygon already in sheet
+ * coords; hole is a sheet-space loop produced by `holeToSheet`.
+ */
+function isInnerFullyInsideHole(
+  inner: ReadonlyArray<Point2D>,
+  hole: ReadonlyArray<Point2D>
 ): boolean {
-  const innerR = ringTemplate.innerRadius
+  if (inner.length < 3 || hole.length < 3) return false
+  for (const v of inner) {
+    if (!isPointInPolygon(v, hole)) return false
+  }
+  for (let i = 0; i < inner.length; i++) {
+    const a = inner[i]
+    const b = inner[(i + 1) % inner.length]
+    for (let j = 0; j < hole.length; j++) {
+      const c = hole[j]
+      const d = hole[(j + 1) % hole.length]
+      if (segmentsCross(a, b, c, d)) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Convert SAT's internal `Vector[]` polygon vertices into plain
+ * `Point2D[]` so the geometry helpers above (point-in-polygon,
+ * segment cross) don't need a SAT dependency. SAT polygons are built
+ * with pos=(0, 0) and absolute world coords, so this is just a
+ * structural copy.
+ */
+function satPolyToPoints(p: Polygon): Point2D[] {
+  return p.points.map((v) => ({ x: v.x, y: v.y }))
+}
+
+/**
+ * True iff `innerPoly` is fully contained in ANY of the host
+ * template's holes (transformed into sheet space at the host
+ * placement). Generic over the host's hole topology — works for
+ * ring gaskets (one disc hole), full-face gaskets (bore + N bolt
+ * holes), and arbitrary CAD-imported multi-loop shapes.
+ *
+ * Holes are voids per the jagua-rs convention — a placement fully
+ * inside any host hole is permitted. Replaces the ring-specific
+ * `isFullyInsideRingHole` from before PR 0b.
+ *
+ * Legacy fallback: a `renderShape: "ring"` template that pre-dates
+ * PR 0b only carries `innerRadius` / `outerRadius` — no explicit
+ * `holes` array. Falls back to the disc-shaped containment check so
+ * a previously-saved manual cut whose template was constructed
+ * before this PR still gets the hole exception (Codex review P2).
+ */
+function isFullyInsideAnyHole(
+  innerPoly: Polygon,
+  hostPlacement: ManualPlacement,
+  hostTemplate: PartTemplate
+): boolean {
+  if (hostTemplate.holes && hostTemplate.holes.length > 0) {
+    const innerPoints = satPolyToPoints(innerPoly)
+    for (const hole of hostTemplate.holes) {
+      if (hole.length < 3) continue
+      const sheetHole = holeToSheet(hole, hostPlacement, hostTemplate)
+      if (isInnerFullyInsideHole(innerPoints, sheetHole)) return true
+    }
+    return false
+  }
+  return isFullyInsideLegacyRingHole(innerPoly, hostPlacement, hostTemplate)
+}
+
+/**
+ * Disc-shaped containment fallback for legacy ring templates that
+ * pre-date PR 0b's explicit `holes` field. The shape registry now
+ * writes `holes` for fresh ring placements, but a manual cut saved
+ * before this patch reloads with `innerRadius` only — the new
+ * polygon-general path returns false, regressing the hole exception
+ * for those rings. This fallback preserves the previous behavior.
+ */
+function isFullyInsideLegacyRingHole(
+  innerPoly: Polygon,
+  hostPlacement: ManualPlacement,
+  hostTemplate: PartTemplate
+): boolean {
+  const innerR = hostTemplate.innerRadius
   if (innerR == null || innerR <= 0) return false
-  const ringW = ringTemplate.width ?? ringTemplate.diameter ?? 12
-  const ringH = ringTemplate.length ?? ringTemplate.height ?? ringTemplate.diameter ?? 12
-  const cx = ringPlacement.x + ringW / 2
-  const cy = ringPlacement.y + ringH / 2
+  const w = hostTemplate.width ?? hostTemplate.diameter ?? 12
+  const h = hostTemplate.length ?? hostTemplate.height ?? hostTemplate.diameter ?? 12
+  const cx = hostPlacement.x + w / 2
+  const cy = hostPlacement.y + h / 2
   const r2 = innerR * innerR
-  // `buildPlacementPolygon` constructs Polygons with pos=(0,0) and
-  // points already in sheet space, so we can read coords directly.
   for (const v of innerPoly.points) {
     const dx = v.x - cx
     const dy = v.y - cy
@@ -133,10 +336,11 @@ function isFullyInsideRingHole(
  * can reject the move. Rotated-AABB broad-phase first (conservative —
  * never skips a real hit), SAT narrow-phase second.
  *
- * Ring exception: if SAT reports overlap with a ring placement but the
- * candidate fits entirely inside the ring's hole (or vice versa), we
- * treat it as non-collision — the candidate is in the hole, not the
- * ring's body.
+ * Hole exception: if SAT reports overlap with another placement but
+ * the candidate fits entirely inside one of the OTHER placement's
+ * holes (or vice versa, when the candidate IS the hole-bearing part),
+ * we treat it as non-collision — the candidate sits in the void, not
+ * on the part's body.
  */
 export function wouldCollide(
   candidate: ManualPlacement,
@@ -165,9 +369,10 @@ export function wouldCollide(
     if (!testPolygonPolygon(proposedPoly, otherPoly)) continue
 
     // SAT overlap detected. Allow it when one part fits inside the
-    // other's ring hole (works in either direction).
-    if (isFullyInsideRingHole(proposedPoly, other, otherTemplate)) continue
-    if (isFullyInsideRingHole(otherPoly, proposed, candidateTemplate)) continue
+    // other's hole (works in either direction — symmetric per
+    // Codex v2 sign-off).
+    if (isFullyInsideAnyHole(proposedPoly, other, otherTemplate)) continue
+    if (isFullyInsideAnyHole(otherPoly, proposed, candidateTemplate)) continue
     return true
   }
   return false
