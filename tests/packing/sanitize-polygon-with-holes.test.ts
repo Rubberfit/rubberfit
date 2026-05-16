@@ -122,6 +122,57 @@ describe("sanitizePolygonWithHoles", () => {
     })
   })
 
+  describe("hole containment", () => {
+    it("rejects a hole whose vertices fall outside the outer (code-reviewer H2)", () => {
+      // 10×10 outer with a "hole" sitting at (12, 12)..(15, 15) —
+      // entirely outside the outer. The downstream collision path
+      // would otherwise treat it as a valid void and accept
+      // placements at (12..15, 12..15) as non-colliding even though
+      // they're outside the part body.
+      const result = sanitizePolygonWithHoles({
+        outer: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+          { x: 0, y: 10 },
+        ],
+        holes: [
+          [
+            { x: 12, y: 12 },
+            { x: 15, y: 12 },
+            { x: 15, y: 15 },
+            { x: 12, y: 15 },
+          ],
+        ],
+      })
+      expect(result).toBeNull()
+    })
+
+    it("accepts a hole whose vertices land exactly on the outer boundary", () => {
+      // Edge-sharing hole — the renderer + collision treat this as a
+      // no-op (the hole "punches through" but doesn't extend beyond
+      // the outer), which is the safe degenerate. Accepting matches
+      // the wire contract since Clipper would normalize the topology.
+      const result = sanitizePolygonWithHoles({
+        outer: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+          { x: 0, y: 10 },
+        ],
+        holes: [
+          [
+            { x: 0, y: 3 },
+            { x: 4, y: 3 },
+            { x: 4, y: 7 },
+            { x: 0, y: 7 },
+          ],
+        ],
+      })
+      expect(result).not.toBeNull()
+    })
+  })
+
   describe("rejection cases", () => {
     it("rejects a < 3 vertex outer", () => {
       const result = sanitizePolygonWithHoles({

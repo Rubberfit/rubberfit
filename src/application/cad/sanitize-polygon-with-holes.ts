@@ -133,7 +133,21 @@ export function sanitizePolygonWithHoles(input: PolygonWithHoles): PolygonWithHo
     return null
   }
 
-  // Step 4 — to float coords + enforce orientation contract.
+  // Step 4 — validate hole containment. Even-odd simplification can
+  // emit a negative-area ring that geometrically sits OUTSIDE the
+  // outer when the input had overlapping subpaths in pathological
+  // ways. The downstream collision path assumes every hole sits inside
+  // the outer (otherwise "fully inside any hole" falsely accepts
+  // placements that should collide with the part body); reject inputs
+  // where any hole's vertices fall outside the outer's boundary
+  // (code-reviewer H2 — defends ingress from CAD imports in PR A/B/C).
+  const outerFloat = fromClipperPath(outers[0])
+  for (const hole of holes) {
+    const holeFloat = fromClipperPath(hole)
+    if (!isPolygonContainedInOuter(holeFloat, outerFloat)) return null
+  }
+
+  // Step 5 — to float coords + enforce orientation contract.
   //
   // The wire contract jagua-rs sits behind expects opposite winding
   // for outer vs. holes. Clipper's even-odd output already produces
@@ -183,4 +197,32 @@ function enforceMathCcw(points: Point2D[]): Point2D[] {
 
 function enforceMathCw(points: Point2D[]): Point2D[] {
   return signedArea(points) > 0 ? points.slice().reverse() : points
+}
+
+/**
+ * Every vertex of `inner` must lie inside `outer` (boundary counts as
+ * inside). Cheap conservative test — for a degenerate case where
+ * inner vertices land exactly on outer edges (shared boundary), this
+ * accepts it; the downstream renderer treats such cases as no-op
+ * holes which is the safer failure mode.
+ */
+function isPolygonContainedInOuter(inner: Point2D[], outer: Point2D[]): boolean {
+  if (inner.length < 3 || outer.length < 3) return false
+  for (const p of inner) {
+    if (!isPointInPolygonInclusive(p, outer)) return false
+  }
+  return true
+}
+
+function isPointInPolygonInclusive(point: Point2D, polygon: ReadonlyArray<Point2D>): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i]
+    const b = polygon[j]
+    const intersect =
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    if (intersect) inside = !inside
+  }
+  return inside
 }

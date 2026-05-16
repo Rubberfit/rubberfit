@@ -115,6 +115,36 @@ describe("PR 0b — generalized hole-as-void collision", () => {
     expect(wouldCollide(proposedGasket, 10, 10, [existingSmall], parts)).toBe(false)
   })
 
+  it("legacy ring template without explicit holes still gets the hole exception via innerRadius fallback (Codex P2 regression)", () => {
+    // Pre-PR-0b ring templates carry `innerRadius`/`outerRadius` and
+    // `renderShape: "ring"` but no `holes` array — they were saved
+    // with the previous registry shape and reload that way. The
+    // generalized collision path must still allow a small part to
+    // drop into the bore of such a legacy ring.
+    const legacyRing: PartTemplate = {
+      id: "legacy-ring",
+      partType: "cylinder",
+      label: "legacy-ring",
+      summary: "Ø 24 / 12 (no holes field)",
+      quantity: 1,
+      category: "custom",
+      diameter: 24,
+      width: 24,
+      length: 24,
+      innerRadius: 6,
+      outerRadius: 12,
+      renderShape: "ring",
+      // NOTE: no `polygon` and no `holes` — pre-PR-0b shape
+    }
+    const small: PartTemplate = rectTemplate("small", 4, 4)
+    const parts = [legacyRing, small]
+    const ringPlacement = place("ring1", "legacy-ring", 10, 10)
+    // Ring center (22, 22), bore radius 6 → bore region (16..28, 16..28).
+    // 4×4 small at (20, 20) sits inside.
+    const proposed = place("s1", "small", 20, 20)
+    expect(wouldCollide(proposed, 20, 20, [ringPlacement], parts)).toBe(false)
+  })
+
   it("rejects a candidate whose VERTICES sit inside a hole but whose EDGES cross the hole boundary (Codex edge-intersection guard)", () => {
     // Synthetic non-convex hole: U-shape with a thin "tongue" sticking
     // in. A candidate whose vertices ALL sit inside the U's outer

@@ -224,7 +224,13 @@ const PartShape = memo(function PartShape({
           partY={part.y}
           scale={scale}
           fill={fill}
-          stroke={stroke}
+          // Hole boundaries always get the neutral part stroke — the
+          // teal selection accent is reserved for the outer ring only
+          // (Codex review P3 + Kimi K2.6 verdict). When the part is
+          // selected, `stroke` upstream resolves to selectedStroke;
+          // pass `partStroke` here so the compound-path stroke stays
+          // neutral on the hole boundaries.
+          stroke={theme.partStroke}
           selectedStroke={isSelected ? theme.selectedStroke : null}
           strokeWidth={1}
           shadowProps={shadowProps}
@@ -263,14 +269,18 @@ const PartShape = memo(function PartShape({
 
   // Label anchor: bbox center by default; for hole-bearing parts the
   // bbox center can land in the bore (ring gaskets, full-face gaskets),
-  // so shift to the outer-ring centroid per Kimi K2.6 verdict. Computed
-  // once per render via useMemo — polygonCentroid is O(N) on a single
-  // closed loop.
+  // so shift to the outer-ring centroid per Kimi K2.6 verdict. The
+  // delta is the shift FROM the default bbox-center anchor TO the
+  // centroid, applied to the Text x/y below — not an absolute coord
+  // (Codex review P2-2). Computed once per render via useMemo —
+  // polygonCentroid is O(N) on a single closed loop.
   const labelOffset = useMemo(() => {
     if (!part.polygon || part.polygon.length < 3 || !part.holes || part.holes.length === 0) {
       return null
     }
     const c = polygonCentroid(part.polygon)
+    // Centroid in part-local coords (offset from part.x/part.y), then
+    // shift from bbox center (pw/2, ph/2) to centroid position.
     return {
       dx: (c.x - part.x) * scale - pw / 2,
       dy: (c.y - part.y) * scale - ph / 2,
@@ -296,8 +306,8 @@ const PartShape = memo(function PartShape({
     >
       {body}
       <Text
-        x={labelOffset ? labelOffset.dx - pw / 2 : 0}
-        y={labelOffset ? labelOffset.dy : ph / 2 - fontSize}
+        x={labelOffset ? labelOffset.dx : 0}
+        y={(labelOffset ? labelOffset.dy : 0) + ph / 2 - fontSize}
         width={pw}
         height={fontSize * 2}
         text={part.label}

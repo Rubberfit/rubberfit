@@ -119,17 +119,30 @@ function holeToSheet(
 }
 
 /**
- * Even-odd ray-casting point-in-polygon test. Polygon vertices are
- * the closed loop's vertices in any winding; we don't care about
- * orientation here — only whether the point lies strictly inside.
+ * Inclusive ray-casting point-in-polygon test with an epsilon boundary
+ * band. Polygon vertices are the closed loop's vertices in any
+ * winding; we don't care about orientation here — only whether the
+ * point lies inside (boundary counts as inside, per code-reviewer H1).
  *
- * Strict-inside (excludes the boundary) keeps shared vertices between
- * a candidate and a hole boundary from counting as "inside the hole."
- * For the use-case (drag-place a small part into a gasket hole), the
- * operator is dropping the part well inside the void; the boundary
- * case is the un-interesting edge.
+ * Why inclusive vs strict: tessellated 48-gon holes have vertices
+ * along the inscribed circle, and a candidate disc that just barely
+ * fits (e.g. 1.99" bolt in a 2" hole) can have vertices land within
+ * float epsilon of one of those tessellated edges. A strict-inside
+ * test rejects those placements on a few specific rotations; the
+ * inclusive test fits the operator-intent ("yes, this just fits").
  */
+const POINT_IN_POLYGON_EPS = 1e-9
+
 function isPointInPolygon(point: Point2D, polygon: ReadonlyArray<Point2D>): boolean {
+  // First: distance to boundary check. If we're within EPS of any
+  // edge, treat as inside — avoids ray-cast misclassifying a vertex
+  // that sits numerically ON the boundary.
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]
+    const b = polygon[(i + 1) % polygon.length]
+    if (distanceToSegmentSquared(point, a, b) < POINT_IN_POLYGON_EPS) return true
+  }
+  // Standard even-odd ray-casting.
   let inside = false
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const a = polygon[i]
@@ -140,6 +153,22 @@ function isPointInPolygon(point: Point2D, polygon: ReadonlyArray<Point2D>): bool
     if (intersect) inside = !inside
   }
   return inside
+}
+
+function distanceToSegmentSquared(p: Point2D, a: Point2D, b: Point2D): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  if (lenSq < POINT_IN_POLYGON_EPS) {
+    // Degenerate segment (a≈b): distance is just to the point.
+    const ex = p.x - a.x
+    const ey = p.y - a.y
+    return ex * ex + ey * ey
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+  const fx = a.x + t * dx - p.x
+  const fy = a.y + t * dy - p.y
+  return fx * fx + fy * fy
 }
 
 /**
@@ -221,22 +250,55 @@ function satPolyToPoints(p: Polygon): Point2D[] {
  * inside any host hole is permitted. Replaces the ring-specific
  * `isFullyInsideRingHole` from before PR 0b.
  *
- * Returns false for templates with no `holes` so the caller can
- * short-circuit cheaply.
+ * Legacy fallback: a `renderShape: "ring"` template that pre-dates
+ * PR 0b only carries `innerRadius` / `outerRadius` — no explicit
+ * `holes` array. Falls back to the disc-shaped containment check so
+ * a previously-saved manual cut whose template was constructed
+ * before this PR still gets the hole exception (Codex review P2).
  */
 function isFullyInsideAnyHole(
   innerPoly: Polygon,
   hostPlacement: ManualPlacement,
   hostTemplate: PartTemplate
 ): boolean {
-  if (!hostTemplate.holes || hostTemplate.holes.length === 0) return false
-  const innerPoints = satPolyToPoints(innerPoly)
-  for (const hole of hostTemplate.holes) {
-    if (hole.length < 3) continue
-    const sheetHole = holeToSheet(hole, hostPlacement, hostTemplate)
-    if (isInnerFullyInsideHole(innerPoints, sheetHole)) return true
+  if (hostTemplate.holes && hostTemplate.holes.length > 0) {
+    const innerPoints = satPolyToPoints(innerPoly)
+    for (const hole of hostTemplate.holes) {
+      if (hole.length < 3) continue
+      const sheetHole = holeToSheet(hole, hostPlacement, hostTemplate)
+      if (isInnerFullyInsideHole(innerPoints, sheetHole)) return true
+    }
+    return false
   }
-  return false
+  return isFullyInsideLegacyRingHole(innerPoly, hostPlacement, hostTemplate)
+}
+
+/**
+ * Disc-shaped containment fallback for legacy ring templates that
+ * pre-date PR 0b's explicit `holes` field. The shape registry now
+ * writes `holes` for fresh ring placements, but a manual cut saved
+ * before this patch reloads with `innerRadius` only — the new
+ * polygon-general path returns false, regressing the hole exception
+ * for those rings. This fallback preserves the previous behavior.
+ */
+function isFullyInsideLegacyRingHole(
+  innerPoly: Polygon,
+  hostPlacement: ManualPlacement,
+  hostTemplate: PartTemplate
+): boolean {
+  const innerR = hostTemplate.innerRadius
+  if (innerR == null || innerR <= 0) return false
+  const w = hostTemplate.width ?? hostTemplate.diameter ?? 12
+  const h = hostTemplate.length ?? hostTemplate.height ?? hostTemplate.diameter ?? 12
+  const cx = hostPlacement.x + w / 2
+  const cy = hostPlacement.y + h / 2
+  const r2 = innerR * innerR
+  for (const v of innerPoly.points) {
+    const dx = v.x - cx
+    const dy = v.y - cy
+    if (dx * dx + dy * dy > r2) return false
+  }
+  return true
 }
 
 /**
