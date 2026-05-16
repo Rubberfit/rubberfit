@@ -1,25 +1,17 @@
 /**
  * Typed inventory client — per-aggregate wrappers over the shared
- * openapi-fetch instance. Flag-gated: when
- * `NEXT_PUBLIC_USE_RUST_INVENTORY` is `"true"`, calls go to the
- * new `/api/v2/inventory/*` route handlers (which forward to
- * Rust); otherwise the wrappers fall back to the existing legacy
- * repositories/services so pages opting-in file-by-file keep
- * working.
+ * openapi-fetch instance.
  *
- * Per the S3b plan we coexist with legacy — we do NOT rewire
- * `rollService` / `materialTypeService` / `supplierService`
- * globally. That would be too large a blast radius for S3b.
+ * The Rust v2 backend is the canonical surface; flag-OFF branches
+ * throw `inventoryFlagOffError` to direct operators to flip
+ * `NEXT_PUBLIC_USE_RUST_INVENTORY=true`. Mirrors the cut-history /
+ * PO / reorder burial pattern.
  *
- * Known gap (deferred to S3c): the `user_id` field on the TS
- * models isn't carried on the Rust DTO yet. When the flag is on,
- * we stamp it as `""` — no UI surface reads user_id for display,
- * but admin/audit views that filter by it would need the DTO to
- * be widened. The admin user-picker endpoint is also S3c scope.
+ * Known gap (deferred): the `user_id` field on the TS models isn't
+ * carried on the Rust DTO yet. We stamp it as `""` — no UI surface
+ * reads user_id for display, but admin/audit views that filter by it
+ * would need the DTO widened.
  */
-import { materialTypeRepository as legacyMaterialTypes } from "@/src/infrastructure/repositories/material-types.repository"
-import { rollsRepository as legacyRolls } from "@/src/infrastructure/repositories/rolls.repository"
-import { legacySupplierService as legacySuppliers } from "@/src/infrastructure/services/legacySupplierService"
 import type {
   MaterialSupplier,
   MaterialType,
@@ -52,6 +44,16 @@ type UpdateRollBody = components["schemas"]["UpdateRollBody"]
  */
 function isRustBackendEnabled(): boolean {
   return process.env.NEXT_PUBLIC_USE_RUST_INVENTORY === "true"
+}
+
+// Legacy fallbacks (`legacyMaterialTypes`, `legacyRolls`, `legacySupplierService`)
+// were retired alongside this surface — flag-OFF branches below throw so
+// operators are explicitly directed to flip `NEXT_PUBLIC_USE_RUST_INVENTORY=true`.
+// Matches the cut-history / PO / reorder burial pattern.
+function inventoryFlagOffError(operation: string): Error {
+  return new Error(
+    `inventory ${operation} flag-OFF path not wired (legacy fallbacks retired); flip NEXT_PUBLIC_USE_RUST_INVENTORY=true for this surface`
+  )
 }
 
 // ---------------------------------------------------------------
@@ -177,15 +179,12 @@ function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T
 
 export const materialTypes = {
   async list(): Promise<MaterialType[]> {
-    if (!isRustBackendEnabled()) return legacyMaterialTypes.getAll()
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialTypes.list")
     const res = await rfClient.GET("/api/v2/inventory/material-types")
     return unwrap(res).map(materialTypeFromDto)
   },
   async get(id: string): Promise<MaterialType | null> {
-    if (!isRustBackendEnabled()) {
-      const list = await legacyMaterialTypes.getByIds([id])
-      return list[0] ?? null
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialTypes.get")
     const res = await rfClient.GET("/api/v2/inventory/material-types/{id}", {
       params: { path: { id } },
     })
@@ -193,27 +192,12 @@ export const materialTypes = {
     return materialTypeFromDto(unwrap(res))
   },
   async create(body: CreateMaterialTypeBody): Promise<MaterialType> {
-    if (!isRustBackendEnabled()) {
-      return legacyMaterialTypes.create({
-        name: body.name,
-        description: body.description ?? undefined,
-        default_cost: body.default_cost ?? undefined,
-        min_stock_alert: body.min_stock_alert ?? undefined,
-      })
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialTypes.create")
     const res = await rfClient.POST("/api/v2/inventory/material-types", { body })
     return materialTypeFromDto(unwrap(res))
   },
   async update(id: string, body: UpdateMaterialTypeBody): Promise<MaterialType> {
-    if (!isRustBackendEnabled()) {
-      const patch: Partial<MaterialType> = {}
-      if (body.name != null) patch.name = body.name
-      if (body.description !== undefined) patch.description = body.description ?? undefined
-      if (body.default_cost !== undefined) patch.default_cost = body.default_cost ?? undefined
-      if (body.min_stock_alert !== undefined)
-        patch.min_stock_alert = body.min_stock_alert ?? undefined
-      return legacyMaterialTypes.update(id, patch)
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialTypes.update")
     const res = await rfClient.PUT("/api/v2/inventory/material-types/{id}", {
       params: { path: { id } },
       body,
@@ -221,7 +205,7 @@ export const materialTypes = {
     return materialTypeFromDto(unwrap(res))
   },
   async delete(id: string): Promise<void> {
-    if (!isRustBackendEnabled()) return legacyMaterialTypes.delete(id)
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialTypes.delete")
     const res = await rfClient.DELETE("/api/v2/inventory/material-types/{id}", {
       params: { path: { id } },
     })
@@ -235,19 +219,14 @@ export const materialTypes = {
 
 export const suppliers = {
   async list(params?: { active?: boolean; preferred?: boolean; q?: string }): Promise<Supplier[]> {
-    if (!isRustBackendEnabled()) {
-      return legacySuppliers.getSuppliers({
-        filterActive: params?.active,
-        filterPreferred: params?.preferred,
-      })
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("suppliers.list")
     const res = await rfClient.GET("/api/v2/inventory/suppliers", {
       params: { query: params },
     })
     return unwrap(res).map(supplierFromDto)
   },
   async get(id: string): Promise<Supplier | null> {
-    if (!isRustBackendEnabled()) return legacySuppliers.getSupplierById(id)
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("suppliers.get")
     const res = await rfClient.GET("/api/v2/inventory/suppliers/{id}", {
       params: { path: { id } },
     })
@@ -255,21 +234,12 @@ export const suppliers = {
     return supplierFromDto(unwrap(res))
   },
   async create(body: CreateSupplierBody): Promise<Supplier> {
-    if (!isRustBackendEnabled()) {
-      return legacySuppliers.createSupplier(
-        body as unknown as Parameters<typeof legacySuppliers.createSupplier>[0]
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("suppliers.create")
     const res = await rfClient.POST("/api/v2/inventory/suppliers", { body })
     return supplierFromDto(unwrap(res))
   },
   async update(id: string, body: UpdateSupplierBody): Promise<Supplier> {
-    if (!isRustBackendEnabled()) {
-      return legacySuppliers.updateSupplier(
-        id,
-        body as unknown as Parameters<typeof legacySuppliers.updateSupplier>[1]
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("suppliers.update")
     const res = await rfClient.PUT("/api/v2/inventory/suppliers/{id}", {
       params: { path: { id } },
       body,
@@ -277,10 +247,7 @@ export const suppliers = {
     return supplierFromDto(unwrap(res))
   },
   async delete(id: string): Promise<void> {
-    if (!isRustBackendEnabled()) {
-      await legacySuppliers.deleteSupplier(id)
-      return
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("suppliers.delete")
     const res = await rfClient.DELETE("/api/v2/inventory/suppliers/{id}", {
       params: { path: { id } },
     })
@@ -298,40 +265,21 @@ export const materialSuppliers = {
     supplier_id?: string
     active?: boolean
   }): Promise<MaterialSupplier[]> {
-    if (!isRustBackendEnabled()) {
-      if (params?.material_type_id) {
-        return legacySuppliers.getSuppliersByMaterialType(params.material_type_id)
-      }
-      if (params?.supplier_id) {
-        return legacySuppliers.getMaterialsBySupplier(params.supplier_id)
-      }
-      throw new Error(
-        "materialSuppliers.list requires material_type_id or supplier_id when flag is off"
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialSuppliers.list")
     const res = await rfClient.GET("/api/v2/inventory/material-suppliers", {
       params: { query: params },
     })
     return unwrap(res).map(materialSupplierFromDto)
   },
   async create(body: CreateMaterialSupplierBody): Promise<MaterialSupplier> {
-    if (!isRustBackendEnabled()) {
-      return legacySuppliers.linkMaterialToSupplier(
-        body as unknown as Parameters<typeof legacySuppliers.linkMaterialToSupplier>[0]
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialSuppliers.create")
     const res = await rfClient.POST("/api/v2/inventory/material-suppliers", {
       body,
     })
     return materialSupplierFromDto(unwrap(res))
   },
   async update(id: string, body: UpdateMaterialSupplierBody): Promise<MaterialSupplier> {
-    if (!isRustBackendEnabled()) {
-      return legacySuppliers.updateMaterialSupplier(
-        id,
-        body as unknown as Parameters<typeof legacySuppliers.updateMaterialSupplier>[1]
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialSuppliers.update")
     const res = await rfClient.PUT("/api/v2/inventory/material-suppliers/{id}", {
       params: { path: { id } },
       body,
@@ -339,10 +287,7 @@ export const materialSuppliers = {
     return materialSupplierFromDto(unwrap(res))
   },
   async delete(id: string): Promise<void> {
-    if (!isRustBackendEnabled()) {
-      await legacySuppliers.unlinkMaterialFromSupplier(id)
-      return
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("materialSuppliers.delete")
     const res = await rfClient.DELETE("/api/v2/inventory/material-suppliers/{id}", {
       params: { path: { id } },
     })
@@ -363,25 +308,14 @@ export const rolls = {
     limit?: number
     offset?: number
   }): Promise<Roll[]> {
-    if (!isRustBackendEnabled()) {
-      if (params?.status === "active" || params?.status === undefined) {
-        return legacyRolls.getActiveRolls()
-      }
-      return legacyRolls.getAllRolls()
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.list")
     const res = await rfClient.GET("/api/v2/inventory/rolls", {
       params: { query: params },
     })
     return unwrap(res).map(rollFromDto)
   },
   async get(id: string): Promise<Roll | null> {
-    if (!isRustBackendEnabled()) {
-      try {
-        return await legacyRolls.getRollById(id)
-      } catch {
-        return null
-      }
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.get")
     const res = await rfClient.GET("/api/v2/inventory/rolls/{id}", {
       params: { path: { id } },
     })
@@ -389,19 +323,12 @@ export const rolls = {
     return rollFromDto(unwrap(res))
   },
   async create(body: CreateRollBody): Promise<Roll> {
-    if (!isRustBackendEnabled()) {
-      return legacyRolls.addRoll(body as unknown as Parameters<typeof legacyRolls.addRoll>[0])
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.create")
     const res = await rfClient.POST("/api/v2/inventory/rolls", { body })
     return rollFromDto(unwrap(res))
   },
   async update(id: string, body: UpdateRollBody): Promise<Roll> {
-    if (!isRustBackendEnabled()) {
-      return legacyRolls.updateRoll(
-        id,
-        body as unknown as Parameters<typeof legacyRolls.updateRoll>[1]
-      )
-    }
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.update")
     const res = await rfClient.PUT("/api/v2/inventory/rolls/{id}", {
       params: { path: { id } },
       body,
@@ -409,7 +336,7 @@ export const rolls = {
     return rollFromDto(unwrap(res))
   },
   async delete(id: string): Promise<void> {
-    if (!isRustBackendEnabled()) return legacyRolls.deleteRoll(id)
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.delete")
     const res = await rfClient.DELETE("/api/v2/inventory/rolls/{id}", {
       params: { path: { id } },
     })
@@ -417,22 +344,22 @@ export const rolls = {
   },
 
   async inventoryValue(): Promise<number> {
-    if (!isRustBackendEnabled()) return legacyRolls.getInventoryValue()
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.inventoryValue")
     const res = await rfClient.GET("/api/v2/inventory/rolls/stats/inventory-value")
     return unwrap(res).value
   },
   async lowStockCount(): Promise<number> {
-    if (!isRustBackendEnabled()) return legacyRolls.getLowStockCount()
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.lowStockCount")
     const res = await rfClient.GET("/api/v2/inventory/rolls/stats/low-stock-count")
     return unwrap(res).count
   },
   async growthPercentage(): Promise<number> {
-    if (!isRustBackendEnabled()) return legacyRolls.getInventoryGrowthPercentage()
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.growthPercentage")
     const res = await rfClient.GET("/api/v2/inventory/rolls/stats/growth-percentage")
     return unwrap(res).percentage
   },
   async recent(limit = 10): Promise<Roll[]> {
-    if (!isRustBackendEnabled()) return legacyRolls.getRecentRolls(limit)
+    if (!isRustBackendEnabled()) throw inventoryFlagOffError("rolls.recent")
     const res = await rfClient.GET("/api/v2/inventory/rolls/recent", {
       params: { query: { limit } },
     })
