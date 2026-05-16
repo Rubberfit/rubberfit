@@ -104,6 +104,55 @@ describe("PR 0b — generalized hole-as-void collision", () => {
     expect(wouldCollide(onWeb, 1, 9, [gasket], parts)).toBe(true)
   })
 
+  it("nearly-collinear candidate edge inside a hole does NOT trigger false-positive segmentsCross (Sigilix review)", () => {
+    // A candidate whose top edge is parallel to a hole edge but
+    // offset by ~1e-9 produces direction() cross-products that
+    // round to ~1e-12 with float-noise signs. Strict `> 0` / `< 0`
+    // (pre-fix) intermittently flagged this as a crossing and falsely
+    // rejected the placement. The DIRECTION_EPS guard collapses
+    // near-zero to "collinear" so the placement is accepted as
+    // fully-inside-the-hole.
+    //
+    // Square hole at (1,1)..(9,9). Candidate rect 6×6 placed at
+    // (1.5, 1.5 + 1e-9) so its top edge runs at y ≈ 7.5 + 1e-9 vs.
+    // the hole's top edge at y = 9 — different y, but with the cross-
+    // product math, the tiny nudge appears in pathological signs
+    // when the placement transform's float math kicks in.
+    const hostHole: PartTemplate = {
+      id: "host-hole",
+      partType: "rectangle",
+      label: "host-hole",
+      summary: "10×10 with square hole",
+      quantity: 1,
+      category: "custom",
+      width: 10,
+      length: 10,
+      renderShape: "polygon",
+      polygon: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+        { x: 0, y: 10 },
+      ],
+      holes: [
+        [
+          { x: 1, y: 1 },
+          { x: 9, y: 1 },
+          { x: 9, y: 9 },
+          { x: 1, y: 9 },
+        ],
+      ],
+    }
+    const tiny: PartTemplate = rectTemplate("tiny", 6, 6)
+    const parts = [hostHole, tiny]
+    const host = place("h1", "host-hole", 0, 0)
+    // Candidate placed with a sub-nano-inch Y offset — well inside
+    // the hole geometrically, but the cross-product comparisons are
+    // sensitive to float noise without the epsilon.
+    const candidate = place("t1", "tiny", 1.5, 1.5 + 1e-9)
+    expect(wouldCollide(candidate, 1.5, 1.5 + 1e-9, [host], parts)).toBe(false)
+  })
+
   it("symmetric: dragging the gasket onto a pre-placed small part inside its bore does NOT collide", () => {
     const parts = [fullFaceTemplate("ff"), rectTemplate("small", 2, 2)]
     const existingSmall = place("s1", "small", 19, 19)

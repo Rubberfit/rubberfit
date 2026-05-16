@@ -194,13 +194,29 @@ function distanceToSegmentSquared(p: Point2D, a: Point2D, b: Point2D): number {
  * Standard cross-product orientation test (CLRS 33.1) with parallel
  * segments treated as non-crossing (they may overlap geometrically
  * but for "fully inside" they share the boundary, not cross it).
+ *
+ * Robustness: nearly-collinear segments produce cross-product values
+ * very close to zero with float-noise-driven signs (Sigilix review).
+ * Strict `> 0` / `< 0` would intermittently flag those as crossings
+ * and falsely reject valid placements. `DIRECTION_EPS` collapses any
+ * |cross product| below the threshold to "collinear" so the test
+ * stays stable across small geometry perturbations. The cross
+ * product has units of inch²; 1e-10 in² ≈ (1e-5 in)², well below
+ * any operator-perceptible geometry.
  */
+const DIRECTION_EPS = 1e-10
+
 function segmentsCross(p1: Point2D, p2: Point2D, p3: Point2D, p4: Point2D): boolean {
   const d1 = direction(p3, p4, p1)
   const d2 = direction(p3, p4, p2)
   const d3 = direction(p1, p2, p3)
   const d4 = direction(p1, p2, p4)
-  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  return (
+    ((d1 > DIRECTION_EPS && d2 < -DIRECTION_EPS) ||
+      (d1 < -DIRECTION_EPS && d2 > DIRECTION_EPS)) &&
+    ((d3 > DIRECTION_EPS && d4 < -DIRECTION_EPS) ||
+      (d3 < -DIRECTION_EPS && d4 > DIRECTION_EPS))
+  )
 }
 
 function direction(a: Point2D, b: Point2D, c: Point2D): number {
