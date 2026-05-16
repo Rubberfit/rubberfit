@@ -39,8 +39,15 @@ export type CutHistoryLayoutJson = CutHistoryLayoutJsonManual | CutHistoryLayout
  * Version stamped on every fresh write. Bumped to 2 in PR 0c to mark
  * envelopes whose `PlacedPart.polygon` lane may carry sibling `holes`
  * loops (gasket rings, full-face bolt circles, CAD-imported geometry).
+ *
+ * Note: stays `as const` (not `: 2 = 2`) because the project's
+ * `@typescript-eslint/prefer-as-const` rule mandates this form for
+ * literal-typed exports. CodeRabbit flagged this on PR #279 as a
+ * CLAUDE.md "no `as` outside system boundaries" violation, but
+ * `as const` on a literal IS the project-sanctioned exception —
+ * ESLint enforces it.
  */
-export const CURRENT_LAYOUT_JSON_VERSION: 2 = 2
+export const CURRENT_LAYOUT_JSON_VERSION = 2 as const
 
 /**
  * Set of versions readers accept. Widen this when the schema changes;
