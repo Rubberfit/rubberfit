@@ -1,12 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import {
-  CutForbiddenError,
-  CutNotFoundError,
-  deleteCutByIdAuthorized,
-  getCutByIdAuthorized,
-} from "@/src/infrastructure/services/legacyCutHistoryService"
+import { TOKENS } from "@/di/tokens"
+import { resolveUseCase } from "@/di/resolve"
+import { CutForbiddenError, CutNotFoundError } from "@/src/entities/errors/cut-history.errors"
+import type { IGetCutByIdUseCase } from "@/src/application/use-cases/cut-history/get-cut-by-id.use-case"
+import type { IDeleteCutUseCase } from "@/src/application/use-cases/cut-history/delete-cut.use-case"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -42,7 +41,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { roles } = await getProfileAccess(db, user.id)
-    const cut = await getCutByIdAuthorized(db, cutId, user.id, roles)
+    const useCase = resolveUseCase<IGetCutByIdUseCase>(TOKENS.IGetCutByIdUseCase)
+    const cut = await useCase.execute({
+      client: db,
+      cutId,
+      requesterUserId: user.id,
+      requesterRoles: roles,
+    })
     return NextResponse.json({ data: cut }, { status: 200 })
   } catch (err) {
     if (err instanceof CutNotFoundError) {
@@ -91,7 +96,13 @@ export async function DELETE(
 
   try {
     const { roles } = await getProfileAccess(db, user.id)
-    await deleteCutByIdAuthorized(db, cutId, user.id, roles)
+    const useCase = resolveUseCase<IDeleteCutUseCase>(TOKENS.IDeleteCutUseCase)
+    await useCase.execute({
+      client: db,
+      cutId,
+      requesterUserId: user.id,
+      requesterRoles: roles,
+    })
     return NextResponse.json({ success: true })
   } catch (err) {
     if (err instanceof CutNotFoundError) {

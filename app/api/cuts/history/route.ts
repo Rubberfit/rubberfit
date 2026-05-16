@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import { listCutHistoryPaginated } from "@/src/infrastructure/services/legacyCutHistoryService"
+import { TOKENS } from "@/di/tokens"
+import { resolveUseCase } from "@/di/resolve"
+import type { IListCutHistoryUseCase } from "@/src/application/use-cases/cut-history/list-cut-history.use-case"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 const MAX_LIMIT = 100
@@ -69,7 +71,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const { roles } = await getProfileAccess(db, user.id)
-    const result = await listCutHistoryPaginated(db, {
+    const useCase = resolveUseCase<IListCutHistoryUseCase>(TOKENS.IListCutHistoryUseCase)
+    const result = await useCase.execute({
+      client: db,
       page,
       limit,
       from,

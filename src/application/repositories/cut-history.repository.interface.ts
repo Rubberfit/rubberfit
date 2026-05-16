@@ -5,11 +5,9 @@ import type { CutHistory } from "@/src/entities/cut-history"
  * redesigned `cut_history` table (mm/sqmm-native, tenant-scoped, with
  * a normalized `cut_history_selection` child collection).
  *
- * Authorization-aware methods (role-gated reads,
- * `listCutHistoryPaginated`, `getCutAnalytics`) live on the legacy
- * shim `legacyCutHistoryService.ts` and will migrate into application-
- * layer use-cases as each API-route consumer is rewritten. This
- * interface stays focused on the persistence boundary.
+ * Authorization-aware reads live in application-layer use-cases
+ * under `src/application/use-cases/cut-history/`. This interface
+ * stays focused on the persistence boundary.
  */
 export interface ICutHistoryRepository {
   /**

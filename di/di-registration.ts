@@ -96,6 +96,10 @@ import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/r
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import { ListCutHistoryUseCase } from "@/src/application/use-cases/cut-history/list-cut-history.use-case"
+import { GetCutByIdUseCase } from "@/src/application/use-cases/cut-history/get-cut-by-id.use-case"
+import { DeleteCutUseCase } from "@/src/application/use-cases/cut-history/delete-cut.use-case"
+import { GetCutAnalyticsUseCase } from "@/src/application/use-cases/cut-history/get-cut-analytics.use-case"
 import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricing/update-material-pricing.use-case"
 import { CreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
 import { ResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
@@ -273,6 +277,10 @@ container.registerSingleton(
   CreateBulkReorderPurchaseOrderUseCase
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
+container.registerSingleton(TOKENS.IListCutHistoryUseCase, ListCutHistoryUseCase)
+container.registerSingleton(TOKENS.IGetCutByIdUseCase, GetCutByIdUseCase)
+container.registerSingleton(TOKENS.IDeleteCutUseCase, DeleteCutUseCase)
+container.registerSingleton(TOKENS.IGetCutAnalyticsUseCase, GetCutAnalyticsUseCase)
 container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterialPricingUseCase)
 container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
 container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)

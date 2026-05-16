@@ -1,4 +1,5 @@
 import "reflect-metadata"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { inject, injectable } from "tsyringe"
 
 import { TOKENS } from "@/di/tokens"
@@ -6,22 +7,22 @@ import type { ICutHistoryRepository } from "@/src/application/repositories/cut-h
 import type { ICutHistoryService } from "@/src/application/services/cut-history.service.interface"
 import { CutHistory, type CreateCutHistoryProps } from "@/src/entities/cut-history"
 import type { ProfileId } from "@/src/entities/value-objects/id"
+import type { CutHistory as CutHistoryRow } from "@/src/infrastructure/models/supabase"
 import { cutHistoryRepository } from "@/src/infrastructure/repositories/cut-history.repository"
 
+const ANALYTICS_MAX_ROWS = 10000
+
 /**
- * Thin orchestrator over `ICutHistoryRepository`. Reads delegate
- * directly; the single create path builds the entity via
- * `CutHistory.create(...)` (which enforces invariants and the
- * selections collection contract) then persists via `repo.insert`.
+ * Thin orchestrator over `ICutHistoryRepository` for entity-typed
+ * reads/writes, plus a transitional raw-row surface
+ * (`listPaginatedRaw`, `getByIdRaw`, `deleteRaw`, `getAnalyticsRaw`)
+ * consumed by the cut-history API routes via application-layer
+ * use-cases. The raw methods retire when the `cut_history` schema
+ * consolidates to the entity-typed mm/sqmm shape.
  *
  * Domain errors (`InvalidEntityError`, `InvalidValueObjectError`)
  * propagate unwrapped — the action layer's catch wrappers handle
- * them.
- *
- * Authorization gating is NOT here. Role-aware reads / deletes live
- * on `legacyCutHistoryService` until each consumer API route is
- * rewritten through an application-layer use-case (e.g.
- * `GetCutHistoryUseCase`, `DeleteCutHistoryUseCase`).
+ * them. Authorization gating is NOT here; it lives in use-cases.
  */
 @injectable()
 export class CutHistoryService implements ICutHistoryService {
@@ -60,15 +61,87 @@ export class CutHistoryService implements ICutHistoryService {
     entity.softDelete(actor)
     return this.repo.update(entity)
   }
+
+  async listPaginatedRaw(
+    client: SupabaseClient,
+    params: {
+      page: number
+      limit: number
+      cutDateFrom: string | null
+      cutDateTo: string | null
+      userId: string | null
+    }
+  ): Promise<{ data: CutHistoryRow[]; total: number }> {
+    const offset = (params.page - 1) * params.limit
+    let query = client
+      .from("cut_history")
+      .select("*", { count: "exact" })
+      .order("cut_date", { ascending: false })
+      .range(offset, offset + params.limit - 1)
+
+    if (params.userId !== null) query = query.eq("user_id", params.userId)
+    if (params.cutDateFrom !== null) query = query.gte("cut_date", params.cutDateFrom)
+    if (params.cutDateTo !== null) query = query.lte("cut_date", params.cutDateTo)
+
+    const { data, error, count } = await query
+    if (error) {
+      console.error("listPaginatedRaw query error:", error)
+      throw error
+    }
+    return { data: (data ?? []) as CutHistoryRow[], total: count ?? 0 }
+  }
+
+  async getByIdRaw(client: SupabaseClient, cutId: string): Promise<CutHistoryRow | null> {
+    const { data, error } = await client
+      .from("cut_history")
+      .select("*")
+      .eq("id", cutId)
+      .maybeSingle()
+
+    if (error) {
+      console.error("cut_history getByIdRaw error:", error)
+      throw error
+    }
+    return (data ?? null) as CutHistoryRow | null
+  }
+
+  async deleteRaw(client: SupabaseClient, cutId: string): Promise<void> {
+    const { error } = await client.from("cut_history").delete().eq("id", cutId)
+    if (error) {
+      console.error("cut_history deleteRaw error:", error)
+      throw new Error("Failed to delete cut record")
+    }
+  }
+
+  async getAnalyticsRaw(
+    client: SupabaseClient,
+    params: {
+      cutDateFrom: string
+      cutDateTo: string | null
+      userId: string | null
+    }
+  ): Promise<CutHistoryRow[]> {
+    let query = client
+      .from("cut_history")
+      .select("*")
+      .gte("cut_date", params.cutDateFrom)
+      .order("cut_date", { ascending: true })
+      .limit(ANALYTICS_MAX_ROWS)
+
+    if (params.cutDateTo !== null) query = query.lte("cut_date", params.cutDateTo)
+    if (params.userId !== null) query = query.eq("user_id", params.userId)
+
+    const { data, error } = await query
+    if (error) {
+      console.error("getAnalyticsRaw query error:", error)
+      throw error
+    }
+    return (data ?? []) as CutHistoryRow[]
+  }
 }
 
 /**
  * Module-level singleton bound to the concrete `cutHistoryRepository`.
- * New consumers (use-cases, server actions) resolve through DI; legacy
- * `app/` consumers that imported named exports from the old
- * `cutHistoryService` module (`insertCutHistory`, `getCutByIdAuthorized`,
- * etc.) are routed through `legacyCutHistoryService` instead — they
- * keep their raw-row shape and authorization-aware methods until each
- * API route is rewritten.
+ * New consumers (use-cases, server actions) resolve through DI.
  */
 export const cutHistoryService: ICutHistoryService = new CutHistoryService(cutHistoryRepository)

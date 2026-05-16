@@ -2,11 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
 import { extractAutoLayouts, generateAndStoreCutPdf } from "@/app/api/_lib/cut-pdf-server"
-import {
-  CutForbiddenError,
-  CutNotFoundError,
-  getCutByIdAuthorized,
-} from "@/src/infrastructure/services/legacyCutHistoryService"
+import { TOKENS } from "@/di/tokens"
+import { resolveUseCase } from "@/di/resolve"
+import { CutForbiddenError, CutNotFoundError } from "@/src/entities/errors/cut-history.errors"
+import type { IGetCutByIdUseCase } from "@/src/application/use-cases/cut-history/get-cut-by-id.use-case"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 /**
@@ -68,7 +67,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let cutRow
   try {
     const { roles } = await getProfileAccess(db, user.id)
-    cutRow = await getCutByIdAuthorized(db, cutId, user.id, roles)
+    const useCase = resolveUseCase<IGetCutByIdUseCase>(TOKENS.IGetCutByIdUseCase)
+    cutRow = await useCase.execute({
+      client: db,
+      cutId,
+      requesterUserId: user.id,
+      requesterRoles: roles,
+    })
   } catch (err) {
     if (err instanceof CutNotFoundError) {
       return NextResponse.json({ error: "Cut record not found" }, { status: 404 })

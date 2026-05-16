@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { makeAdminClient, makeAuthClient } from "@/app/api/_lib/supabase-server"
-import { getCutAnalytics } from "@/src/infrastructure/services/legacyCutHistoryService"
+import { TOKENS } from "@/di/tokens"
+import { resolveUseCase } from "@/di/resolve"
+import type { IGetCutAnalyticsUseCase } from "@/src/application/use-cases/cut-history/get-cut-analytics.use-case"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 export async function GET(request: NextRequest) {
@@ -50,7 +52,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const { roles } = await getProfileAccess(db, user.id)
-    const data = await getCutAnalytics(db, {
+    const useCase = resolveUseCase<IGetCutAnalyticsUseCase>(TOKENS.IGetCutAnalyticsUseCase)
+    const data = await useCase.execute({
+      client: db,
       from,
       to,
       requesterUserId: user.id,
