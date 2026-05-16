@@ -4,8 +4,8 @@
  * Pins:
  *   - Dropping a multi-loop DXF surfaces a toast.error and never
  *     opens the review dialog (multi-part import is PR2).
- *   - Dropping a bulged-polyline DXF surfaces the bulge-specific
- *     toast and never opens the review dialog.
+ *   - Dropping a bulged-polyline DXF is accepted (Task 4 drops bulge,
+ *     Task 5 will tessellate); the review dialog opens normally.
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import React from "react"
@@ -78,18 +78,17 @@ describe("CutListUpload — DXF branch", () => {
     expect(everOpened).toBe(false)
   })
 
-  it("rejects bulged-polyline DXF with bulge-specific toast", async () => {
+  it("accepts bulged-polyline DXF and opens the review dialog (Task 4 drops bulge, Task 5 will tessellate)", async () => {
     const { container } = render(
       <CutListUpload onPartsConfirmed={vi.fn()} onDxfPartConfirmed={vi.fn()} />
     )
     dropFile(container, loadFixture("lwpolyline-with-bulge"))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/arc-bulged|flatten/i))
+      const everOpened = mockDialog.mock.calls.some((call) => call[0]?.open === true)
+      expect(everOpened).toBe(true)
     })
-
-    const everOpened = mockDialog.mock.calls.some((call) => call[0]?.open === true)
-    expect(everOpened).toBe(false)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it("opens the DXF review dialog for a single-loop closed-LWPOLYLINE DXF", async () => {

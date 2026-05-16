@@ -40,20 +40,56 @@ export interface PolylineEntity {
   vertices: PolylineVertex[]
 }
 
+export interface ArcEntity {
+  kind: "arc"
+  layer: string
+  center: Point2D
+  radius: number
+  startAngleDeg: number
+  endAngleDeg: number
+}
+
+export interface CircleEntity {
+  kind: "circle"
+  layer: string
+  center: Point2D
+  radius: number
+}
+
+export interface EllipseEntity {
+  kind: "ellipse"
+  layer: string
+  center: Point2D
+  majorAxisEnd: Point2D
+  axisRatio: number
+  startParam: number
+  endParam: number
+}
+
+export interface SplineEntity {
+  kind: "spline"
+  layer: string
+  controlPoints: Point2D[]
+  knots: number[]
+  degree: number
+  closed: boolean
+  weights?: number[]
+}
+
 /**
- * Reason codes for entities we recognise but cannot process in PR1.
+ * Reason codes for entities we recognise but cannot process.
  * The Review dialog renders each reason verbatim as operator copy.
  */
 export type UnsupportedReason =
-  | "curves-deferred-to-pr2"
   | "polyline-curve-fit"
   | "polyline-spline-fit"
   | "polyline-3d"
   | "polyline-3d-mesh"
   | "polyline-polyface-mesh"
   | "polyline-not-closed"
-  | "polyline-contains-bulge"
   | "lwpolyline-not-closed"
+  | "spline-rational-not-supported"
+  | "spline-malformed"
   | "entity-type-unsupported"
 
 export interface UnsupportedEntity {
@@ -63,7 +99,15 @@ export interface UnsupportedEntity {
   reason: UnsupportedReason
 }
 
-export type DxfEntity = LineEntity | LwPolylineEntity | PolylineEntity | UnsupportedEntity
+export type DxfEntity =
+  | LineEntity
+  | LwPolylineEntity
+  | PolylineEntity
+  | ArcEntity
+  | CircleEntity
+  | EllipseEntity
+  | SplineEntity
+  | UnsupportedEntity
 
 export interface DxfDocument {
   /** $INSUNITS code if present, otherwise undefined. */

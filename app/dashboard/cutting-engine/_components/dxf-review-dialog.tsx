@@ -284,20 +284,20 @@ function buildWarnings(rejected: RejectedEntity[], ignoredLayers: string[]): str
 function reasonCopy(type: string, reason: string, count: number): string {
   const plural = count === 1 ? "entity" : "entities"
   switch (reason) {
-    case "curves-deferred-to-pr2":
-      return `${count} ${type} ${plural} ignored - curve support coming in PR2.`
     case "polyline-curve-fit":
     case "polyline-spline-fit":
-      return `${count} ${type} ${plural} ignored - curve-fit polylines coming in PR2.`
+      return `${count} ${type} ${plural} ignored - curve-fit polylines are not supported.`
     case "polyline-3d":
     case "polyline-3d-mesh":
     case "polyline-polyface-mesh":
       return `${count} ${type} ${plural} ignored - 3D / mesh polylines are not supported.`
     case "polyline-not-closed":
     case "lwpolyline-not-closed":
-      return `${count} open ${type} ${plural} ignored - PR1 imports closed loops only.`
-    case "polyline-contains-bulge":
-      return `${count} ${type} ${plural} ignored - flatten arc bulges in CAD before importing.`
+      return `${count} open ${type} ${plural} ignored - closed loops only.`
+    case "spline-rational-not-supported":
+      return `${count} rational ${type} ${plural} ignored - flatten weighted splines in CAD before importing.`
+    case "spline-malformed":
+      return `${count} malformed ${type} ${plural} ignored - check the knot vector and control points.`
     case "entity-type-unsupported":
       return `${count} ${type} ${plural} ignored.`
     default:

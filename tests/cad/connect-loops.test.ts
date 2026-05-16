@@ -33,13 +33,16 @@ describe("connectLoops", () => {
     expect(result.loops).toHaveLength(2)
   })
 
-  it("rejects an LWPOLYLINE with a nonzero bulge with reason polyline-contains-bulge", () => {
+  it("accepts an LWPOLYLINE with a nonzero bulge (Task 4 drops bulge; Task 5 tessellates it)", () => {
+    // Task 4 of the curves/holes plan preserves bulge values on the AST
+    // and stops rejecting bulged polylines. The downstream curve-aware
+    // loop assembler arrives in Task 5; until then, bulges are dropped
+    // and the polyline is treated as straight-segment.
     const doc = parseDxf(fixture("lwpolyline-with-bulge"))
     const layer = pickDefaultLayer(doc)
     const result = connectLoops(doc, layer)
-    expect(result.loops).toHaveLength(0)
-    expect(result.rejected).toHaveLength(1)
-    expect(result.rejected[0].reason).toBe("polyline-contains-bulge")
+    expect(result.loops).toHaveLength(1)
+    expect(result.rejected).toHaveLength(0)
   })
 
   it("assembles a chain of LINE segments into one closed loop when endpoints match", () => {

@@ -329,14 +329,12 @@ async function processDxfFile(file: File): Promise<DxfReviewState | null> {
 }
 
 function surfaceNoLoopToast(rejected: RejectedEntity[]): void {
-  if (rejected.some((r) => r.reason === "polyline-contains-bulge")) {
-    toast.error("DXF contains arc-bulged polylines - flatten in CAD before importing.")
+  if (rejected.some((r) => r.reason === "spline-rational-not-supported")) {
+    toast.error("DXF contains rational SPLINEs - flatten weighted splines in CAD before importing.")
     return
   }
-  if (rejected.some((r) => r.reason === "curves-deferred-to-pr2")) {
-    toast.error(
-      "DXF contains curves (ARC / CIRCLE / SPLINE / ELLIPSE) - curve support coming in PR2."
-    )
+  if (rejected.some((r) => r.reason === "spline-malformed")) {
+    toast.error("DXF contains a malformed SPLINE - check the knot vector and control points.")
     return
   }
   toast.error("No closed-loop part found in this DXF.")

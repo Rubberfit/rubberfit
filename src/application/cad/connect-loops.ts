@@ -106,8 +106,10 @@ interface PolyResult {
 
 function closedPolyToLoop(entity: LwPolylineEntity | PolylineEntity): PolyResult {
   if (!entity.closed) return {}
-  const hasBulge = entity.vertices.some((v) => v.bulge !== 0)
-  if (hasBulge) return { reason: "polyline-contains-bulge" }
+  // Bulged vertices are now tessellated downstream in Task 5; for Task 4
+  // we drop the bulge value and treat the polyline as straight-segment
+  // until the curve-aware rebuild lands. The plan's Task 5 replaces this
+  // file entirely with curve tessellation.
   if (entity.vertices.length < 3) return {}
   return { loop: entity.vertices.map((v) => ({ x: v.x, y: v.y })) }
 }
