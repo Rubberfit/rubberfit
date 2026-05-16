@@ -1,6 +1,7 @@
 import type { SimplePartType } from "./NestingVisualizer"
 import type { CustomPartDrafts, PartTemplate, SupportedPartType } from "./preset-template-data"
 import { Shapes, Triangle } from "lucide-react"
+import { getPolygonBounds, polygonNetArea } from "./polygon-bounds"
 
 import { formatInches } from "./nesting-layout-utils"
 export { formatInches }
@@ -181,6 +182,13 @@ export function getTemplateBoundingBox(template: PartTemplate): { width: number;
       const height = template.height ?? 0
       return { width: Math.max(topWidth, bottomWidth), height }
     }
+    case "polygon": {
+      if (!template.polygon || template.polygon.outer.length === 0) {
+        return { width: 0, height: 0 }
+      }
+      const bounds = getPolygonBounds(template.polygon)
+      return { width: bounds.width, height: bounds.height }
+    }
     case "rectangle":
     default:
       return { width: template.width ?? 0, height: template.length ?? 0 }
@@ -229,6 +237,13 @@ export function getTemplateAreaSqFt(template: PartTemplate) {
       const bottomWidth = template.bottomWidth ?? 0
       const height = template.height ?? 0
       return (((topWidth + bottomWidth) / 2) * height * template.quantity) / 144
+    }
+    case "polygon": {
+      // Polygon vertices are pre-converted to inches at confirm-time
+      // (see `handleDxfPartConfirmed`), so the net (outer − holes)
+      // shoelace area is in square inches and divides cleanly to sq ft.
+      if (!template.polygon) return 0
+      return (polygonNetArea(template.polygon) * template.quantity) / 144
     }
     case "rectangle":
     default:

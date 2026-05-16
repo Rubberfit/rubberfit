@@ -21,7 +21,15 @@ export interface BuildPartInput {
   allowRotation: boolean
   grainAxis?: "width" | "length" | "none"
   difficulty?: number
-  polygon?: Point2D[]
+  /**
+   * Raw-geometry polygon. Either a flat `Point2D[]` (single closed
+   * outer loop, no holes — DXF single-loop imports + hand-drawn
+   * shapes) or a `PolygonWithHoles` (`{ outer, holes }` — hole-bearing
+   * primitives + multi-loop CAD imports). Both forms get translated
+   * to bbox-origin and oriented (outer CCW, holes CW) before being
+   * handed to Rust.
+   */
+  polygon?: Point2D[] | PolygonWithHoles
   /**
    * Opaque label echoed onto every produced `Placement.tag`. AutoNest
    * uses the part number ("G2") or a generated letter ("A", "B", …).
@@ -46,25 +54,73 @@ export function buildPart(input: BuildPartInput): Part {
   }
 }
 
-function normalizePolygon(points: Point2D[]): PolygonWithHoles {
-  if (points.length < 3) throw new Error("polygon: must have at least 3 vertices")
-  const minX = Math.min(...points.map((p) => p.x))
-  const minY = Math.min(...points.map((p) => p.y))
-  const translated = points.map((p) => ({ x: p.x - minX, y: p.y - minY }))
-  // buildPart only ingests a flat single-loop polygon today (DXF
-  // imports + hand-drawn shapes). Hole-bearing inputs land here once
-  // PR 0b updates the input shape; for now we wrap to the structured
-  // form with no holes so downstream consumers see the new contract.
-  return { outer: ensureCCW(translated), holes: [] }
+function normalizePolygon(input: Point2D[] | PolygonWithHoles): PolygonWithHoles {
+  const outerInput = Array.isArray(input) ? input : input.outer
+  const holesInput = Array.isArray(input) ? [] : input.holes
+  if (outerInput.length < 3) {
+    throw new Error("polygon: must have at least 3 vertices")
+  }
+  // Reject non-finite coords up front so NaN/Infinity can't poison the
+  // bbox-min loop below (Math.min vs NaN propagates NaN through every
+  // downstream translation + Rust round-trip). Matches the LINE /
+  // LWPOLYLINE / POLYLINE narrowing checks in parse-dxf.ts.
+  for (const p of outerInput) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error("polygon: outer ring contains non-finite coordinates")
+    }
+  }
+  for (const hole of holesInput) {
+    for (const p of hole) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+        throw new Error("polygon: hole contains non-finite coordinates")
+      }
+    }
+  }
+  // Single-pass min so a million-vertex DXF doesn't blow the JS call
+  // stack via `Math.min(...arr)` (argument-list limits are engine-
+  // specific but typically ~10k on V8). Same result as the original
+  // `Math.min(...map)` for any finite-vertex polygon.
+  let minX = Infinity
+  let minY = Infinity
+  for (const p of outerInput) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+  }
+  // Hole-bearing inputs (multi-loop DXF, primitives with bores) flow
+  // through with holes preserved. Outer and every hole get shifted by
+  // the SAME bbox offset so their relative position is intact, then
+  // we enforce the canonical orientation contract (outer CCW, holes
+  // CW in math coords — matches `sanitize-polygon-with-holes` and
+  // jagua-rs). Degenerate holes (<3 vertices) are dropped silently.
+  const translate = (p: Point2D): Point2D => ({ x: p.x - minX, y: p.y - minY })
+  const translatedOuter = outerInput.map(translate)
+  const translatedHoles = holesInput.map((hole) => hole.map(translate))
+  return {
+    outer: ensureCCW(translatedOuter),
+    holes: translatedHoles.filter((hole) => hole.length >= 3).map(ensureCW),
+  }
 }
 
-function ensureCCW(points: Point2D[]): Point2D[] {
-  // Signed area on screen coords: positive == CW. Reverse to get CCW in math coords.
+// Signed area on screen coords: positive == CW (equivalently, math-coord
+// signed area is negative — the two conventions are sign-flipped via the
+// shoelace identity). We keep the screen-coord form here so both
+// orientation helpers share one cheap formulation.
+function screenSignedArea(points: Point2D[]): number {
   let signed = 0
   for (let i = 0; i < points.length; i++) {
     const a = points[i]
     const b = points[(i + 1) % points.length]
     signed += (b.x - a.x) * (b.y + a.y)
   }
-  return signed > 0 ? [...points].reverse() : points
+  return signed
+}
+
+function ensureCCW(points: Point2D[]): Point2D[] {
+  // screen signed > 0 ⇒ CW ⇒ reverse to get CCW in math coords.
+  return screenSignedArea(points) > 0 ? [...points].reverse() : points
+}
+
+function ensureCW(points: Point2D[]): Point2D[] {
+  // screen signed < 0 ⇒ CCW ⇒ reverse to get CW in math coords.
+  return screenSignedArea(points) < 0 ? [...points].reverse() : points
 }

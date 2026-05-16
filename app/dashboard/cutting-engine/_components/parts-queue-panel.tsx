@@ -3,6 +3,11 @@
 import { Circle, Plus, Square, Triangle, Minus } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import type { PartTemplate } from "./PresetDimensionSelector"
+import type { PolygonWithHoles, Point2D } from "@/src/application/packing/types"
+import { getPolygonBounds, type PolygonBounds } from "./polygon-bounds"
+
+const THUMB_SIZE = 16
+const THUMB_INNER = 14
 
 export type PartsFilter = "all" | "unplaced" | "rect" | "curved"
 
@@ -35,8 +40,11 @@ const FILTERS: Array<{ key: PartsFilter; label: string }> = [
   { key: "curved", label: "Curved" },
 ]
 
-function shapeIcon(partType: string) {
-  switch (partType) {
+function shapeIcon(part: PartTemplate) {
+  if (part.partType === "polygon" && part.polygon) {
+    return <PolygonThumbnail polygon={part.polygon} />
+  }
+  switch (part.partType) {
     case "cylinder":
       return <Circle className="h-4 w-4 shrink-0" />
     case "cone":
@@ -48,7 +56,69 @@ function shapeIcon(partType: string) {
   }
 }
 
+function buildPathD(
+  polygon: PolygonWithHoles,
+  bounds: PolygonBounds,
+  scale: number,
+  padX: number,
+  padY: number
+): string {
+  const loopToD = (loop: Point2D[]) =>
+    loop
+      .map((p, i) => {
+        const x = (p.x - bounds.minX) * scale + padX
+        // DXF Y-up vs SVG Y-down: flip Y so the thumbnail reads upright.
+        const y = THUMB_SIZE - ((p.y - bounds.minY) * scale + padY)
+        return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
+      })
+      .join(" ") + " Z"
+  return [polygon.outer, ...polygon.holes].map(loopToD).join(" ")
+}
+
+interface PolygonThumbnailProps {
+  polygon: PolygonWithHoles
+}
+
+function PolygonThumbnail({ polygon }: PolygonThumbnailProps) {
+  if (polygon.outer.length < 3) return <Square className="h-4 w-4 shrink-0" />
+  const bounds = getPolygonBounds(polygon)
+  const width = bounds.width || 1
+  const height = bounds.height || 1
+  const scale = THUMB_INNER / Math.max(width, height)
+  const padX = (THUMB_SIZE - width * scale) / 2
+  const padY = (THUMB_SIZE - height * scale) / 2
+  // Render outer + holes as a single <path> with multiple M..L..Z
+  // subpaths so `fillRule="evenodd"` actually cuts the holes out
+  // (siblings would composite, not subtract).
+  return (
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+    >
+      <path
+        d={buildPathD(polygon, bounds, scale, padX, padY)}
+        fill="rgba(59,130,246,0.25)"
+        stroke="#1d4ed8"
+        strokeWidth={1}
+        fillRule="evenodd"
+      />
+    </svg>
+  )
+}
+
 function partDims(part: PartTemplate): string {
+  if (part.partType === "polygon") {
+    const polygon = part.polygon
+    if (!polygon || polygon.outer.length < 3) {
+      return part.sourceFile ?? part.label
+    }
+    const bounds = getPolygonBounds(polygon)
+    const w = bounds.width.toFixed(2)
+    const h = bounds.height.toFixed(2)
+    const file = part.sourceFile ? `${part.sourceFile} - ` : ""
+    return `${file}${w}" × ${h}"`
+  }
   if (part.width !== undefined && part.length !== undefined)
     return `${part.width}" × ${part.length}"`
   if (part.diameter !== undefined) return `⌀ ${part.diameter}"`
@@ -63,7 +133,9 @@ function isCurved(partType: string) {
 function filterParts(parts: PartTemplate[], filter: PartsFilter): PartTemplate[] {
   switch (filter) {
     case "rect":
-      return parts.filter((p) => p.partType === "rectangle" || p.partType === "trapezoid")
+      return parts.filter(
+        (p) => p.partType === "rectangle" || p.partType === "trapezoid" || p.partType === "polygon"
+      )
     case "curved":
       return parts.filter((p) => isCurved(p.partType))
     case "unplaced":
@@ -147,7 +219,7 @@ export function PartsQueuePanel({
 
               const body = (
                 <>
-                  <span className="text-muted-foreground">{shapeIcon(part.partType)}</span>
+                  <span className="text-muted-foreground">{shapeIcon(part)}</span>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-xs font-medium text-foreground truncate">{part.label}</p>
                     <p className="text-[11px] text-muted-foreground truncate">{partDims(part)}</p>
