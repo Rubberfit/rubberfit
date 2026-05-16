@@ -139,12 +139,6 @@ const INFRA_ALLOWLIST = new Set<string>([
   // migration that pulls them server-side should also flip them
   // to getDatabaseClient and remove the entry here.
   "src/infrastructure/services/csvService.ts",
-  // Legacy raw-row cut-history surface — pre-DDD shim retained for
-  // the cut-history API routes + RecordCutUseCase. The entity-typed
-  // cutHistoryService now goes through getDatabaseClient via
-  // ICutHistoryRepository; this shim retires per-route as those
-  // consumers migrate to use-cases.
-  "src/infrastructure/services/legacyCutHistoryService.ts",
   // Legacy raw-row cut analytics — pre-DDD shim retained for
   // dashboard / waste-comparison / reports / notifications. The
   // entity-typed cutService now goes through getDatabaseClient via
