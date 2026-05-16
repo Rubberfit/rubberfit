@@ -73,7 +73,15 @@ export function isSupportedLayoutJsonVersion(value: unknown): value is 1 | 2 | u
 }
 
 export interface CutHistoryLayoutJsonManual {
-  version: 1 | 2
+  /**
+   * Optional because legacy rows written before the `version` field
+   * existed (pre-2026-04-24 / #112) have `version: undefined` on
+   * disk. The `isSupportedLayoutJsonVersion` predicate accepts
+   * `undefined` as implicit v1, so making the type optional aligns
+   * the compile-time contract with the runtime fence. New writers
+   * always stamp `CURRENT_LAYOUT_JSON_VERSION`.
+   */
+  version?: 1 | 2
   /** Absent on pre-kind rows — implicitly manual. */
   kind?: "manual"
   placements: Array<{
@@ -110,7 +118,8 @@ export interface CutHistoryLayoutJsonManual {
 export type CutHistoryPartTypeLiteral = "rectangle" | "cylinder" | "cone" | "trapezoid"
 
 export interface CutHistoryLayoutJsonAuto {
-  version: 1 | 2
+  /** See `CutHistoryLayoutJsonManual.version` — same optional-for-legacy rule. */
+  version?: 1 | 2
   kind: "auto"
   /**
    * Per-template quantities in the same order as
