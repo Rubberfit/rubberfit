@@ -22,10 +22,12 @@ import type { PlacedPart } from "@/app/dashboard/cutting-engine/_components/layo
 import type { KonvaThemeTokens } from "@/app/dashboard/cutting-engine/_components/konva-theme"
 import { assertNotNull } from "../_helpers/assert-not-null"
 
-const capturedShapeProps: Array<{
+interface CapturedShapeProps {
   sceneFunc?: (context: unknown, shape: unknown) => void
   hitFunc?: (context: unknown, shape: unknown) => void
-}> = []
+}
+
+const capturedShapeProps: CapturedShapeProps[] = []
 
 let lastBodyTag: string | null = null
 
@@ -45,9 +47,9 @@ vi.mock("react-konva", () => {
       lastBodyTag = "Line"
       return null
     },
-    Shape: (props: { sceneFunc?: unknown; hitFunc?: unknown }) => {
+    Shape: (props: CapturedShapeProps) => {
       lastBodyTag = "Shape"
-      capturedShapeProps.push(props as never)
+      capturedShapeProps.push(props)
       return null
     },
   }
@@ -69,7 +71,7 @@ const THEME = {
   partStroke: "#94a3b8",
   selectedStroke: "#14b8a6",
   elevationShadow: "#000000",
-} as unknown as KonvaThemeTokens
+} satisfies KonvaThemeTokens
 
 function ringPart(): PlacedPart {
   return {
@@ -178,7 +180,7 @@ describe("PR 0b — Konva renderer dispatches to compound Shape for hole-bearing
       lineTo: (x: number, y: number) => pathCalls.push({ method: "lineTo", args: [x, y] }),
       closePath: () => pathCalls.push({ method: "closePath", args: [] }),
     }
-    sceneFunc(konvaContext, {} as unknown)
+    sceneFunc(konvaContext, {})
 
     // Compound path: ONE beginPath, then outer ring (moveTo + 3 lineTo
     // + closePath), then hole (moveTo + 3 lineTo + closePath).
@@ -226,7 +228,7 @@ describe("PR 0b — Konva renderer dispatches to compound Shape for hole-bearing
       lineTo: () => {},
       closePath: () => {},
     }
-    hitFunc(konvaContext, { colorKey: "#abc123" } as unknown)
+    hitFunc(konvaContext, { colorKey: "#abc123" })
 
     expect(fills).toHaveLength(1)
     expect(fills[0]).toEqual(["evenodd"])

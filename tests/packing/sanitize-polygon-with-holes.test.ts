@@ -121,13 +121,17 @@ describe("sanitizePolygonWithHoles", () => {
     })
 
     it("accepts an undefined/missing holes field (zod default-empty case)", () => {
-      // PolygonWithHoles type makes `holes` required, but real zod-parsed
-      // input may omit it (zod defaults empty). Construct with explicit
-      // undefined to simulate the parsed shape without a cast at the
-      // call site — matches what `polygonWithHolesSchema` produces when
-      // input omits the field.
-      const input: PolygonWithHoles = { outer: SQUARE_CCW, holes: [] }
-      const result = sanitizePolygonWithHoles(input)
+      // PolygonWithHoles types `holes` as required, but the runtime
+      // sanitizer must also handle the zod-parsed-without-default
+      // path that produces `{ outer, holes: undefined }`. We exercise
+      // that runtime branch (`input.holes ?? []` inside the helper)
+      // — which means deliberately constructing input that the type
+      // system says is invalid. This is the system-boundary cast
+      // CLAUDE.md carves out for: simulating a parsed-input shape
+      // that's wider than the static type. Without this case the
+      // `?? []` line in the implementation is untested.
+      const inputWithUndefinedHoles = { outer: SQUARE_CCW } as unknown as PolygonWithHoles
+      const result = sanitizePolygonWithHoles(inputWithUndefinedHoles)
       expect(result).not.toBeNull()
       assertNotNull(result)
       expect(result.holes).toHaveLength(0)
