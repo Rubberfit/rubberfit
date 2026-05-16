@@ -408,4 +408,30 @@ describe("tessellateSpline", () => {
     expect(last.x).toBeCloseTo(2, 6)
     expect(last.y).toBeCloseTo(0, 6)
   })
+
+  it("deBoor is safe with an overlong knot vector (defensive clamp)", () => {
+    // 4 control points, degree 3 → canonical knot count is 8.
+    // Provide 10 knots; the extra trailing knots must not let deBoor's
+    // span search advance past `controls.length - 1`. Without the clamp
+    // in deBoor (PR #280 Codex review), the init loop reads past the
+    // controls array and crashes on `undefined.x`.
+    const controlPoints = [
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+      { x: 2, y: 1 },
+      { x: 3, y: 0 },
+    ]
+    const knots = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1] // 10 instead of 8
+    const verts = tessellateSpline({
+      controlPoints,
+      knots,
+      degree: 3,
+      closed: false,
+    })
+    expect(verts.length).toBeGreaterThan(0)
+    for (const v of verts) {
+      expect(Number.isFinite(v.x)).toBe(true)
+      expect(Number.isFinite(v.y)).toBe(true)
+    }
+  })
 })

@@ -297,7 +297,12 @@ function narrowSpline(entity: ISplineEntity, layer: string): SplineEntity | Unsu
   if (controlPoints.length < degree + 1) {
     return unsupported(layer, "SPLINE", "spline-malformed")
   }
-  if (knots.length < controlPoints.length + degree + 1) {
+  // Strict equality (not >=): an overlong knot vector lets deBoor's span
+  // search advance past the last control point, causing undefined access
+  // in the de Boor initialization. Codex review (PR #280) flagged this —
+  // the third-voice audit missed by verify-math/verify-algo. Clamped
+  // B-spline contract: knots.length === controlPoints.length + degree + 1.
+  if (knots.length !== controlPoints.length + degree + 1) {
     return unsupported(layer, "SPLINE", "spline-malformed")
   }
   // dxf-parser's `rational` boolean comes from group-70 bit 4. If it's

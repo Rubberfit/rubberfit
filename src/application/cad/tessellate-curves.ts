@@ -304,7 +304,14 @@ function deBoor(controls: Point2D[], knots: number[], degree: number, t: number)
   // Piegl & Tiller's `FindSpan` boundary case (Algorithm A2.1) — without the
   // clamp, t = tMax overshoots into knots[k+1] = tMax and produces NaN
   // denominators in the de Boor recurrence.
-  const lastSpan = knots.length - degree - 2
+  //
+  // Belt-and-suspenders cap by `controls.length - 1`: if a caller bypasses
+  // `narrowSpline`'s strict knot-count check (PR #280 Codex review) and
+  // passes an overlong knot vector, `knots.length - degree - 2` could
+  // exceed `controls.length - 1`. The init loop below reads
+  // `controls[k - degree + j]` for j in [0, degree], so we require
+  // `k <= controls.length - 1` to keep every access in bounds.
+  const lastSpan = Math.min(knots.length - degree - 2, controls.length - 1)
   let k = degree
   while (k < lastSpan && t >= knots[k + 1]) k++
 

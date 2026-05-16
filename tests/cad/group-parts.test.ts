@@ -146,6 +146,30 @@ describe("groupLoopsIntoParts edge cases", () => {
     const parts = groupLoopsIntoParts([degen, valid])
     expect(parts).toHaveLength(1)
   })
+
+  it("hole sharing a vertex with the outer loop is still classified as a hole", () => {
+    // Outer rectangle 0..10 × 0..10.
+    const outer: Point2D[] = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    // Inner triangle whose first vertex coincides with the outer's (0, 0).
+    // Before PR #280 fix, pointInPolygon(inner[0], outer) — with inner[0]
+    // sitting exactly on the outer's boundary — was classified by the
+    // half-open ray-cast as outside, promoting the hole to a depth-0
+    // outer and producing TWO parts. The centroid sample point avoids
+    // the boundary entirely.
+    const inner: Point2D[] = [
+      { x: 0, y: 0 }, // shared with outer's bottom-left corner
+      { x: 4, y: 1 },
+      { x: 1, y: 4 },
+    ]
+    const parts = groupLoopsIntoParts([outer, inner])
+    expect(parts).toHaveLength(1)
+    expect(parts[0].polygon.holes).toHaveLength(1)
+  })
 })
 
 describe("group-parts integration with DXF fixtures", () => {

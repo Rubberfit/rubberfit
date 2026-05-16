@@ -73,7 +73,14 @@ export function groupLoopsIntoParts(loops: Point2D[][]): DxfPartCandidate[] {
       if (i === j) continue
       if (areas[j] <= areas[i]) continue
       if (!bboxContains(bboxes[j], bboxes[i])) continue
-      if (!pointInPolygon(validLoops[i][0], validLoops[j])) continue
+      // Sample inner's centroid rather than inner[0]: a vertex of `inner`
+      // may sit exactly on `outer`'s boundary (e.g. after Clipper
+      // sanitization on near-touching geometries), and the half-open
+      // ray-cast classifies boundary points arbitrarily — risking a
+      // hole-as-outer misgrouping. The centroid is always in the convex
+      // hull of `inner`, so it can't coincide with an outer-boundary
+      // vertex. Codex review (PR #280) flagged this edge case.
+      if (!pointInPolygon(loopCentroid(validLoops[i]), validLoops[j])) continue
       if (areas[j] < smallestArea) {
         smallestArea = areas[j]
         parent[i] = j
@@ -191,6 +198,24 @@ function pointInPolygon(p: Point2D, loop: ReadonlyArray<Point2D>): boolean {
     if (intersect) inside = !inside
   }
   return inside
+}
+
+/**
+ * Arithmetic-mean centroid of the loop's vertices. NOT the polygon's
+ * geometric (area-weighted) centroid — we only need a sample point that
+ * lies in the convex hull of the vertices, so the mean is sufficient and
+ * cheaper. For non-convex inputs this may lie outside the polygon itself,
+ * which doesn't matter for containment testing against an OUTER loop
+ * (the bbox-disjoint cheap reject catches the obvious misses upstream).
+ */
+function loopCentroid(loop: ReadonlyArray<Point2D>): Point2D {
+  let sumX = 0
+  let sumY = 0
+  for (const p of loop) {
+    sumX += p.x
+    sumY += p.y
+  }
+  return { x: sumX / loop.length, y: sumY / loop.length }
 }
 
 function computeBbox(loop: ReadonlyArray<Point2D>): Bbox {

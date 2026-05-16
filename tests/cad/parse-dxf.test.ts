@@ -110,6 +110,20 @@ describe("parseDxf", () => {
     expect(entity.reason).toBe("spline-malformed")
   })
 
+  it("rejects malformed SPLINE (overlong knot vector) with reason spline-malformed", () => {
+    // Degree 3, 4 control points; canonical knot count is 8. Provide 10 to
+    // ensure the strict-equality check in narrowSpline rejects it. Codex
+    // review (PR #280): an overlong knot vector would otherwise allow
+    // deBoor's span search to advance past the control points array.
+    const text = overlongKnotSpline()
+    const doc = parseDxf(text)
+    const entity = doc.entities[0]
+    expect(entity.kind).toBe("unsupported")
+    if (entity.kind !== "unsupported") return
+    expect(entity.originalType).toBe("SPLINE")
+    expect(entity.reason).toBe("spline-malformed")
+  })
+
   // Rational-spline rejection: deferred. dxf-parser's `ISplineEntity` does
   // not expose per-control-point weights, so we can't author a fixture that
   // narrowing recognises as rational without round-tripping the bit-4 flag.
@@ -160,6 +174,71 @@ function malformedSpline(): string {
     "0.0",
     " 40",
     "0.0",
+    " 40",
+    "1.0",
+    " 40",
+    "1.0",
+    " 10",
+    "0.0",
+    " 20",
+    "0.0",
+    " 10",
+    "1.0",
+    " 20",
+    "0.0",
+    " 10",
+    "2.0",
+    " 20",
+    "1.0",
+    " 10",
+    "3.0",
+    " 20",
+    "0.0",
+    "  0",
+    "ENDSEC",
+    "  0",
+    "EOF",
+    "",
+  ].join("\n")
+}
+
+function overlongKnotSpline(): string {
+  // Degree 3, 4 control points, 10 knots (canonical is 8 = 4 + 3 + 1).
+  // Strict-equality narrowSpline check rejects the extra knots so deBoor
+  // never gets a chance to overrun the control-points array.
+  return [
+    "  0",
+    "SECTION",
+    "  2",
+    "ENTITIES",
+    "  0",
+    "SPLINE",
+    "  8",
+    "0",
+    " 70",
+    "8",
+    " 71",
+    "3",
+    " 72",
+    "10",
+    " 73",
+    "4",
+    " 40",
+    "0.0",
+    " 40",
+    "0.0",
+    " 40",
+    "0.0",
+    " 40",
+    "0.0",
+    " 40",
+    "1.0",
+    " 40",
+    "1.0",
+    " 40",
+    "1.0",
+    " 40",
+    "1.0",
     " 40",
     "1.0",
     " 40",
