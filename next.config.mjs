@@ -43,6 +43,14 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "**/*": ["./node_modules/@swc/helpers/esm/**/*.js"],
   },
+  // Mark @swc/helpers as a server-side external so Next.js does NOT
+  // bundle it. The lambda runtime then resolves it from node_modules
+  // at /var/task/node_modules — and because the package is a top-
+  // level dependency (see package.json), Vercel ships the entire
+  // directory tree (esm/ + cjs/ + everything) verbatim instead of
+  // running it through the bundler's exports-map-respecting tracer
+  // that strips the esm/ subdir.
+  serverExternalPackages: ["@swc/helpers"],
   compiler: {
     // Strip console noise from production builds, but preserve
     // `console.error` and `console.warn` so server-side incident
