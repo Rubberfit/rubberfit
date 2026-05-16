@@ -12,6 +12,15 @@
  * `tax`. The UI cutover in Tasks 11a/b/c swaps call sites one
  * surface at a time; the flag controls the backend per call.
  *
+ * **`reorderRules` is now flag-ON-only.** The legacy fallback was
+ * retired alongside `legacyReorderService`. Each flag-OFF branch
+ * throws an explicit error directing operators to flip
+ * `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true` (matches the existing
+ * pattern from `createPo` / `createIndividualPos` / `createBulkPo`).
+ * The retirement was safe because the legacy CRUD already
+ * referenced columns the schema redesign dropped (`user_id`),
+ * so flag-OFF reorder writes were runtime-broken anyway.
+ *
  * Scope: Task 9 ships the flag-ON plumbing as the source of truth.
  * Legacy fallbacks exist to keep the UI functional during the
  * cutover but are intentionally thin — the legacy shape is
@@ -24,7 +33,6 @@
 
 import { csvService as legacyCsv } from "@/src/infrastructure/services/csvService"
 import { legacyPurchaseOrderService as legacyPos } from "@/src/infrastructure/services/legacyPurchaseOrderService"
-import { legacyReorderService as legacyReorder } from "@/src/infrastructure/services/legacyReorderService"
 import { taxService as legacyTax } from "@/src/infrastructure/services/taxService"
 
 import { rfClient } from "../client"
@@ -285,23 +293,28 @@ export const purchaseOrders = {
 // Reorder rules + suggestions
 // ---------------------------------------------------------------
 
+// `legacyReorderService` was retired alongside this surface — every
+// flag-OFF branch below throws so operators are explicitly directed
+// to flip `NEXT_PUBLIC_USE_RUST_PROCUREMENT=true`. See file-top
+// docblock; matches the pre-existing `createPo` / `createIndividualPos`
+// / `createBulkPo` pattern.
+function reorderFlagOffError(operation: string): Error {
+  return new Error(
+    `reorder ${operation} flag-OFF path not wired (legacyReorderService retired); flip NEXT_PUBLIC_USE_RUST_PROCUREMENT=true for this surface`
+  )
+}
+
 export const reorderRules = {
   async list(): Promise<ReorderRuleDto[]> {
     if (!isRustBackendEnabled()) {
-      const rows = await legacyReorder.getAllReorderRules()
-      return rows as unknown as ReorderRuleDto[]
+      throw reorderFlagOffError("list")
     }
     const res = await rfClient.GET("/api/v2/reorder-rules")
     return unwrap(res)
   },
   async get(id: string): Promise<ReorderRuleDto | null> {
     if (!isRustBackendEnabled()) {
-      try {
-        const row = await legacyReorder.getReorderRuleById(id)
-        return row as unknown as ReorderRuleDto
-      } catch {
-        return null
-      }
+      throw reorderFlagOffError("get")
     }
     const res = await rfClient.GET("/api/v2/reorder-rules/{id}", {
       params: { path: { id } },
@@ -311,21 +324,14 @@ export const reorderRules = {
   },
   async create(body: CreateReorderRuleBody): Promise<ReorderRuleDto> {
     if (!isRustBackendEnabled()) {
-      const row = await legacyReorder.createReorderRule(
-        body as unknown as Parameters<typeof legacyReorder.createReorderRule>[0]
-      )
-      return row as unknown as ReorderRuleDto
+      throw reorderFlagOffError("create")
     }
     const res = await rfClient.POST("/api/v2/reorder-rules", { body })
     return unwrap(res)
   },
   async update(id: string, body: UpdateReorderRuleBody): Promise<ReorderRuleDto> {
     if (!isRustBackendEnabled()) {
-      const row = await legacyReorder.updateReorderRule(
-        id,
-        body as unknown as Parameters<typeof legacyReorder.updateReorderRule>[1]
-      )
-      return row as unknown as ReorderRuleDto
+      throw reorderFlagOffError("update")
     }
     const res = await rfClient.PUT("/api/v2/reorder-rules/{id}", {
       params: { path: { id } },
@@ -335,8 +341,7 @@ export const reorderRules = {
   },
   async delete(id: string): Promise<void> {
     if (!isRustBackendEnabled()) {
-      await legacyReorder.deleteReorderRule(id)
-      return
+      throw reorderFlagOffError("delete")
     }
     const res = await rfClient.DELETE("/api/v2/reorder-rules/{id}", {
       params: { path: { id } },
@@ -345,16 +350,7 @@ export const reorderRules = {
   },
   async suggestions(params?: { include_pending?: boolean }): Promise<ReorderSuggestionDto[]> {
     if (!isRustBackendEnabled()) {
-      // Do NOT forward `include_pending` to legacy —
-      // `generateReorderSuggestions(includeInactive)` takes a
-      // parameter with a completely different meaning ("include
-      // inactive MATERIALS", not "include rules already covered
-      // by a non-draft PO"). Legacy's pending-suppression happens
-      // internally inside `IReorderService.generateReorderSuggestions`.
-      // Passing true here would silently widen the result set to
-      // disabled materials, breaking parity.
-      const rows = await legacyReorder.generateReorderSuggestions()
-      return rows as unknown as ReorderSuggestionDto[]
+      throw reorderFlagOffError("suggestions")
     }
     const res = await rfClient.GET("/api/v2/reorder-rules/suggestions", {
       params: { query: params },
