@@ -23,6 +23,11 @@
  * tightly to NextRequest/NextResponse. This is the documented exception
  * in tests/architecture/no-direct-supabase.test.ts.
  */
+// Pin @swc/helpers/esm/* into the lambda's nft trace. See the file
+// for the full story. Must come BEFORE any other import that pulls
+// SWC-injected helper requires into this bundle.
+import "@/src/swc-helpers-trace-pin"
+
 import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"

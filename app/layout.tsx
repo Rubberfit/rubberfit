@@ -1,3 +1,6 @@
+// Pin @swc/helpers/esm/* into every route lambda's nft trace.
+import "@/src/swc-helpers-trace-pin"
+
 import "reflect-metadata"
 import "@/di/di-registration"
 import type { ReactNode } from "react"
