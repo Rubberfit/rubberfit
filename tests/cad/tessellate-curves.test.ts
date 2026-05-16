@@ -240,6 +240,57 @@ describe("tessellateBulge", () => {
   })
 })
 
+describe("tessellateBulge reflex arcs", () => {
+  it("bulge=+2 produces a reflex (major) arc with apex at (0.5, 1.0)", () => {
+    const verts = tessellateBulge({ x: 0, y: 0 }, { x: 1, y: 0 }, 2)
+    expect(verts.length).toBeGreaterThanOrEqual(16)
+    const apexY = verts.reduce((max, v) => Math.max(max, v.y), -Infinity)
+    expect(apexY).toBeCloseTo(1.0, 6)
+    // Every vertex sits on the radius-0.625 circle centered at (0.5, 0.375)
+    for (const v of verts) {
+      const r = Math.hypot(v.x - 0.5, v.y - 0.375)
+      expect(r).toBeCloseTo(0.625, 6)
+    }
+  })
+
+  it("bulge=-2 mirrors bulge=+2 across the chord", () => {
+    const verts = tessellateBulge({ x: 0, y: 0 }, { x: 1, y: 0 }, -2)
+    const apexY = verts.reduce((min, v) => Math.min(min, v.y), Infinity)
+    expect(apexY).toBeCloseTo(-1.0, 6)
+  })
+
+  it("non-axis-aligned reflex chord: A=(1,1)→B=(4,5), bulge=+1.5", () => {
+    const verts = tessellateBulge({ x: 1, y: 1 }, { x: 4, y: 5 }, 1.5)
+    expect(verts.length).toBeGreaterThanOrEqual(16)
+    // Center ≈ (1.6667, 3.625), r ≈ 2.7083; verify every vertex sits on that circle.
+    const cx = 5 / 3
+    const cy = 3.625
+    const r = Math.hypot(1 - cx, 1 - cy)
+    for (const v of verts) {
+      expect(Math.hypot(v.x - cx, v.y - cy)).toBeCloseTo(r, 4)
+    }
+  })
+
+  it("bulge=NaN returns just the start point (no NaN propagation)", () => {
+    const verts = tessellateBulge({ x: 0, y: 0 }, { x: 1, y: 0 }, NaN)
+    expect(verts).toEqual([{ x: 0, y: 0 }])
+  })
+
+  it("bulge=Infinity returns just the start point", () => {
+    const verts = tessellateBulge({ x: 0, y: 0 }, { x: 1, y: 0 }, Infinity)
+    expect(verts).toEqual([{ x: 0, y: 0 }])
+  })
+
+  it("bulge just past semicircle (1.001) transitions smoothly", () => {
+    const verts = tessellateBulge({ x: 0, y: 0 }, { x: 1, y: 0 }, 1.001)
+    expect(verts.length).toBeGreaterThan(0)
+    // Apex y just above 0.5 (radius = 0.500000125; bulges marginally past semicircle)
+    const apexY = verts.reduce((max, v) => Math.max(max, v.y), -Infinity)
+    expect(apexY).toBeGreaterThan(0.5)
+    expect(apexY).toBeLessThan(0.502)
+  })
+})
+
 describe("tessellateSpline", () => {
   it("degree-3 spline approximating a quarter-circle stays within 1% of the unit circle", () => {
     const controlPoints = [

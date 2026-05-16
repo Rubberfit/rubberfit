@@ -207,7 +207,7 @@ export function tessellateBulge(
   bulge: number,
   options: TessellationOptions = {}
 ): Point2D[] {
-  if (bulge === 0) return [a]
+  if (!Number.isFinite(bulge) || bulge === 0) return [a]
   const dx = b.x - a.x
   const dy = b.y - a.y
   const chordLen = Math.hypot(dx, dy)
@@ -299,7 +299,11 @@ export function tessellateSpline(input: SplineInput, options: TessellationOption
  * (the textbook off-by-one trap at the boundary).
  */
 function deBoor(controls: Point2D[], knots: number[], degree: number, t: number): Point2D {
-  // Find span k: knots[k] <= t < knots[k+1], clamped at the last valid span.
+  // Find span k such that knots[k] <= t < knots[k+1], with t = tMax mapped
+  // to the last non-empty span (n = knots.length - degree - 2). This matches
+  // Piegl & Tiller's `FindSpan` boundary case (Algorithm A2.1) — without the
+  // clamp, t = tMax overshoots into knots[k+1] = tMax and produces NaN
+  // denominators in the de Boor recurrence.
   const lastSpan = knots.length - degree - 2
   let k = degree
   while (k < lastSpan && t >= knots[k + 1]) k++
