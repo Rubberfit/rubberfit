@@ -102,6 +102,52 @@ describe("groupLoopsIntoParts", () => {
   })
 })
 
+describe("groupLoopsIntoParts edge cases", () => {
+  it("identical duplicate loops do not hang (regression)", () => {
+    const dup = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    const start = Date.now()
+    const parts = groupLoopsIntoParts([dup, [...dup]]) // deep copy to ensure identical-by-value
+    const elapsed = Date.now() - start
+    expect(elapsed).toBeLessThan(100) // must terminate quickly
+    // Both loops become outers since neither strictly larger than the other.
+    expect(parts).toHaveLength(2)
+    expect(parts[0].polygon.holes).toHaveLength(0)
+    expect(parts[1].polygon.holes).toHaveLength(0)
+  })
+
+  it("empty loop filtered silently", () => {
+    const valid = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    expect(() => groupLoopsIntoParts([[], valid])).not.toThrow()
+    const parts = groupLoopsIntoParts([[], valid])
+    expect(parts).toHaveLength(1)
+  })
+
+  it("2-vertex degenerate loop filtered", () => {
+    const valid = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+    ]
+    const degen = [
+      { x: 100, y: 0 },
+      { x: 200, y: 0 },
+    ]
+    const parts = groupLoopsIntoParts([degen, valid])
+    expect(parts).toHaveLength(1)
+  })
+})
+
 describe("group-parts integration with DXF fixtures", () => {
   it("bracket-with-bolt-holes.dxf → 1 part with 4 holes", () => {
     const doc = parseDxf(fixture("bracket-with-bolt-holes"))

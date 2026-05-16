@@ -43,22 +43,32 @@ export interface DxfPartCandidate {
 type Bbox = { minX: number; minY: number; maxX: number; maxY: number }
 
 export function groupLoopsIntoParts(loops: Point2D[][]): DxfPartCandidate[] {
-  if (loops.length === 0) return []
+  // Filter degenerate loops (fewer than 3 vertices). An empty loop crashes
+  // `loops[i][0]` access in the parent-assignment scan; a 2-vertex loop
+  // emits a line-segment "part" with zero area.
+  const validLoops = loops.filter((l) => l.length >= 3)
+  if (validLoops.length === 0) return []
 
   // Precompute bboxes and absolute areas so the O(N^2) containment scan
   // and the smallest-area-parent tiebreak don't repeat work.
-  const bboxes: Bbox[] = loops.map(computeBbox)
-  const areas: number[] = loops.map((loop) => Math.abs(signedArea(loop)))
+  const bboxes: Bbox[] = validLoops.map(computeBbox)
+  const areas: number[] = validLoops.map((loop) => Math.abs(signedArea(loop)))
 
   // Step 1: parent[i] = smallest-area loop strictly containing loops[i],
-  // or -1 if none.
-  const parent = new Array<number>(loops.length).fill(-1)
-  for (let i = 0; i < loops.length; i++) {
+  // or -1 if none. The strict-area predicate (areas[j] > areas[i]) is
+  // the FIRST check: it guarantees the parent relation is acyclic by
+  // induction on area, which eliminates the identical-duplicate-loops
+  // infinite hang in the depth-chase below (two coincident loops would
+  // otherwise classify as mutual parents under inclusive bbox + point-
+  // in-polygon at a shared vertex).
+  const parent = new Array<number>(validLoops.length).fill(-1)
+  for (let i = 0; i < validLoops.length; i++) {
     let smallestArea = Infinity
-    for (let j = 0; j < loops.length; j++) {
+    for (let j = 0; j < validLoops.length; j++) {
       if (i === j) continue
+      if (areas[j] <= areas[i]) continue
       if (!bboxContains(bboxes[j], bboxes[i])) continue
-      if (!pointInPolygon(loops[i][0], loops[j])) continue
+      if (!pointInPolygon(validLoops[i][0], validLoops[j])) continue
       if (areas[j] < smallestArea) {
         smallestArea = areas[j]
         parent[i] = j
@@ -66,18 +76,26 @@ export function groupLoopsIntoParts(loops: Point2D[][]): DxfPartCandidate[] {
     }
   }
 
-  // Step 2: depth via parent-chain. The loop terminates when we hit a
-  // root (-1); since `parent` never points to self (i === j is skipped)
-  // and "strictly contains" is asymmetric on distinct loops (a loop can't
-  // strictly contain a loop that strictly contains it), there are no
-  // cycles to guard against — the chain is bounded by `loops.length`.
-  const depth = new Array<number>(loops.length).fill(0)
-  for (let i = 0; i < loops.length; i++) {
+  // Step 2: depth via parent-chain. The strict-area predicate above makes
+  // cycles impossible (parent area strictly greater than child area, so
+  // parent-chain areas form a strictly increasing sequence bounded by
+  // `validLoops.length`). The `steps` counter is belt-and-suspenders —
+  // if it ever fires it indicates a regression in the strict-area
+  // invariant, in which case clamping to depth 0 is safer than hanging.
+  const depth = new Array<number>(validLoops.length).fill(0)
+  for (let i = 0; i < validLoops.length; i++) {
     let d = 0
     let p = parent[i]
-    while (p !== -1) {
+    let steps = 0
+    while (p !== -1 && steps < validLoops.length) {
       d++
       p = parent[p]
+      steps++
+    }
+    if (steps >= validLoops.length) {
+      // Defensive: should be unreachable given the strict-area predicate.
+      // If reached, clamp depth to 0 (treat as top-level outer).
+      d = 0
     }
     depth[i] = d
   }
@@ -87,23 +105,23 @@ export function groupLoopsIntoParts(loops: Point2D[][]): DxfPartCandidate[] {
   // map is fully populated before holes are attached.
   const parts: DxfPartCandidate[] = []
   const outerToPart = new Map<number, number>()
-  for (let i = 0; i < loops.length; i++) {
+  for (let i = 0; i < validLoops.length; i++) {
     if (depth[i] % 2 !== 0) continue
     parts.push({
       index: parts.length,
-      polygon: { outer: ensureWinding(loops[i], "ccw"), holes: [] },
+      polygon: { outer: ensureWinding(validLoops[i], "ccw"), holes: [] },
       bbox: bboxes[i],
     })
     outerToPart.set(i, parts.length - 1)
   }
-  for (let i = 0; i < loops.length; i++) {
+  for (let i = 0; i < validLoops.length; i++) {
     if (depth[i] % 2 !== 1) continue
     const partIdx = outerToPart.get(parent[i])
     // Orphan hole: parent at odd depth wasn't promoted to outer. Can't
     // happen given the even-odd partition above, but guard anyway —
     // dropping is safer than corrupting an unrelated part.
     if (partIdx === undefined) continue
-    parts[partIdx].polygon.holes.push(ensureWinding(loops[i], "cw"))
+    parts[partIdx].polygon.holes.push(ensureWinding(validLoops[i], "cw"))
   }
 
   return parts
