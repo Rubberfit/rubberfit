@@ -75,7 +75,11 @@ function buildPathD(
   return [polygon.outer, ...polygon.holes].map(loopToD).join(" ")
 }
 
-function PolygonThumbnail({ polygon }: { polygon: PolygonWithHoles }) {
+interface PolygonThumbnailProps {
+  polygon: PolygonWithHoles
+}
+
+function PolygonThumbnail({ polygon }: PolygonThumbnailProps) {
   if (polygon.outer.length < 3) return <Square className="h-4 w-4 shrink-0" />
   const bounds = getPolygonBounds(polygon)
   const width = bounds.width || 1

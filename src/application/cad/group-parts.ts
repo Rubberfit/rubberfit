@@ -40,7 +40,12 @@ export interface DxfPartCandidate {
   bbox: { minX: number; minY: number; maxX: number; maxY: number }
 }
 
-type Bbox = { minX: number; minY: number; maxX: number; maxY: number }
+interface Bbox {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
 
 export function groupLoopsIntoParts(loops: Point2D[][]): DxfPartCandidate[] {
   // Filter degenerate loops (fewer than 3 vertices). An empty loop crashes

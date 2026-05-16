@@ -183,7 +183,11 @@ export default function CutListUpload({
   }
 
   const handleDxfConfirm = (part: DxfImportedPart) => {
-    onDxfPartConfirmed?.(part)
+    if (!onDxfPartConfirmed) {
+      toast.error("DXF import is not wired on this page.")
+      return
+    }
+    onDxfPartConfirmed(part)
     setStatus("idle")
     setDxfReview(null)
     toast.success(`Added ${part.partNumber} to cut planner.`)

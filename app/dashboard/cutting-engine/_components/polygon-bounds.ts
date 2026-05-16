@@ -17,6 +17,12 @@ export interface PolygonBounds {
 }
 
 export function getPolygonBounds(polygon: PolygonWithHoles): PolygonBounds {
+  // Empty outer → return a zero-extent bbox at the origin rather than
+  // letting `Infinity` / `-Infinity` leak into downstream width/height
+  // math (NaN-producing subtractions, broken SVG viewBoxes, etc.).
+  if (polygon.outer.length === 0) {
+    return { minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 }
+  }
   let minX = Infinity
   let maxX = -Infinity
   let minY = Infinity

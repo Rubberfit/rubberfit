@@ -74,9 +74,9 @@ function getCutModeDescription(partType: PartTemplate["partType"]) {
  * every supported shape kind. Returned in sq in (not sq ft) because
  * the auto-fill bin allocator divides by sheet area in sq in.
  *
- * Note: `getRequestedSqFt` historically forces qty=1 for non-rectangle
- * shapes, which is a pre-existing under-count bug we preserve in that
- * function to avoid changing observed UI totals. This helper does NOT
+ * Note: `getRequestedSqFt` historically forces qty=1 for shapes other
+ * than rectangle + polygon (a pre-existing under-count bug preserved
+ * there to avoid changing observed UI totals). This helper does NOT
  * carry that quirk — it qty-multiplies every shape so the bin
  * allocator estimates capacity correctly when an operator orders, e.g.,
  * 10 cones.
@@ -124,7 +124,10 @@ function getRequestedSqFt(templates: PartTemplate[]) {
   }
 
   return templates.reduce((total, template) => {
-    const qty = template.partType === "rectangle" ? Math.max(1, template.quantity) : 1
+    const qty =
+      template.partType === "rectangle" || template.partType === "polygon"
+        ? Math.max(1, template.quantity)
+        : 1
     switch (template.partType) {
       case "circle": {
         const radius = (template.diameter ?? 0) / 2

@@ -84,8 +84,13 @@ function fitViewBox(
   const w = bounds.maxX - bounds.minX
   const h = bounds.maxY - bounds.minY
   if (w <= 0 || h <= 0) return { scale: 1, padX: 0, padY: 0 }
-  const pad = Math.max(w, h) * padPct
-  const scale = Math.min((svgSize - pad * 2) / w, (svgSize - pad * 2) / h)
+  // pad is in pixels — must match the units of svgSize, not the bbox.
+  // Previously this computed `Math.max(w, h) * padPct` (document units),
+  // which produced a negative `(svgSize - pad * 2)` for any DXF where
+  // the bbox is much larger than the SVG canvas (e.g., w=2000mm into a
+  // 320px preview), inverting the scale and crashing the preview.
+  const padPx = svgSize * padPct
+  const scale = Math.min((svgSize - padPx * 2) / w, (svgSize - padPx * 2) / h)
   const padX = (svgSize - w * scale) / 2
   const padY = (svgSize - h * scale) / 2
   return { scale, padX, padY }
@@ -102,21 +107,21 @@ export function buildPathString(polygon: PolygonWithHoles, bounds: Bbox, svgSize
 
 export function UnitButton({
   label,
-  active,
+  isActive,
   onClick,
 }: {
   label: string
-  active: boolean
+  isActive: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
-      aria-pressed={active}
+      aria-pressed={isActive}
       onClick={onClick}
       className={cn(
         "px-3 py-1.5 text-sm font-medium rounded-md border transition-colors",
-        active
+        isActive
           ? "bg-blue-600 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-600"
           : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800"
       )}
@@ -231,8 +236,8 @@ export function UnitPicker({
     <div className="space-y-2">
       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Units</label>
       <div className="flex gap-2">
-        <UnitButton label="mm" active={units === "mm"} onClick={() => onChange("mm")} />
-        <UnitButton label="inch" active={units === "inch"} onClick={() => onChange("inch")} />
+        <UnitButton label="mm" isActive={units === "mm"} onClick={() => onChange("mm")} />
+        <UnitButton label="inch" isActive={units === "inch"} onClick={() => onChange("inch")} />
       </div>
       {detectedUnits === undefined && units === undefined && (
         <p className="text-xs text-amber-700 dark:text-amber-300">

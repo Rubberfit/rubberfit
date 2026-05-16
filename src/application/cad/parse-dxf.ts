@@ -110,11 +110,20 @@ function narrowLine(entity: ILineEntity, layer: string): LineEntity | Unsupporte
   if (verts.length < 2) {
     return unsupported(layer, "LINE", "entity-type-unsupported")
   }
+  const [a, b] = verts
+  if (
+    !Number.isFinite(a.x) ||
+    !Number.isFinite(a.y) ||
+    !Number.isFinite(b.x) ||
+    !Number.isFinite(b.y)
+  ) {
+    return unsupported(layer, "LINE", "entity-type-unsupported")
+  }
   return {
     kind: "line",
     layer,
-    start: { x: verts[0].x, y: verts[0].y },
-    end: { x: verts[1].x, y: verts[1].y },
+    start: { x: a.x, y: a.y },
+    end: { x: b.x, y: b.y },
   }
 }
 
@@ -279,7 +288,10 @@ function narrowSpline(entity: ISplineEntity, layer: string): SplineEntity | Unsu
   }
   const knots = entity.knotValues ?? []
   const degree = entity.degreeOfSplineCurve ?? 3
-  if (typeof degree !== "number" || degree < 1) {
+  if (!Number.isInteger(degree) || degree < 1) {
+    return unsupported(layer, "SPLINE", "spline-malformed")
+  }
+  if (!knots.every((k) => typeof k === "number" && Number.isFinite(k))) {
     return unsupported(layer, "SPLINE", "spline-malformed")
   }
   if (controlPoints.length < degree + 1) {

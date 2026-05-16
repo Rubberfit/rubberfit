@@ -117,7 +117,8 @@ describe("CutListUpload — DXF branch", () => {
     await waitFor(() => {
       expect(lastOpenCall()).toBeDefined()
     })
-    const props = lastOpenCall()!
+    const props = lastOpenCall()
+    if (!props) throw new Error("DXF dialog did not open")
     expect(props.parts.length).toBe(2)
     expect(toast.error).not.toHaveBeenCalled()
   })
@@ -131,7 +132,8 @@ describe("CutListUpload — DXF branch", () => {
     await waitFor(() => {
       expect(lastOpenCall()).toBeDefined()
     })
-    const props = lastOpenCall()!
+    const props = lastOpenCall()
+    if (!props) throw new Error("DXF dialog did not open")
     expect(props.parts.length).toBe(1)
     expect(toast.error).not.toHaveBeenCalled()
   })
@@ -145,7 +147,8 @@ describe("CutListUpload — DXF branch", () => {
     await waitFor(() => {
       expect(lastOpenCall()).toBeDefined()
     })
-    const props = lastOpenCall()!
+    const props = lastOpenCall()
+    if (!props) throw new Error("DXF dialog did not open")
     expect(props.parts.length).toBe(1)
     expect(props.parts[0].polygon.holes.length).toBe(0)
     expect(toast.error).not.toHaveBeenCalled()
@@ -160,7 +163,8 @@ describe("CutListUpload — DXF branch", () => {
     await waitFor(() => {
       expect(lastOpenCall()).toBeDefined()
     })
-    const props = lastOpenCall()!
+    const props = lastOpenCall()
+    if (!props) throw new Error("DXF dialog did not open")
     expect(props.parts.length).toBe(1)
     expect(props.parts[0].polygon.holes.length).toBe(1)
     expect(toast.error).not.toHaveBeenCalled()
@@ -176,7 +180,8 @@ describe("CutListUpload — DXF branch", () => {
     await waitFor(() => {
       expect(lastOpenCall()).toBeDefined()
     })
-    const props = lastOpenCall()!
+    const props = lastOpenCall()
+    if (!props) throw new Error("DXF dialog did not open")
     expect(props.parts.length).toBe(1)
     expect(props.parts[0].polygon.holes.length).toBe(4)
     expect(toast.error).not.toHaveBeenCalled()

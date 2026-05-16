@@ -226,7 +226,11 @@ describe("buildPart hole preservation", () => {
       allowRotation: true,
     })
     // Signed area: positive = CCW, negative = CW
-    function signedArea(loop: { x: number; y: number }[]): number {
+    interface LoopPoint {
+      x: number
+      y: number
+    }
+    function signedArea(loop: LoopPoint[]): number {
       let a = 0
       for (let i = 0; i < loop.length; i++) {
         const p1 = loop[i]

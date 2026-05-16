@@ -60,8 +60,16 @@ function normalizePolygon(input: Point2D[] | PolygonWithHoles): PolygonWithHoles
   if (outerInput.length < 3) {
     throw new Error("polygon: must have at least 3 vertices")
   }
-  const minX = Math.min(...outerInput.map((p) => p.x))
-  const minY = Math.min(...outerInput.map((p) => p.y))
+  // Single-pass min so a million-vertex DXF doesn't blow the JS call
+  // stack via `Math.min(...arr)` (argument-list limits are engine-
+  // specific but typically ~10k on V8). Same result as the original
+  // `Math.min(...map)` for any finite-vertex polygon.
+  let minX = Infinity
+  let minY = Infinity
+  for (const p of outerInput) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+  }
   // Hole-bearing inputs (multi-loop DXF, primitives with bores) flow
   // through with holes preserved. Outer and every hole get shifted by
   // the SAME bbox offset so their relative position is intact, then
