@@ -1,25 +1,30 @@
 /**
- * Reorder action tests — post-Tier-2 authority-gap fix.
+ * Reorder action tests — post-DDD migration.
  *
  * The actions no longer accept client-supplied `suggestion[]` /
  * `reorderRules` payloads. Server fetches rules + stock + pending
  * POs, runs the generate-suggestions use-case, and forwards the
- * authoritative result to the create use-case. Tests mock:
+ * authoritative result to the create use-case.
  *
+ * Post-shim-retirement, reads flow through the entity-typed
+ * `IReorderService` (resolved via DI) and `IReorderCalculationsService`
+ * (also DI). Material + supplier joins are bulk-fetched via the
+ * module-level `materialTypeService` / `supplierService` singletons.
+ *
+ * Tests mock:
  *   - `requireAuthenticatedUser` + `requirePermission` (auth gate)
  *   - `resolveUseCase` (returns a fake with `execute` mocked)
- *   - `reorderService.getActiveReorderRules` + `calculateCurrentStock`
+ *   - `resolveService` (returns reorderService or calc service by token)
+ *   - `materialTypeService.getByIds` + `supplierService.getActiveSuppliers`
  *   - `purchaseOrderService.getPurchaseOrdersByStatuses`
  *   - `revalidatePath`
- *
- * Two `resolveUseCase` resolvers are needed per write-action invocation
- * because the action calls the generate-suggestions use-case before
- * the create use-case. The mock returns objects keyed by token.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ActionActor } from "@/src/application/types/action-actor"
-import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { ReorderRule } from "@/src/entities/reorder-rule"
+import type { MaterialType } from "@/src/entities/material-type"
+import type { Supplier } from "@/src/entities/supplier"
 import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { TOKENS } from "@/di/tokens"
 
@@ -34,8 +39,10 @@ vi.mock("@/app/server/auth/require-permission", () => ({
 }))
 
 const resolveUseCaseMock = vi.hoisted(() => vi.fn())
+const resolveServiceMock = vi.hoisted(() => vi.fn())
 vi.mock("@/di/resolve", () => ({
   resolveUseCase: resolveUseCaseMock,
+  resolveService: resolveServiceMock,
 }))
 
 const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
@@ -44,11 +51,24 @@ vi.mock("@/app/server/database/register-factory", () => ({
 }))
 
 const reorderServiceMock = vi.hoisted(() => ({
-  getActiveReorderRules: vi.fn(),
+  getActiveRules: vi.fn(),
+}))
+const calcServiceMock = vi.hoisted(() => ({
   calculateCurrentStock: vi.fn(),
 }))
-vi.mock("@/src/infrastructure/services/legacyReorderService", () => ({
-  legacyReorderService: reorderServiceMock,
+
+const materialTypeServiceMock = vi.hoisted(() => ({
+  getByIds: vi.fn(),
+}))
+vi.mock("@/src/infrastructure/services/materialTypeService", () => ({
+  materialTypeService: materialTypeServiceMock,
+}))
+
+const supplierServiceMock = vi.hoisted(() => ({
+  getActiveSuppliers: vi.fn(),
+}))
+vi.mock("@/src/infrastructure/services/supplierService", () => ({
+  supplierService: supplierServiceMock,
 }))
 
 const purchaseOrderServiceMock = vi.hoisted(() => ({
@@ -77,18 +97,52 @@ const MATERIAL_TYPE_ID_B = "00000000-0000-4000-8000-000000000020"
 const SUPPLIER_ID = "00000000-0000-4000-8000-000000000011"
 const RULE_ID = "00000000-0000-4000-8000-000000000012"
 const PO_ID = "00000000-0000-4000-8000-000000000013"
+const TENANT_ID = "00000000-0000-4000-8000-000000000001"
 
-const ACTIVE_RULE: ReorderRuleWithDetails = {
-  id: RULE_ID,
-  material_type_id: MATERIAL_TYPE_ID,
-  reorder_point: 50,
-  reorder_quantity: 100,
-  current_stock: 10,
-  supplier_id: SUPPLIER_ID,
-  active: true,
-  material_type: { name: "Black butyl rubber", default_cost: 5.5 },
-  supplier: { name: "Acme Rubber" },
-} as unknown as ReorderRuleWithDetails
+// Plain-object stand-ins shaped to match entity getter access. The
+// action reads `.materialTypeId.value`, `.supplierId?.value`,
+// `.reorderPointSqm`, etc.; the mocks mirror that shape, cast at the
+// boundary.
+function buildRule(overrides: Partial<{
+  ruleId: string
+  materialTypeId: string
+  supplierId: string | null
+}> = {}): ReorderRule {
+  const rId = overrides.ruleId ?? RULE_ID
+  const mId = overrides.materialTypeId ?? MATERIAL_TYPE_ID
+  const sId = overrides.supplierId ?? SUPPLIER_ID
+  return {
+    id: { value: rId },
+    tenantId: { value: TENANT_ID },
+    materialTypeId: { value: mId },
+    supplierId: sId === null ? null : { value: sId },
+    reorderPointSqm: 50,
+    reorderQuantitySqm: 100,
+    maxStockLevelSqm: 200,
+    leadTimeDays: 7,
+    safetyStockDays: 3,
+    autoReorder: false,
+    isActive: true,
+    notes: null,
+    lastTriggeredAt: null,
+    createdAt: new Date("2026-05-01T00:00:00Z"),
+    updatedAt: new Date("2026-05-01T00:00:00Z"),
+  } as unknown as ReorderRule
+}
+
+function buildMaterial(id = MATERIAL_TYPE_ID, name = "Black butyl rubber"): MaterialType {
+  return {
+    id: { value: id },
+    name,
+  } as unknown as MaterialType
+}
+
+function buildSupplier(id = SUPPLIER_ID, name = "Acme Rubber"): Supplier {
+  return {
+    id: { value: id },
+    name,
+  } as unknown as Supplier
+}
 
 // Authoritative suggestion the generate use-case "produces" — what
 // the create use-case ends up consuming. Its `estimatedCost` /
@@ -129,12 +183,23 @@ function setupUseCaseResolver(opts: {
   })
 }
 
+function setupServiceResolver() {
+  resolveServiceMock.mockImplementation((token: symbol) => {
+    if (token === TOKENS.IReorderService) return reorderServiceMock
+    if (token === TOKENS.IReorderCalculationsService) return calcServiceMock
+    throw new Error(`Unexpected resolveService token: ${String(token)}`)
+  })
+}
+
 describe("app/actions/reorder", () => {
   beforeEach(() => {
     requireAuthenticatedUserMock.mockResolvedValue(ACTOR)
     requirePermissionMock.mockReturnValue(undefined)
-    reorderServiceMock.getActiveReorderRules.mockResolvedValue([ACTIVE_RULE])
-    reorderServiceMock.calculateCurrentStock.mockResolvedValue(10)
+    setupServiceResolver()
+    reorderServiceMock.getActiveRules.mockResolvedValue([buildRule()])
+    calcServiceMock.calculateCurrentStock.mockResolvedValue(10)
+    materialTypeServiceMock.getByIds.mockResolvedValue([buildMaterial()])
+    supplierServiceMock.getActiveSuppliers.mockResolvedValue([buildSupplier()])
     purchaseOrderServiceMock.getPurchaseOrdersByStatuses.mockResolvedValue([])
   })
 
@@ -153,7 +218,7 @@ describe("app/actions/reorder", () => {
     await createReorderPurchaseOrder({ materialTypeId: MATERIAL_TYPE_ID })
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).toHaveBeenCalled()
     expect(generateExecute).toHaveBeenCalledWith(
       expect.objectContaining({
         rules: expect.arrayContaining([
@@ -185,7 +250,7 @@ describe("app/actions/reorder", () => {
     const smuggled = {
       materialTypeId: MATERIAL_TYPE_ID,
       suggestion: { ...AUTHORITATIVE_SUGGESTION, estimatedCost: 999_999 },
-      reorderRules: [{ ...ACTIVE_RULE, reorder_quantity: 999 }],
+      reorderRules: [{ id: RULE_ID, reorder_quantity: 999 }],
       forgedActorId: "00000000-0000-4000-8000-000000000666",
     } as unknown as { materialTypeId: string }
 
@@ -207,7 +272,7 @@ describe("app/actions/reorder", () => {
   it("createReorderPurchaseOrder Zod-rejects malformed materialTypeId", async () => {
     const { createReorderPurchaseOrder } = await import("@/app/actions/reorder")
     await expect(createReorderPurchaseOrder({ materialTypeId: "not-a-uuid" })).rejects.toThrow()
-    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).not.toHaveBeenCalled()
   })
 
   it("createReorderPurchaseOrder throws when generator produces no suggestion (above reorder point or no rule)", async () => {
@@ -238,7 +303,7 @@ describe("app/actions/reorder", () => {
     })
 
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).toHaveBeenCalled()
     expect(createBulkExecute).toHaveBeenCalledWith(
       expect.objectContaining({
         suggestions: [AUTHORITATIVE_SUGGESTION],
@@ -294,7 +359,7 @@ describe("app/actions/reorder", () => {
   it("createBulkReorderPurchaseOrder returns empty result when generator produces no suggestions", async () => {
     // No active rules match the requested IDs — short-circuit before
     // the create use-case is even resolved.
-    reorderServiceMock.getActiveReorderRules.mockResolvedValue([])
+    reorderServiceMock.getActiveRules.mockResolvedValue([])
 
     const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
     const result = await createBulkReorderPurchaseOrder({
@@ -307,7 +372,7 @@ describe("app/actions/reorder", () => {
   it("createBulkReorderPurchaseOrder Zod-rejects empty materialTypeIds", async () => {
     const { createBulkReorderPurchaseOrder } = await import("@/app/actions/reorder")
     await expect(createBulkReorderPurchaseOrder({ materialTypeIds: [] })).rejects.toThrow()
-    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).not.toHaveBeenCalled()
   })
 
   it("createBulkReorderPurchaseOrder rejects unauthenticated callers", async () => {
@@ -316,7 +381,7 @@ describe("app/actions/reorder", () => {
     await expect(
       createBulkReorderPurchaseOrder({ materialTypeIds: [MATERIAL_TYPE_ID] })
     ).rejects.toThrow("unauth")
-    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).not.toHaveBeenCalled()
   })
 
   // ── generateReorderSuggestions ────────────────────────────────────
@@ -330,7 +395,7 @@ describe("app/actions/reorder", () => {
 
     expect(requireAuthenticatedUserMock).toHaveBeenCalledOnce()
     expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
-    expect(reorderServiceMock.getActiveReorderRules).toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).toHaveBeenCalled()
     expect(generateExecute).toHaveBeenCalledWith(
       expect.objectContaining({
         rules: expect.arrayContaining([
@@ -346,7 +411,7 @@ describe("app/actions/reorder", () => {
   })
 
   it("generateReorderSuggestions returns empty array when no active rules exist", async () => {
-    reorderServiceMock.getActiveReorderRules.mockResolvedValue([])
+    reorderServiceMock.getActiveRules.mockResolvedValue([])
 
     const { generateReorderSuggestions } = await import("@/app/actions/reorder")
     const result = await generateReorderSuggestions()
@@ -359,6 +424,36 @@ describe("app/actions/reorder", () => {
     requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
     const { generateReorderSuggestions } = await import("@/app/actions/reorder")
     await expect(generateReorderSuggestions()).rejects.toThrow("unauth")
-    expect(reorderServiceMock.getActiveReorderRules).not.toHaveBeenCalled()
+    expect(reorderServiceMock.getActiveRules).not.toHaveBeenCalled()
+  })
+
+  // ── getCurrentStockByMaterials ────────────────────────────────────
+
+  it("getCurrentStockByMaterials returns a per-material stock map from the calc service", async () => {
+    calcServiceMock.calculateCurrentStock
+      .mockResolvedValueOnce(42)
+      .mockResolvedValueOnce(7)
+
+    const { getCurrentStockByMaterials } = await import("@/app/actions/reorder")
+    const result = await getCurrentStockByMaterials([MATERIAL_TYPE_ID, MATERIAL_TYPE_ID_B])
+
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(calcServiceMock.calculateCurrentStock).toHaveBeenCalledWith(MATERIAL_TYPE_ID)
+    expect(calcServiceMock.calculateCurrentStock).toHaveBeenCalledWith(MATERIAL_TYPE_ID_B)
+    expect(result).toEqual({ [MATERIAL_TYPE_ID]: 42, [MATERIAL_TYPE_ID_B]: 7 })
+  })
+
+  it("getCurrentStockByMaterials short-circuits on empty input without resolving services", async () => {
+    const { getCurrentStockByMaterials } = await import("@/app/actions/reorder")
+    const result = await getCurrentStockByMaterials([])
+    expect(result).toEqual({})
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("getCurrentStockByMaterials de-duplicates IDs before calling the calc service", async () => {
+    calcServiceMock.calculateCurrentStock.mockResolvedValue(5)
+    const { getCurrentStockByMaterials } = await import("@/app/actions/reorder")
+    await getCurrentStockByMaterials([MATERIAL_TYPE_ID, MATERIAL_TYPE_ID, MATERIAL_TYPE_ID])
+    expect(calcServiceMock.calculateCurrentStock).toHaveBeenCalledTimes(1)
   })
 })

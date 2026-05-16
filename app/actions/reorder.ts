@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-import { resolveUseCase } from "@/di/resolve"
+import { resolveService, resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
 import type {
   CreateReorderPurchaseOrderResult,
@@ -18,8 +18,14 @@ import type {
   ReorderSuggestionOutput,
 } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType as LegacyMaterialType } from "@/src/infrastructure/models/supabase"
+import type { Supplier as LegacySupplier } from "@/src/infrastructure/models/supabase"
+import type { ReorderRule } from "@/src/entities/reorder-rule"
+import type { IReorderService } from "@/src/application/services/reorder.service.interface"
+import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { supplierService } from "@/src/infrastructure/services/supplierService"
 
-import { legacyReorderService as reorderService } from "@/src/infrastructure/services/legacyReorderService"
 import { legacyPurchaseOrderService as purchaseOrderService } from "@/src/infrastructure/services/legacyPurchaseOrderService"
 
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
@@ -88,6 +94,87 @@ interface AuthoritativeReorderData {
   reorderRules: ReorderRuleWithDetails[]
 }
 
+/**
+ * Build the legacy `ReorderRuleWithDetails` shape the use-case
+ * expects out of entity-typed `ReorderRule` instances. Bulk-fetches
+ * material types + active suppliers once, then enriches each rule
+ * with `current_stock` via `IReorderCalculationsService`.
+ *
+ * Suppliers come from `getActiveSuppliers()` — typical tenants have
+ * <50 active suppliers, so one fetch is cheaper than per-rule
+ * `getSupplierById` round-trips. Inactive supplier references on a
+ * rule (rare) fall through with `supplier: undefined`; the use-case
+ * resolves them via `materialSupplierService.getPreferredForMaterialType`.
+ */
+async function assembleRulesWithDetails(
+  rules: ReorderRule[]
+): Promise<ReorderRuleWithDetails[]> {
+  if (rules.length === 0) return []
+
+  const calc = resolveService<IReorderCalculationsService>(TOKENS.IReorderCalculationsService)
+
+  const matIds = [...new Set(rules.map((r) => r.materialTypeId.value))]
+  const [materials, activeSuppliers] = await Promise.all([
+    materialTypeService.getByIds(matIds),
+    supplierService.getActiveSuppliers(),
+  ])
+
+  const matById = new Map(materials.map((m) => [m.id.value, m]))
+  const supById = new Map(activeSuppliers.map((s) => [s.id.value, s]))
+
+  return Promise.all(
+    rules.map(async (r) => {
+      const material = matById.get(r.materialTypeId.value)
+      const supplierEntity = r.supplierId ? supById.get(r.supplierId.value) : undefined
+
+      // Boundary cast: the use-case reads only `material_type.name` (and
+      // `default_cost` with a fallback to 5). The legacy `MaterialType`
+      // interface has many other optional fields we don't carry; cast
+      // at the boundary rather than propagating them.
+      const material_type = material
+        ? ({
+            id: material.id.value,
+            name: material.name,
+          } as unknown as LegacyMaterialType)
+        : undefined
+
+      // Same boundary cast for supplier: use-case reads only `name`.
+      const supplier = supplierEntity
+        ? ({
+            id: supplierEntity.id.value,
+            name: supplierEntity.name,
+          } as unknown as LegacySupplier)
+        : undefined
+
+      const current_stock = await calc.calculateCurrentStock(r.materialTypeId.value)
+
+      return {
+        id: r.id.value,
+        // The legacy `ReorderRule` interface still types `user_id` as a
+        // required string even though the schema dropped that column.
+        // Use empty string at the boundary; the use-case never reads it.
+        user_id: "",
+        material_type_id: r.materialTypeId.value,
+        supplier_id: r.supplierId?.value,
+        reorder_point: r.reorderPointSqm,
+        reorder_quantity: r.reorderQuantitySqm,
+        max_stock_level: r.maxStockLevelSqm ?? undefined,
+        lead_time_days: r.leadTimeDays,
+        safety_stock_days: r.safetyStockDays,
+        auto_reorder: r.autoReorder,
+        active: r.isActive,
+        notes: r.notes ?? undefined,
+        last_triggered_at: r.lastTriggeredAt?.toISOString(),
+        created_at: r.createdAt.toISOString(),
+        updated_at: r.updatedAt.toISOString(),
+        material_type,
+        supplier,
+        current_stock,
+      } satisfies ReorderRuleWithDetails
+    })
+  )
+}
+
 async function buildAuthoritativeReorderData(
   materialTypeIds: string[]
 ): Promise<AuthoritativeReorderData> {
@@ -95,19 +182,15 @@ async function buildAuthoritativeReorderData(
     return { suggestions: [], reorderRules: [] }
   }
 
-  const allRules = await reorderService.getActiveReorderRules()
+  const reorderService = resolveService<IReorderService>(TOKENS.IReorderService)
+  const allRules = await reorderService.getActiveRules()
   const requestedSet = new Set(materialTypeIds)
-  const filteredRules = allRules.filter((r) => requestedSet.has(r.material_type_id))
+  const filteredRules = allRules.filter((r) => requestedSet.has(r.materialTypeId.value))
   if (filteredRules.length === 0) {
     return { suggestions: [], reorderRules: [] }
   }
 
-  const rulesWithStock = await Promise.all(
-    filteredRules.map(async (r) => ({
-      ...r,
-      current_stock: await reorderService.calculateCurrentStock(r.material_type_id),
-    }))
-  )
+  const rulesWithStock = await assembleRulesWithDetails(filteredRules)
 
   const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
     "draft",
@@ -209,15 +292,11 @@ export async function generateReorderSuggestions(): Promise<ReorderSuggestionOut
   const actor = await requireAuthenticatedUser()
   requirePermission(actor, "manageRolls")
 
-  const allRules = await reorderService.getActiveReorderRules()
+  const reorderService = resolveService<IReorderService>(TOKENS.IReorderService)
+  const allRules = await reorderService.getActiveRules()
   if (allRules.length === 0) return []
 
-  const rulesWithStock = await Promise.all(
-    allRules.map(async (r) => ({
-      ...r,
-      current_stock: await reorderService.calculateCurrentStock(r.material_type_id),
-    }))
-  )
+  const rulesWithStock = await assembleRulesWithDetails(allRules)
 
   const pendingPOs = await purchaseOrderService.getPurchaseOrdersByStatuses([
     "draft",
@@ -230,4 +309,26 @@ export async function generateReorderSuggestions(): Promise<ReorderSuggestionOut
     TOKENS.IGenerateReorderSuggestionsUseCase
   )
   return generateUseCase.execute({ rules: rulesWithStock, pendingPOs })
+}
+
+/**
+ * Batched per-material current-stock lookup. The reorder dashboard's
+ * client-side fetcher calls this with the rule list's material IDs to
+ * paint per-rule stock indicators in the rules table — one round-trip
+ * instead of N. Permission-gated to match the rest of the surface.
+ */
+export async function getCurrentStockByMaterials(
+  materialTypeIds: string[]
+): Promise<Record<string, number>> {
+  ensureDatabaseFactoryRegistered()
+  const actor = await requireAuthenticatedUser()
+  requirePermission(actor, "manageRolls")
+  if (materialTypeIds.length === 0) return {}
+
+  const calc = resolveService<IReorderCalculationsService>(TOKENS.IReorderCalculationsService)
+  const uniqueIds = [...new Set(materialTypeIds)]
+  const entries = await Promise.all(
+    uniqueIds.map(async (id) => [id, await calc.calculateCurrentStock(id)] as const)
+  )
+  return Object.fromEntries(entries)
 }
