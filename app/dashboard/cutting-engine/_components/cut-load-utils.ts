@@ -15,6 +15,7 @@ import type {
   CutHistoryPartTypeLiteral,
   PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
+import { isSupportedLayoutJsonVersion } from "@/src/infrastructure/models/cut-history-layout"
 import { parseDimsFromLabel } from "./cut-planner-utils"
 import { coerceLayoutModelArray, type LayoutModel } from "./layout-model"
 import type { PartTemplate } from "./preset-template-data"
@@ -82,6 +83,12 @@ export function extractPerTemplatePartTypes(
 export function extractFrozenLayouts(cut: Pick<CutHistory, "layout_json">): LayoutModel[] | null {
   const layout = cut.layout_json
   if (!layout || layout.kind !== "auto") return null
+  // Version fence: refuse to render envelopes whose schema this build
+  // doesn't recognise. The tolerant coercer below would happily back-fill
+  // defaults for a v3+ row, but a future schema may add load-bearing
+  // fields whose absence would silently degrade the layout. Better to
+  // surface "saved layout unavailable" than to render a wrong picture.
+  if (!isSupportedLayoutJsonVersion(layout.version)) return null
   // Use the tolerant coercer instead of the strict guard — the JSONB
   // blob may have been written by an older `LayoutModel` shape and we
   // never want a missing/extra optional field to wipe out an entire

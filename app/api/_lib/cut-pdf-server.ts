@@ -8,7 +8,10 @@ import {
 } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import { PART_OPTIONS } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
-import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/cut-history-layout"
+import {
+  type CutHistoryLayoutJson,
+  isSupportedLayoutJsonVersion,
+} from "@/src/infrastructure/models/cut-history-layout"
 import { uploadCutPdfBlob } from "@/src/infrastructure/services/cutPdfStorageService"
 import {
   getOrgPreferencesForOwner,
@@ -26,9 +29,17 @@ const PART_TYPE_BY_PART_ID: Record<number, string> = {
  * Recover the LayoutModel[] saved alongside an auto-nest cut. The Rust v2 DTO
  * doesn't carry layout_json yet, so callers must read it through the
  * service-role client (this helper only validates shape).
+ *
+ * Accepts any envelope `version` in the supported set (currently `{1, 2}`).
+ * v1 rows lack the polygon-with-holes sibling field on parts; v2 rows MAY
+ * carry it. The downstream `isLayoutModel` guard already treats `holes` as
+ * optional, so both versions deserialize through the same path — the
+ * version check here is the explicit fence against unknown future
+ * schemas getting interpreted with current renderers.
  */
 export function extractAutoLayouts(layoutJson: CutHistoryLayoutJson | null): LayoutModel[] | null {
   if (!layoutJson || layoutJson.kind !== "auto") return null
+  if (!isSupportedLayoutJsonVersion(layoutJson.version)) return null
   return isLayoutModelArray(layoutJson.layouts) ? layoutJson.layouts : null
 }
 

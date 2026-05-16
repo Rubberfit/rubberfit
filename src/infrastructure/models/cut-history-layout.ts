@@ -15,11 +15,47 @@
  * Lives outside `supabase.ts` because the JSONB blob is a client-side
  * contract owned by the cutting-engine surface, not a Supabase-generated
  * row type. Server stores it verbatim and never validates the shape.
+ *
+ * ## Schema versioning
+ *
+ * The `version` field is a forward-compat marker:
+ *
+ *   - `1` — Single-contour parts (`PlacedPart.polygon: Point2D[]`, no holes).
+ *     Saved by writers prior to the gasket-cutting PR 0 series.
+ *   - `2` — Polygon-with-holes capable. `PlacedPart.holes?: Point2D[][]`
+ *     sibling field MAY be present on each part. A v2 row with no
+ *     hole-bearing parts is structurally identical to v1. Introduced
+ *     2026-05-15 (PR 0c) ahead of CAD import (PR A/B) and gasket
+ *     primitives (PR C).
+ *
+ * Readers MUST accept both `1` and `2` and lift v1 rows by treating
+ * absent `holes` as `[]`. New writers stamp `CURRENT_LAYOUT_JSON_VERSION`
+ * (== 2). Bumping requires updating both the writer and the reader
+ * compat fence (`isSupportedLayoutJsonVersion`).
  */
 export type CutHistoryLayoutJson = CutHistoryLayoutJsonManual | CutHistoryLayoutJsonAuto
 
+/**
+ * Version stamped on every fresh write. Bumped to 2 in PR 0c to mark
+ * envelopes whose `PlacedPart.polygon` lane may carry sibling `holes`
+ * loops (gasket rings, full-face bolt circles, CAD-imported geometry).
+ */
+export const CURRENT_LAYOUT_JSON_VERSION = 2 as const
+
+/**
+ * Set of versions readers accept. Widen this when the schema changes;
+ * narrow it only after a data migration retires older rows. Rows whose
+ * version is outside this set should be treated as unreadable (rendered
+ * as a "saved layout unavailable" placeholder rather than crashing).
+ */
+const SUPPORTED_LAYOUT_JSON_VERSIONS: ReadonlySet<number> = new Set([1, 2])
+
+export function isSupportedLayoutJsonVersion(value: unknown): value is 1 | 2 {
+  return typeof value === "number" && SUPPORTED_LAYOUT_JSON_VERSIONS.has(value)
+}
+
 export interface CutHistoryLayoutJsonManual {
-  version: 1
+  version: 1 | 2
   /** Absent on pre-kind rows — implicitly manual. */
   kind?: "manual"
   placements: Array<{
@@ -56,7 +92,7 @@ export interface CutHistoryLayoutJsonManual {
 export type CutHistoryPartTypeLiteral = "rectangle" | "cylinder" | "cone" | "trapezoid"
 
 export interface CutHistoryLayoutJsonAuto {
-  version: 1
+  version: 1 | 2
   kind: "auto"
   /**
    * Per-template quantities in the same order as
