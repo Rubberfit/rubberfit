@@ -15,11 +15,80 @@
  * Lives outside `supabase.ts` because the JSONB blob is a client-side
  * contract owned by the cutting-engine surface, not a Supabase-generated
  * row type. Server stores it verbatim and never validates the shape.
+ *
+ * ## Schema versioning
+ *
+ * The `version` field is a forward-compat marker:
+ *
+ *   - `1` — Single-contour parts (`PlacedPart.polygon: Point2D[]`, no holes).
+ *     Saved by writers prior to the gasket-cutting PR 0 series.
+ *   - `2` — Polygon-with-holes capable. `PlacedPart.holes?: Point2D[][]`
+ *     sibling field MAY be present on each part. A v2 row with no
+ *     hole-bearing parts is structurally identical to v1. Introduced
+ *     2026-05-15 (PR 0c) ahead of CAD import (PR A/B) and gasket
+ *     primitives (PR C).
+ *
+ * Readers MUST accept both `1` and `2` and lift v1 rows by treating
+ * absent `holes` as `[]`. New writers stamp `CURRENT_LAYOUT_JSON_VERSION`
+ * (== 2). Bumping requires updating both the writer and the reader
+ * compat fence (`isSupportedLayoutJsonVersion`).
  */
 export type CutHistoryLayoutJson = CutHistoryLayoutJsonManual | CutHistoryLayoutJsonAuto
 
+/**
+ * Version stamped on every fresh write. Bumped to 2 in PR 0c to mark
+ * envelopes whose `PlacedPart.polygon` lane may carry sibling `holes`
+ * loops (gasket rings, full-face bolt circles, CAD-imported geometry).
+ *
+ * Note: stays `as const` (not `: 2 = 2`) because the project's
+ * `@typescript-eslint/prefer-as-const` rule mandates this form for
+ * literal-typed exports. CodeRabbit flagged this on PR #279 as a
+ * CLAUDE.md "no `as` outside system boundaries" violation, but
+ * `as const` on a literal IS the project-sanctioned exception —
+ * ESLint enforces it.
+ */
+export const CURRENT_LAYOUT_JSON_VERSION = 2 as const
+
+/**
+ * Set of versions readers accept. Widen this when the schema changes;
+ * narrow it only after a data migration retires older rows. Rows whose
+ * version is outside this set should be treated as unreadable (rendered
+ * as a "saved layout unavailable" placeholder rather than crashing).
+ *
+ * Typed as `ReadonlySet<1 | 2>` (not `<number>`) so that widening the set
+ * without widening the literal version unions is a compile error — the
+ * `isSupportedLayoutJsonVersion` predicate's return type stays honest.
+ */
+const SUPPORTED_LAYOUT_JSON_VERSIONS: ReadonlySet<1 | 2> = new Set([1, 2])
+
+/**
+ * Accept v1 + v2 envelopes AND envelopes where `version` is absent
+ * entirely. The `version` field was introduced 2026-04-24 (#112); any
+ * `cut_history.layout_json` row written before that commit has
+ * `version: undefined` and must still load — refusing legacy rows
+ * would silently break the history page's PDF-regen path for anyone
+ * with a pre-April cut. Treating absent version as implicit v1
+ * preserves that contract.
+ */
+export function isSupportedLayoutJsonVersion(value: unknown): value is 1 | 2 | undefined {
+  if (value === undefined) return true
+  return (
+    typeof value === "number" &&
+    (value === 1 || value === 2) &&
+    SUPPORTED_LAYOUT_JSON_VERSIONS.has(value)
+  )
+}
+
 export interface CutHistoryLayoutJsonManual {
-  version: 1
+  /**
+   * Optional because legacy rows written before the `version` field
+   * existed (pre-2026-04-24 / #112) have `version: undefined` on
+   * disk. The `isSupportedLayoutJsonVersion` predicate accepts
+   * `undefined` as implicit v1, so making the type optional aligns
+   * the compile-time contract with the runtime fence. New writers
+   * always stamp `CURRENT_LAYOUT_JSON_VERSION`.
+   */
+  version?: 1 | 2
   /** Absent on pre-kind rows — implicitly manual. */
   kind?: "manual"
   placements: Array<{
@@ -56,7 +125,8 @@ export interface CutHistoryLayoutJsonManual {
 export type CutHistoryPartTypeLiteral = "rectangle" | "cylinder" | "cone" | "trapezoid"
 
 export interface CutHistoryLayoutJsonAuto {
-  version: 1
+  /** See `CutHistoryLayoutJsonManual.version` — same optional-for-legacy rule. */
+  version?: 1 | 2
   kind: "auto"
   /**
    * Per-template quantities in the same order as

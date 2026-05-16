@@ -15,6 +15,7 @@ import type {
   CutHistoryPartTypeLiteral,
   PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
+import { isSupportedLayoutJsonVersion } from "@/src/infrastructure/models/cut-history-layout"
 import { parseDimsFromLabel } from "./cut-planner-utils"
 import { coerceLayoutModelArray, type LayoutModel } from "./layout-model"
 import type { PartTemplate } from "./preset-template-data"
@@ -62,15 +63,33 @@ function partTypeForIndex(
 }
 
 /**
+ * Return `cut.layout_json` only when it is an auto-snapshot AND its
+ * envelope `version` is in the reader-supported set. Every consumer
+ * of `layout_json`-derived fields (perTemplatePartTypes,
+ * perTemplateQuantities, frozen layouts) must route through this
+ * helper so the version fence applies consistently — otherwise a v3+
+ * envelope could silently feed the UI with fields whose schema the
+ * build just declared unreadable.
+ */
+function getSupportedAutoLayout(
+  cut: Pick<CutHistory, "layout_json">
+): Extract<NonNullable<CutHistory["layout_json"]>, { kind: "auto" }> | null {
+  const layout = cut.layout_json
+  if (!layout || layout.kind !== "auto") return null
+  if (!isSupportedLayoutJsonVersion(layout.version)) return null
+  return layout
+}
+
+/**
  * Extract the per-template partTypes array from `layout_json` when it
- * is an auto-snapshot AND every entry is a recognised partType. Returns
- * null otherwise so callers fall back to the scalar `cut.part_id`.
+ * is a supported auto-snapshot AND every entry is a recognised partType.
+ * Returns null otherwise so callers fall back to the scalar `cut.part_id`.
  */
 export function extractPerTemplatePartTypes(
   cut: Pick<CutHistory, "layout_json">
 ): CutHistoryPartTypeLiteral[] | null {
-  const layout = cut.layout_json
-  if (!layout || layout.kind !== "auto") return null
+  const layout = getSupportedAutoLayout(cut)
+  if (!layout) return null
   const raw = layout.perTemplatePartTypes
   if (!Array.isArray(raw) || raw.length === 0) return null
   // Runtime guard — JSONB is unvalidated, so any unknown entry forces a
@@ -80,8 +99,8 @@ export function extractPerTemplatePartTypes(
 }
 
 export function extractFrozenLayouts(cut: Pick<CutHistory, "layout_json">): LayoutModel[] | null {
-  const layout = cut.layout_json
-  if (!layout || layout.kind !== "auto") return null
+  const layout = getSupportedAutoLayout(cut)
+  if (!layout) return null
   // Use the tolerant coercer instead of the strict guard — the JSONB
   // blob may have been written by an older `LayoutModel` shape and we
   // never want a missing/extra optional field to wipe out an entire
@@ -104,7 +123,10 @@ export function buildTemplatesFromCutRecord(cut: CutHistory): LoadedCutTemplates
   const sizeLabels = cut.part_selected_label ?? []
   const storedDims = cut.part_custom_dimensions
 
-  const layoutAuto = cut.layout_json?.kind === "auto" ? cut.layout_json : null
+  // Gate on the same version fence as `extractFrozenLayouts` /
+  // `extractPerTemplatePartTypes` so an unsupported envelope can't
+  // feed `perTemplateQuantities` into the load path either.
+  const layoutAuto = getSupportedAutoLayout(cut)
   const storedQtys = layoutAuto?.perTemplateQuantities ?? null
 
   const resolveDims = (

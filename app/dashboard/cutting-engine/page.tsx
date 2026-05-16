@@ -39,6 +39,7 @@ import { authService } from "@/src/infrastructure/services/authService"
 import { saveCut } from "@/app/actions/cut-history"
 import { buildAndUploadCutPdf } from "./_components/cut-history-pdf"
 import type { LayoutModel } from "./_components/layout-model"
+import { CURRENT_LAYOUT_JSON_VERSION } from "@/src/infrastructure/models/cut-history-layout"
 import { CutLoader } from "./_components/cut-loader"
 import { RollLoader } from "./_components/roll-loader"
 import { JobLoader } from "./_components/job-loader"
@@ -679,7 +680,7 @@ function CutPlannerPageInner() {
         // re-packing from scratch. Field is optional server-side so a
         // missing column (old DBs) doesn't break the insert.
         layout_json: {
-          version: 1,
+          version: CURRENT_LAYOUT_JSON_VERSION,
           kind: "auto",
           perTemplateQuantities: selectedTemplates.map((t) => t.quantity ?? 1),
           // Issue #126: persist per-template partType so mixed-shape

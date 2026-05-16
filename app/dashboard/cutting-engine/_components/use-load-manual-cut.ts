@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import { toast } from "sonner"
 
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
+import { isSupportedLayoutJsonVersion } from "@/src/infrastructure/models/cut-history-layout"
 import type { PartTemplate } from "./preset-template-data"
 import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
 import type { ManualPlacement } from "./free-roam-collision"
@@ -60,6 +61,19 @@ export function useLoadManualCut({
         toast.error("Saved layout is malformed — skipping load")
         return
       }
+      // Version fence — refuse to hydrate envelopes whose schema this
+      // build doesn't recognise. Better to surface a clear message than
+      // to silently load a partially-understood payload. Pre-`version`
+      // legacy rows (where the field is absent entirely) pass through
+      // as implicit v1 — only rows with a known-unsupported version
+      // (e.g. a future schema, or a corrupt non-numeric value) trip
+      // this branch.
+      if (!isSupportedLayoutJsonVersion(snapshot.version)) {
+        toast.error("Saved layout has an unrecognised version", {
+          description: `Cut #${cut.id} can't be opened by this build. Update the app or save a fresh cut.`,
+        })
+        return
+      }
       onPartsChange(snapshot.parts as PartTemplate[])
       setPlacements(
         snapshot.placements.map((p) => ({
@@ -79,9 +93,7 @@ export function useLoadManualCut({
         // imports, which `??` alone wouldn't catch.
         const candidateKerf = cut.kerf ?? snapshot.stock.kerf
         const kerf =
-          typeof candidateKerf === "number" &&
-          Number.isFinite(candidateKerf) &&
-          candidateKerf >= 0
+          typeof candidateKerf === "number" && Number.isFinite(candidateKerf) && candidateKerf >= 0
             ? candidateKerf
             : DEFAULT_KERF_IN
         onStockChange({

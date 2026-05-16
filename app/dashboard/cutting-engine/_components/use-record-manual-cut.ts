@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { saveCut } from "@/app/actions/cut-history"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/supabase"
+import { CURRENT_LAYOUT_JSON_VERSION } from "@/src/infrastructure/models/cut-history-layout"
 import type { PartTemplate } from "./preset-template-data"
 import type { ManualPlacement } from "./free-roam-collision"
 import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
@@ -69,7 +70,7 @@ export function useRecordManualCut(
       // Version the payload so a future shape change can detect old
       // rows and migrate forward gracefully.
       const layoutJson: CutHistoryLayoutJson = {
-        version: 1,
+        version: CURRENT_LAYOUT_JSON_VERSION,
         kind: "manual",
         placements: placements.map((p) => ({
           id: p.id,
