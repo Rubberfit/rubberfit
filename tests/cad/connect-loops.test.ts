@@ -8,7 +8,49 @@ function fixture(name: string): string {
   return readFileSync(resolve("tests/fixtures/dxf", `${name}.dxf`), "utf8")
 }
 
-describe("connectLoops", () => {
+describe("connectLoops with curves", () => {
+  it("CIRCLE entity produces one closed loop tessellated to >=16 vertices", () => {
+    const doc = parseDxf(fixture("ring-gasket"))
+    const layer = pickDefaultLayer(doc)
+    const { loops } = connectLoops(doc, layer)
+    expect(loops.length).toBe(2) // outer + inner
+    expect(loops[0].length).toBeGreaterThanOrEqual(16)
+  })
+
+  it("SPLINE closed entity produces one closed loop", () => {
+    const doc = parseDxf(fixture("spline-profile"))
+    const layer = pickDefaultLayer(doc)
+    const { loops } = connectLoops(doc, layer)
+    expect(loops.length).toBe(1)
+  })
+
+  it("ARC + LINE chain forms a closed loop via endpoint-snap", () => {
+    const doc = parseDxf(fixture("arc-chain"))
+    const layer = pickDefaultLayer(doc)
+    const { loops } = connectLoops(doc, layer)
+    expect(loops.length).toBe(1)
+    // Rounded rect: 4 line midpoints + arcs at 4 corners — well over 8 verts.
+    expect(loops[0].length).toBeGreaterThan(8)
+  })
+
+  it("LWPOLYLINE with bulge becomes a single tessellated loop", () => {
+    const doc = parseDxf(fixture("lwpolyline-with-bulge"))
+    const layer = pickDefaultLayer(doc)
+    const { loops, rejected } = connectLoops(doc, layer)
+    expect(loops.length).toBe(1)
+    expect(rejected).toHaveLength(0)
+  })
+
+  it("ELLIPSE full sweep produces one closed loop", () => {
+    const doc = parseDxf(fixture("ellipse-gasket"))
+    const layer = pickDefaultLayer(doc)
+    const { loops } = connectLoops(doc, layer)
+    // 1 ellipse + 1 inner circle = 2 loops
+    expect(loops.length).toBe(2)
+  })
+})
+
+describe("connectLoops (PR1 regression coverage)", () => {
   it("returns a single closed loop for a closed LWPOLYLINE", () => {
     const doc = parseDxf(fixture("rectangle"))
     const layer = pickDefaultLayer(doc)
@@ -31,18 +73,6 @@ describe("connectLoops", () => {
     const layer = pickDefaultLayer(doc)
     const result = connectLoops(doc, layer)
     expect(result.loops).toHaveLength(2)
-  })
-
-  it("accepts an LWPOLYLINE with a nonzero bulge (Task 4 drops bulge; Task 5 tessellates it)", () => {
-    // Task 4 of the curves/holes plan preserves bulge values on the AST
-    // and stops rejecting bulged polylines. The downstream curve-aware
-    // loop assembler arrives in Task 5; until then, bulges are dropped
-    // and the polyline is treated as straight-segment.
-    const doc = parseDxf(fixture("lwpolyline-with-bulge"))
-    const layer = pickDefaultLayer(doc)
-    const result = connectLoops(doc, layer)
-    expect(result.loops).toHaveLength(1)
-    expect(result.rejected).toHaveLength(0)
   })
 
   it("assembles a chain of LINE segments into one closed loop when endpoints match", () => {

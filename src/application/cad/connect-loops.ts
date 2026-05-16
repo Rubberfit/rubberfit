@@ -1,29 +1,51 @@
-// Walk the narrowed DXF entities on the chosen layer and assemble
-// closed loops.
+// Walk the narrowed DXF entities on the chosen layer and assemble closed
+// loops. Task 5 (PR A) rebuilds this for curve-aware tessellation:
 //
-// PR1 only handles three sources:
-//   * LWPOLYLINE with `closed === true` and zero bulges → single loop
-//   * POLYLINE  with `closed === true` and zero bulges → single loop
-//   * LINE chains whose endpoints meet within tolerance → single loop
+//   * CIRCLE                         → standalone tessellated loop
+//   * ELLIPSE full sweep             → standalone tessellated loop
+//   * SPLINE closed                  → standalone tessellated loop
+//   * LWPOLYLINE/POLYLINE closed     → tessellated loop (bulge-aware)
+//   * LINE + ARC chains              → assembled via endpoint-snap
 //
-// Anything bulged is rejected up front (an arc disguised as a chord
-// would silently lie about the cut path). Splines / arcs / circles
-// are already collapsed to `UnsupportedEntity` upstream and surface
-// as `rejected` rows here for the dialog's warnings region.
+// Open SPLINE / partial ELLIPSE participation in chain assembly is
+// deferred to v1.1 — those are rare in DXF practice and adding them
+// here would require parametric-start/end extraction we don't yet
+// expose. They'll fall through silently and the operator sees the
+// chain that they CAN form via LINE + ARC.
+//
+// Grouping the resulting `Point2D[][]` into outer + holes is Task 6's
+// job (`group-parts.ts` — containment-graph hole assignment). This
+// file emits an unstructured flat list of loops.
 
 import type {
+  ArcEntity,
+  CircleEntity,
   DxfDocument,
+  DxfEntity,
+  EllipseEntity,
   LineEntity,
   LwPolylineEntity,
   Point2D,
   PolylineEntity,
   RejectedEntity,
+  SplineEntity,
   UnsupportedReason,
 } from "./dxf-types"
+import {
+  type TessellationOptions,
+  tessellateArc,
+  tessellateBulge,
+  tessellateCircle,
+  tessellateEllipse,
+  tessellateSpline,
+} from "./tessellate-curves"
 
 /** Endpoint-snap tolerance in document units. CAD endpoints rarely match
  *  to f64 precision after rotation/scale operations. */
 export const ENDPOINT_TOLERANCE = 1e-4
+
+const DEG_TO_RAD = Math.PI / 180
+const FULL_SWEEP_EPSILON = 1e-9
 
 export interface ConnectLoopsResult {
   loops: Point2D[][]
@@ -38,17 +60,22 @@ export interface ConnectLoopsResult {
  * picker.
  */
 export function pickDefaultLayer(doc: DxfDocument): string {
-  const closedLoopCounts = new Map<string, number>()
+  const loopCounts = new Map<string, number>()
   const lineCounts = new Map<string, number>()
   for (const entity of doc.entities) {
-    if ((entity.kind === "lwpolyline" || entity.kind === "polyline") && entity.closed) {
-      closedLoopCounts.set(entity.layer, (closedLoopCounts.get(entity.layer) ?? 0) + 1)
-    } else if (entity.kind === "line") {
+    const isClosedCandidate =
+      entity.kind === "circle" ||
+      entity.kind === "ellipse" ||
+      entity.kind === "spline" ||
+      ((entity.kind === "lwpolyline" || entity.kind === "polyline") && entity.closed)
+    if (isClosedCandidate) {
+      loopCounts.set(entity.layer, (loopCounts.get(entity.layer) ?? 0) + 1)
+    } else if (entity.kind === "line" || entity.kind === "arc") {
       lineCounts.set(entity.layer, (lineCounts.get(entity.layer) ?? 0) + 1)
     }
   }
-  if (closedLoopCounts.size > 0) {
-    return [...closedLoopCounts].sort((a, b) => b[1] - a[1])[0][0]
+  if (loopCounts.size > 0) {
+    return [...loopCounts].sort((a, b) => b[1] - a[1])[0][0]
   }
   if (lineCounts.size > 0) {
     return [...lineCounts].sort((a, b) => b[1] - a[1])[0][0]
@@ -60,6 +87,7 @@ export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsR
   const loops: Point2D[][] = []
   const rejected: RejectedEntity[] = []
   const layerEntities = doc.entities.filter((e) => e.layer === layerName)
+  const options: TessellationOptions = {}
 
   for (const entity of layerEntities) {
     if (entity.kind === "unsupported") {
@@ -71,64 +99,188 @@ export function connectLoops(doc: DxfDocument, layerName: string): ConnectLoopsR
     }
   }
 
+  const chainables: DxfEntity[] = []
   for (const entity of layerEntities) {
-    if (entity.kind === "lwpolyline") {
-      const polyResult = closedPolyToLoop(entity)
-      if (polyResult.loop) {
-        loops.push(polyResult.loop)
-      } else if (polyResult.reason) {
-        rejected.push({
-          layer: entity.layer,
-          originalType: "LWPOLYLINE",
-          reason: polyResult.reason,
-        })
-      }
-    } else if (entity.kind === "polyline") {
-      const polyResult = closedPolyToLoop(entity)
-      if (polyResult.loop) {
-        loops.push(polyResult.loop)
-      } else if (polyResult.reason) {
-        rejected.push({ layer: entity.layer, originalType: "POLYLINE", reason: polyResult.reason })
-      }
+    const standalone = tryStandaloneLoop(entity, options)
+    if (standalone === "chain") {
+      chainables.push(entity)
+      continue
+    }
+    if (standalone.loop) {
+      loops.push(standalone.loop)
+    } else if (standalone.reason) {
+      rejected.push({
+        layer: entity.layer,
+        originalType: standalone.originalType,
+        reason: standalone.reason,
+      })
     }
   }
 
-  const lines = layerEntities.filter((e): e is LineEntity => e.kind === "line")
-  loops.push(...buildLoopsFromLines(lines))
+  loops.push(...buildLoopsFromSegments(collectChainableSegments(chainables, options)))
 
   return { loops, rejected }
 }
 
-interface PolyResult {
+interface StandaloneResult {
   loop?: Point2D[]
+  originalType: string
   reason?: UnsupportedReason
 }
 
-function closedPolyToLoop(entity: LwPolylineEntity | PolylineEntity): PolyResult {
-  if (!entity.closed) return {}
-  // Bulged vertices are now tessellated downstream in Task 5; for Task 4
-  // we drop the bulge value and treat the polyline as straight-segment
-  // until the curve-aware rebuild lands. The plan's Task 5 replaces this
-  // file entirely with curve tessellation.
-  if (entity.vertices.length < 3) return {}
-  return { loop: entity.vertices.map((v) => ({ x: v.x, y: v.y })) }
+/**
+ * Try to convert an entity to a standalone closed loop. Returns "chain"
+ * when the entity should instead be fed to the segment-chain assembler.
+ * Returns a `StandaloneResult` (with optional `loop` or `reason`) when
+ * the entity is a self-contained closed shape (or a recognised failure
+ * to convert one).
+ */
+function tryStandaloneLoop(
+  entity: DxfEntity,
+  options: TessellationOptions
+): StandaloneResult | "chain" {
+  switch (entity.kind) {
+    case "line":
+    case "arc":
+      return "chain"
+    case "circle":
+      return circleToLoop(entity, options)
+    case "ellipse":
+      return ellipseToLoop(entity, options)
+    case "spline":
+      return splineToLoop(entity, options)
+    case "lwpolyline":
+    case "polyline":
+      return polylineToLoop(entity, options)
+    case "unsupported":
+      // Already pushed into `rejected` upstream.
+      return { originalType: entity.originalType }
+  }
 }
 
-interface LineSegment {
+function circleToLoop(entity: CircleEntity, options: TessellationOptions): StandaloneResult {
+  const verts = tessellateCircle(entity.center, entity.radius, options)
+  if (verts.length < 3) return { originalType: "CIRCLE" }
+  return { originalType: "CIRCLE", loop: verts }
+}
+
+function ellipseToLoop(entity: EllipseEntity, options: TessellationOptions): StandaloneResult {
+  // ELLIPSE startParam/endParam are RADIANS along the parametric ellipse.
+  // A partial sweep is rare in 2D mechanical DXF and chain-assembly with
+  // open-ellipse endpoints is deferred to v1.1 — drop it silently here
+  // so the rest of the file flows through.
+  const sweep = entity.endParam - entity.startParam
+  const isFull = Math.abs(Math.abs(sweep) - 2 * Math.PI) < FULL_SWEEP_EPSILON
+  if (!isFull) return { originalType: "ELLIPSE" }
+  const verts = tessellateEllipse(
+    {
+      center: entity.center,
+      majorAxisEnd: entity.majorAxisEnd,
+      axisRatio: entity.axisRatio,
+      startParam: entity.startParam,
+      endParam: entity.endParam,
+    },
+    options
+  )
+  if (verts.length < 3) return { originalType: "ELLIPSE" }
+  return { originalType: "ELLIPSE", loop: verts }
+}
+
+function splineToLoop(entity: SplineEntity, options: TessellationOptions): StandaloneResult {
+  if (!entity.closed) return { originalType: "SPLINE" }
+  const verts = tessellateSpline(
+    {
+      controlPoints: entity.controlPoints,
+      knots: entity.knots,
+      degree: entity.degree,
+      closed: entity.closed,
+      weights: entity.weights,
+    },
+    options
+  )
+  if (verts.length < 3) return { originalType: "SPLINE" }
+  return { originalType: "SPLINE", loop: verts }
+}
+
+function polylineToLoop(
+  entity: LwPolylineEntity | PolylineEntity,
+  options: TessellationOptions
+): StandaloneResult {
+  const originalType = entity.kind === "lwpolyline" ? "LWPOLYLINE" : "POLYLINE"
+  if (!entity.closed) return { originalType }
+  const loop = tessellateClosedPolyline(entity, options)
+  if (!loop || loop.length < 3) return { originalType }
+  return { originalType, loop }
+}
+
+function tessellateClosedPolyline(
+  entity: LwPolylineEntity | PolylineEntity,
+  options: TessellationOptions
+): Point2D[] | null {
+  if (!entity.closed) return null
+  if (entity.vertices.length < 3) return null
+  const out: Point2D[] = []
+  for (let i = 0; i < entity.vertices.length; i++) {
+    const cur = entity.vertices[i]
+    const next = entity.vertices[(i + 1) % entity.vertices.length]
+    if (cur.bulge !== 0) {
+      out.push(
+        ...tessellateBulge({ x: cur.x, y: cur.y }, { x: next.x, y: next.y }, cur.bulge, options)
+      )
+    } else {
+      out.push({ x: cur.x, y: cur.y })
+    }
+  }
+  return out
+}
+
+interface ChainSegment {
   start: Point2D
   end: Point2D
+  /** Interior polyline points between `start` and `end`, exclusive of both. */
+  midpoints: Point2D[]
 }
 
-function buildLoopsFromLines(lines: LineEntity[]): Point2D[][] {
-  if (lines.length === 0) return []
-  const segments: LineSegment[] = lines.map((l) => ({ start: l.start, end: l.end }))
+function collectChainableSegments(
+  entities: DxfEntity[],
+  options: TessellationOptions
+): ChainSegment[] {
+  const segments: ChainSegment[] = []
+  for (const entity of entities) {
+    if (entity.kind === "line") {
+      segments.push(lineToSegment(entity))
+    } else if (entity.kind === "arc") {
+      segments.push(arcToSegment(entity, options))
+    }
+    // Open splines / partial ellipses deferred to v1.1.
+  }
+  return segments
+}
+
+function lineToSegment(entity: LineEntity): ChainSegment {
+  return { start: entity.start, end: entity.end, midpoints: [] }
+}
+
+function arcToSegment(entity: ArcEntity, options: TessellationOptions): ChainSegment {
+  const startRad = entity.startAngleDeg * DEG_TO_RAD
+  const endRad = entity.endAngleDeg * DEG_TO_RAD
+  const tess = tessellateArc(entity.center, entity.radius, startRad, endRad, options)
+  const start = tess[0]
+  const end = tess[tess.length - 1]
+  const midpoints = tess.slice(1, -1)
+  return { start, end, midpoints }
+}
+
+function buildLoopsFromSegments(segments: ChainSegment[]): Point2D[][] {
+  if (segments.length === 0) return []
   const used = new Array<boolean>(segments.length).fill(false)
   const loops: Point2D[][] = []
 
   for (let i = 0; i < segments.length; i++) {
     if (used[i]) continue
     used[i] = true
-    const loop: Point2D[] = [segments[i].start, segments[i].end]
+    const seed = segments[i]
+    const loop: Point2D[] = [seed.start, ...seed.midpoints, seed.end]
     let closed = false
 
     while (true) {
@@ -140,12 +292,16 @@ function buildLoopsFromLines(lines: LineEntity[]): Point2D[][] {
         break
       }
       const nextIdx = segments.findIndex(
-        (seg, idx) => !used[idx] && (pointsClose(seg.start, tail) || pointsClose(seg.end, tail))
+        (s, idx) => !used[idx] && (pointsClose(s.start, tail) || pointsClose(s.end, tail))
       )
       if (nextIdx === -1) break
       used[nextIdx] = true
       const next = segments[nextIdx]
-      loop.push(pointsClose(next.start, tail) ? next.end : next.start)
+      if (pointsClose(next.start, tail)) {
+        loop.push(...next.midpoints, next.end)
+      } else {
+        loop.push(...next.midpoints.slice().reverse(), next.start)
+      }
     }
 
     if (closed && loop.length >= 3) {
