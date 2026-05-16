@@ -148,6 +148,28 @@ describe("sanitizePolygonWithHoles", () => {
       expect(result).toBeNull()
     })
 
+    it("accepts a hole vertex landing within float epsilon of the outer boundary (Sigilix review)", () => {
+      // CAD-imported hole rings often have a vertex that lands
+      // numerically on the outer edge due to chord-tessellation
+      // alignment. Bare ray-casting can flip such a vertex to "outside"
+      // based on ray direction + float noise; the inclusive EPS-band
+      // boundary check makes the containment contract real.
+      const result = sanitizePolygonWithHoles({
+        outer: SQUARE_CCW,
+        holes: [
+          [
+            { x: 1, y: 1 },
+            { x: 5, y: 1 },
+            // This vertex lands within 1e-5 of the outer edge x=10
+            { x: 10 - 1e-5, y: 5 },
+            { x: 1, y: 5 },
+          ],
+        ],
+      })
+      expect(result).not.toBeNull()
+      expect(result!.holes).toHaveLength(1)
+    })
+
     it("accepts a hole whose vertices land exactly on the outer boundary", () => {
       // Edge-sharing hole — the renderer + collision treat this as a
       // no-op (the hole "punches through" but doesn't extend beyond

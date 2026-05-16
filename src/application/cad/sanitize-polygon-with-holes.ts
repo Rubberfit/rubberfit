@@ -214,7 +214,29 @@ function isPolygonContainedInOuter(inner: Point2D[], outer: Point2D[]): boolean 
   return true
 }
 
+/**
+ * Linear boundary tolerance, in sheet inches. Mirrors the same
+ * convention `free-roam-collision.ts` uses: ~1e-4 in / ~0.0025 mm —
+ * below operator-perceptible geometry and below cutter positioning
+ * resolution, loose enough to absorb the float drift that hits when
+ * a CAD-imported hole vertex lands numerically on the outer edge.
+ * Sigilix review found that bare ray-casting can flip "boundary"
+ * vertices to false depending on ray direction + float noise; this
+ * epsilon makes the inclusivity contract real.
+ */
+const POINT_IN_POLYGON_EPS = 1e-4
+const POINT_IN_POLYGON_EPS_SQ = POINT_IN_POLYGON_EPS * POINT_IN_POLYGON_EPS
+
 function isPointInPolygonInclusive(point: Point2D, polygon: ReadonlyArray<Point2D>): boolean {
+  // Inclusive boundary band first — if `point` is within EPS of any
+  // polygon edge, treat as inside before the ray-cast can flip it
+  // either way on a degenerate alignment.
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]
+    const b = polygon[(i + 1) % polygon.length]
+    if (distanceToSegmentSquared(point, a, b) < POINT_IN_POLYGON_EPS_SQ) return true
+  }
+  // Standard even-odd ray-casting.
   let inside = false
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const a = polygon[i]
@@ -225,4 +247,20 @@ function isPointInPolygonInclusive(point: Point2D, polygon: ReadonlyArray<Point2
     if (intersect) inside = !inside
   }
   return inside
+}
+
+function distanceToSegmentSquared(p: Point2D, a: Point2D, b: Point2D): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  if (lenSq < POINT_IN_POLYGON_EPS_SQ) {
+    // Degenerate segment (a≈b): distance is just point-to-vertex.
+    const ex = p.x - a.x
+    const ey = p.y - a.y
+    return ex * ex + ey * ey
+  }
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+  const fx = a.x + t * dx - p.x
+  const fy = a.y + t * dy - p.y
+  return fx * fx + fy * fy
 }
