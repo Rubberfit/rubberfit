@@ -1,16 +1,31 @@
 /**
- * @deprecated Legacy raw-row CRUD over the suppliers + material_suppliers
- * tables. Pre-DDD code path retained so the `app/dashboard/inventory/*`
- * pages and the `api-client/rf/inventory.ts` flag-gated client keep
- * type-checking. The underlying schema (post-redesign) no longer has the
- * stale columns this file references (`user_id`, flat `address`/`city`/…
- * fields, `default_shipping_cost`), so most write paths here will fail
- * at runtime against the live DB.
+ * @deprecated **BURIED 2026-05-15** (follow-up to commit `653af86d`).
  *
- * **Use `supplierService` (DDD) for new code.** This shim exists only
- * to unblock the supplier-service migration without rewriting every
- * UI surface in the same PR. Follow-up migrations will retire it page
- * by page.
+ * Pre-DDD raw-row CRUD over the suppliers + material_suppliers tables.
+ * Originally retained so the flag-gated `inventory.ts` SDK kept
+ * type-checking through the DDD cutover. The methods referenced
+ * post-redesign-removed columns (`user_id`, flat `address`/`city`/…
+ * fields, `default_shipping_cost`), so every write path was already
+ * broken at runtime against the live schema.
+ *
+ * All methods now throw `NotImplementedError`. The class shape +
+ * `ILegacySupplierService` interface + module-level singleton export
+ * are preserved so:
+ *
+ *   1. `src/infrastructure/api-client/rf/inventory.ts:22` still
+ *      type-checks (it imports the singleton as `legacySuppliers` and
+ *      calls it on the flag-OFF branch of `NEXT_PUBLIC_USE_RUST_INVENTORY`).
+ *   2. The architectural guard at
+ *      `tests/architecture/no-legacy-supplier-service.test.ts` keeps
+ *      passing (import-based; both files are allowlisted).
+ *   3. The parity test at `tests/api-v2-inventory-parity.test.ts:59`
+ *      keeps passing — it `vi.mock()`s this module, so the real
+ *      throwing bodies never run in tests.
+ *
+ * **Use `supplierService` (DDD) for new code.** This file is one step
+ * away from full deletion — that happens when `inventory.ts` drops
+ * its flag-OFF branch and the architectural guard's allowlist entry
+ * for `inventory.ts` becomes orphaned.
  */
 import {
   type Supplier,
@@ -21,9 +36,6 @@ import {
   type CreateMaterialSupplier,
   type UpdateMaterialSupplier,
 } from "@/src/infrastructure/models/supabase"
-import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { priceHistoryService } from "./priceHistoryService"
 
 export interface ILegacySupplierService {
   getAllSuppliers(): Promise<Supplier[]>
@@ -64,316 +76,98 @@ export interface ILegacySupplierService {
   getSuppliers(options?: { filterActive?: boolean; filterPreferred?: boolean }): Promise<Supplier[]>
 }
 
-/** @deprecated See module docstring. */
-class LegacySupplierService implements ILegacySupplierService {
-  async getAllSuppliers(): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .order("name", { ascending: true })
-    if (error) throw error
-    return data as Supplier[]
-  }
+const BURIED_MESSAGE =
+  "NotImplemented: legacySupplierService is buried — set NEXT_PUBLIC_USE_RUST_INVENTORY=true to use the Rust inventory path."
 
-  async getActiveSuppliers(): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .eq("active", true)
-      .order("preferred", { ascending: false })
-      .order("name", { ascending: true })
-    if (error) throw error
-    return data as Supplier[]
-  }
-
-  async getPreferredSuppliers(): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .eq("active", true)
-      .eq("preferred", true)
-      .order("rating", { ascending: false })
-      .order("name", { ascending: true })
-    if (error) throw error
-    return data as Supplier[]
-  }
-
-  async getSupplierById(id: string): Promise<Supplier> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase.from("suppliers").select("*").eq("id", id).single()
-    if (error) throw error
-    return data as Supplier
-  }
-
-  async createSupplier(supplier: CreateSupplier): Promise<Supplier> {
-    const supabase = await getDatabaseClient()
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .insert([{ ...supplier, user_id }])
-      .select()
-      .single()
-    if (error) throw error
-    return data as Supplier
-  }
-
-  async updateSupplier(id: string, updates: UpdateSupplier): Promise<Supplier> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single()
-    if (error) throw error
-    return data as Supplier
-  }
-
-  async deleteSupplier(id: string): Promise<boolean> {
-    const supabase = await getDatabaseClient()
-    const { error } = await supabase.from("suppliers").delete().eq("id", id)
-    if (error) throw error
-    return true
-  }
-
-  async updateSupplierRating(id: string, rating: number): Promise<Supplier> {
-    if (rating < 0 || rating > 5) throw new Error("Rating must be between 0 and 5")
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .update({ rating })
-      .eq("id", id)
-      .select()
-      .single()
-    if (error) throw error
-    return data as Supplier
-  }
-
-  async linkMaterialToSupplier(
-    materialSupplier: CreateMaterialSupplier
-  ): Promise<MaterialSupplierWithDetails> {
-    const supabase = await getDatabaseClient()
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .insert([{ ...materialSupplier, user_id }])
-      .select(
-        `
-        *,
-        material_type:material_types(id, name),
-        supplier:suppliers(id, name)
-      `
-      )
-      .single()
-    if (error) throw error
-    if (data && data.cost_per_sqft) {
-      try {
-        await priceHistoryService.appendPriceChange({
-          materialSupplierId: data.id,
-          oldCostCents: null,
-          newCostCents: data.cost_per_sqft,
-          changeReason: "Initial price when supplier was linked",
-        })
-      } catch (e) {
-        console.error("Failed to track initial price:", e)
-      }
-    }
-    return data as MaterialSupplierWithDetails
-  }
-
-  async unlinkMaterialFromSupplier(materialSupplierId: string): Promise<boolean> {
-    const supabase = await getDatabaseClient()
-    const { error } = await supabase
-      .from("material_suppliers")
-      .delete()
-      .eq("id", materialSupplierId)
-    if (error) throw error
-    return true
-  }
-
-  async updateMaterialSupplier(
-    id: string,
-    updates: UpdateMaterialSupplier
-  ): Promise<MaterialSupplierWithDetails> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .update(updates)
-      .eq("id", id)
-      .select(
-        `
-        *,
-        material_type:material_types(id, name),
-        supplier:suppliers(id, name)
-      `
-      )
-      .single()
-    if (error) throw error
-    return data as MaterialSupplierWithDetails
-  }
-
-  async getSuppliersByMaterialType(materialTypeId: string): Promise<MaterialSupplierWithDetails[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .select(
-        `
-        *,
-        supplier:suppliers(*)
-      `
-      )
-      .eq("material_type_id", materialTypeId)
-      .eq("active", true)
-      .order("preferred_supplier", { ascending: false })
-      .order("cost_per_sqft", { ascending: true })
-    if (error) throw error
-    return data as MaterialSupplierWithDetails[]
-  }
-
-  async getMaterialsBySupplier(supplierId: string): Promise<MaterialSupplierWithDetails[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .select(
-        `
-        *,
-        material_type:material_types(*)
-      `
-      )
-      .eq("supplier_id", supplierId)
-      .eq("active", true)
-      .order("preferred_supplier", { ascending: false })
-    if (error) throw error
-    return data as MaterialSupplierWithDetails[]
-  }
-
-  async getPreferredSupplierForMaterial(
-    materialTypeId: string
-  ): Promise<MaterialSupplierWithDetails | null> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .select(
-        `
-        *,
-        supplier:suppliers(*)
-      `
-      )
-      .eq("material_type_id", materialTypeId)
-      .eq("preferred_supplier", true)
-      .eq("active", true)
-      .single()
-    if (error && error.code !== "PGRST116") throw error
-    return data as MaterialSupplierWithDetails | null
-  }
-
-  async setPreferredSupplier(
-    materialTypeId: string,
-    supplierId: string
-  ): Promise<MaterialSupplierWithDetails> {
-    const supabase = await getDatabaseClient()
-    const { error: unsetError } = await supabase
-      .from("material_suppliers")
-      .update({ preferred_supplier: false })
-      .eq("material_type_id", materialTypeId)
-    if (unsetError) throw unsetError
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .update({ preferred_supplier: true })
-      .eq("material_type_id", materialTypeId)
-      .eq("supplier_id", supplierId)
-      .select(
-        `
-        *,
-        material_type:material_types(id, name),
-        supplier:suppliers(id, name)
-      `
-      )
-      .single()
-    if (error) throw error
-    return data as MaterialSupplierWithDetails
-  }
-
-  async checkMaterialSupplierLink(
-    materialTypeId: string,
-    supplierId: string
-  ): Promise<MaterialSupplier | null> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .select("id")
-      .eq("material_type_id", materialTypeId)
-      .eq("supplier_id", supplierId)
-      .single()
-    if (error && error.code !== "PGRST116") throw error
-    return data as MaterialSupplier | null
-  }
-
-  async bulkCreateSuppliers(suppliers: CreateSupplier[]): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const user_id = await getCurrentUserId()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .insert(suppliers.map((s) => ({ ...s, user_id })))
-      .select()
-    if (error) throw error
-    return data as Supplier[]
-  }
-
-  async bulkLinkMaterialsToSupplier(
-    materialSuppliers: CreateMaterialSupplier[]
-  ): Promise<MaterialSupplier[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("material_suppliers")
-      .insert(materialSuppliers)
-      .select()
-    if (error) throw error
-    return data as MaterialSupplier[]
-  }
-
-  async getAllSuppliersOrdered(): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .order("preferred", { ascending: false })
-      .order("name", { ascending: true })
-    if (error) throw error
-    return data as Supplier[]
-  }
-
-  async getSuppliers(options?: {
-    filterActive?: boolean
-    filterPreferred?: boolean
-  }): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    let query = supabase.from("suppliers").select("*")
-    if (options?.filterActive) query = query.eq("active", true)
-    if (options?.filterPreferred) query = query.eq("preferred", true)
-    query = query.order("preferred", { ascending: false }).order("name", { ascending: true })
-    const { data, error } = await query
-    if (error) throw error
-    return data as Supplier[]
-  }
-
-  async searchSuppliers(query: string): Promise<Supplier[]> {
-    const supabase = await getDatabaseClient()
-    const sanitized = query.replace(/[%,.*()]/g, "")
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .or(
-        `name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%,city.ilike.%${sanitized}%`
-      )
-      .order("name", { ascending: true })
-    if (error) throw error
-    return data as Supplier[]
-  }
+function notImplemented(): never {
+  throw new Error(BURIED_MESSAGE)
 }
 
 /** @deprecated See module docstring. */
+class LegacySupplierService implements ILegacySupplierService {
+  async getAllSuppliers(): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async getActiveSuppliers(): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async getPreferredSuppliers(): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async getSupplierById(_id: string): Promise<Supplier> {
+    notImplemented()
+  }
+  async createSupplier(_supplier: CreateSupplier): Promise<Supplier> {
+    notImplemented()
+  }
+  async updateSupplier(_id: string, _updates: UpdateSupplier): Promise<Supplier> {
+    notImplemented()
+  }
+  async deleteSupplier(_id: string): Promise<boolean> {
+    notImplemented()
+  }
+  async updateSupplierRating(_id: string, _rating: number): Promise<Supplier> {
+    notImplemented()
+  }
+  async searchSuppliers(_query: string): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async linkMaterialToSupplier(
+    _materialSupplier: CreateMaterialSupplier
+  ): Promise<MaterialSupplierWithDetails> {
+    notImplemented()
+  }
+  async unlinkMaterialFromSupplier(_materialSupplierId: string): Promise<boolean> {
+    notImplemented()
+  }
+  async updateMaterialSupplier(
+    _id: string,
+    _updates: UpdateMaterialSupplier
+  ): Promise<MaterialSupplierWithDetails> {
+    notImplemented()
+  }
+  async getSuppliersByMaterialType(
+    _materialTypeId: string
+  ): Promise<MaterialSupplierWithDetails[]> {
+    notImplemented()
+  }
+  async getMaterialsBySupplier(_supplierId: string): Promise<MaterialSupplierWithDetails[]> {
+    notImplemented()
+  }
+  async getPreferredSupplierForMaterial(
+    _materialTypeId: string
+  ): Promise<MaterialSupplierWithDetails | null> {
+    notImplemented()
+  }
+  async setPreferredSupplier(
+    _materialTypeId: string,
+    _supplierId: string
+  ): Promise<MaterialSupplierWithDetails> {
+    notImplemented()
+  }
+  async checkMaterialSupplierLink(
+    _materialTypeId: string,
+    _supplierId: string
+  ): Promise<MaterialSupplier | null> {
+    notImplemented()
+  }
+  async bulkCreateSuppliers(_suppliers: CreateSupplier[]): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async bulkLinkMaterialsToSupplier(
+    _materialSuppliers: CreateMaterialSupplier[]
+  ): Promise<MaterialSupplier[]> {
+    notImplemented()
+  }
+  async getAllSuppliersOrdered(): Promise<Supplier[]> {
+    notImplemented()
+  }
+  async getSuppliers(_options?: {
+    filterActive?: boolean
+    filterPreferred?: boolean
+  }): Promise<Supplier[]> {
+    notImplemented()
+  }
+}
+
 export const legacySupplierService: ILegacySupplierService = new LegacySupplierService()
