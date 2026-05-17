@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import type { DxfImportedPart } from "@/src/application/cad/dxf-types"
@@ -66,6 +66,25 @@ export function useCadImport(options: UseCadImportOptions): UseCadImportResult {
   const [svgReview, setSvgReview] = useState<SvgReviewState | null>(null)
   // Held in a ref so two rapid clicks don't open two pickers.
   const pickingRef = useRef(false)
+  // Tracked separately from the closure so unmount can clear them.
+  const pendingFocusListenerRef = useRef<(() => void) | null>(null)
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clean up any dangling focus listener / timer on unmount so a host
+  // that mounts → opens the picker → unmounts before the user dismisses
+  // the dialog doesn't leak the window listener (CR finding).
+  useEffect(() => {
+    return () => {
+      if (pendingTimeoutRef.current !== null) {
+        clearTimeout(pendingTimeoutRef.current)
+        pendingTimeoutRef.current = null
+      }
+      if (pendingFocusListenerRef.current) {
+        window.removeEventListener("focus", pendingFocusListenerRef.current)
+        pendingFocusListenerRef.current = null
+      }
+    }
+  }, [])
 
   const openPicker = useCallback(async (accept: string): Promise<File | null> => {
     if (pickingRef.current) return null
@@ -86,8 +105,13 @@ export function useCadImport(options: UseCadImportOptions): UseCadImportResult {
       const reset = () => {
         pickingRef.current = false
         window.removeEventListener("focus", reset)
+        pendingFocusListenerRef.current = null
       }
-      setTimeout(() => window.addEventListener("focus", reset), 100)
+      pendingTimeoutRef.current = setTimeout(() => {
+        window.addEventListener("focus", reset)
+        pendingFocusListenerRef.current = reset
+        pendingTimeoutRef.current = null
+      }, 100)
       input.click()
     })
   }, [])

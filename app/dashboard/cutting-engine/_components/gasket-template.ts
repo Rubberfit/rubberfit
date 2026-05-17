@@ -1,8 +1,17 @@
-import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
+import {
+  buildFullFaceGasket,
+  type FullFaceGasketSpec,
+} from "@/src/application/gasket/full-face-gasket"
+import {
+  buildObroundGasket,
+  type ObroundGasketSpec,
+} from "@/src/application/gasket/obround-gasket"
+import {
+  buildRingGasket,
+  type RingGasketSpec,
+} from "@/src/application/gasket/ring-gasket"
 
-import { buildFullFaceGasket, type FullFaceGasketSpec } from "./full-face-gasket"
-import { buildObroundGasket, type ObroundGasketSpec } from "./obround-gasket"
-import { buildRingGasket, type RingGasketSpec } from "./ring-gasket"
+import type { PartTemplate } from "./preset-template-data"
 
 export type GasketSpec =
   | ({ kind: "ring" } & RingGasketSpec)

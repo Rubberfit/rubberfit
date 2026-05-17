@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   gasketSpecToPartTemplate,
   type GasketSpec,
-} from "@/src/application/gasket/gasket-template"
+} from "@/app/dashboard/cutting-engine/_components/gasket-template"
 
 describe("gasketSpecToPartTemplate", () => {
   it("ring → partType polygon, 1 hole, bbox = OD × OD", () => {

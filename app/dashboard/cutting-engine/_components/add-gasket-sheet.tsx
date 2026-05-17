@@ -10,8 +10,8 @@ import { Label } from "@/app/components/ui/label"
 import { Separator } from "@/app/components/ui/separator"
 import { UploadCloud } from "lucide-react"
 import { GasketPreviewSvg } from "./gasket-preview-svg"
-import { gasketSpecToPartTemplate } from "@/src/application/gasket/gasket-template"
-import type { GasketSpec } from "@/src/application/gasket/gasket-template"
+import { gasketSpecToPartTemplate } from "./gasket-template"
+import type { GasketSpec } from "./gasket-template"
 
 interface AddGasketSheetProps {
   open: boolean

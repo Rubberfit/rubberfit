@@ -11,8 +11,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/app/components/ui/sheet"
-import { gasketSpecToPartTemplate } from "@/src/application/gasket/gasket-template"
-import type { GasketSpec } from "@/src/application/gasket/gasket-template"
+import { gasketSpecToPartTemplate } from "./gasket-template"
+import type { GasketSpec } from "./gasket-template"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 import { AddGasketSheet } from "./add-gasket-sheet"

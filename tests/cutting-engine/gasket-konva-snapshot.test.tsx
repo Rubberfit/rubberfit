@@ -47,7 +47,7 @@ vi.mock("@/app/dashboard/cutting-engine/_components/use-load-manual-cut", () => 
 }))
 
 import GasketCuttingContent from "@/app/dashboard/cutting-engine/_components/gasket-cutting-content"
-import { gasketSpecToPartTemplate } from "@/src/application/gasket/gasket-template"
+import { gasketSpecToPartTemplate } from "@/app/dashboard/cutting-engine/_components/gasket-template"
 
 const DEFAULT_STOCK = {
   width: 96,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { gasketSpecToPartTemplate } from "@/src/application/gasket/gasket-template"
+import { gasketSpecToPartTemplate } from "@/app/dashboard/cutting-engine/_components/gasket-template"
 import { templateToPart } from "@/app/dashboard/cutting-engine/_components/template-to-part"
+import { assertNotNull } from "../_helpers/assert-not-null"
 
 /**
  * End-to-end smoke: gasket spec → PartTemplate → templateToPart → Part.
@@ -19,13 +20,13 @@ describe("gasket → templateToPart → Part end-to-end", () => {
     })
     const tmpl = { ...partial, id: "test-ring", quantity: 1 }
     const part = templateToPart(tmpl, "A")
-    expect(part).not.toBeNull()
-    expect(part!.polygon).toBeDefined()
-    expect(part!.polygon!.outer.length).toBeGreaterThanOrEqual(16)
-    expect(part!.polygon!.holes).toHaveLength(1)
-    expect(part!.polygon!.holes[0].length).toBeGreaterThanOrEqual(16)
+    assertNotNull(part)
+    assertNotNull(part.polygon)
+    expect(part.polygon.outer.length).toBeGreaterThanOrEqual(16)
+    expect(part.polygon.holes).toHaveLength(1)
+    expect(part.polygon.holes[0].length).toBeGreaterThanOrEqual(16)
     // Tag round-trips so Konva labels show the operator's tag letter.
-    expect(part!.tag).toBe("A")
+    expect(part.tag).toBe("A")
   })
 
   it("full-face spec yields a Part with outer + (1 + boltCount) holes", () => {
@@ -39,9 +40,10 @@ describe("gasket → templateToPart → Part end-to-end", () => {
     })
     const tmpl = { ...partial, id: "test-fullface", quantity: 2 }
     const part = templateToPart(tmpl, "B")
-    expect(part).not.toBeNull()
-    expect(part!.polygon!.holes).toHaveLength(9)
-    expect(part!.quantity).toBe(2)
+    assertNotNull(part)
+    assertNotNull(part.polygon)
+    expect(part.polygon.holes).toHaveLength(9)
+    expect(part.quantity).toBe(2)
   })
 
   it("obround spec yields a Part with no holes", () => {
@@ -52,9 +54,10 @@ describe("gasket → templateToPart → Part end-to-end", () => {
     })
     const tmpl = { ...partial, id: "test-obround", quantity: 1 }
     const part = templateToPart(tmpl, undefined)
-    expect(part).not.toBeNull()
-    expect(part!.polygon!.holes).toHaveLength(0)
-    expect(part!.polygon!.outer.length).toBeGreaterThan(16)
+    assertNotNull(part)
+    assertNotNull(part.polygon)
+    expect(part.polygon.holes).toHaveLength(0)
+    expect(part.polygon.outer.length).toBeGreaterThan(16)
   })
 
   it("Part allows rotation (matches existing polygon-template behavior)", () => {
@@ -64,6 +67,7 @@ describe("gasket → templateToPart → Part end-to-end", () => {
       innerDiameter: 6,
     })
     const part = templateToPart({ ...partial, id: "rot-test", quantity: 1 }, undefined)
-    expect(part!.allowRotation).toBe(true)
+    assertNotNull(part)
+    expect(part.allowRotation).toBe(true)
   })
 })
