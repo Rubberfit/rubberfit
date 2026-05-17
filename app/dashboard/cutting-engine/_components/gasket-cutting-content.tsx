@@ -17,6 +17,7 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 import { AddGasketSheet } from "./add-gasket-sheet"
 import { CanvasToolbar } from "./canvas-toolbar"
+import DxfReviewDialog from "./dxf-review-dialog"
 import { GasketShapeCard } from "./gasket-shape-card"
 import KonvaSheetRenderer from "./KonvaSheetRenderer"
 import { deriveManualMetrics } from "./manual-layout/metrics"
@@ -25,7 +26,9 @@ import { useManualPlacements } from "./manual-layout/use-manual-placements"
 import { useManualRegions } from "./manual-layout/use-manual-regions"
 import type { PartTemplate } from "./preset-template-data"
 import type { StockConfig } from "./stock-preview-configurator"
+import SvgReviewDialog from "./svg-review-dialog"
 import { FreeRoamStockEditor } from "./free-roam-stock-editor"
+import { useCadImport } from "./use-cad-import"
 import { useDragSnapshot } from "./use-drag-snapshot"
 import { useLoadManualCut } from "./use-load-manual-cut"
 import { useRecordManualCut } from "./use-record-manual-cut"
@@ -199,11 +202,21 @@ export default function GasketCuttingContent({
     await recordCut()
   }, [recordCut])
 
-  // Import CAD wiring lands in PR C Commit 6 — for now both buttons
-  // simply close the Add gasket sheet. The plumbing through to
-  // DxfReviewDialog / SvgReviewDialog comes next commit.
-  const handleImportDxf = useCallback(() => setIsAddGasketOpen(false), [])
-  const handleImportSvg = useCallback(() => setIsAddGasketOpen(false), [])
+  const cadImport = useCadImport({
+    onAdd: (template) => onPartsChange([...parts, template]),
+  })
+
+  // Founder ruling 2026-05-15: Import CAD launches the existing
+  // review dialog as a SEPARATE modal. Close the Add gasket Sheet
+  // first so file picker → review dialog doesn't open behind it.
+  const handleImportDxf = useCallback(() => {
+    setIsAddGasketOpen(false)
+    void cadImport.pickDxf()
+  }, [cadImport])
+  const handleImportSvg = useCallback(() => {
+    setIsAddGasketOpen(false)
+    void cadImport.pickSvg()
+  }, [cadImport])
 
   const totalQueueCount = parts.reduce((sum, p) => sum + p.quantity, 0)
   const stockSheetSqFt = (stock.width * stock.length) / 144
@@ -371,6 +384,30 @@ export default function GasketCuttingContent({
         onImportDxf={handleImportDxf}
         onImportSvg={handleImportSvg}
       />
+
+      {cadImport.dxfReview && (
+        <DxfReviewDialog
+          open
+          parts={cadImport.dxfReview.parts}
+          detectedUnits={cadImport.dxfReview.detectedUnits}
+          rejected={cadImport.dxfReview.rejected}
+          ignoredLayers={cadImport.dxfReview.ignoredLayers}
+          sourceFile={cadImport.dxfReview.sourceFile}
+          onConfirm={cadImport.confirmDxf}
+          onCancel={cadImport.cancelDxf}
+        />
+      )}
+      {cadImport.svgReview && (
+        <SvgReviewDialog
+          open
+          parts={cadImport.svgReview.parts}
+          detectedUnits={cadImport.svgReview.detectedUnits}
+          rejected={cadImport.svgReview.rejected}
+          sourceFile={cadImport.svgReview.sourceFile}
+          onConfirm={cadImport.confirmSvg}
+          onCancel={cadImport.cancelSvg}
+        />
+      )}
     </div>
   )
 }
