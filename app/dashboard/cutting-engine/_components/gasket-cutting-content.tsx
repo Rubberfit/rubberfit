@@ -18,7 +18,7 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import { AddGasketSheet } from "./add-gasket-sheet"
 import { CanvasToolbar } from "./canvas-toolbar"
 import DxfReviewDialog from "./dxf-review-dialog"
-import { GasketCanvas } from "./gasket-canvas"
+import { GasketCanvas, type GasketViewMode } from "./gasket-canvas"
 import { GasketShapeCard } from "./gasket-shape-card"
 import { deriveManualMetrics } from "./manual-layout/metrics"
 import { useManualLayout } from "./manual-layout/use-manual-layout"
@@ -66,6 +66,10 @@ export default function GasketCuttingContent({
   )
   const [zoomPct, setZoomPct] = useState(100)
   const [showGrid, setShowGrid] = useState(true)
+  // Default to 2D so operators can drag-to-move out of the box. The
+  // 3D Three.js canvas is read-only inspection; 2D Konva supports
+  // full drag-to-place via KonvaSheetRenderer.
+  const [viewMode, setViewMode] = useState<GasketViewMode>("2d")
 
   // Stock-rotate handler — declared BEFORE the placements hook reads
   // it via options. Swaps W ↔ L; placements keep their coordinates.
@@ -279,6 +283,8 @@ export default function GasketCuttingContent({
           showGrid={showGrid}
           onShowGridChange={setShowGrid}
           onResetView={handleResetView}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
         <div className="bg-muted/30 relative flex-1 overflow-hidden rounded-lg border">
           <GasketCanvas
@@ -294,6 +300,7 @@ export default function GasketCuttingContent({
             sheetBase="offcut"
             zoomPct={zoomPct}
             showGrid={showGrid}
+            viewMode={viewMode}
           />
         </div>
       </div>

@@ -52,6 +52,7 @@ describe("<GasketCanvas>", () => {
         zoomPct={100}
         showGrid
         sheetBase="offcut"
+        viewMode="3d"
       />
     )
     expect(screen.getByTestId("konva-fallback")).toBeTruthy()
@@ -66,6 +67,7 @@ describe("<GasketCanvas>", () => {
         zoomPct={100}
         showGrid
         sheetBase="offcut"
+        viewMode="3d"
       />
     )
     expect(screen.queryByTestId("three-renderer")).toBeNull()
