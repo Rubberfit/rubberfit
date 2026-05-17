@@ -213,7 +213,12 @@ function parseRect(
   const rx = Math.max(0, rxAttr ?? ryAttr ?? 0)
   const ry = Math.max(0, ryAttr ?? rxAttr ?? 0)
 
-  if (rx === 0 && ry === 0) {
+  // Per SVG spec, rounded corners require BOTH rx > 0 AND ry > 0. If
+  // either axis is zero the rect has sharp corners — going through the
+  // rounded branch with `pushArcCorner(rx=0, ...)` would produce
+  // degenerate arcs from the ellipse tessellator and emit a malformed
+  // loop. Short-circuit to the 4-corner path when either is zero.
+  if (rx === 0 || ry === 0) {
     const corners: Point2D[] = [
       { x, y },
       { x: x + width, y },

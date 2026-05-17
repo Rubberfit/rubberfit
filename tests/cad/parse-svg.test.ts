@@ -201,12 +201,9 @@ describe("parseSvg error handling", () => {
     const rectEntity = doc.entities.find((e) => e.kind === "rect")
     expect(rectEntity).toBeDefined()
     if (rectEntity && rectEntity.kind === "rect") {
-      // rx=0, ry=10 with our tessellator collapses every corner arc to
-      // degenerate (the ellipse helper returns [] for zero major axis),
-      // so the loop is empty. Either way, it must NOT match the
-      // both-rounded vertex count. Assertion: at most as many vertices
-      // as the sharp-corner rect (4), proving the rx=0 was honoured.
-      expect(rectEntity.loop.length).toBeLessThanOrEqual(4)
+      // Per SVG spec, any axis with explicit 0 makes the rect sharp on
+      // both axes — parseRect short-circuits to the 4-corner branch.
+      expect(rectEntity.loop.length).toBe(4)
     }
   })
 
