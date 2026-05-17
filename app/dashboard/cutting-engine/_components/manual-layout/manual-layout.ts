@@ -40,7 +40,7 @@ function templatePolygonToSheet(
  * hole loop. Returns `undefined` when the template has no holes so
  * `PlacedPart.holes` stays absent (hole-blind consumers ignore it).
  */
-function templateHolesToSheet(
+export function templateHolesToSheet(
   template: PartTemplate,
   placement: ManualPlacement,
   width: number,
