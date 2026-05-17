@@ -1,7 +1,7 @@
 // app/dashboard/cutting-engine/_components/add-gasket-sheet.tsx
 "use client"
 
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import dynamic from "next/dynamic"
 import { UploadCloud } from "lucide-react"
 
@@ -13,8 +13,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/app/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import type { PolygonWithHoles } from "@/src/application/packing/types"
 
+import { GASKET_EXAMPLES, type GasketExample } from "./gasket-examples"
 import { GasketPreviewSvg } from "./gasket-preview-svg"
-import type { GasketSpec } from "./gasket-template"
+import { gasketSpecToPartTemplate, type GasketSpec } from "./gasket-template"
 import { useAddGasketForm } from "./use-add-gasket-form"
 
 // Lazy-load the 3D preview so three.js + R3F + drei ship in their own
@@ -48,7 +49,7 @@ interface AddGasketSheetProps {
    * lands on the right tab instead of whichever was last viewed.
    * Defaults to "ring".
    */
-  initialTab?: "ring" | "full-face" | "obround" | "import-cad"
+  initialTab?: "ring" | "full-face" | "obround" | "import-cad" | "examples"
 }
 
 interface PreviewPaneProps {
@@ -127,6 +128,110 @@ function DimInput({
   )
 }
 
+interface FullFaceTabContentProps {
+  form: ReturnType<typeof useAddGasketForm>
+  stockThicknessIn: number
+}
+
+function FullFaceTabContent({ form, stockThicknessIn }: FullFaceTabContentProps) {
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Outer dimensions</div>
+          <DimInput
+            id="full-face-od"
+            label="Outer diameter (OD)"
+            value={form.fullFaceOd}
+            onChange={form.setFullFaceOd}
+          />
+          <DimInput
+            id="full-face-bore"
+            label="Bore ID"
+            value={form.fullFaceBoreId}
+            onChange={form.setFullFaceBoreId}
+          />
+        </div>
+        <Separator />
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Bolt pattern</div>
+          <DimInput
+            id="full-face-bcd"
+            label="Bolt circle diameter (BCD)"
+            value={form.fullFaceBcd}
+            onChange={form.setFullFaceBcd}
+          />
+          <DimInput
+            id="full-face-bolt-count"
+            label="Bolt count"
+            value={form.fullFaceBoltCount}
+            onChange={form.setFullFaceBoltCount}
+            step="1"
+            min="2"
+            max="32"
+            suffix=""
+            placeholder="4"
+          />
+          <DimInput
+            id="full-face-bolt-hole"
+            label="Bolt-hole diameter"
+            value={form.fullFaceBoltHoleDiameter}
+            onChange={form.setFullFaceBoltHoleDiameter}
+          />
+        </div>
+      </div>
+      <PreviewPane
+        polygon={form.previewPolygon}
+        labels={form.previewLabels}
+        thicknessIn={stockThicknessIn}
+      />
+    </div>
+  )
+}
+
+interface ExampleCardProps {
+  example: GasketExample
+  onAdd: (spec: GasketSpec, quantity: number, partNumber?: string) => void
+  onClose: () => void
+}
+
+function ExampleCard({ example, onAdd, onClose }: ExampleCardProps) {
+  // `polygon` is technically optional on PartTemplate, but
+  // `gasketSpecToPartTemplate` always returns one for ring/full-face/obround
+  // kinds. Memo + null-guard keeps TS happy and avoids re-tessellating on
+  // every render.
+  const polygon = useMemo(() => {
+    return gasketSpecToPartTemplate(example.spec).polygon ?? null
+  }, [example.spec])
+
+  const handleClick = useCallback(() => {
+    onAdd(example.spec, 1)
+    onClose()
+  }, [onAdd, onClose, example.spec])
+
+  if (!polygon) return null
+
+  return (
+    <div className="bg-muted/30 rounded-lg p-4">
+      <div className="bg-background/80 flex items-center justify-center rounded-md p-3">
+        <GasketPreviewSvg polygon={polygon} variant="thumbnail" className="h-24 w-auto" />
+      </div>
+      <div className="mt-3 space-y-1">
+        <h3 className="text-sm font-semibold">{example.name}</h3>
+        <p className="text-muted-foreground text-xs">{example.standard}</p>
+        <p className="text-muted-foreground text-xs leading-relaxed">{example.description}</p>
+      </div>
+      <Button
+        onClick={handleClick}
+        className="mt-3 w-full bg-orange-500 text-white hover:bg-orange-600"
+        size="sm"
+      >
+        Add to queue
+      </Button>
+    </div>
+  )
+}
+
 export function AddGasketSheet({
   open,
   onOpenChange,
@@ -164,6 +269,10 @@ export function AddGasketSheet({
     [form, onAdd, onOpenChange]
   )
 
+  const handleClose = useCallback(() => {
+    onOpenChange(false)
+  }, [onOpenChange])
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-4xl">
@@ -177,11 +286,12 @@ export function AddGasketSheet({
             against the Sheet edge (founder feedback 2026-05-17). */}
         <div className="px-6 pb-6">
           <Tabs value={form.activeTab} onValueChange={form.handleTabChange} className="mt-2">
-            <TabsList className="grid grid-cols-4">
+            <TabsList className="grid grid-cols-5">
               <TabsTrigger value="ring">Ring</TabsTrigger>
               <TabsTrigger value="full-face">Full-face</TabsTrigger>
               <TabsTrigger value="obround">Obround</TabsTrigger>
               <TabsTrigger value="import-cad">Import CAD</TabsTrigger>
+              <TabsTrigger value="examples">Examples</TabsTrigger>
             </TabsList>
 
             <TabsContent value="ring" className="mt-4">
@@ -209,57 +319,7 @@ export function AddGasketSheet({
             </TabsContent>
 
             <TabsContent value="full-face" className="mt-4">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Outer dimensions</div>
-                    <DimInput
-                      id="full-face-od"
-                      label="Outer diameter (OD)"
-                      value={form.fullFaceOd}
-                      onChange={form.setFullFaceOd}
-                    />
-                    <DimInput
-                      id="full-face-bore"
-                      label="Bore ID"
-                      value={form.fullFaceBoreId}
-                      onChange={form.setFullFaceBoreId}
-                    />
-                  </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Bolt pattern</div>
-                    <DimInput
-                      id="full-face-bcd"
-                      label="Bolt circle diameter (BCD)"
-                      value={form.fullFaceBcd}
-                      onChange={form.setFullFaceBcd}
-                    />
-                    <DimInput
-                      id="full-face-bolt-count"
-                      label="Bolt count"
-                      value={form.fullFaceBoltCount}
-                      onChange={form.setFullFaceBoltCount}
-                      step="1"
-                      min="2"
-                      max="32"
-                      suffix=""
-                      placeholder="4"
-                    />
-                    <DimInput
-                      id="full-face-bolt-hole"
-                      label="Bolt-hole diameter"
-                      value={form.fullFaceBoltHoleDiameter}
-                      onChange={form.setFullFaceBoltHoleDiameter}
-                    />
-                  </div>
-                </div>
-                <PreviewPane
-                  polygon={form.previewPolygon}
-                  labels={form.previewLabels}
-                  thicknessIn={stockThicknessIn}
-                />
-              </div>
+              <FullFaceTabContent form={form} stockThicknessIn={stockThicknessIn} />
             </TabsContent>
 
             <TabsContent value="obround" className="mt-4">
@@ -300,6 +360,19 @@ export function AddGasketSheet({
                     Select SVG
                   </Button>
                 </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="examples" className="mt-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {GASKET_EXAMPLES.map((example) => (
+                  <ExampleCard
+                    key={example.id}
+                    example={example}
+                    onAdd={onAdd}
+                    onClose={handleClose}
+                  />
+                ))}
               </div>
             </TabsContent>
           </Tabs>
