@@ -20,6 +20,10 @@ interface ThreeSheetRendererProps {
   selectedPartId: string | null
   onPartClick?: (id: string) => void
   onSheetClick?: () => void
+  /** Continuous drag callback (pointer-move rate) — mirrors KonvaSheetRenderer. */
+  onPartDragMove?: (id: string, x: number, y: number) => void
+  /** Drop-commit callback — fires on pointer-up with the snapped position. */
+  onPartDragEnd?: (id: string, x: number, y: number) => void
   zoomPct: number
   showGrid: boolean
   /** Visual semantics for the stock background — matches KonvaSheetRenderer's prop. */
@@ -70,6 +74,8 @@ export function ThreeSheetRenderer({
   selectedPartId,
   onPartClick,
   onSheetClick,
+  onPartDragMove,
+  onPartDragEnd,
   zoomPct: _zoomPct,
   showGrid,
   sheetBase: _sheetBase,
@@ -161,14 +167,15 @@ export function ThreeSheetRenderer({
         )}
 
         {layout?.parts.map((part) => (
-          <group key={part.id} position={[part.x, 0, part.y]}>
-            <ThreePlacedPart
-              part={part}
-              thicknessIn={thickness}
-              isSelected={selectedPartId === part.id}
-              onClick={() => onPartClick?.(part.id)}
-            />
-          </group>
+          <ThreePlacedPart
+            key={part.id}
+            part={part}
+            thicknessIn={thickness}
+            isSelected={selectedPartId === part.id}
+            onClick={() => onPartClick?.(part.id)}
+            onDragMove={onPartDragMove}
+            onDragEnd={onPartDragEnd}
+          />
         ))}
 
         {layout?.offcuts.map((offcut, i) => (
