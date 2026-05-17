@@ -26,7 +26,8 @@
         "title": "Cutting Engine",
         "subItems": {
           "autoNest": "Auto nest",
-          "freeRoam": "Free roam"
+          "freeRoam": "Free roam",
+          "gasketCutting": "Gasket cutting"
         }
       },
       "cutHistory": { "title": "Cut History" },
