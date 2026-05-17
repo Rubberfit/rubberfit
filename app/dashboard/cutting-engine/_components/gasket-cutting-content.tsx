@@ -219,7 +219,7 @@ export default function GasketCuttingContent({
   const stockSheetSqFt = (stock.width * stock.length) / 144
 
   return (
-    <div className="flex h-full flex-col gap-4 md:flex-row">
+    <div className="flex h-full min-h-[640px] flex-col gap-4 md:flex-row md:min-h-[720px]">
       {/* Desktop left rail */}
       <div className="hidden flex-col gap-3 md:flex md:w-72 md:shrink-0">
         <div className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">

@@ -2,7 +2,7 @@
 
 exports[`<GasketCuttingContent> structural snapshot > matches the rendered tree for a ring + full-face queue 1`] = `
 <div
-  class="flex h-full flex-col gap-4 md:flex-row"
+  class="flex h-full min-h-[640px] flex-col gap-4 md:flex-row md:min-h-[720px]"
 >
   <div
     class="hidden flex-col gap-3 md:flex md:w-72 md:shrink-0"

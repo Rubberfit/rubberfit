@@ -27,15 +27,28 @@ interface ThreeSheetRendererProps {
   className?: string
 }
 
+/**
+ * Camera distance via fov-based snug fit:
+ *   D = (largestExtent / 2) / tan(fov/2) × margin
+ *
+ * This guarantees the stock fits the vertical viewport with the
+ * requested margin (default 1.1), instead of overshooting like a
+ * fixed `longest × multiplier` would in a wide-but-short canvas.
+ * The `largestExtent` used is `max(width, length)` so a square 96×48
+ * sheet frames around its long edge rather than its short one — the
+ * viewport's own aspect ratio handles the width fit naturally.
+ */
 function computeCameraPosition(
   width: number,
   length: number,
   azimuthDeg: number,
   elevationDeg: number,
-  distanceMultiplier: number
+  fovDeg: number,
+  margin: number
 ): [number, number, number] {
-  const longest = Math.max(width, length)
-  const distance = longest * distanceMultiplier
+  const largestExtent = Math.max(width, length)
+  const halfFovRad = ((fovDeg / 2) * Math.PI) / 180
+  const distance = (largestExtent / 2 / Math.tan(halfFovRad)) * margin
   const azimuthRad = (azimuthDeg * Math.PI) / 180
   const elevationRad = (elevationDeg * Math.PI) / 180
 
@@ -69,7 +82,7 @@ export function ThreeSheetRenderer({
   const longest = Math.max(sheetWidth, sheetLength)
 
   const cameraPosition = useMemo(
-    () => computeCameraPosition(sheetWidth, sheetLength, 45, 35, 1.15),
+    () => computeCameraPosition(sheetWidth, sheetLength, 45, 35, 35, 1.1),
     [sheetWidth, sheetLength]
   )
 

@@ -36,7 +36,7 @@ const STUB_LAYOUT: LayoutModel = {
   reusableAreaSqFt: 0,
   scrapAreaSqFt: 0,
   fabScore: 0,
-  source: "manual",
+  source: "rust-rf-layout",
 }
 
 describe("<GasketCanvas>", () => {
