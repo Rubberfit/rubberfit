@@ -81,8 +81,6 @@ export function GasketCanvas(props: GasketCanvasProps) {
         selectedPartId={props.selectedPartId}
         onPartClick={props.onPartClick}
         onSheetClick={props.onSheetClick}
-        onPartDragMove={props.onPartDragMove}
-        onPartDragEnd={props.onPartDragEnd}
         zoomPct={props.zoomPct}
         showGrid={props.showGrid}
         sheetBase={props.sheetBase}

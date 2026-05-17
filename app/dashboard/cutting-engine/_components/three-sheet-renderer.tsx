@@ -23,10 +23,6 @@ interface ThreeSheetRendererProps {
   selectedPartId: string | null
   onPartClick?: (id: string) => void
   onSheetClick?: () => void
-  /** Continuous drag callback (pointer-move rate) — mirrors KonvaSheetRenderer. */
-  onPartDragMove?: (id: string, x: number, y: number) => void
-  /** Drop-commit callback — fires on pointer-up with the snapped position. */
-  onPartDragEnd?: (id: string, x: number, y: number) => void
   zoomPct: number
   showGrid: boolean
   /** Visual semantics for the stock background — matches KonvaSheetRenderer's prop. */
@@ -77,8 +73,6 @@ export function ThreeSheetRenderer({
   selectedPartId,
   onPartClick,
   onSheetClick,
-  onPartDragMove,
-  onPartDragEnd,
   zoomPct: _zoomPct,
   showGrid,
   sheetBase: _sheetBase,
@@ -88,15 +82,13 @@ export function ThreeSheetRenderer({
   const sheetLength = layout?.sheetLength ?? sheetLengthFallback
   const thickness = thicknessIn
 
-  // MapControls disabled during a mesh drag — otherwise left-click
-  // pans the camera at the same time the mesh drag runs and the
-  // whole scene appears to move together (founder bug 2026-05-17).
+  // Drag-on-mesh was dropped per founder ruling 2026-05-17 — the
+  // MapControls / native-event / raycaster interplay made every drag
+  // feel like the camera was fighting the gasket. The 3D canvas is
+  // read-only inspection now; controlsRef stays here so a future
+  // re-introduction (e.g. shift-drag to nudge a single gasket) can
+  // wire into it without restructuring the renderer.
   const controlsRef = useRef<MapControlsImpl | null>(null)
-  const handleDragStateChange = useCallback((dragging: boolean) => {
-    const controls = controlsRef.current
-    if (!controls) return
-    controls.enabled = !dragging
-  }, [])
 
   const longest = Math.max(sheetWidth, sheetLength)
 
@@ -187,9 +179,6 @@ export function ThreeSheetRenderer({
             thicknessIn={thickness}
             isSelected={selectedPartId === part.id}
             onClick={() => onPartClick?.(part.id)}
-            onDragMove={onPartDragMove}
-            onDragEnd={onPartDragEnd}
-            onDragStateChange={handleDragStateChange}
           />
         ))}
 
