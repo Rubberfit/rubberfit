@@ -169,7 +169,6 @@ export function GasketPreviewSvg({ polygon, variant, labels, className }: Gasket
         stroke={strokeColor}
         strokeWidth={strokeWidth}
         vectorEffect="non-scaling-stroke"
-        fillRule="evenodd"
       />
       {variant === "preview" &&
         holeCenters.map((center, i) => (

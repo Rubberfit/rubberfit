@@ -110,13 +110,16 @@ export function useAddGasketForm(): AddGasketFormState {
           const od = parseFloat(fullFaceOd)
           const boreId = parseFloat(fullFaceBoreId)
           const bcd = parseFloat(fullFaceBcd)
-          const boltCount = parseInt(fullFaceBoltCount, 10)
+          // Use Number() + Number.isInteger() instead of parseInt — the
+          // latter silently truncates "2.5" -> 2 and "2e1" -> 2, so the
+          // displayed value and the generated spec would diverge (CR).
+          const boltCount = Number(fullFaceBoltCount)
           const boltHoleDiameter = parseFloat(fullFaceBoltHoleDiameter)
           if (
             isNaN(od) ||
             isNaN(boreId) ||
             isNaN(bcd) ||
-            isNaN(boltCount) ||
+            !Number.isInteger(boltCount) ||
             isNaN(boltHoleDiameter) ||
             od <= 0 ||
             boreId <= 0 ||

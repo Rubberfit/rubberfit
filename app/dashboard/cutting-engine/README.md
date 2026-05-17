@@ -237,7 +237,7 @@ Third sub-tab added in PR C (2026-05-17). Parametric Ring / Full-face / Obround 
 | `_components/gasket-cutting-content.tsx` | Three-column shell. Reuses `useManualPlacements` + `useManualRegions` + `useManualLayout` from `manual-layout/`. |
 | `_components/add-gasket-sheet.tsx` | Side `Sheet` (founder ruling 2026-05-15 — overrides Kimi's v1 centered Dialog) with Ring / Full-face / Obround / Import CAD tabs + live SVG preview pane. |
 | `_components/gasket-shape-card.tsx` | Queue card with mini-SVG thumbnail (`<GasketPreviewSvg variant="thumbnail">`). |
-| `_components/gasket-preview-svg.tsx` | Shared SVG renderer for both add-sheet preview pane (large, with bolt-hole dots + dimension labels) and queue card (mini). Even-odd fill rule for hole cutouts. |
+| `_components/gasket-preview-svg.tsx` | Shared SVG renderer for both add-sheet preview pane (large, with bolt-hole dots + dimension labels) and queue card (mini). Wireframe-style: outer + hole loops each rendered as a stroked outline (no fill) so the operator sees the geometric structure of every loop directly. |
 | `_components/use-cad-import.ts` | Shared hook for the Import CAD file-picker + DXF/SVG review-dialog state + part-to-template transform (mm→inch). Used by gasket-cutting today; cutting-engine auto-nest page extraction is a deferred polish PR. |
 
 Gasket math lives at `src/application/gasket/` — see that directory's README for the three primitive builders (Ring / Full-face / Obround) plus the shared `_circle` tessellation helper. Rust integration at `engine/crates/rf-layout/tests/gasket_pack.rs` verifies the full-face (1 + 8 holes) and obround (no holes) lanes pack through jagua-rs end-to-end.

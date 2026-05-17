@@ -167,10 +167,7 @@ export default function GasketCuttingContent({
     (partId: string) => setSelectedPartId(partId),
     [setSelectedPartId]
   )
-  const handleSheetClick = useCallback(
-    () => setSelectedPartId(null),
-    [setSelectedPartId]
-  )
+  const handleSheetClick = useCallback(() => setSelectedPartId(null), [setSelectedPartId])
 
   const handleAddGasket = useCallback(
     (spec: GasketSpec, quantity: number, partNumber?: string) => {
@@ -299,13 +296,9 @@ export default function GasketCuttingContent({
                 : "—"}
             </div>
             <div className="text-muted-foreground">Linear feet</div>
-            <div className="text-right font-medium">
-              {(stock.length / 12).toFixed(1)}
-            </div>
+            <div className="text-right font-medium">{(stock.length / 12).toFixed(1)}</div>
             <div className="text-muted-foreground">Part count</div>
-            <div className="text-right font-medium">
-              {derivedMetrics?.partsCompleted ?? 0}
-            </div>
+            <div className="text-right font-medium">{derivedMetrics?.partsCompleted ?? 0}</div>
           </div>
         </div>
         <Button
@@ -317,60 +310,94 @@ export default function GasketCuttingContent({
         </Button>
       </div>
 
-      {/* Mobile queue toggle */}
+      {/* Mobile tools Sheet — bundles queue + stock + metrics + save
+          so mobile operators get the full workflow without a second
+          floating button. Triggered by the bottom-center "Tools" pill. */}
       <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 md:hidden">
         <Sheet open={isMobileQueueOpen} onOpenChange={setIsMobileQueueOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" className="shadow-lg">
               <ChevronUp className="mr-2 h-4 w-4" />
-              Gasket queue ({totalQueueCount})
+              Tools ({totalQueueCount} {totalQueueCount === 1 ? "part" : "parts"})
             </Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="h-[60vh]">
+          <SheetContent side="bottom" className="h-[80vh]">
             <SheetHeader>
-              <SheetTitle>Gasket queue</SheetTitle>
+              <SheetTitle>Gasket cutting · Tools</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 h-[calc(60vh-5rem)] space-y-2 overflow-y-auto">
-              {parts.map((template) => (
-                <GasketShapeCard
-                  key={template.id}
-                  template={template}
-                  tagLetter={tagByTemplateId.get(template.id) ?? "A"}
-                  placedCount={placedCounts[template.id] ?? 0}
-                  onClick={() => {
-                    handleCardClick(template)
-                    setIsMobileQueueOpen(false)
-                  }}
-                  onRemove={() => handleRemoveTemplate(template.id)}
-                />
-              ))}
-              {parts.length === 0 && (
-                <div className="text-muted-foreground py-8 text-center text-sm">
-                  No gaskets in queue
+            <div className="mt-4 h-[calc(80vh-5rem)] space-y-4 overflow-y-auto pb-4">
+              <FreeRoamStockEditor stock={stock} onChange={onStockChange} />
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="text-sm font-medium">Cut metrics</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-muted-foreground">Yield</div>
+                  <div className="text-right font-medium">
+                    {derivedMetrics && stockSheetSqFt > 0
+                      ? `${((derivedMetrics.materialUsedSqFt / stockSheetSqFt) * 100).toFixed(1)}%`
+                      : "—"}
+                  </div>
+                  <div className="text-muted-foreground">Linear feet</div>
+                  <div className="text-right font-medium">{(stock.length / 12).toFixed(1)}</div>
+                  <div className="text-muted-foreground">Part count</div>
+                  <div className="text-right font-medium">
+                    {derivedMetrics?.partsCompleted ?? 0}
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="mt-4 flex flex-col gap-2">
+              </div>
               <Button
-                onClick={() => {
-                  setIsAddGasketOpen(true)
-                  setIsMobileQueueOpen(false)
-                }}
-                className="bg-orange-500 text-white hover:bg-orange-600"
+                onClick={handleSaveCut}
+                disabled={isRecordingCut || placements.length === 0}
+                className="w-full bg-orange-500 text-white hover:bg-orange-600"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Add gasket
+                {isRecordingCut ? "Saving..." : "Save cut"}
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsAddGasketOpen(true)
-                  setIsMobileQueueOpen(false)
-                }}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Import CAD
-              </Button>
+              <div className="border-t pt-4">
+                <div className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                  Gasket queue
+                </div>
+                <div className="space-y-2">
+                  {parts.map((template) => (
+                    <GasketShapeCard
+                      key={template.id}
+                      template={template}
+                      tagLetter={tagByTemplateId.get(template.id) ?? "A"}
+                      placedCount={placedCounts[template.id] ?? 0}
+                      onClick={() => {
+                        handleCardClick(template)
+                        setIsMobileQueueOpen(false)
+                      }}
+                      onRemove={() => handleRemoveTemplate(template.id)}
+                    />
+                  ))}
+                  {parts.length === 0 && (
+                    <div className="text-muted-foreground py-8 text-center text-sm">
+                      No gaskets in queue
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
+                  <Button
+                    onClick={() => {
+                      setIsAddGasketOpen(true)
+                      setIsMobileQueueOpen(false)
+                    }}
+                    className="bg-orange-500 text-white hover:bg-orange-600"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add gasket
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddGasketOpen(true)
+                      setIsMobileQueueOpen(false)
+                    }}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Import CAD
+                  </Button>
+                </div>
+              </div>
             </div>
           </SheetContent>
         </Sheet>

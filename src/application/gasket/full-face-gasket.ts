@@ -120,4 +120,17 @@ function validate(s: ValidationInput): void {
       `buildFullFaceGasket: bore overlaps bolt holes (bore ⌀ ${boreInnerDiameter}, BCD ${boltCircleDiameter}, bolt ⌀ ${boltHoleDiameter})`
     )
   }
+  // Adjacent bolt-hole spacing — center-to-center chord on the BCD =
+  // 2·R·sin(π/N) where R = BCD/2. If chord <= boltHoleDiameter the
+  // neighboring holes touch or overlap → invalid PolygonWithHoles
+  // topology (CR finding for dense bolt patterns at high N + large
+  // hole diameter). Strict >= so the tangent case is also rejected,
+  // matching the bore-vs-bolt convention.
+  const bcdRadius = boltCircleDiameter / 2
+  const centerSpacing = 2 * bcdRadius * Math.sin(Math.PI / boltCount)
+  if (boltHoleDiameter >= centerSpacing) {
+    throw new Error(
+      `buildFullFaceGasket: adjacent bolt holes overlap (boltHoleDiameter ${boltHoleDiameter} >= chord spacing ${centerSpacing.toFixed(4)} for ${boltCount} holes on BCD ${boltCircleDiameter})`
+    )
+  }
 }

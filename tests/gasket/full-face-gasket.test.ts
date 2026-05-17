@@ -115,6 +115,37 @@ describe("buildFullFaceGasket", () => {
     expect(() => buildFullFaceGasket({ ...baseSpec, boreInnerDiameter: tangentBore })).toThrow()
   })
 
+  it("rejects adjacent bolt-hole overlap (chord spacing <= bolt-hole diameter)", () => {
+    // 32 bolts on a small BCD with a large hole — adjacent bolt holes
+    // would overlap. Chord spacing = 2·R·sin(π/N) = 2·6·sin(π/32) ≈
+    // 1.176, so any boltHoleDiameter >= ~1.18 should throw.
+    expect(() =>
+      buildFullFaceGasket({
+        ...baseSpec,
+        boltCount: 32,
+        boltHoleDiameter: 1.2,
+        boltCircleDiameter: 12,
+        boreInnerDiameter: 4,
+        outerDiameter: 16,
+      })
+    ).toThrow(/adjacent bolt holes overlap/)
+  })
+
+  it("accepts adjacent bolt-hole tangent-but-not-quite case (just under the chord spacing)", () => {
+    // Same geometry but boltHoleDiameter strictly less than chord
+    // spacing — boundary case the validator must allow.
+    expect(() =>
+      buildFullFaceGasket({
+        ...baseSpec,
+        boltCount: 32,
+        boltHoleDiameter: 1.0, // well under chord spacing ~1.176
+        boltCircleDiameter: 12,
+        boreInnerDiameter: 4,
+        outerDiameter: 16,
+      })
+    ).not.toThrow()
+  })
+
   it("rejects negative or zero diameter inputs", () => {
     expect(() => buildFullFaceGasket({ ...baseSpec, outerDiameter: 0 })).toThrow()
     expect(() => buildFullFaceGasket({ ...baseSpec, boreInnerDiameter: -1 })).toThrow()

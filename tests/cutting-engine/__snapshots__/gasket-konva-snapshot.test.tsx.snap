@@ -312,8 +312,10 @@ exports[`<GasketCuttingContent> structural snapshot > matches the rendered tree 
           d="m18 15-6-6-6 6"
         />
       </svg>
-      Gasket queue (
+      Tools (
       2
+       
+      parts
       )
     </button>
   </div>
