@@ -67,6 +67,7 @@ export interface SvgPolylineEntity {
  */
 export type UnsupportedSvgReason =
   | "use-element-unsupported"
+  | "symbol-element-unsupported"
   | "defs-element-unsupported"
   | "text-element-unsupported"
   | "image-element-unsupported"

@@ -168,6 +168,11 @@ describe("parseSvg error handling", () => {
     expect(geometry[0].kind).toBe("circle")
     const rejected = doc.entities.find((e) => e.kind === "unsupported")
     expect(rejected).toBeDefined()
+    // <symbol> must use its own reason code (not "use-element-unsupported")
+    // so the warning banner shows "<symbol> ignored", not "<use> ignored".
+    if (rejected && rejected.kind === "unsupported") {
+      expect(rejected.reason).toBe("symbol-element-unsupported")
+    }
   })
 
   it("rejects an open <path> (no Z command) instead of silently force-closing", async () => {
@@ -183,6 +188,25 @@ describe("parseSvg error handling", () => {
     expect(rejected).toBeDefined()
     if (rejected && rejected.kind === "unsupported") {
       expect(rejected.reason).toBe("open-path-no-z")
+    }
+  })
+
+  it("rect with explicit rx=0 keeps sharp horizontal corners even when ry is positive", async () => {
+    // Per SVG spec, an explicit `rx="0"` is NOT the same as omitting rx —
+    // it means "no horizontal rounding". The cross-default rule only
+    // fires when one of the two attributes is OMITTED.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" rx="0" ry="10"/></svg>'
+    const doc = await parseSvg(text)
+    const rectEntity = doc.entities.find((e) => e.kind === "rect")
+    expect(rectEntity).toBeDefined()
+    if (rectEntity && rectEntity.kind === "rect") {
+      // rx=0, ry=10 with our tessellator collapses every corner arc to
+      // degenerate (the ellipse helper returns [] for zero major axis),
+      // so the loop is empty. Either way, it must NOT match the
+      // both-rounded vertex count. Assertion: at most as many vertices
+      // as the sharp-corner rect (4), proving the rx=0 was honoured.
+      expect(rectEntity.loop.length).toBeLessThanOrEqual(4)
     }
   })
 

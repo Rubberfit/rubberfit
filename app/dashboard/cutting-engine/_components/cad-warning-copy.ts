@@ -69,6 +69,8 @@ function svgReasonCopy(type: string, reason: string, count: number): string {
   switch (reason) {
     case "use-element-unsupported":
       return `${count} <use> ${plural} ignored — flatten symbol references before importing.`
+    case "symbol-element-unsupported":
+      return `${count} <symbol> ${plural} ignored — inline the symbol's geometry before importing.`
     case "defs-element-unsupported":
       return `${count} <defs> ${plural} ignored — inline symbols before importing.`
     case "text-element-unsupported":

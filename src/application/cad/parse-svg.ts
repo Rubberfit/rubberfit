@@ -145,7 +145,7 @@ function walkNode(
 
 function rejectedContainerReason(name: string): UnsupportedSvgReason {
   if (name === "defs") return "defs-element-unsupported"
-  if (name === "symbol") return "use-element-unsupported"
+  if (name === "symbol") return "symbol-element-unsupported"
   return "element-type-unsupported"
 }
 
@@ -204,12 +204,14 @@ function parseRect(
   const width = numericAttr(node, "width", 0)
   const height = numericAttr(node, "height", 0)
   if (width <= 0 || height <= 0) return null
-  // Per SVG spec, when one of rx/ry is omitted it defaults to the other —
-  // in both directions. Read both raw, then cross-default.
-  const rxRaw = Math.max(0, numericAttr(node, "rx", 0))
-  const ryRaw = Math.max(0, numericAttr(node, "ry", 0))
-  const rx = rxRaw === 0 ? ryRaw : rxRaw
-  const ry = ryRaw === 0 ? rxRaw : ryRaw
+  // Per SVG spec, when one of rx/ry is OMITTED it defaults to the other —
+  // in both directions. An explicit `rx="0"` (or `ry="0"`) means "no
+  // rounding on that axis" and must NOT trigger the cross-default;
+  // `optionalNumericAttr` keeps undefined distinct from 0.
+  const rxAttr = optionalNumericAttr(node, "rx")
+  const ryAttr = optionalNumericAttr(node, "ry")
+  const rx = Math.max(0, rxAttr ?? ryAttr ?? 0)
+  const ry = Math.max(0, ryAttr ?? rxAttr ?? 0)
 
   if (rx === 0 && ry === 0) {
     const corners: Point2D[] = [
@@ -336,6 +338,19 @@ function numericAttr(node: INode, name: string, fallback: number): number {
   if (raw === undefined) return fallback
   const value = parseFloat(raw)
   return Number.isFinite(value) ? value : fallback
+}
+
+/**
+ * Returns the parsed attribute value when present (including an explicit
+ * 0), or `undefined` when the attribute is omitted entirely. Distinguishes
+ * "operator did not set this" from "operator set this to 0" — matters for
+ * SVG's rx/ry default-from-the-other rule.
+ */
+function optionalNumericAttr(node: INode, name: string): number | undefined {
+  const raw = node.attributes?.[name]
+  if (raw === undefined) return undefined
+  const value = parseFloat(raw)
+  return Number.isFinite(value) ? value : undefined
 }
 
 function parsePointsAttr(raw: string | undefined): Point2D[] {
