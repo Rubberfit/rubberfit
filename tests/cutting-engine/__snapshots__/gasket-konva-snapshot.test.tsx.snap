@@ -214,7 +214,7 @@ exports[`<GasketCuttingContent> structural snapshot > matches the rendered tree 
       class="bg-muted/30 relative flex-1 overflow-hidden rounded-lg border"
     >
       <div
-        data-testid="konva-renderer-stub"
+        data-testid="gasket-canvas-stub"
       />
     </div>
   </div>

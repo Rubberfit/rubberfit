@@ -18,6 +18,10 @@ vi.mock("@/app/dashboard/cutting-engine/_components/KonvaSheetRenderer", () => (
   default: () => <div data-testid="konva-stub" />,
 }))
 
+vi.mock("@/app/dashboard/cutting-engine/_components/gasket-canvas", () => ({
+  GasketCanvas: () => <div data-testid="gasket-canvas-stub" />,
+}))
+
 vi.mock("@/app/dashboard/cutting-engine/_components/free-roam-stock-editor", () => ({
   FreeRoamStockEditor: () => <div data-testid="stock-editor-stub" />,
 }))
@@ -69,7 +73,7 @@ describe("<GasketCuttingContent>", () => {
     expect(screen.getAllByText(/Add gasket/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Import CAD/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/No gaskets in queue/i).length).toBeGreaterThan(0)
-    expect(screen.getByTestId("konva-stub")).toBeTruthy()
+    expect(screen.getByTestId("gasket-canvas-stub")).toBeTruthy()
   })
 
   it("renders queue card labels when parts present", () => {

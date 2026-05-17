@@ -15,6 +15,10 @@ vi.mock("@/app/dashboard/cutting-engine/_components/KonvaSheetRenderer", () => (
   ),
 }))
 
+vi.mock("@/app/dashboard/cutting-engine/_components/gasket-canvas", () => ({
+  GasketCanvas: () => <div data-testid="gasket-canvas-stub" />,
+}))
+
 vi.mock("@/app/dashboard/cutting-engine/_components/free-roam-stock-editor", () => ({
   FreeRoamStockEditor: () => <div data-testid="stock-editor-stub" />,
 }))

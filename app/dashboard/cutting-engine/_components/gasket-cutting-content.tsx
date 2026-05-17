@@ -18,8 +18,8 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import { AddGasketSheet } from "./add-gasket-sheet"
 import { CanvasToolbar } from "./canvas-toolbar"
 import DxfReviewDialog from "./dxf-review-dialog"
+import { GasketCanvas } from "./gasket-canvas"
 import { GasketShapeCard } from "./gasket-shape-card"
-import KonvaSheetRenderer from "./KonvaSheetRenderer"
 import { deriveManualMetrics } from "./manual-layout/metrics"
 import { useManualLayout } from "./manual-layout/use-manual-layout"
 import { useManualPlacements } from "./manual-layout/use-manual-placements"
@@ -270,8 +270,11 @@ export default function GasketCuttingContent({
           onResetView={handleResetView}
         />
         <div className="bg-muted/30 relative flex-1 overflow-hidden rounded-lg border">
-          <KonvaSheetRenderer
+          <GasketCanvas
             layout={layout}
+            thicknessIn={stock.thickness}
+            sheetWidthFallback={stock.width}
+            sheetLengthFallback={stock.length}
             onPartDragEnd={handlePartDragEndWrapped}
             onPartDragMove={handlePartDragMove}
             selectedPartId={selectedPartId}
