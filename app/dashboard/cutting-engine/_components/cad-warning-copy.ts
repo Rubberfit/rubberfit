@@ -95,6 +95,10 @@ function svgReasonCopy(type: string, reason: string, count: number): string {
       return `${count} <line> ${plural} ignored — single segments cannot form a closed loop.`
     case "path-malformed":
       return `${count} malformed ${type} ${plural} ignored — check the d attribute.`
+    case "points-malformed":
+      return `${count} malformed ${type} ${plural} ignored — the points list has non-numeric or odd-count coordinates.`
+    case "transform-malformed":
+      return `${count} ${type} ${plural} ignored — the transform attribute could not be parsed.`
     case "element-type-unsupported":
       return `${count} ${type} ${plural} ignored.`
     default:

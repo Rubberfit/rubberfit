@@ -226,6 +226,52 @@ describe("parseSvg error handling", () => {
     }
   })
 
+  it("rejects <polygon points='...'> with non-numeric tokens instead of re-pairing survivors", async () => {
+    // A malformed token (e.g. "foo") used to be silently dropped, leaving
+    // surviving numbers to re-pair into a different polygon. We now treat
+    // the whole list as malformed.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><polygon points="0,0 10,foo 20,20"/></svg>'
+    const doc = await parseSvg(text)
+    const polygon = doc.entities.find((e) => e.kind === "polygon")
+    expect(polygon).toBeUndefined()
+    const rejected = doc.entities.find(
+      (e) => e.kind === "unsupported" && e.originalType === "polygon"
+    )
+    expect(rejected).toBeDefined()
+    if (rejected && rejected.kind === "unsupported") {
+      expect(rejected.reason).toBe("points-malformed")
+    }
+  })
+
+  it("rejects <polyline points='...'> with an odd token count", async () => {
+    // Odd number of coordinates means at least one X has no matching Y —
+    // reject rather than silently dropping the dangling token.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><polyline points="0 0 1 1 2"/></svg>'
+    const doc = await parseSvg(text)
+    const rejected = doc.entities.find(
+      (e) => e.kind === "unsupported" && e.originalType === "polyline"
+    )
+    expect(rejected).toBeDefined()
+    if (rejected && rejected.kind === "unsupported") {
+      expect(rejected.reason).toBe("points-malformed")
+    }
+  })
+
+  it("silently ignores malformed transform attributes (svgpath is lenient — never throws)", async () => {
+    // Empirically svgpath@^2's `.transform()` silently drops bogus tokens
+    // rather than throwing — `transform="bogus(99)"` becomes the identity
+    // and the shape renders with the parent transform only. The
+    // `transform-malformed` reason exists as belt-and-suspenders for
+    // future svgpath versions; today, the shape still emits successfully.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><rect x="0" y="0" width="10" height="10" transform="bogus(99)"/></svg>'
+    const doc = await parseSvg(text)
+    const rect = doc.entities.find((e) => e.kind === "rect")
+    expect(rect).toBeDefined()
+  })
+
   it("keeps the closed subpath when one closed and one open subpath share a <path>", async () => {
     // Closed triangle (first subpath) + open L-chain (second) — only the
     // closed one survives.

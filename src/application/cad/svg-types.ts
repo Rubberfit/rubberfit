@@ -82,6 +82,8 @@ export type UnsupportedSvgReason =
   | "line-not-closeable"
   | "element-type-unsupported"
   | "path-malformed"
+  | "points-malformed"
+  | "transform-malformed"
 
 export interface UnsupportedSvgEntity {
   kind: "unsupported"
