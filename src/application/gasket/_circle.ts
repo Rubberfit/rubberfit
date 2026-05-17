@@ -18,6 +18,11 @@ export type Winding = "ccw" | "cw"
  */
 function chooseCircleVertexCount(radiusIn: number, chordDeviationIn: number): number {
   const minVertices = 16
+  // Non-finite inputs (NaN / Infinity) would propagate through acos
+  // and produce a NaN vertex count, which silently emits an empty
+  // polygon downstream (CR finding). Fail closed at the floor.
+  if (!Number.isFinite(radiusIn) || radiusIn <= 0) return minVertices
+  if (!Number.isFinite(chordDeviationIn) || chordDeviationIn <= 0) return minVertices
   // Clamp the acos argument so chordDeviation > radius (a degenerate
   // case for sub-chord-deviation gaskets — minVertices wins below).
   const arg = Math.max(-1, Math.min(1, 1 - chordDeviationIn / radiusIn))

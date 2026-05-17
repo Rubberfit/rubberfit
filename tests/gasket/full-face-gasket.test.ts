@@ -69,7 +69,7 @@ describe("buildFullFaceGasket", () => {
     const expectedOuter = Math.PI * 8 * 8
     const expectedBore = Math.PI * 4 * 4
     const expectedBolt = Math.PI * 0.375 * 0.375
-    const expectedHoles = expectedBore + 8 * expectedBolt
+    const expectedHoles = expectedBore + baseSpec.boltCount * expectedBolt
     expect(Math.abs(outerA - expectedOuter) / expectedOuter).toBeLessThan(0.005)
     expect(Math.abs(holesA - expectedHoles) / expectedHoles).toBeLessThan(0.005)
   })

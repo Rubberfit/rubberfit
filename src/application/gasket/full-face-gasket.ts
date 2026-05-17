@@ -42,6 +42,8 @@ export function buildFullFaceGasket(spec: FullFaceGasketSpec): PolygonWithHoles 
     boltCircleDiameter,
     boltCount,
     boltHoleDiameter,
+    boltStartAngleRad,
+    chordDeviation,
   })
 
   const outer = tessellateCircleAt(0, 0, outerDiameter / 2, chordDeviation, "ccw")
@@ -67,6 +69,8 @@ interface ValidationInput {
   boltCircleDiameter: number
   boltCount: number
   boltHoleDiameter: number
+  boltStartAngleRad?: number
+  chordDeviation?: number
 }
 
 function validate(s: ValidationInput): void {
@@ -84,6 +88,19 @@ function validate(s: ValidationInput): void {
   if (!Number.isInteger(boltCount) || boltCount < MIN_BOLT_COUNT || boltCount > MAX_BOLT_COUNT) {
     throw new Error(
       `buildFullFaceGasket: boltCount must be an integer in [${MIN_BOLT_COUNT}, ${MAX_BOLT_COUNT}] (got ${boltCount})`
+    )
+  }
+  if (s.boltStartAngleRad !== undefined && !Number.isFinite(s.boltStartAngleRad)) {
+    throw new Error(
+      `buildFullFaceGasket: boltStartAngleRad must be finite (got ${s.boltStartAngleRad})`
+    )
+  }
+  if (
+    s.chordDeviation !== undefined &&
+    (!Number.isFinite(s.chordDeviation) || s.chordDeviation <= 0)
+  ) {
+    throw new Error(
+      `buildFullFaceGasket: chordDeviation must be a positive finite number (got ${s.chordDeviation})`
     )
   }
   // BCD + bolt-hole radius must fit inside OD.

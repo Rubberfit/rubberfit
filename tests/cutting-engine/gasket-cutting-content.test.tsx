@@ -103,7 +103,8 @@ describe("<GasketCuttingContent>", () => {
         onCutRecorded={vi.fn()}
       />
     )
-    const saveBtn = screen.getByRole("button", { name: /Save cut/i }) as HTMLButtonElement
+    const saveBtn = screen.getByRole("button", { name: /Save cut/i })
+    if (!(saveBtn instanceof HTMLButtonElement)) throw new Error("Save cut is not a button")
     expect(saveBtn.disabled).toBe(true)
   })
 })

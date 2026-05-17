@@ -113,7 +113,10 @@ export function AddGasketSheet({
         default:
           return null
       }
-    } catch {
+    } catch (_error) {
+      // Form validation already gates via isValid; if buildSpec
+      // produces invalid inputs the downstream gasketSpecToPartTemplate
+      // throw is caught by the isValid useMemo and disables submit.
       return null
     }
   }, [
@@ -136,7 +139,9 @@ export function AddGasketSheet({
     try {
       const template = gasketSpecToPartTemplate(previewSpec)
       return template.polygon ?? null
-    } catch {
+    } catch (_error) {
+      // Primitive validation throws on geometry inversions — disable
+      // the preview rather than crashing the dialog.
       return null
     }
   }, [previewSpec])
@@ -168,7 +173,9 @@ export function AddGasketSheet({
     try {
       gasketSpecToPartTemplate(previewSpec)
       return true
-    } catch {
+    } catch (_error) {
+      // Same geometry-inversion path as previewPolygon — invalid spec
+      // disables submit instead of letting the throw propagate.
       return false
     }
   }, [previewSpec])

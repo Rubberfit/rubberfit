@@ -5,11 +5,12 @@
  * enough to detect structural regressions in the three-column shell
  * + queue + metrics rail.
  */
+import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "@testing-library/react"
 
 vi.mock("@/app/dashboard/cutting-engine/_components/KonvaSheetRenderer", () => ({
-  default: ({ children }: { children?: React.ReactNode }) => (
+  default: ({ children }: { children?: ReactNode }) => (
     <div data-testid="konva-renderer-stub">{children}</div>
   ),
 }))

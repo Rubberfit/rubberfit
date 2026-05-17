@@ -11,13 +11,8 @@ interface GasketPreviewSvgProps {
   className?: string
 }
 
-export function GasketPreviewSvg({
-  polygon,
-  variant,
-  labels,
-  className,
-}: GasketPreviewSvgProps) {
-  const { viewBox, pathD, holeCenters } = useMemo(() => {
+export function GasketPreviewSvg({ polygon, variant, labels, className }: GasketPreviewSvgProps) {
+  const { viewBox, pathD, holeCenters, scale } = useMemo(() => {
     const allPoints: { x: number; y: number }[] = []
 
     // Collect all points from outer loop and holes
@@ -28,7 +23,12 @@ export function GasketPreviewSvg({
     }
 
     if (allPoints.length === 0) {
-      return { viewBox: "0 0 100 100", pathD: "", holeCenters: [] }
+      return {
+        viewBox: "0 0 100 100",
+        pathD: "",
+        holeCenters: [] as { x: number; y: number }[],
+        scale: 1,
+      }
     }
 
     let minX = allPoints[0].x
@@ -45,16 +45,28 @@ export function GasketPreviewSvg({
 
     const width = maxX - minX || 1
     const height = maxY - minY || 1
+    // Reserve extra bottom padding for the label stack when present
+    // (Sigilix HIGH 1 fix — labels were rendering outside the viewBox
+    // before because the spacing/fontSize/offset were inch-unit
+    // hardcoded constants in an inch-scale coord system).
+    const labelLines = variant === "preview" && labels ? labels.length : 0
     const padding = Math.max(width, height) * 0.05
+    // viewBox scale unit — every label/dot dimension is keyed to this
+    // so they render at a sensible relative size whether the gasket is
+    // 0.5″ or 100″ across.
+    const localScale = Math.max(width, height)
+    const labelFont = localScale * 0.05
+    const labelLineHeight = labelFont * 1.4
+    const labelBlockHeight = labelLines > 0 ? labelLines * labelLineHeight + padding : 0
 
     const vbMinX = minX - padding
     const vbMinY = -maxY - padding
     const vbWidth = width + padding * 2
-    const vbHeight = height + padding * 2
+    const vbHeight = height + padding * 2 + labelBlockHeight
 
     const viewBox = `${vbMinX} ${vbMinY} ${vbWidth} ${vbHeight}`
 
-    // Build path with Y-flip
+    // Build path with Y-flip (math-up → SVG-down)
     const buildLoopPath = (loop: { x: number; y: number }[]): string => {
       if (loop.length === 0) return ""
       const first = loop[0]
@@ -87,29 +99,35 @@ export function GasketPreviewSvg({
       }
     }
 
-    return { viewBox, pathD, holeCenters: centers }
-  }, [polygon, variant])
+    return { viewBox, pathD, holeCenters: centers, scale: localScale }
+  }, [polygon, variant, labels])
 
+  // Scale-aware dimensions: bolt-hole dots ≈ 1% of viewBox extent so
+  // they stay legible without obscuring the polygon (Sigilix HIGH 2 fix).
+  // `vector-effect="non-scaling-stroke"` keeps the path stroke pixel-
+  // sized; dot radius is in viewBox coords so it scales with zoom.
+  const boltDotRadius = scale * 0.012
+  const labelFontSize = scale * 0.05
+  const labelLineHeight = labelFontSize * 1.4
   const strokeWidth = variant === "preview" ? 1.5 : 1.0
   const strokeColor = "hsl(var(--signal-orange))"
+
   const labelElements = useMemo(() => {
     if (variant !== "preview" || !labels || labels.length === 0) return null
 
-    // Position labels below the polygon
+    // Position labels below the polygon, just under the bbox bottom.
     const allPoints: { x: number; y: number }[] = []
     for (const loop of [polygon.outer, ...polygon.holes]) {
       for (const vertex of loop) {
         allPoints.push({ x: vertex.x, y: vertex.y })
       }
     }
-
     if (allPoints.length === 0) return null
 
     let minX = allPoints[0].x
     let maxX = allPoints[0].x
     let minY = allPoints[0].y
     let maxY = allPoints[0].y
-
     for (const p of allPoints) {
       minX = Math.min(minX, p.x)
       maxX = Math.max(maxX, p.x)
@@ -118,22 +136,22 @@ export function GasketPreviewSvg({
     }
 
     const centerX = (minX + maxX) / 2
-    const labelStartY = -minY + (maxY - minY) * 0.1 + 12
+    const labelStartY = -minY + labelLineHeight
 
     return labels.map((label, i) => (
       <text
         key={i}
         x={centerX}
-        y={labelStartY + i * 12}
+        y={labelStartY + i * labelLineHeight}
         fontFamily="monospace"
-        fontSize="10"
+        fontSize={labelFontSize}
         fill="hsl(var(--muted-foreground))"
         textAnchor="middle"
       >
         {label}
       </text>
     ))
-  }, [variant, labels, polygon])
+  }, [variant, labels, polygon, labelFontSize, labelLineHeight])
 
   const ariaLabel = labels && labels.length > 0 ? labels.join(", ") : "Gasket preview"
 
@@ -155,13 +173,7 @@ export function GasketPreviewSvg({
       />
       {variant === "preview" &&
         holeCenters.map((center, i) => (
-          <circle
-            key={i}
-            cx={center.x}
-            cy={-center.y}
-            r={strokeWidth * 2}
-            fill={strokeColor}
-          />
+          <circle key={i} cx={center.x} cy={-center.y} r={boltDotRadius} fill={strokeColor} />
         ))}
       {labelElements}
     </svg>

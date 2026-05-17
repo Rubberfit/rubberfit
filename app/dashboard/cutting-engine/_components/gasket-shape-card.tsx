@@ -69,7 +69,7 @@ export function GasketShapeCard({
       </div>
 
       <button
-        className="opacity-0 group-hover:opacity-100 absolute top-2 right-12 transition-opacity"
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 absolute top-2 right-12 transition-opacity"
         onClick={handleRemove}
         aria-label="Remove gasket"
         type="button"

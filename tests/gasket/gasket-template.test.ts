@@ -54,8 +54,10 @@ describe("gasketSpecToPartTemplate", () => {
       outerDiameter: 10,
       innerDiameter: 6,
     })
-    const xs = tmpl.polygon!.outer.map((p) => p.x)
-    const ys = tmpl.polygon!.outer.map((p) => p.y)
+    const polygon = tmpl.polygon
+    if (!polygon) throw new Error("ring gasket must produce a polygon")
+    const xs = polygon.outer.map((p) => p.x)
+    const ys = polygon.outer.map((p) => p.y)
     expect((Math.max(...xs) + Math.min(...xs)) / 2).toBeCloseTo(0, 4)
     expect((Math.max(...ys) + Math.min(...ys)) / 2).toBeCloseTo(0, 4)
   })

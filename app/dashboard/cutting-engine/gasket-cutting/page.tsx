@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import { useState } from "react"
 
 import { PageHeader, PageShell } from "@/app/components/patterns"
-import type { PartTemplate } from "../_components/PresetDimensionSelector"
+import type { PartTemplate } from "../_components/preset-template-data"
 import {
   DEFAULT_KERF_IN,
   type StockConfig,

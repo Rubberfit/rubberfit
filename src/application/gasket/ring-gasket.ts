@@ -28,6 +28,11 @@ export function buildRingGasket(spec: RingGasketSpec): PolygonWithHoles {
       `buildRingGasket: innerDiameter (${innerDiameter}) must be < outerDiameter (${outerDiameter})`
     )
   }
+  if (!Number.isFinite(chordDeviation) || chordDeviation <= 0) {
+    throw new Error(
+      `buildRingGasket: chordDeviation must be a positive finite number (got ${chordDeviation})`
+    )
+  }
 
   // Outer CCW + hole CW: see `sanitize-polygon-with-holes.ts` for the
   // canonical wire-contract orientation. jagua-rs's adapter and the

@@ -16,9 +16,8 @@ import { useCadImport } from "@/app/dashboard/cutting-engine/_components/use-cad
 import type { DxfImportedPart } from "@/src/application/cad/dxf-types"
 import type { SvgImportedPart } from "@/src/application/cad/svg-types"
 
-// jsdom-friendly minimal DxfImportedPart / SvgImportedPart fixtures —
-// the hook only reads partNumber / quantity / sourceFile / units /
-// polygon, so we can mock the rest as empty.
+// `satisfies` over `as unknown as` so contract drift in the imported
+// types breaks this test rather than silently passing (CR finding).
 function dxfPart(units: "inch" | "mm" = "inch"): DxfImportedPart {
   return {
     partNumber: "DXF-001",
@@ -41,9 +40,7 @@ function dxfPart(units: "inch" | "mm" = "inch"): DxfImportedPart {
         ],
       ],
     },
-    layer: "0",
-    sourceType: "dxf",
-  } as unknown as DxfImportedPart
+  } satisfies DxfImportedPart
 }
 
 function svgPart(units: "inch" | "mm" = "mm"): SvgImportedPart {
@@ -61,8 +58,7 @@ function svgPart(units: "inch" | "mm" = "mm"): SvgImportedPart {
       ],
       holes: [],
     },
-    sourceType: "svg",
-  } as unknown as SvgImportedPart
+  } satisfies SvgImportedPart
 }
 
 describe("useCadImport", () => {
@@ -96,14 +92,24 @@ describe("useCadImport", () => {
     expect(tmpl.id).toMatch(/^svg-/)
   })
 
-  it("cancelDxf clears the dxfReview state (null)", () => {
+  it("confirmDxf followed by cancelDxf both clear the review state", () => {
+    // CR finding: a bare cancelDxf() against a null initial state is
+    // tautological. Drive confirm first to set state, then assert
+    // confirm itself clears the dxfReview (mirrors the production flow).
     const { result } = renderHook(() => useCadImport({ onAdd: vi.fn() }))
+    expect(result.current.dxfReview).toBeNull()
+    act(() => result.current.confirmDxf(dxfPart("inch")))
+    expect(result.current.dxfReview).toBeNull()
+    // Also exercise cancelDxf as a no-op-from-null safety check.
     act(() => result.current.cancelDxf())
     expect(result.current.dxfReview).toBeNull()
   })
 
-  it("cancelSvg clears the svgReview state (null)", () => {
+  it("confirmSvg followed by cancelSvg both clear the review state", () => {
     const { result } = renderHook(() => useCadImport({ onAdd: vi.fn() }))
+    expect(result.current.svgReview).toBeNull()
+    act(() => result.current.confirmSvg(svgPart("mm")))
+    expect(result.current.svgReview).toBeNull()
     act(() => result.current.cancelSvg())
     expect(result.current.svgReview).toBeNull()
   })

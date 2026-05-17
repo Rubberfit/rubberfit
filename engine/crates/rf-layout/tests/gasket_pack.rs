@@ -126,15 +126,21 @@ fn obround_gasket_packs_with_no_holes() {
     let cy = 1.5_f64;
     // Right cap CCW from -PI/2 to +PI/2
     for i in 0..=cap_segments {
-        let a = -std::f64::consts::FRAC_PI_2
-            + (i as f64 / cap_segments as f64) * std::f64::consts::PI;
-        pts.push(Point2D::new(cx + straight_half + r * a.cos(), cy + r * a.sin()));
+        let a =
+            -std::f64::consts::FRAC_PI_2 + (i as f64 / cap_segments as f64) * std::f64::consts::PI;
+        pts.push(Point2D::new(
+            cx + straight_half + r * a.cos(),
+            cy + r * a.sin(),
+        ));
     }
     // Left cap CCW from PI/2 to 3PI/2 (skip endpoints to avoid join dupes)
     for i in 1..cap_segments {
-        let a = std::f64::consts::FRAC_PI_2
-            + (i as f64 / cap_segments as f64) * std::f64::consts::PI;
-        pts.push(Point2D::new(cx - straight_half + r * a.cos(), cy + r * a.sin()));
+        let a =
+            std::f64::consts::FRAC_PI_2 + (i as f64 / cap_segments as f64) * std::f64::consts::PI;
+        pts.push(Point2D::new(
+            cx - straight_half + r * a.cos(),
+            cy + r * a.sin(),
+        ));
     }
 
     let outer = Polygon::new(pts).expect("obround outer polygon");

@@ -24,6 +24,11 @@ export function buildObroundGasket(spec: ObroundGasketSpec): PolygonWithHoles {
       `buildObroundGasket: width (${width}) must be <= length (${length}) — obround caps need this`
     )
   }
+  if (!Number.isFinite(chordDeviation) || chordDeviation <= 0) {
+    throw new Error(
+      `buildObroundGasket: chordDeviation must be a positive finite number (got ${chordDeviation})`
+    )
+  }
 
   // Degenerate case (width === length): straightHalf === 0, both caps
   // sit on the same center — the polygon is a circle expressed as two

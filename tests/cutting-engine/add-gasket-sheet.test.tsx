@@ -45,7 +45,8 @@ describe("<AddGasketSheet>", () => {
 
   it("'Add to queue' is disabled until ring fields are valid", () => {
     render(<AddGasketSheet {...baseProps} />)
-    const submit = screen.getByRole("button", { name: /Add to queue/i }) as HTMLButtonElement
+    const submit = screen.getByRole("button", { name: /Add to queue/i })
+    if (!(submit instanceof HTMLButtonElement)) throw new Error("Add to queue is not a button")
     expect(submit.disabled).toBe(true)
 
     fireEvent.change(screen.getByLabelText(/Outer diameter \(OD\)/i), {
@@ -65,7 +66,8 @@ describe("<AddGasketSheet>", () => {
     fireEvent.change(screen.getByLabelText(/Inner diameter \(ID\)/i), {
       target: { value: "8" },
     })
-    const submit = screen.getByRole("button", { name: /Add to queue/i }) as HTMLButtonElement
+    const submit = screen.getByRole("button", { name: /Add to queue/i })
+    if (!(submit instanceof HTMLButtonElement)) throw new Error("Add to queue is not a button")
     expect(submit.disabled).toBe(true)
   })
 

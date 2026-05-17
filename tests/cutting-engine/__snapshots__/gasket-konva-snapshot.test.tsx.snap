@@ -52,7 +52,7 @@ exports[`<GasketCuttingContent> structural snapshot > matches the rendered tree 
         </div>
         <button
           aria-label="Remove gasket"
-          class="opacity-0 group-hover:opacity-100 absolute top-2 right-12 transition-opacity"
+          class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 absolute top-2 right-12 transition-opacity"
           type="button"
         >
           <svg
@@ -114,7 +114,7 @@ exports[`<GasketCuttingContent> structural snapshot > matches the rendered tree 
         </div>
         <button
           aria-label="Remove gasket"
-          class="opacity-0 group-hover:opacity-100 absolute top-2 right-12 transition-opacity"
+          class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 absolute top-2 right-12 transition-opacity"
           type="button"
         >
           <svg
