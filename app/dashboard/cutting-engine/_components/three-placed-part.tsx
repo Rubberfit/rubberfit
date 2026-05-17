@@ -97,14 +97,25 @@ export function ThreePlacedPart({
       lastEmittedRef.current = { x: part.x, y: part.y }
       setDragging(true)
       updateCursor(true, true)
-      try {
-        gl.domElement.setPointerCapture(e.pointerId)
-      } catch {
-        // Pointer capture can fail on some touch devices; drag still
-        // works via the on-canvas pointer-move events.
+      // R3F's mesh-aware pointer capture: `e.target` is the canvas
+      // DOM Element; calling setPointerCapture on it makes R3F's
+      // internal event manager keep routing pointer-move events to
+      // this mesh even when the ray leaves it (raw
+      // `gl.domElement.setPointerCapture` skips R3F's routing layer,
+      // so per-mesh `onPointerMove` stops firing as soon as the ray
+      // hits a different mesh — root cause of the "can't drag,
+      // selects another gasket" bug).
+      const captureTarget = e.target
+      if (captureTarget instanceof Element) {
+        try {
+          captureTarget.setPointerCapture(e.pointerId)
+        } catch {
+          // Some touch contexts reject capture; drag still works
+          // while the ray stays on the gasket.
+        }
       }
     },
-    [gl, onClick, onDragEnd, onDragMove, part.x, part.y, planeIntersect, updateCursor]
+    [onClick, onDragEnd, onDragMove, part.x, part.y, planeIntersect, updateCursor]
   )
 
   const handlePointerMove = useCallback(
@@ -134,17 +145,20 @@ export function ThreePlacedPart({
       if (!dragging) return
       setDragging(false)
       grabOffsetRef.current = null
-      try {
-        gl.domElement.releasePointerCapture(e.pointerId)
-      } catch {
-        // Pointer capture may not have been claimed; safe to skip.
+      const releaseTarget = e.target
+      if (releaseTarget instanceof Element) {
+        try {
+          releaseTarget.releasePointerCapture(e.pointerId)
+        } catch {
+          // Pointer capture may not have been claimed; safe to skip.
+        }
       }
       const last = lastEmittedRef.current
       if (last) onDragEnd?.(part.id, last.x, last.y)
       lastEmittedRef.current = null
       updateCursor(hovered, false)
     },
-    [dragging, gl, hovered, onDragEnd, part.id, updateCursor]
+    [dragging, hovered, onDragEnd, part.id, updateCursor]
   )
 
   return (
