@@ -1,7 +1,7 @@
 // app/dashboard/cutting-engine/_components/add-gasket-sheet.tsx
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { UploadCloud } from "lucide-react"
 
@@ -42,6 +42,13 @@ interface AddGasketSheetProps {
   onImportSvg: () => void
   /** Stock thickness in inches — drives the 3D extrusion depth. */
   stockThicknessIn: number
+  /**
+   * Which tab should be focused when the sheet opens. Resets to this
+   * tab on every `open` → true transition so the "Import CAD" button
+   * lands on the right tab instead of whichever was last viewed.
+   * Defaults to "ring".
+   */
+  initialTab?: "ring" | "full-face" | "obround" | "import-cad"
 }
 
 interface PreviewPaneProps {
@@ -127,8 +134,20 @@ export function AddGasketSheet({
   onImportDxf,
   onImportSvg,
   stockThicknessIn,
+  initialTab = "ring",
 }: AddGasketSheetProps) {
   const form = useAddGasketForm()
+
+  // Reset to the requested tab on each open. The "Import CAD" button
+  // in the parts queue passes `initialTab="import-cad"` so the
+  // operator lands on the import flow directly instead of whichever
+  // tab was last viewed (CodeRabbit finding #1+#2).
+  useEffect(() => {
+    if (open) form.setActiveTab(initialTab)
+    // form.setActiveTab is stable (useCallback in the hook); only
+    // `open` + `initialTab` should drive the reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTab])
 
   const handleImportDxf = useCallback(() => {
     onOpenChange(false)

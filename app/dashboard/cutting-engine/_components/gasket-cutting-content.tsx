@@ -52,7 +52,18 @@ export default function GasketCuttingContent({
   onAfterLoadCut,
 }: GasketCuttingContentProps) {
   const [isAddGasketOpen, setIsAddGasketOpen] = useState(false)
+  const [addGasketTab, setAddGasketTab] = useState<"ring" | "full-face" | "obround" | "import-cad">(
+    "ring"
+  )
   const [isMobileQueueOpen, setIsMobileQueueOpen] = useState(false)
+
+  const openAddGasket = useCallback(
+    (tab: "ring" | "full-face" | "obround" | "import-cad" = "ring") => {
+      setAddGasketTab(tab)
+      setIsAddGasketOpen(true)
+    },
+    []
+  )
   const [zoomPct, setZoomPct] = useState(100)
   const [showGrid, setShowGrid] = useState(true)
 
@@ -244,13 +255,13 @@ export default function GasketCuttingContent({
         </div>
         <div className="flex flex-col gap-2">
           <Button
-            onClick={() => setIsAddGasketOpen(true)}
+            onClick={() => openAddGasket("ring")}
             className="bg-orange-500 text-white hover:bg-orange-600"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add gasket
           </Button>
-          <Button variant="outline" onClick={() => setIsAddGasketOpen(true)}>
+          <Button variant="outline" onClick={() => openAddGasket("import-cad")}>
             <Upload className="mr-2 h-4 w-4" />
             Import CAD
           </Button>
@@ -382,7 +393,7 @@ export default function GasketCuttingContent({
                 <div className="mt-3 flex flex-col gap-2">
                   <Button
                     onClick={() => {
-                      setIsAddGasketOpen(true)
+                      openAddGasket("ring")
                       setIsMobileQueueOpen(false)
                     }}
                     className="bg-orange-500 text-white hover:bg-orange-600"
@@ -393,7 +404,7 @@ export default function GasketCuttingContent({
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setIsAddGasketOpen(true)
+                      openAddGasket("import-cad")
                       setIsMobileQueueOpen(false)
                     }}
                   >
@@ -415,6 +426,7 @@ export default function GasketCuttingContent({
         onImportDxf={handleImportDxf}
         onImportSvg={handleImportSvg}
         stockThicknessIn={stock.thickness}
+        initialTab={addGasketTab}
       />
 
       {cadImport.dxfReview && (
