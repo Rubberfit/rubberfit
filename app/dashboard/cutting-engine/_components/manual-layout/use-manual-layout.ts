@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react"
 
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { ManualPlacement } from "./free-roam-collision"
-import type { LayoutModel, LayoutRegion, PlacedPart } from "./layout-model"
-import { buildFreeRoamLayout } from "./free-roam-layout"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { ManualPlacement } from "./collision"
+import type { LayoutModel, LayoutRegion, PlacedPart } from "../layout-model"
+import { buildManualLayout } from "./manual-layout"
 
 /** Shared key for the single-entry `layoutCache` Map. */
 const LAYOUT_CACHE_KEY = "current"
@@ -14,7 +14,7 @@ const LAYOUT_CACHE_KEY = "current"
 /**
  * Owns the layout build and the per-id PlacedPart ref cache (issue
  * #117 phase 3). The cache is a stable Map held via `useState` lazy
- * init; `buildFreeRoamLayout` reads + mutates it so `React.memo`'d
+ * init; `buildManualLayout` reads + mutates it so `React.memo`'d
  * `PartShape` can skip reconciliation for stationary placements
  * during drag.
  *
@@ -29,11 +29,11 @@ const LAYOUT_CACHE_KEY = "current"
  * identity-equal to the prior return (parts ref-by-ref + offcuts/scrap
  * ref + sheet dimensions + counters), we hand back the exact same
  * object instead of allocating a fresh wrapper. Combined with
- * `EMPTY_LAYOUT_REGIONS` in `free-roam-regions.ts` and the
+ * `EMPTY_LAYOUT_REGIONS` in `regions.ts` and the
  * `React.memo` on `KonvaSheetRenderer`, the renderer's function body
  * can skip re-execution per drag tick when nothing visible changed.
  */
-export function useFreeRoamLayout(
+export function useManualLayout(
   placements: ManualPlacement[],
   parts: PartTemplate[],
   stock: StockConfig,
@@ -51,7 +51,7 @@ export function useFreeRoamLayout(
   // as `previousPartsById` above) and gives us an O(1) cache cell.
   const [layoutCache] = useState<Map<typeof LAYOUT_CACHE_KEY, LayoutModel>>(() => new Map())
   return useMemo(() => {
-    const base = buildFreeRoamLayout(placements, parts, stock, tagByTemplateId, previousPartsById)
+    const base = buildManualLayout(placements, parts, stock, tagByTemplateId, previousPartsById)
     const previous = layoutCache.get(LAYOUT_CACHE_KEY)
 
     // Bail out with the prior `LayoutModel` reference when every
@@ -60,7 +60,7 @@ export function useFreeRoamLayout(
     // element strict-equal pass is enough for the parts array. The
     // offcuts/scrap arrays arrive as references from the regions
     // pipeline and are identity-stable across ticks when content-
-    // equal (see `EMPTY_LAYOUT_REGIONS` in `free-roam-regions.ts`).
+    // equal (see `EMPTY_LAYOUT_REGIONS` in `regions.ts`).
     // The remaining numeric fields are derived deterministically
     // from inputs that haven't changed when `parts` matches, but
     // we compare them anyway so any future field addition fails

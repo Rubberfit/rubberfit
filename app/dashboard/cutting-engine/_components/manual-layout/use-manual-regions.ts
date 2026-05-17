@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react"
 
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { ManualPlacement } from "./free-roam-collision"
-import { type ComputedRegions, computeAdaptiveRegions } from "./free-roam-regions"
-import { makeRegionCache } from "./free-roam-region-cache"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { ManualPlacement } from "./collision"
+import { type ComputedRegions, computeAdaptiveRegions } from "./regions"
+import { makeRegionCache } from "./region-cache"
 
-interface UseFreeRoamRegionsResult {
+interface UseManualRegionsResult {
   /** Visual regions — overlays drag snapshot, skips pocket pass during drag. */
   regions: ComputedRegions
   /**
@@ -37,19 +37,19 @@ const TIMINGS_ENABLED = process.env.NODE_ENV !== "production"
  * have to thread it through. The cache reference stays stable for the
  * hook's lifetime via `useState` lazy init (React 19 lint forbids ref
  * reads during render). Issue #117 invalidation rules live in
- * `free-roam-region-cache.ts`.
+ * `region-cache.ts`.
  *
  * Dev-only: drag-frame calls pass `enableTimings: true` so per-stage
  * costs land in `__regionTimingSink` (drained via `__dumpRegionTimings()`).
  * Production builds strip the branch via `process.env.NODE_ENV` DCE.
  */
-export function useFreeRoamRegions(
+export function useManualRegions(
   placements: ManualPlacement[],
   effectivePlacements: ManualPlacement[],
   parts: PartTemplate[],
   stock: StockConfig,
   isDragging: boolean
-): UseFreeRoamRegionsResult {
+): UseManualRegionsResult {
   const [regionCache] = useState(makeRegionCache)
 
   const committedRegions = useMemo(

@@ -2,17 +2,17 @@ import ClipperLib from "clipper-lib"
 import type { Point2D } from "@/nesting/types"
 import { circleToPolygon, rectToPolygon } from "@/nesting/shape-to-polygon"
 import { polygonArea } from "@/nesting/convex-hull"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { LayoutRegion } from "./layout-model"
-import type { ManualPlacement } from "./free-roam-collision"
-import { syncRegionCache, type RegionCache } from "./free-roam-region-cache"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { LayoutRegion } from "../layout-model"
+import type { ManualPlacement } from "./collision"
+import { syncRegionCache, type RegionCache } from "./region-cache"
 
 /**
  * Module-level frozen empty `LayoutRegion[]` used everywhere
  * `finalizeRegions` / `computeAdaptiveRegions` would otherwise return
  * a fresh `[]`. Keeping the reference stable lets downstream memos
- * (`useFreeRoamLayout`, `KonvaSheetRenderer`) bail out via `===`
+ * (`useManualLayout`, `KonvaSheetRenderer`) bail out via `===`
  * across drag ticks when the region set is empty (the common case
  * for `offcuts` in Free-roam — see `finalizeRegions` rationale).
  */
@@ -24,7 +24,7 @@ const EMPTY_LAYOUT_REGIONS: readonly LayoutRegion[] = Object.freeze([])
  * is never true even when the geometry hasn't moved. Comparing per-
  * region bbox + polygon coords lets `computeAdaptiveRegions` return
  * the prior `ComputedRegions` reference whenever a drag tick produced
- * the same content, so downstream React memos (`useFreeRoamLayout`
+ * the same content, so downstream React memos (`useManualLayout`
  * bailout, `KonvaSheetRenderer` `React.memo`) can actually skip work.
  *
  * Cheap fast-paths first (length, then per-element ref-equality, then
@@ -844,7 +844,7 @@ export function computeAdaptiveRegions(
 
   // Output-identity memo: when content matches the prior call's result
   // (offcuts ref + scrap pointwise), return the previous reference so
-  // downstream `===` checks (`useFreeRoamLayout` cache bailout,
+  // downstream `===` checks (`useManualLayout` cache bailout,
   // `KonvaSheetRenderer` `React.memo`) can actually skip work. The
   // bailout MUST run before storing the new result so we don't clobber
   // the previous reference before comparing against it.

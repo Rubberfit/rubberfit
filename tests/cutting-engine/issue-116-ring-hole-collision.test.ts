@@ -15,8 +15,8 @@
  * patterns, and CAD-imported multi-loop shapes too.
  */
 import { describe, expect, it } from "vitest"
-import { wouldCollide } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
-import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
+import { wouldCollide } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
+import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import { circleToPolygon } from "@/nesting/shape-to-polygon"
 

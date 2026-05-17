@@ -31,7 +31,7 @@ const DELETED = [
   "nesting/vendor/fit/bounding-box.ts",
   "nesting/vendor/fit/indexed-vector.ts",
   // Note: nesting/vendor/fit/clipper-lib.d.ts moved to nesting/clipper-lib.d.ts
-  // (still referenced by free-space.ts and free-roam-regions.ts).
+  // (still referenced by free-space.ts and manual-layout/regions.ts).
   // Subprocess streaming protocol — server-side IPackingService is now
   // batch-only; browser callers use ApiPackingService over HTTP.
   "tests/packing/rustServiceStreaming.test.ts",

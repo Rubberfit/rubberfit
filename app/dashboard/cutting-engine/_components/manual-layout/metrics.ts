@@ -1,9 +1,9 @@
 import { polygonArea } from "@/nesting/convex-hull"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { LayoutRegion } from "./layout-model"
-import type { SimpleCutMetrics } from "./nesting-visualizer-types"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { LayoutRegion } from "../layout-model"
+import type { SimpleCutMetrics } from "../nesting-visualizer-types"
+import type { ManualPlacement } from "./collision"
 
 function regionsAreaSqIn(regions: readonly LayoutRegion[]): number {
   let total = 0

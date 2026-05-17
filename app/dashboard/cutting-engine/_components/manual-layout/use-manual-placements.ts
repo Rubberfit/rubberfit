@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import { type ManualPlacement, wouldCollide } from "./free-roam-collision"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import { type ManualPlacement, wouldCollide } from "./collision"
 
 interface UseFreeRoamPlacementsOptions {
   /**
@@ -25,7 +25,7 @@ interface UseFreeRoamPlacementsOptions {
  * When R is pressed with no part selected, falls through to
  * `options.onRotateSheet` so the same key doubles as sheet-rotate.
  */
-export function useFreeRoamPlacements(
+export function useManualPlacements(
   parts: PartTemplate[],
   stock: StockConfig,
   options: UseFreeRoamPlacementsOptions = {}

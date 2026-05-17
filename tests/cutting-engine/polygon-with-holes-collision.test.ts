@@ -1,4 +1,4 @@
-// PR 0b — `free-roam-collision.ts` generalizes the ring-only hole
+// PR 0b — `manual-layout/collision.ts` generalizes the ring-only hole
 // exception into a polygon-general "fully inside any hole" check.
 // These tests pin the cases that motivated the generalization and
 // the false-pass Codex flagged for vertex-only containment:
@@ -14,8 +14,8 @@
 //      boundary IS rejected (the vertex-only test would false-pass).
 
 import { describe, expect, it } from "vitest"
-import { wouldCollide } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
-import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
+import { wouldCollide } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
+import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 
 function place(id: string, templateId: string, x: number, y: number): ManualPlacement {
@@ -124,7 +124,7 @@ describe("PR 0b — generalized hole-as-void collision", () => {
     // protects under float noise. The guard's correctness on the
     // pathological inputs is verified by inspection of the EPS
     // constants (1e-10 in² is well below operator-perceptible
-    // geometry; see free-roam-collision.ts:DIRECTION_EPS).
+    // geometry; see manual-layout/collision.ts:DIRECTION_EPS).
     const hostHole: PartTemplate = {
       id: "host-hole",
       partType: "rectangle",

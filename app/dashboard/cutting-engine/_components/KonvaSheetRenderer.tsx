@@ -192,7 +192,7 @@ function KonvaSheetRenderer({
  * re-renders without changing any visible prop (issue #140 / ARC-91
  * Fix C-4). Default shallow compare is sufficient because:
  *   - `layout` ref is stable across drag ticks when content-equal
- *     (see `useFreeRoamLayout`'s `layoutCache` bailout).
+ *     (see `useManualLayout`'s `layoutCache` bailout).
  *   - `zoomPct`, `showGrid`, `selectedPartId`, `sheetBase`,
  *     `shouldRenderOffcutRegions` are primitives.
  *   - Handler props are `useCallback`'d in `free-roam-content.tsx`.
