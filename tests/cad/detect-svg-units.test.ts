@@ -56,4 +56,13 @@ describe("detectSvgUnits", () => {
     expect(result.units).toBe("mm")
     expect(result.userUnitScale).toBeCloseTo(2, 9)
   })
+
+  it("ignores a malformed viewBox with fewer than four components", () => {
+    // Three-token viewBox is malformed per SVG spec — fail closed rather
+    // than guess at the missing height.
+    const result = detectSvgUnits({ width: "100mm", viewBox: "0 0 50" })
+    expect(result.units).toBe("mm")
+    // viewBox is rejected -> scale derived from width alone (1:1 in mm).
+    expect(result.userUnitScale).toBeCloseTo(1, 9)
+  })
 })

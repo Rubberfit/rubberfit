@@ -105,7 +105,9 @@ function toMillimetres(value: number, unit: ParsedLength["unit"]): number | null
 function parseViewBoxWidth(raw: string | undefined): number | null {
   if (raw === undefined) return null
   const parts = raw.trim().split(/[\s,]+/)
-  if (parts.length < 3) return null
+  // Per SVG spec, viewBox carries exactly four values (x, y, width, height).
+  // Anything shorter is malformed — fail closed rather than guess.
+  if (parts.length < 4) return null
   const width = parseFloat(parts[2])
   return Number.isFinite(width) && width > 0 ? width : null
 }

@@ -204,8 +204,12 @@ function parseRect(
   const width = numericAttr(node, "width", 0)
   const height = numericAttr(node, "height", 0)
   if (width <= 0 || height <= 0) return null
-  const rx = Math.max(0, numericAttr(node, "rx", 0))
-  const ry = Math.max(0, numericAttr(node, "ry", rx))
+  // Per SVG spec, when one of rx/ry is omitted it defaults to the other —
+  // in both directions. Read both raw, then cross-default.
+  const rxRaw = Math.max(0, numericAttr(node, "rx", 0))
+  const ryRaw = Math.max(0, numericAttr(node, "ry", 0))
+  const rx = rxRaw === 0 ? ryRaw : rxRaw
+  const ry = ryRaw === 0 ? rxRaw : ryRaw
 
   if (rx === 0 && ry === 0) {
     const corners: Point2D[] = [

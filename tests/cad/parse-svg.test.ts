@@ -186,6 +186,25 @@ describe("parseSvg error handling", () => {
     }
   })
 
+  it("rect with only ry attribute (rx omitted) cross-defaults rx from ry — corners are rounded", async () => {
+    // Per SVG spec, rx and ry default to each other when one is omitted.
+    // Before the fix, this rect would render as sharp corners because rx
+    // defaulted to 0 (not to ry's value), then `if (rx === 0 && ry === 0)`
+    // wouldn't fire but rounded-corner tessellation would call
+    // `pushArcCorner` with rx=0 — producing degenerate arcs.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" ry="10"/></svg>'
+    const doc = await parseSvg(text)
+    const rectEntity = doc.entities.find((e) => e.kind === "rect")
+    expect(rectEntity).toBeDefined()
+    if (rectEntity && rectEntity.kind === "rect") {
+      // Sharp-corner rect would have exactly 4 vertices; a rounded-corner
+      // rect tessellates each arc into multiple vertices, so the loop is
+      // strictly longer.
+      expect(rectEntity.loop.length).toBeGreaterThan(8)
+    }
+  })
+
   it("keeps the closed subpath when one closed and one open subpath share a <path>", async () => {
     // Closed triangle (first subpath) + open L-chain (second) — only the
     // closed one survives.

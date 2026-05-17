@@ -19,10 +19,11 @@ import type { Point2D, PolygonWithHoles, UnitSystem } from "@/src/application/pa
 
 export type { Point2D, PolygonWithHoles, UnitSystem }
 
-// All emitted loops are post-transform: x, y values are in user-unit
-// SVG document coordinates (Y down). The `parseSvg` boundary does NOT
-// flip Y to math-coords — that conversion happens at the same point
-// it does for DXF (which keeps Y up); see `dxf-review-dialog-parts.tsx`.
+// All emitted loops are post-transform and Y-flipped to math-coords (Y up).
+// `parseSvg` applies the flip via matrix(1, 0, 0, -1, 0, 0) after every
+// ancestor transform composition, so SVG output shares the same coordinate
+// convention DXF uses downstream. The review-dialog path renderer
+// (`cad-review-dialog-parts.tsx`) flips Y back to SVG (Y down) for display.
 // Containment + grouping does not care about Y orientation as long as
 // it is consistent across all loops in a document.
 
