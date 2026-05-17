@@ -257,18 +257,19 @@ export default function GasketCuttingContent({
         </div>
       </div>
 
-      {/* Center canvas */}
-      <div className="relative min-h-0 flex-1">
-        <div className="absolute top-3 left-3 z-10">
-          <CanvasToolbar
-            zoom={zoomPct}
-            onZoomChange={setZoomPct}
-            showGrid={showGrid}
-            onShowGridChange={setShowGrid}
-            onResetView={handleResetView}
-          />
-        </div>
-        <div className="bg-muted/30 h-full w-full overflow-hidden rounded-lg border">
+      {/* Center canvas — toolbar STACKED above the renderer (sibling
+          layout matches free-roam-content). Previously the toolbar was
+          absolute-positioned inside the canvas container which left it
+          crammed against the sheet's top-left corner. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <CanvasToolbar
+          zoom={zoomPct}
+          onZoomChange={setZoomPct}
+          showGrid={showGrid}
+          onShowGridChange={setShowGrid}
+          onResetView={handleResetView}
+        />
+        <div className="bg-muted/30 relative flex-1 overflow-hidden rounded-lg border">
           <KonvaSheetRenderer
             layout={layout}
             onPartDragEnd={handlePartDragEndWrapped}
