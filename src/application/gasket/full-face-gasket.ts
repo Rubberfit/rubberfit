@@ -103,10 +103,13 @@ function validate(s: ValidationInput): void {
       `buildFullFaceGasket: chordDeviation must be a positive finite number (got ${s.chordDeviation})`
     )
   }
-  // BCD + bolt-hole radius must fit inside OD.
-  if (boltCircleDiameter / 2 + boltHoleDiameter / 2 > outerDiameter / 2) {
+  // BCD + bolt-hole radius must fit strictly inside OD. Use >= so the
+  // tangent case (bolt hole touching the outer contour) is also
+  // rejected — degenerate touching boundaries choke the packer, same
+  // reasoning as the bore-vs-bolt-hole check below.
+  if (boltCircleDiameter / 2 + boltHoleDiameter / 2 >= outerDiameter / 2) {
     throw new Error(
-      `buildFullFaceGasket: bolt circle + bolt holes exceed outer diameter (BCD ${boltCircleDiameter}, bolt ⌀ ${boltHoleDiameter}, OD ${outerDiameter})`
+      `buildFullFaceGasket: bolt circle + bolt holes touch or exceed outer diameter (BCD ${boltCircleDiameter}, bolt ⌀ ${boltHoleDiameter}, OD ${outerDiameter})`
     )
   }
   // Bore must clear the BCD inner edge with strict gap (>= would let

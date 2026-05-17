@@ -48,11 +48,29 @@ export function buildObroundGasket(spec: ObroundGasketSpec): PolygonWithHoles {
     outer.push({ x: straightHalf + r * Math.cos(a), y: r * Math.sin(a) })
   }
   // Left semicircle sweeps a = +π/2 → +3π/2 (CCW), centered at
-  // (−straightHalf, 0). Skip i=0 and i=capVertices to avoid duplicating
-  // the join points the right cap already emitted.
-  for (let i = 1; i < capVertices; i++) {
+  // (−straightHalf, 0). Emit both endpoints so the top-left
+  // (-straightHalf, +r) and bottom-left (-straightHalf, -r) corners
+  // land in the polygon — they're the tangency points where the
+  // straight top/bottom edges meet the cap. Without them the polygon
+  // emits slanted chords instead of true horizontal edges. Dedupe
+  // any vertex that collides with the previous one (or with the loop's
+  // starting vertex on close) — happens only when straightHalf === 0
+  // (degenerate circle case where caps overlap exactly).
+  const pushDedup = (x: number, y: number): void => {
+    const last = outer[outer.length - 1]
+    if (Math.abs(last.x - x) > 1e-9 || Math.abs(last.y - y) > 1e-9) {
+      outer.push({ x, y })
+    }
+  }
+  for (let i = 0; i <= capVertices; i++) {
     const a = Math.PI / 2 + (i / capVertices) * Math.PI
-    outer.push({ x: -straightHalf + r * Math.cos(a), y: r * Math.sin(a) })
+    pushDedup(-straightHalf + r * Math.cos(a), r * Math.sin(a))
+  }
+  // Implicit closing edge collapses if the last vertex equals the first.
+  const first = outer[0]
+  const last = outer[outer.length - 1]
+  if (Math.abs(first.x - last.x) < 1e-9 && Math.abs(first.y - last.y) < 1e-9) {
+    outer.pop()
   }
 
   return { outer, holes: [] }
