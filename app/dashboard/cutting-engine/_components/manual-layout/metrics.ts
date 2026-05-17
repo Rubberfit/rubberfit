@@ -1,9 +1,9 @@
 import { polygonArea } from "@/nesting/convex-hull"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { LayoutRegion } from "./layout-model"
-import type { SimpleCutMetrics } from "./nesting-visualizer-types"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { LayoutRegion } from "../layout-model"
+import type { SimpleCutMetrics } from "../nesting-visualizer-types"
+import type { ManualPlacement } from "./collision"
 
 function regionsAreaSqIn(regions: readonly LayoutRegion[]): number {
   let total = 0
@@ -59,7 +59,23 @@ export function deriveManualMetrics(
       const h = template.length ?? template.height ?? template.diameter ?? 0
       usedSqIn += w * h
     }
+    // Subtract gasket hole area from "used" — the bore disc and bolt
+    // holes are material the cutter REMOVES, not material the part
+    // consumes. Without this subtraction the same square inches get
+    // counted twice (once in part bbox/area, again in the "cutout"
+    // scrap regions emitted by `regions.ts`'s hole-cutout pass).
+    // Codex review of the PR-C rework: "Also update metrics.ts so
+    // used area is `outer − holes`; otherwise adding cutout scrap
+    // double-counts bore material."
+    const holes = template.polygon?.holes
+    if (holes && holes.length > 0) {
+      for (const hole of holes) {
+        if (hole.length < 3) continue
+        usedSqIn -= polygonArea(hole)
+      }
+    }
   }
+  if (usedSqIn < 0) usedSqIn = 0
   const scrapSqIn = regionsAreaSqIn(regions.scrap)
   // Clamp scrap so floating-point drift + region overlap can't push
   // reusable negative when the sheet is fully occupied by parts+scrap.

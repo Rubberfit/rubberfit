@@ -30,8 +30,8 @@
  * I can't recover by sliding things around.
  */
 import { describe, expect, it } from "vitest"
-import { computeAdaptiveRegions } from "@/app/dashboard/cutting-engine/_components/free-roam-regions"
-import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
+import { computeAdaptiveRegions } from "@/app/dashboard/cutting-engine/_components/manual-layout/regions"
+import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { StockConfig } from "@/app/dashboard/cutting-engine/_components/stock-preview-configurator"
 

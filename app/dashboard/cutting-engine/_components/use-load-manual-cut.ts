@@ -7,7 +7,7 @@ import type { CutHistory } from "@/src/infrastructure/models/supabase"
 import { isSupportedLayoutJsonVersion } from "@/src/infrastructure/models/cut-history-layout"
 import type { PartTemplate } from "./preset-template-data"
 import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { ManualPlacement } from "./manual-layout/collision"
 
 interface LoadManualCutArgs {
   onPartsChange: (parts: PartTemplate[]) => void

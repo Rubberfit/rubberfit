@@ -2,17 +2,24 @@ import ClipperLib from "clipper-lib"
 import type { Point2D } from "@/nesting/types"
 import { circleToPolygon, rectToPolygon } from "@/nesting/shape-to-polygon"
 import { polygonArea } from "@/nesting/convex-hull"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { LayoutRegion } from "./layout-model"
-import type { ManualPlacement } from "./free-roam-collision"
-import { syncRegionCache, type RegionCache } from "./free-roam-region-cache"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { LayoutRegion } from "../layout-model"
+import {
+  MIN_REUSABLE_OFFCUT_HEIGHT,
+  MIN_REUSABLE_OFFCUT_WIDTH,
+  MIN_REUSABLE_STRIP_LENGTH,
+  MIN_REUSABLE_STRIP_WIDTH,
+} from "../nesting-visualizer-types"
+import type { ManualPlacement } from "./collision"
+import { templateHolesToSheet } from "./manual-layout"
+import { syncRegionCache, type RegionCache } from "./region-cache"
 
 /**
  * Module-level frozen empty `LayoutRegion[]` used everywhere
  * `finalizeRegions` / `computeAdaptiveRegions` would otherwise return
  * a fresh `[]`. Keeping the reference stable lets downstream memos
- * (`useFreeRoamLayout`, `KonvaSheetRenderer`) bail out via `===`
+ * (`useManualLayout`, `KonvaSheetRenderer`) bail out via `===`
  * across drag ticks when the region set is empty (the common case
  * for `offcuts` in Free-roam — see `finalizeRegions` rationale).
  */
@@ -24,16 +31,13 @@ const EMPTY_LAYOUT_REGIONS: readonly LayoutRegion[] = Object.freeze([])
  * is never true even when the geometry hasn't moved. Comparing per-
  * region bbox + polygon coords lets `computeAdaptiveRegions` return
  * the prior `ComputedRegions` reference whenever a drag tick produced
- * the same content, so downstream React memos (`useFreeRoamLayout`
+ * the same content, so downstream React memos (`useManualLayout`
  * bailout, `KonvaSheetRenderer` `React.memo`) can actually skip work.
  *
  * Cheap fast-paths first (length, then per-element ref-equality, then
  * bbox numeric equality, then optional polygon vertex equality).
  */
-function scrapContentEqual(
-  a: readonly LayoutRegion[],
-  b: readonly LayoutRegion[]
-): boolean {
+function scrapContentEqual(a: readonly LayoutRegion[], b: readonly LayoutRegion[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
     const ra = a[i]
@@ -642,7 +646,7 @@ function finalizeRegions(merged: ReadonlyArray<Point2D[]>): ComputedRegions {
   for (const poly of merged) {
     if (polygonArea(poly) < MIN_VISIBLE_SCRAP_SQIN) continue
     const bbox = polyBbox(poly)
-    scrap.push({ ...bbox, polygon: poly })
+    scrap.push({ ...bbox, polygon: poly, source: "trim" })
   }
   // Stable order so re-renders (and React keys) don't flicker as
   // upstream Clipper output happens to permute polygons. Sort by
@@ -653,6 +657,71 @@ function finalizeRegions(merged: ReadonlyArray<Point2D[]>): ComputedRegions {
   // array so downstream `===` identity checks across drag ticks see
   // the same reference and skip reconciliation.
   return { offcuts: EMPTY_LAYOUT_REGIONS, scrap }
+}
+
+/**
+ * True iff a region's bbox is large enough to count as a reusable
+ * offcut by the existing Auto-nest convention (piece OR strip). The
+ * thresholds live in `nesting-visualizer-types.ts` so cut-history
+ * exports, PDF generation, and free-roam metrics all classify
+ * identically. Codex review of the rework spec landed on reusing
+ * these for gasket-cutout classification too — operators who think
+ * "is this disc big enough to use for another gasket" answer with
+ * the same mental model.
+ */
+export function isBboxReusable(width: number, height: number): boolean {
+  const fits = (w: number, h: number) => (width >= w && height >= h) || (width >= h && height >= w)
+  return (
+    fits(MIN_REUSABLE_OFFCUT_WIDTH, MIN_REUSABLE_OFFCUT_HEIGHT) ||
+    fits(MIN_REUSABLE_STRIP_WIDTH, MIN_REUSABLE_STRIP_LENGTH)
+  )
+}
+
+/**
+ * Emit one `LayoutRegion` per hole loop on each placed gasket. The
+ * hole is material the cutter physically removes — a ring's bore disc
+ * falls out of the rubber sheet; full-face bolt holes fall out too.
+ * Codex's PR-C rework spec: classify each cutout via the existing
+ * reusable-bbox thresholds and mark it with `source: "cutout"` +
+ * `parentPartId` so the 3D renderer can pick the right material and
+ * the operator can trace each piece back to its source gasket.
+ *
+ * Returns a tuple `[reusableCutouts, scrapCutouts]` so the caller can
+ * append each list to its respective bucket. Polygon coords are
+ * sheet-space (the same coordinate frame as `LayoutRegion.polygon`).
+ */
+function computeHoleCutoutRegions(
+  placements: ManualPlacement[],
+  parts: PartTemplate[]
+): { reusable: LayoutRegion[]; scrap: LayoutRegion[] } {
+  const reusable: LayoutRegion[] = []
+  const scrap: LayoutRegion[] = []
+  const byId = new Map(parts.map((p) => [p.id, p]))
+  for (const placement of placements) {
+    const template = byId.get(placement.templateId)
+    if (!template) continue
+    const w = template.width ?? template.diameter ?? 12
+    const h = template.length ?? template.height ?? template.diameter ?? 12
+    const sheetHoles = templateHolesToSheet(template, placement, w, h)
+    if (!sheetHoles) continue
+    for (const ring of sheetHoles) {
+      if (ring.length < 3) continue
+      // Skip degenerate sub-pixel holes only — bolt holes (0.4-0.8 sqin)
+      // ARE real material loss and need to render. The MIN_VISIBLE_SCRAP
+      // floor that filters trim slivers doesn't apply here; the operator
+      // explicitly designed these holes and expects to see them tracked.
+      if (polygonArea(ring) < 0.01) continue
+      const bbox = polyBbox(ring)
+      const region: LayoutRegion = {
+        ...bbox,
+        polygon: ring,
+        source: "cutout",
+        parentPartId: placement.id,
+      }
+      ;(isBboxReusable(bbox.width, bbox.height) ? reusable : scrap).push(region)
+    }
+  }
+  return { reusable, scrap }
 }
 
 export interface ComputeAdaptiveRegionsOptions {
@@ -825,7 +894,28 @@ export function computeAdaptiveRegions(
   const merged = unionWasteRegions([...envelopeWaste, ...pocketWaste, ...sideGapWaste], [])
   const tUnion = mark()
 
-  const next = finalizeRegions(merged)
+  const baseRegions = finalizeRegions(merged)
+  // Append per-gasket hole cutouts (PR-C rework). The material that
+  // physically falls out of a ring/full-face gasket's bore + bolt
+  // holes ships as either an offcut (large enough to reuse) or
+  // additional scrap. Threshold matches the Auto-nest reusable
+  // convention (`isBboxReusable`).
+  const cutouts = computeHoleCutoutRegions(placements, parts)
+  const next: ComputedRegions =
+    cutouts.reusable.length === 0 && cutouts.scrap.length === 0
+      ? baseRegions
+      : {
+          offcuts:
+            cutouts.reusable.length > 0
+              ? [...baseRegions.offcuts, ...cutouts.reusable]
+              : baseRegions.offcuts,
+          scrap:
+            cutouts.scrap.length > 0
+              ? [...baseRegions.scrap, ...cutouts.scrap].sort(
+                  (a, b) => a.y - b.y || a.x - b.x || a.width - b.width || a.height - b.height
+                )
+              : baseRegions.scrap,
+        }
   const tFinalize = mark()
 
   if (recordTimings) {
@@ -844,7 +934,7 @@ export function computeAdaptiveRegions(
 
   // Output-identity memo: when content matches the prior call's result
   // (offcuts ref + scrap pointwise), return the previous reference so
-  // downstream `===` checks (`useFreeRoamLayout` cache bailout,
+  // downstream `===` checks (`useManualLayout` cache bailout,
   // `KonvaSheetRenderer` `React.memo`) can actually skip work. The
   // bailout MUST run before storing the new result so we don't clobber
   // the previous reference before comparing against it.

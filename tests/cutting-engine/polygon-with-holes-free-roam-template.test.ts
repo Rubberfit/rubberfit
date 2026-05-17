@@ -14,8 +14,8 @@
 
 import { describe, expect, it } from "vitest"
 
-import { buildFreeRoamLayout } from "@/app/dashboard/cutting-engine/_components/free-roam-layout"
-import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/free-roam-collision"
+import { buildManualLayout } from "@/app/dashboard/cutting-engine/_components/manual-layout/manual-layout"
+import type { ManualPlacement } from "@/app/dashboard/cutting-engine/_components/manual-layout/collision"
 import type { PartTemplate } from "@/app/dashboard/cutting-engine/_components/preset-template-data"
 import type { PlacedPart } from "@/app/dashboard/cutting-engine/_components/layout-model"
 import type { StockConfig } from "@/app/dashboard/cutting-engine/_components/stock-preview-configurator"
@@ -74,7 +74,7 @@ const TAG_MAP = new Map([["ring", "A"]])
 
 describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
   it("transforms each hole loop into sheet space at the placement's position", () => {
-    const layout = buildFreeRoamLayout([PLACEMENT], [SQUARE_RING_TEMPLATE], STOCK, TAG_MAP)
+    const layout = buildManualLayout([PLACEMENT], [SQUARE_RING_TEMPLATE], STOCK, TAG_MAP)
     const placed = layout.parts[0]
     expect(placed.holes).toHaveLength(1)
     assertNotNull(placed.holes)
@@ -87,7 +87,7 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
   })
 
   it("leaves `holes` undefined when the template has no holes", () => {
-    const layout = buildFreeRoamLayout([PLACEMENT], [PLAIN_SQUARE_TEMPLATE], STOCK, TAG_MAP)
+    const layout = buildManualLayout([PLACEMENT], [PLAIN_SQUARE_TEMPLATE], STOCK, TAG_MAP)
     expect(layout.parts[0].holes).toBeUndefined()
   })
 
@@ -98,7 +98,7 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
       y: 0,
       rotationRad: Math.PI / 2,
     }
-    const layout = buildFreeRoamLayout([rotated], [SQUARE_RING_TEMPLATE], STOCK, TAG_MAP)
+    const layout = buildManualLayout([rotated], [SQUARE_RING_TEMPLATE], STOCK, TAG_MAP)
     const placed = layout.parts[0]
     // Square center after rotation about (5, 5) by 90°: each hole
     // vertex (3,3) goes to (7, 3); ring symmetric so we expect a
@@ -112,7 +112,7 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
 
   it("invalidates memo reuse when the template's hole count changes", () => {
     const prevMap = new Map<string, PlacedPart>()
-    const first = buildFreeRoamLayout(
+    const first = buildManualLayout(
       [PLACEMENT],
       [SQUARE_RING_TEMPLATE],
       STOCK,
@@ -122,7 +122,7 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
     const firstPart = first.parts[0]
 
     // Same placement, no template edits — memo MUST hit (same object reference).
-    const memoHit = buildFreeRoamLayout(
+    const memoHit = buildManualLayout(
       [PLACEMENT],
       [SQUARE_RING_TEMPLATE],
       STOCK,
@@ -140,7 +140,7 @@ describe("PR 0b — PartTemplate.holes flows through Free-roam build", () => {
       ...SQUARE_RING_TEMPLATE,
       polygon: { outer, holes: [] },
     }
-    const memoBust = buildFreeRoamLayout([PLACEMENT], [editedTemplate], STOCK, TAG_MAP, prevMap)
+    const memoBust = buildManualLayout([PLACEMENT], [editedTemplate], STOCK, TAG_MAP, prevMap)
     expect(memoBust.parts[0]).not.toBe(firstPart)
     expect(memoBust.parts[0].holes).toBeUndefined()
   })

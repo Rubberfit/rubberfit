@@ -91,6 +91,36 @@ export interface LayoutRegion {
   width: number
   height: number
   polygon?: Array<{ x: number; y: number }>
+  /**
+   * Optional hole loops (sheet-space) when the region itself is a
+   * polygon-with-holes. Today this is only populated for
+   * `source === "cutout"` regions — the bore disc / bolt holes that
+   * fall out of a placed gasket — but the field is generic so future
+   * non-convex remainder pieces with internal cutouts can use it.
+   */
+  holes?: Array<Array<{ x: number; y: number }>>
+  /**
+   * Origin of the region. Used by the 3D renderer to pick a material
+   * (per `pr-c-gasket-rework-kimi-result.md` color table) and by
+   * downstream consumers to distinguish "this came from cutting a
+   * gasket's bore" from "this is trim around the parts".
+   *
+   *   - `"trim"`            — leftover sheet around the placed parts
+   *                           (the original `offcuts` + `scrap`
+   *                           semantics from `regions.ts`'s Clipper
+   *                           pipeline). Default when omitted.
+   *   - `"cutout"`          — material physically removed from
+   *                           inside a placed gasket (ring bore,
+   *                           full-face bore, bolt-circle holes).
+   *                           Carries `parentPartId` so the consumer
+   *                           can link it back to its source.
+   *   - `"stock-remainder"` — reserved for PR D: the unioned
+   *                           `stock − all_parts` polygon rendered
+   *                           as one piece. Not emitted in PR C.
+   */
+  source?: "trim" | "cutout" | "stock-remainder"
+  /** When `source === "cutout"`, the `PlacedPart.id` this hole came from. */
+  parentPartId?: string
 }
 
 export interface LayoutModel {

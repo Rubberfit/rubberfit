@@ -1,7 +1,7 @@
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { StockConfig } from "./stock-preview-configurator"
-import type { LayoutModel, PlacedPart, RenderShape } from "./layout-model"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { StockConfig } from "../stock-preview-configurator"
+import type { LayoutModel, PlacedPart, RenderShape } from "../layout-model"
+import type { ManualPlacement } from "./collision"
 
 function templateToRenderShape(template: PartTemplate): RenderShape {
   // Explicit override wins — shape-registry templates set this so
@@ -22,7 +22,7 @@ function templateToRenderShape(template: PartTemplate): RenderShape {
 /**
  * Translate a template-local polygon (bbox anchored at 0, 0) into
  * sheet space at the placement's position + rotation. Mirrors the
- * math in `free-roam-collision.ts` + `free-roam-regions.ts` so all
+ * math in `collision.ts` + `regions.ts` so all
  * three paths agree on where a part's vertices actually land.
  */
 function templatePolygonToSheet(
@@ -40,7 +40,7 @@ function templatePolygonToSheet(
  * hole loop. Returns `undefined` when the template has no holes so
  * `PlacedPart.holes` stays absent (hole-blind consumers ignore it).
  */
-function templateHolesToSheet(
+export function templateHolesToSheet(
   template: PartTemplate,
   placement: ManualPlacement,
   width: number,
@@ -171,7 +171,7 @@ function buildPlacedPart(
  * in `React.memo` and relies on stable refs to skip reconciliation of
  * stationary parts during drag.
  */
-export function buildFreeRoamLayout(
+export function buildManualLayout(
   placements: ManualPlacement[],
   parts: PartTemplate[],
   stock: StockConfig,

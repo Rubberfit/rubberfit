@@ -1,6 +1,6 @@
 import type { Point2D } from "@/nesting/types"
-import type { PartTemplate } from "./PresetDimensionSelector"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { PartTemplate } from "../PresetDimensionSelector"
+import type { ManualPlacement } from "./collision"
 import {
   type ClipperPath,
   type ComputedRegions,
@@ -9,7 +9,7 @@ import {
   placementToSheetPolygon,
   polyBbox,
   toClipperPath,
-} from "./free-roam-regions"
+} from "./regions"
 
 /**
  * Per-placement geometry memoized across drag ticks. The dragged
@@ -45,7 +45,7 @@ interface PlacementCacheEntry {
  * `computeAdaptiveRegions`. When the next call's `scrap` content is
  * pointwise-equal to the cached one (and the `offcuts` reference is
  * unchanged), the prior reference is returned verbatim so downstream
- * `===` identity checks (`useFreeRoamLayout` bailout, `KonvaSheetRenderer`
+ * `===` identity checks (`useManualLayout` bailout, `KonvaSheetRenderer`
  * `React.memo`) can actually skip work during drag. Without this,
  * `finalizeRegions` always allocates a fresh sorted array, so the
  * upstream layout cache bailout never fires (`previous.scrap === scrap`

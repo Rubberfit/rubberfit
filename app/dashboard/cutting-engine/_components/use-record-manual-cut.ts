@@ -7,7 +7,7 @@ import { saveCut } from "@/app/actions/cut-history"
 import type { CutHistoryLayoutJson } from "@/src/infrastructure/models/supabase"
 import { CURRENT_LAYOUT_JSON_VERSION } from "@/src/infrastructure/models/cut-history-layout"
 import type { PartTemplate } from "./preset-template-data"
-import type { ManualPlacement } from "./free-roam-collision"
+import type { ManualPlacement } from "./manual-layout/collision"
 import { DEFAULT_KERF_IN, type StockConfig } from "./stock-preview-configurator"
 import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 

@@ -26,7 +26,8 @@
         "title": "Motor de corte",
         "subItems": {
           "autoNest": "Anidado automático",
-          "freeRoam": "Modo libre"
+          "freeRoam": "Modo libre",
+          "gasketCutting": "Corte de empaques"
         }
       },
       "cutHistory": { "title": "Historial de cortes" },

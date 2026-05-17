@@ -216,7 +216,7 @@ function isPolygonContainedInOuter(inner: Point2D[], outer: Point2D[]): boolean 
 
 /**
  * Linear boundary tolerance, in sheet inches. Mirrors the same
- * convention `free-roam-collision.ts` uses: ~1e-4 in / ~0.0025 mm —
+ * convention `manual-layout/collision.ts` uses: ~1e-4 in / ~0.0025 mm —
  * below operator-perceptible geometry and below cutter positioning
  * resolution, loose enough to absorb the float drift that hits when
  * a CAD-imported hole vertex lands numerically on the outer edge.

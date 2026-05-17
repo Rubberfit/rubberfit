@@ -93,6 +93,11 @@ export const sidebarItems: NavGroup[] = [
             titleKey: "items.cuttingEngine.subItems.freeRoam",
             url: "/dashboard/cutting-engine/free-roam",
           },
+          {
+            titleKey: "items.cuttingEngine.subItems.gasketCutting",
+            url: "/dashboard/cutting-engine/gasket-cutting",
+            isNew: true,
+          },
         ],
       },
       {

@@ -11,12 +11,12 @@ import type { SimpleCutMetrics } from "./nesting-visualizer-types"
 import { PartsQueuePanel, type PartsFilter } from "./parts-queue-panel"
 import { CanvasToolbar } from "./canvas-toolbar"
 import KonvaSheetRenderer from "./KonvaSheetRenderer"
-import { useFreeRoamLayout } from "./use-free-roam-layout"
-import { deriveManualMetrics } from "./free-roam-metrics"
-import { useFreeRoamPlacements } from "./use-free-roam-placements"
+import { useManualLayout } from "./manual-layout/use-manual-layout"
+import { deriveManualMetrics } from "./manual-layout/metrics"
+import { useManualPlacements } from "./manual-layout/use-manual-placements"
 import { FreeRoamSavedLayoutsRail } from "./free-roam-saved-layouts-rail"
-import { useFreeRoamRegions } from "./use-free-roam-regions"
-import { __dumpRegionTimings } from "./free-roam-regions"
+import { useManualRegions } from "./manual-layout/use-manual-regions"
+import { __dumpRegionTimings } from "./manual-layout/regions"
 import { useDragSnapshot } from "./use-drag-snapshot"
 import { useRecordManualCut } from "./use-record-manual-cut"
 import { useLoadManualCut } from "./use-load-manual-cut"
@@ -121,7 +121,7 @@ interface FreeRoamContentProps {
  * Free-roam tab content — CAD-style manual placement workspace. Three
  * columns: parts queue on the left, Konva canvas in the center, Saved
  * layouts rail on the right. State (placements, selection, keyboard
- * shortcuts) is owned by `useFreeRoamPlacements`; the derived layout
+ * shortcuts) is owned by `useManualPlacements`; the derived layout
  * + metrics flow out as pure `useMemo`s. Stock mutations are pushed
  * back to the parent (the page owns canonical state).
  */
@@ -172,7 +172,7 @@ export default function FreeRoamContent({
     setSelectedPartId,
     handleAddInstance,
     handlePartDragEnd,
-  } = useFreeRoamPlacements(parts, stock, { onRotateSheet: handleRotateSheet })
+  } = useManualPlacements(parts, stock, { onRotateSheet: handleRotateSheet })
 
   const handleLoadCut = useLoadManualCut({
     onPartsChange,
@@ -252,9 +252,9 @@ export default function FreeRoamContent({
     )
   }, [placements, dragSnapshot])
 
-  // Region computation. See `use-free-roam-regions.ts` for the
+  // Region computation. See `manual-layout/use-manual-regions.ts` for the
   // committed-vs-live split + cache invalidation rules (issue #117).
-  const { regions, committedRegions } = useFreeRoamRegions(
+  const { regions, committedRegions } = useManualRegions(
     placements,
     effectivePlacements,
     parts,
@@ -267,7 +267,7 @@ export default function FreeRoamContent({
   // DCE-friendly and doesn't bloat the component.
   const handleDumpRegionTimings = useCallback(() => dumpRegionTimingsToConsole(), [])
 
-  const layout = useFreeRoamLayout(
+  const layout = useManualLayout(
     effectivePlacements,
     parts,
     stock,

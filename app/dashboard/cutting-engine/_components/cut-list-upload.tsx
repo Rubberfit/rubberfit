@@ -77,7 +77,7 @@ function compressImage(file: File): Promise<File> {
   })
 }
 
-interface DxfReviewState {
+export interface DxfReviewState {
   parts: DxfPartCandidate[]
   detectedUnits: UnitSystem | undefined
   rejected: RejectedEntity[]
@@ -85,7 +85,7 @@ interface DxfReviewState {
   sourceFile: string
 }
 
-interface SvgReviewState {
+export interface SvgReviewState {
   parts: DxfPartCandidate[]
   detectedUnits: UnitSystem | undefined
   rejected: SvgRejectedEntity[]
@@ -363,7 +363,7 @@ function collectIgnoredLayers(
  * entities are now supported and are passed through to the dialog
  * (PR A: curves + holes + multi-loop).
  */
-async function processDxfFile(file: File): Promise<DxfReviewState | null> {
+export async function processDxfFile(file: File): Promise<DxfReviewState | null> {
   if (/\.dwg$/i.test(file.name)) {
     toast.error("DWG not supported - please Save As DXF (R2018 ASCII).")
     return null
@@ -406,7 +406,7 @@ function surfaceNoLoopToast(rejected: RejectedEntity[]): void {
  * dialog state when at least one part is found; otherwise surfaces a
  * targeted toast and returns null.
  */
-async function processSvgFile(file: File): Promise<SvgReviewState | null> {
+export async function processSvgFile(file: File): Promise<SvgReviewState | null> {
   const text = await file.text()
   const doc = await parseSvg(text)
   const { loops, rejected } = svgEntitiesToLoops(doc)

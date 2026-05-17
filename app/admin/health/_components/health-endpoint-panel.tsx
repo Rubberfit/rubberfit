@@ -1,22 +1,31 @@
 "use client"
 
+import type { LucideIcon } from "lucide-react"
 import {
-  RefreshCw, Settings, CheckCircle2, AlertTriangle, XCircle, Circle,
-  Database, Globe, HardDrive, KeyRound, ListChecks,
+  RefreshCw,
+  Settings,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Circle,
+  Database,
+  Globe,
+  HardDrive,
+  KeyRound,
+  ListChecks,
 } from "lucide-react"
 import { cn } from "@/app/lib/utils"
 import { useEndpoints } from "../_hooks/use-endpoints"
 import type { EndpointStatus, CheckType, Endpoint } from "../_hooks/use-endpoints"
 
-const CHECK_TYPE_ICON: Record<CheckType, React.ElementType> = {
-  db:      Database,
-  auth:    KeyRound,
+const CHECK_TYPE_ICON: Record<CheckType, LucideIcon> = {
+  db: Database,
+  auth: KeyRound,
   storage: HardDrive,
-  queue:   ListChecks,
-  http:    Globe,
+  queue: ListChecks,
+  http: Globe,
 }
 
- 
 // Style maps
 
 const ENDPOINT_BAR_COLOR: Record<EndpointStatus, string> = {
@@ -40,7 +49,7 @@ const ENDPOINT_STATUS_LABEL: Record<EndpointStatus, string> = {
   unknown: "Unknown",
 }
 
-const ENDPOINT_STATUS_ICON: Record<EndpointStatus, React.ElementType> = {
+const ENDPOINT_STATUS_ICON: Record<EndpointStatus, LucideIcon> = {
   operational: CheckCircle2,
   degraded: AlertTriangle,
   down: XCircle,
@@ -106,7 +115,9 @@ export function HealthEndPoint({ onRunChecks }: HealthEndPointProps) {
                 key={ep.id}
                 className="relative overflow-hidden bg-zinc-950 border border-zinc-800 rounded-lg p-4 flex flex-col gap-3 hover:border-zinc-700 transition-colors"
               >
-                <div className={cn("absolute w-[3px] inset-y-0 left-0", ENDPOINT_BAR_COLOR[ep.status])} />
+                <div
+                  className={cn("absolute w-[3px] inset-y-0 left-0", ENDPOINT_BAR_COLOR[ep.status])}
+                />
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-md bg-zinc-800 flex items-center justify-center shrink-0">

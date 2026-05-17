@@ -1,5 +1,5 @@
 import { Polygon, Vector, testPolygonPolygon } from "sat"
-import type { PartTemplate } from "./PresetDimensionSelector"
+import type { PartTemplate } from "../PresetDimensionSelector"
 import type { Point2D } from "@/nesting/types"
 
 /** Single placement on the Free-roam canvas. Position is in sheet inches. */

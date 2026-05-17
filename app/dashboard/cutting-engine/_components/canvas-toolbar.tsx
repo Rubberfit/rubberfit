@@ -33,6 +33,12 @@ interface CanvasToolbarProps {
    *  react to Select/Pan/Measure — the buttons would be pure theatre. */
   tool?: CanvasTool
   onToolChange?: (tool: CanvasTool) => void
+  /** Current canvas view mode. 2D = Konva (supports drag-to-move),
+   *  3D = Three.js (read-only inspection). Optional — only the
+   *  gasket-cutting surface offers a 3D mode; Free roam stays 2D
+   *  and omits both props so the toggle is hidden. */
+  viewMode?: "2d" | "3d"
+  onViewModeChange?: (mode: "2d" | "3d") => void
 }
 
 export function CanvasToolbar({
@@ -44,6 +50,8 @@ export function CanvasToolbar({
   onShowGridChange,
   tool,
   onToolChange,
+  viewMode,
+  onViewModeChange,
 }: CanvasToolbarProps) {
   const [localTool, setLocalTool] = useState<CanvasTool>("select")
   const activeTool = tool ?? localTool
@@ -113,6 +121,42 @@ export function CanvasToolbar({
       >
         <Grid3x3 className="h-4 w-4" />
       </button>
+
+      {/* 2D/3D view toggle — only rendered when both viewMode + handler
+          are provided (gasket-cutting surface). Free roam omits these
+          props since it's a pure 2D Konva canvas. */}
+      {viewMode !== undefined && onViewModeChange !== undefined && (
+        <div className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5 bg-muted/40 shrink-0">
+          <button
+            type="button"
+            aria-label="Show 2D view"
+            title="Show 2D view"
+            onClick={() => onViewModeChange("2d")}
+            className={cn(
+              "rounded px-2 py-1 text-xs font-medium transition-colors",
+              viewMode === "2d"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+            )}
+          >
+            2D
+          </button>
+          <button
+            type="button"
+            aria-label="Show 3D view"
+            title="Show 3D view"
+            onClick={() => onViewModeChange("3d")}
+            className={cn(
+              "rounded px-2 py-1 text-xs font-medium transition-colors",
+              viewMode === "3d"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+            )}
+          >
+            3D
+          </button>
+        </div>
+      )}
 
       {/* Sheet tabs */}
       <div className="flex items-center gap-0.5 flex-1 overflow-x-auto">
