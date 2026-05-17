@@ -32,6 +32,7 @@ const baseProps = {
   onAdd: vi.fn(),
   onImportDxf: vi.fn(),
   onImportSvg: vi.fn(),
+  stockThicknessIn: 0.5,
 }
 
 describe("<AddGasketSheet>", () => {

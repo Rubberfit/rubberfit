@@ -2,6 +2,7 @@
 "use client"
 
 import { useCallback } from "react"
+import dynamic from "next/dynamic"
 import { UploadCloud } from "lucide-react"
 
 import { Button } from "@/app/components/ui/button"
@@ -10,10 +11,28 @@ import { Label } from "@/app/components/ui/label"
 import { Separator } from "@/app/components/ui/separator"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/app/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
+import type { PolygonWithHoles } from "@/src/application/packing/types"
 
 import { GasketPreviewSvg } from "./gasket-preview-svg"
 import type { GasketSpec } from "./gasket-template"
 import { useAddGasketForm } from "./use-add-gasket-form"
+
+// Lazy-load the 3D preview so three.js + R3F + drei ship in their own
+// chunk and only load when the operator opens the Sheet. The 2D SVG
+// preview doubles as the loading fallback (covers chunk-load + any
+// WebGL initialization failure). Codex finding #3 + #6 on the 3D
+// review at .claude/handoff/pr-c-3d-preview-codex-result.md.
+const GasketPreview3D = dynamic(
+  () => import("./gasket-preview-3d").then((m) => m.GasketPreview3D),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-muted/30 flex h-72 w-full items-center justify-center rounded-lg p-4">
+        <div className="text-muted-foreground text-sm">Loading 3D preview…</div>
+      </div>
+    ),
+  }
+)
 
 interface AddGasketSheetProps {
   open: boolean
@@ -21,29 +40,38 @@ interface AddGasketSheetProps {
   onAdd: (spec: GasketSpec, quantity: number, partNumber?: string) => void
   onImportDxf: () => void
   onImportSvg: () => void
+  /** Stock thickness in inches — drives the 3D extrusion depth. */
+  stockThicknessIn: number
 }
 
 interface PreviewPaneProps {
-  polygon: ReturnType<typeof useAddGasketForm>["previewPolygon"]
+  polygon: PolygonWithHoles | null
   labels: string[]
+  thicknessIn: number
 }
 
-function PreviewPane({ polygon, labels }: PreviewPaneProps) {
+function PreviewPane({ polygon, labels, thicknessIn }: PreviewPaneProps) {
+  // Empty state — render the 3D component anyway so it shows its own
+  // ghost-cylinder placeholder per the Kimi spec, and so the chunk
+  // pre-loads on first open instead of waiting for the operator to
+  // type valid dimensions.
   return (
-    <div className="bg-muted/30 flex items-center justify-center rounded-lg p-4">
-      {polygon ? (
-        <GasketPreviewSvg
-          polygon={polygon}
-          variant="preview"
-          labels={labels}
-          className="h-48 w-full"
-        />
-      ) : (
-        <div className="text-muted-foreground text-sm">Enter dimensions to preview</div>
-      )}
+    <div className="bg-muted/30 rounded-lg p-4">
+      <GasketPreview3D
+        polygon={polygon}
+        thicknessIn={thicknessIn}
+        labels={labels}
+        className="aspect-[4/3] h-56 w-full md:h-72"
+      />
     </div>
   )
 }
+
+// Kept exported so the queue card thumbnail (in gasket-shape-card.tsx)
+// continues to use the 2D SVG renderer — 3D at 48px adds no value.
+// Also acts as the test-friendly fallback for snapshot tests that
+// can't paint WebGL in jsdom.
+export { GasketPreviewSvg }
 
 interface DimInputProps {
   id: string
@@ -98,6 +126,7 @@ export function AddGasketSheet({
   onAdd,
   onImportDxf,
   onImportSvg,
+  stockThicknessIn,
 }: AddGasketSheetProps) {
   const form = useAddGasketForm()
 
@@ -152,7 +181,11 @@ export function AddGasketSheet({
                     onChange={form.setRingId}
                   />
                 </div>
-                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
+                <PreviewPane
+                  polygon={form.previewPolygon}
+                  labels={form.previewLabels}
+                  thicknessIn={stockThicknessIn}
+                />
               </div>
             </TabsContent>
 
@@ -202,7 +235,11 @@ export function AddGasketSheet({
                     />
                   </div>
                 </div>
-                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
+                <PreviewPane
+                  polygon={form.previewPolygon}
+                  labels={form.previewLabels}
+                  thicknessIn={stockThicknessIn}
+                />
               </div>
             </TabsContent>
 
@@ -222,7 +259,11 @@ export function AddGasketSheet({
                     onChange={form.setObroundWidth}
                   />
                 </div>
-                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
+                <PreviewPane
+                  polygon={form.previewPolygon}
+                  labels={form.previewLabels}
+                  thicknessIn={stockThicknessIn}
+                />
               </div>
             </TabsContent>
 

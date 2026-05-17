@@ -411,6 +411,7 @@ export default function GasketCuttingContent({
         onAdd={handleAddGasket}
         onImportDxf={handleImportDxf}
         onImportSvg={handleImportSvg}
+        stockThicknessIn={stock.thickness}
       />
 
       {cadImport.dxfReview && (
