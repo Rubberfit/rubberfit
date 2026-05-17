@@ -1,10 +1,11 @@
 // app/dashboard/cutting-engine/_components/three-sheet-renderer.tsx
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo, useRef } from "react"
 import * as THREE from "three"
 import { Canvas } from "@react-three/fiber"
 import { MapControls } from "@react-three/drei"
+import type { MapControls as MapControlsImpl } from "three-stdlib"
 
 import type { LayoutModel } from "./layout-model"
 import { ThreePlacedPart } from "./three-placed-part"
@@ -85,6 +86,16 @@ export function ThreeSheetRenderer({
   const sheetLength = layout?.sheetLength ?? sheetLengthFallback
   const thickness = thicknessIn
 
+  // MapControls disabled during a mesh drag — otherwise left-click
+  // pans the camera at the same time the mesh drag runs and the
+  // whole scene appears to move together (founder bug 2026-05-17).
+  const controlsRef = useRef<MapControlsImpl | null>(null)
+  const handleDragStateChange = useCallback((dragging: boolean) => {
+    const controls = controlsRef.current
+    if (!controls) return
+    controls.enabled = !dragging
+  }, [])
+
   const longest = Math.max(sheetWidth, sheetLength)
 
   const cameraPosition = useMemo(
@@ -142,6 +153,7 @@ export function ThreeSheetRenderer({
         <directionalLight position={fillLightPosition} intensity={0.4} color="#e6f0ff" />
 
         <MapControls
+          ref={controlsRef}
           target={controlsTarget}
           enablePan
           enableZoom
@@ -175,6 +187,7 @@ export function ThreeSheetRenderer({
             onClick={() => onPartClick?.(part.id)}
             onDragMove={onPartDragMove}
             onDragEnd={onPartDragEnd}
+            onDragStateChange={handleDragStateChange}
           />
         ))}
 

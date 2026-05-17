@@ -110,7 +110,12 @@ export function GasketPreviewSvg({ polygon, variant, labels, className }: Gasket
   const labelFontSize = scale * 0.05
   const labelLineHeight = labelFontSize * 1.4
   const strokeWidth = variant === "preview" ? 1.5 : 1.0
-  const strokeColor = "hsl(var(--signal-orange))"
+  // Brand signal-orange — `--signal-orange` was never actually defined
+  // in app/globals.css (only comments reference it). The accent ramp
+  // uses raw #ee5a24 hex throughout. Hard-coding the hex here so
+  // thumbnails actually render an orange stroke instead of an empty
+  // gray box (founder bug 2026-05-17).
+  const strokeColor = "#ee5a24"
 
   const labelElements = useMemo(() => {
     if (variant !== "preview" || !labels || labels.length === 0) return null
@@ -145,7 +150,7 @@ export function GasketPreviewSvg({ polygon, variant, labels, className }: Gasket
         y={labelStartY + i * labelLineHeight}
         fontFamily="monospace"
         fontSize={labelFontSize}
-        fill="hsl(var(--muted-foreground))"
+        fill="#71717a"
         textAnchor="middle"
       >
         {label}

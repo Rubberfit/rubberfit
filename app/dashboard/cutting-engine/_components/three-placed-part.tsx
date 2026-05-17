@@ -23,6 +23,13 @@ interface ThreePlacedPartProps {
   onDragMove?: (id: string, x: number, y: number) => void
   /** Fires on pointer-up with the snapped destination. */
   onDragEnd?: (id: string, x: number, y: number) => void
+  /**
+   * Notifies the parent renderer when a drag starts / ends so it can
+   * disable MapControls — otherwise left-click pans the camera at
+   * the same time the mesh drag runs, and both move together
+   * (founder bug 2026-05-17 — "sheet moves too").
+   */
+  onDragStateChange?: (dragging: boolean) => void
   /** Snap step in inches (12 for the standard grid). */
   snapInches?: number
 }
@@ -67,6 +74,7 @@ export function ThreePlacedPart({
   onClick,
   onDragMove,
   onDragEnd,
+  onDragStateChange,
   snapInches = 12,
 }: ThreePlacedPartProps): React.ReactElement {
   const groupRef = useRef<THREE.Group>(null)
@@ -123,6 +131,7 @@ export function ThreePlacedPart({
       }
       lastEmittedRef.current = { x: part.x, y: part.y }
       setDragging(true)
+      onDragStateChange?.(true)
       updateCursor(true, true)
       // Engage R3F's mesh-aware pointer capture — see the
       // hasPointerCaptureMethods note above. Without this, R3F's
@@ -137,7 +146,16 @@ export function ThreePlacedPart({
         }
       }
     },
-    [onClick, onDragEnd, onDragMove, part.x, part.y, planeIntersect, updateCursor]
+    [
+      onClick,
+      onDragEnd,
+      onDragMove,
+      onDragStateChange,
+      part.x,
+      part.y,
+      planeIntersect,
+      updateCursor,
+    ]
   )
 
   const handlePointerMove = useCallback(
@@ -166,6 +184,7 @@ export function ThreePlacedPart({
     (e: ThreeEvent<PointerEvent>) => {
       if (!dragging) return
       setDragging(false)
+      onDragStateChange?.(false)
       grabOffsetRef.current = null
       if (hasPointerCaptureMethods(e.target)) {
         try {
@@ -179,7 +198,7 @@ export function ThreePlacedPart({
       lastEmittedRef.current = null
       updateCursor(hovered, false)
     },
-    [dragging, hovered, onDragEnd, part.id, updateCursor]
+    [dragging, hovered, onDragEnd, onDragStateChange, part.id, updateCursor]
   )
 
   return (
@@ -203,19 +222,13 @@ export function ThreePlacedPart({
         <mesh castShadow receiveShadow>
           <extrudeGeometry args={[shape, extrudeSettings]} />
           <meshStandardMaterial
-            color="#ea580c"
+            color={isSelected ? "#fb923c" : "#ea580c"}
             roughness={0.7}
             metalness={0}
             emissive={isSelected || hovered || dragging ? "#ea580c" : "#000000"}
-            emissiveIntensity={dragging ? 0.35 : isSelected ? 0.2 : hovered ? 0.1 : 0}
+            emissiveIntensity={dragging ? 0.4 : isSelected ? 0.3 : hovered ? 0.15 : 0}
           />
         </mesh>
-        {isSelected && (
-          <mesh scale={[1.02, 1.02, 1.02]}>
-            <extrudeGeometry args={[shape, extrudeSettings]} />
-            <meshBasicMaterial color="#ffffff" depthTest={false} side={THREE.FrontSide} />
-          </mesh>
-        )}
       </group>
     </group>
   )
