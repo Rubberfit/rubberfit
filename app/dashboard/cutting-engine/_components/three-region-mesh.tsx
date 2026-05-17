@@ -98,9 +98,19 @@ export function ThreeRegionMesh({ region, thicknessIn, isReusable }: ThreeRegion
 
   const material = pickMaterial(region.source, isReusable)
 
+  // Waste pieces sit at the same Y range as the placed gaskets
+  // (Y=0 to Y=thickness — they ARE the leftover material, not labels
+  // hovering above). That means R3F's raycaster hits them BEFORE
+  // hitting a gasket if a waste piece sits between the camera and a
+  // gasket — which silently broke the gasket drag interactions
+  // (founder bug 2026-05-17). Set `raycast` to a no-op so the mesh
+  // is purely visual and pointer events pass through to the gaskets
+  // underneath. Same for the edges. Three's Object3D.raycast can be
+  // any function with the (raycaster, intersects) signature; an
+  // empty function makes the mesh invisible to event dispatch.
   return (
     <group rotation-x={-Math.PI / 2}>
-      <mesh geometry={geometryPair.extrude}>
+      <mesh geometry={geometryPair.extrude} raycast={NO_RAYCAST}>
         <meshStandardMaterial
           transparent
           opacity={material.opacity}
@@ -109,9 +119,13 @@ export function ThreeRegionMesh({ region, thicknessIn, isReusable }: ThreeRegion
           metalness={0}
         />
       </mesh>
-      <lineSegments geometry={geometryPair.edges} renderOrder={2}>
+      <lineSegments geometry={geometryPair.edges} renderOrder={2} raycast={NO_RAYCAST}>
         <lineBasicMaterial color="#1f2937" />
       </lineSegments>
     </group>
   )
+}
+
+const NO_RAYCAST: THREE.Object3D["raycast"] = () => {
+  // Intentionally empty — see render-block comment above.
 }
