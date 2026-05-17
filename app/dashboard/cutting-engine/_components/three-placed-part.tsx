@@ -33,6 +33,33 @@ interface ThreePlacedPartProps {
 // world Z becomes layout Y).
 const DRAG_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 
+/**
+ * R3F replaces `e.target` at runtime with a plain object exposing
+ * `setPointerCapture` / `releasePointerCapture` (see
+ * @react-three/fiber events.cjs.dev.js:793 — the runtime shape is
+ * `{ hasPointerCapture, setPointerCapture, releasePointerCapture }`).
+ * The TS declarations type `e.target` as the native DOM `EventTarget`
+ * which doesn't expose those methods, and an `instanceof Element`
+ * check silently fails (the runtime object is a plain object, not a
+ * DOM Element). This structural guard narrows to the R3F shape
+ * without an `as` cast, so the pointer-capture call lands on the
+ * mesh-aware wrapper that keeps routing pointer-move events to the
+ * dragged mesh even when the ray leaves it.
+ */
+interface PointerCaptureCapable {
+  setPointerCapture(pointerId: number): void
+  releasePointerCapture(pointerId: number): void
+}
+
+function hasPointerCaptureMethods(value: unknown): value is PointerCaptureCapable {
+  if (typeof value !== "object" || value === null) return false
+  const candidate = value as { setPointerCapture?: unknown; releasePointerCapture?: unknown }
+  return (
+    typeof candidate.setPointerCapture === "function" &&
+    typeof candidate.releasePointerCapture === "function"
+  )
+}
+
 export function ThreePlacedPart({
   part,
   thicknessIn,
@@ -97,18 +124,13 @@ export function ThreePlacedPart({
       lastEmittedRef.current = { x: part.x, y: part.y }
       setDragging(true)
       updateCursor(true, true)
-      // R3F's mesh-aware pointer capture: `e.target` is the canvas
-      // DOM Element; calling setPointerCapture on it makes R3F's
-      // internal event manager keep routing pointer-move events to
-      // this mesh even when the ray leaves it (raw
-      // `gl.domElement.setPointerCapture` skips R3F's routing layer,
-      // so per-mesh `onPointerMove` stops firing as soon as the ray
-      // hits a different mesh — root cause of the "can't drag,
-      // selects another gasket" bug).
-      const captureTarget = e.target
-      if (captureTarget instanceof Element) {
+      // Engage R3F's mesh-aware pointer capture — see the
+      // hasPointerCaptureMethods note above. Without this, R3F's
+      // raycaster sees the cursor leave the dragged gasket and starts
+      // dispatching onPointerMove to neighboring meshes instead.
+      if (hasPointerCaptureMethods(e.target)) {
         try {
-          captureTarget.setPointerCapture(e.pointerId)
+          e.target.setPointerCapture(e.pointerId)
         } catch {
           // Some touch contexts reject capture; drag still works
           // while the ray stays on the gasket.
@@ -145,10 +167,9 @@ export function ThreePlacedPart({
       if (!dragging) return
       setDragging(false)
       grabOffsetRef.current = null
-      const releaseTarget = e.target
-      if (releaseTarget instanceof Element) {
+      if (hasPointerCaptureMethods(e.target)) {
         try {
-          releaseTarget.releasePointerCapture(e.pointerId)
+          e.target.releasePointerCapture(e.pointerId)
         } catch {
           // Pointer capture may not have been claimed; safe to skip.
         }
