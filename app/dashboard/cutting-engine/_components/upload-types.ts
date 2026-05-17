@@ -1,4 +1,11 @@
-export type UploadStatus = "idle" | "uploading" | "processing" | "review" | "review-dxf" | "error"
+export type UploadStatus =
+  | "idle"
+  | "uploading"
+  | "processing"
+  | "review"
+  | "review-dxf"
+  | "review-svg"
+  | "error"
 
 const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"])
 
@@ -9,6 +16,8 @@ const SPREADSHEET_MIMES = new Set([
 ])
 
 const DXF_MIMES = new Set(["application/dxf", "image/vnd.dxf"])
+
+const SVG_MIMES = new Set(["image/svg+xml"])
 
 export function isImageFile(file: File): boolean {
   return IMAGE_MIMES.has(file.type) || /\.(jpe?g|png|webp|pdf)$/i.test(file.name)
@@ -28,11 +37,19 @@ export function isCadFile(file: File): boolean {
   return DXF_MIMES.has(file.type) || /\.(dxf|dwg)$/i.test(file.name)
 }
 
+// SVG carries `image/svg+xml` which would otherwise fall through to
+// `isImageFile`'s raster vision-extraction branch. Check this first.
+export function isSvgFile(file: File): boolean {
+  return SVG_MIMES.has(file.type) || /\.svg$/i.test(file.name)
+}
+
 export const ACCEPTED_FILE_TYPES = [
   ...IMAGE_MIMES,
   ...SPREADSHEET_MIMES,
   ...DXF_MIMES,
+  ...SVG_MIMES,
   ".dxf",
+  ".svg",
 ].join(",")
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB

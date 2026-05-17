@@ -1,33 +1,31 @@
-// Sub-components and pure formatters for `dxf-review-dialog.tsx`.
+// Sub-components and pure formatters for the CAD review dialogs (DXF + SVG).
 //
-// Kept in a sibling file so the dialog stays under the per-file
+// Kept in a sibling file so each dialog stays under the per-file
 // max-lines budget. The visual design (Kimi K2.6, design lock
-// 2026-05-15) maps 1:1 to these primitives:
-//
-//   - `WarningsBanner` — amber rejected-entity / ignored-layers banner
-//   - `UnitPicker`, `QuantityField`, `PartNumberField` — right-rail form
-//   - `LargePreview`, `PartThumbnail` — single <path> + fill-rule="evenodd"
-//   - `HoleBadge` / `HoleCountChip` — hole-count indicators
-//   - `PartListRail` (multi-part), `CenterPreview` (multi-part)
+// 2026-05-15 / SVG delta 2026-05-16) maps 1:1 to these primitives.
 //
 // Path rendering uses a single `<path>` with `fill-rule="evenodd"` and
 // subpaths so hole rings render as voids without a per-loop element.
-// Y is flipped to convert DXF math-coords (Y up) to SVG (Y down).
+// Y is flipped to convert math-coords (Y up) to SVG (Y down).
+//
+// Renamed from `dxf-review-dialog-parts.tsx` when the SVG dialog joined
+// the family — every primitive here is source-type agnostic. The only
+// places that touch source-specific copy are `UnitPicker` (different
+// "missing units" note per source) and `SourceTypeChip` (DXF / SVG label).
 
 "use client"
 
 import React, { useMemo } from "react"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, FileImage } from "lucide-react"
 import { cn } from "@/app/lib/utils"
-import type {
-  Point2D,
-  PolygonWithHoles,
-  RejectedEntity,
-  UnitSystem,
-} from "@/src/application/cad/dxf-types"
+import type { Point2D, PolygonWithHoles, UnitSystem } from "@/src/application/cad/dxf-types"
 import type { DxfPartCandidate } from "@/src/application/cad/group-parts"
 
+export { buildDxfWarnings, buildSvgWarnings } from "./cad-warning-copy"
+
 export type Bbox = DxfPartCandidate["bbox"]
+
+export type CadSourceType = "dxf" | "svg"
 
 /* ------------------------------------------------------------------ */
 /*  Formatters                                                         */
@@ -40,8 +38,8 @@ export function baseName(path: string): string {
 }
 
 // Unit is a LABEL, not a conversion. The bbox values come straight
-// from the DXF (whatever its INSUNITS happens to be); we just append
-// the operator-selected suffix. See PR #215 for the original rationale.
+// from the source file (DXF $INSUNITS or SVG viewBox); we just append
+// the operator-selected suffix.
 export function formatDims(bbox: Bbox, units: UnitSystem | undefined): string {
   const w = bbox.maxX - bbox.minX
   const h = bbox.maxY - bbox.minY
@@ -73,7 +71,7 @@ function buildPathD(
     loop
       .map((p, i) => {
         const x = (p.x - bounds.minX) * scale + padX
-        // Flip Y to render DXF math-coords (Y up) as SVG (Y down).
+        // Flip Y to render math-coords (Y up) as SVG (Y down).
         const y = svgSize - ((p.y - bounds.minY) * scale + padY)
         return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`
       })
@@ -90,10 +88,6 @@ function fitViewBox(
   const h = bounds.maxY - bounds.minY
   if (w <= 0 || h <= 0) return { scale: 1, padX: 0, padY: 0 }
   // pad is in pixels — must match the units of svgSize, not the bbox.
-  // Previously this computed `Math.max(w, h) * padPct` (document units),
-  // which produced a negative `(svgSize - pad * 2)` for any DXF where
-  // the bbox is much larger than the SVG canvas (e.g., w=2000mm into a
-  // 320px preview), inverting the scale and crashing the preview.
   const padPx = svgSize * padPct
   const scale = Math.min((svgSize - padPx * 2) / w, (svgSize - padPx * 2) / h)
   const padX = (svgSize - w * scale) / 2
@@ -231,16 +225,42 @@ export function HoleCountChip({ count }: HoleCountChipProps) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Source-type chip                                                   */
+/* ------------------------------------------------------------------ */
+
+interface SourceTypeChipProps {
+  type: CadSourceType
+}
+
+export function SourceTypeChip({ type }: SourceTypeChipProps) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+      <FileImage className="h-3 w-3" />
+      {type.toUpperCase()}
+    </span>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Form fields (right-rail controls)                                  */
 /* ------------------------------------------------------------------ */
 
 interface UnitPickerProps {
   units: UnitSystem | undefined
   detectedUnits: UnitSystem | undefined
+  sourceType: CadSourceType
   onChange: (next: UnitSystem) => void
 }
 
-export function UnitPicker({ units, detectedUnits, onChange }: UnitPickerProps) {
+export function UnitPicker({ units, detectedUnits, sourceType, onChange }: UnitPickerProps) {
+  const missingNote =
+    sourceType === "svg"
+      ? "SVG has no explicit unit — pick mm or inch to match your viewBox intent."
+      : "$INSUNITS not set in this DXF — pick a unit before confirming."
+
+  const detectedLabel =
+    sourceType === "svg" ? "Detected from SVG width: " : "Detected from $INSUNITS: "
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Units</label>
@@ -249,12 +269,13 @@ export function UnitPicker({ units, detectedUnits, onChange }: UnitPickerProps) 
         <UnitButton label="inch" isActive={units === "inch"} onClick={() => onChange("inch")} />
       </div>
       {detectedUnits === undefined && units === undefined && (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          $INSUNITS not set in this DXF — pick a unit before confirming.
-        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-300">{missingNote}</p>
       )}
       {detectedUnits !== undefined && (
-        <p className="text-xs text-muted-foreground">Detected from $INSUNITS: {detectedUnits}.</p>
+        <p className="text-xs text-muted-foreground">
+          {detectedLabel}
+          {detectedUnits}.
+        </p>
       )}
     </div>
   )
@@ -415,49 +436,4 @@ export function CenterPreview({ selectedPart, selectedIdx, total }: CenterPrevie
       </p>
     </div>
   )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Warning copy builder                                               */
-/* ------------------------------------------------------------------ */
-
-export function buildWarnings(rejected: RejectedEntity[], ignoredLayers: string[]): string[] {
-  const messages: string[] = []
-  const counts = new Map<string, number>()
-  for (const r of rejected) {
-    const key = `${r.originalType}:${r.reason}`
-    counts.set(key, (counts.get(key) ?? 0) + 1)
-  }
-  for (const [key, count] of counts) {
-    const [type, reason] = key.split(":")
-    messages.push(reasonCopy(type, reason, count))
-  }
-  if (ignoredLayers.length > 0) {
-    messages.push(`Ignored layers (single-layer import): ${ignoredLayers.join(", ")}.`)
-  }
-  return messages
-}
-
-function reasonCopy(type: string, reason: string, count: number): string {
-  const plural = count === 1 ? "entity" : "entities"
-  switch (reason) {
-    case "polyline-curve-fit":
-    case "polyline-spline-fit":
-      return `${count} ${type} ${plural} ignored — curve-fit polylines are not supported.`
-    case "polyline-3d":
-    case "polyline-3d-mesh":
-    case "polyline-polyface-mesh":
-      return `${count} ${type} ${plural} ignored — 3D / mesh polylines are not supported.`
-    case "polyline-not-closed":
-    case "lwpolyline-not-closed":
-      return `${count} open ${type} ${plural} ignored — closed loops only.`
-    case "spline-rational-not-supported":
-      return `${count} rational ${type} ${plural} ignored — flatten weighted splines in CAD before importing.`
-    case "spline-malformed":
-      return `${count} malformed ${type} ${plural} ignored — check the knot vector and control points.`
-    case "entity-type-unsupported":
-      return `${count} ${type} ${plural} ignored.`
-    default:
-      return `${count} ${type} ${plural} ignored (${reason}).`
-  }
 }
