@@ -4,12 +4,13 @@ The Cutting Engine is the core feature of Rubberfit. It calculates optimal layou
 
 Renamed from "Cut Planner" (and briefly "Nesting Engine") in S4 Task 8. Batch and Manual sub-modes were deleted in the same task — the single-job flow is the only surface. Legacy `/dashboard/cut-planner*` and `/dashboard/nesting-engine*` URLs both 308-redirect here via `next.config.mjs`.
 
-**Two surfaces** as of S5:
+**Three surfaces** as of PR C (2026-05-17):
 
 - `/dashboard/cutting-engine` — **Auto nest** (this directory). Preset/custom part selection + stock config above a classic vertical layout → `NestingVisualizer` computes the optimal packing.
 - `/dashboard/cutting-engine/free-roam` — **Free roam** (in `free-roam/`). CAD-style three-column workspace for manual part placement. Drags onto the sheet, snaps to grid, same amber/red semantics. See `_components/free-roam-content.tsx` for the shell.
+- `/dashboard/cutting-engine/gasket-cutting` — **Gasket cutting** (in `gasket-cutting/`, NEW PR C). Parametric Ring / Full-face / Obround gasket primitives plus DXF/SVG import passthrough. Shares the three-column workspace + Konva renderer + manual-layout collision/regions hooks with Free roam. See `_components/gasket-cutting-content.tsx` for the shell and `src/application/gasket/` for the primitive math.
 
-Both surfaces share the same packing engine (`pack-cli`) and waste/offcut semantics. They differ in UX intent: Auto nest = fast automated preview; Free roam = manual CAD-like authoring.
+All three surfaces share the same packing engine (`pack-cli`), waste/offcut semantics, and the manual-layout primitives extracted into `_components/manual-layout/` in PR C. They differ in UX intent: Auto nest = fast automated preview; Free roam = manual CAD-like authoring of generic shapes; Gasket cutting = parametric gasket authoring with bolt-circle support.
 
 ## Flow
 
@@ -222,6 +223,24 @@ export const MIN_REUSABLE_OFFCUT_HEIGHT = 12
 export const MIN_REUSABLE_STRIP_WIDTH = 6
 export const MIN_REUSABLE_STRIP_LENGTH = 24
 ```
+
+---
+
+## Gasket cutting (`/dashboard/cutting-engine/gasket-cutting`)
+
+Third sub-tab added in PR C (2026-05-17). Parametric Ring / Full-face / Obround gasket primitives plus DXF / SVG import passthrough. Shares the three-column workspace, Konva renderer, and manual-layout collision/regions hooks with Free roam — only the parts-queue input is gasket-specific.
+
+| File | Role |
+|------|------|
+| `gasket-cutting/page.tsx` | Lazy-loads `GasketCuttingContent`. Mirrors `free-roam/page.tsx`. |
+| `gasket-cutting/loading.tsx` | Workspace skeleton. |
+| `_components/gasket-cutting-content.tsx` | Three-column shell. Reuses `useManualPlacements` + `useManualRegions` + `useManualLayout` from `manual-layout/`. |
+| `_components/add-gasket-sheet.tsx` | Side `Sheet` (founder ruling 2026-05-15 — overrides Kimi's v1 centered Dialog) with Ring / Full-face / Obround / Import CAD tabs + live SVG preview pane. |
+| `_components/gasket-shape-card.tsx` | Queue card with mini-SVG thumbnail (`<GasketPreviewSvg variant="thumbnail">`). |
+| `_components/gasket-preview-svg.tsx` | Shared SVG renderer for both add-sheet preview pane (large, with bolt-hole dots + dimension labels) and queue card (mini). Even-odd fill rule for hole cutouts. |
+| `_components/use-cad-import.ts` | Shared hook for the Import CAD file-picker + DXF/SVG review-dialog state + part-to-template transform (mm→inch). Used by gasket-cutting today; cutting-engine auto-nest page extraction is a deferred polish PR. |
+
+Gasket math lives at `src/application/gasket/` — see that directory's README for the four builder modules. Rust integration at `engine/crates/rf-layout/tests/gasket_pack.rs` verifies the full-face (1 + 8 holes) and obround (no holes) lanes pack through jagua-rs end-to-end.
 
 ---
 
