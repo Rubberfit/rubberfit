@@ -72,6 +72,10 @@ export function finalisePathBuilder(state: PathBuilderState): void {
 }
 
 function handleMoveTo(segment: PathSegment, state: PathBuilderState): void {
+  // Narrow the segment via discriminant check on segment[0]. The
+  // dispatcher routes only `M` here, so the guard never fires at
+  // runtime; it exists so TS sees segment[1]/segment[2] as `number`.
+  if (segment[0] !== "M") return
   // An `M` after an open subpath ends that subpath WITHOUT closing it.
   // Drop the vertices and flag the open-path warning rather than silently
   // promoting an L-chain into a polygon.
@@ -81,43 +85,47 @@ function handleMoveTo(segment: PathSegment, state: PathBuilderState): void {
     state.subpathStart = null
   }
   state.closed = false
-  const x = segment[1] as number
-  const y = segment[2] as number
+  const x = segment[1]
+  const y = segment[2]
   state.current.push({ x, y })
   state.subpathStart = { x, y }
 }
 
 function handleLineTo(segment: PathSegment, state: PathBuilderState): void {
+  if (segment[0] !== "L") return
   primeIfEmpty(state)
-  state.current.push({ x: segment[1] as number, y: segment[2] as number })
+  state.current.push({ x: segment[1], y: segment[2] })
 }
 
 function handleHorizontalLineTo(segment: PathSegment, state: PathBuilderState): void {
+  if (segment[0] !== "H") return
   const lastY =
     state.current.length > 0
       ? state.current[state.current.length - 1].y
       : (state.subpathStart?.y ?? 0)
   primeIfEmpty(state)
-  state.current.push({ x: segment[1] as number, y: lastY })
+  state.current.push({ x: segment[1], y: lastY })
 }
 
 function handleVerticalLineTo(segment: PathSegment, state: PathBuilderState): void {
+  if (segment[0] !== "V") return
   const lastX =
     state.current.length > 0
       ? state.current[state.current.length - 1].x
       : (state.subpathStart?.x ?? 0)
   primeIfEmpty(state)
-  state.current.push({ x: lastX, y: segment[1] as number })
+  state.current.push({ x: lastX, y: segment[1] })
 }
 
 function handleCubicTo(segment: PathSegment, state: PathBuilderState): void {
+  if (segment[0] !== "C") return
   const p0 = state.current.length > 0 ? state.current[state.current.length - 1] : state.subpathStart
   if (!p0) return
   const cubic: CubicBezier = {
     p0,
-    p1: { x: segment[1] as number, y: segment[2] as number },
-    p2: { x: segment[3] as number, y: segment[4] as number },
-    p3: { x: segment[5] as number, y: segment[6] as number },
+    p1: { x: segment[1], y: segment[2] },
+    p2: { x: segment[3], y: segment[4] },
+    p3: { x: segment[5], y: segment[6] },
   }
   const verts = tessellateBezier(cubic)
   // tessellateBezier emits leading endpoint + midpoints. The leading
@@ -127,12 +135,13 @@ function handleCubicTo(segment: PathSegment, state: PathBuilderState): void {
 }
 
 function handleQuadraticTo(segment: PathSegment, state: PathBuilderState): void {
+  if (segment[0] !== "Q") return
   const p0 = state.current.length > 0 ? state.current[state.current.length - 1] : state.subpathStart
   if (!p0) return
   const quad: QuadraticBezier = {
     p0,
-    p1: { x: segment[1] as number, y: segment[2] as number },
-    p2: { x: segment[3] as number, y: segment[4] as number },
+    p1: { x: segment[1], y: segment[2] },
+    p2: { x: segment[3], y: segment[4] },
   }
   const verts = tessellateQuadratic(quad)
   for (let i = 1; i < verts.length; i++) state.current.push(verts[i])

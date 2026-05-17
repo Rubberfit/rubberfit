@@ -46,6 +46,14 @@ export function detectSvgUnits(attrs: SvgRootAttributes): DetectedSvgUnits {
     return { units: undefined, userUnitScale: 1 }
   }
 
+  // Reject non-positive widths up-front: negative values would yield a
+  // negative `userUnitScale` that silently flips geometry, and zero
+  // collapses every vertex to the origin. Fail closed so the dialog
+  // prompts the operator for a unit instead.
+  if (parsed.value <= 0) {
+    return { units: undefined, userUnitScale: 1 }
+  }
+
   const physicalMm = toMillimetres(parsed.value, parsed.unit)
   if (physicalMm === null) {
     return { units: undefined, userUnitScale: 1 }

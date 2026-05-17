@@ -65,4 +65,19 @@ describe("detectSvgUnits", () => {
     // viewBox is rejected -> scale derived from width alone (1:1 in mm).
     expect(result.userUnitScale).toBeCloseTo(1, 9)
   })
+
+  it("returns undefined for negative width (would otherwise flip geometry)", () => {
+    // A negative `userUnitScale` would silently mirror every vertex; the
+    // dialog should prompt for a unit instead.
+    const result = detectSvgUnits({ width: "-100mm", viewBox: "0 0 100 100" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
+
+  it("returns undefined for zero width (would otherwise collapse to origin)", () => {
+    // A zero `userUnitScale` would collapse every vertex to (0,0).
+    const result = detectSvgUnits({ width: "0mm", viewBox: "0 0 100 100" })
+    expect(result.units).toBeUndefined()
+    expect(result.userUnitScale).toBe(1)
+  })
 })

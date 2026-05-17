@@ -374,7 +374,10 @@ function parsePointsAttr(raw: string | undefined): Point2D[] | null {
   if (tokens.length === 0 || tokens.length % 2 !== 0) return null
   const numbers: number[] = []
   for (const tok of tokens) {
-    const value = parseFloat(tok)
+    // `Number(tok)` returns NaN for any token that is not a complete
+    // numeric literal; `parseFloat("10foo")` would silently return 10
+    // and let the bad coordinate sneak through this validation.
+    const value = Number(tok)
     // Reject the whole list if any coordinate fails to parse — re-pairing
     // survivors silently mutates the shape into one the operator never drew.
     if (!Number.isFinite(value)) return null
@@ -423,9 +426,10 @@ function applyTransformToPoints(
 
   const out: Point2D[] = []
   chain.iterate((segment) => {
-    const cmd = segment[0]
-    if (cmd === "M" || cmd === "L") {
-      out.push({ x: segment[1] as number, y: segment[2] as number })
+    // After `.abs()` only absolute commands survive. M/L narrow segment
+    // to a `[command, number, number]` tuple, so no `as number` cast.
+    if (segment[0] === "M" || segment[0] === "L") {
+      out.push({ x: segment[1], y: segment[2] })
     }
   })
   return out

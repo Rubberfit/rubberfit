@@ -244,6 +244,21 @@ describe("parseSvg error handling", () => {
     }
   })
 
+  it("rejects <polygon points='...'> where a token has a trailing non-numeric suffix (parseFloat would silently truncate)", async () => {
+    // `parseFloat("10foo")` returns 10 and would let the bad coordinate
+    // through. `Number("10foo")` returns NaN — the whole list rejects.
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><polygon points="0,0 10foo,5 20,20"/></svg>'
+    const doc = await parseSvg(text)
+    const rejected = doc.entities.find(
+      (e) => e.kind === "unsupported" && e.originalType === "polygon"
+    )
+    expect(rejected).toBeDefined()
+    if (rejected && rejected.kind === "unsupported") {
+      expect(rejected.reason).toBe("points-malformed")
+    }
+  })
+
   it("rejects <polyline points='...'> with an odd token count", async () => {
     // Odd number of coordinates means at least one X has no matching Y —
     // reject rather than silently dropping the dangling token.
