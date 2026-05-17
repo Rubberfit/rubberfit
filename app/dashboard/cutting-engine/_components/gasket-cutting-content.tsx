@@ -325,7 +325,7 @@ export default function GasketCuttingContent({
             <SheetHeader>
               <SheetTitle>Gasket cutting · Tools</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 h-[calc(80vh-5rem)] space-y-4 overflow-y-auto pb-4">
+            <div className="mt-2 h-[calc(80vh-5rem)] space-y-4 overflow-y-auto px-6 pb-6">
               <FreeRoamStockEditor stock={stock} onChange={onStockChange} />
               <div className="space-y-3 rounded-lg border p-4">
                 <div className="text-sm font-medium">Cut metrics</div>

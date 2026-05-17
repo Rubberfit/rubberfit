@@ -123,167 +123,173 @@ export function AddGasketSheet({
           <SheetTitle>Add gasket</SheetTitle>
         </SheetHeader>
 
-        <Tabs value={form.activeTab} onValueChange={form.handleTabChange} className="mt-6">
-          <TabsList className="grid grid-cols-4">
-            <TabsTrigger value="ring">Ring</TabsTrigger>
-            <TabsTrigger value="full-face">Full-face</TabsTrigger>
-            <TabsTrigger value="obround">Obround</TabsTrigger>
-            <TabsTrigger value="import-cad">Import CAD</TabsTrigger>
-          </TabsList>
+        {/* Padded body — SheetContent has no internal padding by
+            default in shadcn; mirror the invite-teammate-sheet pattern
+            so the form sits at 24px from each edge instead of flush
+            against the Sheet edge (founder feedback 2026-05-17). */}
+        <div className="px-6 pb-6">
+          <Tabs value={form.activeTab} onValueChange={form.handleTabChange} className="mt-2">
+            <TabsList className="grid grid-cols-4">
+              <TabsTrigger value="ring">Ring</TabsTrigger>
+              <TabsTrigger value="full-face">Full-face</TabsTrigger>
+              <TabsTrigger value="obround">Obround</TabsTrigger>
+              <TabsTrigger value="import-cad">Import CAD</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="ring" className="mt-4">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <DimInput
-                  id="ring-od"
-                  label="Outer diameter (OD)"
-                  value={form.ringOd}
-                  onChange={form.setRingOd}
-                />
-                <DimInput
-                  id="ring-id"
-                  label="Inner diameter (ID)"
-                  value={form.ringId}
-                  onChange={form.setRingId}
-                />
-              </div>
-              <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="full-face" className="mt-4">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Outer dimensions</div>
+            <TabsContent value="ring" className="mt-4">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-4">
                   <DimInput
-                    id="full-face-od"
+                    id="ring-od"
                     label="Outer diameter (OD)"
-                    value={form.fullFaceOd}
-                    onChange={form.setFullFaceOd}
+                    value={form.ringOd}
+                    onChange={form.setRingOd}
                   />
                   <DimInput
-                    id="full-face-bore"
-                    label="Bore ID"
-                    value={form.fullFaceBoreId}
-                    onChange={form.setFullFaceBoreId}
+                    id="ring-id"
+                    label="Inner diameter (ID)"
+                    value={form.ringId}
+                    onChange={form.setRingId}
                   />
                 </div>
-                <Separator />
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Bolt pattern</div>
+                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="full-face" className="mt-4">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Outer dimensions</div>
+                    <DimInput
+                      id="full-face-od"
+                      label="Outer diameter (OD)"
+                      value={form.fullFaceOd}
+                      onChange={form.setFullFaceOd}
+                    />
+                    <DimInput
+                      id="full-face-bore"
+                      label="Bore ID"
+                      value={form.fullFaceBoreId}
+                      onChange={form.setFullFaceBoreId}
+                    />
+                  </div>
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Bolt pattern</div>
+                    <DimInput
+                      id="full-face-bcd"
+                      label="Bolt circle diameter (BCD)"
+                      value={form.fullFaceBcd}
+                      onChange={form.setFullFaceBcd}
+                    />
+                    <DimInput
+                      id="full-face-bolt-count"
+                      label="Bolt count"
+                      value={form.fullFaceBoltCount}
+                      onChange={form.setFullFaceBoltCount}
+                      step="1"
+                      min="2"
+                      max="32"
+                      suffix=""
+                      placeholder="4"
+                    />
+                    <DimInput
+                      id="full-face-bolt-hole"
+                      label="Bolt-hole diameter"
+                      value={form.fullFaceBoltHoleDiameter}
+                      onChange={form.setFullFaceBoltHoleDiameter}
+                    />
+                  </div>
+                </div>
+                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="obround" className="mt-4">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-4">
                   <DimInput
-                    id="full-face-bcd"
-                    label="Bolt circle diameter (BCD)"
-                    value={form.fullFaceBcd}
-                    onChange={form.setFullFaceBcd}
+                    id="obround-length"
+                    label="Length"
+                    value={form.obroundLength}
+                    onChange={form.setObroundLength}
                   />
                   <DimInput
-                    id="full-face-bolt-count"
-                    label="Bolt count"
-                    value={form.fullFaceBoltCount}
-                    onChange={form.setFullFaceBoltCount}
-                    step="1"
-                    min="2"
-                    max="32"
-                    suffix=""
-                    placeholder="4"
-                  />
-                  <DimInput
-                    id="full-face-bolt-hole"
-                    label="Bolt-hole diameter"
-                    value={form.fullFaceBoltHoleDiameter}
-                    onChange={form.setFullFaceBoltHoleDiameter}
+                    id="obround-width"
+                    label="Width"
+                    value={form.obroundWidth}
+                    onChange={form.setObroundWidth}
                   />
                 </div>
+                <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
               </div>
-              <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="obround" className="mt-4">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <DimInput
-                  id="obround-length"
-                  label="Length"
-                  value={form.obroundLength}
-                  onChange={form.setObroundLength}
+            <TabsContent value="import-cad" className="mt-4">
+              <div className="border-muted-foreground/25 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-12">
+                <UploadCloud className="text-muted-foreground mx-auto mb-4 h-8 w-8" />
+                <p className="text-muted-foreground mb-6 text-center text-sm">
+                  Import a DXF or SVG to review and queue.
+                </p>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={handleImportDxf}>
+                    Select DXF
+                  </Button>
+                  <Button variant="outline" onClick={handleImportSvg}>
+                    Select SVG
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {form.error && <div className="text-destructive mt-4 text-sm">{form.error}</div>}
+
+          <div className="mt-6 flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="space-y-1">
+                <Label htmlFor="quantity" className="text-xs">
+                  Quantity
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  max="999"
+                  value={form.quantity}
+                  onChange={(e) =>
+                    form.setQuantity(Math.max(1, Math.min(999, parseInt(e.target.value, 10) || 1)))
+                  }
+                  className="w-24"
                 />
-                <DimInput
-                  id="obround-width"
-                  label="Width"
-                  value={form.obroundWidth}
-                  onChange={form.setObroundWidth}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="part-number" className="text-xs">
+                  Part number (optional)
+                </Label>
+                <Input
+                  id="part-number"
+                  type="text"
+                  placeholder="PN-001"
+                  value={form.partNumber}
+                  onChange={(e) => form.setPartNumber(e.target.value)}
+                  className="w-40"
                 />
               </div>
-              <PreviewPane polygon={form.previewPolygon} labels={form.previewLabels} />
             </div>
-          </TabsContent>
-
-          <TabsContent value="import-cad" className="mt-4">
-            <div className="border-muted-foreground/25 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 py-12">
-              <UploadCloud className="text-muted-foreground mx-auto mb-4 h-8 w-8" />
-              <p className="text-muted-foreground mb-6 text-center text-sm">
-                Import a DXF or SVG to review and queue.
-              </p>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={handleImportDxf}>
-                  Select DXF
-                </Button>
-                <Button variant="outline" onClick={handleImportSvg}>
-                  Select SVG
-                </Button>
-              </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={submit}
+                disabled={!form.isValid}
+                className="bg-orange-500 text-white hover:bg-orange-600"
+              >
+                Add to queue
+              </Button>
             </div>
-          </TabsContent>
-        </Tabs>
-
-        {form.error && <div className="text-destructive mt-4 text-sm">{form.error}</div>}
-
-        <div className="mt-6 flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="space-y-1">
-              <Label htmlFor="quantity" className="text-xs">
-                Quantity
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                max="999"
-                value={form.quantity}
-                onChange={(e) =>
-                  form.setQuantity(Math.max(1, Math.min(999, parseInt(e.target.value, 10) || 1)))
-                }
-                className="w-24"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="part-number" className="text-xs">
-                Part number (optional)
-              </Label>
-              <Input
-                id="part-number"
-                type="text"
-                placeholder="PN-001"
-                value={form.partNumber}
-                onChange={(e) => form.setPartNumber(e.target.value)}
-                className="w-40"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={submit}
-              disabled={!form.isValid}
-              className="bg-orange-500 text-white hover:bg-orange-600"
-            >
-              Add to queue
-            </Button>
           </div>
         </div>
       </SheetContent>
