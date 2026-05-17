@@ -8,7 +8,9 @@ import { MapControls } from "@react-three/drei"
 import type { MapControls as MapControlsImpl } from "three-stdlib"
 
 import type { LayoutModel } from "./layout-model"
+import { isBboxReusable } from "./manual-layout/regions"
 import { ThreePlacedPart } from "./three-placed-part"
+import { ThreeRegionMesh } from "./three-region-mesh"
 
 interface ThreeSheetRendererProps {
   layout: LayoutModel | null
@@ -191,27 +193,34 @@ export function ThreeSheetRenderer({
           />
         ))}
 
-        {layout?.offcuts.map((offcut, i) => (
-          <mesh
-            key={`offcut-${i}`}
-            position={[offcut.x + offcut.width / 2, 0.001, offcut.y + offcut.height / 2]}
-            rotation-x={-Math.PI / 2}
-          >
-            <planeGeometry args={[offcut.width, offcut.height]} />
-            <meshBasicMaterial color="#fbbf24" transparent opacity={0.3} side={THREE.DoubleSide} />
-          </mesh>
-        ))}
+        {/* Waste / cutout pieces extruded at stock thickness (PR-C
+            rework). Replaces the bbox planeGeometry rectangles —
+            now each waste region renders as its actual polygon
+            shape so the operator sees a real 3D leftover/cutout
+            piece, not a flat label hovering over the sheet. Regions
+            without a `polygon` field skip render (legacy bbox-only
+            entries from auto-nest weren't classified by Clipper). */}
+        {layout?.offcuts.map((region, i) =>
+          region.polygon ? (
+            <ThreeRegionMesh
+              key={`offcut-${i}`}
+              region={region}
+              thicknessIn={thickness}
+              isReusable={isBboxReusable(region.width, region.height)}
+            />
+          ) : null
+        )}
 
-        {layout?.scrap.map((scrap, i) => (
-          <mesh
-            key={`scrap-${i}`}
-            position={[scrap.x + scrap.width / 2, 0.001, scrap.y + scrap.height / 2]}
-            rotation-x={-Math.PI / 2}
-          >
-            <planeGeometry args={[scrap.width, scrap.height]} />
-            <meshBasicMaterial color="#ef4444" transparent opacity={0.25} side={THREE.DoubleSide} />
-          </mesh>
-        ))}
+        {layout?.scrap.map((region, i) =>
+          region.polygon ? (
+            <ThreeRegionMesh
+              key={`scrap-${i}`}
+              region={region}
+              thicknessIn={thickness}
+              isReusable={false}
+            />
+          ) : null
+        )}
       </Canvas>
     </div>
   )

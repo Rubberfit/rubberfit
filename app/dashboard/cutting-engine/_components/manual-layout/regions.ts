@@ -669,7 +669,7 @@ function finalizeRegions(merged: ReadonlyArray<Point2D[]>): ComputedRegions {
  * "is this disc big enough to use for another gasket" answer with
  * the same mental model.
  */
-function isBboxReusable(width: number, height: number): boolean {
+export function isBboxReusable(width: number, height: number): boolean {
   const fits = (w: number, h: number) => (width >= w && height >= h) || (width >= h && height >= w)
   return (
     fits(MIN_REUSABLE_OFFCUT_WIDTH, MIN_REUSABLE_OFFCUT_HEIGHT) ||
