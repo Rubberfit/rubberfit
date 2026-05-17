@@ -121,6 +121,15 @@ export function ThreePlacedPart({
   const handlePointerDown = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation()
+      // R3F's stopPropagation only stops R3F's own event dispatch — it
+      // does NOT prevent MapControls / OrbitControls from receiving
+      // the native DOM PointerEvent on the canvas. Stop the native
+      // event too, otherwise MapControls starts a pan in parallel
+      // with the mesh drag and the whole scene moves with the cursor
+      // (founder bug 2026-05-17 "completely broken / can't go to the
+      // center"). nativeEvent is the underlying DOM PointerEvent.
+      e.nativeEvent.stopPropagation()
+      e.nativeEvent.preventDefault()
       onClick() // promote to selected on any pointer-down (click or drag-start)
       if (!onDragMove && !onDragEnd) return
       const layoutPoint = planeIntersect(e)
@@ -161,6 +170,10 @@ export function ThreePlacedPart({
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       if (!dragging || !grabOffsetRef.current) return
+      // Same as handlePointerDown — block the native event so
+      // MapControls doesn't get pan deltas during a mesh drag.
+      e.nativeEvent.stopPropagation()
+      e.nativeEvent.preventDefault()
       const layoutPoint = planeIntersect(e)
       if (!layoutPoint) return
       const targetX = snap(layoutPoint.x - grabOffsetRef.current.dx)
@@ -183,6 +196,7 @@ export function ThreePlacedPart({
   const handlePointerUp = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       if (!dragging) return
+      e.nativeEvent.stopPropagation()
       setDragging(false)
       onDragStateChange?.(false)
       grabOffsetRef.current = null
