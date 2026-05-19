@@ -1,9 +1,4 @@
-import {
-  CutFavoriteId,
-  CutHistoryId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { CutFavoriteId, CutHistoryId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
@@ -89,10 +84,7 @@ export class CutFavorite {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateCutFavoriteProps,
-    now: Date = new Date(),
-  ): CutFavorite {
+  static create(props: CreateCutFavoriteProps, now: Date = new Date()): CutFavorite {
     return new CutFavorite({
       id: props.id,
       tenantId: props.tenantId,
@@ -126,15 +118,33 @@ export class CutFavorite {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): CutFavoriteId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get userId(): ProfileId { return this.#userId }
-  get cutHistoryId(): CutHistoryId { return this.#cutHistoryId }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): CutFavoriteId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get userId(): ProfileId {
+    return this.#userId
+  }
+  get cutHistoryId(): CutHistoryId {
+    return this.#cutHistoryId
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 

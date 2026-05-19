@@ -100,4 +100,3 @@ export interface IPriceHistoryService {
     daysBack?: number
   ): Promise<PriceHistoryWithJoins[]>
 }
-

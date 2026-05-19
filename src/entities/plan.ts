@@ -11,19 +11,12 @@ import { Money, type MoneySnapshot } from "@/src/entities/value-objects/money"
  */
 export type PlanCode = "standard" | "pro" | "max"
 
-export const PLAN_CODES = [
-  "standard",
-  "pro",
-  "max",
-] as const satisfies readonly PlanCode[]
+export const PLAN_CODES = ["standard", "pro", "max"] as const satisfies readonly PlanCode[]
 
 /** Stripe-aligned billing cadence. Mirrors plans.billing_interval CHECK. */
 export type BillingInterval = "month" | "year"
 
-export const BILLING_INTERVALS = [
-  "month",
-  "year",
-] as const satisfies readonly BillingInterval[]
+export const BILLING_INTERVALS = ["month", "year"] as const satisfies readonly BillingInterval[]
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -161,7 +154,7 @@ export class Plan {
     if (trimmedName.length > PLAN_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Plan",
-        `name must be ${PLAN_NAME_MAX_LENGTH} characters or fewer`,
+        `name must be ${PLAN_NAME_MAX_LENGTH} characters or fewer`
       )
     }
     if (props.price.isNegative) {
@@ -169,10 +162,7 @@ export class Plan {
     }
     if (props.seatLimit !== null && props.seatLimit !== undefined) {
       if (!Number.isInteger(props.seatLimit) || props.seatLimit < 1) {
-        throw new InvalidEntityError(
-          "Plan",
-          "seatLimit must be a positive integer when set",
-        )
+        throw new InvalidEntityError("Plan", "seatLimit must be a positive integer when set")
       }
     }
 
@@ -225,23 +215,57 @@ export class Plan {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): PlanId { return this.#id }
-  get code(): PlanCode { return this.#code }
-  get name(): string { return this.#name }
-  get description(): string | null { return this.#description }
-  get price(): Money { return this.#price }
-  get billingInterval(): BillingInterval { return this.#billingInterval }
-  get stripePriceId(): string | null { return this.#stripePriceId }
-  get seatLimit(): number | null { return this.#seatLimit }
-  get isActive(): boolean { return this.#isActive }
-  get isPublic(): boolean { return this.#isPublic }
-  get sortOrder(): number { return this.#sortOrder }
-  get features(): readonly string[] { return this.#features }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): PlanId {
+    return this.#id
+  }
+  get code(): PlanCode {
+    return this.#code
+  }
+  get name(): string {
+    return this.#name
+  }
+  get description(): string | null {
+    return this.#description
+  }
+  get price(): Money {
+    return this.#price
+  }
+  get billingInterval(): BillingInterval {
+    return this.#billingInterval
+  }
+  get stripePriceId(): string | null {
+    return this.#stripePriceId
+  }
+  get seatLimit(): number | null {
+    return this.#seatLimit
+  }
+  get isActive(): boolean {
+    return this.#isActive
+  }
+  get isPublic(): boolean {
+    return this.#isPublic
+  }
+  get sortOrder(): number {
+    return this.#sortOrder
+  }
+  get features(): readonly string[] {
+    return this.#features
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -269,7 +293,7 @@ export class Plan {
     if (trimmed.length > PLAN_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Plan",
-        `name must be ${PLAN_NAME_MAX_LENGTH} characters or fewer`,
+        `name must be ${PLAN_NAME_MAX_LENGTH} characters or fewer`
       )
     }
     if (trimmed === this.#name) return
@@ -280,7 +304,7 @@ export class Plan {
   updateDescription(
     newDescription: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update description")
     const normalized = newDescription?.trim() || null
@@ -299,16 +323,13 @@ export class Plan {
     newPrice: Money,
     billingInterval: BillingInterval,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update pricing")
     if (newPrice.isNegative) {
       throw new InvalidEntityError("Plan", "price must be non-negative")
     }
-    if (
-      newPrice.equals(this.#price) &&
-      billingInterval === this.#billingInterval
-    ) {
+    if (newPrice.equals(this.#price) && billingInterval === this.#billingInterval) {
       return
     }
     this.#price = newPrice
@@ -319,7 +340,7 @@ export class Plan {
   linkStripePrice(
     stripePriceId: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("link Stripe price")
     if (stripePriceId === this.#stripePriceId) return
@@ -327,18 +348,11 @@ export class Plan {
     this.#touchAudit(updatedBy, now)
   }
 
-  setSeatLimit(
-    seatLimit: number | null,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  setSeatLimit(seatLimit: number | null, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("set seat limit")
     if (seatLimit !== null) {
       if (!Number.isInteger(seatLimit) || seatLimit < 1) {
-        throw new InvalidEntityError(
-          "Plan",
-          "seatLimit must be a positive integer when set",
-        )
+        throw new InvalidEntityError("Plan", "seatLimit must be a positive integer when set")
       }
     }
     if (seatLimit === this.#seatLimit) return
@@ -360,7 +374,7 @@ export class Plan {
     isPublic: boolean,
     sortOrder: number,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("set visibility")
     if (!Number.isInteger(sortOrder)) {
@@ -399,11 +413,7 @@ export class Plan {
   }
 
   /** Replace the feature-flag list. De-duped via Set comparison. */
-  updateFeatures(
-    features: readonly string[],
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateFeatures(features: readonly string[], updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update features")
     if (sameStringSet(this.#features, features)) return
     this.#features = [...features]
@@ -432,10 +442,7 @@ export class Plan {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Plan",
-        `cannot ${operation} on a deleted plan`,
-      )
+      throw new InvalidEntityError("Plan", `cannot ${operation} on a deleted plan`)
     }
   }
 
@@ -466,10 +473,7 @@ export class Plan {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function sameStringSet(
-  a: readonly string[],
-  b: readonly string[],
-): boolean {
+function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   const setA = new Set(a)
   return b.every((s) => setA.has(s))

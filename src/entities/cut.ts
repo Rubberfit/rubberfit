@@ -1,11 +1,6 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { trimOptional } from "@/src/entities/shared/string-helpers"
-import {
-  CutId,
-  ProfileId,
-  RollId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { CutId, ProfileId, RollId, TenantId } from "@/src/entities/value-objects/id"
 
 // ─── Constants (mirror DB column lengths / checks) ─────────────────────────
 
@@ -168,23 +163,13 @@ export class Cut {
     Cut.#assertPositiveInteger(props.cutWidthMm, "cutWidthMm")
     Cut.#assertPositiveInteger(props.cutLengthMm, "cutLengthMm")
     const quantity = Cut.#normalizeQuantity(props.quantity ?? 1)
-    const wasteSqmm = Cut.#normalizeNonNegativeBigint(
-      props.wasteSqmm ?? null,
-      "wasteSqmm",
-    )
-    const wastePercentage = Cut.#normalizeWastePercentage(
-      props.wastePercentage ?? null,
-    )
+    const wasteSqmm = Cut.#normalizeNonNegativeBigint(props.wasteSqmm ?? null, "wasteSqmm")
+    const wastePercentage = Cut.#normalizeWastePercentage(props.wastePercentage ?? null)
     const totalSqmmUsed = Cut.#normalizeNonNegativeBigint(
       props.totalSqmmUsed ?? null,
-      "totalSqmmUsed",
+      "totalSqmmUsed"
     )
-    const jobReference = trimOptional(
-      props.jobReference,
-      "jobReference",
-      JOB_REFERENCE_MAX,
-      "Cut",
-    )
+    const jobReference = trimOptional(props.jobReference, "jobReference", JOB_REFERENCE_MAX, "Cut")
     const notes = trimOptional(props.notes, "notes", null, "Cut")
 
     return new Cut({
@@ -236,23 +221,57 @@ export class Cut {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): CutId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get rollId(): RollId | null { return this.#rollId }
-  get cutWidthMm(): number { return this.#cutWidthMm }
-  get cutLengthMm(): number { return this.#cutLengthMm }
-  get quantity(): number { return this.#quantity }
-  get wasteSqmm(): number | null { return this.#wasteSqmm }
-  get wastePercentage(): number | null { return this.#wastePercentage }
-  get totalSqmmUsed(): number | null { return this.#totalSqmmUsed }
-  get jobReference(): string | null { return this.#jobReference }
-  get cutBy(): ProfileId | null { return this.#cutBy }
-  get notes(): string | null { return this.#notes }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): CutId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get rollId(): RollId | null {
+    return this.#rollId
+  }
+  get cutWidthMm(): number {
+    return this.#cutWidthMm
+  }
+  get cutLengthMm(): number {
+    return this.#cutLengthMm
+  }
+  get quantity(): number {
+    return this.#quantity
+  }
+  get wasteSqmm(): number | null {
+    return this.#wasteSqmm
+  }
+  get wastePercentage(): number | null {
+    return this.#wastePercentage
+  }
+  get totalSqmmUsed(): number | null {
+    return this.#totalSqmmUsed
+  }
+  get jobReference(): string | null {
+    return this.#jobReference
+  }
+  get cutBy(): ProfileId | null {
+    return this.#cutBy
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -268,18 +287,14 @@ export class Cut {
    * are set at create() and immutable. (Engine output is fixed; if it was
    * wrong, soft-delete and re-record.)
    */
-  updateDetails(
-    props: CutUpdateProps,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateDetails(props: CutUpdateProps, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update details")
     const newQuantity = Cut.#normalizeQuantity(props.quantity)
     const newJobReference = trimOptional(
       props.jobReference,
       "jobReference",
       JOB_REFERENCE_MAX,
-      "Cut",
+      "Cut"
     )
     const newNotes = trimOptional(props.notes, "notes", null, "Cut")
     const newCutBy = props.cutBy
@@ -320,18 +335,12 @@ export class Cut {
 
   static #normalizeQuantity(value: number): number {
     if (!Number.isInteger(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "Cut",
-        "quantity must be a positive integer",
-      )
+      throw new InvalidEntityError("Cut", "quantity must be a positive integer")
     }
     return value
   }
 
-  static #normalizeNonNegativeBigint(
-    value: number | null,
-    field: string,
-  ): number | null {
+  static #normalizeNonNegativeBigint(value: number | null, field: string): number | null {
     if (value === null) return null
     if (!Number.isFinite(value)) {
       throw new InvalidEntityError("Cut", `${field} must be a finite number`)
@@ -348,24 +357,18 @@ export class Cut {
   static #normalizeWastePercentage(value: number | null): number | null {
     if (value === null) return null
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "Cut",
-        "wastePercentage must be a finite number",
-      )
+      throw new InvalidEntityError("Cut", "wastePercentage must be a finite number")
     }
     if (value < WASTE_PERCENTAGE_MIN || value > WASTE_PERCENTAGE_MAX) {
       throw new InvalidEntityError(
         "Cut",
-        `wastePercentage must be between ${WASTE_PERCENTAGE_MIN} and ${WASTE_PERCENTAGE_MAX}`,
+        `wastePercentage must be between ${WASTE_PERCENTAGE_MIN} and ${WASTE_PERCENTAGE_MAX}`
       )
     }
     return value
   }
 
-  static #profileIdsEqual(
-    a: ProfileId | null,
-    b: ProfileId | null,
-  ): boolean {
+  static #profileIdsEqual(a: ProfileId | null, b: ProfileId | null): boolean {
     if (a === null && b === null) return true
     if (a === null || b === null) return false
     return a.equals(b)
@@ -378,10 +381,7 @@ export class Cut {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Cut",
-        `cannot ${operation} on a deleted cut`,
-      )
+      throw new InvalidEntityError("Cut", `cannot ${operation} on a deleted cut`)
     }
   }
 

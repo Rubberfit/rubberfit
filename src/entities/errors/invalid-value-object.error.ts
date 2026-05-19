@@ -14,7 +14,7 @@ export class InvalidValueObjectError extends Error {
   constructor(
     public readonly valueObject: string,
     public readonly reason: string,
-    public readonly receivedValue: unknown,
+    public readonly receivedValue: unknown
   ) {
     super(`Invalid ${valueObject}: ${reason}`)
     this.name = "InvalidValueObjectError"

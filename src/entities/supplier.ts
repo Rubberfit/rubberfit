@@ -1,15 +1,8 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { nullableEqual } from "@/src/entities/shared/equality"
-import {
-  trimOptional,
-  trimRequired,
-} from "@/src/entities/shared/string-helpers"
+import { trimOptional, trimRequired } from "@/src/entities/shared/string-helpers"
 import { Email } from "@/src/entities/value-objects/email"
-import {
-  ProfileId,
-  SupplierId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { ProfileId, SupplierId, TenantId } from "@/src/entities/value-objects/id"
 import { Money, type MoneySnapshot } from "@/src/entities/value-objects/money"
 import {
   PostalAddress,
@@ -200,12 +193,7 @@ export class Supplier {
 
   static create(props: CreateSupplierProps, now: Date = new Date()): Supplier {
     const name = trimRequired(props.name, "name", NAME_MAX, "Supplier")
-    const generalPhone = trimOptional(
-      props.generalPhone,
-      "generalPhone",
-      PHONE_MAX,
-      "Supplier",
-    )
+    const generalPhone = trimOptional(props.generalPhone, "generalPhone", PHONE_MAX, "Supplier")
     const website = Supplier.#normalizeWebsite(props.website)
     const taxId = trimOptional(props.taxId, "taxId", TAX_ID_MAX, "Supplier")
     const taxRate = Supplier.#normalizeTaxRate(props.taxRate)
@@ -213,7 +201,7 @@ export class Supplier {
       props.paymentTerms,
       "paymentTerms",
       PAYMENT_TERMS_MAX,
-      "Supplier",
+      "Supplier"
     )
     const shippingCost = Supplier.#normalizeShippingCost(props.shippingCost)
     const rating = Supplier.#normalizeRating(props.rating)
@@ -276,27 +264,69 @@ export class Supplier {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): SupplierId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get name(): string { return this.#name }
-  get address(): PostalAddress | null { return this.#address }
-  get email(): Email | null { return this.#email }
-  get generalPhone(): string | null { return this.#generalPhone }
-  get website(): string | null { return this.#website }
-  get taxId(): string | null { return this.#taxId }
-  get taxRate(): number | null { return this.#taxRate }
-  get taxExempt(): boolean { return this.#taxExempt }
-  get paymentTerms(): string | null { return this.#paymentTerms }
-  get shippingCost(): Money | null { return this.#shippingCost }
-  get rating(): number | null { return this.#rating }
-  get preferred(): boolean { return this.#preferred }
-  get isActive(): boolean { return this.#isActive }
-  get notes(): string | null { return this.#notes }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): SupplierId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get name(): string {
+    return this.#name
+  }
+  get address(): PostalAddress | null {
+    return this.#address
+  }
+  get email(): Email | null {
+    return this.#email
+  }
+  get generalPhone(): string | null {
+    return this.#generalPhone
+  }
+  get website(): string | null {
+    return this.#website
+  }
+  get taxId(): string | null {
+    return this.#taxId
+  }
+  get taxRate(): number | null {
+    return this.#taxRate
+  }
+  get taxExempt(): boolean {
+    return this.#taxExempt
+  }
+  get paymentTerms(): string | null {
+    return this.#paymentTerms
+  }
+  get shippingCost(): Money | null {
+    return this.#shippingCost
+  }
+  get rating(): number | null {
+    return this.#rating
+  }
+  get preferred(): boolean {
+    return this.#preferred
+  }
+  get isActive(): boolean {
+    return this.#isActive
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -314,33 +344,19 @@ export class Supplier {
    * `isActive` and `deletedAt` are NOT touched here — they have their own
    * transitions (`deactivate`/`reactivate`/`softDelete`).
    */
-  updateDetails(
-    props: SupplierUpdateProps,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateDetails(props: SupplierUpdateProps, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update details")
 
     const newName = trimRequired(props.name, "name", NAME_MAX, "Supplier")
-    const newGeneralPhone = trimOptional(
-      props.generalPhone,
-      "generalPhone",
-      PHONE_MAX,
-      "Supplier",
-    )
+    const newGeneralPhone = trimOptional(props.generalPhone, "generalPhone", PHONE_MAX, "Supplier")
     const newWebsite = Supplier.#normalizeWebsite(props.website)
-    const newTaxId = trimOptional(
-      props.taxId,
-      "taxId",
-      TAX_ID_MAX,
-      "Supplier",
-    )
+    const newTaxId = trimOptional(props.taxId, "taxId", TAX_ID_MAX, "Supplier")
     const newTaxRate = Supplier.#normalizeTaxRate(props.taxRate)
     const newPaymentTerms = trimOptional(
       props.paymentTerms,
       "paymentTerms",
       PAYMENT_TERMS_MAX,
-      "Supplier",
+      "Supplier"
     )
     const newShippingCost = Supplier.#normalizeShippingCost(props.shippingCost)
     const newRating = Supplier.#normalizeRating(props.rating)
@@ -419,15 +435,12 @@ export class Supplier {
   static #normalizeTaxRate(value: number | null | undefined): number | null {
     if (value === null || value === undefined) return null
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "Supplier",
-        "taxRate must be a finite number",
-      )
+      throw new InvalidEntityError("Supplier", "taxRate must be a finite number")
     }
     if (value < TAX_RATE_MIN || value > TAX_RATE_MAX) {
       throw new InvalidEntityError(
         "Supplier",
-        `taxRate must be between ${TAX_RATE_MIN} and ${TAX_RATE_MAX}`,
+        `taxRate must be between ${TAX_RATE_MIN} and ${TAX_RATE_MAX}`
       )
     }
     return value
@@ -441,21 +454,16 @@ export class Supplier {
     if (value < RATING_MIN || value > RATING_MAX) {
       throw new InvalidEntityError(
         "Supplier",
-        `rating must be between ${RATING_MIN} and ${RATING_MAX}`,
+        `rating must be between ${RATING_MIN} and ${RATING_MAX}`
       )
     }
     return value
   }
 
-  static #normalizeShippingCost(
-    value: Money | null | undefined,
-  ): Money | null {
+  static #normalizeShippingCost(value: Money | null | undefined): Money | null {
     if (value === null || value === undefined) return null
     if (value.cents < 0) {
-      throw new InvalidEntityError(
-        "Supplier",
-        "shippingCost must be >= 0",
-      )
+      throw new InvalidEntityError("Supplier", "shippingCost must be >= 0")
     }
     return value
   }
@@ -464,10 +472,7 @@ export class Supplier {
     const trimmed = trimOptional(value, "website", WEBSITE_MAX, "Supplier")
     if (trimmed === null) return null
     if (!WEBSITE_PROTOCOL_REGEX.test(trimmed)) {
-      throw new InvalidEntityError(
-        "Supplier",
-        "website must start with http:// or https://",
-      )
+      throw new InvalidEntityError("Supplier", "website must start with http:// or https://")
     }
     return trimmed
   }
@@ -479,10 +484,7 @@ export class Supplier {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Supplier",
-        `cannot ${operation} on a deleted supplier`,
-      )
+      throw new InvalidEntityError("Supplier", `cannot ${operation} on a deleted supplier`)
     }
   }
 

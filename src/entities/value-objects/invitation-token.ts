@@ -24,14 +24,14 @@ export class InvitationToken {
       throw new InvalidValueObjectError(
         "InvitationToken",
         `must be exactly ${TOKEN_LENGTH} characters (32 bytes hex)`,
-        value,
+        value
       )
     }
     if (!TOKEN_REGEX.test(normalized)) {
       throw new InvalidValueObjectError(
         "InvitationToken",
         "must contain only hex digits (0-9, a-f)",
-        value,
+        value
       )
     }
     return new InvitationToken(normalized)

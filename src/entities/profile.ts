@@ -86,14 +86,30 @@ export class Profile {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): ProfileId { return this.#id }
-  get firstName(): string | null { return this.#firstName }
-  get lastName(): string | null { return this.#lastName }
-  get fullName(): string | null { return this.#fullName }
-  get email(): Email | null { return this.#email }
-  get isPlatformAdmin(): boolean { return this.#isPlatformAdmin }
-  get createdAt(): Date { return this.#createdAt }
-  get updatedAt(): Date { return this.#updatedAt }
+  get id(): ProfileId {
+    return this.#id
+  }
+  get firstName(): string | null {
+    return this.#firstName
+  }
+  get lastName(): string | null {
+    return this.#lastName
+  }
+  get fullName(): string | null {
+    return this.#fullName
+  }
+  get email(): Email | null {
+    return this.#email
+  }
+  get isPlatformAdmin(): boolean {
+    return this.#isPlatformAdmin
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
 
   // ─── State transitions ───────────────────────────────────────────────────
 
@@ -102,24 +118,20 @@ export class Profile {
    * input. The DB-computed fullName updates lazily — re-fetch the profile
    * to see the new value.
    */
-  updateName(
-    firstName: string | null,
-    lastName: string | null,
-    now: Date = new Date(),
-  ): void {
+  updateName(firstName: string | null, lastName: string | null, now: Date = new Date()): void {
     const trimmedFirst = firstName?.trim() || null
     const trimmedLast = lastName?.trim() || null
 
     if (trimmedFirst !== null && trimmedFirst.length > PROFILE_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Profile",
-        `firstName must be ${PROFILE_NAME_MAX_LENGTH} characters or fewer`,
+        `firstName must be ${PROFILE_NAME_MAX_LENGTH} characters or fewer`
       )
     }
     if (trimmedLast !== null && trimmedLast.length > PROFILE_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Profile",
-        `lastName must be ${PROFILE_NAME_MAX_LENGTH} characters or fewer`,
+        `lastName must be ${PROFILE_NAME_MAX_LENGTH} characters or fewer`
       )
     }
 
@@ -139,11 +151,7 @@ export class Profile {
    */
   updateEmail(newEmail: Email | null, now: Date = new Date()): void {
     if (newEmail === null && this.#email === null) return
-    if (
-      newEmail !== null &&
-      this.#email !== null &&
-      newEmail.equals(this.#email)
-    ) {
+    if (newEmail !== null && this.#email !== null && newEmail.equals(this.#email)) {
       return
     }
     this.#email = newEmail

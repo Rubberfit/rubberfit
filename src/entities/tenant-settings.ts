@@ -12,10 +12,7 @@ import { ProfileId, TenantId } from "@/src/entities/value-objects/id"
  */
 export type UnitSystem = "metric" | "imperial"
 
-export const UNIT_SYSTEMS = [
-  "metric",
-  "imperial",
-] as const satisfies readonly UnitSystem[]
+export const UNIT_SYSTEMS = ["metric", "imperial"] as const satisfies readonly UnitSystem[]
 
 // ─── JSONB shapes ──────────────────────────────────────────────────────────
 
@@ -122,10 +119,7 @@ export class TenantSettings {
    * overrides for any of them (e.g., a tenant in Europe might want
    * `defaultCurrency: EUR`, `unitSystem: metric`, `dateFormat: DD/MM/YYYY`).
    */
-  static create(
-    props: CreateTenantSettingsProps,
-    now: Date = new Date(),
-  ): TenantSettings {
+  static create(props: CreateTenantSettingsProps, now: Date = new Date()): TenantSettings {
     const dateFormat = props.dateFormat ?? "MM/DD/YYYY"
     const timezone = props.timezone ?? "America/New_York"
     TenantSettings.#assertValidDateFormat(dateFormat)
@@ -163,18 +157,34 @@ export class TenantSettings {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get tenantId(): TenantId { return this.#tenantId }
-  get defaultCurrency(): Currency { return this.#defaultCurrency }
-  get unitSystem(): UnitSystem { return this.#unitSystem }
-  get dateFormat(): string { return this.#dateFormat }
-  get timezone(): string { return this.#timezone }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get defaultCurrency(): Currency {
+    return this.#defaultCurrency
+  }
+  get unitSystem(): UnitSystem {
+    return this.#unitSystem
+  }
+  get dateFormat(): string {
+    return this.#dateFormat
+  }
+  get timezone(): string {
+    return this.#timezone
+  }
   /** Read-only view of the inventory-settings jsonb. */
   get inventorySettings(): Readonly<InventorySettings> {
     return this.#inventorySettings
   }
-  get createdAt(): Date { return this.#createdAt }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
 
   // ─── State transitions ───────────────────────────────────────────────────
 
@@ -190,7 +200,7 @@ export class TenantSettings {
     dateFormat: string,
     timezone: string,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     TenantSettings.#assertValidDateFormat(dateFormat)
     TenantSettings.#assertValidTimezone(timezone)
@@ -218,7 +228,7 @@ export class TenantSettings {
   updateInventorySettings(
     settings: InventorySettings,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     if (sameInventorySettings(this.#inventorySettings, settings)) return
     this.#inventorySettings = { ...settings }
@@ -234,30 +244,24 @@ export class TenantSettings {
 
   static #assertValidDateFormat(dateFormat: string): void {
     if (dateFormat.length === 0) {
-      throw new InvalidEntityError(
-        "TenantSettings",
-        "dateFormat must not be empty",
-      )
+      throw new InvalidEntityError("TenantSettings", "dateFormat must not be empty")
     }
     if (dateFormat.length > DATE_FORMAT_MAX_LENGTH) {
       throw new InvalidEntityError(
         "TenantSettings",
-        `dateFormat must be ${DATE_FORMAT_MAX_LENGTH} characters or fewer`,
+        `dateFormat must be ${DATE_FORMAT_MAX_LENGTH} characters or fewer`
       )
     }
   }
 
   static #assertValidTimezone(timezone: string): void {
     if (timezone.length === 0) {
-      throw new InvalidEntityError(
-        "TenantSettings",
-        "timezone must not be empty",
-      )
+      throw new InvalidEntityError("TenantSettings", "timezone must not be empty")
     }
     if (timezone.length > TIMEZONE_MAX_LENGTH) {
       throw new InvalidEntityError(
         "TenantSettings",
-        `timezone must be ${TIMEZONE_MAX_LENGTH} characters or fewer`,
+        `timezone must be ${TIMEZONE_MAX_LENGTH} characters or fewer`
       )
     }
     // No IANA name validation — too expensive (would need a static table)
@@ -284,10 +288,7 @@ export class TenantSettings {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function sameInventorySettings(
-  a: InventorySettings,
-  b: InventorySettings,
-): boolean {
+function sameInventorySettings(a: InventorySettings, b: InventorySettings): boolean {
   // Shallow JSON-equality check. Sufficient because InventorySettings
   // values are primitives or undefined.
   const keysA = Object.keys(a) as (keyof InventorySettings)[]

@@ -11,7 +11,7 @@ export class InvalidEntityError extends Error {
 
   constructor(
     public readonly entity: string,
-    public readonly reason: string,
+    public readonly reason: string
   ) {
     super(`Invalid ${entity}: ${reason}`)
     this.name = "InvalidEntityError"

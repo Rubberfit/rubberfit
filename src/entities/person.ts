@@ -1,15 +1,8 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { nullableEqual } from "@/src/entities/shared/equality"
-import {
-  trimOptional,
-  trimRequired,
-} from "@/src/entities/shared/string-helpers"
+import { trimOptional, trimRequired } from "@/src/entities/shared/string-helpers"
 import { Email } from "@/src/entities/value-objects/email"
-import {
-  PersonId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { PersonId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 // ─── Constants (mirror DB column lengths) ──────────────────────────────────
 
@@ -178,20 +171,48 @@ export class Person {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): PersonId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get profileId(): ProfileId | null { return this.#profileId }
-  get firstName(): string { return this.#firstName }
-  get lastName(): string { return this.#lastName }
-  get email(): Email | null { return this.#email }
-  get phone(): string | null { return this.#phone }
-  get mobile(): string | null { return this.#mobile }
-  get notes(): string | null { return this.#notes }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): PersonId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get profileId(): ProfileId | null {
+    return this.#profileId
+  }
+  get firstName(): string {
+    return this.#firstName
+  }
+  get lastName(): string {
+    return this.#lastName
+  }
+  get email(): Email | null {
+    return this.#email
+  }
+  get phone(): string | null {
+    return this.#phone
+  }
+  get mobile(): string | null {
+    return this.#mobile
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -226,7 +247,7 @@ export class Person {
     mobile: string | null,
     notes: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update details")
     const newFirst = trimRequired(firstName, "firstName", NAME_MAX, "Person")
@@ -266,17 +287,13 @@ export class Person {
    * to a different one (an explicit `unlinkProfile` is required first
    * to make the swap intentional).
    */
-  linkProfile(
-    profileId: ProfileId,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  linkProfile(profileId: ProfileId, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("link profile")
     if (this.#profileId !== null) {
       if (this.#profileId.equals(profileId)) return
       throw new InvalidEntityError(
         "Person",
-        "already linked to a different profile; call unlinkProfile() first",
+        "already linked to a different profile; call unlinkProfile() first"
       )
     }
     this.#profileId = profileId
@@ -310,10 +327,7 @@ export class Person {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Person",
-        `cannot ${operation} on a deleted person`,
-      )
+      throw new InvalidEntityError("Person", `cannot ${operation} on a deleted person`)
     }
   }
 
@@ -322,15 +336,11 @@ export class Person {
    * non-null. Mirrors the DB CHECK `persons_has_contact`. Throws on
    * violation so the entity stays in a consistent state.
    */
-  static #assertHasContact(
-    email: Email | null,
-    phone: string | null,
-    mobile: string | null,
-  ): void {
+  static #assertHasContact(email: Email | null, phone: string | null, mobile: string | null): void {
     if (email === null && phone === null && mobile === null) {
       throw new InvalidEntityError(
         "Person",
-        "must have at least one contact method (email, phone, or mobile)",
+        "must have at least one contact method (email, phone, or mobile)"
       )
     }
   }
@@ -356,4 +366,3 @@ export class Person {
     }
   }
 }
-

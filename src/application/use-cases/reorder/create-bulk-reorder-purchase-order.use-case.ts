@@ -44,10 +44,7 @@ import type { ICreatePurchaseOrderUseCase } from "@/src/application/use-cases/pu
  *      the UI; messages are for telemetry only.
  */
 
-export type SkipReason =
-  | "no_supplier"
-  | "po_creation_failed"
-  | "tax_calculation_failed"
+export type SkipReason = "no_supplier" | "po_creation_failed" | "tax_calculation_failed"
 
 export interface SkippedSuggestion {
   /** Original suggestion that wasn't successfully ordered. */

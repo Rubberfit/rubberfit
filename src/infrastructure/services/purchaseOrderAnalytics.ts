@@ -1,7 +1,4 @@
-import {
-  supabase,
-  type PurchaseOrderWithDetails,
-} from "@/src/infrastructure/models/supabase"
+import { supabase, type PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import "reflect-metadata"
 import { injectable } from "tsyringe"
 import type {

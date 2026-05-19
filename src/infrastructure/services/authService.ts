@@ -53,11 +53,7 @@ async function getProfileRoles(userId: string): Promise<ProfileData> {
   try {
     const [profileResult, membershipsResult] = await Promise.all([
       supabase.from("profiles").select("is_platform_admin").eq("id", userId).maybeSingle(),
-      supabase
-        .from("memberships")
-        .select("roles")
-        .eq("profile_id", userId)
-        .is("deleted_at", null),
+      supabase.from("memberships").select("roles").eq("profile_id", userId).is("deleted_at", null),
     ])
     const profileData = profileResult.data as { is_platform_admin: boolean | null } | null
     const membershipRows = membershipsResult.data as { roles: string[] | null }[] | null
@@ -424,11 +420,7 @@ export async function getProfileAccess(
       .select("is_platform_admin")
       .eq("id", userId)
       .maybeSingle<{ is_platform_admin: boolean | null }>(),
-    client
-      .from("memberships")
-      .select("roles")
-      .eq("profile_id", userId)
-      .is("deleted_at", null),
+    client.from("memberships").select("roles").eq("profile_id", userId).is("deleted_at", null),
     tenantRolesQuery,
   ])
 
@@ -437,10 +429,7 @@ export async function getProfileAccess(
     throw profileResult.error
   }
   if (allMembershipsResult.error) {
-    console.error(
-      "authService.getProfileAccess memberships error:",
-      allMembershipsResult.error
-    )
+    console.error("authService.getProfileAccess memberships error:", allMembershipsResult.error)
     throw allMembershipsResult.error
   }
 

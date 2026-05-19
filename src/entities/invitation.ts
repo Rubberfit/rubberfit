@@ -1,11 +1,7 @@
 import type { AppRole } from "@/src/application/permissions"
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
 import { Email } from "@/src/entities/value-objects/email"
-import {
-  InvitationId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { InvitationId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 import { InvitationToken } from "@/src/entities/value-objects/invitation-token"
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
@@ -109,18 +105,12 @@ export class Invitation {
    * fields (acceptedAt, revokedAt, lastSendAttemptAt, lastSendError) to
    * null. Throws if expiresAt is not in the future or roles is empty.
    */
-  static create(
-    props: CreateInvitationProps,
-    now: Date = new Date(),
-  ): Invitation {
+  static create(props: CreateInvitationProps, now: Date = new Date()): Invitation {
     if (props.roles.length === 0) {
       throw new InvalidEntityError("Invitation", "roles must not be empty")
     }
     if (props.expiresAt.getTime() <= now.getTime()) {
-      throw new InvalidEntityError(
-        "Invitation",
-        "expiresAt must be in the future",
-      )
+      throw new InvalidEntityError("Invitation", "expiresAt must be in the future")
     }
     return new Invitation({
       id: props.id,
@@ -153,9 +143,7 @@ export class Invitation {
       invitedBy: s.invitedBy ? ProfileId.fromPersistence(s.invitedBy) : null,
       acceptedAt: s.acceptedAt ? new Date(s.acceptedAt) : null,
       revokedAt: s.revokedAt ? new Date(s.revokedAt) : null,
-      lastSendAttemptAt: s.lastSendAttemptAt
-        ? new Date(s.lastSendAttemptAt)
-        : null,
+      lastSendAttemptAt: s.lastSendAttemptAt ? new Date(s.lastSendAttemptAt) : null,
       lastSendError: s.lastSendError,
       createdAt: new Date(s.createdAt),
     })
@@ -163,24 +151,54 @@ export class Invitation {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): InvitationId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get email(): Email { return this.#email }
-  get roles(): readonly AppRole[] { return this.#roles }
-  get token(): InvitationToken { return this.#token }
-  get expiresAt(): Date { return this.#expiresAt }
-  get invitedBy(): ProfileId | null { return this.#invitedBy }
-  get acceptedAt(): Date | null { return this.#acceptedAt }
-  get revokedAt(): Date | null { return this.#revokedAt }
-  get lastSendAttemptAt(): Date | null { return this.#lastSendAttemptAt }
-  get lastSendError(): string | null { return this.#lastSendError }
-  get createdAt(): Date { return this.#createdAt }
+  get id(): InvitationId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get email(): Email {
+    return this.#email
+  }
+  get roles(): readonly AppRole[] {
+    return this.#roles
+  }
+  get token(): InvitationToken {
+    return this.#token
+  }
+  get expiresAt(): Date {
+    return this.#expiresAt
+  }
+  get invitedBy(): ProfileId | null {
+    return this.#invitedBy
+  }
+  get acceptedAt(): Date | null {
+    return this.#acceptedAt
+  }
+  get revokedAt(): Date | null {
+    return this.#revokedAt
+  }
+  get lastSendAttemptAt(): Date | null {
+    return this.#lastSendAttemptAt
+  }
+  get lastSendError(): string | null {
+    return this.#lastSendError
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
-  get isAccepted(): boolean { return this.#acceptedAt !== null }
-  get isRevoked(): boolean { return this.#revokedAt !== null }
-  get hasTerminalState(): boolean { return this.isAccepted || this.isRevoked }
+  get isAccepted(): boolean {
+    return this.#acceptedAt !== null
+  }
+  get isRevoked(): boolean {
+    return this.#revokedAt !== null
+  }
+  get hasTerminalState(): boolean {
+    return this.isAccepted || this.isRevoked
+  }
 
   isExpired(now: Date = new Date()): boolean {
     return this.#expiresAt.getTime() <= now.getTime()
@@ -211,16 +229,10 @@ export class Invitation {
   markAccepted(now: Date = new Date()): void {
     if (this.isAccepted) return
     if (this.isRevoked) {
-      throw new InvalidEntityError(
-        "Invitation",
-        "cannot accept a revoked invitation",
-      )
+      throw new InvalidEntityError("Invitation", "cannot accept a revoked invitation")
     }
     if (this.isExpired(now)) {
-      throw new InvalidEntityError(
-        "Invitation",
-        "cannot accept an expired invitation",
-      )
+      throw new InvalidEntityError("Invitation", "cannot accept an expired invitation")
     }
     this.#acceptedAt = now
   }
@@ -232,10 +244,7 @@ export class Invitation {
   revoke(now: Date = new Date()): void {
     if (this.isRevoked) return
     if (this.isAccepted) {
-      throw new InvalidEntityError(
-        "Invitation",
-        "cannot revoke an accepted invitation",
-      )
+      throw new InvalidEntityError("Invitation", "cannot revoke an accepted invitation")
     }
     this.#revokedAt = now
   }

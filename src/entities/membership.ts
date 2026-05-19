@@ -1,10 +1,6 @@
 import type { AppRole } from "@/src/application/permissions"
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
-import {
-  MembershipId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { MembershipId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 // ─── DTOs ──────────────────────────────────────────────────────────────────
 
@@ -87,10 +83,7 @@ export class Membership {
    * invariant that roles must be non-empty (DB CHECK enforces it too —
    * failing fast in the factory gives a cleaner error path).
    */
-  static create(
-    props: CreateMembershipProps,
-    now: Date = new Date(),
-  ): Membership {
+  static create(props: CreateMembershipProps, now: Date = new Date()): Membership {
     if (props.roles.length === 0) {
       throw new InvalidEntityError("Membership", "roles must not be empty")
     }
@@ -129,17 +122,37 @@ export class Membership {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): MembershipId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get profileId(): ProfileId { return this.#profileId }
+  get id(): MembershipId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get profileId(): ProfileId {
+    return this.#profileId
+  }
   /** Read-only view of the roles array. Mutators can't observe through this. */
-  get roles(): readonly AppRole[] { return this.#roles }
-  get invitedBy(): ProfileId | null { return this.#invitedBy }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get roles(): readonly AppRole[] {
+    return this.#roles
+  }
+  get invitedBy(): ProfileId | null {
+    return this.#invitedBy
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -165,11 +178,7 @@ export class Membership {
    * enforced here — that's the use case's responsibility, since the entity
    * doesn't know about sibling memberships.
    */
-  updateRoles(
-    newRoles: readonly AppRole[],
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateRoles(newRoles: readonly AppRole[], updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update roles")
     if (newRoles.length === 0) {
       throw new InvalidEntityError("Membership", "roles must not be empty")
@@ -200,10 +209,7 @@ export class Membership {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Membership",
-        `cannot ${operation} on a deleted membership`,
-      )
+      throw new InvalidEntityError("Membership", `cannot ${operation} on a deleted membership`)
     }
   }
 
@@ -227,10 +233,7 @@ export class Membership {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function sameRoleSet(
-  a: readonly AppRole[],
-  b: readonly AppRole[],
-): boolean {
+function sameRoleSet(a: readonly AppRole[], b: readonly AppRole[]): boolean {
   if (a.length !== b.length) return false
   const setA = new Set(a)
   return b.every((r) => setA.has(r))

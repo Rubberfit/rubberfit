@@ -50,7 +50,7 @@ export class CutHistorySelection {
     selectionIndex: number,
     sizeValue: number | null,
     sizeText: string | null,
-    label: string | null,
+    label: string | null
   ) {
     this.selectionIndex = selectionIndex
     this.sizeValue = sizeValue
@@ -60,51 +60,26 @@ export class CutHistorySelection {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateCutHistorySelectionProps,
-  ): CutHistorySelection {
+  static create(props: CreateCutHistorySelectionProps): CutHistorySelection {
     if (!Number.isInteger(props.selectionIndex) || props.selectionIndex < 0) {
       throw new InvalidEntityError(
         "CutHistorySelection",
-        "selectionIndex must be a non-negative integer",
+        "selectionIndex must be a non-negative integer"
       )
     }
     if (props.sizeValue !== null && props.sizeValue !== undefined) {
       if (!Number.isInteger(props.sizeValue)) {
-        throw new InvalidEntityError(
-          "CutHistorySelection",
-          "sizeValue must be an integer",
-        )
+        throw new InvalidEntityError("CutHistorySelection", "sizeValue must be an integer")
       }
     }
-    const sizeText = trimOptional(
-      props.sizeText,
-      "sizeText",
-      SIZE_TEXT_MAX,
-      "CutHistorySelection",
-    )
-    const label = trimOptional(
-      props.label,
-      "label",
-      LABEL_MAX,
-      "CutHistorySelection",
-    )
+    const sizeText = trimOptional(props.sizeText, "sizeText", SIZE_TEXT_MAX, "CutHistorySelection")
+    const label = trimOptional(props.label, "label", LABEL_MAX, "CutHistorySelection")
 
-    return new CutHistorySelection(
-      props.selectionIndex,
-      props.sizeValue ?? null,
-      sizeText,
-      label,
-    )
+    return new CutHistorySelection(props.selectionIndex, props.sizeValue ?? null, sizeText, label)
   }
 
   static fromSnapshot(s: CutHistorySelectionSnapshot): CutHistorySelection {
-    return new CutHistorySelection(
-      s.selectionIndex,
-      s.sizeValue,
-      s.sizeText,
-      s.label,
-    )
+    return new CutHistorySelection(s.selectionIndex, s.sizeValue, s.sizeText, s.label)
   }
 
   // ─── Equality ────────────────────────────────────────────────────────────

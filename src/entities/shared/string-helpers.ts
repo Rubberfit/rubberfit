@@ -12,17 +12,14 @@ export function trimRequired(
   value: string,
   field: string,
   max: number,
-  entityName: string,
+  entityName: string
 ): string {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
     throw new InvalidEntityError(entityName, `${field} must not be empty`)
   }
   if (trimmed.length > max) {
-    throw new InvalidEntityError(
-      entityName,
-      `${field} must be ${max} characters or fewer`,
-    )
+    throw new InvalidEntityError(entityName, `${field} must be ${max} characters or fewer`)
   }
   return trimmed
 }
@@ -38,16 +35,13 @@ export function trimOptional(
   value: string | null | undefined,
   field: string,
   max: number | null,
-  entityName: string,
+  entityName: string
 ): string | null {
   if (value === null || value === undefined) return null
   const trimmed = value.trim()
   if (trimmed.length === 0) return null
   if (max !== null && trimmed.length > max) {
-    throw new InvalidEntityError(
-      entityName,
-      `${field} must be ${max} characters or fewer`,
-    )
+    throw new InvalidEntityError(entityName, `${field} must be ${max} characters or fewer`)
   }
   return trimmed
 }

@@ -229,7 +229,9 @@ interface PoAddressBillingColumns {
   billing_country: string | null
 }
 
-function shippingAddressColumns(snap: ReturnType<PurchaseOrder["toJSON"]>): PoAddressShippingColumns {
+function shippingAddressColumns(
+  snap: ReturnType<PurchaseOrder["toJSON"]>
+): PoAddressShippingColumns {
   const a = snap.shippingAddress
   return {
     shipping_line1: a?.line1 ?? null,

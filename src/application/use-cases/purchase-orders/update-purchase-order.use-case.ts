@@ -5,21 +5,13 @@ import type { IPurchaseOrderService } from "@/src/application/services/purchase-
 import type { ITaxService, TaxCalculation } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
 import { Currency } from "@/src/entities/value-objects/currency"
-import {
-  JobId,
-  ProfileId,
-  SupplierId,
-} from "@/src/entities/value-objects/id"
+import { JobId, ProfileId, SupplierId } from "@/src/entities/value-objects/id"
 import { purchaseOrderEntityToLegacy } from "@/src/infrastructure/services/po-entity-to-legacy"
 import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
 
 import { computePoSubtotal } from "@/src/application/computePoSubtotal"
-import {
-  dollarsToMoney,
-  mapItemsToEntityProps,
-  type PoLineInput,
-} from "./po-input-conversion"
+import { dollarsToMoney, mapItemsToEntityProps, type PoLineInput } from "./po-input-conversion"
 
 export interface UpdatePurchaseOrderInput {
   purchaseOrderId: string
@@ -90,9 +82,7 @@ export class UpdatePurchaseOrderUseCase implements IUpdatePurchaseOrderUseCase {
         supplierId: SupplierId.fromPersistence(input.supplierId),
         shippingAddress: null,
         billingAddress: null,
-        jobId: existing.jobId
-          ? JobId.fromPersistence(existing.jobId.value)
-          : null,
+        jobId: existing.jobId ? JobId.fromPersistence(existing.jobId.value) : null,
         poNumber: existing.poNumber,
         requestedDeliveryDate: input.requestedDeliveryDate
           ? new Date(input.requestedDeliveryDate)

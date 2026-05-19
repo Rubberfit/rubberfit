@@ -29,10 +29,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import {
-  ACTIVE_TENANT_COOKIE,
-  applyActiveTenantCookie,
-} from "@/app/server/auth/active-tenant"
+import { ACTIVE_TENANT_COOKIE, applyActiveTenantCookie } from "@/app/server/auth/active-tenant"
 import { getEffectiveTier } from "@/src/application/billing/effective-tier"
 import {
   FEATURE_TIERS,

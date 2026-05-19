@@ -129,22 +129,14 @@ export class SupplierContact {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateSupplierContactProps,
-    now: Date = new Date(),
-  ): SupplierContact {
-    const title = trimOptional(
-      props.title,
-      "title",
-      TITLE_MAX,
-      "SupplierContact",
-    )
+  static create(props: CreateSupplierContactProps, now: Date = new Date()): SupplierContact {
+    const title = trimOptional(props.title, "title", TITLE_MAX, "SupplierContact")
     const role = trimOptional(props.role, "role", ROLE_MAX, "SupplierContact")
     const department = trimOptional(
       props.department,
       "department",
       DEPARTMENT_MAX,
-      "SupplierContact",
+      "SupplierContact"
     )
 
     return new SupplierContact({
@@ -165,9 +157,7 @@ export class SupplierContact {
     })
   }
 
-  static reconstitute(
-    props: ReconstituteSupplierContactProps,
-  ): SupplierContact {
+  static reconstitute(props: ReconstituteSupplierContactProps): SupplierContact {
     return new SupplierContact(props)
   }
 
@@ -192,20 +182,48 @@ export class SupplierContact {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): SupplierContactId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get supplierId(): SupplierId { return this.#supplierId }
-  get personId(): PersonId { return this.#personId }
-  get title(): string | null { return this.#title }
-  get role(): string | null { return this.#role }
-  get department(): string | null { return this.#department }
-  get isPrimary(): boolean { return this.#isPrimary }
-  get isActive(): boolean { return this.#isActive }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): SupplierContactId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get supplierId(): SupplierId {
+    return this.#supplierId
+  }
+  get personId(): PersonId {
+    return this.#personId
+  }
+  get title(): string | null {
+    return this.#title
+  }
+  get role(): string | null {
+    return this.#role
+  }
+  get department(): string | null {
+    return this.#department
+  }
+  get isPrimary(): boolean {
+    return this.#isPrimary
+  }
+  get isActive(): boolean {
+    return this.#isActive
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -225,24 +243,15 @@ export class SupplierContact {
     role: string | null,
     department: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update details")
 
     const newTitle = trimOptional(title, "title", TITLE_MAX, "SupplierContact")
     const newRole = trimOptional(role, "role", ROLE_MAX, "SupplierContact")
-    const newDepartment = trimOptional(
-      department,
-      "department",
-      DEPARTMENT_MAX,
-      "SupplierContact",
-    )
+    const newDepartment = trimOptional(department, "department", DEPARTMENT_MAX, "SupplierContact")
 
-    if (
-      newTitle === this.#title &&
-      newRole === this.#role &&
-      newDepartment === this.#department
-    ) {
+    if (newTitle === this.#title && newRole === this.#role && newDepartment === this.#department) {
       return
     }
 
@@ -261,10 +270,7 @@ export class SupplierContact {
   markPrimary(updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("mark primary")
     if (!this.#isActive) {
-      throw new InvalidEntityError(
-        "SupplierContact",
-        "cannot mark an inactive contact as primary",
-      )
+      throw new InvalidEntityError("SupplierContact", "cannot mark an inactive contact as primary")
     }
     if (this.#isPrimary) return
     this.#isPrimary = true
@@ -324,7 +330,7 @@ export class SupplierContact {
     if (this.#deletedAt !== null) {
       throw new InvalidEntityError(
         "SupplierContact",
-        `cannot ${operation} on a deleted supplier contact`,
+        `cannot ${operation} on a deleted supplier contact`
       )
     }
   }

@@ -1,7 +1,5 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
-import {
-  trimOptional,
-} from "@/src/entities/shared/string-helpers"
+import { trimOptional } from "@/src/entities/shared/string-helpers"
 import {
   MaterialSupplierId,
   MaterialTypeId,
@@ -148,34 +146,19 @@ export class MaterialSupplier {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateMaterialSupplierProps,
-    now: Date = new Date(),
-  ): MaterialSupplier {
+  static create(props: CreateMaterialSupplierProps, now: Date = new Date()): MaterialSupplier {
     MaterialSupplier.#assertValidCost(props.cost)
-    MaterialSupplier.#assertValidWindow(
-      props.effectiveDate,
-      props.expirationDate ?? null,
-    )
+    MaterialSupplier.#assertValidWindow(props.effectiveDate, props.expirationDate ?? null)
 
     const supplierMaterialCode = trimOptional(
       props.supplierMaterialCode,
       "supplierMaterialCode",
       SUPPLIER_MATERIAL_CODE_MAX,
-      "MaterialSupplier",
+      "MaterialSupplier"
     )
-    const minimumOrderSqm = MaterialSupplier.#normalizeMinimumOrderSqm(
-      props.minimumOrderSqm ?? 0,
-    )
-    const leadTimeDays = MaterialSupplier.#normalizeLeadTimeDays(
-      props.leadTimeDays ?? 0,
-    )
-    const notes = trimOptional(
-      props.notes,
-      "notes",
-      null,
-      "MaterialSupplier",
-    )
+    const minimumOrderSqm = MaterialSupplier.#normalizeMinimumOrderSqm(props.minimumOrderSqm ?? 0)
+    const leadTimeDays = MaterialSupplier.#normalizeLeadTimeDays(props.leadTimeDays ?? 0)
+    const notes = trimOptional(props.notes, "notes", null, "MaterialSupplier")
 
     return new MaterialSupplier({
       id: props.id,
@@ -199,9 +182,7 @@ export class MaterialSupplier {
     })
   }
 
-  static reconstitute(
-    props: ReconstituteMaterialSupplierProps,
-  ): MaterialSupplier {
+  static reconstitute(props: ReconstituteMaterialSupplierProps): MaterialSupplier {
     return new MaterialSupplier(props)
   }
 
@@ -230,24 +211,60 @@ export class MaterialSupplier {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): MaterialSupplierId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get materialTypeId(): MaterialTypeId { return this.#materialTypeId }
-  get supplierId(): SupplierId { return this.#supplierId }
-  get cost(): Money { return this.#cost }
-  get effectiveDate(): Date { return this.#effectiveDate }
-  get expirationDate(): Date | null { return this.#expirationDate }
-  get supplierMaterialCode(): string | null { return this.#supplierMaterialCode }
-  get minimumOrderSqm(): number { return this.#minimumOrderSqm }
-  get leadTimeDays(): number { return this.#leadTimeDays }
-  get preferredSupplier(): boolean { return this.#preferredSupplier }
-  get isActive(): boolean { return this.#isActive }
-  get notes(): string | null { return this.#notes }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): MaterialSupplierId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get materialTypeId(): MaterialTypeId {
+    return this.#materialTypeId
+  }
+  get supplierId(): SupplierId {
+    return this.#supplierId
+  }
+  get cost(): Money {
+    return this.#cost
+  }
+  get effectiveDate(): Date {
+    return this.#effectiveDate
+  }
+  get expirationDate(): Date | null {
+    return this.#expirationDate
+  }
+  get supplierMaterialCode(): string | null {
+    return this.#supplierMaterialCode
+  }
+  get minimumOrderSqm(): number {
+    return this.#minimumOrderSqm
+  }
+  get leadTimeDays(): number {
+    return this.#leadTimeDays
+  }
+  get preferredSupplier(): boolean {
+    return this.#preferredSupplier
+  }
+  get isActive(): boolean {
+    return this.#isActive
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -269,7 +286,7 @@ export class MaterialSupplier {
     preferredSupplier: boolean,
     notes: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update details")
 
@@ -277,12 +294,10 @@ export class MaterialSupplier {
       supplierMaterialCode,
       "supplierMaterialCode",
       SUPPLIER_MATERIAL_CODE_MAX,
-      "MaterialSupplier",
+      "MaterialSupplier"
     )
-    const newMinimumOrderSqm =
-      MaterialSupplier.#normalizeMinimumOrderSqm(minimumOrderSqm)
-    const newLeadTimeDays =
-      MaterialSupplier.#normalizeLeadTimeDays(leadTimeDays)
+    const newMinimumOrderSqm = MaterialSupplier.#normalizeMinimumOrderSqm(minimumOrderSqm)
+    const newLeadTimeDays = MaterialSupplier.#normalizeLeadTimeDays(leadTimeDays)
     const newNotes = trimOptional(notes, "notes", null, "MaterialSupplier")
 
     if (
@@ -318,7 +333,7 @@ export class MaterialSupplier {
     newEffectiveDate: Date,
     newExpirationDate: Date | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update pricing")
     MaterialSupplier.#assertValidCost(newCost)
@@ -327,7 +342,7 @@ export class MaterialSupplier {
     if (this.#cost.equals(newCost)) {
       throw new InvalidEntityError(
         "MaterialSupplier",
-        "updatePricing requires a different cost; use updatePricingWindow for window-only changes",
+        "updatePricing requires a different cost; use updatePricingWindow for window-only changes"
       )
     }
 
@@ -347,7 +362,7 @@ export class MaterialSupplier {
     newEffectiveDate: Date,
     newExpirationDate: Date | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update pricing window")
     MaterialSupplier.#assertValidWindow(newEffectiveDate, newExpirationDate)
@@ -395,10 +410,7 @@ export class MaterialSupplier {
   /** Mirrors DB CHECK `cost_per_sqm_cents > 0`. */
   static #assertValidCost(value: Money): void {
     if (value.cents <= 0) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "cost must be greater than zero",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "cost must be greater than zero")
     }
   }
 
@@ -407,59 +419,38 @@ export class MaterialSupplier {
    *   `expiration_date IS NULL OR expiration_date > effective_date`.
    * Strict greater-than; a zero-day window is rejected.
    */
-  static #assertValidWindow(
-    effectiveDate: Date,
-    expirationDate: Date | null,
-  ): void {
+  static #assertValidWindow(effectiveDate: Date, expirationDate: Date | null): void {
     if (Number.isNaN(effectiveDate.getTime())) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "effectiveDate must be a valid date",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "effectiveDate must be a valid date")
     }
     if (expirationDate === null) return
     if (Number.isNaN(expirationDate.getTime())) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "expirationDate must be a valid date",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "expirationDate must be a valid date")
     }
     if (expirationDate.getTime() <= effectiveDate.getTime()) {
       throw new InvalidEntityError(
         "MaterialSupplier",
-        "expirationDate must be later than effectiveDate",
+        "expirationDate must be later than effectiveDate"
       )
     }
   }
 
   static #normalizeMinimumOrderSqm(value: number): number {
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "minimumOrderSqm must be a finite number",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "minimumOrderSqm must be a finite number")
     }
     if (value < 0) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "minimumOrderSqm must be >= 0",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "minimumOrderSqm must be >= 0")
     }
     return value
   }
 
   static #normalizeLeadTimeDays(value: number): number {
     if (!Number.isInteger(value)) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "leadTimeDays must be an integer",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "leadTimeDays must be an integer")
     }
     if (value < 0) {
-      throw new InvalidEntityError(
-        "MaterialSupplier",
-        "leadTimeDays must be >= 0",
-      )
+      throw new InvalidEntityError("MaterialSupplier", "leadTimeDays must be >= 0")
     }
     return value
   }
@@ -479,7 +470,7 @@ export class MaterialSupplier {
     if (this.#deletedAt !== null) {
       throw new InvalidEntityError(
         "MaterialSupplier",
-        `cannot ${operation} on a deleted material-supplier link`,
+        `cannot ${operation} on a deleted material-supplier link`
       )
     }
   }

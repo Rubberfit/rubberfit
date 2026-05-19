@@ -1,13 +1,6 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
-import {
-  trimOptional,
-  trimRequired,
-} from "@/src/entities/shared/string-helpers"
-import {
-  MaterialTypeId,
-  ProfileId,
-  TenantId,
-} from "@/src/entities/value-objects/id"
+import { trimOptional, trimRequired } from "@/src/entities/shared/string-helpers"
+import { MaterialTypeId, ProfileId, TenantId } from "@/src/entities/value-objects/id"
 
 // ─── Constants (mirror DB column lengths / checks) ─────────────────────────
 
@@ -102,18 +95,10 @@ export class MaterialType {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateMaterialTypeProps,
-    now: Date = new Date(),
-  ): MaterialType {
+  static create(props: CreateMaterialTypeProps, now: Date = new Date()): MaterialType {
     const name = trimRequired(props.name, "name", NAME_MAX, "MaterialType")
     // description is unbounded text in the DB; pass max=null to skip length check
-    const description = trimOptional(
-      props.description,
-      "description",
-      null,
-      "MaterialType",
-    )
+    const description = trimOptional(props.description, "description", null, "MaterialType")
     const minStockSqm = MaterialType.#normalizeMinStock(props.minStockSqm)
 
     return new MaterialType({
@@ -151,16 +136,36 @@ export class MaterialType {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): MaterialTypeId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get name(): string { return this.#name }
-  get description(): string | null { return this.#description }
-  get minStockSqm(): number | null { return this.#minStockSqm }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): MaterialTypeId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get name(): string {
+    return this.#name
+  }
+  get description(): string | null {
+    return this.#description
+  }
+  get minStockSqm(): number | null {
+    return this.#minStockSqm
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -181,16 +186,11 @@ export class MaterialType {
     description: string | null,
     minStockSqm: number | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("update details")
     const newName = trimRequired(name, "name", NAME_MAX, "MaterialType")
-    const newDescription = trimOptional(
-      description,
-      "description",
-      null,
-      "MaterialType",
-    )
+    const newDescription = trimOptional(description, "description", null, "MaterialType")
     const newMinStock = MaterialType.#normalizeMinStock(minStockSqm)
 
     if (
@@ -227,16 +227,10 @@ export class MaterialType {
   static #normalizeMinStock(value: number | null | undefined): number | null {
     if (value === null || value === undefined) return null
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "MaterialType",
-        "minStockSqm must be a finite number",
-      )
+      throw new InvalidEntityError("MaterialType", "minStockSqm must be a finite number")
     }
     if (value < 0) {
-      throw new InvalidEntityError(
-        "MaterialType",
-        "minStockSqm must be >= 0",
-      )
+      throw new InvalidEntityError("MaterialType", "minStockSqm must be >= 0")
     }
     return value
   }
@@ -248,10 +242,7 @@ export class MaterialType {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "MaterialType",
-        `cannot ${operation} on a deleted material type`,
-      )
+      throw new InvalidEntityError("MaterialType", `cannot ${operation} on a deleted material type`)
     }
   }
 

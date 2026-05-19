@@ -297,17 +297,13 @@ export class Subscription {
    * transitions (e.g., `activate`, `markPastDue`) that wrap this with
    * stricter from-state allow-lists for bug-catching.
    */
-  setStatus(
-    newStatus: SubscriptionStatus,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  setStatus(newStatus: SubscriptionStatus, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("change status")
     if (this.#status === newStatus) return
     if (this.#status === "canceled") {
       throw new InvalidEntityError(
         "Subscription",
-        `cannot transition out of terminal status "canceled" to "${newStatus}"`,
+        `cannot transition out of terminal status "canceled" to "${newStatus}"`
       )
     }
     this.#status = newStatus

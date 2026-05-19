@@ -38,7 +38,7 @@ export class Email {
       throw new InvalidValueObjectError(
         "Email",
         `must be ${EMAIL_MAX_LENGTH} characters or fewer`,
-        input,
+        input
       )
     }
     if (!EMAIL_REGEX.test(trimmed)) {

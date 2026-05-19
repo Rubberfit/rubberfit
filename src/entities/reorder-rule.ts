@@ -161,27 +161,17 @@ export class ReorderRule {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateReorderRuleProps,
-    now: Date = new Date(),
-  ): ReorderRule {
-    const reorderPointSqm = ReorderRule.#normalizeReorderPoint(
-      props.reorderPointSqm,
-    )
-    const reorderQuantitySqm = ReorderRule.#normalizeReorderQuantity(
-      props.reorderQuantitySqm,
-    )
+  static create(props: CreateReorderRuleProps, now: Date = new Date()): ReorderRule {
+    const reorderPointSqm = ReorderRule.#normalizeReorderPoint(props.reorderPointSqm)
+    const reorderQuantitySqm = ReorderRule.#normalizeReorderQuantity(props.reorderQuantitySqm)
     const maxStockLevelSqm = ReorderRule.#normalizeMaxStockLevel(
       props.maxStockLevelSqm ?? null,
-      reorderPointSqm,
+      reorderPointSqm
     )
-    const leadTimeDays = ReorderRule.#normalizeDays(
-      props.leadTimeDays ?? 7,
-      "leadTimeDays",
-    )
+    const leadTimeDays = ReorderRule.#normalizeDays(props.leadTimeDays ?? 7, "leadTimeDays")
     const safetyStockDays = ReorderRule.#normalizeDays(
       props.safetyStockDays ?? 3,
-      "safetyStockDays",
+      "safetyStockDays"
     )
     const notes = trimOptional(props.notes, "notes", null, "ReorderRule")
 
@@ -236,24 +226,60 @@ export class ReorderRule {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): ReorderRuleId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get materialTypeId(): MaterialTypeId { return this.#materialTypeId }
-  get supplierId(): SupplierId | null { return this.#supplierId }
-  get reorderPointSqm(): number { return this.#reorderPointSqm }
-  get reorderQuantitySqm(): number { return this.#reorderQuantitySqm }
-  get maxStockLevelSqm(): number | null { return this.#maxStockLevelSqm }
-  get leadTimeDays(): number { return this.#leadTimeDays }
-  get safetyStockDays(): number { return this.#safetyStockDays }
-  get autoReorder(): boolean { return this.#autoReorder }
-  get isActive(): boolean { return this.#isActive }
-  get notes(): string | null { return this.#notes }
-  get lastTriggeredAt(): Date | null { return this.#lastTriggeredAt }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): ReorderRuleId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get materialTypeId(): MaterialTypeId {
+    return this.#materialTypeId
+  }
+  get supplierId(): SupplierId | null {
+    return this.#supplierId
+  }
+  get reorderPointSqm(): number {
+    return this.#reorderPointSqm
+  }
+  get reorderQuantitySqm(): number {
+    return this.#reorderQuantitySqm
+  }
+  get maxStockLevelSqm(): number | null {
+    return this.#maxStockLevelSqm
+  }
+  get leadTimeDays(): number {
+    return this.#leadTimeDays
+  }
+  get safetyStockDays(): number {
+    return this.#safetyStockDays
+  }
+  get autoReorder(): boolean {
+    return this.#autoReorder
+  }
+  get isActive(): boolean {
+    return this.#isActive
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get lastTriggeredAt(): Date | null {
+    return this.#lastTriggeredAt
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -271,37 +297,18 @@ export class ReorderRule {
    * Toggles (`autoReorder`, `isActive`) and `lastTriggeredAt` are NOT
    * touched here — they have dedicated transitions.
    */
-  updateDetails(
-    props: ReorderRuleUpdateProps,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  updateDetails(props: ReorderRuleUpdateProps, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("update details")
 
-    const newReorderPoint = ReorderRule.#normalizeReorderPoint(
-      props.reorderPointSqm,
-    )
-    const newReorderQuantity = ReorderRule.#normalizeReorderQuantity(
-      props.reorderQuantitySqm,
-    )
+    const newReorderPoint = ReorderRule.#normalizeReorderPoint(props.reorderPointSqm)
+    const newReorderQuantity = ReorderRule.#normalizeReorderQuantity(props.reorderQuantitySqm)
     const newMaxStockLevel = ReorderRule.#normalizeMaxStockLevel(
       props.maxStockLevelSqm,
-      newReorderPoint,
+      newReorderPoint
     )
-    const newLeadTimeDays = ReorderRule.#normalizeDays(
-      props.leadTimeDays,
-      "leadTimeDays",
-    )
-    const newSafetyStockDays = ReorderRule.#normalizeDays(
-      props.safetyStockDays,
-      "safetyStockDays",
-    )
-    const newNotes = trimOptional(
-      props.notes,
-      "notes",
-      null,
-      "ReorderRule",
-    )
+    const newLeadTimeDays = ReorderRule.#normalizeDays(props.leadTimeDays, "leadTimeDays")
+    const newSafetyStockDays = ReorderRule.#normalizeDays(props.safetyStockDays, "safetyStockDays")
+    const newNotes = trimOptional(props.notes, "notes", null, "ReorderRule")
 
     if (
       nullableEqual(props.supplierId, this.#supplierId) &&
@@ -386,16 +393,10 @@ export class ReorderRule {
   /** DB CHECK: `reorder_point_sqm >= 0`. */
   static #normalizeReorderPoint(value: number): number {
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        "reorderPointSqm must be a finite number",
-      )
+      throw new InvalidEntityError("ReorderRule", "reorderPointSqm must be a finite number")
     }
     if (value < 0) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        "reorderPointSqm must be >= 0",
-      )
+      throw new InvalidEntityError("ReorderRule", "reorderPointSqm must be >= 0")
     }
     return value
   }
@@ -403,16 +404,10 @@ export class ReorderRule {
   /** DB CHECK: `reorder_quantity_sqm > 0` (strictly positive). */
   static #normalizeReorderQuantity(value: number): number {
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        "reorderQuantitySqm must be a finite number",
-      )
+      throw new InvalidEntityError("ReorderRule", "reorderQuantitySqm must be a finite number")
     }
     if (value <= 0) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        "reorderQuantitySqm must be greater than zero",
-      )
+      throw new InvalidEntityError("ReorderRule", "reorderQuantitySqm must be greater than zero")
     }
     return value
   }
@@ -421,21 +416,15 @@ export class ReorderRule {
    * DB CHECK: `max_stock_level_sqm IS NULL OR max_stock_level_sqm >
    * reorder_point_sqm`. Strict greater-than.
    */
-  static #normalizeMaxStockLevel(
-    value: number | null,
-    reorderPoint: number,
-  ): number | null {
+  static #normalizeMaxStockLevel(value: number | null, reorderPoint: number): number | null {
     if (value === null) return null
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        "maxStockLevelSqm must be a finite number",
-      )
+      throw new InvalidEntityError("ReorderRule", "maxStockLevelSqm must be a finite number")
     }
     if (value <= reorderPoint) {
       throw new InvalidEntityError(
         "ReorderRule",
-        "maxStockLevelSqm must be greater than reorderPointSqm",
+        "maxStockLevelSqm must be greater than reorderPointSqm"
       )
     }
     return value
@@ -443,16 +432,10 @@ export class ReorderRule {
 
   static #normalizeDays(value: number, field: string): number {
     if (!Number.isInteger(value)) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        `${field} must be an integer`,
-      )
+      throw new InvalidEntityError("ReorderRule", `${field} must be an integer`)
     }
     if (value < 0) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        `${field} must be >= 0`,
-      )
+      throw new InvalidEntityError("ReorderRule", `${field} must be >= 0`)
     }
     return value
   }
@@ -464,10 +447,7 @@ export class ReorderRule {
 
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "ReorderRule",
-        `cannot ${operation} on a deleted reorder rule`,
-      )
+      throw new InvalidEntityError("ReorderRule", `cannot ${operation} on a deleted reorder rule`)
     }
   }
 

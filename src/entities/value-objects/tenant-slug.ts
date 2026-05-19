@@ -24,21 +24,21 @@ export class TenantSlug {
       throw new InvalidValueObjectError(
         "TenantSlug",
         `must be at least ${SLUG_MIN_LENGTH} characters`,
-        value,
+        value
       )
     }
     if (value.length > SLUG_MAX_LENGTH) {
       throw new InvalidValueObjectError(
         "TenantSlug",
         `must be ${SLUG_MAX_LENGTH} characters or fewer`,
-        value,
+        value
       )
     }
     if (!SLUG_REGEX.test(value)) {
       throw new InvalidValueObjectError(
         "TenantSlug",
         "must be lowercase alphanumeric with hyphens (cannot start or end with a hyphen)",
-        value,
+        value
       )
     }
     return new TenantSlug(value)

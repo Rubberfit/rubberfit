@@ -114,10 +114,7 @@ export class UserPreferences {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateUserPreferencesProps,
-    now: Date = new Date(),
-  ): UserPreferences {
+  static create(props: CreateUserPreferencesProps, now: Date = new Date()): UserPreferences {
     return new UserPreferences({
       profileId: props.profileId,
       notificationPreferences: { ...(props.notificationPreferences ?? {}) },
@@ -143,7 +140,9 @@ export class UserPreferences {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get profileId(): ProfileId { return this.#profileId }
+  get profileId(): ProfileId {
+    return this.#profileId
+  }
   /** Read-only view of the notification-preferences jsonb. */
   get notificationPreferences(): Readonly<NotificationPreferences> {
     return this.#notificationPreferences
@@ -152,8 +151,12 @@ export class UserPreferences {
   get uiPreferences(): Readonly<UiPreferences> {
     return this.#uiPreferences
   }
-  get createdAt(): Date { return this.#createdAt }
-  get updatedAt(): Date { return this.#updatedAt }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
 
   // ─── State transitions ───────────────────────────────────────────────────
 
@@ -162,10 +165,7 @@ export class UserPreferences {
    * new shape; the entity defensively copies. No deep merge — the use
    * case reads current prefs and merges field-level edits before calling.
    */
-  updateNotificationPreferences(
-    prefs: NotificationPreferences,
-    now: Date = new Date(),
-  ): void {
+  updateNotificationPreferences(prefs: NotificationPreferences, now: Date = new Date()): void {
     if (sameJsonShape(this.#notificationPreferences, prefs)) return
     this.#notificationPreferences = { ...prefs }
     this.#updatedAt = now

@@ -18,11 +18,7 @@ import type { PurchaseOrderWithDetails } from "@/src/infrastructure/models/supab
 import { TOKENS } from "@/di/tokens"
 
 import { computePoSubtotal } from "@/src/application/computePoSubtotal"
-import {
-  dollarsToMoney,
-  mapItemsToEntityProps,
-  type PoLineInput,
-} from "./po-input-conversion"
+import { dollarsToMoney, mapItemsToEntityProps, type PoLineInput } from "./po-input-conversion"
 
 export type CreatePurchaseOrderItemInput = PoLineInput
 

@@ -1,7 +1,5 @@
 import { InvalidEntityError } from "@/src/entities/errors/invalid-entity.error"
-import {
-  trimOptional,
-} from "@/src/entities/shared/string-helpers"
+import { trimOptional } from "@/src/entities/shared/string-helpers"
 import {
   MaterialSupplierId,
   PriceHistoryId,
@@ -120,47 +118,35 @@ export class PriceHistory {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreatePriceHistoryProps,
-    now: Date = new Date(),
-  ): PriceHistory {
+  static create(props: CreatePriceHistoryProps, now: Date = new Date()): PriceHistory {
     PriceHistory.#assertCostPositive(props.newCost, "newCost")
 
     if (props.oldCost !== null) {
       PriceHistory.#assertCostPositive(props.oldCost, "oldCost")
       if (!props.oldCost.currency.equals(props.newCost.currency)) {
-        throw new InvalidEntityError(
-          "PriceHistory",
-          "oldCost and newCost must share a currency",
-        )
+        throw new InvalidEntityError("PriceHistory", "oldCost and newCost must share a currency")
       }
       if (props.oldCost.cents === props.newCost.cents) {
         throw new InvalidEntityError(
           "PriceHistory",
-          "oldCost and newCost must differ — price_history records changes",
+          "oldCost and newCost must differ — price_history records changes"
         )
       }
     }
 
     const effectiveDate = props.effectiveDate ?? now
     if (Number.isNaN(effectiveDate.getTime())) {
-      throw new InvalidEntityError(
-        "PriceHistory",
-        "effectiveDate must be a valid date",
-      )
+      throw new InvalidEntityError("PriceHistory", "effectiveDate must be a valid date")
     }
 
     const changeReason = trimOptional(
       props.changeReason,
       "changeReason",
       CHANGE_REASON_MAX,
-      "PriceHistory",
+      "PriceHistory"
     )
     const notes = trimOptional(props.notes, "notes", null, "PriceHistory")
-    const priceChangePercentage = PriceHistory.#computePercentage(
-      props.oldCost,
-      props.newCost,
-    )
+    const priceChangePercentage = PriceHistory.#computePercentage(props.oldCost, props.newCost)
 
     return new PriceHistory({
       id: props.id,
@@ -185,9 +171,7 @@ export class PriceHistory {
     return PriceHistory.reconstitute({
       id: PriceHistoryId.fromPersistence(s.id),
       tenantId: TenantId.fromPersistence(s.tenantId),
-      materialSupplierId: MaterialSupplierId.fromPersistence(
-        s.materialSupplierId,
-      ),
+      materialSupplierId: MaterialSupplierId.fromPersistence(s.materialSupplierId),
       oldCost: s.oldCost ? Money.fromSnapshot(s.oldCost) : null,
       newCost: Money.fromSnapshot(s.newCost),
       priceChangePercentage: s.priceChangePercentage,
@@ -201,19 +185,39 @@ export class PriceHistory {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): PriceHistoryId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get materialSupplierId(): MaterialSupplierId { return this.#materialSupplierId }
-  get oldCost(): Money | null { return this.#oldCost }
-  get newCost(): Money { return this.#newCost }
+  get id(): PriceHistoryId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get materialSupplierId(): MaterialSupplierId {
+    return this.#materialSupplierId
+  }
+  get oldCost(): Money | null {
+    return this.#oldCost
+  }
+  get newCost(): Money {
+    return this.#newCost
+  }
   get priceChangePercentage(): number | null {
     return this.#priceChangePercentage
   }
-  get changeReason(): string | null { return this.#changeReason }
-  get effectiveDate(): Date { return this.#effectiveDate }
-  get changedBy(): ProfileId | null { return this.#changedBy }
-  get notes(): string | null { return this.#notes }
-  get createdAt(): Date { return this.#createdAt }
+  get changeReason(): string | null {
+    return this.#changeReason
+  }
+  get effectiveDate(): Date {
+    return this.#effectiveDate
+  }
+  get changedBy(): ProfileId | null {
+    return this.#changedBy
+  }
+  get notes(): string | null {
+    return this.#notes
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -237,10 +241,7 @@ export class PriceHistory {
   /** Mirrors DB CHECK `cost > 0`. */
   static #assertCostPositive(value: Money, field: string): void {
     if (value.cents <= 0) {
-      throw new InvalidEntityError(
-        "PriceHistory",
-        `${field} must be greater than zero`,
-      )
+      throw new InvalidEntityError("PriceHistory", `${field} must be greater than zero`)
     }
   }
 
@@ -250,10 +251,7 @@ export class PriceHistory {
    * Result is rounded to 4 decimal places to match the column type
    * `numeric(8,4)`. Returns null when there is no prior cost.
    */
-  static #computePercentage(
-    oldCost: Money | null,
-    newCost: Money,
-  ): number | null {
+  static #computePercentage(oldCost: Money | null, newCost: Money): number | null {
     if (oldCost === null) return null
     const raw = ((newCost.cents - oldCost.cents) / oldCost.cents) * 100
     return Math.round(raw * 10000) / 10000

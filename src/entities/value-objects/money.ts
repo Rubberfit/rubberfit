@@ -91,11 +91,7 @@ export class Money {
    */
   multiply(scalar: number): Money {
     if (typeof scalar !== "number" || !Number.isFinite(scalar)) {
-      throw new InvalidValueObjectError(
-        "Money",
-        "scalar must be a finite number",
-        scalar,
-      )
+      throw new InvalidValueObjectError("Money", "scalar must be a finite number", scalar)
     }
     return new Money(Math.round(this.cents * scalar), this.currency)
   }
@@ -118,9 +114,15 @@ export class Money {
 
   // ─── Predicates ──────────────────────────────────────────────────────────
 
-  get isZero(): boolean { return this.cents === 0 }
-  get isPositive(): boolean { return this.cents > 0 }
-  get isNegative(): boolean { return this.cents < 0 }
+  get isZero(): boolean {
+    return this.cents === 0
+  }
+  get isPositive(): boolean {
+    return this.cents > 0
+  }
+  get isNegative(): boolean {
+    return this.cents < 0
+  }
 
   // ─── Conversions for display / persistence ──────────────────────────────
 
@@ -145,7 +147,7 @@ export class Money {
       throw new InvalidValueObjectError(
         "Money",
         `cannot ${operation} amounts in different currencies (${this.currency.value} vs ${other.currency.value})`,
-        { left: this.currency.value, right: other.currency.value },
+        { left: this.currency.value, right: other.currency.value }
       )
     }
   }
@@ -155,14 +157,14 @@ export class Money {
       throw new InvalidValueObjectError(
         "Money",
         "cents must be an integer (no fractional cents)",
-        cents,
+        cents
       )
     }
     if (cents > MAX_SAFE_CENTS || cents < -MAX_SAFE_CENTS) {
       throw new InvalidValueObjectError(
         "Money",
         `cents exceeds safe Number range (max ±${MAX_SAFE_CENTS})`,
-        cents,
+        cents
       )
     }
   }

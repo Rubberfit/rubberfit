@@ -139,7 +139,7 @@ export class Tenant {
     if (trimmedName.length > TENANT_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Tenant",
-        `name must be ${TENANT_NAME_MAX_LENGTH} characters or fewer`,
+        `name must be ${TENANT_NAME_MAX_LENGTH} characters or fewer`
       )
     }
 
@@ -186,46 +186,63 @@ export class Tenant {
       logoUrl: snapshot.logoUrl,
       status: snapshot.status,
       trialEndsAt: snapshot.trialEndsAt ? new Date(snapshot.trialEndsAt) : null,
-      billingEmail: snapshot.billingEmail
-        ? Email.fromPersistence(snapshot.billingEmail)
-        : null,
+      billingEmail: snapshot.billingEmail ? Email.fromPersistence(snapshot.billingEmail) : null,
       stripeCustomerId: snapshot.stripeCustomerId,
       createdAt: new Date(snapshot.createdAt),
-      createdBy: snapshot.createdBy
-        ? ProfileId.fromPersistence(snapshot.createdBy)
-        : null,
+      createdBy: snapshot.createdBy ? ProfileId.fromPersistence(snapshot.createdBy) : null,
       updatedAt: new Date(snapshot.updatedAt),
-      updatedBy: snapshot.updatedBy
-        ? ProfileId.fromPersistence(snapshot.updatedBy)
-        : null,
+      updatedBy: snapshot.updatedBy ? ProfileId.fromPersistence(snapshot.updatedBy) : null,
       deletedAt: snapshot.deletedAt ? new Date(snapshot.deletedAt) : null,
     })
   }
 
   // ─── Property getters ────────────────────────────────────────────────────
 
-  get id(): TenantId { return this.#id }
-  get name(): string { return this.#name }
-  get slug(): TenantSlug { return this.#slug }
-  get logoUrl(): string | null { return this.#logoUrl }
-  get status(): TenantStatus { return this.#status }
-  get trialEndsAt(): Date | null { return this.#trialEndsAt }
-  get billingEmail(): Email | null { return this.#billingEmail }
-  get stripeCustomerId(): string | null { return this.#stripeCustomerId }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get id(): TenantId {
+    return this.#id
+  }
+  get name(): string {
+    return this.#name
+  }
+  get slug(): TenantSlug {
+    return this.#slug
+  }
+  get logoUrl(): string | null {
+    return this.#logoUrl
+  }
+  get status(): TenantStatus {
+    return this.#status
+  }
+  get trialEndsAt(): Date | null {
+    return this.#trialEndsAt
+  }
+  get billingEmail(): Email | null {
+    return this.#billingEmail
+  }
+  get stripeCustomerId(): string | null {
+    return this.#stripeCustomerId
+  }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
   /** True when members can sign in (active or in trial, not deleted). */
   get isActive(): boolean {
-    return (
-      this.#deletedAt === null &&
-      (this.#status === "active" || this.#status === "trial")
-    )
+    return this.#deletedAt === null && (this.#status === "active" || this.#status === "trial")
   }
 
   get isSuspended(): boolean {
@@ -257,7 +274,7 @@ export class Tenant {
     if (trimmed.length > TENANT_NAME_MAX_LENGTH) {
       throw new InvalidEntityError(
         "Tenant",
-        `name must be ${TENANT_NAME_MAX_LENGTH} characters or fewer`,
+        `name must be ${TENANT_NAME_MAX_LENGTH} characters or fewer`
       )
     }
     if (trimmed === this.#name) return
@@ -266,11 +283,7 @@ export class Tenant {
   }
 
   /** Change or clear the logo URL. */
-  changeLogoUrl(
-    newLogoUrl: string | null,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  changeLogoUrl(newLogoUrl: string | null, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("change logo")
     if (newLogoUrl === this.#logoUrl) return
     this.#logoUrl = newLogoUrl
@@ -278,18 +291,10 @@ export class Tenant {
   }
 
   /** Change or clear the billing email. */
-  changeBillingEmail(
-    newEmail: Email | null,
-    updatedBy: ProfileId,
-    now: Date = new Date(),
-  ): void {
+  changeBillingEmail(newEmail: Email | null, updatedBy: ProfileId, now: Date = new Date()): void {
     this.#assertNotDeleted("change billing email")
     if (newEmail === null && this.#billingEmail === null) return
-    if (
-      newEmail !== null &&
-      this.#billingEmail !== null &&
-      newEmail.equals(this.#billingEmail)
-    ) {
+    if (newEmail !== null && this.#billingEmail !== null && newEmail.equals(this.#billingEmail)) {
       return
     }
     this.#billingEmail = newEmail
@@ -303,7 +308,7 @@ export class Tenant {
   linkStripeCustomer(
     stripeCustomerId: string | null,
     updatedBy: ProfileId,
-    now: Date = new Date(),
+    now: Date = new Date()
   ): void {
     this.#assertNotDeleted("link stripe customer")
     if (stripeCustomerId === this.#stripeCustomerId) return
@@ -332,7 +337,7 @@ export class Tenant {
     if (this.#status !== "suspended") {
       throw new InvalidEntityError(
         "Tenant",
-        `cannot reactivate from status "${this.#status}" — only suspended tenants can be reactivated`,
+        `cannot reactivate from status "${this.#status}" — only suspended tenants can be reactivated`
       )
     }
     this.#status = "active"
@@ -368,10 +373,7 @@ export class Tenant {
    */
   #assertNotDeleted(operation: string): void {
     if (this.#deletedAt !== null) {
-      throw new InvalidEntityError(
-        "Tenant",
-        `cannot ${operation} a deleted tenant`,
-      )
+      throw new InvalidEntityError("Tenant", `cannot ${operation} a deleted tenant`)
     }
   }
 

@@ -30,7 +30,7 @@ export class Currency {
       throw new InvalidValueObjectError(
         "Currency",
         "must be a 3-letter ISO-4217 code (e.g., USD)",
-        code,
+        code
       )
     }
     return new Currency(normalized)

@@ -23,10 +23,7 @@ const PDF_URL_MAX = 500
 
 export type CutHistorySource = "auto" | "manual"
 
-const CUT_HISTORY_SOURCES: readonly CutHistorySource[] = [
-  "auto",
-  "manual",
-] as const
+const CUT_HISTORY_SOURCES: readonly CutHistorySource[] = ["auto", "manual"] as const
 
 /**
  * Opaque shape for `layout_json`. The strongly-typed discriminated union
@@ -245,87 +242,44 @@ export class CutHistory {
 
   // ─── Factories ───────────────────────────────────────────────────────────
 
-  static create(
-    props: CreateCutHistoryProps,
-    now: Date = new Date(),
-  ): CutHistory {
+  static create(props: CreateCutHistoryProps, now: Date = new Date()): CutHistory {
     CutHistory.#assertPositiveInteger(props.cutLengthMm, "cutLengthMm")
     CutHistory.#assertPositiveInteger(props.cutWidthMm, "cutWidthMm")
-    if (
-      props.cutThicknessMm !== null &&
-      props.cutThicknessMm !== undefined
-    ) {
+    if (props.cutThicknessMm !== null && props.cutThicknessMm !== undefined) {
       CutHistory.#assertPositiveFinite(props.cutThicknessMm, "cutThicknessMm")
     }
-    if (
-      props.partCustomWidthMm !== null &&
-      props.partCustomWidthMm !== undefined
-    ) {
-      CutHistory.#assertPositiveInteger(
-        props.partCustomWidthMm,
-        "partCustomWidthMm",
-      )
+    if (props.partCustomWidthMm !== null && props.partCustomWidthMm !== undefined) {
+      CutHistory.#assertPositiveInteger(props.partCustomWidthMm, "partCustomWidthMm")
     }
-    if (
-      props.partCustomHeightMm !== null &&
-      props.partCustomHeightMm !== undefined
-    ) {
-      CutHistory.#assertPositiveInteger(
-        props.partCustomHeightMm,
-        "partCustomHeightMm",
-      )
+    if (props.partCustomHeightMm !== null && props.partCustomHeightMm !== undefined) {
+      CutHistory.#assertPositiveInteger(props.partCustomHeightMm, "partCustomHeightMm")
     }
 
-    const cutAmount = CutHistory.#normalizePositiveInteger(
-      props.cutAmount ?? 1,
-      "cutAmount",
-    )
+    const cutAmount = CutHistory.#normalizePositiveInteger(props.cutAmount ?? 1, "cutAmount")
     const partsCompleted = CutHistory.#normalizeNonNegativeInteger(
       props.partsCompleted ?? 0,
-      "partsCompleted",
+      "partsCompleted"
     )
     if (partsCompleted > cutAmount) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        "partsCompleted cannot exceed cutAmount",
-      )
+      throw new InvalidEntityError("CutHistory", "partsCompleted cannot exceed cutAmount")
     }
-    const cutPieces = CutHistory.#normalizeNonNegativeInteger(
-      props.cutPieces ?? 0,
-      "cutPieces",
-    )
+    const cutPieces = CutHistory.#normalizeNonNegativeInteger(props.cutPieces ?? 0, "cutPieces")
     const materialUsedSqmm = CutHistory.#normalizeNonNegativeInteger(
       props.materialUsedSqmm ?? 0,
-      "materialUsedSqmm",
+      "materialUsedSqmm"
     )
-    const scrapSqmm = CutHistory.#normalizeNonNegativeInteger(
-      props.scrapSqmm ?? 0,
-      "scrapSqmm",
-    )
+    const scrapSqmm = CutHistory.#normalizeNonNegativeInteger(props.scrapSqmm ?? 0, "scrapSqmm")
     const fabScore = CutHistory.#normalizeFabScore(props.fabScore ?? null)
     if (props.cost) {
       CutHistory.#assertCostNonNegative(props.cost)
     }
 
-    const stockLabel = trimOptional(
-      props.stockLabel,
-      "stockLabel",
-      STOCK_LABEL_MAX,
-      "CutHistory",
-    )
-    const pdfUrl = trimOptional(
-      props.pdfUrl,
-      "pdfUrl",
-      PDF_URL_MAX,
-      "CutHistory",
-    )
+    const stockLabel = trimOptional(props.stockLabel, "stockLabel", STOCK_LABEL_MAX, "CutHistory")
+    const pdfUrl = trimOptional(props.pdfUrl, "pdfUrl", PDF_URL_MAX, "CutHistory")
 
     const source = props.source ?? "auto"
     if (!CUT_HISTORY_SOURCES.includes(source)) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        `unsupported source: ${source}`,
-      )
+      throw new InvalidEntityError("CutHistory", `unsupported source: ${source}`)
     }
 
     const selections = CutHistory.#buildSelections(props.selections ?? [])
@@ -405,41 +359,97 @@ export class CutHistory {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
 
-  get id(): CutHistoryId { return this.#id }
-  get tenantId(): TenantId { return this.#tenantId }
-  get userId(): ProfileId | null { return this.#userId }
-  get materialTypeId(): MaterialTypeId { return this.#materialTypeId }
-  get partId(): string | null { return this.#partId }
-  get rollId(): RollId | null { return this.#rollId }
-  get cutLengthMm(): number { return this.#cutLengthMm }
-  get cutWidthMm(): number { return this.#cutWidthMm }
-  get cutThicknessMm(): number | null { return this.#cutThicknessMm }
-  get partCustomWidthMm(): number | null { return this.#partCustomWidthMm }
-  get partCustomHeightMm(): number | null { return this.#partCustomHeightMm }
+  get id(): CutHistoryId {
+    return this.#id
+  }
+  get tenantId(): TenantId {
+    return this.#tenantId
+  }
+  get userId(): ProfileId | null {
+    return this.#userId
+  }
+  get materialTypeId(): MaterialTypeId {
+    return this.#materialTypeId
+  }
+  get partId(): string | null {
+    return this.#partId
+  }
+  get rollId(): RollId | null {
+    return this.#rollId
+  }
+  get cutLengthMm(): number {
+    return this.#cutLengthMm
+  }
+  get cutWidthMm(): number {
+    return this.#cutWidthMm
+  }
+  get cutThicknessMm(): number | null {
+    return this.#cutThicknessMm
+  }
+  get partCustomWidthMm(): number | null {
+    return this.#partCustomWidthMm
+  }
+  get partCustomHeightMm(): number | null {
+    return this.#partCustomHeightMm
+  }
   get partCustomDimensions(): PartCustomDimensions[] | null {
     return this.#partCustomDimensions
   }
-  get cutAmount(): number { return this.#cutAmount }
-  get partsCompleted(): number { return this.#partsCompleted }
-  get cutPieces(): number { return this.#cutPieces }
-  get materialUsedSqmm(): number { return this.#materialUsedSqmm }
-  get scrapSqmm(): number { return this.#scrapSqmm }
-  get fabScore(): number | null { return this.#fabScore }
-  get cost(): Money | null { return this.#cost }
-  get stockLabel(): string | null { return this.#stockLabel }
-  get pdfUrl(): string | null { return this.#pdfUrl }
-  get source(): CutHistorySource { return this.#source }
-  get layoutJson(): CutHistoryLayoutBlob | null { return this.#layoutJson }
-  get cutDate(): Date { return this.#cutDate }
+  get cutAmount(): number {
+    return this.#cutAmount
+  }
+  get partsCompleted(): number {
+    return this.#partsCompleted
+  }
+  get cutPieces(): number {
+    return this.#cutPieces
+  }
+  get materialUsedSqmm(): number {
+    return this.#materialUsedSqmm
+  }
+  get scrapSqmm(): number {
+    return this.#scrapSqmm
+  }
+  get fabScore(): number | null {
+    return this.#fabScore
+  }
+  get cost(): Money | null {
+    return this.#cost
+  }
+  get stockLabel(): string | null {
+    return this.#stockLabel
+  }
+  get pdfUrl(): string | null {
+    return this.#pdfUrl
+  }
+  get source(): CutHistorySource {
+    return this.#source
+  }
+  get layoutJson(): CutHistoryLayoutBlob | null {
+    return this.#layoutJson
+  }
+  get cutDate(): Date {
+    return this.#cutDate
+  }
   /** Defensive copy — selections are owned by this entity. */
   get selections(): ReadonlyArray<CutHistorySelection> {
     return [...this.#selections]
   }
-  get createdAt(): Date { return this.#createdAt }
-  get createdBy(): ProfileId | null { return this.#createdBy }
-  get updatedAt(): Date { return this.#updatedAt }
-  get updatedBy(): ProfileId | null { return this.#updatedBy }
-  get deletedAt(): Date | null { return this.#deletedAt }
+  get createdAt(): Date {
+    return this.#createdAt
+  }
+  get createdBy(): ProfileId | null {
+    return this.#createdBy
+  }
+  get updatedAt(): Date {
+    return this.#updatedAt
+  }
+  get updatedBy(): ProfileId | null {
+    return this.#updatedBy
+  }
+  get deletedAt(): Date | null {
+    return this.#deletedAt
+  }
 
   // ─── State queries ───────────────────────────────────────────────────────
 
@@ -472,38 +482,26 @@ export class CutHistory {
 
   static #assertPositiveInteger(value: number, field: string): void {
     if (!Number.isInteger(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        `${field} must be a positive integer`,
-      )
+      throw new InvalidEntityError("CutHistory", `${field} must be a positive integer`)
     }
   }
 
   static #assertPositiveFinite(value: number, field: string): void {
     if (!Number.isFinite(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        `${field} must be greater than zero`,
-      )
+      throw new InvalidEntityError("CutHistory", `${field} must be greater than zero`)
     }
   }
 
   static #normalizePositiveInteger(value: number, field: string): number {
     if (!Number.isInteger(value) || value <= 0) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        `${field} must be a positive integer`,
-      )
+      throw new InvalidEntityError("CutHistory", `${field} must be a positive integer`)
     }
     return value
   }
 
   static #normalizeNonNegativeInteger(value: number, field: string): number {
     if (!Number.isInteger(value)) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        `${field} must be an integer`,
-      )
+      throw new InvalidEntityError("CutHistory", `${field} must be an integer`)
     }
     if (value < 0) {
       throw new InvalidEntityError("CutHistory", `${field} must be >= 0`)
@@ -514,16 +512,10 @@ export class CutHistory {
   static #normalizeFabScore(value: number | null): number | null {
     if (value === null) return null
     if (!Number.isFinite(value)) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        "fabScore must be a finite number",
-      )
+      throw new InvalidEntityError("CutHistory", "fabScore must be a finite number")
     }
     if (value < 0 || value > 1) {
-      throw new InvalidEntityError(
-        "CutHistory",
-        "fabScore must be between 0 and 1",
-      )
+      throw new InvalidEntityError("CutHistory", "fabScore must be between 0 and 1")
     }
     return value
   }
@@ -538,16 +530,14 @@ export class CutHistory {
    * Build the selections collection: validate each one, ensure indices
    * are unique, and store sorted by index for stable iteration order.
    */
-  static #buildSelections(
-    rawSelections: CreateCutHistorySelectionProps[],
-  ): CutHistorySelection[] {
+  static #buildSelections(rawSelections: CreateCutHistorySelectionProps[]): CutHistorySelection[] {
     const seenIndices = new Set<number>()
     const selections = rawSelections.map((raw) => {
       const sel = CutHistorySelection.create(raw)
       if (seenIndices.has(sel.selectionIndex)) {
         throw new InvalidEntityError(
           "CutHistory",
-          `duplicate selectionIndex ${sel.selectionIndex} in selections`,
+          `duplicate selectionIndex ${sel.selectionIndex} in selections`
         )
       }
       seenIndices.add(sel.selectionIndex)
