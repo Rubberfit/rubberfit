@@ -106,7 +106,15 @@ describe("New PO route (Phase 3 PR 3d)", () => {
     toast.success.mockClear()
     useRouter.mockReturnValue({ push: vi.fn(), replace: vi.fn() })
     useSearchParams.mockReturnValue({ get: () => null })
-    supplierGetActive.mockResolvedValue([SAMPLE_SUPPLIER])
+    supplierGetActive.mockResolvedValue([
+      // Fake entity: the page calls `.toJSON()` on each supplier
+      // because supplierService.getActiveSuppliers() returns
+      // `Supplier[]` entities (DDD). The toJSON method here returns
+      // the row snapshot so the loader chain reaches setMaterialTypes,
+      // which the prefill effect's `materialTypes.length === 0` gate
+      // depends on.
+      { ...SAMPLE_SUPPLIER, toJSON: () => SAMPLE_SUPPLIER },
+    ])
     materialTypeGetAll.mockResolvedValue([SAMPLE_MATERIAL])
     fetchCreateFormTax.mockResolvedValue(null)
     createPurchaseOrder.mockReset()
@@ -143,7 +151,7 @@ describe("New PO route (Phase 3 PR 3d)", () => {
     await waitFor(() => {
       expect(toast.message).toHaveBeenCalledWith(
         "PO prefilled from job shortfall.",
-        expect.objectContaining({ description: expect.stringContaining("EPDM") }),
+        expect.objectContaining({ description: expect.stringContaining("EPDM") })
       )
     })
   })
