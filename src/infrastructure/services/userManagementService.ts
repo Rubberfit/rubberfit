@@ -47,6 +47,7 @@ function rowToUserProfile(row: MembershipJoinRow): UserProfile | null {
     id: profile.id,
     email: profile.email,
     full_name: profile.full_name,
+    avatar_url: null,
     is_platform_admin: profile.is_platform_admin === true,
     last_active_tenant_id: profile.last_active_tenant_id,
     last_sign_in_at: null,

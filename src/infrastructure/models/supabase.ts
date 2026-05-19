@@ -351,6 +351,16 @@ export interface UserProfile {
   id: string
   email: string | null
   full_name: string | null
+  /**
+   * Not on the current `profiles` schema (no migration adds the
+   * column). Modeled here as nullable because joined consumers
+   * (team UI initials fallback, billing-model OrganizationMember
+   * profile Pick) read `profile.avatar_url`. Runtime injection at
+   * `organizationService.fetchProfilesById` defaults it to `null`;
+   * revive via a `profiles.avatar_url text` migration when the
+   * upload pipeline lands.
+   */
+  avatar_url: string | null
   is_platform_admin: boolean
   last_active_tenant_id: string | null
   /**

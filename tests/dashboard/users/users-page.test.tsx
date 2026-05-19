@@ -17,6 +17,7 @@ const baseUser: UserProfile = {
   id: "user-1",
   email: "alice@example.com",
   full_name: "Alice Admin",
+  avatar_url: null,
   is_platform_admin: false,
   last_active_tenant_id: null,
   last_sign_in_at: "2025-01-10T12:00:00Z",
