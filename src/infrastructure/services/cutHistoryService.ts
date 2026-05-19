@@ -15,10 +15,11 @@ const ANALYTICS_MAX_ROWS = 10000
 /**
  * Thin orchestrator over `ICutHistoryRepository` for entity-typed
  * reads/writes, plus a transitional raw-row surface
- * (`listPaginatedRaw`, `getByIdRaw`, `deleteRaw`, `getAnalyticsRaw`)
- * consumed by the cut-history API routes via application-layer
- * use-cases. The raw methods retire when the `cut_history` schema
- * consolidates to the entity-typed mm/sqmm shape.
+ * (`listPaginatedRaw`, `getByIdRaw`, `getByIdsRaw`, `deleteRaw`,
+ * `getAnalyticsRaw`) consumed by the cut-history API routes and the
+ * CSV export action via application-layer use-cases. The raw methods
+ * retire when the `cut_history` schema consolidates to the
+ * entity-typed mm/sqmm shape.
  *
  * Domain errors (`InvalidEntityError`, `InvalidValueObjectError`)
  * propagate unwrapped — the action layer's catch wrappers handle
@@ -103,6 +104,21 @@ export class CutHistoryService implements ICutHistoryService {
       throw error
     }
     return (data ?? null) as CutHistoryRow | null
+  }
+
+  async getByIdsRaw(client: SupabaseClient, cutIds: readonly string[]): Promise<CutHistoryRow[]> {
+    if (cutIds.length === 0) return []
+    const { data, error } = await client
+      .from("cut_history")
+      .select("*")
+      .in("id", cutIds)
+      .order("cut_date", { ascending: false })
+
+    if (error) {
+      console.error("cut_history getByIdsRaw error:", error)
+      throw error
+    }
+    return (data ?? []) as CutHistoryRow[]
   }
 
   async deleteRaw(client: SupabaseClient, cutId: string): Promise<void> {

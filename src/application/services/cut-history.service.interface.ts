@@ -55,6 +55,16 @@ export interface ICutHistoryService {
   getByIdRaw(client: SupabaseClient, cutId: string): Promise<CutHistoryRow | null>
 
   /**
+   * Raw-row read for a list of ids, ordered by `cut_date DESC`.
+   * Powers the CSV export action — callers pass the ids the user
+   * has currently displayed (already filtered client-side by
+   * search / favorites / date range). RLS scopes row visibility;
+   * absent ids are silently skipped. Returns `[]` for an empty
+   * input array without a round-trip.
+   */
+  getByIdsRaw(client: SupabaseClient, cutIds: readonly string[]): Promise<CutHistoryRow[]>
+
+  /**
    * Hard-delete the row. The calling use-case is responsible for
    * the authorization check + existence pre-flight.
    */

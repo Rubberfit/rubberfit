@@ -21,7 +21,7 @@ import {
   formatUserDateTime,
   type UserDatePreferencesInput,
 } from "@/src/application/preferences/user-date-format"
-import { getCutHistoryRowsForExport } from "@/src/infrastructure/services/cutHistoryService"
+import { cutHistoryService } from "@/src/infrastructure/services/cutHistoryService"
 import {
   getCutPdfPublicUrl,
   safeRemoveOrphanedCutPdf,
@@ -289,7 +289,7 @@ export async function exportCutHistoryCsv(
   }
 
   const db = await getDatabaseClient()
-  const data = await getCutHistoryRowsForExport(db, parsed.cutIds)
+  const data = await cutHistoryService.getByIdsRaw(db, parsed.cutIds)
 
   const rows = data.map((cut) => {
     const cells = [
