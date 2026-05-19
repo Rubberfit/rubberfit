@@ -20,7 +20,7 @@ interface CurrentSubscriptionRow {
   is_current: boolean | null
 }
 
-interface OrganizationGateRow {
+interface TenantGateRow {
   id: string
   current_subscription: CurrentSubscriptionRow | CurrentSubscriptionRow[] | null
 }
@@ -40,7 +40,7 @@ function isBillingStatus(value: unknown): value is BillingStatus {
   return typeof value === "string" && BILLING_STATUSES.includes(value as BillingStatus)
 }
 
-function currentSubscription(row: OrganizationGateRow): CurrentSubscriptionRow | null {
+function currentSubscription(row: TenantGateRow): CurrentSubscriptionRow | null {
   const joined = row.current_subscription
   if (!joined) return null
   if (!Array.isArray(joined)) {
@@ -49,20 +49,13 @@ function currentSubscription(row: OrganizationGateRow): CurrentSubscriptionRow |
   return joined.find((subscription) => subscription.is_current !== false) ?? null
 }
 
-export async function getSubscriptionGateForUser(
-  client: SupabaseClient,
-  userId: string
-): Promise<SubscriptionGateResult> {
-  const { data, error } = await client
-    .from("organizations")
-    .select(
-      `
+const GATE_SELECT = `
         id,
-        member:organization_members!inner(
-          user_id,
-          status
+        membership:memberships!inner(
+          profile_id,
+          deleted_at
         ),
-        current_subscription:organization_subscriptions(
+        current_subscription:subscriptions(
           id,
           stripe_subscription_id,
           status,
@@ -73,22 +66,15 @@ export async function getSubscriptionGateForUser(
           is_current
         )
       `
-    )
-    .eq("member.user_id", userId)
-    .eq("member.status", "active")
-    .eq("current_subscription.is_current", true)
-    .limit(1)
-    .maybeSingle()
 
-  if (error) throw error
-  if (!data) return { kind: "needs_workspace" }
+function resolveGate(row: TenantGateRow | null): SubscriptionGateResult {
+  if (!row) return { kind: "needs_workspace" }
 
-  const organization = data as OrganizationGateRow
-  const subscription = currentSubscription(organization)
+  const subscription = currentSubscription(row)
   if (!subscription) {
     return {
       kind: "blocked",
-      organizationId: organization.id,
+      organizationId: row.id,
       status: "missing",
       recovery: "complete_checkout",
     }
@@ -105,7 +91,7 @@ export async function getSubscriptionGateForUser(
   if (status === "trialing" || status === "active") {
     return {
       kind: "allowed",
-      organizationId: organization.id,
+      organizationId: row.id,
       subscriptionId: subscription.stripe_subscription_id ?? subscription.id,
       status,
       planTier: subscription.plan_tier,
@@ -117,16 +103,55 @@ export async function getSubscriptionGateForUser(
 
   return {
     kind: "blocked",
-    organizationId: organization.id,
+    organizationId: row.id,
     status,
     recovery: deriveRecoveryIntent(status),
   }
+}
+
+export async function getSubscriptionGateForUser(
+  client: SupabaseClient,
+  userId: string
+): Promise<SubscriptionGateResult> {
+  const { data, error } = await client
+    .from("tenants")
+    .select(GATE_SELECT)
+    .eq("membership.profile_id", userId)
+    .is("membership.deleted_at", null)
+    .eq("current_subscription.is_current", true)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return resolveGate(data as TenantGateRow | null)
+}
+
+async function getSubscriptionGateForTenant(
+  client: SupabaseClient,
+  tenantId: string,
+  profileId: string
+): Promise<SubscriptionGateResult> {
+  const { data, error } = await client
+    .from("tenants")
+    .select(GATE_SELECT)
+    .eq("id", tenantId)
+    .eq("membership.profile_id", profileId)
+    .is("membership.deleted_at", null)
+    .eq("current_subscription.is_current", true)
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return resolveGate(data as TenantGateRow | null)
 }
 
 export async function getSubscriptionGateForActor(
   actor: ActionActor
 ): Promise<SubscriptionGateResult> {
   const client = await getDatabaseClient()
+  if (actor.activeTenantId !== null) {
+    return getSubscriptionGateForTenant(client, actor.activeTenantId, actor.id)
+  }
   return getSubscriptionGateForUser(client, actor.id)
 }
 
@@ -144,20 +169,20 @@ export interface SubscriptionHistoryRow {
 }
 
 /**
- * Per-payment audit feed: every `organization_subscriptions` row for
- * the org, newest first. Includes superseded (`is_current=false`)
- * rows so the billing-history page surfaces the full lifecycle.
+ * Per-payment audit feed: every `subscriptions` row for the tenant,
+ * newest first. Includes superseded (`is_current=false`) rows so the
+ * billing-history page surfaces the full lifecycle.
  */
 export async function listSubscriptionHistoryForOrg(
   client: SupabaseClient,
   organizationId: string
 ): Promise<SubscriptionHistoryRow[]> {
   const { data, error } = await client
-    .from("organization_subscriptions")
+    .from("subscriptions")
     .select(
       "id, created_at, plan_tier, billing_interval, seat_count, current_period_start, current_period_end, status, last_payment_status, stripe_subscription_id"
     )
-    .eq("organization_id", organizationId)
+    .eq("tenant_id", organizationId)
     .order("created_at", { ascending: false })
 
   if (error) {

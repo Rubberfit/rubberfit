@@ -114,15 +114,6 @@ class FakeOrganizationService implements IOrganizationService {
   async updateSubscriptionPlanTierAndSeats(): Promise<OrganizationSubscription> {
     throw new Error("not used")
   }
-  async createInvitation(): Promise<OrganizationInvitation> {
-    throw new Error("not used")
-  }
-  async getInvitationByToken(): Promise<OrganizationInvitation | null> {
-    return null
-  }
-  async updateInvitation(): Promise<OrganizationInvitation> {
-    throw new Error("not used")
-  }
   async listPendingInvitations(): Promise<OrganizationInvitation[]> {
     return []
   }
@@ -138,14 +129,8 @@ class FakeOrganizationService implements IOrganizationService {
   async getMemberRole(): Promise<OrganizationRole | null> {
     return null
   }
-  async getInvitationById() {
-    return null
-  }
-  async getInvitationPreviewByToken() {
-    return null
-  }
-  async acceptInvitationAtomically() {
-    return { result_code: "not_found" as const }
+  async countActiveMembers(): Promise<number> {
+    return 0
   }
 }
 

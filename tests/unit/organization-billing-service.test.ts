@@ -4,13 +4,14 @@ import { describe, expect, it, vi } from "vitest"
 import type { BillingStatus } from "@/src/application/billing/subscription-gate"
 import { getSubscriptionGateForUser } from "@/src/infrastructure/services/organizationBillingService"
 
-const ORG_ID = "00000000-0000-4000-8000-000000000001"
+const TENANT_ID = "00000000-0000-4000-8000-000000000001"
 const USER_ID = "00000000-0000-4000-8000-000000000002"
 const SUB_ROW_ID = "00000000-0000-4000-8000-000000000003"
 
 interface FakeQuery {
   select: ReturnType<typeof vi.fn>
   eq: ReturnType<typeof vi.fn>
+  is: ReturnType<typeof vi.fn>
   limit: ReturnType<typeof vi.fn>
   maybeSingle: ReturnType<typeof vi.fn>
 }
@@ -19,11 +20,13 @@ function makeFakeClient(result: { data: unknown; error: unknown }) {
   const query: FakeQuery = {
     select: vi.fn(),
     eq: vi.fn(),
+    is: vi.fn(),
     limit: vi.fn(),
     maybeSingle: vi.fn(() => Promise.resolve(result)),
   }
   query.select.mockImplementation(() => query)
   query.eq.mockImplementation(() => query)
+  query.is.mockImplementation(() => query)
   query.limit.mockImplementation(() => query)
   const client = {
     from: vi.fn(() => query),
@@ -45,35 +48,31 @@ function subscription(status: BillingStatus, overrides: Record<string, unknown> 
   }
 }
 
-function organizationRow(currentSubscription: unknown) {
+function tenantRow(currentSubscription: unknown) {
   return {
-    id: ORG_ID,
+    id: TENANT_ID,
     current_subscription: currentSubscription,
   }
 }
 
 describe("organizationBillingService.getSubscriptionGateForUser", () => {
-  it("queries organizations with an inner join through organization_members, filtered on active membership and the current subscription row", async () => {
+  it("queries tenants with an inner join through memberships, filtered on active membership and the current subscription row", async () => {
     const { client, query } = makeFakeClient({ data: null, error: null })
 
     await getSubscriptionGateForUser(client, USER_ID)
 
     const fromMock = client.from as unknown as ReturnType<typeof vi.fn>
-    expect(fromMock).toHaveBeenCalledWith("organizations")
-    // Inner join through organization_members + left join to current
-    // subscription. The production projection must keep BOTH joined
-    // resources, otherwise a missing alias would silently bypass the gate.
+    expect(fromMock).toHaveBeenCalledWith("tenants")
     expect(query.select).toHaveBeenCalledWith(
-      expect.stringContaining("member:organization_members!inner")
+      expect.stringContaining("membership:memberships!inner")
     )
     expect(query.select).toHaveBeenCalledWith(
-      expect.stringContaining("current_subscription:organization_subscriptions")
+      expect.stringContaining("current_subscription:subscriptions")
     )
-    // These filters are what makes "deactivated membership" indistinguishable
-    // from "no membership" at the query layer, and what scopes the embedded
-    // subscription to the one current row.
-    expect(query.eq).toHaveBeenCalledWith("member.user_id", USER_ID)
-    expect(query.eq).toHaveBeenCalledWith("member.status", "active")
+    // Active membership = deleted_at IS NULL (status column exists but is a
+    // legacy carry-over; production deactivation writes only deleted_at).
+    expect(query.eq).toHaveBeenCalledWith("membership.profile_id", USER_ID)
+    expect(query.is).toHaveBeenCalledWith("membership.deleted_at", null)
     expect(query.eq).toHaveBeenCalledWith("current_subscription.is_current", true)
     expect(query.limit).toHaveBeenCalledWith(1)
   })
@@ -88,7 +87,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
   it("returns complete-checkout blocked state when membership exists without a current subscription", async () => {
     const { client } = makeFakeClient({
-      data: organizationRow([]),
+      data: tenantRow([]),
       error: null,
     })
 
@@ -96,7 +95,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
     expect(result).toEqual({
       kind: "blocked",
-      organizationId: ORG_ID,
+      organizationId: TENANT_ID,
       status: "missing",
       recovery: "complete_checkout",
     })
@@ -111,7 +110,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
     ["paused", "restart_subscription"],
   ] as const)("blocks %s with %s recovery", async (status, recovery) => {
     const { client } = makeFakeClient({
-      data: organizationRow([subscription(status)]),
+      data: tenantRow([subscription(status)]),
       error: null,
     })
 
@@ -119,7 +118,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
     expect(result).toEqual({
       kind: "blocked",
-      organizationId: ORG_ID,
+      organizationId: TENANT_ID,
       status,
       recovery,
     })
@@ -127,7 +126,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
   it.each(["trialing", "active"] as const)("allows %s subscriptions", async (status) => {
     const { client } = makeFakeClient({
-      data: organizationRow([subscription(status)]),
+      data: tenantRow([subscription(status)]),
       error: null,
     })
 
@@ -135,7 +134,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
     expect(result).toEqual({
       kind: "allowed",
-      organizationId: ORG_ID,
+      organizationId: TENANT_ID,
       subscriptionId: "sub_test_123",
       status,
       planTier: "standard",
@@ -147,7 +146,7 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
 
   it("propagates cancellation fields for allowed subscriptions", async () => {
     const { client } = makeFakeClient({
-      data: organizationRow(
+      data: tenantRow(
         subscription("active", {
           cancel_at_period_end: true,
           cancel_at: "2026-06-01T00:00:00.000Z",
@@ -167,18 +166,18 @@ describe("organizationBillingService.getSubscriptionGateForUser", () => {
     })
   })
 
-  it("uses one organizations query scoped to the active member and current subscription", async () => {
+  it("uses one tenants query scoped to the active member and current subscription", async () => {
     const { client, query } = makeFakeClient({
-      data: organizationRow([subscription("active")]),
+      data: tenantRow([subscription("active")]),
       error: null,
     })
 
     await getSubscriptionGateForUser(client, USER_ID)
 
     expect(client.from).toHaveBeenCalledOnce()
-    expect(client.from).toHaveBeenCalledWith("organizations")
-    expect(query.eq).toHaveBeenCalledWith("member.user_id", USER_ID)
-    expect(query.eq).toHaveBeenCalledWith("member.status", "active")
+    expect(client.from).toHaveBeenCalledWith("tenants")
+    expect(query.eq).toHaveBeenCalledWith("membership.profile_id", USER_ID)
+    expect(query.is).toHaveBeenCalledWith("membership.deleted_at", null)
     expect(query.eq).toHaveBeenCalledWith("current_subscription.is_current", true)
   })
 

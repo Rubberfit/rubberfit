@@ -1,11 +1,8 @@
 import type {
-  AcceptInvitationResult,
   CreateOrganization,
-  CreateOrganizationInvitation,
   CreateOrganizationMember,
   Organization,
   OrganizationInvitation,
-  OrganizationInvitationPreview,
   OrganizationMember,
   OrganizationMemberWithProfile,
   OrganizationRole,
@@ -13,22 +10,21 @@ import type {
   OrganizationSubscription,
   OrganizationWithSubscription,
   UpdateOrganization,
-  UpdateOrganizationInvitation,
   UpdateOrganizationMember,
   UpsertOrganizationSubscription,
 } from "@/src/infrastructure/models/billing"
 
 /**
- * IOrganizationService — billing-tenant CRUD + lookups.
+ * IOrganizationService — tenant CRUD + lookups.
  *
- * Scope for PR 1: surface every read path the gate/onboarding/invite
- * code will need across PRs 4–6, plus a write API that the upcoming
- * Stripe webhook handler can call. Each method is intentionally
- * focused — orchestration (create-org + first-member + Checkout-session)
- * lives in a use-case, not here.
+ * The DDD migration moved the DB to tenants/memberships/subscriptions; this
+ * interface retains the Organization* TS surface for caller stability. The
+ * invitation lifecycle (create/get/accept/update) moved to the use-cases
+ * under `src/application/use-cases/invitations/`; only `listPendingInvitations`
+ * remains here because the team-settings page calls it directly.
  */
 export interface IOrganizationService {
-  // ─── Organization CRUD ──────────────────────────────────────
+  // ─── Organization (tenant) CRUD ────────────────────────────────
   createOrganization(input: CreateOrganization): Promise<Organization>
   getOrganizationById(id: string): Promise<Organization | null>
   getOrganizationByStripeCustomerId(stripeCustomerId: string): Promise<Organization | null>
@@ -36,12 +32,12 @@ export interface IOrganizationService {
 
   // ─── Membership ──────────────────────────────────────────────
   /**
-   * The current org for a given auth user (v1 = one org per user).
-   * Returns null if the user belongs to no org yet.
+   * The current org for a given auth user. Returns null if the user has
+   * no active membership yet.
    */
   getCurrentOrganizationForUser(userId: string): Promise<Organization | null>
 
-  /** Org + its is_current=TRUE subscription row. The primary gate-read shape. */
+  /** Org + its is_current=TRUE subscription row. */
   getCurrentOrganizationWithSubscription(
     userId: string
   ): Promise<OrganizationWithSubscription | null>
@@ -54,26 +50,18 @@ export interface IOrganizationService {
   // ─── Subscriptions ──────────────────────────────────────────
   /**
    * Returns the row where is_current = TRUE, or null if the org has
-   * never had a subscription. Webhook handlers should NOT call this
-   * before writing — they upsert directly by stripe_subscription_id.
+   * never had a subscription.
    */
   getCurrentSubscription(organizationId: string): Promise<OrganizationSubscription | null>
 
   /**
    * Webhook-side upsert. Idempotent on stripe_subscription_id when
-   * provided; otherwise creates a new row. Flipping is_current is
-   * handled inside the implementation so external callers can't
-   * accidentally leave two current rows.
+   * provided. Resolves plan_id from plan_tier internally.
    */
   upsertSubscription(input: UpsertOrganizationSubscription): Promise<OrganizationSubscription>
 
   /**
-   * In-place patch for the pre-checkout tier/seat-count change. Updates
-   * the existing subscription row by id so callers don't trip the
-   * upsertSubscription demote-and-insert path (which would drop fields
-   * like stripe_customer_id and trial_end when no
-   * stripe_subscription_id is in hand). Caller must already hold the
-   * subscription row from getCurrentSubscription.
+   * In-place patch for the pre-checkout tier/seat-count change.
    */
   updateSubscriptionPlanTierAndSeats(input: {
     subscriptionId: string
@@ -82,44 +70,26 @@ export interface IOrganizationService {
   }): Promise<OrganizationSubscription>
 
   // ─── Invitations ────────────────────────────────────────────
-  createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation>
-  getInvitationByToken(token: string): Promise<OrganizationInvitation | null>
-  getInvitationById(invitationId: string): Promise<OrganizationInvitation | null>
   /**
-   * Public preview backed by the `get_invitation_preview_by_token` SECURITY
-   * DEFINER RPC. Anonymous + authenticated callers may resolve this so the
-   * `/invite/[token]` landing page can render before sign-in.
+   * Pending invitations for the org. Status is derived from accepted_at /
+   * revoked_at / expires_at on the DDD `invitations` table.
    */
-  getInvitationPreviewByToken(token: string): Promise<OrganizationInvitationPreview | null>
-  updateInvitation(
-    invitationId: string,
-    updates: UpdateOrganizationInvitation
-  ): Promise<OrganizationInvitation>
   listPendingInvitations(organizationId: string): Promise<OrganizationInvitation[]>
-  /**
-   * Wraps the `accept_organization_invitation` SECURITY DEFINER RPC. The
-   * function locks the invite row, validates state + email match + active
-   * org subscription, inserts the member, and marks the invite accepted —
-   * all inside a single transaction. Sequential calls to addMember +
-   * updateInvitation cannot give us the same atomicity under invitee RLS.
-   */
-  acceptInvitationAtomically(input: {
-    token: string
-    actorId: string
-    actorEmail: string
-    acceptedAt: string
-  }): Promise<AcceptInvitationResult>
 
   // ─── Seat accounting ────────────────────────────────────────
-  /**
-   * Active members + pending invites both count toward `used`. Helper
-   * for PR 6 invite gating and the Billing/Team UI counters.
-   */
   getSeatUsage(organizationId: string): Promise<OrganizationSeatUsage>
 
   /**
-   * Tenant role for a user inside an org, or null if not a member.
-   * Used by PR 5's `requireOrgRole(actor, "admin")` style helpers.
+   * Tenant role for a user, or null if not a member. Under the DDD schema
+   * memberships.roles is a text[]; the highest role is collapsed to the
+   * legacy OrganizationRole enum ('admin' or 'member'). 'owner' is never
+   * returned — it was removed from the role CHECK constraint.
    */
   getMemberRole(organizationId: string, userId: string): Promise<OrganizationRole | null>
+
+  /**
+   * Active-member count for the tenant (memberships with deleted_at IS NULL).
+   * Used by the billing-summary page.
+   */
+  countActiveMembers(organizationId: string): Promise<number>
 }
