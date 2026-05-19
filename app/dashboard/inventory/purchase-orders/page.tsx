@@ -87,6 +87,13 @@ export default function PurchaseOrdersPage() {
     await po.fetchData()
   }
 
+  const handleDownloadPDFWithPrefs = useCallback(
+    (poItem: PurchaseOrderWithDetails) => {
+      handleDownloadPDF(poItem, organizationPreferences)
+    },
+    [organizationPreferences]
+  )
+
   const handleCancelPO = (poItem: PurchaseOrderWithDetails) => {
     po.setConfirmAction({
       open: true,

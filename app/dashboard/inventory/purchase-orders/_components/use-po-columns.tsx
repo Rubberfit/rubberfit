@@ -207,6 +207,7 @@ function PoActionsCellInner({
   onUpdateStatus,
   onReceive,
   onCancel,
+  organizationPreferences,
 }: PoActionsCellProps) {
   // `void onUpdateStatus(...)` discards the resolved value but
   // does NOT suppress an unexpected rejection — Promise rejects
