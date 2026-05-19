@@ -11,9 +11,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   type AnalyticsReportInput,
+  type CutWithRoll,
   buildAnalyticsReportPdf,
 } from "@/app/dashboard/analytics/reports/_components/analytics-report-pdf"
-import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 
 function makeCut(overrides: Partial<CutWithRoll> = {}): CutWithRoll {
   return {
