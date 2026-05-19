@@ -37,6 +37,17 @@ export const PUBLIC_PATHS = [
   // signed-out visitors to /register?invite=<token>; the SECURITY
   // DEFINER RPC behind the read is gated by token possession.
   "/invite",
+
+  // Crawler metadata routes. Search engines and SEO bots fetch these
+  // without a session. Exact-only (sub-paths must NOT match).
+  "/robots.txt",
+  "/sitemap.xml",
+
+  // Stripe webhook receiver. Stripe has no Supabase session — the
+  // webhook handler authenticates via the Stripe signature header.
+  // Referenced by proxy.ts:271-273 as the assumed-public path.
+  // Exact-only (sub-paths must NOT match).
+  "/api/stripe/webhook",
 ] as const
 
 /**
