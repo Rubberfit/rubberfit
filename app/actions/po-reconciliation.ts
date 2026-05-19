@@ -14,6 +14,7 @@ import type {
   ReconcilePendingRollCreationOutcome,
 } from "@/src/application/use-cases/purchase-orders/reconcile-pending-roll-creation.use-case"
 
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -43,6 +44,7 @@ export async function reconcilePendingApply(
 ): Promise<ReconcilePendingApplyResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "reconcileReceipts")
   const parsed = reconcileInputSchema.parse(input)
 
@@ -59,6 +61,7 @@ export async function reconcilePendingRollCreation(
 ): Promise<ReconcilePendingRollCreationOutcome> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "reconcileReceipts")
   const parsed = reconcileInputSchema.parse(input)
 

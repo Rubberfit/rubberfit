@@ -1,6 +1,7 @@
 "use server"
 
 import { makeAdminClient } from "@/app/api/_lib/supabase-server"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
 import { resolveUseCase } from "@/di/resolve"
@@ -36,6 +37,7 @@ function adminClientOrThrow() {
 export async function fetchCutsInRange(from: Date, to: Date | null): Promise<CutHistory[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   const db = adminClientOrThrow()
   const useCase = resolveUseCase<IGetCutAnalyticsUseCase>(TOKENS.IGetCutAnalyticsUseCase)
   return useCase.execute({
@@ -51,6 +53,7 @@ export async function fetchCutsInRange(from: Date, to: Date | null): Promise<Cut
 export async function fetchRecentCuts(limit: number): Promise<CutHistory[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   const db = adminClientOrThrow()
   const useCase = resolveUseCase<IListCutHistoryUseCase>(TOKENS.IListCutHistoryUseCase)
   const { data } = await useCase.execute({

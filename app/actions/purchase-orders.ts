@@ -270,11 +270,10 @@ export async function receivePurchaseOrder(
  * Supplier name is not joined here — the pages already separately
  * fetch a `SupplierSnapshot[]` and look up by `supplier_id`.
  */
-export async function getPurchaseOrderByIdAction(
-  id: string
-): Promise<PurchaseOrderWithDetails> {
+export async function getPurchaseOrderByIdAction(id: string): Promise<PurchaseOrderWithDetails> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
   const po = await svc.getById(id)
@@ -303,6 +302,7 @@ export async function existsActiveItemsByMaterialTypeAction(
 ): Promise<boolean> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMaterialTypes")
   const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
   return svc.existsActiveItemsByMaterialType(materialTypeId)
@@ -311,9 +311,13 @@ export async function existsActiveItemsByMaterialTypeAction(
 export async function listPurchaseOrdersAction(): Promise<PurchaseOrderWithDetails[]> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   const svc = resolveService<IPurchaseOrderService>(TOKENS.IPurchaseOrderService)
-  const [pos, suppliers] = await Promise.all([svc.getActive(), supplierService.getActiveSuppliers()])
+  const [pos, suppliers] = await Promise.all([
+    svc.getActive(),
+    supplierService.getActiveSuppliers(),
+  ])
   const supplierById = new Map(suppliers.map((s) => [s.id.value, s]))
   return pos.map((po) => {
     const sup = supplierById.get(po.supplierId.value)

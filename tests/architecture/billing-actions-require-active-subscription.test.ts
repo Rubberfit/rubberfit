@@ -41,6 +41,24 @@ const RECOVERY_ALLOWLIST = new Map<string, ReadonlySet<string>>([
   // billing, and a lapsed admin shouldn't be able to alter shared
   // print/export output until they restore billing.
   ["app/actions/organization-preferences.ts", new Set(["getOrganizationPreferences"])],
+  // DDD merge (2026-05-18): the tenant chooser is the recovery exit
+  // for a multi-tenant user — if subscription on tenant A lapses,
+  // they need to switch to tenant B (a different org where they
+  // still have an active sub) to recover. `selectTenant` itself
+  // validates membership before persisting, so it cannot be abused
+  // to enumerate foreign tenants. Documented in
+  // `app/actions/active-tenant.ts` as auth-only by design.
+  ["app/actions/active-tenant.ts", new Set(["selectTenant"])],
+  // DDD merge (2026-05-18): `invitations.ts:acceptInvitation` is the
+  // DDD-branch sibling of the existing `team.ts:acceptInvitation`
+  // allowlist entry above. Both call IAcceptInvitationUseCase; both
+  // are recovery-exempt for the same reason (newly-invited user has
+  // no own sub yet — the use-case validates the invited org's sub).
+  // The two files exist post-merge because origin/dev's Stripe sprint
+  // and feature/DDD-implementation's Phase 5/8 invitation work
+  // independently produced the surface. File consolidation is
+  // tracked separately.
+  ["app/actions/invitations.ts", new Set(["acceptInvitation"])],
 ])
 
 interface ActionFunction {

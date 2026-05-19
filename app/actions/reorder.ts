@@ -152,9 +152,7 @@ interface AuthoritativeReorderData {
  * rule (rare) fall through with `supplier: undefined`; the use-case
  * resolves them via `materialSupplierService.getPreferredForMaterialType`.
  */
-async function assembleRulesWithDetails(
-  rules: ReorderRule[]
-): Promise<ReorderRuleWithDetails[]> {
+async function assembleRulesWithDetails(rules: ReorderRule[]): Promise<ReorderRuleWithDetails[]> {
   if (rules.length === 0) return []
 
   const calc = resolveService<IReorderCalculationsService>(TOKENS.IReorderCalculationsService)
@@ -356,9 +354,7 @@ export async function createBulkReorderPurchaseOrder(
  * through unchanged via `??`. Auth + RBAC enforced server-side so
  * the form can't bypass via the RPC hash.
  */
-export async function createReorderRule(
-  input: CreateReorderRuleActionInput
-): Promise<ReorderRule> {
+export async function createReorderRule(input: CreateReorderRuleActionInput): Promise<ReorderRule> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   const subscription = await requireActiveSubscription(actor)
@@ -473,6 +469,7 @@ export async function getCurrentStockByMaterials(
 ): Promise<Record<string, number>> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageRolls")
   if (materialTypeIds.length === 0) return {}
 

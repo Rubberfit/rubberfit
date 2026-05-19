@@ -29,6 +29,7 @@ import {
   ACTIVE_TENANT_COOKIE,
   buildActiveTenantCookieOptions,
 } from "@/app/server/auth/active-tenant"
+import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { requirePermission } from "@/app/server/auth/require-permission"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
@@ -77,6 +78,7 @@ export async function inviteMember(
 ): Promise<CreateInvitationResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMembers")
   const parsed = inviteMemberSchema.parse(input)
 
@@ -103,6 +105,7 @@ export async function resendInvitation(
 ): Promise<ResendInvitationResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMembers")
   const parsed = invitationIdSchema.parse(input)
 
@@ -160,6 +163,7 @@ export async function revokeInvitation(
 ): Promise<RevokeInvitationResult> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
+  await requireActiveSubscription(actor)
   requirePermission(actor, "manageMembers")
   const parsed = invitationIdSchema.parse(input)
 
