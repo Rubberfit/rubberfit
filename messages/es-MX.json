@@ -52,6 +52,7 @@
       "reports": { "title": "Reportes" },
       "users": { "title": "Usuarios" },
       "securityAudit": { "title": "Seguridad y auditoría" },
+      "members": { "title": "Miembros" },
       "settings": {
         "title": "Ajustes",
         "subItems": {
