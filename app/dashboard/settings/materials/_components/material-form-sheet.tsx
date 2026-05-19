@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/app/components/ui/sheet"
 import { FormField, FormFieldGroup } from "@/app/components/ui/forms"
+import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
 import { type MaterialType } from "@/src/entities/material-type"
 
 export interface MaterialFormValues {
@@ -100,8 +101,7 @@ function initialValuesFor(
     return {
       name: "",
       description: "",
-      default_cost: 2.5,
-      min_stock_alert: newMaterialThresholdSeed,
+      min_stock_sqm: newMaterialThresholdSeed,
     }
   }
   return {
@@ -132,7 +132,7 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
     // eslint-disable-next-line react-hooks/set-state-in-effect -- guarded by target check + touch ref; only re-syncs an untouched seed
     setValues((prev) => ({
       ...prev,
-      min_stock_alert: orgPreferences.lowStockThresholdSqft,
+      min_stock_sqm: orgPreferences.lowStockThresholdSqft,
     }))
   }, [target, orgPreferences.lowStockThresholdSqft])
   const isEdit = target !== "new"
@@ -147,7 +147,7 @@ function MaterialFormBody({ target, isSaving, onCancel, onSubmit }: MaterialForm
     minStockAlertTouchedRef.current = true
     setValues((prev) => ({
       ...prev,
-      min_stock_alert: Math.max(0, Number.parseFloat(event.target.value) || 0),
+      min_stock_sqm: Math.max(0, Number.parseFloat(event.target.value) || 0),
     }))
   }
 

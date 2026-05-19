@@ -118,7 +118,7 @@ export default function MaterialTypesPage() {
         await createMaterialType({
           name: formData.name.trim(),
           description: trimmedDescription || undefined,
-          min_stock_alert: parsedStock,
+          min_stock_sqm: parsedStock,
         })
         toast.success("Material type created successfully")
       }
