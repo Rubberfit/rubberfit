@@ -31,8 +31,32 @@ vi.mock("@/app/server/auth/require-permission", () => ({
 }))
 
 const resolveUseCaseMock = vi.hoisted(() => vi.fn())
+const resolveServiceMock = vi.hoisted(() => vi.fn())
 vi.mock("@/di/resolve", () => ({
   resolveUseCase: resolveUseCaseMock,
+  resolveService: resolveServiceMock,
+}))
+
+const ensureDatabaseFactoryRegisteredMock = vi.hoisted(() => vi.fn())
+vi.mock("@/app/server/database/register-factory", () => ({
+  ensureDatabaseFactoryRegistered: ensureDatabaseFactoryRegisteredMock,
+}))
+
+// Mocked for the 3 read-only actions (getById, existsActiveItems, list).
+// supplierService.getActiveSuppliers + getSupplierById feed the supplier-name
+// join those actions stitch onto the legacy shape; purchaseOrderEntityToLegacyWithItems
+// is passthrough'd so tests don't have to construct full entity instances.
+const supplierServiceMock = vi.hoisted(() => ({
+  getSupplierById: vi.fn(),
+  getActiveSuppliers: vi.fn(),
+}))
+vi.mock("@/src/infrastructure/services/supplierService", () => ({
+  supplierService: supplierServiceMock,
+}))
+
+const purchaseOrderEntityToLegacyWithItemsMock = vi.hoisted(() => vi.fn())
+vi.mock("@/src/infrastructure/services/po-entity-to-legacy", () => ({
+  purchaseOrderEntityToLegacyWithItems: purchaseOrderEntityToLegacyWithItemsMock,
 }))
 
 const revalidatePathMock = vi.hoisted(() => vi.fn())
@@ -304,5 +328,142 @@ describe("app/actions/purchase-orders", () => {
     ).rejects.toThrow()
     expect(execute).not.toHaveBeenCalled()
     expect(revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  // ─── Read-only actions (subscription-gated post-DDD-merge) ──────────────
+
+  const FAKE_PO_ENTITY = {
+    id: { value: PO_ID },
+    supplierId: { value: SUPPLIER_ID },
+  } as unknown as Parameters<typeof purchaseOrderEntityToLegacyWithItemsMock>[0]
+  const FAKE_SUPPLIER_ENTITY = {
+    id: { value: SUPPLIER_ID },
+    name: "Acme Rubber Co.",
+  }
+  const LEGACY_SHAPE = { id: PO_ID, supplier_id: SUPPLIER_ID, items: [] }
+
+  // ─ getPurchaseOrderByIdAction ─
+
+  it("getPurchaseOrderByIdAction returns legacy shape from entity + supplier join", async () => {
+    const svc = { getById: vi.fn().mockResolvedValue(FAKE_PO_ENTITY) }
+    resolveServiceMock.mockReturnValue(svc)
+    supplierServiceMock.getSupplierById.mockResolvedValue(FAKE_SUPPLIER_ENTITY)
+    purchaseOrderEntityToLegacyWithItemsMock.mockReturnValue(LEGACY_SHAPE)
+
+    const { getPurchaseOrderByIdAction } = await import("@/app/actions/purchase-orders")
+    const result = await getPurchaseOrderByIdAction(PO_ID)
+
+    expect(requireAuthenticatedUserMock).toHaveBeenCalledOnce()
+    expect(requireActiveSubscriptionMock).toHaveBeenCalledWith(ACTOR)
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(svc.getById).toHaveBeenCalledWith(PO_ID)
+    expect(result).toBe(LEGACY_SHAPE)
+  })
+
+  it("getPurchaseOrderByIdAction rejects when auth fails", async () => {
+    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
+    const { getPurchaseOrderByIdAction } = await import("@/app/actions/purchase-orders")
+    await expect(getPurchaseOrderByIdAction(PO_ID)).rejects.toThrow("unauth")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("getPurchaseOrderByIdAction rejects when subscription is lapsed", async () => {
+    requireActiveSubscriptionMock.mockRejectedValue(new Error("NO_ACTIVE_SUBSCRIPTION"))
+    const { getPurchaseOrderByIdAction } = await import("@/app/actions/purchase-orders")
+    await expect(getPurchaseOrderByIdAction(PO_ID)).rejects.toThrow("NO_ACTIVE_SUBSCRIPTION")
+    expect(requirePermissionMock).not.toHaveBeenCalled()
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("getPurchaseOrderByIdAction rejects when permission fails", async () => {
+    requirePermissionMock.mockImplementation(() => {
+      throw new Error("forbidden")
+    })
+    const { getPurchaseOrderByIdAction } = await import("@/app/actions/purchase-orders")
+    await expect(getPurchaseOrderByIdAction(PO_ID)).rejects.toThrow("forbidden")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  // ─ existsActiveItemsByMaterialTypeAction ─
+
+  it("existsActiveItemsByMaterialTypeAction returns boolean from service", async () => {
+    const svc = { existsActiveItemsByMaterialType: vi.fn().mockResolvedValue(true) }
+    resolveServiceMock.mockReturnValue(svc)
+
+    const { existsActiveItemsByMaterialTypeAction } = await import("@/app/actions/purchase-orders")
+    const result = await existsActiveItemsByMaterialTypeAction(MATERIAL_TYPE_ID)
+
+    // Permission token differs from the rest of the PO surface:
+    // material-type delete dialog gates on manageMaterialTypes.
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageMaterialTypes")
+    expect(svc.existsActiveItemsByMaterialType).toHaveBeenCalledWith(MATERIAL_TYPE_ID)
+    expect(result).toBe(true)
+  })
+
+  it("existsActiveItemsByMaterialTypeAction rejects when auth fails", async () => {
+    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
+    const { existsActiveItemsByMaterialTypeAction } = await import("@/app/actions/purchase-orders")
+    await expect(existsActiveItemsByMaterialTypeAction(MATERIAL_TYPE_ID)).rejects.toThrow("unauth")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("existsActiveItemsByMaterialTypeAction rejects when subscription is lapsed", async () => {
+    requireActiveSubscriptionMock.mockRejectedValue(new Error("NO_ACTIVE_SUBSCRIPTION"))
+    const { existsActiveItemsByMaterialTypeAction } = await import("@/app/actions/purchase-orders")
+    await expect(existsActiveItemsByMaterialTypeAction(MATERIAL_TYPE_ID)).rejects.toThrow(
+      "NO_ACTIVE_SUBSCRIPTION"
+    )
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("existsActiveItemsByMaterialTypeAction rejects when permission fails", async () => {
+    requirePermissionMock.mockImplementation(() => {
+      throw new Error("forbidden")
+    })
+    const { existsActiveItemsByMaterialTypeAction } = await import("@/app/actions/purchase-orders")
+    await expect(existsActiveItemsByMaterialTypeAction(MATERIAL_TYPE_ID)).rejects.toThrow(
+      "forbidden"
+    )
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  // ─ listPurchaseOrdersAction ─
+
+  it("listPurchaseOrdersAction joins supplier names onto returned POs", async () => {
+    const svc = { getActive: vi.fn().mockResolvedValue([FAKE_PO_ENTITY]) }
+    resolveServiceMock.mockReturnValue(svc)
+    supplierServiceMock.getActiveSuppliers.mockResolvedValue([FAKE_SUPPLIER_ENTITY])
+    purchaseOrderEntityToLegacyWithItemsMock.mockReturnValue(LEGACY_SHAPE)
+
+    const { listPurchaseOrdersAction } = await import("@/app/actions/purchase-orders")
+    const result = await listPurchaseOrdersAction()
+
+    expect(requirePermissionMock).toHaveBeenCalledWith(ACTOR, "manageRolls")
+    expect(svc.getActive).toHaveBeenCalledOnce()
+    expect(supplierServiceMock.getActiveSuppliers).toHaveBeenCalledOnce()
+    expect(result).toEqual([LEGACY_SHAPE])
+  })
+
+  it("listPurchaseOrdersAction rejects when auth fails", async () => {
+    requireAuthenticatedUserMock.mockRejectedValue(new Error("unauth"))
+    const { listPurchaseOrdersAction } = await import("@/app/actions/purchase-orders")
+    await expect(listPurchaseOrdersAction()).rejects.toThrow("unauth")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("listPurchaseOrdersAction rejects when subscription is lapsed", async () => {
+    requireActiveSubscriptionMock.mockRejectedValue(new Error("NO_ACTIVE_SUBSCRIPTION"))
+    const { listPurchaseOrdersAction } = await import("@/app/actions/purchase-orders")
+    await expect(listPurchaseOrdersAction()).rejects.toThrow("NO_ACTIVE_SUBSCRIPTION")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
+  })
+
+  it("listPurchaseOrdersAction rejects when permission fails", async () => {
+    requirePermissionMock.mockImplementation(() => {
+      throw new Error("forbidden")
+    })
+    const { listPurchaseOrdersAction } = await import("@/app/actions/purchase-orders")
+    await expect(listPurchaseOrdersAction()).rejects.toThrow("forbidden")
+    expect(resolveServiceMock).not.toHaveBeenCalled()
   })
 })
