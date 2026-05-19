@@ -71,7 +71,7 @@ export function RollDetailBody({ roll, onEdit, canManageRolls, onClose }: RollDe
     try {
       const [summary, children] = await Promise.all([
         rollService.getReusableOffcutSummary(rollId),
-        rollService.getChildOffcuts(rollId),
+        rollService.getChildOffcutsRaw(rollId),
       ])
       if (signal.isCancelled) return
       setUsage(summary)

@@ -28,14 +28,12 @@ import type { UserProfile } from "@/src/infrastructure/models/supabase"
  *   4. Zod-validate the input. We do NOT trust the client form's
  *      schema; an action receives whatever a client serializes, and
  *      a malicious client can serialize anything.
- *   5. Narrow the field surface. The legacy
- *      `userManagementService.updateUser` accepts `UpdateUserProfile`,
- *      which includes `is_deleted`. The action's `updateUser` deliberately
- *      forwards only `{ full_name, email, roles }` so the only way to
- *      flip `is_deleted` is via the explicit `deactivateUser` /
- *      `reactivateUser` actions. This makes the audit trail (post
- *      ARC-31) reflect intent: a user role-edit and a user deactivation
- *      are different operations.
+ *   5. Narrow the field surface. The action's `updateUser` forwards
+ *      only `{ full_name, email, roles }` — accessibility (i.e.
+ *      `memberships.deleted_at`) is only changed through the explicit
+ *      `deactivateUser` / `reactivateUser` actions. This makes the
+ *      audit trail (post ARC-31) reflect intent: a user role-edit and
+ *      a user deactivation are different operations.
  */
 
 const USERS_PATH = "/dashboard/users"

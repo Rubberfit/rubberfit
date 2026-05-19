@@ -2,7 +2,8 @@
 
 import { MapPin, Plus, X } from "lucide-react"
 
-import { type MaterialType, type Supplier } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card"
 import { Badge } from "@/app/components/ui/badge"
 import { Button } from "@/app/components/ui/button"
@@ -32,7 +33,7 @@ import { type POFormData, buildSupplierAddress } from "./po-form-dialog"
 interface PoOrderDetailsCardProps {
   formData: POFormData
   setFormData: (d: POFormData) => void
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
 }
 
 export function PoOrderDetailsCard({ formData, setFormData, suppliers }: PoOrderDetailsCardProps) {
@@ -116,15 +117,22 @@ export function PoOrderDetailsCard({ formData, setFormData, suppliers }: PoOrder
   )
 }
 
-function SupplierBadge({ formData, suppliers }: { formData: POFormData; suppliers: Supplier[] }) {
+function SupplierBadge({
+  formData,
+  suppliers,
+}: {
+  formData: POFormData
+  suppliers: SupplierSnapshot[]
+}) {
   const sel = suppliers.find((s) => s.id === formData.supplier_id)
-  if (!sel || (!sel.city && !sel.state)) return null
+  const addr = sel?.address
+  if (!sel || !addr || (!addr.city && !addr.state)) return null
   return (
     <p className="mt-1 text-sm text-muted-foreground">
       <MapPin className="mr-1 inline h-3 w-3" />
-      {sel.city ? `${sel.city}, ` : ""}
-      {sel.state} {sel.zip_code}
-      {sel.tax_exempt ? (
+      {addr.city ? `${addr.city}, ` : ""}
+      {addr.state} {addr.postalCode}
+      {sel.taxExempt ? (
         <Badge variant="outline" className="ml-2 text-xs">
           Tax Exempt
         </Badge>
@@ -347,7 +355,7 @@ export function PoNotesCard({ formData, setFormData }: PoNotesCardProps) {
 
 interface PoOrderSummaryProps {
   formData: POFormData
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   taxDetails: TaxDetails | null
 }
 
@@ -357,7 +365,9 @@ export function PoOrderSummary({ formData, suppliers, taxDetails }: PoOrderSumma
     0
   )
   const taxRate = taxDetails?.taxRate ?? 0.08
-  const shipping = suppliers.find((s) => s.id === formData.supplier_id)?.default_shipping_cost ?? 50
+  const supplierShippingCents = suppliers.find((s) => s.id === formData.supplier_id)?.shippingCost
+    ?.cents
+  const shipping = supplierShippingCents != null ? supplierShippingCents / 100 : 50
 
   return (
     <Card>

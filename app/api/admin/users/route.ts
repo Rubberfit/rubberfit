@@ -4,6 +4,7 @@ import { z } from "zod"
 import { requireAdmin } from "@/app/api/admin/_lib/require-admin"
 import { ALL_ROLES, type AppRole } from "@/src/application/permissions"
 import { createUserWithProfile } from "@/src/infrastructure/services/userManagementService"
+import { resolveActiveTenantId } from "@/src/infrastructure/services/active-tenant.service"
 
 // .strict() rejects unknown keys with a 400 (ARC-137 / V8.2.3) — the
 // highest-impact mass-assignment guard in the codebase: a request
@@ -23,11 +24,11 @@ const createUserBodySchema = z
   })
   .strict()
 
-/** POST /api/admin/users — create a new auth user + profile */
+/** POST /api/admin/users — create a new auth user + profile + membership */
 export async function POST(request: NextRequest) {
   const guard = await requireAdmin(request)
   if (!guard.ok) return guard.response
-  const { adminClient } = guard.ctx
+  const { adminClient, userId: callerId } = guard.ctx
 
   let raw: unknown
   try {
@@ -46,6 +47,23 @@ export async function POST(request: NextRequest) {
   const { email, password, full_name, roles } = parsed.data
   const resolvedRoles: AppRole[] = roles && roles.length > 0 ? roles : ["member"]
 
+  // Resolve target tenant: caller's last_active_tenant_id else their
+  // oldest active membership. Interim until step 3 wires activeTenantId
+  // onto the actor.
+  let tenantId: string | null
+  try {
+    tenantId = await resolveActiveTenantId(adminClient, callerId)
+  } catch (error) {
+    console.error("POST /api/admin/users: tenant resolution failed:", error)
+    return NextResponse.json({ error: "Failed to resolve active tenant" }, { status: 500 })
+  }
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "No active tenant — cannot create a user without a tenant membership" },
+      { status: 400 }
+    )
+  }
+
   let result: Awaited<ReturnType<typeof createUserWithProfile>>
   try {
     result = await createUserWithProfile(adminClient, {
@@ -53,6 +71,7 @@ export async function POST(request: NextRequest) {
       password,
       fullName: full_name,
       roles: resolvedRoles,
+      tenantId,
     })
   } catch (error) {
     console.error("POST /api/admin/users:", error)

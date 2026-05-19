@@ -52,6 +52,17 @@ export function usePOActions({ setPurchaseOrders, setSelectedPOTaxDetails }: Use
     newStatus: PurchaseOrder["status"]
   ): Promise<boolean> => {
     try {
+      if (newStatus === "received") {
+        // Task #84: receive flow owns its own dialog with per-item
+        // quantity + rollData. The dialog calls `receivePurchaseOrder`
+        // directly. If a caller still tries to flip status to
+        // `received` through this hook, fail loudly rather than
+        // silently routing through the SDK's bare status flip — that
+        // would skip the idempotency anchor and re-introduce the
+        // double-click double-count bug 7c-1 closed.
+        toast.error("Use the Receive dialog to mark items as received.")
+        return false
+      }
       if (newStatus === "approved") {
         // Approve continues through the orchestration use case (now
         // wrapped in the `approvePurchaseOrder` server action) so the
@@ -86,9 +97,6 @@ export function usePOActions({ setPurchaseOrders, setSelectedPOTaxDetails }: Use
         case "ordered":
           toast.success("Purchase order marked as ordered")
           break
-        case "received":
-          toast.success("Goods received and inventory updated")
-          break
         case "cancelled":
           toast.success("Purchase order cancelled")
           break
@@ -102,8 +110,28 @@ export function usePOActions({ setPurchaseOrders, setSelectedPOTaxDetails }: Use
       // (read via the parity-tested shape); we don't render those
       // directly here yet — follow-up UX ticket will expose them
       // as a picker on the toast.
+      //
+      // The server action throws three typed error classes whose
+      // prototype chain doesn't survive the RPC boundary, so we
+      // discriminate on `error.code` (per CLAUDE.md's action-wiring
+      // contract): UNAUTHORIZED → 401, FORBIDDEN → 403, AUTH_CONFIG
+      // → 5xx. Zod parse failures bubble up as plain `ZodError` with
+      // no `code` on the top-level error — they fall through to the
+      // generic toast.
+      if (err.code === "UNAUTHORIZED") {
+        toast.error("Your session has expired. Sign in again to continue.")
+        return false
+      }
+      if (err.code === "FORBIDDEN") {
+        toast.error("You don't have permission to perform this action.")
+        return false
+      }
+      if (err.code === "AUTH_CONFIG") {
+        toast.error("Server misconfiguration — contact your administrator.")
+        return false
+      }
       if (err.code === "RECEIVED_REQUIRES_RECEIVE_FLOW") {
-        toast.error("Use the receive flow on the PO detail view to mark items as received.", {
+        toast.error("Use the Receive dialog to mark items as received.", {
           description: "Status can't go to `received` through the row menu.",
         })
         return false

@@ -40,6 +40,7 @@ const ACTOR: ActionActor = {
   email: "owner@acme.example",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 function makeOrganization(overrides: Partial<Organization> = {}): Organization {
@@ -186,47 +187,6 @@ class FakeOrganizationService implements IOrganizationService {
     throw new Error("not used")
   }
 
-  async createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation> {
-    return {
-      id: "00000000-0000-4000-8000-000000000005",
-      organization_id: input.organization_id,
-      email: input.email,
-      role: input.role,
-      status: "pending",
-      token: input.token,
-      invited_by: input.invited_by,
-      expires_at: input.expires_at ?? new Date().toISOString(),
-      accepted_at: null,
-      revoked_at: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  }
-
-  async getInvitationByToken(): Promise<OrganizationInvitation | null> {
-    return null
-  }
-
-  async updateInvitation(
-    invitationId: string,
-    updates: UpdateOrganizationInvitation
-  ): Promise<OrganizationInvitation> {
-    return {
-      id: invitationId,
-      organization_id: ORG_ID,
-      email: "invitee@acme.example",
-      role: "member",
-      status: updates.status ?? "pending",
-      token: "token",
-      invited_by: ACTOR_ID,
-      expires_at: new Date().toISOString(),
-      accepted_at: updates.accepted_at ?? null,
-      revoked_at: updates.revoked_at ?? null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  }
-
   async listPendingInvitations(): Promise<OrganizationInvitation[]> {
     return []
   }
@@ -245,14 +205,8 @@ class FakeOrganizationService implements IOrganizationService {
     return this.role
   }
 
-  async getInvitationById() {
-    return null
-  }
-  async getInvitationPreviewByToken() {
-    return null
-  }
-  async acceptInvitationAtomically() {
-    return { result_code: "not_found" as const }
+  async countActiveMembers(): Promise<number> {
+    return 1
   }
 }
 

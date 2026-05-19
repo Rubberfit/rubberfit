@@ -33,9 +33,9 @@ import { PART_OPTIONS } from "./_components/preset-template-data"
 import { RecordedCutSelect } from "./_components/recorded-cut-select"
 import {
   type CutHistory,
-  type MaterialType,
   type PartCustomDimensions,
 } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { authService } from "@/src/infrastructure/services/authService"
 import { saveCut } from "@/app/actions/cut-history"
@@ -240,7 +240,7 @@ function CutPlannerPageInner() {
         thickness: cut.cut_thickness,
         material: materialName,
         costPerSqft: cut.cost_per_sqft ?? undefined,
-        materialTypeId: matchedMt?.id,
+        materialTypeId: matchedMt?.id.value,
         kerf: cut.kerf ?? DEFAULT_KERF_IN,
       })
 
@@ -327,7 +327,7 @@ function CutPlannerPageInner() {
         thickness: roll.thickness,
         material: roll.material_type,
         costPerSqft: roll.cost_per_sqft ?? undefined,
-        materialTypeId: matched?.id,
+        materialTypeId: matched?.id.value,
         kerf: DEFAULT_KERF_IN,
       })
       setSourceRollId(roll.id)

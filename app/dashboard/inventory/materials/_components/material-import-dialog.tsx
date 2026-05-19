@@ -4,7 +4,6 @@ import { useState, useCallback } from "react"
 import { Download, Upload, FileSpreadsheet, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { createMaterialType } from "@/app/actions/materials"
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
@@ -29,8 +28,7 @@ import {
 interface ParsedRow {
   name: string
   description: string
-  defaultCost: number | undefined
-  minStockAlert: number | undefined
+  minStockSqm: number | undefined
   error: string | null
   isDuplicate: boolean
 }
@@ -45,8 +43,9 @@ interface MaterialImportDialogProps {
 const HEADER_ALIASES: Record<string, string[]> = {
   name: ["name", "material", "material_type", "material type"],
   description: ["description", "desc"],
-  defaultCost: ["default_cost", "default cost", "cost", "cost_per_sqft", "price"],
-  minStockAlert: [
+  minStockSqm: [
+    "min_stock_sqm",
+    "min stock sqm",
     "min_stock_alert",
     "min stock alert",
     "stock_alert",
@@ -128,31 +127,16 @@ function parseFile(
       continue
     }
 
-    let defaultCost: number | undefined
+    let minStockSqm: number | undefined
     let validationError: string | null = null
-    if ("defaultCost" in columnMap) {
-      const raw = (values[columnMap.defaultCost] ?? "").trim()
-      if (raw) {
-        const parsed = parseFloat(raw.replace(/^\$/, ""))
-        if (!Number.isFinite(parsed) || parsed < 0) {
-          validationError = `Invalid cost "${raw}"`
-        } else {
-          defaultCost = parsed
-        }
-      }
-    }
-
-    let minStockAlert: number | undefined
-    if ("minStockAlert" in columnMap) {
-      const raw = (values[columnMap.minStockAlert] ?? "").trim()
+    if ("minStockSqm" in columnMap) {
+      const raw = (values[columnMap.minStockSqm] ?? "").trim()
       if (raw) {
         const parsed = parseFloat(raw)
         if (!Number.isFinite(parsed) || parsed < 0) {
-          validationError = validationError
-            ? `${validationError}; Invalid stock alert "${raw}"`
-            : `Invalid stock alert "${raw}"`
+          validationError = `Invalid stock alert "${raw}"`
         } else {
-          minStockAlert = parsed
+          minStockSqm = parsed
         }
       }
     }
@@ -167,8 +151,7 @@ function parseFile(
     rows.push({
       name,
       description,
-      defaultCost,
-      minStockAlert,
+      minStockSqm,
       error: validationError,
       isDuplicate,
     })
@@ -178,7 +161,7 @@ function parseFile(
 }
 
 function downloadTemplate() {
-  const csv = "Name,Description,Default Cost,Min Stock Alert\n"
+  const csv = "Name,Description,Min Stock Sqm\n"
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement("a")
@@ -263,8 +246,7 @@ export function MaterialImportDialog({
         await createMaterialType({
           name: row.name,
           description: row.description || undefined,
-          default_cost: row.defaultCost,
-          min_stock_alert: row.minStockAlert,
+          min_stock_sqm: row.minStockSqm,
         })
         imported++
       }
@@ -360,7 +342,6 @@ export function MaterialImportDialog({
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Cost</TableHead>
                       <TableHead>Stock Alert</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -375,11 +356,8 @@ export function MaterialImportDialog({
                         <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
                           {row.description || "—"}
                         </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {row.defaultCost != null ? `$${row.defaultCost.toFixed(2)}` : "—"}
-                        </TableCell>
                         <TableCell className="text-sm">
-                          {row.minStockAlert != null ? `${row.minStockAlert} sq ft` : "—"}
+                          {row.minStockSqm != null ? `${row.minStockSqm} sqm` : "—"}
                         </TableCell>
                         <TableCell>
                           {row.error ? (

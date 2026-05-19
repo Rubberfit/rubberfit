@@ -1,10 +1,7 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
-import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
-import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type {
   PurchaseOrderWithDetails,
@@ -12,49 +9,42 @@ import type {
 } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
 import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use-case"
+import type { ICreatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
 
 /**
  * Bulk variant of `CreateReorderPurchaseOrderUseCase`. Groups N
  * suggestions by `supplier_id` and emits one PO per supplier with
  * multiple line items.
  *
- * Design notes (see Codex review on the migration PR):
+ * Design notes:
  *
  *   1. Partial-failure semantics. If supplier A succeeds and supplier
  *      B fails, we return the A PO and a `skipped` entry for the B
  *      items. Throwing on first failure would lose A. The UI mirrors
  *      this by toasting per success and per failure.
  *
- *   2. No transaction wrapping. Same as the single-PO use-case — if
- *      `createPurchaseOrder` succeeds and `addItemToPurchaseOrder`
- *      fails, the PO row stays in the DB with partial items. Bringing
- *      transactions in is a separate behavior change tracked as a
- *      follow-up; this migration preserves current semantics.
+ *   2. Atomic per-supplier creation. Each supplier's PO is created via
+ *      `ICreatePurchaseOrderUseCase`, which constructs the entity with
+ *      all items in one repo insert. This eliminates the orphan-PO and
+ *      partial-item-failure modes the legacy two-call (createPO + N
+ *      addItem) pattern had — the bulk use-case no longer needs
+ *      per-item rollback, recalculation, or orphan cleanup logic.
  *
- *   3. Real tax calculation. The current browser-side bulk path
- *      hardcodes `tax_amount = totalCost * 0.08`, ignoring supplier
- *      tax-exempt status, override rates, and ZipTax API rates. Moving
- *      to `taxService.calculatePurchaseOrderTax` is a deliberate
- *      correctness fix bundled with the security migration.
+ *   3. Real tax calculation lives inside `ICreatePurchaseOrderUseCase`.
+ *      Browser-side bulk path used to hardcode `0.08 * subtotal`; this
+ *      delegation uses the real `taxService.calculatePurchaseOrderTax`.
  *
- *   4. Notifications. The current bulk path sends NO notifications,
- *      which is itself a bug — single-PO sends one per material via
- *      `sendReorderTriggered`. We mirror the single-PO behavior
- *      (per-item notification) so bulk and single produce consistent
- *      notification streams. Failures here are logged, not escalated.
+ *   4. Notifications. We mirror the single-PO behavior (per-item
+ *      notification) so bulk and single produce consistent streams.
+ *      Failures here are logged, not escalated.
  *
- *   5. Error sanitization. Service-layer errors get logged with full
- *      detail server-side (`console.error`) but the `skipped[].message`
- *      field returned to the client is a stable, sanitized string —
- *      never raw Supabase error text. Reason codes drive the UI;
- *      messages are for telemetry only.
+ *   5. Error sanitization. Use-case errors get logged with full
+ *      detail server-side; the `skipped[].message` field returned to
+ *      the client is a stable, sanitized string. Reason codes drive
+ *      the UI; messages are for telemetry only.
  */
 
-export type SkipReason =
-  | "no_supplier"
-  | "po_creation_failed"
-  | "item_addition_failed"
-  | "tax_calculation_failed"
+export type SkipReason = "no_supplier" | "po_creation_failed" | "tax_calculation_failed"
 
 export interface SkippedSuggestion {
   /** Original suggestion that wasn't successfully ordered. */
@@ -74,9 +64,7 @@ export interface CreateBulkReorderPurchaseOrderInput {
 export interface CreateBulkReorderPurchaseOrderResult {
   /**
    * Successfully-created POs, in the order their supplier groups were
-   * processed. Each PO may have fewer items than its source group —
-   * see `skipped` for items whose `addItemToPurchaseOrder` call failed
-   * after the PO row was already inserted.
+   * processed.
    */
   purchaseOrders: PurchaseOrderWithDetails[]
   /** Suggestions that didn't make it onto a PO. */
@@ -88,19 +76,8 @@ export interface ICreateBulkReorderPurchaseOrderUseCase {
 }
 
 const DELIVERY_WINDOW_DAYS = 7
-const DEFAULT_ROLL_WIDTH = 60
-const DEFAULT_ROLL_THICKNESS = 0.125
-
-function buildSupplierAddress(s: {
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  country?: string | null
-}): string {
-  const parts = [s.address, s.city, s.state, s.zip_code, s.country].filter(Boolean)
-  return parts.join(", ")
-}
+const DEFAULT_ROLL_WIDTH_INCHES = 60
+const DEFAULT_ROLL_THICKNESS_INCHES = 0.125
 
 function groupBySupplier(suggestions: ReorderSuggestionOutput[]): {
   withSupplier: Map<string, ReorderSuggestionOutput[]>
@@ -123,11 +100,10 @@ function groupBySupplier(suggestions: ReorderSuggestionOutput[]): {
 @injectable()
 export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorderPurchaseOrderUseCase {
   constructor(
-    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ICreatePurchaseOrderUseCase)
+    private readonly createPoUseCase: ICreatePurchaseOrderUseCase,
     @inject(TOKENS.IReorderService) private readonly reorderService: IReorderService,
-    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
-    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService,
-    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 
   async execute(
@@ -147,121 +123,67 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
       })
     }
 
-    for (const [supplierId, items] of withSupplier) {
-      const subtotal = items.reduce((sum, item) => sum + item.estimatedCost, 0)
-      const supplierFields = await this.resolveSupplierFields(supplierId)
-
-      // Tax-service failures (ZipTax rate-limit, bad zip lookup,
-      // network blip) used to throw out of the whole bulk loop and
-      // discard every other supplier's PO — defeating the
-      // partial-failure design above. Scope the catch to this
-      // supplier so the rest still proceed. (coderabbit follow-up
-      // on PR #177.)
-      let taxAmount: number
-      try {
-        const taxCalc = await this.taxService.calculatePurchaseOrderTax(supplierId, subtotal)
-        taxAmount = taxCalc.taxAmount
-      } catch (error) {
-        console.error(
-          `[bulk-reorder] calculatePurchaseOrderTax failed for supplier ${supplierId}:`,
-          error
-        )
-        for (const item of items) {
-          skipped.push({
-            suggestion: item,
-            reason: "tax_calculation_failed",
-            message: `Could not calculate tax for ${item.supplierName ?? "supplier"}`,
-          })
-        }
-        continue
-      }
-
+    for (const [, items] of withSupplier) {
       const deliveryDate = new Date(
         Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
       ).toISOString()
 
+      const supplierIdForItems = items[0].supplierId
+      if (!supplierIdForItems) {
+        // Defensive — groupBySupplier should have filtered these.
+        continue
+      }
+
       let po: PurchaseOrderWithDetails
       try {
-        po = await this.poService.createPurchaseOrder(
-          {
-            supplier_id: supplierId,
-            status: "draft",
-            ...supplierFields,
-            requested_delivery_date: deliveryDate,
-            notes: `Bulk reorder for ${items.length} material${items.length > 1 ? "s" : ""}`,
-            subtotal,
-            tax_amount: taxAmount,
-            shipping_cost: 0,
-            total_amount: subtotal + taxAmount,
-            auto_generated: false,
-          },
-          actor.id
-        )
+        const { purchaseOrder } = await this.createPoUseCase.execute({
+          supplierId: supplierIdForItems,
+          requestedDeliveryDate: deliveryDate,
+          notes: `Bulk reorder for ${items.length} material${items.length > 1 ? "s" : ""}`,
+          shippingCost: 0,
+          items: items.map((item) => ({
+            materialTypeId: item.materialTypeId,
+            description: item.materialName,
+            quantitySqft: item.suggestedQuantity,
+            unitCost: item.estimatedCost / item.suggestedQuantity,
+            width: DEFAULT_ROLL_WIDTH_INCHES,
+            thickness: DEFAULT_ROLL_THICKNESS_INCHES,
+          })),
+          actor,
+        })
+        po = purchaseOrder
       } catch (error) {
-        // Log raw error server-side; client gets a stable message.
+        // Tax-service or PO-creation failure — emit a skipped entry per
+        // item in this supplier group and proceed to the next supplier.
+        // The legacy implementation distinguished tax-calc failure from
+        // PO-creation failure; with the delegated path we can't reliably
+        // tell them apart at this boundary, so we use a more generic
+        // reason. Server-side logs carry the full error.
+        const isTaxError = error instanceof Error && /tax/i.test(error.message)
+        const reason: SkipReason = isTaxError ? "tax_calculation_failed" : "po_creation_failed"
+        const message = isTaxError
+          ? `Could not calculate tax for ${items[0].supplierName ?? "supplier"}`
+          : `Could not create purchase order for ${items[0].supplierName ?? "supplier"}`
         console.error(
-          `[bulk-reorder] createPurchaseOrder failed for supplier ${supplierId}:`,
+          `[bulk-reorder] createPurchaseOrder use-case failed for supplier ${supplierIdForItems}:`,
           error
         )
         for (const item of items) {
-          skipped.push({
-            suggestion: item,
-            reason: "po_creation_failed",
-            message: `Could not create purchase order for ${item.supplierName ?? "supplier"}`,
-          })
+          skipped.push({ suggestion: item, reason, message })
         }
         continue
       }
 
-      // Track which items actually landed on the PO. The header
-      // `subtotal` / `tax_amount` / `total_amount` were computed from
-      // ALL items above; if any insert fails we need to either
-      // recompute the header (partial success) or clean up the orphan
-      // PO row (full failure). Deferring `purchaseOrders.push(po)`
-      // until after the loop also keeps an empty PO out of the
-      // returned result. (coderabbit follow-up on PR #177.)
-      const successfulItems: ReorderSuggestionOutput[] = []
+      purchaseOrders.push(po)
 
       for (const item of items) {
-        try {
-          await this.poService.addItemToPurchaseOrder(
-            {
-              purchase_order_id: po.id,
-              material_type_id: item.materialTypeId,
-              description: item.materialName,
-              quantity_sqft: item.suggestedQuantity,
-              unit_cost: item.estimatedCost / item.suggestedQuantity,
-              width: DEFAULT_ROLL_WIDTH,
-              thickness: DEFAULT_ROLL_THICKNESS,
-            },
-            actor.id
-          )
-        } catch (error) {
-          console.error(
-            `[bulk-reorder] addItemToPurchaseOrder failed for PO ${po.id}, material ${item.materialTypeId}:`,
-            error
-          )
-          skipped.push({
-            suggestion: item,
-            reason: "item_addition_failed",
-            message: `Could not add ${item.materialName} to purchase order`,
-          })
-          continue
-        }
-
-        successfulItems.push(item)
-
         const rule = reorderRules.find((r) => r.material_type_id === item.materialTypeId)
         if (rule) {
           try {
-            await this.reorderService.updateReorderRule(
-              rule.id,
-              { last_triggered_at: new Date().toISOString() },
-              actor.id
-            )
+            await this.reorderService.recordTrigger(rule.id)
           } catch (error) {
             // Non-fatal — the PO is created; rule timestamp is just stale.
-            console.error(`[bulk-reorder] updateReorderRule failed for rule ${rule.id}:`, error)
+            console.error(`[bulk-reorder] recordTrigger failed for rule ${rule.id}:`, error)
           }
         }
 
@@ -282,63 +204,8 @@ export class CreateBulkReorderPurchaseOrderUseCase implements ICreateBulkReorder
           )
         }
       }
-
-      if (successfulItems.length === 0) {
-        // Every item-add failed for this supplier. The PO row exists
-        // with header totals computed from items that aren't there.
-        // Best-effort cleanup; if the delete itself fails the operator
-        // sees an orphan empty draft, but the items were already
-        // surfaced as `skipped` so they know what happened.
-        try {
-          await this.poService.deletePurchaseOrder(po.id)
-        } catch (error) {
-          console.error(
-            `[bulk-reorder] cleanup deletePurchaseOrder failed for orphan ${po.id}:`,
-            error
-          )
-        }
-        continue
-      }
-
-      purchaseOrders.push(po)
-
-      if (successfulItems.length < items.length) {
-        // Partial success: PO header `subtotal/tax_amount/total_amount`
-        // was computed from items.length but only successfulItems are
-        // actually on the row. Recompute from the rows that landed.
-        // `recalculatePOTotals` re-reads the items table and re-runs
-        // the tax service — failure here is non-fatal (header stays
-        // over-counted; operator can hit "Recalculate" manually).
-        try {
-          await this.poService.recalculatePOTotals(po.id)
-        } catch (error) {
-          console.error(
-            `[bulk-reorder] recalculatePOTotals failed for PO ${po.id} after partial item loss:`,
-            error
-          )
-        }
-      }
     }
 
     return { purchaseOrders, skipped }
-  }
-
-  private async resolveSupplierFields(
-    supplierId: string
-  ): Promise<Record<string, string | undefined>> {
-    const orderDate = new Date().toISOString()
-    try {
-      const supplier = await this.supplierService.getSupplierById(supplierId)
-      if (!supplier) return { order_date: orderDate }
-      const address = buildSupplierAddress(supplier)
-      return {
-        order_date: orderDate,
-        payment_terms: supplier.payment_terms || undefined,
-        shipping_address: address || undefined,
-        billing_address: address || undefined,
-      }
-    } catch (_error) {
-      return { order_date: orderDate }
-    }
   }
 }

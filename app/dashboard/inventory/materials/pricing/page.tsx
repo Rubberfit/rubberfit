@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Download } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -8,8 +8,8 @@ import { toast } from "sonner"
 import {
   type MaterialSupplierWithDetails,
   type MaterialType,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { exportService } from "@/src/infrastructure/services/exportService"
 import { fetchPricingPageData } from "@/src/infrastructure/services/pricingPageService"
 import { Button } from "@/app/components/ui/button"
@@ -38,7 +38,7 @@ import type {
 
 export default function PricingPage() {
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [materialSuppliers, setMaterialSuppliers] = useState<MaterialSupplierWithDetails[]>([])
   const [priceHistory, setPriceHistory] = useState<PriceHistoryWithJoins[]>([])
   const [loading, setLoading] = useState(true)
@@ -154,10 +154,6 @@ export default function PricingPage() {
     })
   }, [priceComparisonData, searchQuery, selectedMaterial])
 
-  const handleCostUpdated = useCallback((id: string, updatedMaterial: MaterialType) => {
-    setMaterialTypes((prev) => prev.map((m) => (m.id === id ? updatedMaterial : m)))
-  }, [])
-
   const handleExportHistory = () => {
     if (filteredPriceHistory.length === 0) {
       toast.error("No price history data to export")
@@ -230,7 +226,6 @@ export default function PricingPage() {
             loading={loading}
             materialTypes={materialTypes}
             materialSuppliers={materialSuppliers}
-            onCostUpdated={handleCostUpdated}
           />
         </TabsContent>
 

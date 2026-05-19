@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog"
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/entities/material-type"
 
 interface MaterialDeleteDialogProps {
   /** Material to confirm deletion of, or `null` when the dialog is closed. */

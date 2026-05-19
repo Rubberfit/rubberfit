@@ -1,11 +1,11 @@
 /**
  * E2E auth fixture — ephemeral test users with arbitrary RBAC state.
  *
- * Mints `auth.users` rows via the Supabase service-role key, applies
- * the requested roles / super_admin / is_deleted on the
- * trigger-created `profiles` row, then drives the real login form so
- * browser cookies populate naturally. Tear-down deletes the auth row;
- * the profile follows via ON DELETE CASCADE.
+ * Mints `auth.users` rows via the Supabase service-role key, sets the
+ * `is_platform_admin` flag on the trigger-created `profiles` row, then
+ * creates a fresh tenant + `memberships` row with the requested roles
+ * (roles are per-tenant under the new schema). Tear-down deletes the
+ * auth row (profile cascades) and the tenant (memberships cascade).
  *
  * Requirements (in `.env.local`):
  *   - NEXT_PUBLIC_SUPABASE_URL — local or dev Supabase
@@ -42,19 +42,28 @@ export interface TestUser {
   id: string
   email: string
   password: string
+  tenantId: string
+  membershipId: string
 }
 
 export interface CreateTestUserOptions {
   roles?: string[]
   isSuperAdmin?: boolean
-  isDeleted?: boolean
+  isInaccessible?: boolean
   fullName?: string
 }
 
+interface UpdatedRow {
+  id: string
+}
+
 /**
- * Mint an ephemeral user. The `handle_new_user` trigger creates the
- * profile row with defaults (`roles=['member']`, `super_admin=false`,
- * `is_deleted=false`); we then update it to the test's desired state.
+ * Mint an ephemeral user with their own freshly-minted tenant. The
+ * `handle_new_user` trigger creates the profile row; the fixture then:
+ *   1. Sets `is_platform_admin` if requested
+ *   2. Creates a tenant
+ *   3. Creates a `memberships` row in that tenant with the requested
+ *      roles (and `deleted_at` set if `isInaccessible: true`)
  *
  * Caller MUST tear down via deleteTestUser(user.id) — typically in
  * an afterAll hook.
@@ -77,55 +86,103 @@ export async function createTestUser(options: CreateTestUserOptions = {}): Promi
   }
   const userId = created.user.id
 
-  // `.update().eq().select()` returns the affected rows so we can
-  // verify the `handle_new_user` trigger has actually inserted the
-  // profile row before we update it. Without `.select()`, supabase-js
-  // happily reports success even when zero rows matched — which would
-  // leave the test user with the trigger's defaults
-  // (`roles=['member']`, `super_admin=false`) instead of the requested
-  // RBAC state, then surface as a confusing test failure way
-  // downstream. Asserting `data.length === 1` here pins the failure
-  // to setup.
-  const { data: updated, error: updateError } = await adminClient
+  // The DDD migration removed the handle_new_user trigger that used to auto-create
+  // a profiles row from auth.users. Production now upserts the profile explicitly
+  // in the OAuth callback (authService.upsertProfileFromAuth); the fixture must do
+  // the same before any FK to profiles fires. full_name is a generated column —
+  // do not include it.
+  const { error: profileError } = await adminClient
     .from("profiles")
-    .update({
-      roles: options.roles ?? ["member"],
-      super_admin: options.isSuperAdmin ?? false,
-      is_deleted: options.isDeleted ?? false,
-    })
-    .eq("id", userId)
-    .select("id")
-
-  if (updateError || !updated || updated.length !== 1) {
+    .upsert({ id: userId, email }, { onConflict: "id" })
+  if (profileError) {
     await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
-    const detail = updateError?.message ?? `expected 1 affected row, got ${updated?.length ?? 0}`
-    throw new Error(`createTestUser: profile update failed — ${detail}`)
+    throw new Error(`createTestUser: profile upsert failed — ${profileError.message}`)
   }
 
-  return { id: userId, email, password }
+  if (options.isSuperAdmin === true) {
+    const { data: profileUpdated, error: profileError } = await adminClient
+      .from("profiles")
+      .update({ is_platform_admin: true })
+      .eq("id", userId)
+      .select("id")
+
+    if (
+      profileError ||
+      !profileUpdated ||
+      (profileUpdated as UpdatedRow[] | null)?.length !== 1
+    ) {
+      await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
+      const detail =
+        profileError?.message ??
+        `expected 1 affected profiles row, got ${
+          (profileUpdated as UpdatedRow[] | null)?.length ?? 0
+        }`
+      throw new Error(`createTestUser: profile update failed — ${detail}`)
+    }
+  }
+
+  const tenantSlug = `e2e-${stamp}`
+  const { data: tenant, error: tenantError } = await adminClient
+    .from("tenants")
+    .insert({ name: `E2E ${stamp}`, slug: tenantSlug })
+    .select("id")
+    .single<{ id: string }>()
+  if (tenantError || !tenant) {
+    await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
+    throw new Error(`createTestUser: tenant insert failed — ${tenantError?.message ?? "no row"}`)
+  }
+
+  const { data: membership, error: membershipError } = await adminClient
+    .from("memberships")
+    .insert({
+      tenant_id: tenant.id,
+      profile_id: userId,
+      roles: options.roles ?? ["member"],
+      deleted_at: options.isInaccessible === true ? new Date().toISOString() : null,
+    })
+    .select("id")
+    .single<{ id: string }>()
+  if (membershipError || !membership) {
+    await adminClient.from("tenants").delete().eq("id", tenant.id)
+    await adminClient.auth.admin.deleteUser(userId).catch(() => undefined)
+    throw new Error(
+      `createTestUser: membership insert failed — ${membershipError?.message ?? "no row"}`
+    )
+  }
+
+  return { id: userId, email, password, tenantId: tenant.id, membershipId: membership.id }
 }
 
 export async function deleteTestUser(userId: string): Promise<void> {
-  // ON DELETE CASCADE on profiles.id REFERENCES auth.users(id) handles
-  // the profile row.
-  //
-  // Errors are surfaced (logged with userId, then rethrown) rather than
-  // swallowed: silent failures here leak test users in the project's
-  // auth.users table and hide regressions in the auth-admin API. The
-  // calling test still fails loudly so CI catches the leak.
+  // Best-effort cleanup. There is a pre-existing schema defect introduced by the
+  // admin schema migration (20260509000002_admin_schema.sql): admin_activity_log
+  // has append-only DO INSTEAD NOTHING rules on UPDATE/DELETE, but the FK
+  // admin_activity_log_actor_id_fkey REFERENCES auth.users(id) ON DELETE SET NULL.
+  // The FK trigger issues an UPDATE that the rule rewrites to a no-op, and
+  // Postgres reports "referential integrity query gave unexpected result". This
+  // means ANY auth.users delete fails, even for users that never wrote an audit
+  // row. The fix is a schema migration (drop the FK; keep actor_email for human
+  // identity); tracked separately. For e2e cleanup we log and continue —
+  // orphan auth.users rows are harmless and get cleared by `supabase db reset`.
   const { error } = await adminClient.auth.admin.deleteUser(userId)
   if (error) {
     // eslint-disable-next-line no-console
-    console.error(`deleteTestUser: failed to delete ${userId}`, error)
-    throw new Error(`deleteTestUser: ${error.message}`)
+    console.warn(`deleteTestUser: best-effort cleanup failed for ${userId}: ${error.message}`)
   }
 }
 
-export async function setUserDeactivated(userId: string, isDeleted: boolean): Promise<void> {
+/**
+ * Flips accessibility for a previously-created test user by soft-
+ * deleting (or restoring) every active membership row they own.
+ * Mirrors the production admin "deactivate user" flow which writes
+ * `memberships.deleted_at` per-tenant.
+ */
+export async function setUserDeactivated(userId: string, isInaccessible: boolean): Promise<void> {
+  const deleted_at = isInaccessible ? new Date().toISOString() : null
   const { error } = await adminClient
-    .from("profiles")
-    .update({ is_deleted: isDeleted })
-    .eq("id", userId)
+    .from("memberships")
+    .update({ deleted_at })
+    .eq("profile_id", userId)
   if (error) throw new Error(`setUserDeactivated: ${error.message}`)
 }
 

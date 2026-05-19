@@ -5,15 +5,18 @@ import { z } from "zod"
 
 import { resolveUseCase } from "@/di/resolve"
 import { TOKENS } from "@/di/tokens"
-import type { IAcceptInvitationUseCase } from "@/src/application/use-cases/team/accept-invitation.use-case"
-import type { ICreateInvitationUseCase } from "@/src/application/use-cases/team/create-invitation.use-case"
+import type { IAcceptInvitationUseCase } from "@/src/application/use-cases/invitations/accept-invitation.use-case"
+import type { ICreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
 import type { IDeactivateMemberUseCase } from "@/src/application/use-cases/team/deactivate-member.use-case"
-import type { IResendInvitationUseCase } from "@/src/application/use-cases/team/resend-invitation.use-case"
-import type { IRevokeInvitationUseCase } from "@/src/application/use-cases/team/revoke-invitation.use-case"
+import type { IResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
+import type { IRevokeInvitationUseCase } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
 
 import { requireActiveSubscription } from "@/app/server/auth/require-active-subscription"
 import { requireAuthenticatedUser } from "@/app/server/auth/require-authenticated-user"
 import { ensureDatabaseFactoryRegistered } from "@/app/server/database/register-factory"
+
+const TEAM_PAGE_PATH = "/dashboard/settings/team"
 
 const AcceptInvitationSchema = z.object({
   token: z.string().trim().min(1).max(512),
@@ -37,23 +40,22 @@ function errorMessage(err: unknown): string {
 }
 
 /**
+ * Origin-only base URL for invitation accept links. Honors
+ * NEXT_PUBLIC_APP_URL when set; falls back to localhost so dev runs
+ * out-of-the-box.
+ */
+function acceptUrlBase(): string {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+}
+
+/**
  * Recovery-exempt: a freshly-registered user who has been invited has no
  * active subscription of their own. The use-case validates the invited
  * org's subscription instead.
  */
 export async function acceptInvitation(input: { token: string }): Promise<
   | { organizationId: string; membershipId: string }
-  | {
-      error:
-        | "not_found"
-        | "expired"
-        | "already_accepted"
-        | "revoked"
-        | "email_mismatch"
-        | "org_subscription_inactive"
-        | "membership_exists"
-        | "accept_failed"
-    }
+  | { error: string }
 > {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
@@ -61,45 +63,37 @@ export async function acceptInvitation(input: { token: string }): Promise<
 
   try {
     const useCase = resolveUseCase<IAcceptInvitationUseCase>(TOKENS.IAcceptInvitationUseCase)
-    const result = await useCase.execute({ token: parsed.token, actor })
+    const result = await useCase.execute({ actor, token: parsed.token })
     revalidatePath("/dashboard")
-    revalidatePath("/dashboard/settings/team")
-    return result
-  } catch {
-    return { error: "accept_failed" }
+    revalidatePath(TEAM_PAGE_PATH)
+    return result.ok
+      ? { organizationId: result.tenantId, membershipId: result.membershipId }
+      : { error: result.error }
+  } catch (err) {
+    return { error: errorMessage(err) }
   }
 }
 
 export async function createInvitation(input: { email: string; role: "admin" | "member" }): Promise<
-  | { invitationId: string }
-  | {
-      error:
-        | "forbidden"
-        | "invalid_email"
-        | "email_too_long"
-        | "duplicate_pending_invite"
-        | "already_member"
-        | "seat_cap_reached"
-        | "role_not_allowed"
-        | "invite_email_failed"
-    }
-  | { error: string }
+  { invitationId: string } | { error: string }
 > {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
-  const gate = await requireActiveSubscription(actor)
+  await requireActiveSubscription(actor)
   const parsed = CreateInvitationSchema.parse(input)
 
   try {
+    const client = await getDatabaseClient()
     const useCase = resolveUseCase<ICreateInvitationUseCase>(TOKENS.ICreateInvitationUseCase)
     const result = await useCase.execute({
-      organizationId: gate.organizationId,
-      email: parsed.email,
-      role: parsed.role,
+      client,
       actor,
+      email: parsed.email,
+      roles: [parsed.role],
+      acceptUrlBase: acceptUrlBase(),
     })
-    revalidatePath("/dashboard/settings/team")
-    return result
+    revalidatePath(TEAM_PAGE_PATH)
+    return result.ok ? { invitationId: result.invitation.id } : { error: result.error }
   } catch (err) {
     return { error: errorMessage(err) }
   }
@@ -107,9 +101,7 @@ export async function createInvitation(input: { email: string; role: "admin" | "
 
 export async function revokeInvitation(input: {
   invitationId: string
-}): Promise<
-  { ok: true } | { error: "not_found" | "not_pending" | "forbidden" } | { error: string }
-> {
+}): Promise<{ ok: true } | { error: string }> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   await requireActiveSubscription(actor)
@@ -117,9 +109,9 @@ export async function revokeInvitation(input: {
 
   try {
     const useCase = resolveUseCase<IRevokeInvitationUseCase>(TOKENS.IRevokeInvitationUseCase)
-    const result = await useCase.execute({ invitationId: parsed.invitationId, actor })
-    revalidatePath("/dashboard/settings/team")
-    return result
+    const result = await useCase.execute({ actor, invitationId: parsed.invitationId })
+    revalidatePath(TEAM_PAGE_PATH)
+    return result.ok ? { ok: true } : { error: result.error }
   } catch (err) {
     return { error: errorMessage(err) }
   }
@@ -127,21 +119,23 @@ export async function revokeInvitation(input: {
 
 export async function resendInvitation(input: {
   invitationId: string
-}): Promise<
-  | { ok: true }
-  | { error: "not_found" | "not_pending" | "forbidden" | "invite_email_failed" }
-  | { error: string }
-> {
+}): Promise<{ ok: true } | { error: string }> {
   ensureDatabaseFactoryRegistered()
   const actor = await requireAuthenticatedUser()
   await requireActiveSubscription(actor)
   const parsed = InvitationIdSchema.parse(input)
 
   try {
+    const client = await getDatabaseClient()
     const useCase = resolveUseCase<IResendInvitationUseCase>(TOKENS.IResendInvitationUseCase)
-    const result = await useCase.execute({ invitationId: parsed.invitationId, actor })
-    revalidatePath("/dashboard/settings/team")
-    return result
+    const result = await useCase.execute({
+      client,
+      actor,
+      invitationId: parsed.invitationId,
+      acceptUrlBase: acceptUrlBase(),
+    })
+    revalidatePath(TEAM_PAGE_PATH)
+    return result.ok ? { ok: true } : { error: result.error }
   } catch (err) {
     return { error: errorMessage(err) }
   }
@@ -171,7 +165,7 @@ export async function deactivateMember(input: { memberId: string }): Promise<
       memberId: parsed.memberId,
       actor,
     })
-    revalidatePath("/dashboard/settings/team")
+    revalidatePath(TEAM_PAGE_PATH)
     return result
   } catch (err) {
     return { error: errorMessage(err) }

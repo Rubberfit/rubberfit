@@ -4,26 +4,20 @@ Golden-file parity tests for the canonical packing pipeline.
 
 ## What is a fixture?
 
-A fixture is a JSON file in `fixtures/` that serializes a single `PackRequest` (see `src/application/packing/types.ts`). The `parity.test.ts` runner evaluates each fixture against **both** engines in three describe blocks:
+A fixture is a JSON file in `fixtures/` that serialises a single `PackRequest` (see `src/application/packing/types.ts`). The `parity.test.ts` runner iterates every fixture, runs `RustPackingService.pack(request)` (spawning `engine/target/release/pack-cli`), and snapshots a stable subset of the result.
 
-1. **Legacy baseline** — `LegacyPackingService.pack(request)` is snapshotted under the `legacy_<fixture>` key. Always runs.
-2. **Rust baseline** — `RustPackingService.pack(request)` is snapshotted under the `rust_<fixture>` key. Skipped when `engine/target/release/pack-cli` is not built.
-3. **Rust regression guard** — cross-engine conservation check (items accounted for, non-trivial output). Skipped when the binary is missing.
+The pre-S2 TS-side `LegacyPackingService` was retired with the canonical Rust pipeline (commit 2026-04-19, Phase 3 rollout); `pack-cli` is the only engine. Tests skip when the binary is not built.
 
-Both baselines snapshot the same stable subset to absorb floating-point drift:
+The stable snapshot subset absorbs floating-point drift across runs:
 - `placedCount`
 - `overflowCount`
-- `perBin[].{binId, efficiency}` — efficiency rounded to 4 decimals.
+- `perBin[].{binId, efficiency}` — efficiency rounded to 3 decimals (0.1% resolution). The LBF multistart is seed-deterministic, but the polish pass introduces ~1-in-10 000 float drift from f32→f64 rounding inside jagua-rs.
 
 Snapshots live in `__snapshots__/parity.test.ts.snap` and are committed to the repo.
 
 ## Why these tests exist
 
-Parity snapshots lock in each engine's observable behavior so that any divergence — within a single engine or across engines — surfaces as a failing snapshot rather than a UI regression.
-
-Only the stable subset above is snapshotted — exact coordinates, rotations, and `placements[]` order are intentionally excluded because they may differ across engines while still producing an equivalent pack.
-
-**S2 scope note:** the Rust engine uses warm-start greedy bottom-left only; sparrow LNS+SA lands in S2.5. Expect the Rust baseline to trail legacy on complex fixtures until S2.5 ships. The regression guard deliberately does not assert `rust.placedCount >= legacy.placedCount` for this reason — that tightening is tracked as a TODO inside the test file and belongs to the S2.5 benchmark harness.
+Parity snapshots lock in the Rust packer's observable behaviour so any divergence surfaces as a failing snapshot rather than a UI regression. Exact coordinates, rotations, and `placements[]` order are intentionally excluded — those can shift while still producing an equivalent pack.
 
 ## Current fixtures
 
@@ -41,19 +35,18 @@ Each fixture's `_description` is a top-level field in the JSON and is a one-line
 | `multi-sheet-remnant.json` | Fifteen 10x10 rects across a 48x20 remnant (priority 10) plus a 48x96 fresh bin; overflow spills to the fresh bin. |
 | `overflow.json` | Six 20x20 rects on a 48x48 fresh bin — only four can fit, two overflow. |
 
-### Intentionally omitted: `zero-items-error.json`
+### Error-path coverage
 
-The S1 plan lists a `zero-items-error.json` fixture to exercise the `LegacyPackingService` error path (`throw new Error("pack: items required")` on an empty `items` array). The runner in `parity.test.ts` calls `svc.pack(fixture)` unconditionally and snapshots the result — it has no concept of an expected-error fixture, so this scenario would crash the runner instead of being captured as a stable snapshot.
-
-Adding an expect-error branch to the runner would require more than a simple fixture drop-in, so the error-path coverage stays in `legacyService.test.ts` (`/items required/i` assertion) for Phase 6. If a fixture-driven error mode is needed later, extend the runner to treat a top-level `_expectError` field as the expected `Error.message` regex before re-adding this fixture.
+The runner calls `svc.pack(fixture)` unconditionally and snapshots the result — it has no concept of an expected-error fixture. Empty-`items` and empty-`bins` error paths are covered by `tests/packing/rustPackingService.test.ts` (stderr surface assertions), not as parity fixtures. If a fixture-driven error mode is needed later, extend the runner to treat a top-level `_expectError` field as the expected `Error.message` regex.
 
 ## Adding a new fixture
 
 1. Create `fixtures/<descriptive-name>.json` containing a valid `PackRequest`.
-2. Pin `seed` to a fixed integer so the GA solver (used for mixed-item requests) is deterministic.
-3. Run `npm run test -- tests/packing/parity/parity.test.ts -u` to generate the snapshot entry.
-4. Run `npm run test -- tests/packing/parity/parity.test.ts` (no `-u`) to confirm the snapshot is stable across repeated runs.
-5. Commit both the fixture and the updated snapshot file together.
+2. Pin `seed` to a fixed integer so the LBF multistart is deterministic.
+3. Ensure the Rust binary is built: `npm run build:engine`.
+4. Run `npm run test -- tests/packing/parity/parity.test.ts -u` to generate the snapshot entry.
+5. Run `npm run test -- tests/packing/parity/parity.test.ts` (no `-u`) to confirm the snapshot is stable across repeated runs.
+6. Commit both the fixture and the updated snapshot file together.
 
 ## Regenerating snapshots after an intentional engine change
 

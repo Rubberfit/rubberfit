@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react"
-import { cutService } from "@/src/infrastructure/services/cutService"
+
+import { fetchRecentCuts } from "@/app/actions/cuts"
 import { rollService } from "@/src/infrastructure/services/rollService"
+import type { Roll } from "@/src/infrastructure/models/supabase"
 
 export interface Activity {
   id: string
@@ -17,9 +19,9 @@ export function useRecentActivities() {
 
   const fetchRecentActivities = useCallback(async () => {
     try {
-      let cuts: Awaited<ReturnType<typeof cutService.getRecentCutsWithRolls>> | null = null
+      let cuts: Awaited<ReturnType<typeof fetchRecentCuts>> | null = null
       try {
-        cuts = await cutService.getRecentCutsWithRolls(10)
+        cuts = await fetchRecentCuts(10)
       } catch (cutsError) {
         if ((cutsError as Record<string, unknown>)?.code !== "PGRST116") {
           console.error("Error fetching cuts:", cutsError)
@@ -37,17 +39,29 @@ export function useRecentActivities() {
 
       const formattedActivities: Activity[] = []
 
+      // Build a roll lookup from the rolls fetch so cuts can show their
+      // material type. Cuts whose roll fell out of the recent window
+      // surface as "Unknown" — same string the legacy code already used.
+      const rollById = new Map<string, Roll>()
+      if (rolls) {
+        for (const r of rolls) rollById.set(r.id, r)
+      }
+
       if (cuts) {
         cuts.forEach((cut) => {
-          const rollInfo = cut.roll as { material_type: string; location: string } | undefined
+          const roll = cut.roll_id ? rollById.get(cut.roll_id) : undefined
+          const materialType = roll?.material_type ?? "Unknown"
+          const used = cut.material_used_sqft
+          const scrap = cut.scrap_sqft
+          const total = scrap + used
+          const wastePercentage = total > 0 ? (scrap / total) * 100 : undefined
           formattedActivities.push({
             id: cut.id,
             type: "cut",
-            description: `Cut ${cut.cut_width}" × ${cut.cut_length}" × ${cut.quantity} from ${rollInfo?.material_type || "Unknown"}`,
-            timestamp: cut.created_at,
-            job_reference: cut.job_reference,
-            material_type: rollInfo?.material_type,
-            waste_percentage: cut.waste_percentage,
+            description: `Cut ${cut.cut_width}" × ${cut.cut_length}" × ${cut.cut_amount} from ${materialType}`,
+            timestamp: cut.cut_date ?? cut.created_at,
+            material_type: materialType,
+            waste_percentage: wastePercentage,
           })
         })
       }

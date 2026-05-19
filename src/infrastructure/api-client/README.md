@@ -31,39 +31,36 @@ updates so backend and frontend types stay in lockstep.
 - `client.ts` — shared `openapi-fetch` instance for the Rust backend.
   Consumers should import the per-aggregate wrappers, not this
   client directly.
-- `rf/inventory.ts` — S3b typed SDK. Per-aggregate wrappers
-  (`materialTypes`, `suppliers`, `materialSuppliers`, `rolls`) with
-  CRUD + stats methods. Flag-gated on
-  `NEXT_PUBLIC_USE_RUST_INVENTORY`; when OFF, calls route to the
-  existing legacy repositories/services.
-- `cut-history.ts` — the S3a consumer. Exports `listCutHistory` +
-  `listFavoriteIds`. Branches on `NEXT_PUBLIC_USE_RUST_CUT_HISTORY`:
-  - `"true"` — hits the v2 Next.js route handlers at `/api/v2/cuts/*`
-    which forward to Rust via the cookie→bearer bridge.
-  - anything else — hits the legacy `/api/cuts/*` routes that query
-    Supabase directly via the service role.
-
-Callers receive the same `CutHistory[]` shape regardless of which
-backend served the data, so a per-request rollback is a pure flag
-flip — no UI code changes.
+- `rf/inventory.ts` — typed SDK with per-aggregate wrappers
+  (`materialTypes`, `suppliers`, `materialSuppliers`, `rolls`). The
+  Rust v2 backend is the canonical surface; flag-OFF branches throw
+  `inventoryFlagOffError` to direct operators to flip
+  `NEXT_PUBLIC_USE_RUST_INVENTORY=true`. Legacy repository/service
+  fallbacks were retired (see commit history for the burial — mirrors
+  the cut-history / PO / reorder pattern).
+- `cut-history.ts` — exports `listCutHistory` + `listFavoriteIds`.
+  Same burial pattern: flag-OFF throws `cutHistoryFlagOffError`; the
+  v2 path hits `/api/v2/cuts/*` route handlers that forward to Rust
+  via the cookie→bearer bridge.
 
 ## Feature flags
 
 ```
-NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true      # S3a cut-history
-NEXT_PUBLIC_USE_RUST_INVENTORY=true        # S3b inventory (rolls,
+NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true      # cut-history surface
+NEXT_PUBLIC_USE_RUST_INVENTORY=true        # inventory (rolls,
                                            #  material types, suppliers,
                                            #  material-supplier links)
+NEXT_PUBLIC_USE_RUST_PROCUREMENT=true      # purchase orders / reorder
 ```
 
-Per-aggregate per-flag so operators can roll out one surface at a
-time and roll back instantly.
+Per-aggregate per-flag. Set in `.env.local` (dev) or Vercel env
+(staging/prod). The flag is read at call time, so a Vercel env
+change takes effect on the next page render without a redeploy.
 
-Set in `.env.local` (dev) or Vercel env (staging/prod). The flag
-is read at call time, so a Vercel env change takes effect on the
-next page render without a redeploy.
+Flag-OFF no longer routes to a legacy fallback — it throws an
+operator-facing error (`<surface> flag-OFF path not wired`) and tells
+the caller to flip the flag. Rolling a surface back to a pre-Rust
+implementation now requires a code revert, not a runtime flag flip.
 
-Default is OFF until the Fly staging deploy (Task 9.5) validates
-latency + parity against legacy. Rollback path for production: flip
-the flag back to `false` in Vercel and the hook's next call lands
-on the original Supabase path.
+Flag-ON requires `RF_API_URL` to be set on the server; the v2 bridge
+at `app/api/v2/_lib/bridge.ts` returns 503 if it isn't.

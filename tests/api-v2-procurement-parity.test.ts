@@ -24,33 +24,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
 
-const {
-  legacyPosHandles,
-  legacyReorderHandles,
-  legacyCsvHandles,
-  legacyTaxHandles,
-} = vi.hoisted(() => ({
-  legacyPosHandles: {
-    getAllPurchaseOrders: vi.fn(),
-    getPurchaseOrdersByStatus: vi.fn(),
-    getPurchaseOrderById: vi.fn(),
-    createPurchaseOrder: vi.fn(),
-    updatePurchaseOrder: vi.fn(),
-    updatePurchaseOrderStatus: vi.fn(),
-    deletePurchaseOrder: vi.fn(),
-    receivePurchaseOrder: vi.fn(),
-    addItemToPurchaseOrder: vi.fn(),
-    updatePurchaseOrderItem: vi.fn(),
-    deletePurchaseOrderItem: vi.fn(),
-  },
-  legacyReorderHandles: {
-    getAllReorderRules: vi.fn(),
-    getReorderRuleById: vi.fn(),
-    createReorderRule: vi.fn(),
-    updateReorderRule: vi.fn(),
-    deleteReorderRule: vi.fn(),
-    generateReorderSuggestions: vi.fn(),
-  },
+const { legacyCsvHandles, legacyTaxHandles } = vi.hoisted(() => ({
   legacyCsvHandles: {
     parseCSV: vi.fn(),
     transformToRolls: vi.fn(),
@@ -61,12 +35,6 @@ const {
   },
 }))
 
-vi.mock("@/src/infrastructure/services/purchaseOrderService", () => ({
-  purchaseOrderService: legacyPosHandles,
-}))
-vi.mock("@/src/infrastructure/services/reorderService", () => ({
-  reorderService: legacyReorderHandles,
-}))
 vi.mock("@/src/infrastructure/services/csvService", () => ({
   csvService: legacyCsvHandles,
 }))
@@ -81,9 +49,7 @@ import {
   tax,
 } from "@/src/infrastructure/api-client/rf/procurement"
 
-function stubFetch(
-  impl: (input: string, init?: RequestInit) => Promise<Response>
-): FetchMock {
+function stubFetch(impl: (input: string, init?: RequestInit) => Promise<Response>): FetchMock {
   const spy: FetchMock = vi.fn(impl)
   vi.stubGlobal("fetch", spy)
   return spy
@@ -103,8 +69,6 @@ describe("procurement SDK — v1/v2 parity", () => {
   const originalFlag = process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT
 
   beforeEach(() => {
-    Object.values(legacyPosHandles).forEach((f) => f.mockReset())
-    Object.values(legacyReorderHandles).forEach((f) => f.mockReset())
     Object.values(legacyCsvHandles).forEach((f) => f.mockReset())
     Object.values(legacyTaxHandles).forEach((f) => f.mockReset())
     delete process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT
@@ -122,28 +86,23 @@ describe("procurement SDK — v1/v2 parity", () => {
   // ---- purchaseOrders -------------------------------------------
 
   describe("purchaseOrders", () => {
-    it("list() hits legacy service when flag OFF", async () => {
-      legacyPosHandles.getAllPurchaseOrders.mockResolvedValue([
-        { id: "po-1", po_number: "PO-26-0001" },
-      ])
-      const rows = await purchaseOrders.list()
-      expect(legacyPosHandles.getAllPurchaseOrders).toHaveBeenCalled()
-      expect(rows[0].po_number).toBe("PO-26-0001")
+    it("list() throws from flag-OFF fallback (legacyPurchaseOrderService retired)", async () => {
+      // Post-DDD migration: every PO SDK method requires
+      // NEXT_PUBLIC_USE_RUST_PROCUREMENT=true. The legacy CRUD was
+      // already runtime-broken against the post-redesign schema
+      // (dropped user_id column), so the flag-OFF path now throws.
+      await expect(purchaseOrders.list()).rejects.toThrow(/flag-OFF path not wired/)
     })
 
-    it("list() with status hits getPurchaseOrdersByStatus (flag OFF)", async () => {
-      legacyPosHandles.getPurchaseOrdersByStatus.mockResolvedValue([])
-      await purchaseOrders.list({ status: "ordered" })
-      expect(legacyPosHandles.getPurchaseOrdersByStatus).toHaveBeenCalledWith(
-        "ordered"
+    it("list() with status also throws on flag OFF", async () => {
+      await expect(purchaseOrders.list({ status: "ordered" })).rejects.toThrow(
+        /flag-OFF path not wired/
       )
     })
 
     it("list() hits /api/v2/po when flag ON", async () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
-      const fetchSpy = stubJsonOnce([
-        { id: "po-1", po_number: "PO-26-0001", status: "draft" },
-      ])
+      const fetchSpy = stubJsonOnce([{ id: "po-1", po_number: "PO-26-0001", status: "draft" }])
       const rows = await purchaseOrders.list()
       const arg = fetchSpy.mock.calls[0][0] as unknown
       const url = arg instanceof Request ? arg.url : (arg as string)
@@ -215,30 +174,18 @@ describe("procurement SDK — v1/v2 parity", () => {
       }
     })
 
-    it("receive() translates snake_case → camelCase for legacy (flag OFF)", async () => {
-      // Flag-OFF path preserves legacy behavior verbatim. The
-      // legacy service takes camelCase (itemId, quantityReceived,
-      // rollData). SDK converts at the boundary.
-      legacyPosHandles.receivePurchaseOrder.mockResolvedValue({
-        purchaseOrderId: "po-1",
-        itemsReceived: 1,
-        rollsCreated: [],
-        partialReceipt: false,
-      })
-      await purchaseOrders.receive("po-1", {
-        items: [
-          {
-            item_id: "poi-1",
-            quantity_received: 100,
-            roll_data: { width: 48, length: 100 },
-          },
-        ],
-      })
-      const call = legacyPosHandles.receivePurchaseOrder.mock.calls[0]
-      expect(call[0]).toBe("po-1")
-      expect(call[1][0].itemId).toBe("poi-1")
-      expect(call[1][0].quantityReceived).toBe(100)
-      expect(call[1][0].rollData.width).toBe(48)
+    it("receive() throws on flag OFF (legacyPurchaseOrderService retired)", async () => {
+      await expect(
+        purchaseOrders.receive("po-1", {
+          items: [
+            {
+              item_id: "poi-1",
+              quantity_received: 100,
+              roll_data: { width: 48, length: 100 },
+            },
+          ],
+        })
+      ).rejects.toThrow(/flag-OFF path not wired/)
     })
 
     it("receive() surfaces partial receipt shape (flag ON)", async () => {
@@ -257,35 +204,27 @@ describe("procurement SDK — v1/v2 parity", () => {
       expect(r.completed_at).toBeNull()
     })
 
-    it("items.add merges po_id into the legacy body (flag OFF)", async () => {
-      // Legacy `addItemToPurchaseOrder` takes a single arg that
-      // carries `purchase_order_id`; the SDK splits it across a
-      // path segment + body and merges on flag-OFF.
-      legacyPosHandles.addItemToPurchaseOrder.mockResolvedValue({
-        id: "poi-new",
-      })
-      await purchaseOrders.items.add("po-1", {
-        material_type_id: "mt-1",
-        description: "test",
-        quantity_sqft: 10,
-        unit_cost: 1,
-      })
-      const arg = legacyPosHandles.addItemToPurchaseOrder.mock.calls[0][0]
-      expect(arg.purchase_order_id).toBe("po-1")
-      expect(arg.material_type_id).toBe("mt-1")
+    it("items.add throws on flag OFF (legacyPurchaseOrderService retired)", async () => {
+      await expect(
+        purchaseOrders.items.add("po-1", {
+          material_type_id: "mt-1",
+          description: "test",
+          quantity_sqft: 10,
+          unit_cost: 1,
+        })
+      ).rejects.toThrow(/flag-OFF path not wired/)
     })
   })
 
   // ---- reorderRules + suggestions -------------------------------
 
   describe("reorderRules", () => {
-    it("list() hits legacy service (flag OFF)", async () => {
-      legacyReorderHandles.getAllReorderRules.mockResolvedValue([
-        { id: "rr-1", material_type_id: "mt-1" },
-      ])
-      const rows = await reorderRules.list()
-      expect(legacyReorderHandles.getAllReorderRules).toHaveBeenCalled()
-      expect(rows[0].material_type_id).toBe("mt-1")
+    it("list() throws from flag-OFF fallback (legacyReorderService retired)", async () => {
+      // Post-DDD migration: every reorder-rules SDK method
+      // requires NEXT_PUBLIC_USE_RUST_PROCUREMENT=true. The legacy
+      // CRUD was already runtime-broken against the post-redesign
+      // schema, so the flag-OFF path now throws an explicit error.
+      await expect(reorderRules.list()).rejects.toThrow(/flag-OFF path not wired/)
     })
 
     it("suggestions() passes include_pending through query (flag ON)", async () => {
@@ -369,13 +308,10 @@ describe("procurement SDK — v1/v2 parity", () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
       stubFetch(
         async () =>
-          new Response(
-            JSON.stringify({ code: "DUPLICATE_RULE_IDS (count=1)" }),
-            {
-              status: 409,
-              headers: { "content-type": "application/json" },
-            }
-          )
+          new Response(JSON.stringify({ code: "DUPLICATE_RULE_IDS (count=1)" }), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          })
       )
       try {
         await reorderRules.createBulkPo({
@@ -423,13 +359,10 @@ describe("procurement SDK — v1/v2 parity", () => {
       process.env.NEXT_PUBLIC_USE_RUST_PROCUREMENT = "true"
       const fetchSpy = stubFetch(
         async () =>
-          new Response(
-            JSON.stringify({ imported: 2, skipped: 0, errors: [] }),
-            {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            }
-          )
+          new Response(JSON.stringify({ imported: 2, skipped: 0, errors: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
       )
       const file = new File(
         ["material_type,width,length,thickness\nNeoprene,48,600,0.25"],

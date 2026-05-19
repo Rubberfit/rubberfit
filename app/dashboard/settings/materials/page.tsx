@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/app/components/ui/button"
 import { PageHeader, PageShell } from "@/app/components/patterns"
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/entities/material-type"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { createMaterialType, deleteMaterialType, updateMaterialType } from "@/app/actions/materials"
 
@@ -63,17 +63,15 @@ export default function MaterialSettingsPage() {
           await createMaterialType({
             name: values.name.trim(),
             description: values.description.trim(),
-            default_cost: values.default_cost,
-            min_stock_alert: values.min_stock_alert,
+            min_stock_sqm: values.min_stock_sqm,
           })
           toast.success("Material added")
         } else {
           await updateMaterialType({
-            id: target.id,
+            id: target.id.value,
             name: values.name.trim(),
             description: values.description.trim(),
-            default_cost: values.default_cost,
-            min_stock_alert: values.min_stock_alert,
+            min_stock_sqm: values.min_stock_sqm,
           })
           toast.success("Material updated")
         }
@@ -93,7 +91,7 @@ export default function MaterialSettingsPage() {
   const handleConfirmDelete = useCallback(
     async (material: MaterialType) => {
       try {
-        const result = await deleteMaterialType({ id: material.id })
+        const result = await deleteMaterialType({ id: material.id.value })
         if (!result.ok) {
           toast.error("Cannot delete material", { description: result.message })
           return

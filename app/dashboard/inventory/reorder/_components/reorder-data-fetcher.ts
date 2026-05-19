@@ -1,13 +1,13 @@
-import type {
-  MaterialType,
-  ReorderRuleWithDetails,
-  Supplier,
-} from "@/src/infrastructure/models/supabase"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import type { ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
-import { generateReorderSuggestions } from "@/app/actions/reorder"
+import {
+  generateReorderSuggestions,
+  getCurrentStockByMaterials,
+} from "@/app/actions/reorder"
 // `ReorderSuggestionOutput` lives on the use-case (the canonical
 // source). The fetcher imports from the application layer instead
 // of the UI module — coderabbit flagged on PR #197 that pulling the
@@ -20,7 +20,7 @@ import type { ReorderSuggestionOutput } from "@/src/application/use-cases/reorde
 interface FetchDataResult {
   reorderRules: ReorderRuleWithDetails[]
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   suggestions: ReorderSuggestionOutput[]
 }
 
@@ -64,20 +64,23 @@ export async function fetchReorderData(): Promise<FetchDataResult> {
 
   // Per-rule stock for the rules-table display. Independent of the
   // suggestion flow (which has its own server-side stock computation
-  // inside the action).
-  const rulesWithStock = rulesResponse
-    ? await Promise.all(
-        rulesResponse.map(async (rule) => ({
-          ...rule,
-          current_stock: await reorderService.calculateCurrentStock(rule.material_type_id),
-        }))
-      )
-    : []
+  // inside the action). Batched into one server-action round-trip
+  // instead of N — earlier rev called calculateCurrentStock per-rule
+  // through a legacy shim that has since been retired.
+  const stockByMaterial = rulesResponse
+    ? await getCurrentStockByMaterials([
+        ...new Set(rulesResponse.map((rule) => rule.material_type_id)),
+      ])
+    : {}
+  const rulesWithStock = (rulesResponse ?? []).map((rule) => ({
+    ...rule,
+    current_stock: stockByMaterial[rule.material_type_id] ?? 0,
+  }))
 
   return {
     reorderRules: rulesWithStock,
     materialTypes: materials,
-    suppliers: suppliersData,
+    suppliers: suppliersData.map((s) => s.toJSON()),
     suggestions,
   }
 }

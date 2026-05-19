@@ -3,7 +3,13 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
 import { resolvePostAuthRedirect, sanitizeRedirectPath } from "@/app/lib/auth-redirect"
+import { makeActiveTenantPendingCookie } from "@/app/server/auth/active-tenant"
 import { type AppRole, DEFAULT_ROLES } from "@/src/application/permissions"
+import {
+  persistLastActiveTenant,
+  resolveActiveTenantId,
+} from "@/src/infrastructure/services/active-tenant.service"
+import { getProfileAccess } from "@/src/infrastructure/services/authService"
 
 type PendingCookie = {
   name: string
@@ -98,13 +104,17 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("roles, is_deleted")
-      .eq("id", user.id)
-      .maybeSingle()
+    let access
+    try {
+      access = await getProfileAccess(supabase, user.id)
+    } catch (_err) {
+      await supabase.auth.signOut()
+      const loginParams = new URLSearchParams()
+      loginParams.set("error", "Authentication failed. Please try again.")
+      return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
+    }
 
-    if (profile?.is_deleted) {
+    if (access.isInaccessible) {
       await supabase.auth.signOut()
       const loginParams = new URLSearchParams()
       loginParams.set(
@@ -114,7 +124,25 @@ export async function GET(request: NextRequest) {
       return redirectWithCookies(requestUrl, "/auth/v2/login", pendingCookies, loginParams)
     }
 
-    roles = (profile?.roles ?? [...DEFAULT_ROLES]) as AppRole[]
+    roles = access.roles.length > 0 ? (access.roles as AppRole[]) : [...DEFAULT_ROLES]
+
+    // Active-tenant cookie: resolve the user's tenant context now so
+    // every downstream request has a stable hint. Cookie comes back
+    // empty on first login (it's a fresh sign-in), so the resolver
+    // falls through to `profiles.last_active_tenant_id` then to the
+    // oldest active membership. If the resolver chose a different
+    // tenant than the persisted last_active, persist the new pick so
+    // the next session's cookie-miss recovery agrees.
+    try {
+      const resolvedTenantId = await resolveActiveTenantId(supabase, user.id)
+      if (resolvedTenantId) {
+        pendingCookies.push(makeActiveTenantPendingCookie(resolvedTenantId))
+        // best-effort write — failure is logged, not fatal
+        await persistLastActiveTenant(supabase, user.id, resolvedTenantId)
+      }
+    } catch (err) {
+      console.error("[callback] active-tenant resolution failed:", err)
+    }
 
     // MFA enforcement for OAuth: the email+password login form
     // challenges inline, but OAuth hands us a fresh session with no

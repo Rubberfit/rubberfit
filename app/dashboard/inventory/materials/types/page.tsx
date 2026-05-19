@@ -7,7 +7,7 @@ import { type MaterialType } from "@/src/infrastructure/models/supabase"
 import { materialTypes as materialTypesSdk } from "@/src/infrastructure/api-client/rf/inventory"
 import { createMaterialType } from "@/app/actions/materials"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { existsActiveItemsByMaterialTypeAction } from "@/app/actions/purchase-orders"
 import { Button } from "@/app/components/ui/button"
 import {
   DropdownMenu,
@@ -118,7 +118,7 @@ export default function MaterialTypesPage() {
         await createMaterialType({
           name: formData.name.trim(),
           description: trimmedDescription || undefined,
-          min_stock_alert: parsedStock,
+          min_stock_sqm: parsedStock,
         })
         toast.success("Material type created successfully")
       }
@@ -151,7 +151,7 @@ export default function MaterialTypesPage() {
         return
       }
 
-      const hasPOItems = await purchaseOrderService.existsItemsByMaterialType(materialToDelete.id)
+      const hasPOItems = await existsActiveItemsByMaterialTypeAction(materialToDelete.id)
       if (hasPOItems) {
         toast.error("Cannot delete material type", {
           description: "This material is referenced by existing purchase orders",

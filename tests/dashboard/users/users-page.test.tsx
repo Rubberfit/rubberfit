@@ -18,12 +18,15 @@ const baseUser: UserProfile = {
   email: "alice@example.com",
   full_name: "Alice Admin",
   avatar_url: null,
-  is_deleted: false,
-  roles: ["admin"],
+  is_platform_admin: false,
+  last_active_tenant_id: null,
   last_sign_in_at: "2025-01-10T12:00:00Z",
   created_at: "2024-12-01T00:00:00Z",
   updated_at: "2025-01-10T12:00:00Z",
-} as UserProfile
+  membership_id: "m-1",
+  roles: ["admin"],
+  is_inaccessible: false,
+}
 
 const fixtureUsers: UserProfile[] = [
   baseUser,
@@ -33,16 +36,18 @@ const fixtureUsers: UserProfile[] = [
     email: "bob@example.com",
     full_name: "Bob Cutter",
     roles: ["cutter"],
-    is_deleted: false,
-  } as UserProfile,
+    membership_id: "m-2",
+    is_inaccessible: false,
+  },
   {
     ...baseUser,
     id: "user-3",
     email: "carol@example.com",
     full_name: "Carol Viewer",
     roles: ["viewer"],
-    is_deleted: true,
-  } as UserProfile,
+    membership_id: "m-3",
+    is_inaccessible: true,
+  },
 ]
 
 const useRole = vi.hoisted(() => vi.fn())

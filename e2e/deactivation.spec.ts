@@ -1,19 +1,19 @@
 /**
- * Verifies `is_deleted` enforcement at both auth touchpoints.
+ * Verifies accessibility enforcement at both auth touchpoints.
  *
- *   1. Fresh sign-in by a deactivated user
- *      → `authService.signIn` checks `isProfileDeleted` and rejects;
- *        the form stays on /login and surfaces a sonner toast.
+ *   1. Fresh sign-in by an inaccessible user (no active memberships)
+ *      → `authService.signIn` checks `isAccountInaccessible` and
+ *        rejects; the form stays on /login and surfaces a sonner toast.
  *
  *   2. Active session deactivated mid-session
  *      → next request to a permission-gated path triggers `proxy.ts`'s
- *        `access.isDeleted` check, which calls `auth.signOut()` and
+ *        `access.isInaccessible` check, which calls `auth.signOut()` and
  *        redirects to /login?deactivated=1.
  *
  * The mid-session test uses a `manager` because
  * /dashboard/inventory/purchase-orders requires `manageRolls` (admin
  * OR manager). The proxy's permission-gate codepath is what fires the
- * isDeleted check, so we need a route with a permission requirement.
+ * isInaccessible check, so we need a route with a permission requirement.
  */
 import { expect, test } from "@playwright/test"
 
@@ -35,7 +35,7 @@ test.afterAll(async () => {
 })
 
 test("deactivated user cannot sign in", async ({ page }) => {
-  const user = await createTestUser({ roles: ["member"], isDeleted: true })
+  const user = await createTestUser({ roles: ["member"], isInaccessible: true })
   userIdsToCleanup.push(user.id)
 
   await fillLoginAndSubmit(page, user)

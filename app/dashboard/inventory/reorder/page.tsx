@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
-import {
-  type MaterialType,
-  type ReorderRuleWithDetails,
-  type Supplier,
-} from "@/src/infrastructure/models/supabase"
+import { type ReorderRuleWithDetails } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { PageHeader, PageShell } from "@/app/components/patterns"
 import { cn } from "@/app/lib/utils"
 
@@ -45,7 +43,7 @@ export default function ReorderRulesPage() {
   const router = useRouter()
   const [reorderRules, setReorderRules] = useState<ReorderRuleWithDetails[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [editingRules, setEditingRules] = useState<Record<string, EditableRule>>({})

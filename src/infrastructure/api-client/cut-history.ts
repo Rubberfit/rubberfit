@@ -2,21 +2,16 @@
  * Cut-history client — single source of truth for the UI's fetch
  * calls against cut-history data.
  *
- * Branches on `NEXT_PUBLIC_USE_RUST_CUT_HISTORY`:
+ * The Rust v2 backend is the canonical surface; flag-OFF branches
+ * throw `cutHistoryFlagOffError` to direct operators to flip
+ * `NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true`. Mirrors the PO + reorder
+ * retirement pattern in `src/infrastructure/api-client/rf/procurement.ts`.
  *
- * - `"true"`   → `/api/v2/cuts/*`, which the Next.js route handlers
- *                under `app/api/v2/**` forward to the Rust backend
- *                with the Supabase bearer token.
- * - anything   → the legacy `/api/cuts/*` Next.js routes that hit
- * else         Supabase directly via the service role.
- *
- * Consumers receive the same shape regardless of which path ran,
- * so per-request rollback is a pure flag flip with zero UI code
- * changes. Fields the Rust DTO doesn't carry yet (`stock_label`,
- * `cost_per_sqft`, `pdf_url`, `part_custom_dimensions`) are
- * returned as `null` on the v2 path — callers that need them
- * must already handle nullability, which they do because legacy
- * rows can have nulls too.
+ * Fields the Rust DTO doesn't carry yet (`stock_label`, `cost_per_sqft`,
+ * `pdf_url`, `part_custom_dimensions`, `kerf`, `roll_id`, `job_id`,
+ * `job_part_id`, `layout_json`) are returned as `null` on the v2 path —
+ * widening the DTO to carry them is a follow-up; callers already
+ * tolerate nulls because legacy rows could carry them too.
  */
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
@@ -115,30 +110,30 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await res.json()) as T
 }
 
-export async function listCutHistory(opts: ListHistoryOptions = {}): Promise<CutHistory[]> {
-  if (isRustBackendEnabled()) {
-    const params = new URLSearchParams()
-    if (opts.limit !== undefined) params.set("limit", String(opts.limit))
-    if (opts.from) params.set("since", opts.from)
-    if (opts.to) params.set("until", opts.to)
-    // userId is deliberately NOT forwarded — the Rust backend scopes
-    // by the bearer JWT's `sub` claim via RLS. An admin-style
-    // user-picker would need a dedicated v2 endpoint later.
-    const qs = params.toString()
-    const url = qs ? `/api/v2/cuts/history?${qs}` : "/api/v2/cuts/history"
-    const rows = await fetchJson<CutHistoryDto[]>(url)
-    return rows.map(dtoToCutHistory)
-  }
+// `legacyCutHistoryService` was retired alongside this surface — flag-OFF
+// branches below throw so operators are explicitly directed to flip
+// `NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true`. Matches the PO + reorder pattern.
+function cutHistoryFlagOffError(operation: string): Error {
+  return new Error(
+    `cut-history ${operation} flag-OFF path not wired (legacyCutHistoryService retired); flip NEXT_PUBLIC_USE_RUST_CUT_HISTORY=true for this surface`
+  )
+}
 
-  // Legacy path — same shape the hook was reading before.
+export async function listCutHistory(opts: ListHistoryOptions = {}): Promise<CutHistory[]> {
+  if (!isRustBackendEnabled()) {
+    throw cutHistoryFlagOffError("list")
+  }
   const params = new URLSearchParams()
-  params.set("limit", String(opts.limit ?? 100))
-  if (opts.page !== undefined) params.set("page", String(opts.page))
-  if (opts.from) params.set("from", opts.from)
-  if (opts.to) params.set("to", opts.to)
-  if (opts.userId) params.set("userId", opts.userId)
-  const res = await fetchJson<{ data: CutHistory[] }>(`/api/cuts/history?${params.toString()}`)
-  return res.data
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit))
+  if (opts.from) params.set("since", opts.from)
+  if (opts.to) params.set("until", opts.to)
+  // userId is deliberately NOT forwarded — the Rust backend scopes
+  // by the bearer JWT's `sub` claim via RLS. An admin-style
+  // user-picker would need a dedicated v2 endpoint later.
+  const qs = params.toString()
+  const url = qs ? `/api/v2/cuts/history?${qs}` : "/api/v2/cuts/history"
+  const rows = await fetchJson<CutHistoryDto[]>(url)
+  return rows.map(dtoToCutHistory)
 }
 
 export interface FavoritesResult {
@@ -151,13 +146,12 @@ export interface FavoritesResult {
 }
 
 export async function listFavoriteIds(): Promise<FavoritesResult> {
-  if (isRustBackendEnabled()) {
-    // v2 returns the full favorite entries; the hook only needs ids.
-    // v2 DTO still types id as number — stringify to match the
-    // UUID-string migration on the v1 path.
-    const rows = await fetchJson<CutHistoryDto[]>("/api/v2/cuts/favorites")
-    return { ids: new Set(rows.map((r) => String(r.id))) }
+  if (!isRustBackendEnabled()) {
+    throw cutHistoryFlagOffError("favorites")
   }
-  const res = await fetchJson<{ data: string[] }>("/api/cuts/favorites")
-  return { ids: new Set(res.data) }
+  // v2 returns the full favorite entries; the hook only needs ids.
+  // v2 DTO still types id as number — stringify to match the
+  // UUID-string migration on the v1 path.
+  const rows = await fetchJson<CutHistoryDto[]>("/api/v2/cuts/favorites")
+  return { ids: new Set(rows.map((r) => String(r.id))) }
 }

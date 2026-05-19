@@ -15,7 +15,8 @@ import {
 import { Switch } from "@/app/components/ui/switch"
 import { Alert, AlertDescription } from "@/app/components/ui/alert"
 import { Separator } from "@/app/components/ui/separator"
-import type { MaterialType, Supplier } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 
 interface FormData {
   material_type_id: string
@@ -41,7 +42,7 @@ interface MaterialSupplierFieldsProps {
   formData: FormData
   setFormData: (data: FormData) => void
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   isEditing: boolean
 }
 
@@ -52,7 +53,6 @@ export function MaterialSupplierFields({
   suppliers,
   isEditing,
 }: MaterialSupplierFieldsProps) {
-  const selectedMaterial = materialTypes.find((m) => m.id === formData.material_type_id)
   const selectedSupplier = suppliers.find((s) => s.id === formData.supplier_id)
 
   return (
@@ -69,17 +69,12 @@ export function MaterialSupplierFields({
           </SelectTrigger>
           <SelectContent>
             {materialTypes.map((material) => (
-              <SelectItem key={material.id} value={material.id}>
+              <SelectItem key={material.id.value} value={material.id.value}>
                 {material.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {selectedMaterial && (
-          <p className="text-sm text-muted-foreground">
-            Default cost: ${selectedMaterial.default_cost?.toFixed(2) || "N/A"} per sq ft
-          </p>
-        )}
       </div>
 
       <div className="space-y-2">
@@ -104,7 +99,7 @@ export function MaterialSupplierFields({
         </Select>
         {selectedSupplier && (
           <p className="text-sm text-muted-foreground">
-            Payment terms: {selectedSupplier.payment_terms || "N/A"}
+            Payment terms: {selectedSupplier.paymentTerms || "N/A"}
           </p>
         )}
       </div>
@@ -379,7 +374,7 @@ interface ReorderRuleFormFieldsProps {
   eoqData: EOQData
   setEoqData: (data: EOQData) => void
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   isEditing: boolean
   onCalculateEOQ: () => void
   onCalculateReorderPoint: () => void

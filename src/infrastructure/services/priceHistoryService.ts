@@ -1,388 +1,113 @@
-import {
-  supabase,
-  type PriceHistory,
-  type MaterialSupplierWithDetails,
-} from "@/src/infrastructure/models/supabase"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import "reflect-metadata"
+import { randomUUID } from "node:crypto"
+import { inject, injectable } from "tsyringe"
+
+import type { IPriceHistoryRepository } from "@/src/application/repositories/price-history.repository.interface"
 import type {
   IPriceHistoryService,
-  PriceBulkChange,
-  BestPriceOption,
-  PriceTrend,
-  PriceComparison,
   PriceHistoryWithJoins,
 } from "@/src/application/services/price-history.service.interface"
-import "reflect-metadata"
-import { injectable } from "tsyringe"
+import { PriceHistory } from "@/src/entities/price-history"
+import { Currency } from "@/src/entities/value-objects/currency"
+import {
+  MaterialSupplierId,
+  PriceHistoryId,
+  ProfileId,
+  TenantId,
+} from "@/src/entities/value-objects/id"
+import { Money } from "@/src/entities/value-objects/money"
+import { priceHistoryRepository } from "@/src/infrastructure/repositories/price-history.repository"
+import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
+import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
+import { TOKENS } from "@/di/tokens"
 
-export type { PriceHistoryWithJoins, PriceTrend, BestPriceOption, PriceComparison, PriceBulkChange }
+export type {
+  BestPriceOption,
+  PriceBulkChange,
+  PriceComparison,
+  PriceHistoryWithJoins,
+  PriceTrend,
+} from "@/src/application/services/price-history.service.interface"
+
+const USD = Currency.fromPersistence("USD")
 
 @injectable()
 export class PriceHistoryService implements IPriceHistoryService {
-  async trackPriceChange(
-    materialSupplierId: string,
-    oldPrice: number | undefined,
-    newPrice: number,
-    changeReason?: string,
-    changedBy?: string
-  ): Promise<PriceHistory> {
-    try {
-      const priceChangePercentage = oldPrice ? ((newPrice - oldPrice) / oldPrice) * 100 : undefined
+  constructor(
+    @inject(TOKENS.IPriceHistoryRepository)
+    private readonly repo: IPriceHistoryRepository
+  ) {}
 
-      const user_id = await getCurrentUserId()
-      const { data, error } = await supabase
-        .from("price_history")
-        .insert([
-          {
-            user_id,
-            material_supplier_id: materialSupplierId,
-            old_cost_per_sqft: oldPrice,
-            new_cost_per_sqft: newPrice,
-            price_change_percentage: priceChangePercentage,
-            change_reason: changeReason,
-            effective_date: new Date().toISOString(),
-            changed_by: changedBy,
-          },
-        ])
-        .select()
-        .single()
+  /**
+   * Looks up `tenant_id` for a material_supplier and constructs a
+   * `PriceHistory` entity, then persists it. Use-cases that already
+   * have the parent entity in hand can call this directly; the
+   * `materialSupplierId → tenantId` lookup is here so loose callers
+   * don't have to thread it manually.
+   */
+  async appendPriceChange(input: {
+    materialSupplierId: string
+    oldCostCents: number | null
+    newCostCents: number
+    changeReason?: string | null
+    changedBy?: string | null
+    effectiveDate?: Date
+    notes?: string | null
+  }): Promise<PriceHistory> {
+    const client = await getDatabaseClient()
+    const { data: ms, error: msError } = await client
+      .from("material_suppliers")
+      .select("tenant_id")
+      .eq("id", input.materialSupplierId)
+      .single()
+    if (msError) throw msError
 
-      if (error) throw error
-      return data as PriceHistory
-    } catch (error) {
-      console.error("Error tracking price change:", error)
-      throw error
-    }
+    const tenantId = TenantId.fromPersistence((ms as { tenant_id: string }).tenant_id)
+    const changedBy = input.changedBy ?? (await getCurrentUserId().catch(() => null))
+
+    const entity = PriceHistory.create({
+      id: PriceHistoryId.fromPersistence(randomUUID()),
+      tenantId,
+      materialSupplierId: MaterialSupplierId.fromPersistence(input.materialSupplierId),
+      oldCost: input.oldCostCents !== null ? Money.fromCents(input.oldCostCents, USD) : null,
+      newCost: Money.fromCents(input.newCostCents, USD),
+      changeReason: input.changeReason ?? null,
+      effectiveDate: input.effectiveDate,
+      changedBy: changedBy ? ProfileId.fromPersistence(changedBy) : null,
+      notes: input.notes ?? null,
+    })
+
+    return this.repo.insert(entity)
   }
 
-  async getPriceHistory(materialSupplierId: string, limit?: number): Promise<PriceHistory[]> {
-    try {
-      let query = supabase
-        .from("price_history")
-        .select("*")
-        .eq("material_supplier_id", materialSupplierId)
-        .order("effective_date", { ascending: false })
-
-      if (limit) {
-        query = query.limit(limit)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-      return data as PriceHistory[]
-    } catch (error) {
-      console.error("Error fetching price history:", error)
-      throw error
-    }
+  getHistoryFor(materialSupplierId: string, limit?: number): Promise<PriceHistory[]> {
+    return this.repo.findByMaterialSupplier(materialSupplierId, limit)
   }
 
-  async getMaterialPriceHistory(
+  getMaterialPriceHistory(
     materialTypeId: string,
     daysBack: number = 90
   ): Promise<PriceHistoryWithJoins[]> {
-    try {
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - daysBack)
-
-      const { data: materialSuppliers, error: msError } = await supabase
-        .from("material_suppliers")
-        .select("id, supplier_id")
-        .eq("material_type_id", materialTypeId)
-
-      if (msError) throw msError
-
-      if (!materialSuppliers || materialSuppliers.length === 0) {
-        return []
-      }
-
-      const materialSupplierIds = materialSuppliers.map((ms: { id: string }) => ms.id)
-
-      const { data, error } = await supabase
-        .from("price_history")
-        .select(
-          `
-          *,
-          material_supplier:material_suppliers!inner(
-            supplier:suppliers(id, name)
-          )
-        `
-        )
-        .in("material_supplier_id", materialSupplierIds)
-        .gte("effective_date", startDate.toISOString())
-        .order("effective_date", { ascending: false })
-
-      if (error) throw error
-      return (data ?? []) as PriceHistoryWithJoins[]
-    } catch (error) {
-      console.error("Error fetching material price history:", error)
-      throw error
-    }
+    return this.repo.findByMaterialType(materialTypeId, daysBack)
   }
 
-  async comparePrices(materialTypeId: string): Promise<PriceComparison> {
-    try {
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          supplier:suppliers(id, name, rating, preferred)
-        `
-        )
-        .eq("material_type_id", materialTypeId)
-        .eq("active", true)
-        .order("cost_per_sqft", { ascending: true })
-
-      if (error) throw error
-
-      const suppliers = data as MaterialSupplierWithDetails[]
-
-      if (suppliers.length === 0) {
-        return {
-          suppliers: [],
-          lowestPrice: 0,
-          highestPrice: 0,
-          averagePrice: 0,
-          priceRange: 0,
-          bestValue: null,
-        }
-      }
-
-      const prices = suppliers.map((s) => s.cost_per_sqft)
-      const lowestPrice = Math.min(...prices)
-      const highestPrice = Math.max(...prices)
-      const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length
-
-      const bestValue = suppliers.reduce((best, current) => {
-        const currentScore = this.calculateValueScore(current)
-        const bestScore = best ? this.calculateValueScore(best) : 0
-        return currentScore > bestScore ? current : best
-      }, suppliers[0])
-
-      return {
-        suppliers,
-        lowestPrice,
-        highestPrice,
-        averagePrice,
-        priceRange: highestPrice - lowestPrice,
-        bestValue,
-      }
-    } catch (error) {
-      console.error("Error comparing prices:", error)
-      throw error
-    }
+  getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]> {
+    return this.repo.findByDateRange(startDate)
   }
 
-  async calculatePriceTrends(materialTypeId: string, daysBack: number = 30): Promise<PriceTrend[]> {
-    try {
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - daysBack)
-
-      const { data: currentPrices, error: cpError } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          supplier:suppliers(id, name)
-        `
-        )
-        .eq("material_type_id", materialTypeId)
-        .eq("active", true)
-
-      if (cpError) throw cpError
-
-      if (!currentPrices || currentPrices.length === 0) {
-        return []
-      }
-
-      const trends: PriceTrend[] = []
-
-      for (const ms of currentPrices) {
-        const { data: history, error: histError } = await supabase
-          .from("price_history")
-          .select("*")
-          .eq("material_supplier_id", ms.id)
-          .gte("effective_date", startDate.toISOString())
-          .order("effective_date", { ascending: false })
-
-        if (histError) throw histError
-
-        const currentPrice = ms.cost_per_sqft
-        const previousPrice =
-          history && history.length > 0 && history[0].old_cost_per_sqft
-            ? history[0].old_cost_per_sqft
-            : currentPrice
-
-        const changeAmount = currentPrice - previousPrice
-        const changePercentage = previousPrice !== 0 ? (changeAmount / previousPrice) * 100 : 0
-
-        let trend: "increasing" | "decreasing" | "stable"
-        if (Math.abs(changePercentage) < 1) {
-          trend = "stable"
-        } else if (changePercentage > 0) {
-          trend = "increasing"
-        } else {
-          trend = "decreasing"
-        }
-
-        trends.push({
-          materialTypeId,
-          supplierId: ms.supplier_id,
-          currentPrice,
-          previousPrice,
-          changeAmount,
-          changePercentage,
-          trend,
-          priceHistory: history || [],
-        })
-      }
-
-      return trends
-    } catch (error) {
-      console.error("Error calculating price trends:", error)
-      throw error
-    }
-  }
-
-  async getBestPrice(materialTypeId: string): Promise<BestPriceOption | null> {
-    try {
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          supplier:suppliers(id, name, rating, preferred)
-        `
-        )
-        .eq("material_type_id", materialTypeId)
-        .eq("active", true)
-        .order("cost_per_sqft", { ascending: true })
-        .limit(1)
-        .single()
-
-      if (error && error.code !== "PGRST116") throw error
-      if (!data) return null
-
-      const { data: lastChange } = await supabase
-        .from("price_history")
-        .select("effective_date, price_change_percentage")
-        .eq("material_supplier_id", data.id)
-        .order("effective_date", { ascending: false })
-        .limit(1)
-        .single()
-
-      return {
-        supplierId: data.supplier_id,
-        supplierName: data.supplier?.name || "",
-        materialSupplierId: data.id,
-        costPerSqft: data.cost_per_sqft,
-        leadTimeDays: data.lead_time_days || 0,
-        minimumOrderSqft: data.minimum_order_sqft || 0,
-        isPreferred: data.preferred_supplier,
-        lastPriceChange: lastChange
-          ? {
-              date: lastChange.effective_date,
-              changePercentage: lastChange.price_change_percentage || 0,
-            }
-          : undefined,
-      }
-    } catch (error) {
-      console.error("Error getting best price:", error)
-      throw error
-    }
-  }
-
-  async getSignificantPriceChanges(
+  getSignificantPriceChanges(
     thresholdPercentage: number = 5,
     daysBack: number = 7
   ): Promise<PriceHistoryWithJoins[]> {
-    try {
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - daysBack)
-
-      const { data, error } = await supabase
-        .from("price_history")
-        .select(
-          `
-          *,
-          material_supplier:material_suppliers(
-            material_type:material_types(id, name),
-            supplier:suppliers(id, name)
-          )
-        `
-        )
-        .gte("effective_date", startDate.toISOString())
-        .or(
-          `price_change_percentage.gt.${thresholdPercentage},price_change_percentage.lt.${-thresholdPercentage}`
-        )
-        .order("effective_date", { ascending: false })
-
-      if (error) throw error
-      return (data ?? []) as PriceHistoryWithJoins[]
-    } catch (error) {
-      console.error("Error fetching significant price changes:", error)
-      throw error
-    }
-  }
-
-  async getPriceHistoryByDateRange(startDate: Date): Promise<PriceHistoryWithJoins[]> {
-    const { data, error } = await supabase
-      .from("price_history")
-      .select(
-        `
-        *,
-        material_supplier:material_suppliers(
-          *,
-          material_type:material_types(*),
-          supplier:suppliers(*)
-        )
-      `
-      )
-      .gte("created_at", startDate.toISOString())
-      .order("created_at", { ascending: false })
-
-    if (error) throw error
-    return (data ?? []) as PriceHistoryWithJoins[]
-  }
-
-  async bulkTrackPriceChanges(changes: PriceBulkChange[]): Promise<PriceHistory[]> {
-    try {
-      const user_id = await getCurrentUserId()
-      const priceHistoryRecords = changes.map((change) => ({
-        user_id,
-        material_supplier_id: change.materialSupplierId,
-        old_cost_per_sqft: change.oldPrice,
-        new_cost_per_sqft: change.newPrice,
-        price_change_percentage: change.oldPrice
-          ? ((change.newPrice - change.oldPrice) / change.oldPrice) * 100
-          : undefined,
-        change_reason: change.changeReason,
-        effective_date: new Date().toISOString(),
-        changed_by: change.changedBy,
-      }))
-
-      const { data, error } = await supabase
-        .from("price_history")
-        .insert(priceHistoryRecords)
-        .select()
-
-      if (error) throw error
-      return data as PriceHistory[]
-    } catch (error) {
-      console.error("Error bulk tracking price changes:", error)
-      throw error
-    }
-  }
-
-  calculateValueScore(supplier: MaterialSupplierWithDetails): number {
-    const priceScore = 100 / (supplier.cost_per_sqft + 1)
-    const leadTimeScore = 100 / ((supplier.lead_time_days || 1) + 1)
-    const ratingScore = (supplier.supplier?.rating || 3) * 20
-    const preferredBonus = supplier.preferred_supplier ? 20 : 0
-
-    return priceScore + leadTimeScore + ratingScore + preferredBonus
+    return this.repo.findSignificantChanges(thresholdPercentage, daysBack)
   }
 }
 
-export const priceHistoryService = new PriceHistoryService()
+/**
+ * Module-level singleton bound to the concrete `priceHistoryRepository`.
+ * DI-resolved consumers get a fresh instance via the container; both
+ * share the same repository.
+ */
+export const priceHistoryService: IPriceHistoryService = new PriceHistoryService(
+  priceHistoryRepository
+)

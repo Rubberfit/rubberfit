@@ -35,6 +35,7 @@ export const ACTOR_OWNER: ActionActor = {
   email: "owner@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 export function makeMember(overrides: Partial<OrganizationMember> = {}): OrganizationMember {
@@ -218,7 +219,7 @@ export function makeFakeEmailService(overrides: Partial<IEmailService> = {}): IE
     sendPOStatusUpdate: vi.fn(async () => successful),
     sendDailyDigest: vi.fn(async () => successful),
     sendWelcomeEmail: vi.fn(async () => successful),
-    sendInvitationEmail: vi.fn(async () => successful),
+    sendInvitation: vi.fn(async () => successful),
     queueEmail: vi.fn(async () => undefined),
     processEmailQueue: vi.fn(async () => undefined),
     sendBulkEmails: vi.fn(async () => undefined),

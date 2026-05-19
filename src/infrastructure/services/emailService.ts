@@ -1,5 +1,7 @@
+import { createElement } from "react"
 import { Resend } from "resend"
-// import { render } from '@react-email/render'; // TODO: Uncomment when email templates are ready
+import { render } from "@react-email/render"
+import InvitationEmail from "@/app/templates/email/invitation"
 import { supabase, type NotificationQueue } from "@/src/infrastructure/models/supabase"
 import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import type { IEmailService } from "@/src/application/services/email.service.interface"
@@ -285,46 +287,41 @@ export class EmailService implements IEmailService {
   }
 
   /**
-   * Send an organization invitation email.
+   * Send a tenant-membership invitation email.
    *
-   * The link points at `${NEXT_PUBLIC_APP_URL}/invite/${token}` which the
-   * public landing page resolves via the SECURITY DEFINER preview RPC.
+   * Synchronous (no queue) per ARC-25 plan v3 decision #6: admins
+   * click Invite and the email goes out immediately. On failure the
+   * caller (CreateInvitationUseCase / ResendInvitationUseCase) records
+   * the error onto the invitation row via
+   * IInvitationService.recordSendFailure so the admin sees it in the
+   * pending-invitations table.
    */
-  async sendInvitationEmail(params: {
+  async sendInvitation(params: {
     to: string
-    organizationName: string
-    role: "admin" | "member"
-    inviterName: string | null
-    inviteUrl: string
-    expiresAtLabel: string
+    tenantName: string
+    inviterName: string
+    acceptUrl: string
+    expiresAt: Date
+    roles: string[]
   }) {
-    const inviterFrom = params.inviterName ? `${params.inviterName} ` : ""
-    // `expiresAtLabel` is formatted by the caller (invitation use-cases)
-    // with the operator's date prefs — see the interface JSDoc. The
-    // value is constrained to a closed `SupportedDateFormat` shape today
-    // (no HTML metacharacters possible), but we still `escapeHtml` it on
-    // insertion so this HTML-rendering boundary stays uniform with the
-    // other escaped params and any future label source can't be the
-    // weak link.
-    //
-    // `inviteUrl` flows into an `href` attribute — a crafted value with
-    // an unescaped `"` would break the attribute boundary. Escape it
-    // even though the URL is built server-side from `appUrl()` + a hex
-    // token today; CR PR #270 catch.
-    const safeInviteUrl = escapeHtml(params.inviteUrl)
-    const html = `
-      <p>You've been invited to join <strong>${escapeHtml(params.organizationName)}</strong> on Rubberfit${inviterFrom ? ` by ${escapeHtml(inviterFrom.trim())}` : ""}.</p>
-      <p>Your role on the team will be <strong>${escapeHtml(params.role)}</strong>.</p>
-      <p><a href="${safeInviteUrl}">Accept the invitation</a></p>
-      <p>This invitation expires on ${escapeHtml(params.expiresAtLabel)}.</p>
-    `
+    const html = await render(
+      createElement(InvitationEmail, {
+        tenantName: params.tenantName,
+        inviterName: params.inviterName,
+        acceptUrl: params.acceptUrl,
+        expiresAt: params.expiresAt,
+        roles: params.roles,
+        companyName: COMPANY_NAME,
+      })
+    )
+
     return this.sendEmail({
       to: params.to,
-      subject: `You're invited to join ${params.organizationName} on Rubberfit`,
+      subject: `You've been invited to ${params.tenantName}`,
       html,
       tags: [
-        { name: "notification_type", value: "team_invitation" },
-        { name: "role", value: params.role },
+        { name: "notification_type", value: "invitation" },
+        { name: "tenant", value: params.tenantName },
       ],
     })
   }

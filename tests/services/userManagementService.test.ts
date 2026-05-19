@@ -6,6 +6,8 @@ import {
 } from "@/src/infrastructure/services/userManagementService"
 import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
 
+const TENANT_ID = "00000000-0000-0000-0000-000000000001"
+
 describe("listDirectoryUsers", () => {
   it("returns the directory rows", async () => {
     const client = makeFakeClient({
@@ -40,16 +42,20 @@ describe("createUserWithProfile", () => {
       password: "supersecret",
       fullName: "Alice",
       roles: ["member"],
+      tenantId: TENANT_ID,
     })
     expect(result).toEqual({ ok: false, status: 409, error: expect.any(String) })
   })
 
-  it("returns the userId on a clean create", async () => {
+  it("returns the userId on a clean create with a membership in the target tenant", async () => {
     const client = makeFakeClient({
       tables: {
         profiles: {
           select: { data: null, error: null },
-          update: { data: { id: "new-uid" }, error: null },
+          update: { data: null, error: null },
+        },
+        memberships: {
+          insert: { data: null, error: null },
         },
       },
       auth: {
@@ -63,35 +69,9 @@ describe("createUserWithProfile", () => {
       password: "supersecret",
       fullName: "Alice",
       roles: ["admin", "manager"],
+      tenantId: TENANT_ID,
     })
     expect(result).toEqual({ ok: true, userId: "new-uid" })
-  })
-
-  it("returns warning when the profile row is missing (silent 0-row update)", async () => {
-    const client = makeFakeClient({
-      tables: {
-        profiles: {
-          select: { data: null, error: null },
-          update: { data: null, error: null },
-        },
-      },
-      auth: {
-        admin: {
-          createUser: { data: { user: { id: "new-uid" } }, error: null },
-        },
-      },
-    })
-    const result = await createUserWithProfile(client, {
-      email: "alice@x.com",
-      password: "supersecret",
-      fullName: "Alice",
-      roles: ["member"],
-    })
-    expect(result).toMatchObject({
-      ok: true,
-      userId: "new-uid",
-      warning: expect.any(String),
-    })
   })
 
   it("returns warning + userId when profile update fails (user was still created)", async () => {
@@ -101,6 +81,7 @@ describe("createUserWithProfile", () => {
           select: { data: null, error: null },
           update: { data: null, error: { message: "constraint" } },
         },
+        memberships: { insert: { data: null, error: null } },
       },
       auth: {
         admin: {
@@ -113,11 +94,43 @@ describe("createUserWithProfile", () => {
       password: "supersecret",
       fullName: "Alice",
       roles: ["member"],
+      tenantId: TENANT_ID,
     })
     expect(result).toMatchObject({
       ok: true,
       userId: "new-uid",
       warning: expect.any(String),
+    })
+  })
+
+  it("returns warning + userId when membership insert fails", async () => {
+    const client = makeFakeClient({
+      tables: {
+        profiles: {
+          select: { data: null, error: null },
+          update: { data: null, error: null },
+        },
+        memberships: {
+          insert: { data: null, error: { message: "RLS" } },
+        },
+      },
+      auth: {
+        admin: {
+          createUser: { data: { user: { id: "new-uid" } }, error: null },
+        },
+      },
+    })
+    const result = await createUserWithProfile(client, {
+      email: "alice@x.com",
+      password: "supersecret",
+      fullName: "Alice",
+      roles: ["member"],
+      tenantId: TENANT_ID,
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      userId: "new-uid",
+      warning: expect.stringMatching(/membership/i),
     })
   })
 
@@ -138,6 +151,7 @@ describe("createUserWithProfile", () => {
       password: "short",
       fullName: "Alice",
       roles: ["member"],
+      tenantId: TENANT_ID,
     })
     expect(result).toEqual({ ok: false, status: 400, error: "weak password" })
   })

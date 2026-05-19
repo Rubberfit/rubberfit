@@ -104,7 +104,7 @@ export default async function TeamSettingsPage() {
         userId: m.user_id,
         fullName: m.profile?.full_name ?? null,
         email: m.profile?.email ?? null,
-        avatarUrl: m.profile?.avatar_url ?? null,
+        avatarUrl: (m.profile?.avatar_url as string | null) ?? null,
         role: m.role,
         status: m.status,
         lastActiveAt: null,

@@ -157,7 +157,6 @@ export default function CSVImportPage() {
           await createMaterialType({
             name,
             description: "",
-            default_cost: 0,
           })
         }
         if (newTypes.length > 0) {

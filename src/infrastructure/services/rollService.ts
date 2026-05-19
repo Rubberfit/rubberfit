@@ -1,6 +1,164 @@
+import "reflect-metadata"
+import { inject, injectable } from "tsyringe"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-export { rollsRepository as rollService } from "@/src/infrastructure/repositories/rolls.repository"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+import type { IRollService } from "@/src/application/services/roll.service.interface"
+import { type BarcodeFormat, type CreateRollProps, Roll } from "@/src/entities/roll"
+import type { ProfileId } from "@/src/entities/value-objects/id"
+import type {
+  Roll as RollRow,
+  RollReusableOffcutSummary,
+} from "@/src/infrastructure/models/supabase"
+import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
+import { TOKENS } from "@/di/tokens"
+
+@injectable()
+export class RollService implements IRollService {
+  constructor(
+    @inject(TOKENS.IRollsRepository)
+    private readonly repo: IRollsRepository
+  ) {}
+
+  getById(id: string): Promise<Roll> {
+    return this.repo.findById(id)
+  }
+
+  getActive(): Promise<Roll[]> {
+    return this.repo.findActive()
+  }
+
+  getByMaterialType(materialTypeId: string): Promise<Roll[]> {
+    return this.repo.findByMaterialType(materialTypeId)
+  }
+
+  getChildOffcuts(parentRollId: string): Promise<Roll[]> {
+    return this.repo.findChildOffcuts(parentRollId)
+  }
+
+  findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<Roll | null> {
+    return this.repo.findByPurchaseOrderItemId(purchaseOrderItemId)
+  }
+
+  createRoll(props: CreateRollProps): Promise<Roll> {
+    const roll = Roll.create(props)
+    return this.repo.insert(roll)
+  }
+
+  async consumeLength(id: string, mm: number, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.consumeLength(mm, actor)
+    return this.repo.update(roll)
+  }
+
+  async reserve(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.reserve(actor)
+    return this.repo.update(roll)
+  }
+
+  async release(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.release(actor)
+    return this.repo.update(roll)
+  }
+
+  async relocate(id: string, location: string | null, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.relocate(location, actor)
+    return this.repo.update(roll)
+  }
+
+  async updateNotes(id: string, notes: string | null, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.updateNotes(notes, actor)
+    return this.repo.update(roll)
+  }
+
+  async recordBarcode(
+    id: string,
+    format: BarcodeFormat,
+    assetPath: string,
+    actor: ProfileId
+  ): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.recordBarcode(format, assetPath, actor)
+    return this.repo.update(roll)
+  }
+
+  async recordQrGenerated(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.recordQrGenerated(actor)
+    return this.repo.update(roll)
+  }
+
+  async softDelete(id: string, actor: ProfileId): Promise<Roll> {
+    const roll = await this.repo.findById(id)
+    roll.softDelete(actor)
+    return this.repo.update(roll)
+  }
+
+  // ─── Transitional raw-row pass-throughs ─────────────────────────────────
+  //
+  // Thin delegates to the deprecated `IRollsRepository` raw-row surface.
+  // Each method retires when the consuming UI page is rewritten against
+  // entity reads.
+
+  getAllRolls(): Promise<RollRow[]> {
+    return this.repo.getAllRolls()
+  }
+
+  getActiveRolls(): Promise<RollRow[]> {
+    return this.repo.getActiveRolls()
+  }
+
+  getRecentRolls(limit: number): Promise<RollRow[]> {
+    return this.repo.getRecentRolls(limit)
+  }
+
+  getRecentlyUpdatedRolls(limit: number): Promise<RollRow[]> {
+    return this.repo.getRecentlyUpdatedRolls(limit)
+  }
+
+  getInventoryValue(): Promise<number> {
+    return this.repo.getInventoryValue()
+  }
+
+  getLowStockCount(): Promise<number> {
+    return this.repo.getLowStockCount()
+  }
+
+  existsByMaterialType(materialTypeName: string): Promise<boolean> {
+    return this.repo.existsByMaterialType(materialTypeName)
+  }
+
+  getRollMaterialTypeMap(): Promise<Map<string, string>> {
+    return this.repo.getRollMaterialTypeMap()
+  }
+
+  getReusableOffcutSummary(rollId: string): Promise<RollReusableOffcutSummary | null> {
+    return this.repo.getReusableOffcutSummary(rollId)
+  }
+
+  addRoll(
+    roll: Omit<RollRow, "id" | "user_id" | "created_at" | "updated_at">,
+    userId?: string
+  ): Promise<RollRow> {
+    return this.repo.addRoll(roll, userId)
+  }
+
+  getChildOffcutsRaw(parentRollId: string): Promise<RollRow[]> {
+    return this.repo.getChildOffcuts(parentRollId)
+  }
+}
+
+/**
+ * Module-level singleton bound to the concrete `rollsRepository`. New
+ * consumers (use-cases, server actions) resolve through DI; UI surfaces
+ * that haven't been rewritten against entity reads call the
+ * transitional raw-row methods at the bottom of `IRollService`.
+ */
+export const rollService: IRollService = new RollService(rollsRepository)
 
 /**
  * Public-facing projection of a roll — the subset of columns safe to

@@ -32,11 +32,13 @@ export interface IProfileRepository {
   uploadAvatar(userId: string, file: File): Promise<AvatarUploadResult>
   createAvatarsBucket(): Promise<BucketResult>
   /**
-   * Marks the caller's profile as deleted (soft-delete).
-   * The auth row stays so that the GoTrue session can still
-   * sign out cleanly and so an admin can restore if needed; the
-   * `/callback` and login paths reject `is_deleted` profiles and
-   * the account becomes unusable from the customer's perspective.
+   * Marks the caller's account as inaccessible by soft-deleting every
+   * active `memberships` row (per-tenant). The auth row stays so that
+   * the GoTrue session can still sign out cleanly; the `/callback`
+   * and login paths reject accounts with zero active memberships and
+   * the account becomes unusable from the customer's perspective. An
+   * admin in any of the user's former tenants can restore by
+   * clearing the membership's `deleted_at`.
    */
   requestSelfDelete(userId: string): Promise<SelfDeleteResult>
 }

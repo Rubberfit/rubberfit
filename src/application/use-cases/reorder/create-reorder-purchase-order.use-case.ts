@@ -1,10 +1,7 @@
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
-import type { IPurchaseOrderService } from "@/src/application/services/purchase-order.service.interface"
 import type { IReorderService } from "@/src/application/services/reorder.service.interface"
-import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
-import type { ITaxService } from "@/src/application/services/tax.service.interface"
 import type { ActionActor } from "@/src/application/types/action-actor"
 import type {
   PurchaseOrderWithDetails,
@@ -12,6 +9,10 @@ import type {
 } from "@/src/infrastructure/models/supabase"
 import { TOKENS } from "@/di/tokens"
 import type { ReorderSuggestionOutput } from "./generate-reorder-suggestions.use-case"
+import type {
+  ICreatePurchaseOrderUseCase,
+  CreatePurchaseOrderInput,
+} from "@/src/application/use-cases/purchase-orders/create-purchase-order.use-case"
 
 export interface CreateReorderPurchaseOrderInput {
   suggestion: ReorderSuggestionOutput
@@ -28,108 +29,63 @@ export interface ICreateReorderPurchaseOrderUseCase {
 }
 
 const DELIVERY_WINDOW_DAYS = 7
-const DEFAULT_ROLL_WIDTH = 60
-const DEFAULT_ROLL_THICKNESS = 0.125
-
-function buildSupplierAddress(s: {
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  country?: string | null
-}): string {
-  const parts = [s.address, s.city, s.state, s.zip_code, s.country].filter(Boolean)
-  return parts.join(", ")
-}
+const DEFAULT_ROLL_WIDTH_INCHES = 60
+const DEFAULT_ROLL_THICKNESS_INCHES = 0.125
 
 @injectable()
 export class CreateReorderPurchaseOrderUseCase implements ICreateReorderPurchaseOrderUseCase {
   constructor(
-    @inject(TOKENS.IPurchaseOrderService) private readonly poService: IPurchaseOrderService,
+    @inject(TOKENS.ICreatePurchaseOrderUseCase)
+    private readonly createPoUseCase: ICreatePurchaseOrderUseCase,
     @inject(TOKENS.IReorderService) private readonly reorderService: IReorderService,
-    @inject(TOKENS.ISupplierService) private readonly supplierService: ISupplierService,
-    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService,
-    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService
+    @inject(TOKENS.INotificationService) private readonly notificationService: INotificationService
   ) {}
 
   async execute(input: CreateReorderPurchaseOrderInput): Promise<CreateReorderPurchaseOrderResult> {
-    const { suggestion, reorderRules } = input
+    const { suggestion, reorderRules, actor } = input
 
     if (!suggestion.supplierId) {
       throw new Error("No supplier configured for this material")
     }
 
-    let supplierFields: Record<string, string | undefined> = {
-      order_date: new Date().toISOString(),
-    }
-    try {
-      const supplier = await this.supplierService.getSupplierById(suggestion.supplierId)
-      if (supplier) {
-        const address = buildSupplierAddress(supplier)
-        supplierFields = {
-          order_date: new Date().toISOString(),
-          payment_terms: supplier.payment_terms || undefined,
-          shipping_address: address || undefined,
-          billing_address: address || undefined,
-        }
-      }
-    } catch (_error) {
-      // Keep minimal supplierFields
-    }
-
-    const subtotal = suggestion.estimatedCost
-    const taxCalc = await this.taxService.calculatePurchaseOrderTax(suggestion.supplierId, subtotal)
-    const taxAmount = taxCalc.taxAmount
     const deliveryDate = new Date(
       Date.now() + DELIVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
     ).toISOString()
 
-    const po = await this.poService.createPurchaseOrder(
-      {
-        supplier_id: suggestion.supplierId,
-        status: "draft",
-        ...supplierFields,
-        requested_delivery_date: deliveryDate,
-        notes: `Reorder for ${suggestion.materialName} - ${suggestion.urgencyLevel} priority`,
-        subtotal,
-        tax_amount: taxAmount,
-        shipping_cost: 0,
-        total_amount: subtotal + taxAmount,
-        auto_generated: false,
-      },
-      input.actor.id
-    )
+    // Delegate to the canonical PO create use-case — entity construction,
+    // currency, PO numbering, tax calculation, item conversion all live
+    // there. Atomic creation (header + items in one insert) eliminates
+    // the orphan-PO and partial-item-failure modes the legacy two-call
+    // pattern had.
+    const createInput: CreatePurchaseOrderInput = {
+      supplierId: suggestion.supplierId,
+      requestedDeliveryDate: deliveryDate,
+      notes: `Reorder for ${suggestion.materialName} - ${suggestion.urgencyLevel} priority`,
+      shippingCost: 0,
+      items: [
+        {
+          materialTypeId: suggestion.materialTypeId,
+          description: suggestion.materialName,
+          quantitySqft: suggestion.suggestedQuantity,
+          unitCost: suggestion.estimatedCost / suggestion.suggestedQuantity,
+          width: DEFAULT_ROLL_WIDTH_INCHES,
+          thickness: DEFAULT_ROLL_THICKNESS_INCHES,
+        },
+      ],
+      actor,
+    }
 
-    if (!po) throw new Error("Failed to create purchase order")
-
-    await this.poService.addItemToPurchaseOrder(
-      {
-        purchase_order_id: po.id,
-        material_type_id: suggestion.materialTypeId,
-        description: suggestion.materialName,
-        quantity_sqft: suggestion.suggestedQuantity,
-        unit_cost: suggestion.estimatedCost / suggestion.suggestedQuantity,
-        width: DEFAULT_ROLL_WIDTH,
-        thickness: DEFAULT_ROLL_THICKNESS,
-      },
-      input.actor.id
-    )
+    const { purchaseOrder: po } = await this.createPoUseCase.execute(createInput)
 
     const rule = reorderRules.find((r) => r.material_type_id === suggestion.materialTypeId)
     if (rule) {
-      await this.reorderService.updateReorderRule(
-        rule.id,
-        {
-          last_triggered_at: new Date().toISOString(),
-        },
-        input.actor.id
-      )
+      await this.reorderService.recordTrigger(rule.id)
     }
 
     try {
       await this.notificationService.sendReorderTriggered({
-        actorId: input.actor.id,
-        userIdentifier: input.actor.id,
+        actorId: actor.id,
+        userIdentifier: actor.id,
         materialName: suggestion.materialName,
         reorderQuantity: suggestion.suggestedQuantity,
         supplier: suggestion.supplierName ?? "Unknown supplier",

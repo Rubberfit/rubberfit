@@ -28,6 +28,7 @@ const ACTOR: ActionActor = {
   email: "owner@acme.example",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 function makeOrganization(overrides: Partial<Organization> = {}): Organization {
@@ -130,28 +131,13 @@ function makeOrganizationFake(): PortalFake {
     async updateSubscriptionPlanTierAndSeats() {
       throw new Error("not used")
     },
-    async createInvitation() {
-      throw new Error("not used")
-    },
-    async getInvitationByToken() {
-      throw new Error("not used")
-    },
-    async getInvitationById() {
-      throw new Error("not used")
-    },
-    async getInvitationPreviewByToken() {
-      throw new Error("not used")
-    },
-    async updateInvitation() {
-      throw new Error("not used")
-    },
     async listPendingInvitations() {
       throw new Error("not used")
     },
-    async acceptInvitationAtomically() {
+    async getSeatUsage() {
       throw new Error("not used")
     },
-    async getSeatUsage() {
+    async countActiveMembers() {
       throw new Error("not used")
     },
   }

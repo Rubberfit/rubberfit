@@ -3,8 +3,8 @@ import { subDays } from "date-fns"
 import type {
   MaterialType,
   MaterialSupplierWithDetails,
-  Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
@@ -26,7 +26,7 @@ export interface PriceAlert {
 
 export interface PricingFetchResult {
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   materialSuppliers: MaterialSupplierWithDetails[]
   priceHistory: PriceHistoryWithJoins[]
   priceAlerts: PriceAlert[]
@@ -51,7 +51,7 @@ export function generatePriceAlerts(history: PriceHistoryWithJoins[]): PriceAler
 export async function fetchPricingPageData(dateRange: string): Promise<PricingFetchResult> {
   const startDate = subDays(new Date(), parseInt(dateRange))
 
-  const [materialTypes, suppliers, materialSuppliers, priceHistory] = await Promise.all([
+  const [materialTypes, supplierEntities, materialSuppliers, priceHistory] = await Promise.all([
     materialTypeRepository.getAll(),
     supplierService.getActiveSuppliers(),
     materialSuppliersRepository.getActiveWithDetails(),
@@ -60,7 +60,7 @@ export async function fetchPricingPageData(dateRange: string): Promise<PricingFe
 
   return {
     materialTypes,
-    suppliers,
+    suppliers: supplierEntities.map((s) => s.toJSON()),
     materialSuppliers,
     priceHistory,
     priceAlerts: generatePriceAlerts(priceHistory),

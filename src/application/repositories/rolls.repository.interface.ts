@@ -1,47 +1,115 @@
+import type { Roll as RollEntity } from "@/src/entities/roll"
 import type { Roll, RollReusableOffcutSummary } from "@/src/infrastructure/models/supabase"
 
+/**
+ * Rolls persistence boundary. Mixed-return interface during the DDD
+ * migration:
+ *
+ * - Entity-typed methods (`findById`, `findActive`, `findByMaterialType`,
+ *   `findChildOffcuts`, `insert`, `update`, `softDelete`) are the
+ *   canonical surface used by the new `RollService`. They return
+ *   `RollEntity` instances reconstituted from the new schema columns
+ *   (`material_type_id`, `cost_per_sqm_cents`, `source_type`, etc.).
+ *
+ * - Raw-row methods (`getAllRolls`, `getActiveRolls`, `getRollById`,
+ *   `addRoll`, `updateRoll`, `markAsDepleted`, `markRollDepleted`,
+ *   `getInventoryValue`, `searchRolls`, `getLowStockCount`,
+ *   `deleteRoll`, `getRecentRolls`, `getRecentlyUpdatedRolls`,
+ *   `existsByMaterialType`, `getRollMaterialTypeMap`, `bulkAddRolls`,
+ *   `getInventoryGrowthPercentage`, `getThicknessesByMaterialType`,
+ *   `getReusableOffcutSummary`, `getChildOffcuts`) are deprecated; they
+ *   return the pre-redesign `Roll` row shape that the inventory /
+ *   cutting / dashboard UI pages still consume. They retire with each
+ *   UI surface's own migration commit.
+ */
 export interface IRollsRepository {
-  getAllRolls(): Promise<Roll[]>
-  getActiveRolls(): Promise<Roll[]>
-  getRollById(id: string): Promise<Roll>
+  // ─── Entity-typed (new DDD surface) ─────────────────────────────────────
+
+  /** Returns the entity for `id`, or throws if not found. */
+  findById(id: string): Promise<RollEntity>
+
+  /** Active, non-deleted rolls, newest first. */
+  findActive(): Promise<RollEntity[]>
+
+  /** Rolls of a given material type, newest first. */
+  findByMaterialType(materialTypeId: string): Promise<RollEntity[]>
+
+  /** Offcut rolls spawned from the given parent roll, newest first. */
+  findChildOffcuts(parentRollId: string): Promise<RollEntity[]>
+
   /**
-   * Inserts a new roll. `userId` is the owner of the row inserted as
-   * `rolls.user_id`. Server-action callers pass `actor.id` explicitly
-   * (since the browser-singleton-backed `getCurrentUserId()` has no
-   * session in a Node runtime). Legacy browser callers may omit it
-   * and fall back to `getCurrentUserId()` until they migrate.
+   * Returns the (at most one) non-deleted roll whose
+   * `purchase_order_item_id` matches. Used by the 7c-2 admin reconcile
+   * flow's stale-stamp recovery branch: if `roll_created_at` is NULL on
+   * a receipt but a matching roll actually exists, the use-case just
+   * stamps the receipt rather than creating a duplicate. Returns `null`
+   * when no such roll exists.
    */
+  findByPurchaseOrderItemId(purchaseOrderItemId: string): Promise<RollEntity | null>
+
+  /** Persists a freshly-built `Roll` entity. Returns the rehydrated entity. */
+  insert(roll: RollEntity): Promise<RollEntity>
+
+  /**
+   * Persists state-transition mutations (consume / reserve / release /
+   * relocate / notes / barcode / QR / soft-delete) by flattening the
+   * mutable fields onto the row. Caller has already invoked the entity
+   * mutator and is the source of truth for the new state.
+   */
+  update(roll: RollEntity): Promise<RollEntity>
+
+  // ─── Legacy raw-row surface (pre-redesign Row shape) ────────────────────
+
+  /** @deprecated Raw-row read; use `findActive` for entity-typed reads. */
+  getAllRolls(): Promise<Roll[]>
+  /** @deprecated Raw-row read; use `findActive` for entity-typed reads. */
+  getActiveRolls(): Promise<Roll[]>
+  /** @deprecated Raw-row read; use `findById` for entity-typed reads. */
+  getRollById(id: string): Promise<Roll>
+  /** @deprecated Raw-row write; use `insert(RollEntity)` in new code. */
   addRoll(
     roll: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">,
     userId?: string
   ): Promise<Roll>
+  /** @deprecated Raw-row write; use entity mutators + `update(RollEntity)` in new code. */
   updateRoll(id: string, updates: Partial<Roll>): Promise<Roll>
+  /** @deprecated Use `Roll.consumeLength(...)` then `update(roll)` in new code. */
   markAsDepleted(id: string): Promise<Roll>
+  /** @deprecated Use `Roll.consumeLength(...)` then `update(roll)` in new code. */
   markRollDepleted(id: string): Promise<Roll>
+  /** @deprecated Dashboard summary card — retires with the dashboard UI rewrite. */
   getInventoryValue(): Promise<number>
+  /** @deprecated Inventory page text-search — retires with the inventory UI rewrite. */
   searchRolls(query: string): Promise<Roll[]>
+  /** @deprecated Dashboard summary card — retires with the dashboard UI rewrite. */
   getLowStockCount(): Promise<number>
+  /** @deprecated Hard-delete; prefer `softDelete` on the entity + `update(roll)`. */
   deleteRoll(id: string): Promise<void>
+  /** @deprecated Dashboard recent-activity card — retires with the dashboard UI rewrite. */
   getRecentRolls(limit: number): Promise<Roll[]>
+  /** @deprecated Dashboard recent-activity card — retires with the dashboard UI rewrite. */
   getRecentlyUpdatedRolls(limit: number): Promise<Roll[]>
+  /** @deprecated Material-types page — text-based lookup that predates the FK rewrite. */
   existsByMaterialType(materialTypeName: string): Promise<boolean>
+  /** @deprecated Cutting-engine helper — retires with the cutting UI rewrite. */
   getRollMaterialTypeMap(): Promise<Map<string, string>>
+  /** @deprecated Import flow — retires when bulk import is rewritten against entities. */
   bulkAddRolls(
     rolls: Omit<Roll, "id" | "user_id" | "created_at" | "updated_at">[],
     batchSize?: number
   ): Promise<{ imported: number; total: number }>
+  /** @deprecated Dashboard summary card — retires with the dashboard UI rewrite. */
   getInventoryGrowthPercentage(): Promise<number>
+  /** @deprecated Cutting-engine helper — retires with the cutting UI rewrite. */
   getThicknessesByMaterialType(materialType: string): Promise<number[]>
   /**
-   * Aggregates cut_history metrics for a single roll. Used by the
-   * inventory detail drawer to surface reusable-offcut totals.
-   * Returns null if the roll has no linked cut history.
+   * @deprecated Inventory drawer aggregate. Returns null when the
+   * companion migration column is missing in the environment.
    */
   getReusableOffcutSummary(rollId: string): Promise<RollReusableOffcutSummary | null>
   /**
-   * Lists offcut rolls spawned from the given parent roll. Used by
-   * the inventory drawer to show each child offcut piece with its
-   * own part number — operators click through to consume them.
+   * @deprecated Raw-row offcut listing; use `findChildOffcuts` for the
+   * entity-typed read.
    */
   getChildOffcuts(parentRollId: string): Promise<Roll[]>
 }

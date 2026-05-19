@@ -21,15 +21,19 @@ Closes #(issue number)
 
 ## Changes Made
 
-- 
-- 
-- 
+-
+-
+-
 
 ## How to Test
 
 -
 -
 -
+
+## Agent index hygiene
+
+- [ ] If this PR adds, removes, or renames an entity / VO / service interface / use-case / server action / DI token, the matching index README under [`AGENTS.md`'s Definition of Done table](../AGENTS.md#definition-of-done) was updated **in this PR**.
 
 ## Screenshots (if applicable)
 

@@ -32,10 +32,10 @@ import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
 // mocks are the right tool here because these are exported functions,
 // not services injected via DI.
 const insertCutHistory = vi.hoisted(() => vi.fn())
-vi.mock("@/src/infrastructure/services/cutHistoryService", async () => {
+vi.mock("@/src/infrastructure/services/cutHistoryRawWriter", async () => {
   const actual = await vi.importActual<
-    typeof import("@/src/infrastructure/services/cutHistoryService")
-  >("@/src/infrastructure/services/cutHistoryService")
+    typeof import("@/src/infrastructure/services/cutHistoryRawWriter")
+  >("@/src/infrastructure/services/cutHistoryRawWriter")
   return { ...actual, insertCutHistory }
 })
 

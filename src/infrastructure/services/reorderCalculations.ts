@@ -1,29 +1,35 @@
 import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import type { MaterialSupplierWithDetails } from "@/src/infrastructure/models/supabase"
 import type {
-  MaterialSupplierWithDetails,
-  PurchaseOrder,
-} from "@/src/infrastructure/models/supabase"
-import type {
-  ReorderSuggestion,
+  IReorderCalculationsService,
   OptimalOrderQuantity,
-} from "@/src/application/services/reorder.service.interface"
-import type { IReorderCalculationsService } from "@/src/application/services/reorder-calculations.service.interface"
+} from "@/src/application/services/reorder-calculations.service.interface"
 import type { ITaxService } from "@/src/application/services/tax.service.interface"
-import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
 import { TOKENS } from "@/di/tokens"
 import "reflect-metadata"
 import { injectable, inject } from "tsyringe"
 
+/**
+ * Heuristic score combining price, lead time, rating, and preferred-supplier
+ * bonus into a single "value" number for picking the best material_supplier
+ * row. Previously lived on `priceHistoryService.calculateValueScore`; moved
+ * here because (1) it's a pure formula with no DB I/O, (2) reorderCalculations
+ * was the only caller, and (3) it reads the legacy `cost_per_sqft` /
+ * `lead_time_days` shape so it's already coupled to the joined row, not the
+ * `PriceHistory` entity surface.
+ */
+function calculateValueScore(supplier: MaterialSupplierWithDetails): number {
+  const priceScore = 100 / (supplier.cost_per_sqft + 1)
+  const leadTimeScore = 100 / ((supplier.lead_time_days || 1) + 1)
+  const ratingScore = (supplier.supplier?.rating || 3) * 20
+  const preferredBonus = supplier.preferred_supplier ? 20 : 0
+  return priceScore + leadTimeScore + ratingScore + preferredBonus
+}
+
 @injectable()
 export class ReorderCalculationsService implements IReorderCalculationsService {
-  constructor(
-    @inject(TOKENS.ITaxService) private readonly taxService: ITaxService,
-    @inject(TOKENS.IPriceHistoryService)
-    private readonly priceHistoryService: IPriceHistoryService
-  ) {}
+  constructor(@inject(TOKENS.ITaxService) private readonly taxService: ITaxService) {}
 
   private generateOptimalQuantityReasoning(
     avgDailyUsage: number,
@@ -130,106 +136,6 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
     }
   }
 
-  async createAutomaticPurchaseOrder(
-    suggestion: ReorderSuggestion,
-    getReorderRuleById: (id: string) => Promise<{ lead_time_days: number }>,
-    generatePONumber: () => Promise<string>
-  ): Promise<unknown> {
-    try {
-      if (!suggestion.supplierId) {
-        throw new Error("Cannot create purchase order without supplier")
-      }
-
-      const poNumber = await generatePONumber()
-
-      const orderDate = new Date().toISOString()
-      const requestedDeliveryDate = new Date()
-
-      let leadTimeDays = 7
-      if (suggestion.reorderRuleId) {
-        const rule = await getReorderRuleById(suggestion.reorderRuleId)
-        leadTimeDays = rule.lead_time_days
-      }
-
-      requestedDeliveryDate.setDate(requestedDeliveryDate.getDate() + leadTimeDays)
-
-      const supabase = await getDatabaseClient()
-      const { data: material, error: matError } = await supabase
-        .from("material_types")
-        .select("*")
-        .eq("id", suggestion.materialTypeId)
-        .single()
-
-      if (matError) throw matError
-
-      const unitCost = suggestion.estimatedCost / suggestion.suggestedQuantity
-      const subtotal = suggestion.estimatedCost
-      const taxCalc = await this.taxService.calculatePurchaseOrderTax(
-        suggestion.supplierId,
-        subtotal
-      )
-      const taxAmount = taxCalc.taxAmount
-      const totalAmount = subtotal + taxAmount
-
-      const user_id = await getCurrentUserId()
-      const { data: po, error: poError } = await supabase
-        .from("purchase_orders")
-        .insert([
-          {
-            user_id,
-            po_number: poNumber,
-            supplier_id: suggestion.supplierId,
-            status: "draft",
-            order_date: orderDate,
-            requested_delivery_date: requestedDeliveryDate.toISOString(),
-            subtotal,
-            tax_amount: taxAmount,
-            shipping_cost: 0,
-            total_amount: totalAmount,
-            auto_generated: true,
-            reorder_rule_id: suggestion.reorderRuleId,
-            notes: `Auto-generated PO: ${suggestion.reason}`,
-          },
-        ])
-        .select()
-        .single()
-
-      if (poError) throw poError
-
-      const { data: _poItem, error: itemError } = await supabase
-        .from("purchase_order_items")
-        .insert([
-          {
-            user_id,
-            purchase_order_id: po.id,
-            material_type_id: suggestion.materialTypeId,
-            line_number: 1,
-            description: material.name,
-            quantity_sqft: suggestion.suggestedQuantity,
-            unit_cost: unitCost,
-            line_total: subtotal,
-            quantity_received: 0,
-          },
-        ])
-        .select()
-        .single()
-
-      if (itemError) throw itemError
-
-      if (suggestion.reorderRuleId) {
-        await supabase
-          .from("reorder_rules")
-          .update({ last_triggered_at: new Date().toISOString() })
-          .eq("id", suggestion.reorderRuleId)
-      }
-
-      return po as PurchaseOrder
-    } catch (error) {
-      console.error("Error creating automatic purchase order:", error)
-      throw error
-    }
-  }
-
   async estimateReorderCost(
     materialTypeId: string,
     quantity: number,
@@ -266,11 +172,7 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
         if (suppliers.length > 0) {
           const bestValue = suppliers
             .slice()
-            .sort(
-              (a, b) =>
-                this.priceHistoryService.calculateValueScore(b) -
-                this.priceHistoryService.calculateValueScore(a)
-            )[0]
+            .sort((a, b) => calculateValueScore(b) - calculateValueScore(a))[0]
           costPerSqft = bestValue.cost_per_sqft
         }
       }
@@ -353,4 +255,4 @@ export class ReorderCalculationsService implements IReorderCalculationsService {
   }
 }
 
-export const reorderCalculations = new ReorderCalculationsService(taxService, priceHistoryService)
+export const reorderCalculations = new ReorderCalculationsService(taxService)

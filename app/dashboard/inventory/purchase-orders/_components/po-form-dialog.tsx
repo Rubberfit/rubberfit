@@ -2,7 +2,7 @@
 
 import { format, addDays } from "date-fns"
 
-import { type Supplier } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 
 export interface POFormItem {
   /**
@@ -44,14 +44,16 @@ export function getDefaultFormData(): POFormData {
   }
 }
 
-export function buildSupplierAddress(supplier: Supplier | undefined): string {
-  if (!supplier) return ""
-  const parts = []
-  if (supplier.address) parts.push(supplier.address)
-  const cityStateZip = [supplier.city, supplier.state, supplier.zip_code].filter(Boolean).join(" ")
+export function buildSupplierAddress(supplier: SupplierSnapshot | undefined): string {
+  if (!supplier?.address) return ""
+  const { line1, line2, city, state, postalCode, country } = supplier.address
+  const parts: string[] = []
+  if (line1) parts.push(line1)
+  if (line2) parts.push(line2)
+  const cityStateZip = [city, state, postalCode].filter(Boolean).join(" ")
   if (cityStateZip) parts.push(cityStateZip)
-  if (supplier.country) parts.push(supplier.country)
-  return parts.join(", ") || ""
+  if (country) parts.push(country)
+  return parts.join(", ")
 }
 
 // Increment-only counter for client_id generation. Form item rows

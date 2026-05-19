@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation"
 import { addDays, format, parseISO } from "date-fns"
 import { toast } from "sonner"
 
-import type {
-  MaterialType,
-  PurchaseOrderWithDetails,
-  Supplier,
-} from "@/src/infrastructure/models/supabase"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import type { MaterialType, PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
+import { getPurchaseOrderByIdAction, updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 import { taxService } from "@/src/infrastructure/services/taxService"
-import { updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { ConfirmationDialog } from "@/app/components/common/confirmation-dialog"
 
 import { PoFormShell } from "../../_components/po-form-shell"
@@ -40,7 +36,7 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
   const router = useRouter()
 
   const [po, setPo] = useState<PurchaseOrderWithDetails | null>(null)
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [formData, setFormData] = useState<POFormData>(getDefaultFormData())
   const [taxDetails, setTaxDetails] = useState<TaxDetails | null>(null)
@@ -67,7 +63,7 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
       setLoadError(null)
       try {
         const [poData, suppliersData, materialsData] = await Promise.all([
-          purchaseOrderService.getPurchaseOrderById(id),
+          getPurchaseOrderByIdAction(id),
           supplierService.getActiveSuppliers(),
           materialTypeRepository.getAll(),
         ])
@@ -77,10 +73,11 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
           return
         }
         setPo(poData)
-        setSuppliers(suppliersData)
+        const supplierSnapshots = suppliersData.map((s) => s.toJSON())
+        setSuppliers(supplierSnapshots)
         setMaterialTypes(materialsData)
 
-        const supplier = suppliersData.find((s) => s.id === poData.supplier_id)
+        const supplier = supplierSnapshots.find((s) => s.id === poData.supplier_id)
         const supplierAddress = buildSupplierAddress(supplier)
         setFormData({
           supplier_id: poData.supplier_id,
@@ -198,7 +195,9 @@ export default function EditPurchaseOrderPage({ params }: EditPoRouteProps) {
         shippingAddress: formData.shipping_address,
         billingAddress: formData.billing_address,
         notes: formData.notes,
-        shippingCost: selectedSupplier?.default_shipping_cost,
+        shippingCost: selectedSupplier?.shippingCost
+          ? selectedSupplier.shippingCost.cents / 100
+          : undefined,
         items: mapFormItems(formData.items),
       })
       if (taxCalculation.taxLevel !== "exempt") {

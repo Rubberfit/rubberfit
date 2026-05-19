@@ -15,14 +15,14 @@ export class OrganizationPreferencesService implements IOrganizationPreferencesS
   async getForOrganization(organizationId: string): Promise<OrganizationPreferences> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
-      .from("organization_preferences")
+      .from("tenant_settings")
       .select("*")
-      .eq("organization_id", organizationId)
+      .eq("tenant_id", organizationId)
       .maybeSingle()
 
     if (error) throw error
     if (!data) {
-      throw new Error(`No organization_preferences row for organization ${organizationId}`)
+      throw new Error(`No tenant_settings row for tenant ${organizationId}`)
     }
     return mapOrganizationPreferencesRow(data)
   }
@@ -34,9 +34,9 @@ export class OrganizationPreferencesService implements IOrganizationPreferencesS
     const supabase = await getDatabaseClient()
     const row = mapUpdateInputToRow(updates)
     const { data, error } = await supabase
-      .from("organization_preferences")
+      .from("tenant_settings")
       .update(row)
-      .eq("organization_id", organizationId)
+      .eq("tenant_id", organizationId)
       .select("*")
       .maybeSingle()
 
@@ -44,7 +44,7 @@ export class OrganizationPreferencesService implements IOrganizationPreferencesS
     if (!data) {
       // No row returned ⇒ RLS WITH CHECK rejected the write (non-admin).
       throw new Error(
-        `organization_preferences update for ${organizationId} returned no row (RLS or missing org)`
+        `tenant_settings update for tenant ${organizationId} returned no row (RLS or missing tenant)`
       )
     }
     return mapOrganizationPreferencesRow(data)

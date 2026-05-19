@@ -1,6 +1,18 @@
 # nesting/
 
-2D nesting engine for the cut planner. Packs irregularly-shaped parts onto rectangular stock material (rolls) to minimize waste, then computes reusable offcuts from the leftover free space.
+> **Legacy — preview helpers only.** This directory is no longer a
+> packing fallback. The canonical packer for every AutoNest run is the
+> Rust `rf-layout` crate (see [`engine/`](../engine/) and
+> [`CLAUDE.md`](../CLAUDE.md)). The utilities here remain only because
+> the cutting-engine UI still uses them for NFP-based shape previews
+> (shape-to-polygon, convex-hull, free-space extraction). **Full
+> removal is tracked as Task #16.** Do not extend this code — new
+> work belongs in `engine/`.
+
+2D nesting utilities — originally the production cut-planner packer.
+Packs irregularly-shaped parts onto rectangular stock material (rolls)
+to minimise waste, then computes reusable offcuts from the leftover
+free space.
 
 ## Architecture Overview
 

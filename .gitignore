@@ -28,16 +28,15 @@ out/
 .env*.local
 *.env
 
-# Supabase local development
-supabase/.temp/
-supabase/.branches/
-supabase/.env
-supabase/.env.local
-# Supabase CLI also drops env-specific state under the nested infra path
-# (project_ref, pooler URL, etc.). These leak environment metadata if
-# committed; only the top-level ignore was here before PR1. Root-anchored
-# so the pattern matches only this exact path, not any future `.temp/`
-# directory the CLI might add elsewhere in the tree.
+# Supabase local development.
+# Glob covers any future supabase config dirs (worktrees, sibling tools).
+# Root-anchored explicit paths are belt-and-suspenders for the two known
+# locations — top-level and the nested infra path the CLI also drops
+# state into (project_ref, pooler URL, etc.).
+**/supabase/.temp/
+**/supabase/.branches/
+**/supabase/.env
+**/supabase/.env.local
 /src/infrastructure/supabase/.temp/
 
 # OS files
@@ -78,6 +77,10 @@ temp/
 # these are explicitly audited and safe to commit.
 !engine/crates/rf-api/scripts/smoke.sh
 !.claude/scripts/*.sh
+# Claude Code session hooks live in .claude/hooks/ by convention.
+# They run on session lifecycle events (Stop, etc.) and must be
+# committed so the project's hook config is reproducible. No secrets.
+!.claude/hooks/*.sh
 
 # Internal planning docs — working files for us, not part of the
 # repo. Specs + benchmarks under docs/superpowers/ stay tracked;
@@ -104,6 +107,10 @@ docs/superpowers/plans/
 
 # TypeScript
 *.tsbuildinfo
+
+# Refactor toolkit — generated API snapshots are build artifacts, not source.
+# The snapshots/ directory itself is tracked via .gitkeep so the output path exists.
+scripts/refactor/snapshots/*.json
 next-env.d.ts
 
 # Vercel

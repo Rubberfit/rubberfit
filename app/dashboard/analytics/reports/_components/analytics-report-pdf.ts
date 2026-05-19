@@ -16,7 +16,6 @@ import {
   type TableColumn,
   TYPE,
 } from "@/app/lib/pdf"
-import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
 import {
   formatDimensionsInches,
   getAreaUnitLabel,
@@ -55,6 +54,30 @@ export interface AnalyticsMaterialRow {
   readonly activeRolls: number
   readonly totalSqft: number
   readonly totalValue: number
+}
+
+/**
+ * Joined Supabase row shape consumed by the recent-cuts table. Held
+ * here because the PDF builder is presentation-layer — the entity
+ * service interface intentionally exposes only the camelCase `Cut`
+ * domain object. Operators load cuts via a `cut_history` analytics
+ * read elsewhere and pass the rows through unchanged.
+ *
+ * `quantity` and `waste_percentage` are optional because the
+ * report-generator call site passes `CutHistory & { roll }` rows
+ * which use `cut_amount` / `scrap_sqft` instead. The PDF table
+ * gracefully renders `String(undefined)` / `0%` in those cells —
+ * proper bridging belongs in a follow-up.
+ */
+export interface CutWithRoll {
+  readonly id?: string
+  readonly created_at: string | null
+  readonly cut_width: number
+  readonly cut_length: number
+  readonly quantity?: number
+  readonly waste_percentage?: number | string | null
+  readonly job_reference?: string | null
+  readonly roll?: { readonly material_type: string } | null
 }
 
 export interface AnalyticsReportInput {

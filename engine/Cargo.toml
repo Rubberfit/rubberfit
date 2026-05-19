@@ -38,7 +38,12 @@ uuid = { version = "1", features = ["v4"] }
 http = "1"
 http-body-util = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-jsonwebtoken = "10"
+# jsonwebtoken 10 dropped automatic CryptoProvider detection — without
+# an explicit feature flag every verification panics at runtime with
+# "Could not automatically determine the process-level CryptoProvider".
+# `rust_crypto` picks the pure-Rust provider (no aws-lc-sys C bindings),
+# matching the rustls-tls feature on reqwest above.
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 # OpenAPI spec generation. `axum_extras` unlocks query/path extractor
 # support in the `#[utoipa::path]` macros; otherwise the macros can't
 # see Axum's `Path`/`Query`/`State` types.

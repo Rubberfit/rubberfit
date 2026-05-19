@@ -59,9 +59,11 @@ vi.mock("@/src/infrastructure/supabase/get-database-client", () => ({
   getDatabaseClient: getDatabaseClientMock,
 }))
 
-const getCutHistoryRowsForExportMock = vi.hoisted(() => vi.fn())
+const getByIdsRawMock = vi.hoisted(() => vi.fn())
 vi.mock("@/src/infrastructure/services/cutHistoryService", () => ({
-  getCutHistoryRowsForExport: getCutHistoryRowsForExportMock,
+  cutHistoryService: {
+    getByIdsRaw: getByIdsRawMock,
+  },
 }))
 
 // PR 2e — the action loads org print prefs to drive date / unit
@@ -87,24 +89,25 @@ const ACTOR: ActionActor = {
   email: "manager@example.com",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const CUT_ID_1 = "11111111-1111-1111-1111-111111111111"
 const CUT_ID_2 = "22222222-2222-2222-2222-222222222222"
 
 /**
- * The action calls `getCutHistoryRowsForExport(db, cutIds)`. The db
- * client is mocked as a sentinel object — its internals are tested
- * separately in the service tests; here we just confirm the action
- * wiring + CSV formatting.
+ * The action calls `cutHistoryService.getByIdsRaw(db, cutIds)`. The
+ * db client is mocked as a sentinel object — its internals are
+ * tested separately in the service tests; here we just confirm the
+ * action wiring + CSV formatting.
  */
 const DB_SENTINEL = { __mock: "db-client" }
 function bindServiceReturning(rows: unknown[] | null, errorMessage?: string) {
   getDatabaseClientMock.mockResolvedValue(DB_SENTINEL)
   if (errorMessage) {
-    getCutHistoryRowsForExportMock.mockRejectedValue(new Error(errorMessage))
+    getByIdsRawMock.mockRejectedValue(new Error(errorMessage))
   } else {
-    getCutHistoryRowsForExportMock.mockResolvedValue(rows ?? [])
+    getByIdsRawMock.mockResolvedValue(rows ?? [])
   }
 }
 
@@ -151,7 +154,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
         "Cut Date,Part Type,Stock (W×L×T),Qty,Parts Done,Mat Used (sq ft),Reuse (sq ft),Scrap (sq ft),Fab Score"
       )
     }
-    expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
+    expect(getByIdsRawMock).not.toHaveBeenCalled()
   })
 
   it("returns a discriminated FEATURE_LOCKED result when feature gate rejects", async () => {
@@ -173,7 +176,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
       requiredTier: "pro",
       currentTier: "standard",
     })
-    expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
+    expect(getByIdsRawMock).not.toHaveBeenCalled()
   })
 
   it("formats rows with the same shape the client used to render", async () => {
@@ -209,7 +212,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     expect(row).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} (AM|PM) [A-Z]{2,4},Rectangle,/)
     expect(row).toContain("60 × 240 × 0.5 in")
     expect(row).toMatch(/,4,4,12\.34,1\.50,0\.25,87%$/)
-    expect(getCutHistoryRowsForExportMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1])
+    expect(getByIdsRawMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1])
   })
 
   it("escapes CSV cells containing commas, quotes, and newlines", async () => {
@@ -252,7 +255,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
     await exportCutHistoryCsv({ cutIds: [CUT_ID_1, CUT_ID_2] })
 
-    expect(getCutHistoryRowsForExportMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1, CUT_ID_2])
+    expect(getByIdsRawMock).toHaveBeenCalledWith(DB_SENTINEL, [CUT_ID_1, CUT_ID_2])
   })
 
   it("rejects non-UUID cutIds via Zod", async () => {
@@ -260,7 +263,7 @@ describe("app/actions/cut-history.exportCutHistoryCsv", () => {
     const { exportCutHistoryCsv } = await import("@/app/actions/cut-history")
 
     await expect(exportCutHistoryCsv({ cutIds: ["not-a-uuid"] })).rejects.toThrow()
-    expect(getCutHistoryRowsForExportMock).not.toHaveBeenCalled()
+    expect(getByIdsRawMock).not.toHaveBeenCalled()
   })
 
   // PR 2e — when the org has metric + dd/MM/yyyy + Europe/London prefs

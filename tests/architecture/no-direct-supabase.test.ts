@@ -149,8 +149,6 @@ const INFRA_ALLOWLIST = new Set<string>([
   // migration that pulls them server-side should also flip them
   // to getDatabaseClient and remove the entry here.
   "src/infrastructure/services/csvService.ts",
-  "src/infrastructure/services/cutHistoryService.ts",
-  "src/infrastructure/services/cutService.ts",
   "src/infrastructure/services/emailService.ts",
   "src/infrastructure/services/priceHistoryService.ts",
   "src/infrastructure/services/purchaseOrderAnalytics.ts",

@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select"
-import type { MaterialType } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
 
 export interface StockConfig {
   width: number
@@ -194,13 +194,12 @@ export function StockPreviewConfigurator({
             <Select
               value={stock.materialTypeId ?? ""}
               onValueChange={(id) => {
-                const mt = materialTypes.find((t) => t.id === id)
+                const mt = materialTypes.find((t) => t.id.value === id)
                 if (mt) {
                   onStockChange((prev) => ({
                     ...prev,
                     material: mt.name,
-                    materialTypeId: mt.id,
-                    costPerSqft: mt.default_cost ?? undefined,
+                    materialTypeId: mt.id.value,
                   }))
                 }
               }}
@@ -210,9 +209,8 @@ export function StockPreviewConfigurator({
               </SelectTrigger>
               <SelectContent>
                 {materialTypes.map((mt) => (
-                  <SelectItem key={mt.id} value={mt.id}>
+                  <SelectItem key={mt.id.value} value={mt.id.value}>
                     {mt.name}
-                    {mt.default_cost != null ? ` — $${mt.default_cost.toFixed(2)}/sq ft` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

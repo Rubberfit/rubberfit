@@ -3,12 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
-import type {
-  PurchaseOrderWithDetails,
-  Supplier,
-  MaterialType,
-} from "@/src/infrastructure/models/supabase"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import type { PurchaseOrderWithDetails, MaterialType } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
+import { listPurchaseOrdersAction } from "@/app/actions/purchase-orders"
 import { supplierService } from "@/src/infrastructure/services/supplierService"
 import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
 
@@ -31,7 +28,7 @@ export function usePurchaseOrders() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithDetails[]>([])
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierSnapshot[]>([])
   const [materialTypes, setMaterialTypes] = useState<MaterialType[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithDetails | null>(null)
@@ -48,13 +45,13 @@ export function usePurchaseOrders() {
       setLoading(true)
 
       const [posData, suppliersData, materialsData] = await Promise.all([
-        purchaseOrderService.getAllPurchaseOrders(),
+        listPurchaseOrdersAction(),
         supplierService.getActiveSuppliers(),
         materialTypeRepository.getAll(),
       ])
 
       setPurchaseOrders(posData)
-      setSuppliers(suppliersData)
+      setSuppliers(suppliersData.map((s) => s.toJSON()))
       setMaterialTypes(materialsData)
     } catch (error) {
       console.error("Error fetching data:", error)

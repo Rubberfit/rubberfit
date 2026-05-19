@@ -33,20 +33,21 @@ export const PUBLIC_PATHS = [
   // recipients see the brand image in their inbox.
   "/auth-email-logo",
 
-  // Stripe webhook ingress. Requests arrive without Supabase cookies;
-  // the route handler verifies the Stripe signature itself, so the
-  // proxy must let the POST through to reach `app/api/stripe/webhook`.
-  "/api/stripe/webhook",
-
-  // Team invitation landing. A pending invitee has no session yet; the
-  // route renders a public preview via a SECURITY DEFINER RPC. Accepting
-  // the invite still requires authentication — the gate moves from the
-  // route to the action.
+  // ARC-25 invitation accept landing. The page itself routes
+  // signed-out visitors to /register?invite=<token>; the SECURITY
+  // DEFINER RPC behind the read is gated by token possession.
   "/invite",
 
-  // Crawler metadata. These must be readable without a session.
+  // Crawler metadata routes. Search engines and SEO bots fetch these
+  // without a session. Exact-only (sub-paths must NOT match).
   "/robots.txt",
   "/sitemap.xml",
+
+  // Stripe webhook receiver. Stripe has no Supabase session — the
+  // webhook handler authenticates via the Stripe signature header.
+  // Referenced by proxy.ts:271-273 as the assumed-public path.
+  // Exact-only (sub-paths must NOT match).
+  "/api/stripe/webhook",
 ] as const
 
 /**

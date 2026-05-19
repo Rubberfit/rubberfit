@@ -76,6 +76,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
       email: "a@b.com",
       roles: ["manager"],
       isSuperAdmin: false,
+      activeTenantId: null,
     })
     fetchMock.mockResolvedValue(
       new Response(
@@ -117,6 +118,7 @@ describe("/api/tax-rates auth gate (ARC-134)", () => {
       email: "a@b.com",
       roles: ["manager"],
       isSuperAdmin: false,
+      activeTenantId: null,
     })
 
     const { GET } = await import("@/app/api/tax-rates/route")

@@ -27,6 +27,9 @@ import { createServerClient } from "@supabase/ssr"
 import type { CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import type { SupabaseClient } from "@supabase/supabase-js"
+
+import { ACTIVE_TENANT_COOKIE, applyActiveTenantCookie } from "@/app/server/auth/active-tenant"
 import { getEffectiveTier } from "@/src/application/billing/effective-tier"
 import {
   FEATURE_TIERS,
@@ -35,6 +38,7 @@ import {
   type PlanTier,
 } from "@/src/application/billing/feature-tiers"
 import { DEFAULT_ROLES, type AppRole } from "@/src/application/permissions"
+import { resolveActiveTenantId } from "@/src/infrastructure/services/active-tenant.service"
 import { getProfileAccess } from "@/src/infrastructure/services/authService"
 import {
   getRequiredPermission,
@@ -94,21 +98,29 @@ export async function proxy(request: NextRequest) {
   // pathnames that have a permission entry or live under /admin —
   // everything else passes once authenticated.
   //
-  // The deactivation check (`access.isDeleted`) ALSO only fires here.
-  // Closing the gap fully (catching deactivated users on any
+  // The accessibility check (`access.isInaccessible`) ALSO only fires
+  // here. Closing the gap fully (catching deactivated users on any
   // authenticated path, including dashboard root and /api/*) would
-  // require loading the profile on every authenticated request, which
-  // is one extra DB round-trip per request — meaningful at scale. The
-  // remaining gap is "deactivated user can hit unguarded paths until
-  // their cookie expires"; the fully durable fix is refresh-token
-  // revocation on deactivation, tracked separately.
+  // require loading the profile + membership count on every
+  // authenticated request — one extra DB round-trip per request,
+  // meaningful at scale. The remaining gap is "user whose last
+  // membership was soft-deleted can hit unguarded paths until their
+  // cookie expires"; the fully durable fix is refresh-token revocation
+  // on membership removal, tracked separately.
   const requiredPermission = getRequiredPermission(pathname)
   const needsAdmin = pathname.startsWith("/admin")
 
   if (requiredPermission || needsAdmin) {
+    // Scope role lookup to the cookie-pinned tenant when present so
+    // per-tenant role assignments take effect at the route guard. On
+    // cookie-miss we fall back to the union across all memberships —
+    // the guard stays permissive for the pre-chooser window; the
+    // recovery block further down sets the cookie for next time.
+    const cookieTenantHint = request.cookies.get(ACTIVE_TENANT_COOKIE)?.value ?? null
+
     let access
     try {
-      access = await getProfileAccess(supabase, user.id)
+      access = await getProfileAccess(supabase, user.id, cookieTenantHint)
     } catch (_err) {
       // Treat profile-load failures as denials rather than letting
       // requests through with no role information.
@@ -117,11 +129,12 @@ export async function proxy(request: NextRequest) {
       )
     }
 
-    // Deactivated user (or no profile row) — sign them out and bounce
-    // back to login. signOut() goes through the cookies adapter wired
-    // above, which appends cookie-clearing instructions to
-    // `pendingCookies`; those flow into the redirect response.
-    if (access.isDeleted) {
+    // Inaccessible account (no profile row, or zero active memberships
+    // and not a platform admin) — sign them out and bounce back to
+    // login. signOut() goes through the cookies adapter wired above,
+    // which appends cookie-clearing instructions to `pendingCookies`;
+    // those flow into the redirect response.
+    if (access.isInaccessible) {
       try {
         await supabase.auth.signOut()
       } catch (_err) {
@@ -146,6 +159,8 @@ export async function proxy(request: NextRequest) {
         redirectWithCookies(new URL("/dashboard", request.url), pendingCookies)
       )
     }
+
+    await recoverActiveTenantCookieIfMissing(request, response, supabase, user.id)
   }
 
   if (!shouldSkipSubscriptionGate(pathname)) {
@@ -173,6 +188,30 @@ export async function proxy(request: NextRequest) {
   }
 
   return applySecurityHeaders(privateResponse(response))
+}
+
+/**
+ * Sets `rema_active_tenant` on the response when the request lacks it
+ * and the user has a resolvable tenant. Best-effort — failure is
+ * silent because downstream code tolerates a missing cookie via its
+ * own resolver fallback. Only invoked from the permission-gated path
+ * (where a profile read already amortizes the round-trip).
+ */
+async function recoverActiveTenantCookieIfMissing(
+  request: NextRequest,
+  response: NextResponse,
+  supabase: SupabaseClient,
+  userId: string
+): Promise<void> {
+  if (request.cookies.get(ACTIVE_TENANT_COOKIE)?.value) return
+  try {
+    const tenantId = await resolveActiveTenantId(supabase, userId)
+    if (tenantId) {
+      applyActiveTenantCookie(response, tenantId)
+    }
+  } catch (_err) {
+    // best-effort; the next gated request will retry
+  }
 }
 
 function privateResponse(response: NextResponse): NextResponse {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 
-import { type MaterialType } from "@/src/infrastructure/models/supabase"
+import { type MaterialType } from "@/src/entities/material-type"
 import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card"
 
@@ -50,7 +50,7 @@ export function MaterialTypesOverview() {
         <ul className="divide-y divide-border">
           {materialTypes.slice(0, 6).map((material) => (
             <li
-              key={material.id}
+              key={material.id.value}
               className="flex items-start justify-between gap-3 px-6 py-3 first:pt-0"
             >
               <div className="min-w-0 flex-1">
@@ -60,11 +60,10 @@ export function MaterialTypesOverview() {
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="font-mono text-sm tabular-nums text-foreground">
-                  {material.default_cost != null ? `$${material.default_cost.toFixed(2)}` : "—"}
-                </p>
                 <p className="text-xs text-muted-foreground">
-                  Alert {material.min_stock_alert ?? 0} sqft
+                  {material.minStockSqm != null
+                    ? `Alert ${material.minStockSqm} sqm`
+                    : "No alert"}
                 </p>
               </div>
             </li>

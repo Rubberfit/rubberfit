@@ -196,6 +196,13 @@ export const sidebarItems: NavGroup[] = [
         requiredPermission: "manageUsers",
       },
       {
+        // ARC-25 invitations — tenant-scoped membership administration.
+        titleKey: "items.members.title",
+        url: "/dashboard/admin/members",
+        icon: Users,
+        requiredPermission: "manageMembers",
+      },
+      {
         titleKey: "items.settings.title",
         url: "/dashboard/settings/general",
         icon: Settings,

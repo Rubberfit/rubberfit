@@ -11,6 +11,7 @@ const ACTOR: ActionActor = {
   email: "owner@example.com",
   roles: ["admin"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 async function importHelpers() {

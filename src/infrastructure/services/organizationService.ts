@@ -1,23 +1,24 @@
 import "reflect-metadata"
+import { randomUUID } from "node:crypto"
+
 import { injectable } from "tsyringe"
 
 import type { IOrganizationService } from "@/src/application/services/organization.service.interface"
 import {
-  type AcceptInvitationResult,
   type CreateOrganization,
-  type CreateOrganizationInvitation,
   type CreateOrganizationMember,
   type Organization,
   type OrganizationInvitation,
-  type OrganizationInvitationPreview,
+  type OrganizationInvitationStatus,
   type OrganizationMember,
+  type OrganizationMemberStatus,
   type OrganizationMemberWithProfile,
   type OrganizationRole,
   type OrganizationSeatUsage,
   type OrganizationSubscription,
   type OrganizationWithSubscription,
+  type PlanTier,
   type UpdateOrganization,
-  type UpdateOrganizationInvitation,
   type UpdateOrganizationMember,
   type UpsertOrganizationSubscription,
 } from "@/src/infrastructure/models/billing"
@@ -31,75 +32,278 @@ async function getBillingWriteClient(): Promise<DatabaseClient> {
   return makeAdminClient() ?? (await getDatabaseClient())
 }
 
+// The DDD migration renamed organizations→tenants, organization_members→memberships,
+// organization_subscriptions→subscriptions. The TS surface (Organization,
+// OrganizationMember, OrganizationSubscription) is preserved for caller stability;
+// this layer translates DB row shapes ↔ TS interface shapes. New schema differences:
+//   • tenants requires a NOT NULL slug — synthesized from name on create
+//   • memberships uses roles text[] + deleted_at timestamp (no scalar role/status)
+//   • subscriptions has a NOT NULL plan_id FK to plans — resolved via plan_tier
+//   • The role enum dropped 'owner' (only 'admin'…'viewer'). 'owner' callers fall
+//     through the 'admin' branch they already pair-check. Filed as follow-up.
+//   • Six invitation methods were deleted — the new invitation flow lives in
+//     src/application/use-cases/invitations/* and goes through accept_invitation
+//     RPC directly, not through this service.
+
+interface TenantRow {
+  id: string
+  name: string
+  billing_email: string | null
+  stripe_customer_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface MembershipRow {
+  id: string
+  tenant_id: string
+  profile_id: string
+  roles: string[]
+  invited_by: string | null
+  joined_at: string
+  deactivated_at: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface InvitationRow {
+  id: string
+  tenant_id: string
+  email: string
+  roles: string[]
+  token: string
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  revoked_at: string | null
+  created_at: string
+}
+
+interface SubscriptionRow {
+  id: string
+  tenant_id: string
+  stripe_subscription_id: string | null
+  stripe_subscription_item_id: string | null
+  stripe_price_id: string | null
+  stripe_product_id: string | null
+  latest_invoice_id: string | null
+  plan_tier: PlanTier
+  billing_interval: "monthly" | "annual" | null
+  seat_count: number
+  status: OrganizationSubscription["status"]
+  trial_end: string | null
+  current_period_start: string | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  cancel_at: string | null
+  canceled_at: string | null
+  last_payment_status: string | null
+  last_stripe_event_id: string | null
+  last_stripe_event_created_at: string | null
+  is_current: boolean
+  created_at: string
+  updated_at: string
+}
+
+function slugify(name: string): string {
+  const base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+  const suffix = randomUUID().slice(0, 8)
+  return base.length > 0 ? `${base}-${suffix}` : `tenant-${suffix}`
+}
+
+function tenantToOrganization(row: TenantRow): Organization {
+  return {
+    id: row.id,
+    name: row.name,
+    billing_email: row.billing_email,
+    stripe_customer_id: row.stripe_customer_id,
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function rolesArrayToRole(roles: readonly string[]): OrganizationRole {
+  return roles.includes("admin") ? "admin" : "member"
+}
+
+function organizationRoleToRolesArray(role: OrganizationRole): string[] {
+  // 'owner' is not a valid role under the DDD schema's CHECK constraint;
+  // collapse to 'admin' (the highest available role).
+  return role === "admin" || role === "owner" ? ["admin"] : ["member"]
+}
+
+function deriveInvitationStatus(row: InvitationRow): OrganizationInvitationStatus {
+  if (row.accepted_at !== null) return "accepted"
+  if (row.revoked_at !== null) return "revoked"
+  if (Date.parse(row.expires_at) < Date.now()) return "expired"
+  return "pending"
+}
+
+function invitationRowToOrganizationInvitation(row: InvitationRow): OrganizationInvitation {
+  const role: Exclude<OrganizationRole, "owner"> = row.roles.includes("admin") ? "admin" : "member"
+  return {
+    id: row.id,
+    organization_id: row.tenant_id,
+    email: row.email,
+    role,
+    status: deriveInvitationStatus(row),
+    token: row.token,
+    invited_by: row.invited_by,
+    expires_at: row.expires_at,
+    accepted_at: row.accepted_at,
+    revoked_at: row.revoked_at,
+    created_at: row.created_at,
+    // The DDD `invitations` table has no `updated_at` column; surface
+    // `created_at` so the TS shape stays satisfied. Sort order falls back
+    // to created_at, which is monotonic for invitation lifecycles anyway.
+    updated_at: row.created_at,
+  }
+}
+
+function membershipToOrganizationMember(row: MembershipRow): OrganizationMember {
+  const status: OrganizationMemberStatus = row.deleted_at !== null ? "deactivated" : "active"
+  return {
+    id: row.id,
+    organization_id: row.tenant_id,
+    user_id: row.profile_id,
+    role: rolesArrayToRole(row.roles),
+    status,
+    invited_by: row.invited_by,
+    joined_at: row.joined_at,
+    deactivated_at: row.deactivated_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+function subscriptionRowToOrganizationSubscription(row: SubscriptionRow): OrganizationSubscription {
+  return {
+    id: row.id,
+    organization_id: row.tenant_id,
+    stripe_subscription_id: row.stripe_subscription_id,
+    stripe_subscription_item_id: row.stripe_subscription_item_id,
+    stripe_price_id: row.stripe_price_id,
+    stripe_product_id: row.stripe_product_id,
+    latest_invoice_id: row.latest_invoice_id,
+    plan_tier: row.plan_tier,
+    billing_interval: row.billing_interval,
+    seat_count: row.seat_count,
+    status: row.status,
+    trial_end: row.trial_end,
+    current_period_start: row.current_period_start,
+    current_period_end: row.current_period_end,
+    cancel_at_period_end: row.cancel_at_period_end,
+    cancel_at: row.cancel_at,
+    canceled_at: row.canceled_at,
+    last_payment_status: row.last_payment_status,
+    last_stripe_event_id: row.last_stripe_event_id,
+    last_stripe_event_created_at: row.last_stripe_event_created_at,
+    is_current: row.is_current,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }
+}
+
+async function resolvePlanId(supabase: DatabaseClient, tier: PlanTier): Promise<string> {
+  const { data, error } = await supabase
+    .from("plans")
+    .select("id")
+    .eq("code", tier)
+    .maybeSingle<{ id: string }>()
+  if (error) throw error
+  if (!data) {
+    throw new Error(`No plans row for code='${tier}'. Seed plans before upserting subscriptions.`)
+  }
+  return data.id
+}
+
 @injectable()
 export class OrganizationService implements IOrganizationService {
-  // ─── Organization CRUD ──────────────────────────────────────
+  // ─── Organization (tenant) CRUD ────────────────────────────────
 
   async createOrganization(input: CreateOrganization): Promise<Organization> {
     const supabase = await getBillingWriteClient()
-    const { data, error } = await supabase.from("organizations").insert(input).select("*").single()
+    const insertPayload: {
+      name: string
+      slug: string
+      billing_email: string | null
+      created_by: string | null
+    } = {
+      name: input.name,
+      slug: slugify(input.name),
+      billing_email: input.billing_email,
+      created_by: input.created_by,
+    }
+    const { data, error } = await supabase
+      .from("tenants")
+      .insert(insertPayload)
+      .select("id, name, billing_email, stripe_customer_id, created_by, created_at, updated_at")
+      .single<TenantRow>()
     if (error) throw error
-    return data as Organization
+    return tenantToOrganization(data)
   }
 
   async getOrganizationById(id: string): Promise<Organization | null> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
-      .from("organizations")
-      .select("*")
+      .from("tenants")
+      .select("id, name, billing_email, stripe_customer_id, created_by, created_at, updated_at")
       .eq("id", id)
-      .maybeSingle()
+      .maybeSingle<TenantRow>()
     if (error) throw error
-    return (data as Organization | null) ?? null
+    return data ? tenantToOrganization(data) : null
   }
 
   async getOrganizationByStripeCustomerId(stripeCustomerId: string): Promise<Organization | null> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
-      .from("organizations")
-      .select("*")
+      .from("tenants")
+      .select("id, name, billing_email, stripe_customer_id, created_by, created_at, updated_at")
       .eq("stripe_customer_id", stripeCustomerId)
-      .maybeSingle()
+      .maybeSingle<TenantRow>()
     if (error) throw error
-    return (data as Organization | null) ?? null
+    return data ? tenantToOrganization(data) : null
   }
 
   async updateOrganization(id: string, updates: UpdateOrganization): Promise<Organization> {
     const supabase = await getBillingWriteClient()
     const { data, error } = await supabase
-      .from("organizations")
+      .from("tenants")
       .update(updates)
       .eq("id", id)
-      .select("*")
-      .single()
+      .select("id, name, billing_email, stripe_customer_id, created_by, created_at, updated_at")
+      .single<TenantRow>()
     if (error) throw error
-    return data as Organization
+    return tenantToOrganization(data)
   }
 
-  // ─── Membership ──────────────────────────────────────────────
+  // ─── Membership ───────────────────────────────────────────────
 
   async getCurrentOrganizationForUser(userId: string): Promise<Organization | null> {
     const supabase = await getDatabaseClient()
-    // PR 1's schema enforces UNIQUE(user_id) on organization_members so the
-    // happy path returns a single row. The `.limit(1).order(...)` guards a
-    // future multi-org world: PGRST116 from `.maybeSingle()` on >1 row would
-    // surface as a generic "Billing action failed" toast and we'd rather
-    // silently take the earliest joined membership than throw.
     const { data, error } = await supabase
-      .from("organization_members")
-      .select("organization:organizations(*)")
-      .eq("user_id", userId)
-      .eq("status", "active")
+      .from("memberships")
+      .select(
+        "tenant:tenants(id, name, billing_email, stripe_customer_id, created_by, created_at, updated_at)"
+      )
+      .eq("profile_id", userId)
+      .is("deleted_at", null)
       .order("joined_at", { ascending: true })
       .limit(1)
       .maybeSingle()
     if (error) throw error
     if (!data) return null
-    // Supabase typed the join as Organization | Organization[] depending on
-    // cardinality. The FK is single-valued, so the runtime shape is one row.
-    const joined = (data as { organization: Organization | Organization[] | null }).organization
-    if (Array.isArray(joined)) return joined[0] ?? null
-    return joined ?? null
+    const joined = (data as { tenant: TenantRow | TenantRow[] | null }).tenant
+    if (Array.isArray(joined)) return joined[0] ? tenantToOrganization(joined[0]) : null
+    return joined ? tenantToOrganization(joined) : null
   }
 
   async getCurrentOrganizationWithSubscription(
@@ -113,13 +317,31 @@ export class OrganizationService implements IOrganizationService {
 
   async addMember(input: CreateOrganizationMember): Promise<OrganizationMember> {
     const supabase = await getBillingWriteClient()
+    const dbPayload: {
+      tenant_id: string
+      profile_id: string
+      roles: string[]
+      invited_by: string | null
+      joined_at?: string
+      deleted_at: string | null
+    } = {
+      tenant_id: input.organization_id,
+      profile_id: input.user_id,
+      roles: organizationRoleToRolesArray(input.role),
+      invited_by: input.invited_by ?? null,
+      deleted_at: input.status === "deactivated" ? new Date().toISOString() : null,
+    }
+    if (input.joined_at) dbPayload.joined_at = input.joined_at
+
     const { data, error } = await supabase
-      .from("organization_members")
-      .insert(input)
-      .select("*")
-      .single()
+      .from("memberships")
+      .insert(dbPayload)
+      .select(
+        "id, tenant_id, profile_id, roles, invited_by, joined_at, deactivated_at, deleted_at, created_at, updated_at"
+      )
+      .single<MembershipRow>()
     if (error) throw error
-    return data as OrganizationMember
+    return membershipToOrganizationMember(data)
   }
 
   async updateMember(
@@ -127,14 +349,30 @@ export class OrganizationService implements IOrganizationService {
     updates: UpdateOrganizationMember
   ): Promise<OrganizationMember> {
     const supabase = await getDatabaseClient()
+    const dbUpdates: Record<string, unknown> = {}
+    if (updates.role !== undefined) {
+      dbUpdates.roles = organizationRoleToRolesArray(updates.role)
+    }
+    if (updates.status !== undefined) {
+      dbUpdates.deleted_at = updates.status === "active" ? null : new Date().toISOString()
+      // Mirror to deactivated_at for audit. deactivated_at is timestamptz null|set;
+      // 'removed' status was never written by production but maps to soft-delete too.
+      dbUpdates.deactivated_at = updates.status === "active" ? null : new Date().toISOString()
+    }
+    if (updates.deactivated_at !== undefined) {
+      dbUpdates.deactivated_at = updates.deactivated_at
+    }
+
     const { data, error } = await supabase
-      .from("organization_members")
-      .update(updates)
+      .from("memberships")
+      .update(dbUpdates)
       .eq("id", memberId)
-      .select("*")
-      .single()
+      .select(
+        "id, tenant_id, profile_id, roles, invited_by, joined_at, deactivated_at, deleted_at, created_at, updated_at"
+      )
+      .single<MembershipRow>()
     if (error) throw error
-    return data as OrganizationMember
+    return membershipToOrganizationMember(data)
   }
 
   async deactivateOwnMembership(userId: string): Promise<OrganizationMember> {
@@ -144,86 +382,85 @@ export class OrganizationService implements IOrganizationService {
     }
 
     const { data: membership, error: membershipError } = await supabase
-      .from("organization_members")
-      .select("id, organization_id, user_id, role, status")
-      .eq("user_id", userId)
-      .eq("status", "active")
+      .from("memberships")
+      .select("id, tenant_id, profile_id, roles, deleted_at")
+      .eq("profile_id", userId)
+      .is("deleted_at", null)
       .maybeSingle()
     if (membershipError) throw membershipError
     if (!membership) throw new Error("Active organization membership not found")
 
-    const member = membership as Pick<
-      OrganizationMember,
-      "id" | "organization_id" | "user_id" | "role" | "status"
-    >
-    if (member.user_id !== userId) {
+    const member = membership as {
+      id: string
+      tenant_id: string
+      profile_id: string
+      roles: string[]
+      deleted_at: string | null
+    }
+    if (member.profile_id !== userId) {
       throw new Error("Cannot leave another user's organization membership")
     }
 
-    if (member.role === "owner") {
-      const { count, error: ownerCountError } = await supabase
-        .from("organization_members")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", member.organization_id)
-        .eq("role", "owner")
-        .eq("status", "active")
-      if (ownerCountError) throw ownerCountError
-      if ((count ?? 0) <= 1) {
-        throw new Error("Cannot leave organization as the last owner")
+    if (member.roles.includes("admin")) {
+      const { data: adminRows, error: adminError } = await supabase
+        .from("memberships")
+        .select("id, roles")
+        .eq("tenant_id", member.tenant_id)
+        .is("deleted_at", null)
+      if (adminError) throw adminError
+      const adminCount = (adminRows ?? []).filter((r) =>
+        (r as { roles: string[] }).roles.includes("admin")
+      ).length
+      if (adminCount <= 1) {
+        throw new Error("Cannot leave organization as the last admin")
       }
     }
 
+    const now = new Date().toISOString()
     const { data, error } = await supabase
-      .from("organization_members")
-      .update({
-        status: "deactivated",
-        deactivated_at: new Date().toISOString(),
-      })
+      .from("memberships")
+      .update({ deleted_at: now, deactivated_at: now })
       .eq("id", member.id)
-      .eq("user_id", userId)
-      .select("*")
-      .single()
+      .eq("profile_id", userId)
+      .select(
+        "id, tenant_id, profile_id, roles, invited_by, joined_at, deactivated_at, deleted_at, created_at, updated_at"
+      )
+      .single<MembershipRow>()
     if (error) throw error
-    return data as OrganizationMember
+    return membershipToOrganizationMember(data)
   }
 
   async listMembers(organizationId: string): Promise<OrganizationMemberWithProfile[]> {
     const supabase = await getDatabaseClient()
 
-    // Manual two-query join. The Supabase REST `profile:profiles(...)`
-    // syntax requires the schema cache to know about a FK between
-    // `organization_members.user_id` and `profiles.id`. Both columns
-    // reference `auth.users(id)` indirectly, but the cache doesn't
-    // always infer the cross-relationship — it fails with PGRST200 on
-    // any DB where the auto-discovery hasn't fired. Doing the join in
-    // app code is resilient: the only DB contract here is "members
-    // and profiles both share auth.users.id."
+    // Defensive two-query join — the auto-discovered FK between memberships
+    // and profiles works in most envs but PGRST200 has historically tripped
+    // when the schema cache lags. Doing the join in app code is resilient.
     const { data: members, error: membersError } = await supabase
-      .from("organization_members")
-      .select("*")
-      .eq("organization_id", organizationId)
+      .from("memberships")
+      .select(
+        "id, tenant_id, profile_id, roles, invited_by, joined_at, deactivated_at, deleted_at, created_at, updated_at"
+      )
+      .eq("tenant_id", organizationId)
       .order("joined_at", { ascending: true })
     if (membersError) throw membersError
 
-    const memberRows = (members ?? []) as Array<OrganizationMember & { user_id: string | null }>
-    const userIds = memberRows
-      .map((m) => m.user_id)
+    const memberRows = (members ?? []) as MembershipRow[]
+    const profileIds = memberRows
+      .map((m) => m.profile_id)
       .filter((id): id is string => typeof id === "string" && id.length > 0)
 
-    if (userIds.length === 0) {
-      return memberRows.map((m) => ({ ...m, profile: null })) as OrganizationMemberWithProfile[]
+    if (profileIds.length === 0) {
+      return memberRows.map((m) => ({
+        ...membershipToOrganizationMember(m),
+        profile: null,
+      }))
     }
 
-    // `avatar_url` is in the TS model but no migration adds the
-    // column to the profiles table — selecting it throws 42703 on
-    // preview / older envs. Drop it from the SELECT and default
-    // the field to null. The column-vs-model drift is tracked
-    // separately; until then customer rows render with the initials
-    // fallback (the team UI already handles avatar_url === null).
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
       .select("id, email, full_name")
-      .in("id", userIds)
+      .in("id", profileIds)
     if (profilesError) throw profilesError
 
     const profileById = new Map(
@@ -237,23 +474,23 @@ export class OrganizationService implements IOrganizationService {
     )
 
     return memberRows.map((m) => ({
-      ...m,
-      profile: m.user_id ? (profileById.get(m.user_id) ?? null) : null,
-    })) as OrganizationMemberWithProfile[]
+      ...membershipToOrganizationMember(m),
+      profile: profileById.get(m.profile_id) ?? null,
+    }))
   }
 
-  // ─── Subscriptions ──────────────────────────────────────────
+  // ─── Subscriptions ────────────────────────────────────────────
 
   async getCurrentSubscription(organizationId: string): Promise<OrganizationSubscription | null> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
-      .from("organization_subscriptions")
+      .from("subscriptions")
       .select("*")
-      .eq("organization_id", organizationId)
+      .eq("tenant_id", organizationId)
       .eq("is_current", true)
-      .maybeSingle()
+      .maybeSingle<SubscriptionRow>()
     if (error) throw error
-    return (data as OrganizationSubscription | null) ?? null
+    return data ? subscriptionRowToOrganizationSubscription(data) : null
   }
 
   async upsertSubscription(
@@ -261,57 +498,65 @@ export class OrganizationService implements IOrganizationService {
   ): Promise<OrganizationSubscription> {
     const supabase = await getBillingWriteClient()
 
-    // Match-or-insert on stripe_subscription_id when provided; otherwise
-    // we treat the call as a new-subscription insert and flip the
-    // previous is_current row off.
+    // Strip the TS-shape organization_id, replace with tenant_id for the DB.
+    // Resolve plan_id from plan_tier (NOT NULL FK on the new subscriptions table).
+    const tenantId = input.organization_id
+    const tier: PlanTier = input.plan_tier ?? "standard"
+    const planId = await resolvePlanId(supabase, tier)
+
+    const dbBase: Record<string, unknown> = {
+      tenant_id: tenantId,
+      plan_id: planId,
+      plan_tier: tier,
+    }
+    for (const [key, value] of Object.entries(input)) {
+      if (key === "organization_id" || key === "plan_tier") continue
+      if (value !== undefined) dbBase[key] = value
+    }
+
     if (input.stripe_subscription_id) {
       const { data: existing, error: lookupError } = await supabase
-        .from("organization_subscriptions")
+        .from("subscriptions")
         .select("id")
         .eq("stripe_subscription_id", input.stripe_subscription_id)
         .maybeSingle()
       if (lookupError) throw lookupError
 
       if (existing) {
-        // Demote sibling rows FIRST so the partial unique index
-        // (organization_subscriptions_one_current) never sees two
-        // is_current=TRUE rows mid-flight. The matched row is then
-        // safe to flip to is_current=TRUE in the second statement.
-        // The full atomic version is a Postgres function called via
-        // .rpc(); this two-step approach is acceptable because
-        // stripe_events dedupe serializes webhook delivery upstream.
         const existingId = (existing as { id: string }).id
+        // Demote sibling rows FIRST so the partial unique index
+        // (subscriptions_one_current_per_tenant) never sees two
+        // is_current=TRUE rows mid-flight.
         await supabase
-          .from("organization_subscriptions")
+          .from("subscriptions")
           .update({ is_current: false })
-          .eq("organization_id", input.organization_id)
+          .eq("tenant_id", tenantId)
           .neq("id", existingId)
 
         const { data, error } = await supabase
-          .from("organization_subscriptions")
-          .update({ ...input, is_current: true })
+          .from("subscriptions")
+          .update({ ...dbBase, is_current: true })
           .eq("id", existingId)
           .select("*")
-          .single()
+          .single<SubscriptionRow>()
         if (error) throw error
-        return data as OrganizationSubscription
+        return subscriptionRowToOrganizationSubscription(data)
       }
     }
 
-    // No match — insert a new row and demote any previous current rows.
     await supabase
-      .from("organization_subscriptions")
+      .from("subscriptions")
       .update({ is_current: false })
-      .eq("organization_id", input.organization_id)
+      .eq("tenant_id", tenantId)
       .eq("is_current", true)
 
     const { data, error } = await supabase
-      .from("organization_subscriptions")
-      .insert({ ...input, is_current: true })
+      .from("subscriptions")
+      .insert({ ...dbBase, is_current: true })
       .select("*")
-      .single()
+      .single<SubscriptionRow>()
     if (error) throw error
-    return data as OrganizationSubscription
+    return subscriptionRowToOrganizationSubscription(data)
   }
 
   async updateSubscriptionPlanTierAndSeats(input: {
@@ -320,179 +565,63 @@ export class OrganizationService implements IOrganizationService {
     seatCount: number
   }): Promise<OrganizationSubscription> {
     const supabase = await getBillingWriteClient()
+    const planId = await resolvePlanId(supabase, input.planTier)
     const { data, error } = await supabase
-      .from("organization_subscriptions")
-      .update({ plan_tier: input.planTier, seat_count: input.seatCount })
+      .from("subscriptions")
+      .update({ plan_tier: input.planTier, seat_count: input.seatCount, plan_id: planId })
       .eq("id", input.subscriptionId)
       .select("*")
-      .single()
+      .single<SubscriptionRow>()
     if (error) throw error
-    return data as OrganizationSubscription
+    return subscriptionRowToOrganizationSubscription(data)
   }
 
-  // ─── Invitations ────────────────────────────────────────────
+  // ─── Invitations ──────────────────────────────────────────────
 
-  async createInvitation(input: CreateOrganizationInvitation): Promise<OrganizationInvitation> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("organization_invitations")
-      .insert(input)
-      .select("*")
-      .single()
-    if (error) throw error
-    return data as OrganizationInvitation
-  }
-
-  async getInvitationByToken(token: string): Promise<OrganizationInvitation | null> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("organization_invitations")
-      .select("*")
-      .eq("token", token)
-      .maybeSingle()
-    if (error) throw error
-    return (data as OrganizationInvitation | null) ?? null
-  }
-
-  async getInvitationById(invitationId: string): Promise<OrganizationInvitation | null> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("organization_invitations")
-      .select("*")
-      .eq("id", invitationId)
-      .maybeSingle()
-    if (error) throw error
-    return (data as OrganizationInvitation | null) ?? null
-  }
-
-  async getInvitationPreviewByToken(token: string): Promise<OrganizationInvitationPreview | null> {
-    // The RPC is SECURITY DEFINER so the request client suffices for the
-    // anonymous /invite/[token] case. Authenticated callers go through the
-    // same path; no admin-client needed.
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase.rpc("get_invitation_preview_by_token", {
-      p_token: token,
-    })
-    if (error) throw error
-    const row = Array.isArray(data) ? data[0] : null
-    if (!row) return null
-    const preview = row as {
-      invitation_id: string
-      organization_id: string
-      organization_name: string
-      email: string
-      role: "admin" | "member"
-      status: OrganizationInvitationPreview["status"]
-      expires_at: string
-      inviter_name: string | null
-    }
-    return {
-      invitation_id: preview.invitation_id,
-      organization_id: preview.organization_id,
-      organization_name: preview.organization_name,
-      email: preview.email,
-      role: preview.role,
-      status: preview.status,
-      expires_at: preview.expires_at,
-      inviter_name: preview.inviter_name,
-    }
-  }
-
-  async acceptInvitationAtomically(input: {
-    token: string
-    actorId: string
-    actorEmail: string
-    acceptedAt: string
-  }): Promise<AcceptInvitationResult> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase.rpc("accept_organization_invitation", {
-      p_token: input.token,
-      p_actor_id: input.actorId,
-      p_actor_email: input.actorEmail,
-      p_accepted_at: input.acceptedAt,
-    })
-    if (error) throw error
-    const row = Array.isArray(data) ? data[0] : null
-    if (!row) {
-      return { result_code: "not_found" }
-    }
-    const result = row as {
-      result_code: string
-      organization_id: string | null
-      membership_id: string | null
-    }
-    if (result.result_code === "ok") {
-      if (!result.organization_id || !result.membership_id) {
-        throw new Error("accept_organization_invitation returned ok without ids")
-      }
-      return {
-        result_code: "ok",
-        organization_id: result.organization_id,
-        membership_id: result.membership_id,
-      }
-    }
-    const knownCodes = [
-      "not_found",
-      "already_accepted",
-      "revoked",
-      "expired",
-      "email_mismatch",
-      "org_subscription_inactive",
-      "membership_exists",
-    ] as const
-    type KnownCode = (typeof knownCodes)[number]
-    if (!(knownCodes as readonly string[]).includes(result.result_code)) {
-      throw new Error(
-        `accept_organization_invitation returned unknown result_code: ${result.result_code}`
-      )
-    }
-    return { result_code: result.result_code as KnownCode }
-  }
-
-  async updateInvitation(
-    invitationId: string,
-    updates: UpdateOrganizationInvitation
-  ): Promise<OrganizationInvitation> {
-    const supabase = await getDatabaseClient()
-    const { data, error } = await supabase
-      .from("organization_invitations")
-      .update(updates)
-      .eq("id", invitationId)
-      .select("*")
-      .single()
-    if (error) throw error
-    return data as OrganizationInvitation
-  }
-
+  /**
+   * Pending invitations for an org — the DDD `invitations` table has no
+   * `status` column, so "pending" is derived: `accepted_at IS NULL AND
+   * revoked_at IS NULL AND expires_at > now()`. Other invitation methods
+   * were removed in the DDD migration; the new flow goes through
+   * `app/actions/invitations.ts` + the `accept_invitation` RPC.
+   */
   async listPendingInvitations(organizationId: string): Promise<OrganizationInvitation[]> {
     const supabase = await getDatabaseClient()
+    const nowIso = new Date().toISOString()
     const { data, error } = await supabase
-      .from("organization_invitations")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .eq("status", "pending")
+      .from("invitations")
+      .select(
+        "id, tenant_id, email, roles, token, invited_by, expires_at, accepted_at, revoked_at, created_at"
+      )
+      .eq("tenant_id", organizationId)
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .gt("expires_at", nowIso)
       .order("created_at", { ascending: false })
     if (error) throw error
-    return (data ?? []) as OrganizationInvitation[]
+    return ((data ?? []) as InvitationRow[]).map(invitationRowToOrganizationInvitation)
   }
 
-  // ─── Seat accounting ────────────────────────────────────────
+  // ─── Seat accounting ──────────────────────────────────────────
 
   async getSeatUsage(organizationId: string): Promise<OrganizationSeatUsage> {
     const supabase = await getDatabaseClient()
+    const nowIso = new Date().toISOString()
 
     const [subscription, activeMembers, pendingInvites] = await Promise.all([
       this.getCurrentSubscription(organizationId),
       supabase
-        .from("organization_members")
+        .from("memberships")
         .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId)
-        .eq("status", "active"),
+        .eq("tenant_id", organizationId)
+        .is("deleted_at", null),
       supabase
-        .from("organization_invitations")
+        .from("invitations")
         .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId)
-        .eq("status", "pending"),
+        .eq("tenant_id", organizationId)
+        .is("accepted_at", null)
+        .is("revoked_at", null)
+        .gt("expires_at", nowIso),
     ])
 
     if (activeMembers.error) throw activeMembers.error
@@ -510,29 +639,29 @@ export class OrganizationService implements IOrganizationService {
   async getMemberRole(organizationId: string, userId: string): Promise<OrganizationRole | null> {
     const supabase = await getDatabaseClient()
     const { data, error } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("organization_id", organizationId)
-      .eq("user_id", userId)
-      .eq("status", "active")
+      .from("memberships")
+      .select("roles")
+      .eq("tenant_id", organizationId)
+      .eq("profile_id", userId)
+      .is("deleted_at", null)
       .maybeSingle()
     if (error) throw error
     if (!data) return null
-    return (data as { role: OrganizationRole }).role
+    return rolesArrayToRole((data as { roles: string[] }).roles)
   }
 
   /**
-   * Active-member seat count for the org. Counts `organization_members`
-   * rows with `status='active'`. Pending invites are tracked separately
-   * via `organization_invitations` and bill when accepted.
+   * Active-member seat count for the tenant. Counts `memberships` rows
+   * with `deleted_at IS NULL`. Pending invites are tracked separately
+   * via `invitations` and bill when accepted.
    */
   async countActiveMembers(organizationId: string): Promise<number> {
     const supabase = await getDatabaseClient()
     const { count, error } = await supabase
-      .from("organization_members")
+      .from("memberships")
       .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .eq("status", "active")
+      .eq("tenant_id", organizationId)
+      .is("deleted_at", null)
     if (error) throw error
     return count ?? 0
   }

@@ -1,311 +1,165 @@
-import { describe, expect, it, vi } from "vitest"
 import "reflect-metadata"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { container } from "tsyringe"
 
+import type { ICutHistoryRepository } from "@/src/application/repositories/cut-history.repository.interface"
+import type { ICutHistoryService } from "@/src/application/services/cut-history.service.interface"
+import { CutHistory, type CreateCutHistoryProps } from "@/src/entities/cut-history"
 import {
-  CutForbiddenError,
-  CutNotFoundError,
-  deleteCutByIdAuthorized,
-  getCutByIdAuthorized,
-  getCutAnalytics,
-  getCutByIdRaw,
-  getExistingCutPdfUrl,
-  insertCutHistory,
-  listCutHistoryPaginated,
-} from "@/src/infrastructure/services/cutHistoryService"
+  CutHistoryId,
+  MaterialTypeId,
+  ProfileId,
+  RollId,
+  TenantId,
+} from "@/src/entities/value-objects/id"
+import { CutHistoryService } from "@/src/infrastructure/services/cutHistoryService"
+import { TOKENS } from "@/di/tokens"
 
-import { makeFakeClient } from "@/tests/helpers/fake-supabase-client"
+const CUT_HISTORY_UUID = "11111111-1111-4111-8111-111111111111"
+const TENANT_UUID = "22222222-2222-4222-8222-222222222222"
+const ROLL_UUID = "33333333-3333-4333-8333-333333333333"
+const MATERIAL_TYPE_UUID = "55555555-5555-4555-8555-555555555555"
+const ACTOR_UUID = "44444444-4444-4444-8444-444444444444"
 
-const OWNER = "owner-1"
-const VIEWER = "viewer-2"
-const PRIVILEGED_ROLES = ["manager"] as const
+function makeCreateProps(overrides: Partial<CreateCutHistoryProps> = {}): CreateCutHistoryProps {
+  return {
+    id: CutHistoryId.fromPersistence(CUT_HISTORY_UUID),
+    tenantId: TenantId.fromPersistence(TENANT_UUID),
+    materialTypeId: MaterialTypeId.fromPersistence(MATERIAL_TYPE_UUID),
+    rollId: RollId.fromPersistence(ROLL_UUID),
+    cutLengthMm: 1000,
+    cutWidthMm: 500,
+    cutAmount: 2,
+    partsCompleted: 1,
+    selections: [
+      { selectionIndex: 0, sizeValue: 12, sizeText: '12"', label: "Front" },
+      { selectionIndex: 1, sizeValue: 24, sizeText: '24"', label: "Back" },
+    ],
+    ...overrides,
+  }
+}
 
-describe("getCutByIdAuthorized", () => {
-  it("returns the cut when caller is the owner", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-        },
-      },
-    })
-    const cut = await getCutByIdAuthorized(client, "c1", OWNER, [])
-    expect(cut.id).toBe("c1")
+function makeCutHistory(overrides: Partial<CreateCutHistoryProps> = {}): CutHistory {
+  return CutHistory.create(makeCreateProps(overrides), new Date("2026-05-14T09:00:00.000Z"))
+}
+
+function makeFakeRepo(): ICutHistoryRepository {
+  return {
+    findById: vi.fn(),
+    findAll: vi.fn(),
+    findRecent: vi.fn(),
+    findByUser: vi.fn(),
+    findByRoll: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+  }
+}
+
+describe("CutHistoryService", () => {
+  let repo: ICutHistoryRepository
+  let service: ICutHistoryService
+  const actor = ProfileId.fromPersistence(ACTOR_UUID)
+
+  beforeEach(() => {
+    container.clearInstances()
+    repo = makeFakeRepo()
+    container.registerInstance<ICutHistoryRepository>(TOKENS.ICutHistoryRepository, repo)
+    service = container.resolve(CutHistoryService)
   })
 
-  it("returns the cut when caller is privileged (admin/manager/supervisor)", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-        },
-      },
+  describe("reads", () => {
+    it("getById delegates to repo.findById with the same id", async () => {
+      const entity = makeCutHistory()
+      vi.mocked(repo.findById).mockResolvedValue(entity)
+      expect(await service.getById(CUT_HISTORY_UUID)).toBe(entity)
+      expect(repo.findById).toHaveBeenCalledWith(CUT_HISTORY_UUID)
     })
-    const cut = await getCutByIdAuthorized(client, "c1", VIEWER, PRIVILEGED_ROLES)
-    expect(cut.id).toBe("c1")
+
+    it("getAll delegates to repo.findAll", async () => {
+      const rows = [makeCutHistory()]
+      vi.mocked(repo.findAll).mockResolvedValue(rows)
+      expect(await service.getAll()).toBe(rows)
+      expect(repo.findAll).toHaveBeenCalledOnce()
+    })
+
+    it("getRecent forwards the limit", async () => {
+      vi.mocked(repo.findRecent).mockResolvedValue([])
+      await service.getRecent(10)
+      expect(repo.findRecent).toHaveBeenCalledWith(10)
+    })
+
+    it("getByUser delegates to repo.findByUser", async () => {
+      vi.mocked(repo.findByUser).mockResolvedValue([])
+      await service.getByUser(ACTOR_UUID)
+      expect(repo.findByUser).toHaveBeenCalledWith(ACTOR_UUID)
+    })
+
+    it("getByRoll delegates to repo.findByRoll", async () => {
+      vi.mocked(repo.findByRoll).mockResolvedValue([])
+      await service.getByRoll(ROLL_UUID)
+      expect(repo.findByRoll).toHaveBeenCalledWith(ROLL_UUID)
+    })
   })
 
-  it("throws CutForbiddenError when caller is neither owner nor privileged", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-        },
-      },
+  describe("create", () => {
+    it("invokes CutHistory.create and persists via repo.insert", async () => {
+      vi.mocked(repo.insert).mockImplementation((e) => Promise.resolve(e))
+
+      const result = await service.create(makeCreateProps())
+
+      expect(repo.insert).toHaveBeenCalledOnce()
+      expect(result.id.value).toBe(CUT_HISTORY_UUID)
+      expect(result.selections).toHaveLength(2)
+      expect(result.selections[0]?.label).toBe("Front")
     })
-    await expect(getCutByIdAuthorized(client, "c1", VIEWER, ["cutter"])).rejects.toBeInstanceOf(
-      CutForbiddenError
-    )
+
+    it("propagates entity invariant violations (partsCompleted > cutAmount)", async () => {
+      await expect(
+        service.create(makeCreateProps({ cutAmount: 1, partsCompleted: 5 }))
+      ).rejects.toThrow(/partsCompleted/)
+      expect(repo.insert).not.toHaveBeenCalled()
+    })
+
+    it("propagates entity invariant violations (duplicate selectionIndex)", async () => {
+      await expect(
+        service.create(
+          makeCreateProps({
+            selections: [
+              { selectionIndex: 0, label: "A" },
+              { selectionIndex: 0, label: "B" },
+            ],
+          })
+        )
+      ).rejects.toThrow(/duplicate selectionIndex/)
+      expect(repo.insert).not.toHaveBeenCalled()
+    })
   })
 
-  it("throws CutNotFoundError on missing row", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: null, error: null } } },
-    })
-    await expect(getCutByIdAuthorized(client, "missing", OWNER, [])).rejects.toBeInstanceOf(
-      CutNotFoundError
-    )
-  })
-})
+  describe("softDelete", () => {
+    it("loads, marks deleted, and persists", async () => {
+      const entity = makeCutHistory()
+      vi.mocked(repo.findById).mockResolvedValue(entity)
+      vi.mocked(repo.update).mockImplementation((e) => Promise.resolve(e))
 
-describe("deleteCutByIdAuthorized", () => {
-  it("admin can delete any cut", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-          delete: { data: null, error: null },
-        },
-      },
-    })
-    await expect(deleteCutByIdAuthorized(client, "c1", VIEWER, ["admin"])).resolves.toBeUndefined()
-  })
+      const result = await service.softDelete(CUT_HISTORY_UUID, actor)
 
-  it("cutter can delete only own cut", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-          delete: { data: null, error: null },
-        },
-      },
+      expect(repo.findById).toHaveBeenCalledWith(CUT_HISTORY_UUID)
+      expect(repo.update).toHaveBeenCalledWith(entity)
+      expect(result.isDeleted).toBe(true)
+      expect(result.deletedAt).not.toBeNull()
+      expect(result.updatedBy?.value).toBe(ACTOR_UUID)
     })
-    await expect(deleteCutByIdAuthorized(client, "c1", VIEWER, ["cutter"])).rejects.toBeInstanceOf(
-      CutForbiddenError
-    )
-    await expect(deleteCutByIdAuthorized(client, "c1", OWNER, ["cutter"])).resolves.toBeUndefined()
-  })
 
-  it("viewer cannot delete", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1", user_id: OWNER }], error: null },
-        },
-      },
-    })
-    await expect(deleteCutByIdAuthorized(client, "c1", OWNER, ["viewer"])).rejects.toBeInstanceOf(
-      CutForbiddenError
-    )
-  })
-})
+    it("is idempotent — a second softDelete is a no-op on the entity", async () => {
+      const entity = makeCutHistory()
+      entity.softDelete(actor, new Date("2026-05-14T09:00:00.000Z"))
+      const originalDeletedAt = entity.deletedAt
+      vi.mocked(repo.findById).mockResolvedValue(entity)
+      vi.mocked(repo.update).mockImplementation((e) => Promise.resolve(e))
 
-describe("getCutByIdRaw", () => {
-  it("returns the cut without a role check", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: { select: { data: [{ id: "c1", user_id: OWNER }], error: null } },
-      },
-    })
-    const cut = await getCutByIdRaw(client, "c1")
-    expect(cut.id).toBe("c1")
-  })
+      await service.softDelete(CUT_HISTORY_UUID, actor)
 
-  it("throws CutNotFoundError when missing", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: null, error: null } } },
+      expect(entity.deletedAt).toBe(originalDeletedAt)
     })
-    await expect(getCutByIdRaw(client, "missing")).rejects.toBeInstanceOf(CutNotFoundError)
-  })
-})
-
-describe("getExistingCutPdfUrl", () => {
-  it("returns the persisted URL when present", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: { select: { data: [{ pdf_url: "https://x/y.pdf" }], error: null } },
-      },
-    })
-    expect(await getExistingCutPdfUrl(client, "c1")).toBe("https://x/y.pdf")
-  })
-
-  it("returns null when the row exists but pdf_url is null", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: [{ pdf_url: null }], error: null } } },
-    })
-    expect(await getExistingCutPdfUrl(client, "c1")).toBeNull()
-  })
-
-  it("returns null on missing row", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: null, error: null } } },
-    })
-    expect(await getExistingCutPdfUrl(client, "c1")).toBeNull()
-  })
-})
-
-describe("insertCutHistory", () => {
-  it("returns the inserted row on success", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: { insert: { data: [{ id: "c1" }], error: null } },
-      },
-    })
-    const row = await insertCutHistory(client, {
-      user_id: OWNER,
-      roll_id: null,
-      job_id: null,
-      job_part_id: null,
-      material_id: 1,
-      part_id: 1,
-      cut_length: 10,
-      cut_width: 10,
-      cut_thickness: 1,
-      kerf: 0.125,
-      cut_amount: 1,
-      parts_completed: 1,
-      cut_pieces: 1,
-      material_used_sqft: 1,
-      reusable_offset_sqft: 0,
-      scrap_sqft: 0,
-      fab_score: 80,
-      part_custom_width: null,
-      part_custom_height: null,
-      part_custom_dimensions: null,
-      part_selected_size: null,
-      part_selected_size_text: null,
-      part_selected_label: null,
-      stock_label: null,
-      cost_per_sqft: null,
-      pdf_url: null,
-      source: "auto",
-      layout_json: null,
-    })
-    expect(row.id).toBe("c1")
-  })
-
-  it("propagates Supabase errors verbatim", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          insert: {
-            data: null,
-            error: { message: "FK violation", code: "23503", details: null, hint: null },
-          },
-        },
-      },
-    })
-    await expect(
-      insertCutHistory(client, {
-        user_id: OWNER,
-        roll_id: null,
-        job_id: null,
-        job_part_id: null,
-        material_id: 1,
-        part_id: 1,
-        cut_length: 10,
-        cut_width: 10,
-        cut_thickness: 1,
-        kerf: 0.125,
-        cut_amount: 1,
-        parts_completed: 1,
-        cut_pieces: 1,
-        material_used_sqft: 1,
-        reusable_offset_sqft: 0,
-        scrap_sqft: 0,
-        fab_score: 80,
-        part_custom_width: null,
-        part_custom_height: null,
-        part_custom_dimensions: null,
-        part_selected_size: null,
-        part_selected_size_text: null,
-        part_selected_label: null,
-        stock_label: null,
-        cost_per_sqft: null,
-        pdf_url: null,
-        source: "auto",
-        layout_json: null,
-      })
-    ).rejects.toMatchObject({ code: "23503" })
-    consoleSpy.mockRestore()
-  })
-})
-
-describe("listCutHistoryPaginated", () => {
-  it("returns rows + count for a privileged caller without filterUserId", async () => {
-    const client = makeFakeClient({
-      tables: {
-        cut_history: {
-          select: { data: [{ id: "c1" }, { id: "c2" }], error: null },
-        },
-      },
-    })
-    const result = await listCutHistoryPaginated(client, {
-      page: 1,
-      limit: 20,
-      from: null,
-      to: null,
-      filterUserId: null,
-      requesterUserId: VIEWER,
-      requesterRoles: PRIVILEGED_ROLES,
-    })
-    expect(result.data).toHaveLength(2)
-    expect(result.total).toBe(2)
-  })
-
-  it("non-privileged caller scopes to their own rows", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: [], error: null } } },
-    })
-    const result = await listCutHistoryPaginated(client, {
-      page: 1,
-      limit: 20,
-      from: null,
-      to: null,
-      filterUserId: "someone-else",
-      requesterUserId: VIEWER,
-      requesterRoles: ["viewer"],
-    })
-    expect(result.total).toBe(0)
-  })
-})
-
-describe("getCutAnalytics", () => {
-  it("privileged + filterUserId narrows to that user", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: [{ id: "c1" }], error: null } } },
-    })
-    const data = await getCutAnalytics(client, {
-      from: "2026-01-01",
-      to: null,
-      requesterUserId: VIEWER,
-      requesterRoles: ["admin"],
-      filterUserId: OWNER,
-    })
-    expect(data).toHaveLength(1)
-  })
-
-  it("non-privileged user always sees only their own", async () => {
-    const client = makeFakeClient({
-      tables: { cut_history: { select: { data: [], error: null } } },
-    })
-    const data = await getCutAnalytics(client, {
-      from: "2026-01-01",
-      to: "2026-12-31",
-      requesterUserId: VIEWER,
-      requesterRoles: ["cutter"],
-      filterUserId: OWNER, // ignored
-    })
-    expect(data).toEqual([])
   })
 })

@@ -11,6 +11,10 @@
     {
       "path": "/api/admin/health/cron?tier=extended",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/admin/po-reconciliation/cron",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {

@@ -58,20 +58,19 @@ export interface IEmailService {
     to: string
     userName: string
   }): Promise<{ success: boolean; messageId?: string; error?: string }>
-  sendInvitationEmail(params: {
+  /**
+   * Send an invitation email. Matches the DDD invitation slice
+   * (CreateInvitationUseCase / ResendInvitationUseCase) which is the
+   * single canonical caller. Dev's `sendInvitationEmail` variant was
+   * superseded by this method when DDD's slice won the merge.
+   */
+  sendInvitation(params: {
     to: string
-    organizationName: string
-    role: "admin" | "member"
-    inviterName: string | null
-    inviteUrl: string
-    /**
-     * Pre-formatted expiry label (e.g. "May 22, 2026" / "22/05/2026").
-     * The caller (invitation use-cases) formats this with the
-     * operator's date prefs via `formatUserDate` per the 2026-05-14
-     * operator-seeds-prints ruling so the email service stays a pure
-     * transport — no DB reads, no locale logic.
-     */
-    expiresAtLabel: string
+    tenantName: string
+    inviterName: string
+    acceptUrl: string
+    expiresAt: Date
+    roles: string[]
   }): Promise<{ success: boolean; messageId?: string; error?: string }>
   queueEmail(
     notification: Omit<

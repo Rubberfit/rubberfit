@@ -6,7 +6,8 @@
  *     calls (V4.1 enforcement order — fail closed on missing auth, not
  *     after touching the DB).
  *   - The action narrows updateUser's surface to {full_name, email,
- *     roles}; `is_deleted` cannot be smuggled through.
+ *     roles}; accessibility (memberships.deleted_at) cannot be smuggled
+ *     through — only deactivate/reactivate flip it.
  *   - Self-deactivation guard fires server-side, independent of the
  *     UI's own check.
  *   - Zod validation runs on the action input (rejects bad UUID,
@@ -57,6 +58,7 @@ const ADMIN: ActionActor = {
   email: "admin@example.com",
   roles: ["admin"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const TARGET_ID = "00000000-0000-0000-0000-000000000002"
@@ -67,8 +69,8 @@ describe("app/actions/users", () => {
     requireActiveSubscriptionMock.mockResolvedValue({ kind: "allowed" })
     requirePermissionMock.mockReturnValue(undefined)
     updateUserSvcMock.mockResolvedValue({ id: TARGET_ID })
-    deactivateUserSvcMock.mockResolvedValue({ id: TARGET_ID, is_deleted: true })
-    reactivateUserSvcMock.mockResolvedValue({ id: TARGET_ID, is_deleted: false })
+    deactivateUserSvcMock.mockResolvedValue({ id: TARGET_ID, is_inaccessible: true })
+    reactivateUserSvcMock.mockResolvedValue({ id: TARGET_ID, is_inaccessible: false })
   })
 
   afterEach(() => {
@@ -96,10 +98,10 @@ describe("app/actions/users", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/users")
   })
 
-  it("updateUser does NOT forward extra fields like is_deleted (smuggle test)", async () => {
+  it("updateUser does NOT forward extra fields like deleted_at (smuggle test)", async () => {
     const { updateUser } = await import("@/app/actions/users")
 
-    // Pretend the client sent an extra is_deleted field. Zod's strip
+    // Pretend the client sent an extra deleted_at field. Zod's strip
     // should drop it before the service ever sees it.
     await updateUser({
       userId: TARGET_ID,
@@ -107,11 +109,12 @@ describe("app/actions/users", () => {
       email: "jane@example.com",
       roles: ["manager"],
       // @ts-expect-error — deliberately testing smuggle behavior
-      is_deleted: true,
+      deleted_at: new Date().toISOString(),
     })
 
     const forwardedUpdates = updateUserSvcMock.mock.calls[0][1]
-    expect(forwardedUpdates).not.toHaveProperty("is_deleted")
+    expect(forwardedUpdates).not.toHaveProperty("deleted_at")
+    expect(forwardedUpdates).not.toHaveProperty("is_inaccessible")
   })
 
   it("updateUser rejects bad UUID before calling the service", async () => {

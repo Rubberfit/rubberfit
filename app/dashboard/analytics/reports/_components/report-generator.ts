@@ -1,13 +1,32 @@
 import { format, subDays, subWeeks, subMonths } from "date-fns"
 import { toast } from "sonner"
 
-import { cutService } from "@/src/infrastructure/services/cutService"
-import type { CutWithRoll } from "@/src/application/services/cut.service.interface"
+import { fetchCutsInRange } from "@/app/actions/cuts"
 import { rollService } from "@/src/infrastructure/services/rollService"
-import { type AnalyticsMaterialRow, buildAnalyticsReportPdf } from "./analytics-report-pdf"
+import type { CutHistory, Roll } from "@/src/infrastructure/models/supabase"
 import type { ReportTemplate } from "./report-templates"
 import type { UnitDisplayPreferencesInput } from "@/src/application/preferences/user-unit-display"
 import type { UserDatePreferencesInput } from "@/src/application/preferences/user-date-format"
+import {
+  buildAnalyticsReportPdf,
+  type AnalyticsMaterialRow,
+} from "./analytics-report-pdf"
+
+/**
+ * A CutHistory row decorated with its roll join. Replaces the
+ * legacyCutService `CutWithRoll` re-export — the roll lookup is now
+ * an in-memory join over the already-loaded `getAllRolls()` result,
+ * because `fetchCutsInRange` returns raw CutHistory rows without a
+ * server-side join.
+ */
+type CutWithRoll = CutHistory & {
+  roll?: { material_type: string; location?: string | null } | null
+}
+
+function wastePercent(cut: CutHistory): number {
+  const total = cut.scrap_sqft + cut.material_used_sqft
+  return total > 0 ? (cut.scrap_sqft / total) * 100 : 0
+}
 
 function getDateRange(reportPeriod: "daily" | "weekly" | "monthly" | "quarterly"): {
   startDate: Date
@@ -46,28 +65,28 @@ function buildMaterialBreakdown(
 
   for (const roll of rolls ?? []) {
     if (roll.status !== "active") continue
-    const materialType = (roll.material_type as string) ?? "Unknown"
+    const material = (roll.material_type as string) ?? "Unknown"
     const sqft = ((roll.remaining_length as number) * (roll.width as number)) / 144
     const value =
       ((roll.remaining_length as number) *
         (roll.width as number) *
         ((roll.cost_per_sqft as number) || 0)) /
       144
-    const existing = byMaterial.get(materialType)
+    const existing = byMaterial.get(material)
     if (existing) {
       existing.activeRolls += 1
       existing.totalSqft += sqft
       existing.totalValue += value
     } else {
-      byMaterial.set(materialType, { activeRolls: 1, totalSqft: sqft, totalValue: value })
+      byMaterial.set(material, { activeRolls: 1, totalSqft: sqft, totalValue: value })
     }
   }
 
-  return Array.from(byMaterial.entries()).map(([material, agg]) => ({
+  return [...byMaterial.entries()].map(([material, data]) => ({
     material,
-    activeRolls: agg.activeRolls,
-    totalSqft: agg.totalSqft,
-    totalValue: agg.totalValue,
+    activeRolls: data.activeRolls,
+    totalSqft: data.totalSqft,
+    totalValue: data.totalValue,
   }))
 }
 
@@ -93,37 +112,42 @@ export async function generateReport(
   const { startDate, endDate } = getDateRange(reportPeriod)
   const periodLabel = reportPeriod.charAt(0).toUpperCase() + reportPeriod.slice(1)
 
-  const [cuts, rolls] = await Promise.all([
-    cutService.getCutsByDateRangeWithRolls(startDate, endDate),
+  // The caller (reports/page.tsx) already wraps this in try/catch and
+  // shows a toast on failure — rethrowing is enough, we just need to
+  // preserve the single-layer error UI contract. `materialTypes` is not
+  // consumed by the PDF builder; skip the fetch so a material-type
+  // service outage doesn't fail the whole export.
+  const [rawCuts, rolls] = await Promise.all([
+    fetchCutsInRange(startDate, endDate),
     rollService.getAllRolls(),
   ])
 
-  const cutList: CutWithRoll[] = cuts ?? []
-  // `Roll[]` doesn't structurally satisfy `Record<string, unknown>[]`
-  // (it has typed columns, not an index signature), so go through
-  // `unknown` for the dynamic-access path below. This stays at the
-  // service boundary; the downstream code treats fields as untyped.
-  const rollList = (rolls ?? []) as unknown as Array<Record<string, unknown>>
+  // In-memory roll join — `fetchCutsInRange` returns raw CutHistory
+  // rows; the report renders the cut's material name via `roll.material_type`.
+  const rollById = new Map<string, Roll>()
+  for (const r of rolls ?? []) rollById.set(r.id, r)
+  const cuts: CutWithRoll[] = rawCuts.map((c) => {
+    const r = c.roll_id ? rollById.get(c.roll_id) : undefined
+    return {
+      ...c,
+      roll: r ? { material_type: r.material_type, location: r.location } : null,
+    }
+  })
+
+  const materialBreakdown = buildMaterialBreakdown(
+    rolls as unknown as Array<Record<string, unknown>> | null
+  )
 
   const summary = {
-    totalCuts: cutList.length,
-    totalMaterialUsed: cutList.reduce((sum, cut) => sum + (cut.total_sqft_used || 0), 0),
+    totalCuts: cuts.length,
+    totalMaterialUsed: cuts.reduce((sum, cut) => sum + cut.material_used_sqft, 0),
     averageWaste:
-      cutList.length > 0
-        ? cutList.reduce((sum, cut) => sum + (cut.waste_percentage || 0), 0) / cutList.length
-        : 0,
-    totalInventoryValue: rollList.reduce(
-      (sum, roll) =>
-        sum +
-        (((roll.remaining_length as number) ?? 0) *
-          ((roll.width as number) ?? 0) *
-          (((roll.cost_per_sqft as number) ?? 0) || 0)) /
-          144,
+      cuts.length > 0 ? cuts.reduce((sum, cut) => sum + wastePercent(cut), 0) / cuts.length : 0,
+    totalInventoryValue: (rolls || []).reduce(
+      (sum, roll) => sum + (roll.remaining_length * roll.width * (roll.cost_per_sqft || 0)) / 144,
       0
     ),
   }
-
-  const materialBreakdown = buildMaterialBreakdown(rollList)
 
   const doc = buildAnalyticsReportPdf({
     reportName: report.name,
@@ -134,7 +158,7 @@ export async function generateReport(
     materialBreakdown,
     // Cap at 20 rows so the recent-cuts table stays readable; future
     // templates can pass full slices if they need more.
-    recentCuts: cutList.slice(0, 20),
+    recentCuts: cuts.slice(0, 20),
     organizationPreferences,
   })
 

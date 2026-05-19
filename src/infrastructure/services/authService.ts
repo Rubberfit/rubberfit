@@ -45,33 +45,56 @@ function getUserAuthProvider(user: SupabaseUser): string | undefined {
 }
 
 async function getProfileRoles(userId: string): Promise<ProfileData> {
+  // Roles are per-tenant on `memberships` under the new schema. We
+  // surface the union across all active memberships so existing
+  // permission checks (which assume a single role list) keep working
+  // until ActionActor grows an `activeTenantId` and these checks
+  // become per-tenant.
   try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("roles, super_admin")
-      .eq("id", userId)
-      .maybeSingle()
+    const [profileResult, membershipsResult] = await Promise.all([
+      supabase.from("profiles").select("is_platform_admin").eq("id", userId).maybeSingle(),
+      supabase.from("memberships").select("roles").eq("profile_id", userId).is("deleted_at", null),
+    ])
+    const profileData = profileResult.data as { is_platform_admin: boolean | null } | null
+    const membershipRows = membershipsResult.data as { roles: string[] | null }[] | null
 
-    if (error) {
-      console.error("Error loading profile roles:", error)
-      return { roles: normalizeRoles(), isSuperAdmin: false }
+    const rolesUnion = new Set<string>()
+    for (const row of membershipRows ?? []) {
+      for (const role of row.roles ?? []) {
+        rolesUnion.add(role)
+      }
     }
-
-    return { roles: normalizeRoles(data?.roles), isSuperAdmin: data?.super_admin === true }
+    return {
+      roles: normalizeRoles(Array.from(rolesUnion)),
+      isSuperAdmin: profileData?.is_platform_admin === true,
+    }
   } catch (error) {
     console.error("Error loading profile roles:", error)
     return { roles: normalizeRoles(), isSuperAdmin: false }
   }
 }
 
-async function isProfileDeleted(userId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("profiles")
-    .select("is_deleted")
-    .eq("id", userId)
-    .maybeSingle()
+/**
+ * Returns true when the caller cannot meaningfully act in the app:
+ * no profile row, OR no active memberships AND not a platform admin.
+ * Platform admins bypass tenant gating via `auth_is_platform_admin()`
+ * RLS, so they remain accessible even without memberships.
+ */
+async function isAccountInaccessible(userId: string): Promise<boolean> {
+  const [profileResult, membershipsCountResult] = await Promise.all([
+    supabase.from("profiles").select("is_platform_admin").eq("id", userId).maybeSingle(),
+    supabase
+      .from("memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", userId)
+      .is("deleted_at", null),
+  ])
+  const profile = profileResult.data as { is_platform_admin: boolean | null } | null
+  const count = membershipsCountResult.count ?? 0
 
-  return data?.is_deleted === true
+  if (!profile) return true
+  if (profile.is_platform_admin === true) return false
+  return count === 0
 }
 
 async function buildAuthUser(user: SupabaseUser): Promise<AuthUser> {
@@ -112,7 +135,7 @@ export class AuthService implements IAuthService {
         }
       }
 
-      if (await isProfileDeleted(data.user.id)) {
+      if (await isAccountInaccessible(data.user.id)) {
         await supabase.auth.signOut()
         return {
           user: null,
@@ -323,88 +346,149 @@ export const authService = new AuthService()
 // calls out of the route layer.
 
 export interface ProfileAccess {
+  /**
+   * When `tenantId` is passed to `getProfileAccess`, this is the roles
+   * array from the specific membership in that tenant (or `[]` when
+   * the user has no active membership there). Without a tenant hint
+   * it's the union across all active memberships — used by the proxy
+   * permission gate before a cookie-resolved tenant is available, and
+   * the chooser flow where there's no tenant yet.
+   */
   roles: string[]
+  /** Mirrors `profiles.is_platform_admin`. */
   isSuperAdmin: boolean
   /**
-   * Soft-delete flag from `profiles.is_deleted`. Sign-in already rejects
-   * deactivated accounts, but a user deactivated mid-session keeps a
-   * valid JWT until it expires — so callers (middleware, route guards,
-   * action helpers) MUST check this and fail closed.
+   * `true` when the account cannot meaningfully act:
+   *   - no profile row, OR
+   *   - zero active memberships AND not a platform admin.
    *
-   * `null` means "no profile row found" — we surface the missing-row
-   * case as `is_deleted: true` so callers can default-deny without
-   * needing to special-case it.
+   * Sign-in already rejects inaccessible accounts, but an admin can
+   * soft-delete a user's last membership mid-session — the JWT stays
+   * valid until expiry, so callers (middleware, route guards, action
+   * helpers) MUST check this and fail closed.
+   *
+   * Renamed from `isDeleted` when the per-tenant membership soft-delete
+   * replaced the global `profiles.is_deleted` column.
    */
-  isDeleted: boolean
+  isInaccessible: boolean
   /**
-   * `true` when the profile row exists. Distinguishes "no row" from
-   * "row with is_deleted=true" for callers that want to log the
-   * missing-row case loudly without changing the deny outcome.
+   * `true` when the profile row exists. Distinguishes "no profile" from
+   * "profile present but no active memberships" so callers that want
+   * to log the missing-row case loudly can do so without changing the
+   * deny outcome.
    */
   hasProfile: boolean
 }
 
 /**
- * Fetches `profiles.roles` + `profiles.super_admin` + `profiles.is_deleted`
- * for an already-authenticated user. Used by the admin guard helper,
- * the proxy middleware, and `requireAuthenticatedUser` to centralize
- * the RBAC + deactivation lookup that every protected boundary needs.
+ * Fetches the roles + platform-admin flag + accessibility for an
+ * already-authenticated user. Used by the admin guard helper, the proxy
+ * middleware, and `requireAuthenticatedUser` to centralize the RBAC +
+ * accessibility lookup that every protected boundary needs.
  *
- * Returns is_deleted=true (and hasProfile=false) when no profile row
- * exists, so callers can fail-closed with a single `if (access.isDeleted)`
- * check instead of separately handling the missing-row case.
+ * Pass `tenantId` to scope `roles` to a single membership (per-tenant
+ * roles — the production shape once a tenant is resolved). Omit it
+ * for the role-union fallback used before a tenant is known
+ * (proxy permission gate without cookie, chooser flow).
+ *
+ * `isInaccessible` is computed against the **set of all** active
+ * memberships, not just the tenant-scoped roles array — a user with
+ * an active membership in tenant B is still accessible even if we
+ * filter roles to tenant A and that membership row hasn't been read.
+ *
+ * Returns `isInaccessible: true` + `hasProfile: false` when no profile
+ * row exists so callers can fail-closed with one check.
  */
 export async function getProfileAccess(
   client: SupabaseClient,
-  userId: string
+  userId: string,
+  tenantId?: string | null
 ): Promise<ProfileAccess> {
-  const { data, error } = await client
-    .from("profiles")
-    .select("roles, super_admin, is_deleted")
-    .eq("id", userId)
-    .maybeSingle<{
-      roles: string[] | null
-      super_admin: boolean | null
-      is_deleted: boolean | null
-    }>()
+  const tenantRolesQuery = tenantId
+    ? client
+        .from("memberships")
+        .select("roles")
+        .eq("profile_id", userId)
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null })
 
-  if (error) {
-    console.error("authService.getProfileAccess error:", error)
-    throw error
+  const [profileResult, allMembershipsResult, tenantRolesResult] = await Promise.all([
+    client
+      .from("profiles")
+      .select("is_platform_admin")
+      .eq("id", userId)
+      .maybeSingle<{ is_platform_admin: boolean | null }>(),
+    client.from("memberships").select("roles").eq("profile_id", userId).is("deleted_at", null),
+    tenantRolesQuery,
+  ])
+
+  if (profileResult.error) {
+    console.error("authService.getProfileAccess profile error:", profileResult.error)
+    throw profileResult.error
   }
-  if (!data) {
-    return { roles: [], isSuperAdmin: false, isDeleted: true, hasProfile: false }
+  if (allMembershipsResult.error) {
+    console.error("authService.getProfileAccess memberships error:", allMembershipsResult.error)
+    throw allMembershipsResult.error
   }
+
+  if (!profileResult.data) {
+    return { roles: [], isSuperAdmin: false, isInaccessible: true, hasProfile: false }
+  }
+
+  const allMembershipRows = (allMembershipsResult.data ?? []) as { roles: string[] | null }[]
+  const isSuperAdmin = profileResult.data.is_platform_admin === true
+  // Platform admins remain accessible without memberships; their
+  // is_platform_admin flag drives the auth_is_platform_admin() RLS
+  // bypass so they can still act across tenants.
+  const isInaccessible = !isSuperAdmin && allMembershipRows.length === 0
+
+  let roles: string[]
+  if (tenantId) {
+    const tenantRow = tenantRolesResult.data as { roles: string[] | null } | null
+    roles = tenantRow?.roles ?? []
+  } else {
+    const rolesUnion = new Set<string>()
+    for (const row of allMembershipRows) {
+      for (const role of row.roles ?? []) {
+        rolesUnion.add(role)
+      }
+    }
+    roles = Array.from(rolesUnion)
+  }
+
   return {
-    roles: Array.isArray(data.roles) ? data.roles : [],
-    isSuperAdmin: data.super_admin === true,
-    isDeleted: data.is_deleted === true,
+    roles,
+    isSuperAdmin,
+    isInaccessible,
     hasProfile: true,
   }
 }
 
 /**
- * Returns just the `super_admin` flag — used by `proxy.ts` middleware
+ * Returns the `is_platform_admin` flag — used by `proxy.ts` middleware
  * which only needs that bit (no role list).
  */
 export async function getSuperAdminFlag(client: SupabaseClient, userId: string): Promise<boolean> {
   const { data, error } = await client
     .from("profiles")
-    .select("super_admin")
+    .select("is_platform_admin")
     .eq("id", userId)
-    .maybeSingle<{ super_admin: boolean | null }>()
+    .maybeSingle<{ is_platform_admin: boolean | null }>()
 
   if (error) {
     console.error("authService.getSuperAdminFlag error:", error)
     return false
   }
-  return data?.super_admin === true
+  return data?.is_platform_admin === true
 }
 
 /**
  * Upsert helper for the OAuth callback: creates or updates the
- * `profiles` row from a fresh auth user. Defers default-role
- * assignment to the database trigger.
+ * `profiles` row from a fresh auth user. Role assignment is per-tenant
+ * on the `memberships` table now and is handled separately when the
+ * user joins a tenant (invitation accept flow).
  */
 export async function upsertProfileFromAuth(
   client: SupabaseClient,

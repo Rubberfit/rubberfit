@@ -9,6 +9,10 @@ import type { ICutService } from "@/src/application/services/cut.service.interfa
 import type { IEmailService } from "@/src/application/services/email.service.interface"
 import type { IExportPdfService } from "@/src/application/services/export-pdf.service.interface"
 import type { IExportService } from "@/src/application/services/export.service.interface"
+import type { IInvitationService } from "@/src/application/services/invitation.service.interface"
+import type { IInvitationsRepository } from "@/src/application/repositories/invitations.repository.interface"
+import type { IMaterialSupplierService } from "@/src/application/services/material-supplier.service.interface"
+import type { IMaterialSuppliersRepository } from "@/src/application/repositories/material_suppliers.repository.interface"
 import type { IMaterialTypeService } from "@/src/application/services/material-type.service.interface"
 import type { INotificationService } from "@/src/application/services/notification.service.interface"
 import type { IPriceHistoryService } from "@/src/application/services/price-history.service.interface"
@@ -37,22 +41,44 @@ import type { IStripeWebhookService } from "@/src/application/services/stripe-we
 // Infrastructure service singletons
 import { authService } from "@/src/infrastructure/services/authService"
 import { csvService } from "@/src/infrastructure/services/csvService"
-import { cutService } from "@/src/infrastructure/services/cutService"
+import { CutHistoryService } from "@/src/infrastructure/services/cutHistoryService"
+import { cutHistoryRepository } from "@/src/infrastructure/repositories/cut-history.repository"
+import type { ICutHistoryRepository } from "@/src/application/repositories/cut-history.repository.interface"
+import type { ICutHistoryService } from "@/src/application/services/cut-history.service.interface"
+import { CutService } from "@/src/infrastructure/services/cutService"
+import { cutsRepository } from "@/src/infrastructure/repositories/cuts.repository"
+import type { ICutsRepository } from "@/src/application/repositories/cuts.repository.interface"
 import { emailService } from "@/src/infrastructure/services/emailService"
 import { exportPdfService } from "@/src/infrastructure/services/exportPdfService"
 import { exportService } from "@/src/infrastructure/services/exportService"
+import { invitationsRepository } from "@/src/infrastructure/repositories/invitations.repository"
+import { InvitationService } from "@/src/infrastructure/services/invitationService"
 import { ApiPackingService } from "@/src/infrastructure/services/apiPackingService"
 import { RustPackingService } from "@/src/infrastructure/services/rustPackingService"
-import { materialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { MaterialSupplierService } from "@/src/infrastructure/services/materialSupplierService"
+import { materialSuppliersRepository } from "@/src/infrastructure/repositories/material-suppliers.repository"
+import { MaterialTypeService } from "@/src/infrastructure/services/materialTypeService"
+import { materialTypeRepository } from "@/src/infrastructure/repositories/material-types.repository"
+import type { IMaterialTypeRepository } from "@/src/application/repositories/material_types.repository.interface"
 import { notificationService } from "@/src/infrastructure/services/notificationService"
-import { priceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import { PriceHistoryService } from "@/src/infrastructure/services/priceHistoryService"
+import { priceHistoryRepository } from "@/src/infrastructure/repositories/price-history.repository"
+import type { IPriceHistoryRepository } from "@/src/application/repositories/price-history.repository.interface"
 import { profileService } from "@/src/infrastructure/services/profileService"
-import { purchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { PurchaseOrderService } from "@/src/infrastructure/services/purchaseOrderService"
+import { purchaseOrdersRepository } from "@/src/infrastructure/repositories/purchase-orders.repository"
+import type { IPurchaseOrdersRepository } from "@/src/application/repositories/purchase-orders.repository.interface"
 import { purchaseOrderAnalytics } from "@/src/infrastructure/services/purchaseOrderAnalytics"
-import { reorderService } from "@/src/infrastructure/services/reorderService"
+import { ReorderService } from "@/src/infrastructure/services/reorderService"
+import { reorderRulesRepository } from "@/src/infrastructure/repositories/reorder-rules.repository"
+import type { IReorderRulesRepository } from "@/src/application/repositories/reorder-rules.repository.interface"
 import { reorderCalculations } from "@/src/infrastructure/services/reorderCalculations"
-import { rollService } from "@/src/infrastructure/services/rollService"
-import { supplierService } from "@/src/infrastructure/services/supplierService"
+import { RollService } from "@/src/infrastructure/services/rollService"
+import { rollsRepository } from "@/src/infrastructure/repositories/rolls.repository"
+import type { IRollsRepository } from "@/src/application/repositories/rolls.repository.interface"
+import { SupplierService } from "@/src/infrastructure/services/supplierService"
+import { suppliersRepository } from "@/src/infrastructure/repositories/suppliers.repository"
+import type { ISuppliersRepository } from "@/src/application/repositories/suppliers.repository.interface"
 import { stripeClientService } from "@/src/infrastructure/services/stripeClientService"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { taxApiService } from "@/src/infrastructure/services/taxApiService"
@@ -74,18 +100,27 @@ import { UpdatePurchaseOrderUseCase } from "@/src/application/use-cases/purchase
 import { ApprovePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/approve-purchase-order.use-case"
 import { RejectPurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/reject-purchase-order.use-case"
 import { ReceivePurchaseOrderUseCase } from "@/src/application/use-cases/purchase-orders/receive-purchase-order.use-case"
+import { ReconcilePendingApplyUseCase } from "@/src/application/use-cases/purchase-orders/reconcile-pending-apply.use-case"
+import { ReconcilePendingRollCreationUseCase } from "@/src/application/use-cases/purchase-orders/reconcile-pending-roll-creation.use-case"
 import { GenerateReorderSuggestionsUseCase } from "@/src/application/use-cases/reorder/generate-reorder-suggestions.use-case"
 import { CreateReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-reorder-purchase-order.use-case"
 import { CreateBulkReorderPurchaseOrderUseCase } from "@/src/application/use-cases/reorder/create-bulk-reorder-purchase-order.use-case"
 import { RecordCutUseCase } from "@/src/application/use-cases/cuts/record-cut.use-case"
+import { ListCutHistoryUseCase } from "@/src/application/use-cases/cut-history/list-cut-history.use-case"
+import { GetCutByIdUseCase } from "@/src/application/use-cases/cut-history/get-cut-by-id.use-case"
+import { DeleteCutUseCase } from "@/src/application/use-cases/cut-history/delete-cut.use-case"
+import { GetCutAnalyticsUseCase } from "@/src/application/use-cases/cut-history/get-cut-analytics.use-case"
+import { UpdateMaterialPricingUseCase } from "@/src/application/use-cases/pricing/update-material-pricing.use-case"
+// Invitations: DDD's invitations/* slice wins over dev's team/* duplicates.
+import { CreateInvitationUseCase } from "@/src/application/use-cases/invitations/create-invitation.use-case"
+import { ResendInvitationUseCase } from "@/src/application/use-cases/invitations/resend-invitation.use-case"
+import { RevokeInvitationUseCase } from "@/src/application/use-cases/invitations/revoke-invitation.use-case"
+import { AcceptInvitationUseCase } from "@/src/application/use-cases/invitations/accept-invitation.use-case"
+// Billing + seat management from dev (no DDD equivalent).
 import { CreateOrganizationFromOnboardingUseCase } from "@/src/application/use-cases/billing/create-organization-from-onboarding.use-case"
 import { CreateCheckoutSessionUseCase } from "@/src/application/use-cases/billing/create-checkout-session.use-case"
 import { CreateBillingPortalSessionUseCase } from "@/src/application/use-cases/billing/create-billing-portal-session.use-case"
 import { UpdateSubscriptionSeatCountUseCase } from "@/src/application/use-cases/billing/update-subscription-seat-count.use-case"
-import { AcceptInvitationUseCase } from "@/src/application/use-cases/team/accept-invitation.use-case"
-import { CreateInvitationUseCase } from "@/src/application/use-cases/team/create-invitation.use-case"
-import { RevokeInvitationUseCase } from "@/src/application/use-cases/team/revoke-invitation.use-case"
-import { ResendInvitationUseCase } from "@/src/application/use-cases/team/resend-invitation.use-case"
 import { DeactivateMemberUseCase } from "@/src/application/use-cases/team/deactivate-member.use-case"
 
 // Register all service singletons with the container.
@@ -93,11 +128,34 @@ import { DeactivateMemberUseCase } from "@/src/application/use-cases/team/deacti
 // what the container provides when resolving dependencies.
 container.registerInstance<IAuthService>(TOKENS.IAuthService, authService)
 container.registerInstance<ICsvService>(TOKENS.ICsvService, csvService)
-container.registerInstance<ICutService>(TOKENS.ICutService, cutService)
+container.registerInstance<ICutsRepository>(TOKENS.ICutsRepository, cutsRepository)
+container.registerSingleton<ICutService>(TOKENS.ICutService, CutService)
+container.registerInstance<ICutHistoryRepository>(
+  TOKENS.ICutHistoryRepository,
+  cutHistoryRepository
+)
+container.registerSingleton<ICutHistoryService>(TOKENS.ICutHistoryService, CutHistoryService)
 container.registerInstance<IEmailService>(TOKENS.IEmailService, emailService)
 container.registerInstance<IExportPdfService>(TOKENS.IExportPdfService, exportPdfService)
 container.registerInstance<IExportService>(TOKENS.IExportService, exportService)
-container.registerInstance<IMaterialTypeService>(TOKENS.IMaterialTypeService, materialTypeService)
+container.registerInstance<IInvitationsRepository>(
+  TOKENS.IInvitationsRepository,
+  invitationsRepository
+)
+container.registerSingleton<IInvitationService>(TOKENS.IInvitationService, InvitationService)
+container.registerInstance<IMaterialSuppliersRepository>(
+  TOKENS.IMaterialSuppliersRepository,
+  materialSuppliersRepository
+)
+container.registerSingleton<IMaterialSupplierService>(
+  TOKENS.IMaterialSupplierService,
+  MaterialSupplierService
+)
+container.registerInstance<IMaterialTypeRepository>(
+  TOKENS.IMaterialTypesRepository,
+  materialTypeRepository
+)
+container.registerSingleton<IMaterialTypeService>(TOKENS.IMaterialTypeService, MaterialTypeService)
 container.registerInstance<INotificationService>(TOKENS.INotificationService, notificationService)
 // IPackingService: production now lives in `api/v2/pack.rs` (a Vercel
 // Rust serverless function), so the browser POSTs the PackRequest to
@@ -157,23 +215,37 @@ container.register(TOKENS.IPackingService, {
     return new ApiPackingService()
   }),
 })
-container.registerInstance<IPriceHistoryService>(TOKENS.IPriceHistoryService, priceHistoryService)
+container.registerInstance<IPriceHistoryRepository>(
+  TOKENS.IPriceHistoryRepository,
+  priceHistoryRepository
+)
+container.registerSingleton<IPriceHistoryService>(TOKENS.IPriceHistoryService, PriceHistoryService)
 container.registerInstance<IProfileService>(TOKENS.IProfileService, profileService)
-container.registerInstance<IPurchaseOrderService>(
+container.registerInstance<IPurchaseOrdersRepository>(
+  TOKENS.IPurchaseOrdersRepository,
+  purchaseOrdersRepository
+)
+container.registerSingleton<IPurchaseOrderService>(
   TOKENS.IPurchaseOrderService,
-  purchaseOrderService
+  PurchaseOrderService
 )
 container.registerInstance<IPurchaseOrderAnalyticsService>(
   TOKENS.IPurchaseOrderAnalyticsService,
   purchaseOrderAnalytics
 )
-container.registerInstance<IReorderService>(TOKENS.IReorderService, reorderService)
+container.registerInstance<IReorderRulesRepository>(
+  TOKENS.IReorderRulesRepository,
+  reorderRulesRepository
+)
+container.registerSingleton<IReorderService>(TOKENS.IReorderService, ReorderService)
 container.registerInstance<IReorderCalculationsService>(
   TOKENS.IReorderCalculationsService,
   reorderCalculations
 )
-container.registerInstance<IRollService>(TOKENS.IRollService, rollService)
-container.registerInstance<ISupplierService>(TOKENS.ISupplierService, supplierService)
+container.registerInstance<IRollsRepository>(TOKENS.IRollsRepository, rollsRepository)
+container.registerSingleton<IRollService>(TOKENS.IRollService, RollService)
+container.registerInstance<ISuppliersRepository>(TOKENS.ISuppliersRepository, suppliersRepository)
+container.registerSingleton<ISupplierService>(TOKENS.ISupplierService, SupplierService)
 container.registerInstance<IStripeClientService>(TOKENS.IStripeClientService, stripeClientService)
 container.registerInstance<ITaxService>(TOKENS.ITaxService, taxService)
 container.registerInstance<ITaxApiService>(TOKENS.ITaxApiService, taxApiService)
@@ -218,6 +290,11 @@ container.registerSingleton(TOKENS.IUpdatePurchaseOrderUseCase, UpdatePurchaseOr
 container.registerSingleton(TOKENS.IApprovePurchaseOrderUseCase, ApprovePurchaseOrderUseCase)
 container.registerSingleton(TOKENS.IRejectPurchaseOrderUseCase, RejectPurchaseOrderUseCase)
 container.registerSingleton(TOKENS.IReceivePurchaseOrderUseCase, ReceivePurchaseOrderUseCase)
+container.registerSingleton(TOKENS.IReconcilePendingApplyUseCase, ReconcilePendingApplyUseCase)
+container.registerSingleton(
+  TOKENS.IReconcilePendingRollCreationUseCase,
+  ReconcilePendingRollCreationUseCase
+)
 container.registerSingleton(
   TOKENS.IGenerateReorderSuggestionsUseCase,
   GenerateReorderSuggestionsUseCase
@@ -231,6 +308,19 @@ container.registerSingleton(
   CreateBulkReorderPurchaseOrderUseCase
 )
 container.registerSingleton(TOKENS.IRecordCutUseCase, RecordCutUseCase)
+container.registerSingleton(TOKENS.IListCutHistoryUseCase, ListCutHistoryUseCase)
+container.registerSingleton(TOKENS.IGetCutByIdUseCase, GetCutByIdUseCase)
+container.registerSingleton(TOKENS.IDeleteCutUseCase, DeleteCutUseCase)
+container.registerSingleton(TOKENS.IGetCutAnalyticsUseCase, GetCutAnalyticsUseCase)
+container.registerSingleton(TOKENS.IUpdateMaterialPricingUseCase, UpdateMaterialPricingUseCase)
+
+// Invitations (DDD 8-phase slice)
+container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
+container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
+container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
+container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)
+
+// Stripe / billing / onboarding (from dev)
 container.registerSingleton(
   TOKENS.ICreateOrganizationFromOnboardingUseCase,
   CreateOrganizationFromOnboardingUseCase
@@ -240,12 +330,6 @@ container.registerSingleton(
   TOKENS.ICreateBillingPortalSessionUseCase,
   CreateBillingPortalSessionUseCase
 )
-
-// PR 6 — team invites + seat management
-container.registerSingleton(TOKENS.IAcceptInvitationUseCase, AcceptInvitationUseCase)
-container.registerSingleton(TOKENS.ICreateInvitationUseCase, CreateInvitationUseCase)
-container.registerSingleton(TOKENS.IRevokeInvitationUseCase, RevokeInvitationUseCase)
-container.registerSingleton(TOKENS.IResendInvitationUseCase, ResendInvitationUseCase)
 container.registerSingleton(TOKENS.IDeactivateMemberUseCase, DeactivateMemberUseCase)
 container.registerSingleton(
   TOKENS.IUpdateSubscriptionSeatCountUseCase,

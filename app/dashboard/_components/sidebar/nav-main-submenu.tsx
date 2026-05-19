@@ -47,7 +47,7 @@ export function QuickCreateDialog({ open, onOpenChange, initialData }: QuickCrea
   useEffect(() => {
     const loadMaterialTypes = async () => {
       try {
-        const data = await materialTypeService.getNames()
+        const data = await materialTypeService.getAll()
         setMaterialTypes(data.map((m) => m.name))
       } catch (error) {
         console.error("Error loading material types:", error)

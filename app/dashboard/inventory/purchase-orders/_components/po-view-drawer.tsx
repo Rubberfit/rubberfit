@@ -5,8 +5,8 @@ import {
   type MaterialType,
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 
 import { PoEditDrawerBody } from "./po-edit-drawer-body"
 import { PoViewBody } from "./po-view-body"
@@ -23,7 +23,7 @@ interface PoViewDrawerProps {
   onModeChange: (mode: PoDrawerMode) => void
   taxDetails: TaxDetails | null
   /** Catalog of suppliers — needed by the edit body's form. */
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   /** Catalog of material types — needed by the edit body's line items. */
   materialTypes: MaterialType[]
   /**

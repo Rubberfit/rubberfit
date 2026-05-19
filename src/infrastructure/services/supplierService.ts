@@ -1,463 +1,121 @@
-import {
-  type Supplier,
-  type MaterialSupplier,
-  type MaterialSupplierWithDetails,
-  type CreateSupplier,
-  type UpdateSupplier,
-  type CreateMaterialSupplier,
-  type UpdateMaterialSupplier,
-} from "@/src/infrastructure/models/supabase"
-import { getDatabaseClient } from "@/src/infrastructure/supabase/get-database-client"
-import { getCurrentUserId } from "@/src/infrastructure/services/getCurrentUserId"
-import { priceHistoryService } from "./priceHistoryService"
-import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
 import "reflect-metadata"
-import { injectable } from "tsyringe"
+import { inject, injectable } from "tsyringe"
 
+import type { ISupplierService } from "@/src/application/services/supplier.service.interface"
+import type { ISuppliersRepository } from "@/src/application/repositories/suppliers.repository.interface"
+import {
+  type CreateSupplierProps,
+  Supplier,
+  type SupplierUpdateProps,
+} from "@/src/entities/supplier"
+import type { ProfileId } from "@/src/entities/value-objects/id"
+import { suppliersRepository } from "@/src/infrastructure/repositories/suppliers.repository"
+import { TOKENS } from "@/di/tokens"
+
+/**
+ * Thin orchestrator over `ISuppliersRepository`. Each write path loads
+ * the entity, invokes its mutator (which enforces invariants and stamps
+ * audit fields), then persists via `repo.update`. New rows are
+ * constructed via `Supplier.create(...)` and inserted.
+ *
+ * Domain errors (`InvalidEntityError`, `InvalidValueObjectError`)
+ * propagate unwrapped — the action layer's catch wrappers handle them.
+ */
 @injectable()
 export class SupplierService implements ISupplierService {
-  async getAllSuppliers(): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("name", { ascending: true })
+  constructor(
+    @inject(TOKENS.ISuppliersRepository)
+    private readonly repo: ISuppliersRepository
+  ) {}
 
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error fetching suppliers:", error)
-      throw error
-    }
+  getAllSuppliers(): Promise<Supplier[]> {
+    return this.repo.findAll()
   }
 
-  async getActiveSuppliers(): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("active", true)
-        .order("preferred", { ascending: false })
-        .order("name", { ascending: true })
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error fetching active suppliers:", error)
-      throw error
-    }
+  getActiveSuppliers(): Promise<Supplier[]> {
+    return this.repo.findActive()
   }
 
-  async getPreferredSuppliers(): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("active", true)
-        .eq("preferred", true)
-        .order("rating", { ascending: false })
-        .order("name", { ascending: true })
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error fetching preferred suppliers:", error)
-      throw error
-    }
+  getPreferredSuppliers(): Promise<Supplier[]> {
+    return this.repo.findPreferred()
   }
 
-  async getSupplierById(id: string): Promise<Supplier> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase.from("suppliers").select("*").eq("id", id).single()
-
-      if (error) throw error
-      return data as Supplier
-    } catch (error) {
-      console.error("Error fetching supplier by ID:", error)
-      throw error
-    }
+  getSupplierById(id: string): Promise<Supplier> {
+    return this.repo.findById(id)
   }
 
-  async createSupplier(supplier: CreateSupplier): Promise<Supplier> {
-    try {
-      const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .insert([{ ...supplier, user_id }])
-        .select()
-        .single()
-
-      if (error) throw error
-      return data as Supplier
-    } catch (error) {
-      console.error("Error creating supplier:", error)
-      throw error
-    }
+  searchSuppliers(query: string): Promise<Supplier[]> {
+    return this.repo.search(query)
   }
 
-  async updateSupplier(id: string, updates: UpdateSupplier): Promise<Supplier> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data as Supplier
-    } catch (error) {
-      console.error("Error updating supplier:", error)
-      throw error
-    }
+  createSupplier(props: CreateSupplierProps): Promise<Supplier> {
+    const supplier = Supplier.create(props)
+    return this.repo.insert(supplier)
   }
 
-  async deleteSupplier(id: string): Promise<boolean> {
-    const supabase = await getDatabaseClient()
-    const { error } = await supabase.from("suppliers").delete().eq("id", id)
-    if (error) throw error
-    return true
-  }
-
-  async updateSupplierRating(id: string, rating: number): Promise<Supplier> {
-    try {
-      if (rating < 0 || rating > 5) {
-        throw new Error("Rating must be between 0 and 5")
-      }
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .update({ rating })
-        .eq("id", id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data as Supplier
-    } catch (error) {
-      console.error("Error updating supplier rating:", error)
-      throw error
-    }
-  }
-
-  async linkMaterialToSupplier(
-    materialSupplier: CreateMaterialSupplier
-  ): Promise<MaterialSupplierWithDetails> {
-    try {
-      const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .insert([{ ...materialSupplier, user_id }])
-        .select(
-          `
-          *,
-          material_type:material_types(id, name),
-          supplier:suppliers(id, name)
-        `
-        )
-        .single()
-
-      if (error) throw error
-
-      if (data && data.cost_per_sqft) {
-        try {
-          await priceHistoryService.trackPriceChange(
-            data.id,
-            undefined,
-            data.cost_per_sqft,
-            "Initial price when supplier was linked"
-          )
-        } catch (e) {
-          console.error("Failed to track initial price:", e)
-        }
-      }
-
-      return data as MaterialSupplierWithDetails
-    } catch (error) {
-      console.error("Error linking material to supplier:", error)
-      throw error
-    }
-  }
-
-  async unlinkMaterialFromSupplier(materialSupplierId: string): Promise<boolean> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { error } = await supabase
-        .from("material_suppliers")
-        .delete()
-        .eq("id", materialSupplierId)
-
-      if (error) throw error
-      return true
-    } catch (error) {
-      console.error("Error unlinking material from supplier:", error)
-      throw error
-    }
-  }
-
-  async updateMaterialSupplier(
+  async updateSupplier(
     id: string,
-    updates: UpdateMaterialSupplier
-  ): Promise<MaterialSupplierWithDetails> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .update(updates)
-        .eq("id", id)
-        .select(
-          `
-          *,
-          material_type:material_types(id, name),
-          supplier:suppliers(id, name)
-        `
-        )
-        .single()
-
-      if (error) throw error
-
-      return data as MaterialSupplierWithDetails
-    } catch (error) {
-      console.error("Error updating material supplier:", error)
-      throw error
-    }
+    updates: SupplierUpdateProps,
+    actor: ProfileId
+  ): Promise<Supplier> {
+    const supplier = await this.repo.findById(id)
+    supplier.updateDetails(updates, actor)
+    return this.repo.update(supplier)
   }
 
-  async getSuppliersByMaterialType(materialTypeId: string): Promise<MaterialSupplierWithDetails[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          supplier:suppliers(*)
-        `
-        )
-        .eq("material_type_id", materialTypeId)
-        .eq("active", true)
-        .order("preferred_supplier", { ascending: false })
-        .order("cost_per_sqft", { ascending: true })
-
-      if (error) throw error
-      return data as MaterialSupplierWithDetails[]
-    } catch (error) {
-      console.error("Error fetching suppliers by material type:", error)
-      throw error
-    }
+  async deactivateSupplier(id: string, actor: ProfileId): Promise<Supplier> {
+    const supplier = await this.repo.findById(id)
+    supplier.deactivate(actor)
+    return this.repo.update(supplier)
   }
 
-  async getMaterialsBySupplier(supplierId: string): Promise<MaterialSupplierWithDetails[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          material_type:material_types(*)
-        `
-        )
-        .eq("supplier_id", supplierId)
-        .eq("active", true)
-        .order("preferred_supplier", { ascending: false })
-
-      if (error) throw error
-      return data as MaterialSupplierWithDetails[]
-    } catch (error) {
-      console.error("Error fetching materials by supplier:", error)
-      throw error
-    }
+  async reactivateSupplier(id: string, actor: ProfileId): Promise<Supplier> {
+    const supplier = await this.repo.findById(id)
+    supplier.reactivate(actor)
+    return this.repo.update(supplier)
   }
 
-  async getPreferredSupplierForMaterial(
-    materialTypeId: string
-  ): Promise<MaterialSupplierWithDetails | null> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select(
-          `
-          *,
-          supplier:suppliers(*)
-        `
-        )
-        .eq("material_type_id", materialTypeId)
-        .eq("preferred_supplier", true)
-        .eq("active", true)
-        .single()
-
-      if (error && error.code !== "PGRST116") throw error
-      return data as MaterialSupplierWithDetails | null
-    } catch (error) {
-      console.error("Error fetching preferred supplier for material:", error)
-      throw error
-    }
+  async softDeleteSupplier(id: string, actor: ProfileId): Promise<Supplier> {
+    const supplier = await this.repo.findById(id)
+    supplier.softDelete(actor)
+    return this.repo.update(supplier)
   }
 
-  async setPreferredSupplier(
-    materialTypeId: string,
-    supplierId: string
-  ): Promise<MaterialSupplierWithDetails> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { error: unsetError } = await supabase
-        .from("material_suppliers")
-        .update({ preferred_supplier: false })
-        .eq("material_type_id", materialTypeId)
-
-      if (unsetError) throw unsetError
-
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .update({ preferred_supplier: true })
-        .eq("material_type_id", materialTypeId)
-        .eq("supplier_id", supplierId)
-        .select(
-          `
-          *,
-          material_type:material_types(id, name),
-          supplier:suppliers(id, name)
-        `
-        )
-        .single()
-
-      if (error) throw error
-      return data as MaterialSupplierWithDetails
-    } catch (error) {
-      console.error("Error setting preferred supplier:", error)
-      throw error
-    }
-  }
-
-  async checkMaterialSupplierLink(
-    materialTypeId: string,
-    supplierId: string
-  ): Promise<MaterialSupplier | null> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .select("id")
-        .eq("material_type_id", materialTypeId)
-        .eq("supplier_id", supplierId)
-        .single()
-
-      if (error && error.code !== "PGRST116") throw error
-      return data as MaterialSupplier | null
-    } catch (error) {
-      console.error("Error checking material-supplier link:", error)
-      throw error
-    }
-  }
-
-  async bulkCreateSuppliers(suppliers: CreateSupplier[]): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const user_id = await getCurrentUserId()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .insert(suppliers.map((s) => ({ ...s, user_id })))
-        .select()
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error bulk creating suppliers:", error)
-      throw error
-    }
-  }
-
-  async bulkLinkMaterialsToSupplier(
-    materialSuppliers: CreateMaterialSupplier[]
-  ): Promise<MaterialSupplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("material_suppliers")
-        .insert(materialSuppliers)
-        .select()
-
-      if (error) throw error
-      return data as MaterialSupplier[]
-    } catch (error) {
-      console.error("Error bulk linking materials to supplier:", error)
-      throw error
-    }
-  }
-
-  async getAllSuppliersOrdered(): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("preferred", { ascending: false })
-        .order("name", { ascending: true })
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error fetching ordered suppliers:", error)
-      throw error
-    }
-  }
-
-  async getSuppliers(options?: {
-    filterActive?: boolean
-    filterPreferred?: boolean
-  }): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      let query = supabase.from("suppliers").select("*")
-
-      if (options?.filterActive) {
-        query = query.eq("active", true)
-      }
-
-      if (options?.filterPreferred) {
-        query = query.eq("preferred", true)
-      }
-
-      query = query.order("preferred", { ascending: false }).order("name", { ascending: true })
-
-      const { data, error } = await query
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error fetching suppliers with filters:", error)
-      throw error
-    }
-  }
-
-  async searchSuppliers(query: string): Promise<Supplier[]> {
-    try {
-      const supabase = await getDatabaseClient()
-      const sanitized = query.replace(/[%,.*()]/g, "")
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .or(
-          `name.ilike.%${sanitized}%,contact_person.ilike.%${sanitized}%,email.ilike.%${sanitized}%,city.ilike.%${sanitized}%`
-        )
-        .order("name", { ascending: true })
-
-      if (error) throw error
-      return data as Supplier[]
-    } catch (error) {
-      console.error("Error searching suppliers:", error)
-      throw error
-    }
+  /**
+   * Rating-only edit. The entity's `updateDetails` mutator covers this
+   * field, but always-update-everything would require the caller to
+   * pass the entire current snapshot. Instead, build a single-field
+   * update from the current supplier state.
+   */
+  async updateSupplierRating(id: string, rating: number, actor: ProfileId): Promise<Supplier> {
+    const supplier = await this.repo.findById(id)
+    supplier.updateDetails(
+      {
+        name: supplier.name,
+        address: supplier.address,
+        email: supplier.email,
+        generalPhone: supplier.generalPhone,
+        website: supplier.website,
+        taxId: supplier.taxId,
+        taxRate: supplier.taxRate,
+        taxExempt: supplier.taxExempt,
+        paymentTerms: supplier.paymentTerms,
+        shippingCost: supplier.shippingCost,
+        rating,
+        preferred: supplier.preferred,
+        notes: supplier.notes,
+      },
+      actor
+    )
+    return this.repo.update(supplier)
   }
 }
 
-export const supplierService = new SupplierService()
+/**
+ * Module-level singleton bound to the concrete `suppliersRepository`.
+ * Used by browser-side pages that still call `supplierService.foo()`
+ * directly. DI-resolved consumers (server actions, use-cases) get a
+ * fresh instance constructed by the container; both share the same
+ * underlying repository.
+ */
+export const supplierService: ISupplierService = new SupplierService(suppliersRepository)

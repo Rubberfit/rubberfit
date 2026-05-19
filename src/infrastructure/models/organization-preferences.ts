@@ -82,9 +82,9 @@ export interface UpdateOrganizationPreferencesInput {
 }
 
 interface OrganizationPreferencesRow {
-  organization_id: string
+  tenant_id: string
   default_currency: string
-  time_zone: string
+  timezone: string
   date_format: string
   unit_system: string
   low_stock_threshold_sqft: number | string
@@ -100,13 +100,13 @@ export function mapOrganizationPreferencesRow(
   const threshold = typeof thresholdRaw === "string" ? Number(thresholdRaw) : thresholdRaw
   if (!Number.isFinite(threshold)) {
     throw new Error(
-      `organization_preferences.low_stock_threshold_sqft is not a finite number: ${thresholdRaw}`
+      `tenant_settings.low_stock_threshold_sqft is not a finite number: ${thresholdRaw}`
     )
   }
   return {
-    organizationId: row.organization_id,
+    organizationId: row.tenant_id,
     defaultCurrency: row.default_currency as SupportedCurrency,
-    timeZone: row.time_zone as SupportedTimeZone,
+    timeZone: row.timezone as SupportedTimeZone,
     dateFormat: row.date_format as SupportedDateFormat,
     unitSystem: row.unit_system as UnitSystem,
     lowStockThresholdSqft: threshold,
@@ -121,7 +121,7 @@ export function mapUpdateInputToRow(
 ): Partial<OrganizationPreferencesRow> {
   const row: Partial<OrganizationPreferencesRow> = {}
   if (input.defaultCurrency !== undefined) row.default_currency = input.defaultCurrency
-  if (input.timeZone !== undefined) row.time_zone = input.timeZone
+  if (input.timeZone !== undefined) row.timezone = input.timeZone
   if (input.dateFormat !== undefined) row.date_format = input.dateFormat
   if (input.unitSystem !== undefined) row.unit_system = input.unitSystem
   if (input.lowStockThresholdSqft !== undefined)

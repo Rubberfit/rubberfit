@@ -101,6 +101,7 @@ function makeQuery(handle: QueryHandle, config: FakeClientConfig) {
     eq: vi.fn(() => proxy),
     neq: vi.fn(() => proxy),
     in: vi.fn(() => proxy),
+    is: vi.fn(() => proxy),
     or: vi.fn(() => proxy),
     order: vi.fn(() => proxy),
     range: vi.fn(() => proxy),

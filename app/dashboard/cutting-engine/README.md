@@ -15,26 +15,63 @@ Both surfaces share the same packing engine (`pack-cli`) and waste/offcut semant
 
 User selects a part type (preset or custom), enters dimensions, sets quantity, and sees a real-time Konva preview of the nested layout on the selected stock. Supports rectangles, circles, cylinders, cones, trapezoids, and annular sectors. The Pack call resolves `IPackingService` from the TSyringe container; the Rust `pack-cli` binary runs the full S2.5 stack (FFD + 2D grid warm-start + sparrow GLS + cross-bin swap). See `engine.ltx` for the algorithm writeup.
 
+## CAD Import (ARC-41 DXF + ARC-93 SVG)
+
+Operators can upload `.dxf` or `.svg` files to import arbitrary-geometry parts (gaskets, custom seals, multi-loop profiles). Both paths land in `src/application/cad/`:
+
+| Format | Entry parser                                                                 | Coverage                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DXF    | [`parse-dxf.ts`](../../../src/application/cad/parse-dxf.ts) (ARC-41 PR1+PR2) | Single + multi-loop, LWPOLYLINE/POLYLINE/LINE/ARC/CIRCLE/SPLINE/ELLIPSE, bulged polylines, holes, `$INSUNITS` auto-detect (mm/inch).                                                                                                                                                                                                                      |
+| SVG    | [`parse-svg.ts`](../../../src/application/cad/parse-svg.ts) (ARC-93)         | Cubic + quadratic Béziers, arcs (via `unarc()`), nested `<g>` transforms, multi-loop, holes. Unsupported elements (`<use>`, `<defs>`, `<text>`, `<image>`, gradients, masks, clipPaths, patterns, filters) collapse into `UnsupportedSvgEntity` with a reason code. Y is flipped at parse-time (Y → -Y) so emitted vertices match DXF math-coords (Y up). |
+
+**Common pipeline** (both formats feed the same downstream stages):
+
+```
+File → parse-{dxf,svg}.ts (raw entity AST)
+  → tessellate-curves.ts (Bézier/arc/spline → polyline at chord-error tolerance)
+  → connect-loops.ts (endpoint-snap at 1e-4)
+  → group-parts.ts (containment-based hole assignment, outer + holes per part)
+  → sanitize-polygon-with-holes.ts (winding-order normalization, degenerate-segment drop)
+  → PolygonWithHoles[] (DDD canonical shape; consumed by IPackingService)
+```
+
+`detect-svg-units.ts` + `detect-units.ts` resolve user-units to mm/inch; operator-confirmed via the review dialog when units can't be inferred.
+
+**UI entry:** [`_components/svg-review-dialog.tsx`](./_components/svg-review-dialog.tsx) renders the parsed loops over a preview canvas before the user confirms import. Unsupported-entity warnings are aggregated in [`_components/cad-warning-copy.ts`](./_components/cad-warning-copy.ts).
+
+**Tests:** `tests/cad/` (parser-level — `parse-dxf`, `parse-svg`, `connect-loops`, `group-parts`, `tessellate-curves`, `detect-svg-units`, `detect-units`, `svg-to-loops`) + `tests/cutting-engine/cut-list-upload-svg.test.tsx` + `tests/cutting-engine/svg-contrast.test.ts` (UI smoke).
+
+The legacy `nesting/` TS NFP path is still imported by the cutting-engine UI for shape _previews_ (small visual diagrams alongside cards), but it is no longer a packing path — every Pack call goes through Rust.
+
 ## Architecture
 
 ```
 User Input (part type, dimensions, quantity)
       |
       v
-SimplePartSpec[] ──> simplePartToNestingParts() ──> NestingPart[]
-      |                                                    |
-      v                                                    v
-generateSimplePartPreview()              NFPSolver.solve() (GA optimization)
-      |                                                    |
-      v                                                    v
-SimplePartPreview                    nestingResultToPreviewItems()
-      |                                                    |
-      v                                                    v
-NestingVisualizer <────── computeSimpleModeLayout() ───────┘
+SimplePartSpec[] ──> template-to-part.ts ──> PackRequest
       |
       v
-SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
+[Pack button pressed] ──> usePackJob ──> IPackingService.pack()
+      |
+      v
+Rust pack-cli (FFD + 2D grid + sparrow GLS + cross-bin swap)
+      |
+      v
+PackResult ──> pack-result-to-layout-model.ts ──> LayoutModel[]
+      |
+      v
+NestingVisualizer (simple mode) / KonvaSheetRenderer (free roam)
+      |
+      v
+SVG Canvas (stock sheet + placed shapes + classified scrap + offcut bands)
 ```
+
+The TS-side packers (NFP greedy, MaxRects, shelf, guillotine, width-pair,
+FAB scoring, GA rotation search) were retired with the Rust migration —
+the only packing pipeline now is Rust. Files in this directory whose
+names suggest TS-side packing are either preview-renderer helpers or
+post-pack layout-shaping utilities.
 
 ## Files
 
@@ -56,22 +93,20 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 | `cut-loader.tsx`                | Deep-link loader — `?loadCut=<id>` fetches a cut history row and restores stock + parts in the engine                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `roll-loader.tsx`               | Deep-link loader — `?loadRoll=<id>` fetches an inventory roll and pre-fills stock dimensions (no parts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
-### Math & Algorithms
+### Math & Algorithms (post-Rust layout helpers)
 
-| File                                 | Purpose                                                                                          |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `nesting-layout-utils.ts`            | Core layout math — grid calculation, strategy scoring, formatting                                |
-| `nesting-packing-utils.ts`           | Bin-packing algorithms — shelf packing (with findBestShelf), guillotine cutting, centered column |
-| `nesting-global-packer.ts`           | MaxRects bin class + 5 heuristics — ported from open-source repos (see attribution below)        |
-| `nesting-global-packer-entry.ts`     | Multi-sheet entry point — exhaustive rotation search, sheet builder, greedy/batch/pair dispatch  |
-| `nesting-width-pair-packer.ts`       | Width-aware pairing pre-pass — groups similar-width items side-by-side before MaxRects           |
-| `nesting-nfp-helpers.ts`             | Shape-to-polygon converters for NFP solver, result-to-preview converters                         |
-| `nesting-offcut-utils.ts`            | Offcut band classification, intra-blank waste, placement bounds helpers                          |
-| `nesting-preview-builders.ts`        | High-level preview builders — waste analysis, fabrication scoring, strategy comparison           |
-| `nesting-shape-previews-basic.ts`    | Rectangle and circle preview generation                                                          |
-| `nesting-shape-previews-advanced.ts` | Cylinder, cone, and trapezoid preview generation                                                 |
-| `nesting-shape-previews-dispatch.ts` | Router — dispatches to correct preview generator by part type; multi-part mixed layout           |
-| `nesting-shape-previews.ts`          | Barrel re-export of all preview generators                                                       |
+These are now post-pack layout shapers and visualizer helpers, not packers. The actual packing happens in the Rust `rf-layout` crate via `pack-cli` (or the Vercel in-process Rust function).
+
+| File                             | Purpose                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nesting-layout-utils.ts`        | Core layout math — grid calculation, scaling, formatting helpers for the visualizer.                                                          |
+| `nesting-packing-utils.ts`       | Post-pack helpers (shelf-style row grouping, centered-column layout) used by the visualizer to organise preview output before drawing.        |
+| `nesting-offcut-utils.ts`        | Offcut band classification, intra-blank waste, placement bounds helpers.                                                                      |
+| `nesting-preview-builders.ts`    | High-level preview builders — waste analysis, fabrication scoring, strategy comparison.                                                       |
+| `pack-result-to-layout-model.ts` | Normaliser: Rust `PackResult` → `LayoutModel[]` consumed by the visualizer and Konva renderer.                                                |
+| `auto-fill-bin-allocator.ts`     | Multi-sheet auto-fill estimator (`SAFETY_FACTOR ≈ 1.54×` over total part area, capped at `MAX_SHEETS = 50`) feeding the bin list into `pack`. |
+| `bin-allocation-strategy.ts`     | Auto-boost: silently re-packs against more bins on overflow until everything fits or the cap is reached.                                      |
+| `template-to-part.ts`            | Converts `SimplePartSpec[]` (preset / custom UI) into the canonical `PackRequest` `Part[]`.                                                   |
 
 ### SVG Rendering
 
@@ -84,20 +119,21 @@ SVG Canvas (stock sheet + placed shapes + waste bands + cut steps)
 
 ### PDF Generation
 
-| File                          | Purpose                                                                                                                                                                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cut-history-pdf.ts`          | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. The "PDF first, INSERT second" save flow runs end-to-end in the **browser**: this module's `buildAndUploadCutPdf` builds the blob and delegates the upload to `cutPdfBrowserStorage.ts::uploadCutPdfFromBrowser`, which writes directly to `cut-history-pdfs/<userId>/<cutId>.pdf` with the user's session (storage RLS scopes the folder to `auth.uid()`). The browser then calls the `saveCut` server action with `{ cutId, pdfUploaded: true, ... }`. The server action ignores any client-supplied URL — it constructs the authoritative `pdf_url` from `actor.id` + `cutId` and writes that onto the cut_history INSERT (cut_history is write-once; no UPDATE policy). On INSERT failure the action runs `safeRemoveOrphanedCutPdf`, which checks for an existing row before deleting so a duplicate-submit race can't drop a referenced file. |
-| `cut-history-pdf-offcut.ts`   | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface. |
-| `arc-anchor-logo.ts`          | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                       |
+| File                        | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cut-history-pdf.ts`        | Cut report PDF builder — branded header, summary cards, cut legend, per-roll vector layout diagrams (true-aspect, 45° hatched regions, dimension arrows), reusable-offcut summary, metrics table, adhesives table, footer. The "PDF first, INSERT second" save flow runs end-to-end in the **browser**: this module's `buildAndUploadCutPdf` builds the blob and delegates the upload to `cutPdfBrowserStorage.ts::uploadCutPdfFromBrowser`, which writes directly to `cut-history-pdfs/<userId>/<cutId>.pdf` with the user's session (storage RLS scopes the folder to `auth.uid()`). The browser then calls the `saveCut` server action with `{ cutId, pdfUploaded: true, ... }`. The server action ignores any client-supplied URL — it constructs the authoritative `pdf_url` from `actor.id` + `cutId` and writes that onto the cut_history INSERT (cut_history is write-once; no UPDATE policy). On INSERT failure the action runs `safeRemoveOrphanedCutPdf`, which checks for an existing row before deleting so a duplicate-submit race can't drop a referenced file. |
+| `cut-history-pdf-offcut.ts` | Pure helpers for the offcut summary section (issue #128): `classifyOffcutType` (Piece ≥ 11.5"×12" / Strip ≥ 6"×24" / null) and `buildOffcutSummary` (one row per individually-reusable offcut, globally numbered across rolls). Filters out CC sub-rectangles that ride along in `layout.offcuts` so only operator-actionable pieces surface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `arc-anchor-logo.ts`        | Base64-encoded brand logo embedded into the PDF header.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### State & Hooks
 
-| File                      | Purpose                                                                                 |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `use-nfp-optimizer.ts`    | NFP optimization hook — manages solver lifecycle, results, cancellation                 |
-| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities     |
-| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types            |
-| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion |
+| File                      | Purpose                                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `use-pack-job.ts`         | Owns the single `IPackingService.pack()` round-trip when the operator presses **Pack**. Gated by `usePackGate` (`idle` → `packing` → `done`); no live load on input change. |
+| `_hooks/use-pack-gate.ts` | Three-state gate machine that keeps the Pack button explicit — no per-keystroke packing, minimum 450 ms loader window so the operation is perceivable.                      |
+| `use-preset-state.ts`     | State management for preset selector — templates, custom sizes, per-card quantities.                                                                                        |
+| `preset-template-data.ts` | Template definitions, part type options, category badges, custom draft types.                                                                                               |
+| `preset-utils.ts`         | Template builder helpers — custom template creation, area calculation, draft conversion.                                                                                    |
 
 ### Free-roam (Manual CAD Placement)
 
@@ -1130,7 +1166,18 @@ export function computeSimpleModeLayout(input: SimpleModeLayoutInput): SimpleMod
 }
 ```
 
-### 10. Global Multi-Sheet Bin Packing (`nesting-global-packer.ts`)
+### 10. Global Multi-Sheet Bin Packing — _historical_
+
+> **Historical archive.** The TS-side MaxRects + width-pair packer
+> described below was retired in the Rust migration. `pack-cli`
+> (`engine/crates/rf-layout/`) is the only active packer; the files
+> referenced here (`nesting-global-packer.ts`,
+> `nesting-width-pair-packer.ts`, etc.) no longer exist. The S2.5
+> design — FFD + 2D grid warm-start + sparrow GLS + cross-bin swap —
+> is documented in `docs/superpowers/benchmarks/2026-04-18-s2.5-results.md`
+> and the `engine/crates/rf-layout/` source. Kept here for context on
+> what the previous in-browser pipeline did and the open-source
+> packers it built on.
 
 When multiple distinct part types are packed together (e.g., a 45-part cut list with different sizes), the global packer replaces the sequential per-sheet overflow approach with a globally-optimal assignment. This produces fewer sheets for the same set of items.
 

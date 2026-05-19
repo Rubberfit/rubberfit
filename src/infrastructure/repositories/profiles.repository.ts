@@ -66,14 +66,20 @@ export class ProfileRepository implements IProfileRepository {
 
   async requestSelfDelete(userId: string): Promise<SelfDeleteResult> {
     try {
-      // Soft-delete: flip is_deleted on the caller's own profile
-      // row. RLS forces `user_id = auth.uid()` so this update only
-      // touches the current user — admins restoring deleted users
-      // use the admin API path, not this one. Use getDatabaseClient
-      // so the cookie-bound server client is used when called from
-      // a server action (the browser singleton has no JWT in Node).
+      // Soft-delete: flip `deleted_at` on every active membership the
+      // caller owns. Under the new per-tenant schema there is no
+      // global `profiles.is_deleted`; "delete account" means revoke
+      // access to every tenant. Admins in any of the user's former
+      // tenants can restore by clearing `deleted_at`. RLS scopes
+      // the UPDATE to the caller's own rows, so this only touches
+      // the current user. getDatabaseClient picks the cookie-bound
+      // server client when called from a server action.
       const client = await getDatabaseClient()
-      const { error } = await client.from("profiles").update({ is_deleted: true }).eq("id", userId)
+      const { error } = await client
+        .from("memberships")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("profile_id", userId)
+        .is("deleted_at", null)
       if (error) {
         console.error("self-delete failed:", error)
         return { success: false, error: error.message }

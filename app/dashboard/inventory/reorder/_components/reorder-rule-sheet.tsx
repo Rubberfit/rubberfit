@@ -5,11 +5,12 @@ import { ChevronLeft, X } from "lucide-react"
 import { toast } from "sonner"
 
 import {
-  type MaterialType,
+  type CreateReorderRule,
   type ReorderRule,
-  type Supplier,
   type UpdateReorderRule,
 } from "@/src/infrastructure/models/supabase"
+import type { MaterialType } from "@/src/entities/material-type"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { reorderRules as reorderRulesSdk } from "@/src/infrastructure/api-client/rf/procurement"
 import { createReorderRule } from "@/app/actions/reorder"
 import { useOrganizationPreferences } from "@/app/dashboard/_components/organization-preferences-provider"
@@ -29,7 +30,7 @@ interface ReorderRuleSheetProps {
   onOpenChange: (open: boolean) => void
   rule?: ReorderRule | null
   materialTypes: MaterialType[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   onSuccess?: () => void
 }
 

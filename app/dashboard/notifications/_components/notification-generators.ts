@@ -57,7 +57,7 @@ export async function generateLowStockNotifications() {
   if (materialTypes) {
     for (const materialType of materialTypes) {
       const currentStock = stockLevels.get(materialType.name) || 0
-      const threshold = materialType.min_stock_alert || 0
+      const threshold = materialType.minStockSqm || 0
 
       if (currentStock < threshold && threshold > 0) {
         materialsWithLowStock.add(materialType.name)

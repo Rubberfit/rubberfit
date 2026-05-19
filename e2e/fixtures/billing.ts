@@ -1,19 +1,22 @@
 /**
- * E2E billing fixture — provisions an organization + active membership
- * + current subscription row for a test user at a chosen plan tier.
+ * E2E billing fixture — attaches a current subscription to the test user's
+ * tenant so subscription-gated routes (`requireActiveSubscription`,
+ * `requireFeature`) see a healthy plan row.
  *
- * Why this exists: every gate downstream of `requireActiveSubscription`
- * (route gates in `proxy.ts`, action-layer `requireFeature` calls)
- * reads the join `organizations → organization_members(user) →
- * organization_subscriptions(is_current=true)`. The basic
- * `createTestUser` fixture only sets up the auth + profile row, so by
- * default the user lands on the recovery flow rather than the
- * dashboard. This fixture closes that loop so tier-specific E2Es can
- * exercise the gate without spinning up real Stripe sessions.
+ * Rewritten for the DDD schema (PR #283): the org boundary is `tenants` (not
+ * the old `organizations`), membership is on `memberships`, and subscriptions
+ * live on `subscriptions` with a NOT NULL FK to `plans`. `auth.ts` already
+ * creates a fresh tenant per test user, so this fixture only adds the
+ * subscription row — it does not create a separate org.
  *
- * Cleanup: `deleteTestOrganization(orgId)` removes the org row;
- * cascades drop `organization_members` and `organization_subscriptions`
- * rows. Caller must invoke in afterAll alongside `deleteTestUser`.
+ * Export names (`provisionOrgAtTier`, `deleteTestOrganization`,
+ * `TestOrganization`) are preserved so spec call sites compile unchanged. The
+ * returned `id` is the user's tenant_id — passing it to
+ * `deleteTestOrganization` cascades the tenant away, removing memberships and
+ * subscriptions along with it.
+ *
+ * Prereq: `public.plans` must have rows for the requested tier code
+ * (`standard`, `pro`, `max`). Seeded by `supabase/seed.sql`.
  */
 import { randomUUID } from "node:crypto"
 
@@ -34,98 +37,97 @@ export interface ProvisionTierOptions {
    * `getEffectiveTier` (Standard → Pro during trial).
    */
   status?: "active" | "trialing"
+  /**
+   * Subscriptions track billing cadence with `"monthly"` / `"annual"`
+   * (suffix form). Note that `plans.billing_interval` uses singular
+   * `"month"` / `"year"` — different vocabularies on the two tables.
+   */
+  billingInterval?: "monthly" | "annual"
   organizationName?: string
 }
 
 /**
- * Provision an organization + active member link + current
- * subscription row at the requested tier. Returns the org id so the
- * caller can tear down in afterAll.
- *
- * Uses the service-role admin client to bypass RLS — same trust model
- * as `createTestUser`, never run against production credentials.
+ * Provision a current subscription row at the requested tier for the test
+ * user's tenant. Returns the tenant id wrapped in a `TestOrganization` shape
+ * so the spec's existing teardown call (`deleteTestOrganization(org.id)`)
+ * keeps working.
  */
 export async function provisionOrgAtTier(
   user: TestUser,
   opts: ProvisionTierOptions
 ): Promise<TestOrganization> {
   const status = opts.status ?? "active"
-  const orgName = opts.organizationName ?? `E2E Org ${Date.now()}-${randomUUID().slice(0, 6)}`
+  const billingInterval = opts.billingInterval ?? "monthly"
 
-  const { data: orgRow, error: orgError } = await adminClient
-    .from("organizations")
-    .insert({
-      name: orgName,
-      billing_email: user.email,
-      created_by: user.id,
-    })
-    .select("id, name")
-    .single()
+  const { data: plan, error: planError } = await adminClient
+    .from("plans")
+    .select("id")
+    .eq("code", opts.tier)
+    .maybeSingle<{ id: string }>()
 
-  if (orgError || !orgRow) {
-    throw new Error(`provisionOrgAtTier: org insert failed — ${orgError?.message ?? "no row"}`)
+  if (planError || !plan) {
+    throw new Error(
+      `provisionOrgAtTier: plan lookup for code='${opts.tier}' failed — ${
+        planError?.message ?? "no row. Run `psql -f supabase/seed.sql` to seed plans."
+      }`
+    )
   }
 
-  const { error: memberError } = await adminClient.from("organization_members").insert({
-    organization_id: orgRow.id,
-    user_id: user.id,
-    role: "owner",
-    status: "active",
-    invited_by: user.id,
-    joined_at: new Date().toISOString(),
-  })
-
-  if (memberError) {
-    // Best-effort cleanup; suppress secondary failure so the thrown
-    // error reports the original member-insert problem instead of a
-    // confusing delete-fallout one.
-    try {
-      await adminClient.from("organizations").delete().eq("id", orgRow.id)
-    } catch (_cleanupErr) {
-      /* preserve original signal */
+  if (opts.organizationName) {
+    const { error: tenantError } = await adminClient
+      .from("tenants")
+      .update({ name: opts.organizationName })
+      .eq("id", user.tenantId)
+    if (tenantError) {
+      throw new Error(
+        `provisionOrgAtTier: tenant rename failed — ${tenantError.message}`
+      )
     }
-    throw new Error(`provisionOrgAtTier: member insert failed — ${memberError.message}`)
   }
 
-  // current_period_end set to +30d so the gate sees a healthy sub
-  // even when running across midnight UTC.
-  const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-  const { error: subError } = await adminClient.from("organization_subscriptions").insert({
-    organization_id: orgRow.id,
-    stripe_subscription_id: `sub_e2e_${randomUUID().slice(0, 12)}`,
-    stripe_subscription_item_id: `si_e2e_${randomUUID().slice(0, 12)}`,
-    stripe_price_id: `price_e2e_${opts.tier}`,
+  const periodStart = new Date()
+  const periodEnd = new Date(periodStart.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const stripeSuffix = randomUUID().slice(0, 12)
+
+  const { error: subError } = await adminClient.from("subscriptions").insert({
+    tenant_id: user.tenantId,
+    plan_id: plan.id,
+    stripe_subscription_id: `sub_e2e_${stripeSuffix}`,
+    stripe_subscription_item_id: `si_e2e_${stripeSuffix}`,
+    stripe_price_id: `price_e2e_${opts.tier}_${billingInterval}`,
     stripe_product_id: `prod_e2e_${opts.tier}`,
     status,
     plan_tier: opts.tier,
+    billing_interval: billingInterval,
+    seat_count: 1,
     cancel_at_period_end: false,
-    current_period_end: periodEnd,
+    current_period_start: periodStart.toISOString(),
+    current_period_end: periodEnd.toISOString(),
     is_current: true,
   })
 
   if (subError) {
-    try {
-      await adminClient.from("organizations").delete().eq("id", orgRow.id)
-    } catch (_cleanupErr) {
-      /* preserve original signal */
-    }
     throw new Error(`provisionOrgAtTier: subscription insert failed — ${subError.message}`)
   }
 
-  return { id: orgRow.id, name: orgRow.name as string }
+  const { data: tenantRow } = await adminClient
+    .from("tenants")
+    .select("name")
+    .eq("id", user.tenantId)
+    .maybeSingle<{ name: string }>()
+
+  return { id: user.tenantId, name: tenantRow?.name ?? `tenant ${user.tenantId}` }
 }
 
 /**
- * Tear-down counterpart for `provisionOrgAtTier`. Relies on
- * cascading deletes for `organization_members` and
- * `organization_subscriptions`. Errors surface (logged + rethrown)
- * rather than swallowed so leaked fixture data is visible in CI.
+ * Tear-down counterpart for `provisionOrgAtTier`. Deletes the tenant row,
+ * which cascades through subscriptions + memberships. The auth.users row
+ * is owned by `auth.ts::deleteTestUser`.
  */
 export async function deleteTestOrganization(orgId: string): Promise<void> {
-  const { error } = await adminClient.from("organizations").delete().eq("id", orgId)
+  const { error } = await adminClient.from("tenants").delete().eq("id", orgId)
   if (error) {
     // eslint-disable-next-line no-console
-    console.error(`deleteTestOrganization: failed to delete ${orgId}`, error)
-    throw new Error(`deleteTestOrganization: ${error.message}`)
+    console.warn(`deleteTestOrganization: best-effort cleanup of ${orgId} failed: ${error.message}`)
   }
 }

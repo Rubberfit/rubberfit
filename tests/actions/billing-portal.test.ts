@@ -36,6 +36,7 @@ const ACTOR: ActionActor = {
   email: "owner@acme.example",
   roles: ["manager"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 const ORG_ID = "00000000-0000-4000-8000-000000000001"

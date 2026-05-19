@@ -43,6 +43,7 @@ const ACTOR: ActionActor = {
   email: "user@example.com",
   roles: ["member"],
   isSuperAdmin: false,
+  activeTenantId: null,
 }
 
 describe("app/actions/profile.requestSelfDelete", () => {

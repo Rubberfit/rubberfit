@@ -6,8 +6,8 @@ import { FileText } from "lucide-react"
 import {
   type PurchaseOrder,
   type PurchaseOrderWithDetails,
-  type Supplier,
 } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import {
   Select,
   SelectContent,
@@ -27,7 +27,7 @@ const DEFAULT_PAGE_SIZE = 25
 interface POTableProps {
   loading: boolean
   filteredPOs: PurchaseOrderWithDetails[]
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   statusFilter: string
   setStatusFilter: (v: string) => void
   supplierFilter: string
@@ -37,6 +37,7 @@ interface POTableProps {
   onViewPO: (po: PurchaseOrderWithDetails) => void
   onEditPO: (po: PurchaseOrderWithDetails) => void
   onUpdatePOStatus: (poId: string, newStatus: PurchaseOrder["status"]) => Promise<boolean>
+  onReceivePO: (po: PurchaseOrderWithDetails) => void
   onCancelPO: (po: PurchaseOrderWithDetails) => void
   fetchData: () => void
 }
@@ -63,6 +64,7 @@ export function POTable({
   onViewPO,
   onEditPO,
   onUpdatePOStatus,
+  onReceivePO,
   onCancelPO,
 }: POTableProps) {
   const [sort, setSort] = useTableSort({
@@ -90,6 +92,7 @@ export function POTable({
     onView: onViewPO,
     onEdit: onEditPO,
     onUpdateStatus: onUpdatePOStatus,
+    onReceive: onReceivePO,
     onCancel: onCancelPO,
   })
 

@@ -23,10 +23,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
-import {
-  listCutHistory,
-  listFavoriteIds,
-} from "@/src/infrastructure/api-client/cut-history"
+import { listCutHistory, listFavoriteIds } from "@/src/infrastructure/api-client/cut-history"
 import type { CutHistory } from "@/src/infrastructure/models/supabase"
 
 type FetchMock = Mock<(input: string, init?: RequestInit) => Promise<Response>>
@@ -110,28 +107,8 @@ describe("cut-history client — v1/v2 parity", () => {
     }
   })
 
-  it("listCutHistory hits /api/cuts/history with the flag OFF", async () => {
-    const v1Row = makeV1Row()
-    const fetchSpy: FetchMock = vi.fn(
-      async () => new Response(JSON.stringify({ data: [v1Row] }), { status: 200 })
-    )
-    global.fetch = fetchSpy as unknown as typeof fetch
-
-    const rows = await listCutHistory({
-      from: "2026-04-01T00:00:00Z",
-      to: "2026-04-30T23:59:59Z",
-      limit: 50,
-      userId: "user-abc",
-    })
-
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-    const calledWith = fetchSpy.mock.calls[0][0]
-    expect(calledWith.startsWith("/api/cuts/history?")).toBe(true)
-    expect(calledWith).toContain("limit=50")
-    expect(calledWith).toContain("from=2026-04-01")
-    expect(calledWith).toContain("to=2026-04-30")
-    expect(calledWith).toContain("userId=user-abc")
-    expect(rows).toEqual([v1Row])
+  it("listCutHistory throws with the flag OFF (legacyCutHistoryService retired)", async () => {
+    await expect(listCutHistory({ limit: 50 })).rejects.toThrow(/flag-OFF path not wired/)
   })
 
   it("listCutHistory hits /api/v2/cuts/history with the flag ON", async () => {
@@ -184,9 +161,7 @@ describe("cut-history client — v1/v2 parity", () => {
       "updated_at",
     ]
     for (const field of sharedFields) {
-      expect(normalized[field], `field ${String(field)} should match v1`).toEqual(
-        v1[field]
-      )
+      expect(normalized[field], `field ${String(field)} should match v1`).toEqual(v1[field])
     }
     // DTO doesn't carry these — nulls, not undefined, so the UI's
     // nullish-coalesce paths work.
@@ -207,13 +182,8 @@ describe("cut-history client — v1/v2 parity", () => {
     expect(rows[0].cut_date).toBe(dto.created_at)
   })
 
-  it("listFavoriteIds returns v1 id list unchanged with flag OFF", async () => {
-    global.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ data: ["1", "2", "3"] }), { status: 200 })
-    ) as unknown as typeof fetch
-
-    const result = await listFavoriteIds()
-    expect([...result.ids].sort()).toEqual(["1", "2", "3"])
+  it("listFavoriteIds throws with the flag OFF (legacyCutHistoryService retired)", async () => {
+    await expect(listFavoriteIds()).rejects.toThrow(/flag-OFF path not wired/)
   })
 
   it("listFavoriteIds extracts ids from v2 full entries with flag ON", async () => {
@@ -231,7 +201,8 @@ describe("cut-history client — v1/v2 parity", () => {
     expect(fetchSpy.mock.calls[0][0]).toBe("/api/v2/cuts/favorites")
   })
 
-  it("propagates non-2xx errors with status + statusText", async () => {
+  it("propagates non-2xx errors with status + statusText on the v2 path", async () => {
+    process.env.NEXT_PUBLIC_USE_RUST_CUT_HISTORY = "true"
     global.fetch = vi.fn(
       async () => new Response("nope", { status: 500, statusText: "Internal Server Error" })
     ) as unknown as typeof fetch

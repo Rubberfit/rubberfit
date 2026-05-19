@@ -5,11 +5,8 @@ import { addDays, format, parseISO } from "date-fns"
 import { ChevronLeft, X } from "lucide-react"
 import { toast } from "sonner"
 
-import type {
-  MaterialType,
-  PurchaseOrderWithDetails,
-  Supplier,
-} from "@/src/infrastructure/models/supabase"
+import type { MaterialType, PurchaseOrderWithDetails } from "@/src/infrastructure/models/supabase"
+import type { SupplierSnapshot } from "@/src/entities/supplier"
 import { taxService } from "@/src/infrastructure/services/taxService"
 import { updatePurchaseOrder } from "@/app/actions/purchase-orders"
 import { Button } from "@/app/components/ui/button"
@@ -38,7 +35,7 @@ import { mapFormItems, validatePOFormData } from "./po-action-handlers"
 
 interface PoEditDrawerBodyProps {
   po: PurchaseOrderWithDetails
-  suppliers: Supplier[]
+  suppliers: SupplierSnapshot[]
   materialTypes: MaterialType[]
   /** Called after a successful save — drawer closes itself via this. */
   onSaved: () => void | Promise<void>
@@ -150,7 +147,9 @@ export function PoEditDrawerBody({
         shippingAddress: formData.shipping_address,
         billingAddress: formData.billing_address,
         notes: formData.notes,
-        shippingCost: selectedSupplier?.default_shipping_cost,
+        shippingCost: selectedSupplier?.shippingCost
+          ? selectedSupplier.shippingCost.cents / 100
+          : undefined,
         items: mapFormItems(formData.items),
       })
       if (taxCalculation.taxLevel !== "exempt") {
@@ -248,7 +247,10 @@ export function PoEditDrawerBody({
   )
 }
 
-function buildInitialFormData(po: PurchaseOrderWithDetails, suppliers: Supplier[]): POFormData {
+function buildInitialFormData(
+  po: PurchaseOrderWithDetails,
+  suppliers: SupplierSnapshot[]
+): POFormData {
   const defaults = getDefaultFormData()
   const supplier = suppliers.find((s) => s.id === po.supplier_id)
   const supplierAddress = buildSupplierAddress(supplier)

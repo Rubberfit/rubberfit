@@ -1,71 +1,30 @@
-import type { Cut, Roll } from "@/src/infrastructure/models/supabase"
+import type { Cut, CutUpdateProps } from "@/src/entities/cut"
+import type { ProfileId } from "@/src/entities/value-objects/id"
 
-export interface WasteStats {
-  averageWastePercentage: number
-  totalWasteSqft: number
-  totalMaterialUsed: number
-}
-
-export interface WasteTrend {
-  period: string
-  wastePercentage: number
-}
-
-export interface CutRollInfo {
-  material_type: string
-  location: string
-  cost_per_sqft?: number
-  width?: number
-  thickness?: number
-}
-
-export interface CutWithRoll extends Cut {
-  roll?: CutRollInfo
-}
-
-export interface OptimizeCutRequirements {
-  materialType: string
-  width: number
-  length: number
-  quantity: number
-  thickness?: number
-}
-
-export interface OptimizeCutRecommendation {
-  roll: Roll
-  total_length_needed: number
-  material_used_sqft: number
-  waste_sqft: number
-  waste_percentage: number
-  remaining_length_after: number
-  remaining_value_after: number
-  score: number
-}
-
-export interface OptimizeCutResult {
-  recommendations: OptimizeCutRecommendation[]
-  message?: string
-}
-
+/**
+ * Entity-typed cuts service. Thin orchestrator over `ICutsRepository`
+ * — every write path loads the entity, invokes its mutator (which
+ * enforces invariants and stamps audit fields), then persists via
+ * `repo.update`.
+ *
+ * Cross-aggregate concerns (decrementing the parent roll on a new cut,
+ * notifying on completion) belong in a future `IRecordCutUseCase`
+ * orchestrator, NOT here. The redesigned `cuts` row insert is currently
+ * not wired to any production UI surface — the live "record cut" flow
+ * writes to `cut_history` (a separate aggregate) via
+ * `RecordCutUseCase`, which is unrelated.
+ *
+ * Legacy imperial-shape analytics (waste-by-week, growth %, dashboard
+ * cards) live on `legacyCutService` until the dashboard / analytics UI
+ * is migrated to entity-typed reads.
+ */
 export interface ICutService {
-  recordCut(cut: Omit<Cut, "id" | "user_id" | "created_at">): Promise<Cut>
-  getCutHistory(limit?: number): Promise<Cut[]>
-  getCutsByRoll(rollId: string): Promise<Cut[]>
-  getCutsThisWeek(): Promise<Cut[]>
-  getCutsThisMonth(): Promise<Cut[]>
-  getWasteStats(): Promise<WasteStats>
-  getAllCuts(): Promise<Cut[]>
-  getTotalMaterialUsedThisWeek(): Promise<number>
-  getCutsGrowthPercentage(): Promise<number>
-  getCutsByDateRange(from: Date, to: Date): Promise<Cut[]>
-  getMonthlyWastePercentages(): Promise<{ waste_percentage: number }[]>
-  getWasteTrendByWeek(weeks: number): Promise<WasteTrend[]>
-  getWasteImprovementPercentage(): Promise<number>
-  optimizeCut(requirements: OptimizeCutRequirements): Promise<OptimizeCutResult>
-  getCutsByDateRangeWithRolls(
-    from: Date,
-    to?: Date,
-    options?: { ascending?: boolean }
-  ): Promise<CutWithRoll[]>
-  getRecentCutsWithRolls(limit: number): Promise<CutWithRoll[]>
+  getById(id: string): Promise<Cut>
+  getAll(): Promise<Cut[]>
+  getByRoll(rollId: string): Promise<Cut[]>
+  getRecent(limit: number): Promise<Cut[]>
+  getByDateRange(from: Date, to?: Date, opts?: { ascending?: boolean }): Promise<Cut[]>
+
+  updateDetails(id: string, props: CutUpdateProps, actor: ProfileId): Promise<Cut>
+  softDelete(id: string, actor: ProfileId): Promise<Cut>
 }
